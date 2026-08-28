@@ -24,6 +24,7 @@
 //! - `probe_arc293_W2d_positive.wat` (sibling): positive cases — `ThreadSelfPeer'` carrying
 //!   impure I/O type-checks (in-locus); `:wat::program::self-peer` with pure types still type-checks.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 
 // ─── Main probe (compile-time rejection) ──────────────────────────────────────
@@ -38,12 +39,14 @@ use wat::freeze::{startup_beside, startup_from_file};
 #[test]
 fn impure_type_arg_on_wire_peer_is_check_error() {
     let result = startup_beside(file!());
-    assert!(
-        result.is_err(),
-        ":wat::program::self-peer with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
-         a wire Peer'<I,O> carries only pure data; the producer must reject impure type \
-         args). If this assertion fails, the Peer'<I,O> well-formedness gate is missing \
-         from the producer."
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::program::self-peer"
+            && reason == "a wire peer (Peer<I,O>) carries only pure data — type :w2d::S is not \
+                pure (§7 purity wall). If this peer is used only within a thread (in-locus, \
+                shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. \
+                If this peer must cross a process boundary (wire), redesign I/O types to use \
+                records, scalars, or pure enums (no Sender/Receiver/handle fields)."
     );
     let err_str = format!("{}", result.unwrap_err());
     let lower = err_str.to_lowercase();

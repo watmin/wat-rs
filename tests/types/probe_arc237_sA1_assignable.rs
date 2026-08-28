@@ -34,6 +34,7 @@
 //! Wat fixtures: probe_arc237_sA1_assignable_probe{01,02,04,05}.wat (positive),
 //!   probe_arc237_sA1_assignable_probe{03,06}.wat.bad (negative).
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── Probe 1: subtype accepted at a single-arg boundary (site 6386) ───────────
@@ -58,7 +59,13 @@ fn probe_02_subtype_accepted_multi_arg() {
 #[test]
 fn probe_03_directional_rejection() {
     let r = startup_from_file("tests/types/probe_arc237_sA1_assignable_probe03.wat.bad");
-    assert!(r.is_err(), "supertype into subtype slot must remain a type error");
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":my::needs-circle"
+            && param == "#1"
+            && expected == ":my::Circle"
+            && got == ":wat::core::Record"
+    );
 }
 
 // ─── Probe 4: exact-match unchanged (regression) ──────────────────────────────
@@ -78,5 +85,11 @@ fn probe_04_exact_match_ok() {
 #[test]
 fn probe_06_no_edge_rejected() {
     let r = startup_from_file("tests/types/probe_arc237_sA1_assignable_probe06.wat.bad");
-    assert!(r.is_err(), "unrelated record into subtype slot must be a type error (no edge)");
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":my::needs-circle"
+            && param == "#1"
+            && expected == ":my::Circle"
+            && got == ":my::Square"
+    );
 }

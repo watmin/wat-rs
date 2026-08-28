@@ -124,7 +124,18 @@ fn probe_2_value_enum_has_no_tracked_variant() {
 // mechanism is gone; provenance must survive via Environment storing
 // TrackedValue (Option A). If this probe regresses, the structural fix is
 // incomplete.
-
+//
+// Arc 255 Stone E-iv moved `keyword/from-string`'s dispatch route onto the
+// `#[wat_intrinsic]` registry, whose `NativeHandler` signature at the time had no slot for a
+// custom `Provenance`, and this probe was rewritten to assert the resulting `SymbolBound` (the
+// "Unknown promotes to SymbolBound at lookup" branch) with an honest `⚠ REGRESSED` comment.
+// Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning signature (sniffed from the
+// handler's own declared return type, `crates/wat-macros/src/wat_intrinsic.rs`), so
+// `src/intrinsic/keyword.rs`'s `from-string` handler forwards its own
+// `Provenance::RuntimeBuilt` again — `Environment::lookup`'s `RuntimeBuilt => replace with the
+// SAME RuntimeBuilt` arm (`src/value/environment.rs`) now fires instead, so this probe is
+// RESTORED to assert `RuntimeBuilt` survives the let-binding, under the new
+// `:wat::keyword::from-string` spelling.
 #[test]
 fn probe_3_producer_provenance_survives_let_binding() {
     let world = startup_bare().expect("startup");
@@ -152,15 +163,12 @@ fn probe_3_producer_provenance_survives_let_binding() {
     assert!(
         matches!(
             tv.provenance(),
-            Provenance::RuntimeBuilt {
-                producer: ":wat::core::keyword/from-string",
-                ..
-            }
+            Provenance::RuntimeBuilt { producer, .. } if *producer == ":wat::keyword::from-string"
         ),
-        "Stone 233.2.k: producer provenance must survive let-binding via \
-         Environment storing TrackedValue (no Value::Tracked re-wrap). \
-         Expected RuntimeBuilt {{ producer: \":wat::core::keyword/from-string\" }}; \
-         got {:?}",
+        "Stone 233.2.k / arc 255 Stone G: keyword/from-string stamps its own RuntimeBuilt \
+         provenance at construction, and Environment::lookup's RuntimeBuilt arm replaces it with \
+         the SAME RuntimeBuilt (not SymbolBound) at the let-binding reference; expected \
+         Provenance::RuntimeBuilt {{ producer: \":wat::keyword::from-string\", .. }}; got {:?}",
         tv.provenance()
     );
 }

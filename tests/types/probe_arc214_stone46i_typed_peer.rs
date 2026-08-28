@@ -34,6 +34,13 @@
 //!
 //! Run: `cargo nextest run --release -E 'binary(types)' -F probe_arc214_stone46i_typed_peer`
 
+// rune:lint(no-inlined-wat) — arc 296 Stone L. The expected/got strings in this file are
+// golden COMPARISON text for a rendered diagnostic field (a TypeMismatch's `expected`/`got`),
+// never a wat world or driver. They parse as forms only because the checker's error renderer
+// emits real `(Head :- [args])` syntax; nothing here builds or runs a wat program from them,
+// and there is no file a single field of a compound match-guard could move to. Same class and
+// same reason as tests/services/probe_arc170_w2a_kwargs_check_mint.rs:35.
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── Probe 1: the parametric peer type parses ────────────────────────────────
@@ -93,7 +100,12 @@ fn probe_4_wrong_scalar_return_annotation_rejected() {
     let result = startup_from_file(
         "tests/types/probe_arc214_stone46i_typed_peer_probe4.wat.bad",
     );
-    assert!(result.is_err(), "expected startup failure (wrong return type); got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
+            if function == ":user::mk-wrong"
+            && expected == ":wat::core::i64"
+            && got == "(:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])"
+    );
 }
 
 // ─── Probe 5 (LOAD-BEARING NEGATIVE): cross-tier annotation must FAIL ────────
@@ -107,5 +119,10 @@ fn probe_5_cross_tier_annotation_rejected() {
     let result = startup_from_file(
         "tests/types/probe_arc214_stone46i_typed_peer_probe5.wat.bad",
     );
-    assert!(result.is_err(), "expected startup failure (cross-tier annotation); got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
+            if function == ":user::mk-cross"
+            && expected == "(:wat::kernel::Process :- [:wat::core::i64 :wat::core::i64])"
+            && got == "(:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])"
+    );
 }

@@ -59,13 +59,13 @@
          ;; guaranteed the same exclusion structurally ("rewrites for every keyword LEAF");
          ;; a fact-based finder must say so explicitly, because `Named` alone does not.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::string::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::string::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-string-to-string"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::string::"
+                         :value (:wat::rete::string::concat ":wat::string::"
                                   (:wat::rete::string::subs ?n 20
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -78,13 +78,13 @@
          ;; ⚠ KEYWORD ONLY — see :rn::core-string's comment; the same corpus file's Tuple
          ;; carries a rete-prefixed string literal too (`rete-where-per-type-spelling.wat:108`).
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::rete::core::string::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::string::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-string-to-string"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::rete::string::"
+                         :value (:wat::rete::string::concat ":wat::rete::string::"
                                   (:wat::rete::string::subs ?n 26
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -134,9 +134,9 @@
                      row <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
-        [line     (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?line")     "q-match: ?line")
-         col      (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?col")      "q-match: ?col")
-         captures (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?captures") "q-match: ?captures")
+        [line     (:wat::core::Option/expect (:wat::map::get row "?line")     "q-match: ?line")
+         col      (:wat::core::Option/expect (:wat::map::get row "?col")      "q-match: ?col")
+         captures (:wat::core::Option/expect (:wat::map::get row "?captures") "q-match: ?captures")
          old-text (:wat::grep::Capture/value (:rn::first-capture captures))
          new-text (:wat::grep::Capture/value (:rn::second-capture captures))
          start    {:line line     :col col}

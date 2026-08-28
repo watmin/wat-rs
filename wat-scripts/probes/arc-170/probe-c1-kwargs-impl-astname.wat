@@ -21,8 +21,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [impl-kw   (:wat::core::keyword/from-string "probe::work$impl")
-     work-name (:wat::core::keyword/from-string "user::bracket::work-fn")
+    [impl-kw   (:wat::keyword::from-string "probe::work$impl")
+     work-name (:wat::keyword::from-string "user::bracket::work-fn")
      forms     (:wat::kernel::fn-forms impl-kw work-name)
      nforms    (:wat::core::length forms)
      def-node  (:wat::core::Option/expect (:wat::core::get forms (:wat::i64::- nforms 2)) "no define")

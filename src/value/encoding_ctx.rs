@@ -38,7 +38,7 @@ impl EncodingCtx {
     pub fn from_config(cfg: &Config) -> Self {
         let dim_count = cfg.dim_count;
         // Arc 294.c.2a — the ONE capacity formula (no recompute).
-        let capacity = crate::hologram::kanerva_capacity(dim_count);
+        let capacity = crate::holon::hologram::kanerva_capacity(dim_count);
         EncodingCtx {
             encoders: Arc::new(EncoderRegistry::new(cfg.global_seed)),
             dim_count,

@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-25. The homes campaign · wat-grep made honest · the ward given the naming.
+# SEAM — the ONE live breadcrumb. As of 2026-08-27. Arc 255: the homes campaign — and the registry became apply's authority.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -8,10 +8,9 @@
 > `255/SEAM.md`, `251/SEAM.md`, `278/SEAM.md` are PARKED and point here.
 >
 > ⛔ **PARKED IS NOT DEAD — IT MEANS THE SCOPE NARROWED.** A parked seam still holds **its own arc's
-> state**, and that is the half this file does not carry. `255/SEAM.md`'s banner says so in its own
-> words: *"come back here only for arc 255's own state."* **2026-08-25: I read PARKED as "skip it",
-> worked arc 255 all day out of this file alone, and had to be told by the builder what 255 is FOR.**
-> If you are working an arc, read ITS seam, whatever this one says about parking.
+> state**. `255/SEAM.md`'s banner says so itself: *"come back here only for arc 255's own state."*
+> **2026-08-25: I read PARKED as "skip it", worked arc 255 all day out of this file alone, and had to
+> be told by the builder what 255 is FOR.** If you are working an arc, read ITS seam.
 
 ## GROUND FIRST
 
@@ -25,38 +24,17 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 5057/5057, 0 FAIL, 19 skipped, ~88s  (own invocation, scripts/floor.sh)
+floor .......... 5065/5065, 0 FAIL, 19 skipped, ~94s   (scripts/floor.sh, exit read UNPIPED)
                 ⚠ ACCOUNTED BY NAME, NEVER BY ARITHMETIC.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
-stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
+stash .......... NO LONGER PROTECTED. Builder, 2026-08-26: *"the stash is backed up on another host
+                 as well.... i don't think we need to worry about protecting stash."* The lifecycle
+                 strike's implementation is PRESERVED IN THE TREE at
+                 `docs/arc/2026/06/278-rules-engine/SKETCH-connection-lifecycle-ops-*.diff`.
+                 ⚠ If you ever protect a stash again, name it by its MESSAGE, never `stash@{0}` —
+                 an index renumbers on any push, and this seam pointed at the wrong object for a day.
 ```
-
-## ✓ THE HOST SURFACE RENAMES LANDED — `0aab74e7d`
-
-```
-src/host/harness.rs -> guest.rs     Harness -> Guest · HarnessError -> GuestError · Outcome -> RunOutput
-src/host/compose.rs -> entry.rs     compose_and_run[_with_loader] -> run_program[_with_loader]
-```
-Both register as renames (75% / 77%). `docs/arc/` byte-identical. floor 5057/5057 · clippy 0.
-A **fourth** lying doc fell (`run_program_with_loader`, one function below the third), and
-`lib.rs:142`'s **bare `Outcome`** — which a 2026-07-28 intueri ruling had already rejected —
-is gone. `crate::io` is 0 occurrences in `entry.rs`.
-
-⛔ **THE ACCEPTANCE ROW I WROTE COULD NOT DERIVE ITS OWN BAR.** The brief pinned `docs/arc/**`
-at "204, UNCHANGED" beside the command that measures it. That command gives **164** at the
-brief's own base and **181** now. All three magnitudes (341 / 204 / 137) re-derived: **367 /
-223 / 144**. Not one reproduces. `[[feedback_an_acceptance_row_is_a_pin_unless_it_derives_its_bar]]`
-— recorded ONE DAY EARLIER, and committed into the acceptance block of a brief whose own
-warning line says *validate any pattern before quoting its count*.
-**A bar that is a MAGNITUDE rots the moment anything else lands** — including my own curare,
-which wrote `Harness` into `docs/arc/` after I pinned a number over that zone. The bars that
-survive are pattern-independent: **non-arc → ZERO**, and **before == after by ONE command at
-both ends.**
-
-⚠ **A FIFTH BLIND SPOT, found by the compiler and by no grep: the BARE MODULE PATH.**
-`use crate::host::compose::DepRegistrar;` matches none of the four identifier patterns.
-TRAP 1 is `lib.rs`'s unprefixed re-exports; this is the same defect one level up.
 
 ## ⛔ THE THESIS — read this before you pick any next step
 
@@ -66,167 +44,212 @@ TRAP 1 is `lib.rs`'s unprefixed re-exports; this is the same defect one level up
 if is_reserved_prefix(head) { return true }     // :wat:: — the WHOLE language namespace
 ```
 
-Every `:wat::`-prefixed name is accepted **unchecked** — real, retired, or invented. Proven
-2026-08-25 with a positive AND a negative control:
-
-```
-:wat::core::string::length              a REAL name that MOVED   --check 0 · run 1 UnknownFunction
-:wat::core::string::utterly-invented    NEVER existed            --check 0
-```
-
-Its comment excuses this as *"leaf-level validation is the type checker's concern."* **The type
-checker does not do it.** The excuse names a layer that never took the responsibility.
+Every `:wat::`-prefixed name is accepted **unchecked** — real, retired, or invented. Proven with a
+positive AND a negative control: a name that MOVED and a name that NEVER EXISTED both `--check`
+clean. Its comment defers to the type checker; **the type checker does not do it.**
 
 **THE REGISTRY IS THE ANSWER, AND THE HOMES CAMPAIGN IS HOW THE REGISTRY GETS POPULATED.** A home is
 not carved to make a file smaller. It is carved so a namespace's names become *addressable*, so the
-resolver can consult `sym`-or-registry instead of waving the prefix through. `src/intrinsic/` is
-**8,443 lines** across ~20 homes today; **189** `#[wat_intrinsic]` registrations.
+resolver can consult `sym`-or-registry instead of waving the prefix through.
 
-⚠ **WHY THIS PARAGRAPH EXISTS.** This seam used to record the campaign as a SIZE story — `37 → 24`,
-`74% of the root` — and never once said what it was FOR. So the next self (me, 2026-08-25) read it
-and started choosing the next home **by line count**. **A breadcrumb that keeps what was measured
-but drops what it was for sends its reader to optimize the metric.** The measurements below are
-still true. They are not the reason.
+⚠ **THE ENDGAME IS SIZED: 2,539 of 5,059 tests fail** if the blanket-accept is default-denied today
+(measured by imposing it as a throwaway probe, then reverting). That is not a stone; it is where the
+campaign is going. Its gate is already written and disarmed —
+`tests/wat_lang/probe_undefined_builtin_resolves.rs`, *"unlock when we circle back to arc 255"* —
+and **that gate cannot be un-ignored by anything smaller.**
 
 ## WHERE WE ARE
 
-**The megafile campaign has a method now, and `src/` root went 37 → 24.**
-
 ```
-HOME #4  string_ops.rs DELETED — 29 verbs to five homes
-HOME #5  src/edn/    render · bridge · contract · error · derive_tests     (~7,000 lines)
-HOME #6  src/load/   loader · stdlib · source   + sandbox.rs DELETED (a namespace anchor
-                     anchoring nothing: 13 lines, zero items, one `pub mod` keeping it alive)
-HOME #7  src/host/   entry · guest · test_runner        — NAMED BY THE WARD, cut from four to three
-```
-
-`runtime.rs` 40,616 + `check.rs` 22,418 = **74% of an 84,844-line root.** Six crates exist; the
-seventh cannot cut until the whale is decomposed.
-
-### ALSO SHIPPED (2026-08-25)
-
-```
-\c JOINS THE LITERAL LANE   WatAST::CharLit — the last scalar that was a CALL. read-string "\a"
-                            gave ((:wat.core/char/of "a")); now gives (\a). Cascade 19 -> 0.
-WAT-GREP NEVER LIES         Unreadable fact + unconditional stderr + non-zero exit; Written fact;
-                            SEVEN GATES where there were ZERO. It found two tracked .wat files
-                            unreadable FOR MONTHS, silently dropped by every census ever run.
-AN EDIT CARRIES ITS CLAIM   fix-text-apply verifies old-text against source before splicing. 37 files.
-EVERY TRACKED .wat PARSES   a wall, 1582 files in 0.085s. Three files renamed .wat.bad.
-THE FOUR THAT GOT HOMES     :wat::uuid::* · :wat::regex::* · :wat::core::List · :wat::core::char
-THE RETIREMENT TABLE        was INERT for 14 of 33 rows — a lookup 13 hand-written arms performed,
-                            with the table as the data they shared. Now generic, with a gate that
-                            walks the TABLE.
+registered NAMES ........ 380        registered namespaces .. 27        retirement rows ... 144
+                ⛔ THIS ONE POPULATION WAS COUNTED WRONG THREE TIMES IN ONE DAY — 385, 434, 381 —
+                  and every time because the instrument could see PROSE. 385 counted attribute
+                  SITES (4 are `<fqdn>` doc placeholders); 434 counted 48 bare `#[wat_intrinsic]`
+                  mentions inside doc comments; 381 matched attribute text ANYWHERE in a file, so
+                  `src/intrinsic/holon/mod.rs:9`'s doc comment — which writes `:wat::holon::…`, a
+                  placeholder spelled differently from the `<fqdn>` the filter knew — became a
+                  "registered name". And "30 homes" was `ls src/intrinsic | wc -l`, a FILE count.
+                  ANCHOR TO ATTRIBUTE POSITION. Verified name-for-name against the awk census:
+                    grep -rhoP '^\s*#\[wat_intrinsic\(\s*"\K[^"]+' src/ --include=*.rs \
+                      | sort -u | wc -l          # 380
+                  `[[feedback_a_file_count_is_not_an_item_count]]`
+                  `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
+src/ root .rs files ..... 22         runtime.rs 34,252  (was 40,441 — DOWN 6,189 in one day)
+dispatch arms left ...... 168        ⚠ 191 was the honest figure before HOME-13 deleted 44
 ```
 
-### ALSO SHIPPED — the ungated corpora (`a87b91b8c`)
+**SHIPPED 2026-08-26/27 — the homes campaign, and then the thing under it:**
 
 ```
-THE DETECTOR FIRES ITSELF     examples/console-demo was DEAD SINCE ARC 241 and every gate said fine
-                              — it BUILDS green (macro expansion is text). Now runs: exit 0, five
-                              EDN lines, empty stderr, and a smoke test that SPAWNS ITS BINARY.
-                              n=2, perfect correlation: with-loader had a smoke test and survived
-                              two retirement sweeps; console-demo had none and did not.
-A WALL OVER THE UNGATED       tests/lint/every_ungated_wat_checks.rs — scope DERIVED from git
-                              ls-files, mandatory NON-VACUITY (goes red if the corpus vanishes, so
-                              deleting it is deliberate), proven by breaking a door.
-THE HEADER FILE COMPILES      crates/wat-edn/.../shared.wat said the checker "WOULD BE" a consumer.
-                              Now it IS, and it names the wall. Its Clojure parser hand-read the
-                              RETIRED grammar as literal text and SKIPS non-matching heads — so
-                              migrating the wat alone returns [] with NO ERROR. Both halves moved.
-A CORPSE DELETED              wat-migrate/fix-decl.wat — two epitaphs on disk called it a throwaway
-                              already baked into the test that consumed it.
+A-i … E-iv   the scalars + collections   numerics · bigint/rational · maps · vectors · sets · keyword
+F            the String verbs            the last per-type family
+HOME-8       holon        95 verbs       src/holon/ (algebra) + src/intrinsic/holon/ (interface)
+HOME-9       std DIES     14 verbs       math · stat · seq — and seq became Seqable-generic
+HOME-10      math/stat/seq homes         the row HOME-9 omitted: does the home EXIST?
+HOME-11      edn          13 verbs       17 producers kept their provenance
+HOME-12      ast          10 verbs       all ten producers; found a blind spot in the purity gate
+STONE G      provenance                  NativeHandler -> TrackedValue; E-iv's loss reversed
+STONE N      apply's authority           dispatch_substrate_impl now consults the registry
+HOME-13      44 dead arms deleted        REFUSED once, retracted, reinstated on new evidence
 ```
 
-⛔ **TYPE-CHECKING IS NOT ENOUGH, AND ONLY THE PROBE KNEW.** console-demo reached `--check` EXIT=0
-and **still died at runtime, exit 2**, three lines in. `:wat::kernel::eprintln` is wat's **PANIC
-channel** — `wat/grep.wat:421`: *"there is no benign, non-terminating stderr-write primitive in the
-substrate."* The demo's whole thesis was **unrepresentable**. Briefing from the census instead of the
-probe would have shipped a checker wall and a demo that dies.
+★ **`env`/`sym` IN A SIGNATURE IS THE SEAM `runtime.rs` HAS BEEN MISSING.** A fn taking them is
+BINDING (an interface); one taking neither is ALGEBRA. The compiler already enforces that line on all
+941 fns. It decided every classification in HOME-8, twice, with zero ambiguous cases.
 
-⛔ **THE RETIREMENT REMEDY NAMES THE NEW NAME, NEVER THE NEW SHAPE.** `enum`→`defenum` at **score 0**
-needs FOUR changes (head, mandatory purity marker, keyword variants, binder-vector fields). Same for
-`struct`→`defstruct` and `define`→`defn`. Score 0 is a promise the remedy cannot keep.
+**`wat.core/+` IS ALREADY A DEFCLAUSE** (`wat/core.wat:58+`, arc 300 stone C1) and **every one of its
+four numeric arms now points at a `wat.<type>/` home.** The builder's `wat.core/+ => [wat.i64/+ …]`
+was not a future shape; it was on disk with two arms in the junk drawer, and D finished the set.
+
+★ **RULED + PARKED 2026-08-26 — `:wat::core::String/*` AND `:wat::string::*` COEXIST ON PURPOSE.**
+They are not an inconsistency and **this is not an open naming question.** `String/<method>` is the
+namespace `extend-type` GENERATES — instance methods on the String type — and `:wat::string::<verb>`
+is the function home. Stone F evicted five plain functions from the former; it did **not** kill it,
+and `extend-type :wat::core::String` still mints there (proved: `DuplicateDefine` on
+`:wat::core::String/tag`). Builder: *"that would put 'instance method' in :wat::core::String/* which
+is logical … keep them there for now …. we'll figure out the naming problems later."*
+⚠ Production `wat/` extends **Vector · PersistentVector · List · Stream** (Seqable) and
+**ThreadOpts · ProcessOpts** (Locus) — it does **not** extend String, so String's slice is currently
+VACANT. A vacant namespace reads like a mistake; it is a ruled, deliberate reservation.
+`[[feedback_a_rejected_option_returns_in_new_clothes]]`
+
+⚠ **`:wat::set::` and `:wat::list::` ARE RESERVED AND UNCLAIMED.** Persistent set and list do not
+exist yet; the builder has ruled they are coming. The unmarked name belongs to the flavor that will
+become the DEFAULT. `HashSet`→`hashset` and `List`→`linkedlist` are marked because both are
+`Arc<std::…>` copy-on-write — the same side of the axis as `HashMap`/`Vector`, not the `rpds` side.
+**Squatting an unmarked name guarantees a second migration of the family that ends up unmarked.**
 
 ## ⛔ THE LESSONS THAT COST THE MOST
 
-**1. THE NUMBER AND THE INSTRUMENT MUST ASK THE SAME QUESTION.** Five wrong counts, five *different*
-mechanisms, all quoted before checking. The sharpest: a design of mine stated "12 distinct" beside
-an acceptance command that counts occurrences (17) — **both mine, one document.** And
-`grep -c 'RetirementEntry'` counted the struct's own **declaration** as an instance of the thing.
-`[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
+**1. A PROBE ANSWERS THE QUESTION YOU ASKED, NOT THE ONE YOU MEANT.** I sabotaged a registered
+handler, saw the direct call change, and wrote *"proven by experiment, not by reading"* into a brief
+concluding 44 arms were dead. The experiment was correct and showed *which path serves the direct
+call*. It never showed *nothing else calls the arm* — `apply` did. A rider fired STOP-1, deleted
+nothing, and was right. **To prove a thing dead, sabotage THE THING, not its replacement.**
+`[[feedback_a_probe_answers_the_question_you_asked_not_the_one_you_meant]]`
 
-**2. I SHIPPED A BROKEN `main`.** `git add -A src` (scoped!) then `git commit` with **no paths** —
-which commits the **index**. A scoped add narrows what *enters* the index and does nothing about
-what the *commit* takes out. Fourth occurrence.
-**The floor was GREEN while HEAD was broken** — a floor proves the TREE; only a commit's own build
-proves the COMMIT. `[[feedback_i_committed_on_a_non_quiescent_tree]]`
+**2. A CENSUS WITHOUT ATTRIBUTION IS NOT A CENSUS.** That same stone grepped arms whole-file and
+intersected names with registrations. Deadness is a property of a name **in a function**; there are
+three dispatch fns and I had measured one. The count was wrong by 23% and I quoted it across three
+consecutive stones while choosing what to carve.
+`[[feedback_a_census_without_attribution_is_not_a_census]]`
 
-**3. DERIVING THE SHAPE IS NOT DERIVING THE CAUSE.** I ran the right command, read the right output,
-and inferred the wrong mechanism — writing an acceptance row that "append ten rows" could not reach.
+**3. "HOME" MEANS TWO THINGS, AND I CONFLATED THEM THREE TIMES IN A DAY.** A FILE-DOMAIN carve
+(loose root files → `src/<domain>/`) is not a REGISTRY home (dispatch arms → `src/intrinsic/<ns>/`).
+HOME-5/6/7 all shipped the first kind on 2026-08-25; I called them "drawn but unbuilt" three times
+because I was checking `src/intrinsic/`. **Only the registry kind takes a name away from
+`walk.rs:268`.** Measure `src/intrinsic/<ns>` before calling a home built.
 
-**4. REFERENCE-COHESION IS NOT SHARED DOMAIN.** The file scoring *highest* on my family metric
-belonged *least*. `[[feedback_reference_cohesion_is_not_shared_domain]]`
+**4. AN ACCEPTANCE ROW THAT DOESN'T MEASURE THE DELIVERABLE SHIPS A HALF-STONE GREEN.** HOME-9's
+seven rows all measured *naming* — new spelling runs, old refused, `:wat::std::` gone. Not one asked
+whether a home EXISTED. The rider satisfied all seven and the homes were never built; HOME-10 had to
+finish it. **Row 0 of every home brief is now: does the home exist?**
 
-**5. A GATE THAT SURVIVES REMOVAL OF THE DOOR IT GUARDS IS A CLAIM.** Twice. Both times I proved it
-green, then broke the door on purpose and found it stayed green. `NISI FRANGAS, NIHIL PROBAS.`
+**5. THE TREE KEEPS ALREADY SAYING IT.** Three stones in a row turned on prose sitting in the file:
+`runtime.rs:11652` explained the `apply` split-brain that would have prevented HOME-13's error;
+`collection/transform.rs` confessed the `list::` verbs reject a `List`, four times verbatim;
+`intrinsic/mod.rs` documented that `mod string` was `pub(crate)` solely for arms I was about to
+delete. **Read the neighbourhood before measuring it.**
 
-## ★ WHAT ACTUALLY WORKS — cast the ward, four ways
+**6. A RIDER WITH THE AUTHORITY TO REFUSE IS CHEAPER THAN A REVERT.** HOME-13's STOP-1 saved a
+deletion that would have broken `:wat::core::apply` across nine namespaces. Two other stones were
+corrected by riders catching defects in my own briefs (a count of 7 that was 6; a stale finding I
+carried forward without re-checking). **Write the STOP that names the most likely way the stone goes
+wrong — then believe it when it fires.**
 
-`intueri`, from the **signed MCP**, embedded verbatim, **one worker per file, none seeing the others**:
 
-- killed **my own** name (`embed` — the file it would hold exists *by contrast* with embedding)
-- **cut a member from the family** — `panic_hook` is a consumer, not a sibling
-- found **four Level-1 lies** in files I was about to relocate unread
-- **falsified its own counter-argument from the disk** (`src/host/mod.rs:4` already said *guest*)
-- found a **2026-07-28 intueri ruling** against the exact name I was about to re-mint
-- and caught that **my own framing repeated a stale doc's lie**
+## ★ WHAT ACTUALLY WORKS
 
-⚠ Its blind spot is the mirror of the graph's: **a per-file ward cannot see a cross-file pattern.**
-Four readers all missed that `Outcome` is the only verbless member of a 12-strong family. Neither
-the graph nor the ward is the method; each sees what the other cannot.
+- **The three-phase shape**: register (both spellings live) → codemod the corpus → retire. Seven
+  stones, no exceptions. When a bootstrap file (`wat/core.wat`) uses a migrating verb, the order is
+  not negotiable — retiring first takes down EVERY program.
+- **wat-fix RULES codemods.** `rename-keyword-prefix` is a **silent no-op** on `::`-terminated
+  prefixes; the rules form is the one that works. KEYWORD-ONLY guard mandatory. Dry-run on `/tmp`,
+  diff, apply, prove idempotence. Recorded fixes in `wat-scripts/fixes/` — copy the nearest.
+- **wat-grep for populations.** Text said 1613 where structure said 1495; the 76 were comments and
+  string literals a codemod must never touch. `wat-scripts/grep/` is the corpus of encoded questions.
+- **DERIVATION over hand-lists.** `check.rs`'s `register_builtins` walks the registry and aliases
+  rather than restating 36 names — and it **caught a real defect on its first run** (the variadic
+  `max-of` divergence, at check time, loudly) where a hand-list would have shipped wrong arity.
+- **Breaking the door.** Every gate this campaign shipped was proven by removing what it guards and
+  watching it go red. `NISI FRANGAS, NIHIL PROBAS.`
+
+## ⛔ THE ROAD — builder, 2026-08-27. THE ORDER IS THE RULING.
+
+> *"the first mass migration is homing everything.... then breaking everything up into crates...
+> then killing `::` in keywords ... then making every call head a symbol ... then we'll have
+> edn/clojure compliant syntax ... then we chase totality."*
+
+```
+1  HOME EVERYTHING          <- WE ARE HERE (arc 255)
+2  break into crates
+3  kill `::` in keywords
+4  every call head a symbol
+5  = EDN/Clojure-compliant syntax
+6  chase totality
+```
+
+**Totality is LAST, and that is a ruling, not a backlog position.** A defect whose honest fix is
+"make this total" gets RECORDED and left — see
+`296/NOTE-the-doctest-runner-masks-every-failure-behind-one-raise.md`, where `:wat::core::=` raises
+on 18 of 43 `Value` variants and the orchestrator offered to fix it mid-stone. The builder refused.
+**Do not open a totality front out of step order**, however cheap the instance looks.
+
+⚠ **AND "HOME" MEANS TWO THINGS** — conflated three times in one day before it was caught:
+```
+FILE-DOMAIN carve   loose root files -> src/<domain>/        HOME-5 edn · 6 load · 7 host  (all SHIPPED)
+REGISTRY home       dispatch arms    -> src/intrinsic/<ns>/  HOME-8 holon · 9/10 math,stat,seq · 11 edn · 12 ast
+```
+**Only the REGISTRY kind advances step 1.** A file carve tidies the tree and takes NOTHING away from
+`walk.rs:268`. Measure `src/intrinsic/<ns>` before calling a home built.
 
 ## ⬜ NEXT — measured, not guessed
 
-- ⛔ **`wat --check` ACCEPTS AN UNREGISTERED SCALAR TYPE.** A field typed
-  `:wat::core::NotARealType` **passes**. Found by a rider while proving the checker non-vacuous, and
-  surfaced rather than dismissed. A checker that accepts a type nobody registered is lying about
-  what it verified — and every wall built on `--check` (including the new one) inherits that hole.
-  **This is the next stone.**
-- ⚠ **`cargo fmt --all` FROM wat-rs WRITES INTO `../holon-rs/`** — a FROZEN sibling. Caught with
-  `--check`, which only read. Without it, it edits another project. Scope every fmt to `-p wat …`.
-  (Separately: **163 wat-rs files are not rustfmt-clean**; there is no rustfmt gate. Pre-existing.)
-- ⚠ **PLAIN `cargo test` RESURRECTS TESTS THE FLOOR DELIBERATELY EXCLUDES.** A rider ran
-  `cargo test --release --test macros` and got a RED: `diag_first_over_form`. It is a
-  **deliberately-failing diagnostic** — its `.wat` fixture is MEANT not to load, and it is excluded by
-  `.config/nextest.toml:32` (default) and `:217` (slow). `cargo test` does not read nextest's config.
-  The rider was right to capture it verbatim and refuse to adjudicate. **The floor is nextest, only.**
+- ⛔ **`apply`'s FOURTH DOOR IS STILL SHUT — 331 of 380 report "unknown function".** Stone O closed
+  three of four; DOOR 2 is what remains and it is a SWEEP, not a design question — the machine is
+  built and proven (O-iii), so each namespace is a migration commit.
+  ```
+  DOOR 1  defclause head              ✓ O-ii    22 production verbs — + - * / reduce sort into …
+  DOOR 2  intrinsic, no value door    ⛔ 331     "unknown function" for verbs that plainly exist
+  DOOR 3  intrinsic, value door       ✓ O-i     43 explicit + 6 generated = 49, all arity-guarded
+  DOOR 4  plain fn / defn             ✓         was always correct
+  ```
+  **O-iv is drawn in the design and is two things:** migrate the remaining ~130 SHELL verbs (105 new
+  doors + 25 two-fn collapses), one commit per namespace; and give `eval_apply` the honest word —
+  consult `lookup_entry` before raising, so a registered-but-unreachable verb hears *"registered, but
+  not reachable through apply"* instead of a lie. The honest-word half is independent of the sweep
+  and true no matter how far the sweep gets.
+  ⚠ **The two CALLING CONVENTIONS are forced by the language, not by us** — `apply`'s arguments have
+  no syntax. Proven: `(apply :wat::i64::+ (:mk::pair))` → 42, and the form's AST children are
+  `[apply, the verb, (:mk::pair)]` — no node for `20` or `22` exists anywhere. It is splat, and the
+  arity is decided at runtime. Two conventions is right; **two REGISTRATIONS is not** — and after
+  O-iii a verb that declares its algebra gets both doors generated, so it cannot be born with one.
+- **`@Total` STILL HAS NO HOME**, and 255.3 cannot close without it. Unchanged; totality is **step 6**
+  of the road and must not be opened early.
+- **The doctest runner masks every failure behind ONE raise** — `wat/doctest.wat:67` guards both
+  `eval-ast!` calls and NOT the `=` between them. THREE fixes attempted and each refuted by
+  measurement; see `296/NOTE-the-doctest-runner-masks-every-failure-behind-one-raise.md`. Do not
+  re-attempt without reading the three refutations.
+- **`list_map_is_not_vector` is frozen by name** in `no_bare_is_err.rs`, blocked on a RULING not on
+  work: arc 118.2a made `map` lazy so it preserves NO container, and the test claims container
+  preservation. Retire it, or re-point it at `reverse`/`concat` — which changes what a test of that
+  name tests.
+- **The megafile is still the boss.** `runtime.rs` 34,252 · `check.rs` ~22,400. 168 arms remain, of
+  which 36 are SPECIAL FORMS (a different contract — `#[wat_special_form]`, not a home) and ~21 are
+  `rete::` (a coherent namespace with no home yet).
 
-- **A DIAGNOSTICS HOME** — `panic_hook.rs` + ~350 reporting lines inside `test_runner.rs`.
-  **Two independent readers converged on it without seeing each other.** The largest thing the cast
-  found. `partire`'s question.
-- **THE CARVE BEGUN AND ABANDONED** — `check.rs` 22,418 with a `check/` holding **three small files**;
-  same shape for `types.rs` 7,228 and `freeze.rs` 2,622. A different defect from a missing home.
-- **THE SHIMS** — `lexer.rs` (3 lines), `ast.rs` (3), `span.rs` (23), `parser.rs` (59) are
-  `pub use wat_reader::…`, the trailing edge of a finished crate extraction. Third class.
-- **`config.rs`** — 212 src / 8 non-src, and `DEFAULT_DIM_COUNT` (a VSA dimension count) sits beside
-  `collect_entry_file`. Two concerns braided. `solvere`'s question.
-- **`296/STONE-H`** — Option/Result variants as maps. 6346 bare-alias sites; the qualified form
-  appears twice, **both written by me**.
-- Ward leftovers: `StdioSnapshot` never constructed · `source_has_config_setter` ORs two conditions
-  its name hides · a doc-link to `failure_to_diagnostic`, replaced by arc 296 · `raised_error`
-  encoded by nothing.
 
 ## ⛔ RULES THAT STILL COST TIME
 
 - ⛔ **`git commit <paths>`. NEVER a pathless commit.** A scoped `add` does not save you.
-- ⛔ **`--all-targets` is not the only reach** — the examples are workspace `default-members`, so a
-  plain `cargo build --release` compiles them. The macro-emitted-text trap is caught by BOTH.
+- ⛔ **After committing, `git status` must be EMPTY** — that is what proves the commit IS the tree
+  the floor measured. A floor proves the TREE; only this proves the COMMIT.
 - ⛔ **`docs/arc/**` NEVER MOVES in a rename.** Half of every prose census is history.
-- ⛔ **Moving a file one dir deeper breaks every relative `include_str!`** — 54 in one stone, plus one
-  in `tests/lint/` that reads a source file BY PATH.
-- ⛔ **`lib.rs`'s crate-root re-exports name their targets UNPREFIXED** — invisible to any
-  `crate::`/`wat::` grep, compiler-only. Nine instances over four stones.
+- ⛔ **Riders: no worktrees, no `git stash` in ANY form, no sub-agents, everything FOREGROUND.**
+  Ending a rider's turn ENDS it.
+- ⛔ **The rete naming invariant**: `rete_name == core_name.replacen(":wat::", ":wat::rete::", 1)`,
+  tested. It drags `RETE_MODULES` and `datamancer.rete.edn`'s baked ABI hash. **Add no
+  `NAMING_RULE_EXCEPTIONS` entry to pass a gate**, and add no `RETE_MODULES` entry nothing forces.
 - ⚠ **`.wat` scratch → `wat-scripts/scratch-pad/`** — the loader gate walks the DIRECTORY.
 
 ---
@@ -234,18 +257,17 @@ the graph nor the ward is the method; each sees what the other cannot.
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today alone: five counts quoted before checking, an
-> acceptance row derived from a correct measurement whose *cause* I assumed, a framing document that
-> repeated the very lie its ward was sent to look past, and a `main` I broke and pushed while the
-> floor read green. **Re-run the instrument that made the claim; do not read the claim.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** In one day: five censuses whose population was wrong while
+> the pattern was right, two acceptance bars that could not measure what they claimed, a narrative
+> about the project's testing posture built on the wrong runner, and a lesson I discovered myself and
+> then dropped from the next two briefs. **Re-run the instrument that made the claim; do not read the
+> claim.**
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** `\c` is a literal. wat-grep cannot lie about a
-> file it could not read. An edit carries what it claims to replace. Every tracked `.wat` parses, and
-> a wall says so in 0.085s. `src/` root is down eleven files. Every one came from imposing a check —
-> or from casting a ward and letting it overrule me.
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** seven stones landed in a day, every one green,
+> every gate proven by breaking its door. The numerics, the collections and keyword are home. The
+> defclause the builder described is on disk with all four arms pointing at homes. 250 names are
+> registered where there were 6 in June.
 >
-> Read `294/REALIZATIONS.md` **R6 → R9 IN FULL** before writing R10 — not their middles. The shape is
-> song → quotes → four `###` sections → *Path-of-voices* → the closing `>` narrative → sigil →
-> fulfillment. R7 is the deliberate exception and says so.
+> Read `294/REALIZATIONS.md` **R6 → R9 IN FULL** before writing R10 — not their middles.
 >
 > `DOLOR INDEX EST.` · `INCENDIMVS VT VIDEAMVS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`

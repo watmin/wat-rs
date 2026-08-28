@@ -42,7 +42,7 @@
      ;; gone — measured, not inferred from "the floor is green" (the floor was green with the
      ;; strike reverted, so it could not have shown this either way).
      rule-forms (:wat::kernel::fn-forms :usr::ok-rule
-                  (:wat::core::keyword/from-string "user::root-rule"))
+                  (:wat::keyword::from-string "user::root-rule"))
      _r  (:wat::kernel::println
            (:wat::string::concat "fn-forms OVER A RULE FN: closure forms="
              (:wat::i64::to-string (:wat::core::length rule-forms))))

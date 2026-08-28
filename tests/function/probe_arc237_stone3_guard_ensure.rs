@@ -48,8 +48,9 @@
 //!   probe_arc237_stone3_p12.wat.bad, probe_arc237_stone3_p13.wat.bad.
 //! Runtime-error fns in main fixture: :user::probe-02-err, :user::probe-07-err.
 
-use wat::freeze::{startup_beside, startup_from_file};
-use wat::runtime::{apply_function, Value};
+use wat::check::error::{CheckErrorKind, EnsureFnInvalidReason};
+use wat::freeze::{startup_beside, startup_from_file, StartupError};
+use wat::runtime::{apply_function, ClauseFailureReason, RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
 // fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
@@ -84,8 +85,20 @@ fn probe_02_guard_false_no_match_runtime_error() {
     // :guard false on the only clause → NoMatchingClause at RUNTIME (startup succeeds).
     let result = try_run(":user::probe-02-err");
     assert!(
-        result.is_err(),
-        ":guard false on the only clause should raise NoMatchingClause; got Ok",
+        matches!(
+            &result,
+            Err(e) if matches!(
+                e.kind(),
+                RuntimeErrorKind::NoMatchingClause { name, called_arity, attempted_clauses, .. }
+                    if name == ":p02::pick"
+                    && *called_arity == 1
+                    && attempted_clauses.len() == 1
+                    && attempted_clauses[0].clause_index == 0
+                    && matches!(&attempted_clauses[0].failure_reason, ClauseFailureReason::GuardFalse)
+            )
+        ),
+        ":guard false on the only clause should raise RuntimeErrorKind::NoMatchingClause{{name: \":p02::pick\", clause 0: GuardFalse}}; got {:?}",
+        result
     );
 }
 
@@ -113,9 +126,11 @@ fn probe_04_factorial_demo_via_guards() {
 fn probe_05_guard_non_boolean_errors_at_check() {
     // :guard must produce :bool. An :i64 expression should fail type-check.
     let result = startup_from_file("tests/function/probe_arc237_stone3_p05.wat.bad");
-    assert!(
-        result.is_err(),
-        ":guard returning :i64 (not :bool) should fail type-check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::GuardExprNotBoolean { defclause_name, clause_index, got_type }
+            if defclause_name == ":my::bad"
+            && *clause_index == 0
+            && got_type == ":wat::core::i64"
     );
 }
 
@@ -131,8 +146,18 @@ fn probe_07_ensure_false_raises_postcondition() {
     // :ensure false (result -5 not > 0) → postcondition error at RUNTIME (startup succeeds).
     let result = try_run(":user::probe-07-err");
     assert!(
-        result.is_err(),
-        ":ensure false (result -5 not > 0) should raise postcondition error; got Ok",
+        matches!(
+            &result,
+            Err(e) if matches!(
+                e.kind(),
+                RuntimeErrorKind::PostconditionFailed { defclause_name, clause_index, returned_value, .. }
+                    if defclause_name == ":p07::positive"
+                    && *clause_index == 0
+                    && returned_value.rendered == "-5"
+            )
+        ),
+        ":ensure false (result -5 not > 0) should raise RuntimeErrorKind::PostconditionFailed{{defclause: \":p07::positive\", clause 0, returned -5}}; got {:?}",
+        result
     );
 }
 
@@ -141,9 +166,11 @@ fn probe_07_ensure_false_raises_postcondition() {
 fn probe_08_ensure_fn_wrong_arity_errors_at_check() {
     // :ensure :fn must be 1-arity. 2-arity should reject at type-check.
     let result = startup_from_file("tests/function/probe_arc237_stone3_p08.wat.bad");
-    assert!(
-        result.is_err(),
-        ":ensure :fn with arity 2 should fail type-check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::EnsureFnInvalid { defclause_name, clause_index, reason }
+            if defclause_name == ":my::bad"
+            && *clause_index == 0
+            && matches!(reason, EnsureFnInvalidReason::ArityNotOne { got } if *got == 2)
     );
 }
 
@@ -152,9 +179,15 @@ fn probe_08_ensure_fn_wrong_arity_errors_at_check() {
 fn probe_09_ensure_fn_arg_type_mismatch_errors_at_check() {
     // :ensure :fn's arg type must match the clause's declared return type.
     let result = startup_from_file("tests/function/probe_arc237_stone3_p09.wat.bad");
-    assert!(
-        result.is_err(),
-        ":ensure :fn arg type :String != declared return :i64; should fail type-check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::EnsureFnInvalid { defclause_name, clause_index, reason }
+            if defclause_name == ":my::bad"
+            && *clause_index == 0
+            && matches!(
+                reason,
+                EnsureFnInvalidReason::ArgTypeMismatch { arg_type, clause_return_type }
+                    if arg_type == ":wat::core::String" && clause_return_type == ":wat::core::i64"
+            )
     );
 }
 
@@ -162,9 +195,11 @@ fn probe_09_ensure_fn_arg_type_mismatch_errors_at_check() {
 #[test]
 fn probe_10_ensure_fn_return_not_bool_errors_at_check() {
     let result = startup_from_file("tests/function/probe_arc237_stone3_p10.wat.bad");
-    assert!(
-        result.is_err(),
-        ":ensure :fn return :i64 (not :bool); should fail type-check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::EnsureFnInvalid { defclause_name, clause_index, reason }
+            if defclause_name == ":my::bad"
+            && *clause_index == 0
+            && matches!(reason, EnsureFnInvalidReason::ReturnTypeNotBool { got } if got == ":wat::core::i64")
     );
 }
 
@@ -184,9 +219,13 @@ fn probe_11_full_shape_guard_and_ensure() {
 fn probe_12_multiple_guards_rejected() {
     // ONE :guard per clause; multiple should reject.
     let result = startup_from_file("tests/function/probe_arc237_stone3_p12.wat.bad");
-    assert!(
-        result.is_err(),
-        "multiple :guard in same clause should reject; got Ok",
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::defclause"
+                && reason == "defclause clause has multiple `:guard` keywords — only one `:guard` per clause is permitted (compose multiple conditions with :and)"
+        )
     );
 }
 
@@ -195,9 +234,13 @@ fn probe_12_multiple_guards_rejected() {
 fn probe_13_keyword_order_violation_rejected() {
     // Order fixed: args → :guard? → :ensure? → body. :ensure BEFORE :guard is illegal.
     let result = startup_from_file("tests/function/probe_arc237_stone3_p13.wat.bad");
-    assert!(
-        result.is_err(),
-        ":ensure before :guard (order violation) should reject; got Ok",
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::defclause"
+                && reason == "defclause clause has `:guard` after `:ensure` — fixed order is: args → :guard? → :ensure? → body"
+        )
     );
 }
 

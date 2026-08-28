@@ -74,7 +74,7 @@
 (:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::PersistentVector/conj acc (:dc::build-rule k)))
+      (:wat::vector::conj acc (:dc::build-rule k)))
     (:wat::core::PersistentVector (:dc::build-rule 1))
     (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
@@ -84,8 +84,8 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj
-        (:wat::core::PersistentVector/conj acc (:cascade::Node :level 0 :id i))
+      (:wat::vector::conj
+        (:wat::vector::conj acc (:cascade::Node :level 0 :id i))
         (:cascade::Tag :level 0 :id i)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 width)))
@@ -112,12 +112,12 @@
 (:wat::core::defn :dc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
     [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dc::enc 0 (:cascade::Node/level f) (:cascade::Node/id f))))
-            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Node/level f) 0)))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::enc 0 (:cascade::Node/level f) (:cascade::Node/id f))))
+            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Node/level f) 0)))
               (:wat::rete::query fired (:cascade::q-Node)))))
      c1 (:wat::core::into c0
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dc::enc 1 (:cascade::Tag/level f) (:cascade::Tag/id f))))
-            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Tag/level f) 0)))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::enc 1 (:cascade::Tag/level f) (:cascade::Tag/id f))))
+            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Tag/level f) 0)))
               (:wat::rete::query fired (:cascade::q-Tag)))))]
     c1))
 

@@ -20,6 +20,7 @@
 //!
 //! Run: cargo test --release --test probe_arc237_8c_equality_grid
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -67,7 +68,13 @@ fn regression_cross_numeric_now_type_checks() {
 #[test]
 fn regression_cross_type_is_check_error() {
     let r = startup_from_file("tests/types/probe_arc237_8c_equality_grid_cross_type.wat.bad");
-    assert!(r.is_err(), "cross-type `=` must be a check error");
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::="
+            && param == "#2"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::String"
+    );
 }
 
 // Stone 237.8d — the per-Type alias mint tests (`:f64::=` / `:f64::not=`) were

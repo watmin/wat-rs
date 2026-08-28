@@ -10,7 +10,7 @@
 ;; Condition: a Temp whose :value binds ?t and must be > 20.
 ;; MATCH: 25 binds ?t and 25 > 20 holds → Some({"?t": 25}); PersistentMap/get "?t" → Some(25).
 (:wat::core::defn :user::match-binds-and-constrains [] -> (:wat::core::Option :- [:wat::core::i64])
-  (:wat::core::PersistentMap/get
+  (:wat::map::get
     (:wat::core::Option/expect
       (:wat::rete::alpha-match
         (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))

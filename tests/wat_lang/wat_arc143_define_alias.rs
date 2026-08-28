@@ -15,6 +15,7 @@
 //!   3. Alias an unknown target — the native form registers a stub; the HARD CUT
 //!      for :wat::runtime::define-alias fires with a retirement remedy.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -47,9 +48,10 @@ fn define_alias_length_to_user_size_delegates_correctly() {
 #[test]
 fn define_alias_retired_form_rejected_at_startup() {
     let result = startup_from_file("tests/wat_lang/wat_arc143_define_alias_retired.wat.bad");
-    assert!(
-        result.is_err(),
-        "expected startup to fail for retired :wat::runtime::define-alias form; got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::runtime::define-alias"
+            && reason == "':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead"
     );
     // Verify the error message names the retired form and the remedy.
     let err_msg = format!("{}", result.unwrap_err());

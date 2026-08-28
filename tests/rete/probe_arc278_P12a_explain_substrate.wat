@@ -56,7 +56,7 @@
 
 ;; 2. INDEX POPULATED — the support map has one entry per derived fact: ColdAndWindy + WeatherAlert = 2.
 (:wat::core::defn :user::support-index-length [] -> :wat::core::i64
-  (:wat::core::PersistentMap/length (:wat::rete::Explained/support (:test::explain-oslo))))
+  (:wat::map::length (:wat::rete::Explained/support (:test::explain-oslo))))
 
 ;; 3. CHAINS CAPTURED — each entry's producing token carries its real `matches` support chain. Sum of chain
 ;; lengths over all support entries: ColdAndWindy's token has 2 edges (Temperature, WindSpeed), WeatherAlert's
@@ -68,8 +68,8 @@
       (:wat::i64::+ acc
         (:wat::core::length (:wat::rete::Token/matches (:wat::rete::Support/token sv)))))
     0
-    (:wat::core::PersistentMap/values (:wat::rete::Explained/support (:test::explain-oslo)))))
+    (:wat::map::values (:wat::rete::Explained/support (:test::explain-oslo)))))
 
 ;; 4. ORACLE SIGIL — fire-rules-explain$oracle matches native support cardinality.
 (:wat::core::defn :user::support-index-length-oracle [] -> :wat::core::i64
-  (:wat::core::PersistentMap/length (:wat::rete::Explained/support (:test::explain-oslo-oracle))))
+  (:wat::map::length (:wat::rete::Explained/support (:test::explain-oslo-oracle))))

@@ -6,13 +6,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_first_bare_accessors
 
-use wat::freeze::startup_from_file;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 
-fn run_file(path: &str) -> Result<Value, String> {
-    let w = startup_from_file(path).map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let func = w.symbols().get(":p::f").ok_or_else(|| "no :p::f".to_string())?.clone();
-    apply_function(func, vec![], w.symbols(), wat::rust_caller_span!()).map_err(|e| format!("eval: {e:?}"))
+fn run_file(path: &str) -> Result<Value, StartupError> {
+    let w = startup_from_file(path)?;
+    // Arc 296 Stone M: "no :p::f" is a fixture/test-authorship bug, not a StartupError-worthy
+    // pipeline failure — mirrors `call_beside_value`'s own panic for the identical condition.
+    let func = w.symbols().get(":p::f").unwrap_or_else(|| panic!("no :p::f")).clone();
+    apply_function(func, vec![], w.symbols(), wat::rust_caller_span!()).map_err(StartupError::from)
 }
 
 /// BARE usage: the accessor's result is returned directly as `T` (no `Option/expect`). RED at HEAD.
@@ -54,6 +56,17 @@ fn first_tuple_still_bare() {
 /// raise; at HEAD it's a type error — either way an Err, so this asserts the post-flip contract.
 #[test]
 fn first_empty_raises() {
-    let r = run_file("tests/types/probe_first_bare_accessors_first_empty.wat");
-    assert!(r.is_err(), "first on empty must NOT yield a value (raise); got {r:?}");
+    // Bypasses `run_file` (which formats the error to a bare String) — `--check` on the
+    // co-located fixture passes clean (exit 0), so the failure is a RUNTIME raise, and the
+    // discriminant needs the structured `RuntimeError` (arc 296 Stone L).
+    let w = startup_from_file("tests/types/probe_first_bare_accessors_first_empty.wat")
+        .expect("fixture should type-check clean (first-on-empty is a runtime raise, not a check error)");
+    let func = w.symbols().get(":p::f").expect("no :p::f").clone();
+    let r = apply_function(func, vec![], w.symbols(), wat::rust_caller_span!());
+    assert!(
+        matches!(&r, Err(e) if matches!(e.kind(), RuntimeErrorKind::MalformedForm { head, reason }
+            if head == ":wat::core::first"
+            && reason == ":wat::core::first: sequence has 0 element(s); no element at index 0")),
+        "first on empty must NOT yield a value (raise); got {r:?}"
+    );
 }

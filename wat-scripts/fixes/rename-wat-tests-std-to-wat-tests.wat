@@ -19,10 +19,12 @@
 ;; that shares it (`::test-assert-eq-on`, `::test-run-ast-via-program`, …). Nothing
 ;; else in the corpus carries `::std::`, so the rewrite cannot over-reach.
 ;;
-;; NOT to be confused with `:wat::std::` — that namespace is ALIVE (`list::zip`,
-;; `math::ln`, `stat::mean`, … ~17 verbs registered in src/collection/ and consumed by
-;; wat/holon/*.wat). This codemod does not touch it: the prefix here begins
-;; `:wat-tests::`, which is disjoint from `:wat::`.
+;; NOT to be confused with `:wat::std::` — at the time this codemod ran (2026-07-28) that
+;; namespace was still ALIVE (`list::zip`, `math::ln`, `stat::mean`, … ~14 verbs registered in
+;; src/collection/ and src/runtime.rs, consumed by wat/holon/*.wat). Arc 255 Stone HOME-9
+;; (2026-08-27) finally retired it (`math`/`stat`→their own namespaces, three `list::` verbs→
+;; `:wat::seq::`, `map-with-index` deleted) — a gravestone, not an update: this codemod's own
+;; prefix here begins `:wat-tests::`, disjoint from `:wat::`, so nothing above needed re-running.
 ;;
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["wat-tests/test.wat" "wat-tests/run-thread.wat" "wat-scripts/fixes/kill-make-deftest.wat"]\n' \

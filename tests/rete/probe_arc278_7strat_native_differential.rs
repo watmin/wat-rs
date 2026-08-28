@@ -16,19 +16,41 @@
 //! Run: cargo test --release -p wat --test rete probe_arc278_7strat_native_differential
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 /// Call the named entry fn and return its first `n` per-type counts. All wat lives in the `.wat`.
-fn run_counts(entry: &str, n: usize) -> Result<Vec<i64>, String> {
-    let out = call_beside_value(file!(), entry).map_err(|e| format!("eval: {e:?}"))?;
+fn run_counts(entry: &str, n: usize) -> Result<Vec<i64>, RuntimeError> {
+    let out = call_beside_value(file!(), entry)?;
     match &out {
         Value::wat__core__PersistentVector(v) => (0..n)
             .map(|i| match v.get(i) {
                 Some(Value::i64(x)) => Ok(*x),
-                other => Err(format!("slot {i}: expected i64; got {other:?}")),
+                Some(other) => Err(RuntimeError::new(
+                    wat::rust_caller_span!(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: format!("run_counts({entry}) slot {i}"),
+                        expected: "i64",
+                        got: Box::new(ValueSnapshot::of(other)),
+                    },
+                )),
+                None => Err(RuntimeError::new(
+                    wat::rust_caller_span!(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: format!("run_counts({entry}) slot {i}"),
+                        expected: "i64",
+                        got: Box::new(ValueSnapshot::described("slot", "missing (index out of range)".into())),
+                    },
+                )),
             })
             .collect(),
-        other => Err(format!("expected PV; got {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: format!("run_counts({entry})"),
+                expected: "PersistentVector",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )),
     }
 }
 

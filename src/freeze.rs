@@ -479,7 +479,7 @@ fn validate_holon_record_capacity(types: &TypeEnv, ctx: &EncodingCtx) -> Result<
             if a.nature == crate::types::Nature::HolonRecord {
                 let field_count = a.fields.len();
                 if let Some((cost, budget)) =
-                    crate::runtime::bundle_capacity_verdict(field_count, ctx)
+                    crate::holon::bundle_capacity_verdict(field_count, ctx)
                 {
                     return Err(TypeError::new(
                         crate::rust_caller_span!(),
@@ -542,8 +542,8 @@ impl FrozenWorld {
         // Arc 037 slice 6: install built-in default sigma functions.
         // User overrides via set-presence-sigma! / set-coincident-sigma!
         // replace these below.
-        symbols.set_presence_sigma_fn(Arc::new(crate::sigma::DefaultPresenceSigma));
-        symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::DefaultCoincidentSigma));
+        symbols.set_presence_sigma_fn(Arc::new(crate::holon::sigma::DefaultPresenceSigma));
+        symbols.set_coincident_sigma_fn(Arc::new(crate::holon::sigma::DefaultCoincidentSigma));
 
         // Install user-supplied presence-sigma function if present.
         if let Some(sigma_ast) = config.presence_sigma_ast.clone() {
@@ -576,7 +576,7 @@ impl FrozenWorld {
                     FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
                 },
             };
-            symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn { path, func }));
+            symbols.set_presence_sigma_fn(Arc::new(crate::holon::sigma::WatFnSigmaFn { path, func }));
         }
 
         // Install user-supplied coincident-sigma function if present.
@@ -610,7 +610,7 @@ impl FrozenWorld {
                     FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
                 },
             };
-            symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn { path, func }));
+            symbols.set_coincident_sigma_fn(Arc::new(crate::holon::sigma::WatFnSigmaFn { path, func }));
         }
 
         // Arc 157 slice 1a-ii — evaluate top-level `def` forms in the

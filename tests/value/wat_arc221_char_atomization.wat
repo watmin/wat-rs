@@ -29,27 +29,27 @@
 (:wat::core::defn :t::p2-a-val [] -> :wat::core::i64
   (:wat::core::let
     [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
-     tally2  (:wat::core::HashMap/assoc tally \a 3)
-     tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-    (:wat::core::match (:wat::core::HashMap/get tally3 \a) 
+     tally2  (:wat::hashmap::assoc tally \a 3)
+     tally3  (:wat::hashmap::assoc tally2 \b 7)]
+    (:wat::core::match (:wat::hashmap::get tally3 \a) 
       ((:wat::core::Some v) v)
       (_ -1))))
 
 (:wat::core::defn :t::p2-b-val [] -> :wat::core::i64
   (:wat::core::let
     [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
-     tally2  (:wat::core::HashMap/assoc tally \a 3)
-     tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-    (:wat::core::match (:wat::core::HashMap/get tally3 \b) 
+     tally2  (:wat::hashmap::assoc tally \a 3)
+     tally3  (:wat::hashmap::assoc tally2 \b 7)]
+    (:wat::core::match (:wat::hashmap::get tally3 \b) 
       ((:wat::core::Some v) v)
       (_ -1))))
 
 (:wat::core::defn :t::p2-len [] -> :wat::core::i64
   (:wat::core::let
     [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
-     tally2  (:wat::core::HashMap/assoc tally \a 3)
-     tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-    (:wat::core::HashMap/length tally3)))
+     tally2  (:wat::hashmap::assoc tally \a 3)
+     tally3  (:wat::hashmap::assoc tally2 \b 7)]
+    (:wat::hashmap::length tally3)))
 
 ;; ─── Probe 3 — (HashSet :- [char]) insert + contains? ──────────────────────────────
 
@@ -72,4 +72,4 @@
 (:wat::core::defn :t::p3-len [] -> :wat::core::i64
   (:wat::core::let
     [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
-    (:wat::core::HashSet/length vowels)))
+    (:wat::hashset::length vowels)))

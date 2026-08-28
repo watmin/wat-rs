@@ -1,0 +1,443 @@
+# SKETCH — the stashed `connection-lifecycle-ops` implementation, preserved before its stash was dropped
+#
+# Provenance: `git stash` entry "rider: lifecycle strike, stopped mid-flight", based on ff7705ba.
+# Preserved 2026-08-26. THIS IS A RECORD, NOT A PATCH — it no longer applies: `wat/service.wat` has
+# moved +1146/-566 since ff7705ba and `git apply --check` fails at service.wat:62.
+#
+# WHY IT WAS KEPT AT ALL, AND WHY IT COULD GO:
+#   The DESIGN and BRIEF both survive and carry the reasoning —
+#     docs/arc/2026/06/278-rules-engine/DESIGN-STONE-connection-lifecycle-ops.md   (161 lines)
+#     docs/arc/2026/06/278-rules-engine/BRIEF-connection-lifecycle-ops.md          (220 lines,
+#         and it names Admission / DisconnectReason / DisconnectInvocation 11 times)
+#   So the THINKING was never in the stash. What the stash alone held was HOW FAR THE
+#   IMPLEMENTATION GOT — 298 lines of it — which is exactly what a re-strike would want to see and
+#   exactly what a dropped stash destroys. It is kept here as prose-with-a-diff, next to the design
+#   it implements, where a reader will actually find it.
+#
+# The three types it introduces, with the reasoning quoted from the diff itself:
+#   Admission              the `-on-connect` return type. "Outcome's five variants cannot express a
+#                          refusal (no client exists yet to reply Stop to)". Name RATIFIED
+#                          2026-08-10 off the design stone's candidate list
+#                          (Admission · AdmitOutcome · ConnectionOutcome · Gate).
+#   DisconnectReason       why a connection ENDED. "`Closed` is nullary — so there is no `Option`
+#                          anywhere (STOP-4): the reason is TOTAL."
+#   DisconnectInvocation   the ctx `-on-disconnect` receives; separate from LifecycleInvocation
+#                          because "an optional reason on the SHARED type would rebuild the exact
+#                          cannot/did-not-look conflation this split exists to avoid."
+#
+diff --git a/wat/service.wat b/wat/service.wat
+index 6794bd4ad..267b7ca4c 100644
+--- a/wat/service.wat
++++ b/wat/service.wat
+@@ -62,6 +62,23 @@
+   :ReplyAndArm   [state <- :S  reply <- :R  arms <- :wat::core::Vector<wat::service::Alarm<O>>]
+   :NoReplyAndArm [state <- :S  arms <- :wat::core::Vector<wat::service::Alarm<O>>])
+ 
++;; ── Admission<S> — the `-on-connect` return type (arc 278 connection-lifecycle-ops) ────────
++;;
++;; `Outcome`'s five variants cannot express a refusal (no client exists yet to reply Stop to,
++;; and every OTHER arm's exhaustive match over Outcome would have to grow an arm legal in
++;; exactly one place — an unreachable case that accumulates lies). `-on-connect` gets its own
++;; result type instead: keep the connection (state threads on) or refuse it (state threads on
++;; too — the id was still minted, STOP-8 — and a cause is told to the client on the way out).
++;;
++;; NAME — ratified 2026-08-10 off the design stone's candidate list (Admission · AdmitOutcome ·
++;; ConnectionOutcome · Gate); `Admission` reads as "was this connection admitted", the exact
++;; question `-on-connect` answers. `:wat::kernel::ConnectOutcome` (the CLIENT-side dial result:
++;; Connected/Refused/Rejected/Failed) is a DIFFERENT type answering a different question from the
++;; other end of the wire — this is the SERVER's admission decision, not the client's dial result.
++(:wat::core::defenum :wat::service::Admission<S> :wat::enum::Pure
++  :Accept [state <- :S]                                   ;; keep the connection; state threads on
++  :Refuse [state <- :S  cause <- :wat::kernel::Failure])   ;; tell the client, drop the peer, keep serving
++
+ ;; ── Invocation — the MANDATORY third arm param, `[s ctx req]` (arc 278 the call context) ──
+ ;;
+ ;; ★ SUPERSEDED 2026-08-09 by DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md: ctx is no longer
+@@ -143,6 +160,24 @@
+   [~@:wat::service::InvocationCore
+    conn-id <- :wat::core::i64])
+ 
++;; ── DisconnectReason / DisconnectInvocation — arc 278 connection-lifecycle-ops ────────────
++;;
++;; The reason a connection ENDED. `Closed` is nullary — so there is no `Option` anywhere
++;; (STOP-4): the reason is TOTAL, never "some reason or none, ask separately whether it applies".
++(:wat::core::defenum :wat::service::DisconnectReason :wat::enum::Pure
++  :Closed   []
++  :Lost     [cause <- :wat::kernel::Failure]
++  :Rejected [cause <- :wat::kernel::Failure])
++
++;; The ctx `-on-disconnect` receives. `-on-connect` keeps `LifecycleInvocation` (a connect has no
++;; reason — that is WHY this is a separate type and not a `reason` field bolted onto it: an
++;; optional reason on the SHARED type would rebuild the exact cannot/did-not-look conflation this
++;; three-(now four-)type split exists to avoid).
++(:wat::core::defrecord :wat::service::DisconnectInvocation
++  [~@:wat::service::InvocationCore
++   conn-id <- :wat::core::i64
++   reason  <- :wat::service::DisconnectReason])
++
+ ;; A CLIENT CALL. Splice-first field order per the arc-293 house rule (wat/telemetry.wat:82).
+ ;;
+ ;; ⚠ OWED, and deliberately absent: `caller-invocation-id` — the id of the invocation on the
+@@ -936,10 +971,65 @@
+ 
+      clauses       (:wat::core::ast->children ops)            ;; list of op-List nodes
+      impl-clauses  (:wat::core::if satisfies?
+-                     
++
+                      clauses
+                      (:wat::core::Vector :wat::WatAST))
+ 
++     ;; ── Arc 278 connection-lifecycle-ops — split `-on-connect`/`-on-disconnect` OUT of the
++     ;; ordinary op machinery ────────────────────────────────────────────────────────────────
++     ;; These two well-known internal-op NAMES are dispatched by the macro AT the Connection /
++     ;; Closed / Lost / Rejected `ServiceEvent` arms (BRIEF-connection-lifecycle-ops.md) — never
++     ;; via a `<service>::Op` variant reached through `ServiceEvent::Message`, because a
++     ;; lifecycle event carries no `Op` (wat/spawn.wat:195-203; nobody sent a message). So they
++     ;; must NOT flow into `service-op-variant-items` (no `<service>::Op` variant would ever be
++     ;; constructed to match one — a message never carries one, so a stray variant would either
++     ;; sit dead or break the free exhaustiveness check other internal ops rely on), nor into
++     ;; `serve-op-arms` (no reachable dispatch site for it), nor into the `:op`-keyword rewrite
++     ;; (`internal-op-kw-strs`/`internal-op-repl-strs` — a mechanism for OTHER ops arming an
++     ;; Alarm that fires a REAL, Op-bearing internal op; these two are never armed that way).
++     ;; `serviceable-clauses` is `impl-clauses` with the two lifecycle names removed — every
++     ;; existing downstream consumer below is repointed at it in place of `impl-clauses`, so a
++     ;; service declaring neither op sees byte-for-byte the same clause list it always has
++     ;; (STOP-1: the "optional, no-op-if-absent" contract made mechanical, not just promised).
++     serviceable-clauses
++       (:wat::core::foldl
++         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>  clause <- :wat::WatAST]
++           -> :wat::core::Vector<wat::WatAST>
++           (:wat::core::let
++             [op-str (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children clause)))]
++             (:wat::core::if (:wat::core::= op-str "-on-connect")
++               acc
++               (:wat::core::if (:wat::core::= op-str "-on-disconnect")
++                 acc
++                 (:wat::core::conj acc clause)))))
++         (:wat::core::Vector :wat::WatAST)
++         impl-clauses)
++     ;; on-connect-clauses / on-disconnect-clauses: 0-or-1-element Vectors (defservice does not
++     ;; police duplicate op names generally — this reuses that latitude rather than adding a new
++     ;; check this strike doesn't own); `has-on-connect?`/`has-on-disconnect?` gate every
++     ;; downstream splice, so an absent op costs nothing (STOP-1 again, made mechanical).
++     on-connect-clauses
++       (:wat::core::foldl
++         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>  clause <- :wat::WatAST]
++           -> :wat::core::Vector<wat::WatAST>
++           (:wat::core::if (:wat::core::= (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children clause))) "-on-connect")
++             (:wat::core::conj acc clause)
++             acc))
++         (:wat::core::Vector :wat::WatAST)
++         impl-clauses)
++     on-disconnect-clauses
++       (:wat::core::foldl
++         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>  clause <- :wat::WatAST]
++           -> :wat::core::Vector<wat::WatAST>
++           (:wat::core::if (:wat::core::= (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children clause))) "-on-disconnect")
++             (:wat::core::conj acc clause)
++             acc))
++         (:wat::core::Vector :wat::WatAST)
++         impl-clauses)
++     has-on-connect?    (:wat::core::i64::> (:wat::core::length on-connect-clauses) 0)
++     has-on-disconnect? (:wat::core::i64::> (:wat::core::length on-disconnect-clauses) 0)
++     lifecycle-state-sym (:wat::core::symbol-node "state")
++
+      ;; ── Arc 278 Stone 2-A (self-scheduling): the <service>::Op SUPERSET (Option A) ──────
+      ;; The serve loop dispatches over :<fqdn>::Op = the surface's <proto>::Op variants
+      ;; (field-for-field, so `retag-op'` embeds them) PLUS the service's internal leading-dash
+@@ -1036,7 +1126,7 @@
+                               `[req <- ~req-ty]))]
+              (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
+          (:wat::core::Vector :wat::WatAST)
+-         impl-clauses)
++         serviceable-clauses)
+      service-op-def `(:wat::core::defenum ~service-op-decl-kw :wat::enum::Pure ~@service-op-variant-items)
+      ;; ── Arc 278 reconciliation (b): surface-Op <: service-Op subtype edge ──────────────
+      ;; The serve loop's `selectables` param is typed with the SUPERSET `<service>::Op`
+@@ -1074,7 +1164,7 @@
+                (:wat::core::conj acc (:wat::core::string::concat ":" op-str))
+                acc)))
+          (:wat::core::Vector :wat::core::String)
+-         impl-clauses)
++         serviceable-clauses)
+      internal-op-repl-strs
+        (:wat::core::foldl
+          (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>  clause <- :wat::WatAST]
+@@ -1094,7 +1184,7 @@
+                          (:wat::core::string::concat variant-pascal ")"))))))
+                acc)))
+          (:wat::core::Vector :wat::core::String)
+-         impl-clauses)
++         serviceable-clauses)
+      has-internal-ops? (:wat::core::i64::> (:wat::core::length internal-op-kw-strs) 0)
+ 
+      ;; ── Arc 293 S2: serve op-arms for :impls (bodies-only over the surface's protocol) ──
+@@ -1466,7 +1556,7 @@
+                              (:wat::core::conj acc
+                                `((~op-variant-kw ~req-binder) ~guarded-arm))))))
+                      (:wat::core::Vector :wat::WatAST)
+-                     impl-clauses)
++                     serviceable-clauses)
+ 
+      ;; ── serve params argvec ───────────────────────────────────────────────────────
+      ;; Template is a Vector node; checker does NOT recurse into Vector children.
+@@ -1481,6 +1571,192 @@
+                     next-id     <- :wat::core::i64
+                     state       <- ~state-ty]
+ 
++     ;; ── Arc 278 connection-lifecycle-ops — the SYNTHESIZED dispatch bodies ──────────────────
++     ;; `-on-connect`/`-on-disconnect` are NOT reached through `serve-op-arms` (they were
++     ;; filtered out of `serviceable-clauses` above — a lifecycle event carries no Op to match).
++     ;; The macro builds the dispatch by hand here, once per declared hook, and splices it into
++     ;; the four ServiceEvent arms below (`~connection-arm-body` / `~closed-arm-body` /
++     ;; `~lost-arm-body` / `~rejected-arm-body`) IN PLACE of each arm's plain body — the arm
++     ;; PATTERNS are untouched, so the whole splice is a body-only substitution. Absent ⇒ each
++     ;; of these four variables is literally today's body, unchanged (STOP-1: byte-for-byte).
++     ;;
++     ;; connection-arm-body — `-on-connect` fires AFTER the id is minted (it needs `next-id`)
++     ;; and BEFORE the tuple is `conj`'d (an `Admission::Refuse` must never join `selectables`).
++     ;; `Admission::Accept` threads the handler's own state and conj's the tuple exactly as the
++     ;; no-hook path always has; `Admission::Refuse` skips the conj (the peer is the `peer`
++     ;; pattern binding, never added — STOP-9's plumbing, copied verbatim from the `Rejected`
++     ;; arm at try-send' below) and still increments `next-id` (STOP-8: the id was minted and
++     ;; handed to the ctx regardless of the outcome; recurring with it unchanged would hand the
++     ;; SAME id to the next connection and break conn-id's never-reused contract).
++     connection-arm-body
++       (:wat::core::if has-on-connect?
++         (:wat::core::let
++           [oc-clause     (:wat::core::first on-connect-clauses)
++            oc-ch         (:wat::core::ast->children oc-clause)
++            oc-param-vec  (:wat::core::first (:wat::core::drop oc-ch 1))
++            oc-body       (:wat::core::first (:wat::core::drop oc-ch 2))
++            oc-param-ch   (:wat::core::ast->children oc-param-vec)
++            oc-arity      (:wat::core::length oc-param-ch)
++            _oc-arity-ok  (:wat::core::if (:wat::core::= oc-arity 2)
++                            nil
++                            (:wat::core::macro-error
++                              (:wat::core::string::concat "defservice: -on-connect must have shape [s ctx] (2 params); got "
++                                (:wat::core::string::concat (:wat::core::i64::to-string oc-arity) " params"))))
++            oc-s-binder   (:wat::core::first oc-param-ch)
++            oc-ctx-binder (:wat::core::first (:wat::core::rest oc-param-ch))
++            ;; conn-id = `next-id` — a bare identifier, the SAME value the arm's own tuple
++            ;; mints below (evaluated at RUNTIME in the serve loop, never at macro-expand time;
++            ;; mirrors `self-ctx-ctor-expr`'s bare `Uuid/v4`/clock-read splices).
++            oc-ctx-ctor   `(:wat::service::LifecycleInvocation
++                              :conn-id        next-id
++                              :namespace      ~fqdn-kw
++                              :operation      "-on-connect"
++                              :invocation-id (:wat::core::Uuid/v4)
++                              :start-ns       (:wat::time::epoch-nanos (:wat::time::now)))
++            oc-binding-items (:wat::core::conj
++                                (:wat::core::conj
++                                  (:wat::core::conj
++                                    (:wat::core::conj (:wat::core::Vector :wat::WatAST) oc-s-binder)
++                                    lifecycle-state-sym)
++                                  oc-ctx-binder)
++                                oc-ctx-ctor)
++            oc-let-bindings (:wat::core::with-children oc-param-vec oc-binding-items)]
++           `(:wat::core::match (:wat::core::let ~oc-let-bindings ~oc-body)
++              ((:wat::service::Admission::Accept new-state)
++                (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::core::i64::+ next-id 1) new-state))
++              ((:wat::service::Admission::Refuse new-state cause)
++                (:wat::core::do
++                  (:wat::core::match (:wat::kernel::try-send peer (~reply-failed-kw cause))
++                    (:wat::kernel::TrySendOutcome::Sent       nil)
++                    (:wat::kernel::TrySendOutcome::WouldBlock nil)
++                    (:wat::kernel::TrySendOutcome::Closed     nil)
++                    ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
++                  (~serve-name self l selectables (:wat::core::i64::+ next-id 1) new-state)))))
++         `(~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::core::i64::+ next-id 1) state))
++
++     ;; disconnect-arm-body — shared builder for the three eviction arms (Closed/Lost/Rejected):
++     ;; `reason-expr` is the ONE thing that differs per site (`Closed` is nullary; `Lost`/
++     ;; `Rejected` wrap the `cause` already bound by that arm's own pattern). Dispatch reads
++     ;; `conn-id` via `(first (nth selectables idx))` and runs BEFORE `remove-at` — after it the
++     ;; position is gone (STOP-2, the whole positional-identity class this arc keeps re-deriving
++     ;; the hard way elsewhere). `-on-disconnect` returns `Outcome` — never `Admission` (STOP-10:
++     ;; a disconnect cannot be refused, the connection is already gone) — and only `NoReply` is
++     ;; meaningful (no client, and there is nothing left to re-arm a timer against on the way
++     ;; out); every other variant is a located assertion, mirroring the internal-op arm shape.
++     disconnect-arm-body
++       (:wat::core::fn [reason-expr <- :wat::WatAST] -> :wat::WatAST
++         (:wat::core::let
++           [od-clause     (:wat::core::first on-disconnect-clauses)
++            od-ch         (:wat::core::ast->children od-clause)
++            od-param-vec  (:wat::core::first (:wat::core::drop od-ch 1))
++            ;; ⚠ SUBSTRATE FINDING (out of this strike's blast radius — no src/ change made):
++            ;; this closure is CALLED THREE TIMES (once per Closed/Lost/Rejected splice site), so
++            ;; `od-body` — whatever the user wrote — ends up embedded at three positions in the
++            ;; generated `serve` function. If that body references a PROGRAM-LOCALLY-DECLARED
++            ;; type's constructor (an enum minted in the SAME .wat file, not a baked-in kernel
++            ;; type), a `:locus process` child's startup (`ProcessOpts/launch`) crashes with "3
++            ;; unresolved references" to that exact symbol — one per splice site — via
++            ;; `src/wat_edn_bridge.rs:442`'s EDN→WatAST reconstruction. Reproduced standalone,
++            ;; including a disproved fix attempt (forcing an independent `ast->source` →
++            ;; `read-string` re-parse per call site does NOT help — ruling out simple AST-node
++            ;; aliasing as the cause), in
++            ;; wat-scripts/scratch-pad/probe-arc278-nullary-enum-process-repro.wat. NOT present at
++            ;; `:locus thread`, and NOT present when the referenced type is a pre-registered
++            ;; (baked-in) one, e.g. `:wat::service::DisconnectReason` itself. A body that only
++            ;; references baked-in types (or none) is unaffected — this is a real, narrow gap in
++            ;; the freeze pipeline for shipping a locally-declared type reference embedded 3x in
++            ;; one child-bound closure, not a defect in this splice mechanism's own correctness.
++            od-body       (:wat::core::first (:wat::core::drop od-ch 2))
++            od-param-ch   (:wat::core::ast->children od-param-vec)
++            od-arity      (:wat::core::length od-param-ch)
++            _od-arity-ok  (:wat::core::if (:wat::core::= od-arity 2)
++                            nil
++                            (:wat::core::macro-error
++                              (:wat::core::string::concat "defservice: -on-disconnect must have shape [s ctx] (2 params); got "
++                                (:wat::core::string::concat (:wat::core::i64::to-string od-arity) " params"))))
++            od-s-binder   (:wat::core::first od-param-ch)
++            od-ctx-binder (:wat::core::first (:wat::core::rest od-param-ch))
++            od-ctx-ctor   `(:wat::service::DisconnectInvocation
++                              :conn-id        (:wat::core::first (:wat::core::nth selectables idx))
++                              :namespace      ~fqdn-kw
++                              :operation      "-on-disconnect"
++                              :invocation-id (:wat::core::Uuid/v4)
++                              :start-ns       (:wat::time::epoch-nanos (:wat::time::now))
++                              :reason         ~reason-expr)
++            od-binding-items (:wat::core::conj
++                                (:wat::core::conj
++                                  (:wat::core::conj
++                                    (:wat::core::conj (:wat::core::Vector :wat::WatAST) od-s-binder)
++                                    lifecycle-state-sym)
++                                  od-ctx-binder)
++                                od-ctx-ctor)
++            od-let-bindings (:wat::core::with-children od-param-vec od-binding-items)]
++           `(:wat::core::match (:wat::core::let ~od-let-bindings ~od-body)
++              ((:wat::service::Outcome::NoReply new-state)
++                (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id new-state))
++              ((:wat::service::Outcome::Reply new-state resp)
++                (:wat::kernel::assertion-failed!
++                  "defservice: -on-disconnect returned Outcome::Reply, but a disconnect has no client to reply to (return NoReply)"
++                  :wat::core::None :wat::core::None))
++              ((:wat::service::Outcome::Stop final-state resp)
++                (:wat::kernel::assertion-failed!
++                  "defservice: -on-disconnect returned Outcome::Stop, but a disconnect has no client to reply to"
++                  :wat::core::None :wat::core::None))
++              ((:wat::service::Outcome::ReplyAndArm new-state resp arms)
++                (:wat::kernel::assertion-failed!
++                  "defservice: -on-disconnect returned Outcome::ReplyAndArm, but a disconnect has no client to reply to (return NoReply)"
++                  :wat::core::None :wat::core::None))
++              ((:wat::service::Outcome::NoReplyAndArm new-state arms)
++                (:wat::kernel::assertion-failed!
++                  "defservice: -on-disconnect returned Outcome::NoReplyAndArm, but a disconnect cannot arm a timer on the way out (return NoReply)"
++                  :wat::core::None :wat::core::None)))))
++
++     ;; closed-arm-body — `Closed idx` carries no cause (`DisconnectReason::Closed`, nullary).
++     closed-arm-body
++       (:wat::core::if has-on-disconnect?
++         (disconnect-arm-body `(:wat::service::DisconnectReason::Closed))
++         `(~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))
++
++     ;; lost-arm-body — `cause` is already bound by the `Lost idx cause` pattern. The pre-hook
++     ;; stderr scream (`assertion-failed!`, which never returns — "runtime code after an
++     ;; assertion failure is never reached", src/assertion.rs) is REPLACED, not kept-and-added-
++     ;; to, when a hook is declared: keeping it would make the dispatch below unreachable dead
++     ;; code (the whole reason the leak gate's Lost path is the one that would have caught a
++     ;; regression). The cause does not vanish (arc 278 no-hidden-failures) — it is now surfaced
++     ;; through the SAME structured channel `Rejected` already used, `ctx.reason`, which the
++     ;; handler can log/act on; the loud stderr sink was standing in for the absence of exactly
++     ;; this channel. A service that declares no `-on-disconnect` keeps the original scream,
++     ;; byte-for-byte (STOP-1).
++     lost-arm-body
++       (:wat::core::if has-on-disconnect?
++         (disconnect-arm-body `(:wat::service::DisconnectReason::Lost cause))
++         `(:wat::core::do
++            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)
++            (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state)))
++
++     ;; rejected-arm-body — `cause` is already bound by the `Rejected idx cause` pattern. The
++     ;; existing try-send' `Reply::Failed` to the client is KEPT unconditionally (STOP-9's own
++     ;; plumbing; a hook does not change what the CLIENT is told) — the dispatch runs alongside
++     ;; it, still before `remove-at`.
++     rejected-arm-body
++       (:wat::core::if has-on-disconnect?
++         (:wat::core::let
++           [rejected-disconnect-dispatch (disconnect-arm-body `(:wat::service::DisconnectReason::Rejected cause))]
++           `(:wat::core::do
++              (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
++                (:wat::kernel::TrySendOutcome::Sent       nil)
++                (:wat::kernel::TrySendOutcome::WouldBlock nil)
++                (:wat::kernel::TrySendOutcome::Closed     nil)
++                ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
++              ~rejected-disconnect-dispatch))
++         `(:wat::core::do
++            (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
++              (:wat::kernel::TrySendOutcome::Sent       nil)
++              (:wat::kernel::TrySendOutcome::WouldBlock nil)
++              (:wat::kernel::TrySendOutcome::Closed     nil)
++              ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
++            (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state)))
++
+      ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
+      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
+      ;; or value positions — the checker only fires for let/fn binder Vectors.
+@@ -1505,7 +1781,9 @@
+                        ;; mint THIS connection's id = the current next-id (pre-increment);
+                        ;; pair it with the peer so it travels together from birth (STOP-2);
+                        ;; the recursive call's OWN next-id is next-id+1, for the NEXT connect.
+-                       (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::core::i64::+ next-id 1) state))
++                       ;; arc 278 connection-lifecycle-ops — `~connection-arm-body` is this exact
++                       ;; body, unchanged, when no `-on-connect` is declared (STOP-1).
++                       ~connection-arm-body)
+                      ((:wat::spawn::ServiceEvent::Admin admin-msg)
+                        (:wat::core::match admin-msg 
+                          ;; arc 278 the send'-outcome wall — the owner's `recv'` (the `/stop`
+@@ -1591,7 +1869,9 @@
+                          (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-kw ~service-op-decl-kw)
+                            ~@serve-op-arms)))
+                      ((:wat::spawn::ServiceEvent::Closed idx)
+-                       (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))
++                       ;; arc 278 connection-lifecycle-ops — `~closed-arm-body` is this exact
++                       ;; body, unchanged, when no `-on-disconnect` is declared (STOP-1).
++                       ~closed-arm-body)
+                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
+                      ;; evict it. But its `cause` must NOT vanish (the old `_cause` silently
+                      ;; swallowed the death reason — the exact masking this arc forbids). There
+@@ -1600,10 +1880,12 @@
+                      ;; the honest loud sink (stderr) BEFORE evicting + continuing to serve. The
+                      ;; RICHER client-facing recv'-EOF crash-reason surfacing is a separate
+                      ;; follow-on strike; this arm's contract here is simply: do not DROP it.
++                     ;; arc 278 connection-lifecycle-ops — `~lost-arm-body` REPLACES the scream
++                     ;; with the `-on-disconnect` dispatch when declared (see lost-arm-body's own
++                     ;; comment: assertion-failed! never returns, so keeping both would make the
++                     ;; dispatch unreachable); unchanged, byte-for-byte, when absent (STOP-1).
+                      ((:wat::spawn::ServiceEvent::Lost idx cause)
+-                       (:wat::core::do
+-                         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)
+-                         (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state)))
++                       ~lost-arm-body)
+                      ;; arc 278 no-hidden-failures — a peer that sent an UNDECODABLE message is
+                      ;; STILL ALIVE (a bad message is not a death). Reply the rich decode reason
+                      ;; to THAT client as `Reply::Failed[cause]` (its generated method raises with
+@@ -1630,14 +1912,12 @@
+                      ;; wedge the serve loop — try-send' skips a non-draining client and we still
+                      ;; evict (it learns via EPIPE on its own send). NO eprintln (that is wat's
+                      ;; panic — a client-triggerable crash / DoS).
++                     ;; arc 278 connection-lifecycle-ops — `~rejected-arm-body` keeps the
++                     ;; try-send' reply unconditionally and ADDS the `-on-disconnect` dispatch
++                     ;; (before `remove-at`) when declared; unchanged, byte-for-byte, when
++                     ;; absent (STOP-1). This is the path a hand-written teardown forgets.
+                      ((:wat::spawn::ServiceEvent::Rejected idx cause)
+-                       (:wat::core::do
+-                         (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
+-                           (:wat::kernel::TrySendOutcome::Sent       nil)
+-                           (:wat::kernel::TrySendOutcome::WouldBlock nil)   ;; client not draining — evict anyway (it learns via EPIPE)
+-                           (:wat::kernel::TrySendOutcome::Closed     nil)
+-                           ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
+-                         (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))))
++                       ~rejected-arm-body))
+ 
+      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
+      ;; `(defn <fqdn>/<op> [c <- Peer<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
+@@ -1799,7 +2079,7 @@
+                            (:wat::core::conj acc
+                              `(:wat::core::defn ~method-name ~method-params -> ~recv-ret-ty ~method-body)))))
+                      (:wat::core::Vector :wat::WatAST)
+-                     impl-clauses)
++                     serviceable-clauses)
+ 
+      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
+      ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)

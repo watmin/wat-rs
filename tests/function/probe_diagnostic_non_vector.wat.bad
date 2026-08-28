@@ -3,5 +3,5 @@
 
 (:wat::core::defn :user::bad [] -> :wat::core::i64
   (:wat::core::apply 
-    (:wat::core::keyword/from-string "wat::core::i64::+")
+    (:wat::keyword::from-string "wat::core::i64::+")
     42))

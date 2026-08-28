@@ -71,7 +71,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
       (:wat::core::let [o (:wat::core::Option/expect
-                            (:wat::core::PersistentMap/get p "?fact")
+                            (:wat::map::get p "?fact")
                             "q-Out: ?fact")]
         (:wat::i64::+ a (:nin::Out/g o))))
     0

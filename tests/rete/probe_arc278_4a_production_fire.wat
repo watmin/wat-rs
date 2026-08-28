@@ -54,9 +54,9 @@
 
 (:wat::core::defn :test::cw-fact [s <- :wat::rete::Session] -> :weather::ColdAndWindy
   (:wat::core::Option/expect
-    (:wat::core::PersistentMap/get
+    (:wat::map::get
       (:wat::core::Option/expect
-        (:wat::core::PersistentVector/get (:wat::rete::query s (:weather::q-ColdAndWindy)) 0)
+        (:wat::vector::get (:wat::rete::query s (:weather::q-ColdAndWindy)) 0)
         "fact")
       "?fact")
     "fact"))

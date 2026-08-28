@@ -71,57 +71,6 @@ pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
-pub(crate) fn eval_vector_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    vector_length_inner(&v)
-}
-
-pub(crate) fn eval_hashmap_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_length_inner(&v)
-}
-
-pub(crate) fn eval_hashset_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashset_length_inner(&v)
-}
-
 // ─── Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls ────────
 
 pub(crate) fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
@@ -167,57 +116,6 @@ pub(crate) fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_vector_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    vector_empty_q_inner(&v)
-}
-
-pub(crate) fn eval_hashmap_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_empty_q_inner(&v)
-}
-
-pub(crate) fn eval_hashset_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashset_empty_q_inner(&v)
 }
 
 // ─── contains? — Vector/List/HashSet use `contains?`; HashMap dispatches `contains-key?` ─────
@@ -292,60 +190,6 @@ pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Resul
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_vector_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_contains_q_inner(&container, &item)
-}
-
-pub(crate) fn eval_hashmap_contains_key_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/contains-key?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let key = eval_inner(&args[1], env, sym)?.value_owned();
-    hashmap_contains_key_q_inner(&container, &key)
-}
-
-pub(crate) fn eval_hashset_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    hashset_contains_q_inner(&container, &item)
 }
 
 // ─── get — return type varies per arm (Option<T> vs Option<V>) ──────────────
@@ -429,113 +273,7 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
     }
 }
 
-pub(crate) fn eval_vector_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_get_inner(&container, &index)
-}
-
-pub(crate) fn eval_hashmap_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let key = eval_inner(&args[1], env, sym)?.value_owned();
-    hashmap_get_inner(&container, &key)
-}
-
 // ─── Arc 220 Stone 220.4 — List eval wrappers ────────────────────────────────
-
-pub(crate) fn eval_list_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    list_length_inner(&v)
-}
-
-pub(crate) fn eval_list_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    list_empty_q_inner(&v)
-}
-
-pub(crate) fn eval_list_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    list_contains_q_inner(&container, &item)
-}
-
-pub(crate) fn eval_list_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    list_get_inner(&container, &index)
-}
 
 // ─── conj inner helpers ──────────────────────────────────────────────────────
 
@@ -572,24 +310,6 @@ pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, 
     }
 }
 
-pub(crate) fn eval_list_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    list_conj_inner(&container, &item)
-}
-
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
 // which triggers the lint. The interior-mutability variants are opaque handles that never
@@ -620,42 +340,6 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_vector_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_conj_inner(&container, &item)
-}
-
-pub(crate) fn eval_hashset_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    hashset_conj_inner(&container, &item)
 }
 
 // ─── Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat impls ─
@@ -828,77 +512,6 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
     }
 }
 
-pub(crate) fn eval_hashmap_assoc(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/assoc".into(),
-            expected: 3,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let k = eval_inner(&args[1], env, sym)?.value_owned();
-    let v = eval_inner(&args[2], env, sym)?.value_owned();
-    hashmap_assoc_inner(&container, &k, &v)
-}
-
-pub(crate) fn eval_hashmap_dissoc(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/dissoc".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let k = eval_inner(&args[1], env, sym)?.value_owned();
-    hashmap_dissoc_inner(&container, &k)
-}
-
-pub(crate) fn eval_hashmap_keys(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/keys".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_keys_inner(&container)
-}
-
-pub(crate) fn eval_hashmap_values(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/values".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_values_inner(&container)
-}
-
 // ─── Arc-278-0a — PersistentMap ops (mirror hashmap_* family) ────────────────
 //
 // `PMap` (DESIGN-STONE-promoting-map) is persistent: every mutating operation returns a NEW
@@ -918,23 +531,6 @@ pub(crate) fn persistentmap_length_inner(v: &Value) -> Result<Value, EvalBreak> 
     }
 }
 
-pub(crate) fn eval_persistentmap_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentmap_length_inner(&v)
-}
-
 pub(crate) fn persistentmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentMap(m) => Ok(Value::bool(m.is_empty())),
@@ -944,23 +540,6 @@ pub(crate) fn persistentmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak>
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentmap_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentmap_empty_q_inner(&v)
 }
 
 pub(crate) fn persistentmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
@@ -977,24 +556,6 @@ pub(crate) fn persistentmap_contains_key_q_inner(container: &Value, key: &Value)
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentmap_contains_key_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/contains-key?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let key = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentmap_contains_key_q_inner(&container, &key)
 }
 
 pub(crate) fn persistentmap_get_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
@@ -1014,24 +575,6 @@ pub(crate) fn persistentmap_get_inner(container: &Value, key: &Value) -> Result<
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentmap_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let key = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentmap_get_inner(&container, &key)
 }
 
 /// `(:wat::core::PersistentMap/assoc pm k v)` — persistent insert.
@@ -1059,25 +602,6 @@ pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value)
     }
 }
 
-pub(crate) fn eval_persistentmap_assoc(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/assoc".into(),
-            expected: 3,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let k = eval_inner(&args[1], env, sym)?.value_owned();
-    let v = eval_inner(&args[2], env, sym)?.value_owned();
-    persistentmap_assoc_inner(&container, &k, &v)
-}
-
 /// `(:wat::core::PersistentMap/dissoc pm k)` — persistent remove.
 /// Returns a NEW PersistentMap with key `k` removed; the original `pm` is UNCHANGED.
 pub(crate) fn persistentmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, EvalBreak> {
@@ -1098,24 +622,6 @@ pub(crate) fn persistentmap_dissoc_inner(container: &Value, k: &Value) -> Result
     }
 }
 
-pub(crate) fn eval_persistentmap_dissoc(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/dissoc".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let k = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentmap_dissoc_inner(&container, &k)
-}
-
 pub(crate) fn persistentmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentMap/keys";
     match container {
@@ -1130,23 +636,6 @@ pub(crate) fn persistentmap_keys_inner(container: &Value) -> Result<Value, EvalB
     }
 }
 
-pub(crate) fn eval_persistentmap_keys(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/keys".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentmap_keys_inner(&container)
-}
-
 pub(crate) fn persistentmap_values_inner(container: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentMap/values";
     match container {
@@ -1159,23 +648,6 @@ pub(crate) fn persistentmap_values_inner(container: &Value) -> Result<Value, Eva
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentmap_values(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentMap/values".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentmap_values_inner(&container)
 }
 
 /// `(:wat::core::PersistentMap k1 v1 k2 v2 ...)` — constructor.
@@ -1365,23 +837,6 @@ pub(crate) fn persistentvector_length_inner(v: &Value) -> Result<Value, EvalBrea
     }
 }
 
-pub(crate) fn eval_persistentvector_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentvector_length_inner(&v)
-}
-
 pub(crate) fn persistentvector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentVector(pv) => Ok(Value::bool(pv.is_empty())),
@@ -1391,23 +846,6 @@ pub(crate) fn persistentvector_empty_q_inner(v: &Value) -> Result<Value, EvalBre
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentvector_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentvector_empty_q_inner(&v)
 }
 
 pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
@@ -1422,24 +860,6 @@ pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value)
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentvector_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_contains_q_inner(&container, &item)
 }
 
 /// `(:wat::core::PersistentVector/get pv i)` — index lookup, returns `Option<T>`.
@@ -1473,24 +893,6 @@ pub(crate) fn persistentvector_get_inner(container: &Value, index: &Value) -> Re
     }
 }
 
-pub(crate) fn eval_persistentvector_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_get_inner(&container, &index)
-}
-
 /// `(:wat::core::PersistentVector/conj pv elem)` — persistent append.
 /// Returns a NEW PersistentVector with `elem` appended; the original `pv` is UNCHANGED.
 /// Array copies the Vec (below threshold) or promotes; Tree shares the RRB spine.
@@ -1505,24 +907,6 @@ pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Re
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentvector_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_conj_inner(&container, &item)
 }
 
 /// `(:wat::core::Vector/extend to from)` — Arc 278: a Vector extended by every element of a
@@ -1637,42 +1021,6 @@ pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<
     Ok(Value::wat__core__PersistentVector(out))
 }
 
-pub(crate) fn eval_vector_extend(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/extend".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let to = eval_inner(&args[0], env, sym)?.value_owned();
-    let from = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_extend_inner(&to, &from)
-}
-
-pub(crate) fn eval_persistentvector_concat(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/concat".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let to = eval_inner(&args[0], env, sym)?.value_owned();
-    let from = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_concat_inner(&to, &from)
-}
-
 /// `(:wat::core::PersistentVector e1 e2 ...)` — constructor.
 /// Takes bare elements in order (NO leading type keyword).
 /// Types are inferred from the actual elements (checked at check-time by
@@ -1690,24 +1038,6 @@ pub(crate) fn eval_persistentvector_ctor(
         pv.push_back_mut(v);
     }
     Ok(Value::wat__core__PersistentVector(pv))
-}
-
-pub(crate) fn eval_vector_concat(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/concat".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let left = eval_inner(&args[0], env, sym)?.value_owned();
-    let right = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_concat_inner(&left, &right)
 }
 
 // ─── Container-polymorphic rest — Vec/List/WatAST-form/PersistentVector ──────

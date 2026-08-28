@@ -5,26 +5,38 @@
 //! Run: `cargo test --release --test probe_arc251_type_namespace_fix`
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed Value.
-fn eval_string(fn_name: &str) -> Result<String, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+//
+// arc 296 Stone M: `call_beside_value` already returns `Result<Value, RuntimeError>` — not a
+// `StartupError` chain — so the real (never-flattened) error type here is `RuntimeError`
+// itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
+// the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
+fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
+    match call_beside_value(file!(), fn_name)? {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(format!("non-string: {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.into(),
+                expected: "String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 
 #[test]
 fn c01_core_fqdn_scalar_stays_wat_type() {
     assert_eq!(
-        eval_string(":user::c01a"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c01a-core-fqdn-i64.wat").into())
+        eval_string(":user::c01a").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c01a-core-fqdn-i64.wat")
     );
     assert_eq!(
-        eval_string(":user::c01b"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c01b-core-fqdn-string.wat").into())
+        eval_string(":user::c01b").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c01b-core-fqdn-string.wat")
     );
 }
 
@@ -36,7 +48,11 @@ fn c02_core_parametric_stays_wat_type() {
     // itself is walled now (`angle_type_head_in_name`), the SAME mechanism
     // `probe_arc251_keyword_to_type_form.rs`'s contracts 02-05/08 hit, so this refuses one
     // door earlier than it used to (`keyword-node`, before `keyword/to-type-form` ever runs).
-    let err = eval_string(":user::c02").expect_err("angle-bracket parametric keyword must be REFUSED");
+    //
+    // arc 296 Stone M: `err` is now a typed `RuntimeError` (Debug renders EDN, Stone B), not
+    // a pre-flattened `String` — the substring check now reads the EDN Debug rendering
+    // instead of a hand-built "eval: {e:?}" string, same targeted substrings, same rune.
+    let err = format!("{:?}", eval_string(":user::c02").expect_err("angle-bracket parametric keyword must be REFUSED"));
     assert!( // rune:lint(loose-assert) — targeted substring: asserting the keyword-node minting wall fired, not the whole located error's structure
         err.contains(":wat::core::keyword-node") && err.contains("angle-bracket type parameters are illegal in a name"),
         "expected the keyword-node minting wall's reason; got: {err}"
@@ -46,71 +62,115 @@ fn c02_core_parametric_stays_wat_type() {
 #[test]
 fn c03_bare_legacy_primitive_renders_core() {
     assert_eq!(
-        eval_string(":user::c03a"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c03a-legacy-i64.wat").into())
+        eval_string(":user::c03a").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c03a-legacy-i64.wat")
     );
     assert_eq!(
-        eval_string(":user::c03b"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c03b-legacy-string.wat").into())
+        eval_string(":user::c03b").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c03b-legacy-string.wat")
     );
     assert_eq!(
-        eval_string(":user::c03c"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c03c-legacy-bool.wat").into())
+        eval_string(":user::c03c").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c03c-legacy-bool.wat")
     );
 }
 
 #[test]
 fn c04_user_type_preserves_namespace() {
     assert_eq!(
-        eval_string(":user::c04"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c04-user-type-namespace.wat").into())
+        eval_string(":user::c04").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c04-user-type-namespace.wat")
     );
 }
 
 #[test]
 fn c05_distinct_user_types_do_not_collide() {
-    let a = eval_string(":user::c05a");
-    let b = eval_string(":user::c05b");
-    assert!(a.is_ok() && b.is_ok(), "both must render: {a:?} {b:?}");
+    let a = eval_string(":user::c05a").expect("both must render (c05a)");
+    let b = eval_string(":user::c05b").expect("both must render (c05b)");
     assert_ne!(a, b, "distinct types must NOT render to the same faithful name (collision)");
 }
 
 #[test]
 fn c06_user_type_two_segment_preserves_namespace() {
     assert_eq!(
-        eval_string(":user::c06"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c06-user-type-two-segment.wat").into())
+        eval_string(":user::c06").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c06-user-type-two-segment.wat")
     );
 }
 
 #[test]
 fn c07_type_var_stays_bare() {
     assert_eq!(
-        eval_string(":user::c07a"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c07a-type-var-t.wat").into())
+        eval_string(":user::c07a").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c07a-type-var-t.wat")
     );
     assert_eq!(
-        eval_string(":user::c07b"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c07b-type-var-k.wat").into())
+        eval_string(":user::c07b").expect("eval_string"),
+        include_str!("probe_arc251_type_namespace_fix__c07b-type-var-k.wat")
     );
 }
 
 #[test]
 fn c08_bare_head_parametric_errors_cleanly() {
+    // Not a `StartupError`: `call_beside_value` returns `Result<Value, RuntimeError>` (arc
+    // 296 Stone L — these raise at RUNTIME, per the fixture's own comment above c08a/c08b/c09;
+    // `assert_startup_error!` doesn't apply here). Grounded directly against
+    // `./target/release/wat` run on a scratch `:user::main` invoking each expression (matches
+    // the fixture exactly).
+    let err_a = call_beside_value(file!(), ":user::c08a")
+        .expect_err("bare parametric head must error cleanly, not panic");
     assert!(
-        call_beside_value(file!(), ":user::c08a").is_err(),
-        "bare parametric head must error cleanly, not panic"
+        matches!(
+            err_a.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::keyword-node"
+                && reason == "angle-bracket type parameters are illegal in a name (arc 109, \
+                    \"annihilate the angle bracket\") — and that holds for a name BUILT at \
+                    expand time exactly as it holds for one written in source: \
+                    \":Stream<wat::core::i64>\". `:-` is the ONE parameterization operator. \
+                    A macro must emit the type-application FORM `(Head :- [A B])`, not \
+                    concatenate `Head` + \"<\" + args + \">\" into a keyword. A name is an \
+                    atom; structure encoded inside one has to be re-parsed by every consumer, \
+                    and that second parser is what this wall exists to make impossible."
+        ),
+        "expected RuntimeErrorKind::MalformedForm(keyword-node, angle-bracket); got {:?}",
+        err_a
     );
+    let err_b = call_beside_value(file!(), ":user::c08b")
+        .expect_err("higher-kinded head must error cleanly, not panic");
     assert!(
-        call_beside_value(file!(), ":user::c08b").is_err(),
-        "higher-kinded head must error cleanly, not panic"
+        matches!(
+            err_b.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::keyword-node"
+                && reason == "angle-bracket type parameters are illegal in a name (arc 109, \
+                    \"annihilate the angle bracket\") — and that holds for a name BUILT at \
+                    expand time exactly as it holds for one written in source: \
+                    \":T<wat::core::i64>\". `:-` is the ONE parameterization operator. \
+                    A macro must emit the type-application FORM `(Head :- [A B])`, not \
+                    concatenate `Head` + \"<\" + args + \">\" into a keyword. A name is an \
+                    atom; structure encoded inside one has to be re-parsed by every consumer, \
+                    and that second parser is what this wall exists to make impossible."
+        ),
+        "expected RuntimeErrorKind::MalformedForm(keyword-node, angle-bracket); got {:?}",
+        err_b
     );
 }
 
 #[test]
 fn c09_trailing_colons_path_errors_cleanly() {
+    // Same non-`StartupError` situation as c08 above — RuntimeError, grounded the same way.
+    let err = call_beside_value(file!(), ":user::c09")
+        .expect_err("trailing-`::` path must error cleanly, not panic");
     assert!(
-        call_beside_value(file!(), ":user::c09").is_err(),
-        "trailing-`::` path must error cleanly, not panic"
+        matches!(
+            err.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::keyword::to-type-form"
+                && reason == "cannot render type `:foo::` to a faithful form (malformed \
+                    namespaced path — trailing `::` or empty segment)"
+        ),
+        "expected RuntimeErrorKind::MalformedForm(to-type-form, trailing-colons); got {:?}",
+        err
     );
 }

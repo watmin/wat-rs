@@ -95,7 +95,7 @@
   [declared <- :wat::core::String call-head <- :wat::core::String] -> :wat::core::bool
   (:wat::core::and
     (:wat::core::not (:wat::core::= call-head ""))
-    (:wat::core::String/starts-with? declared call-head)))
+    (:wat::string::starts-with? declared call-head)))
 
 ;; Walk a fn body hunting self-calls that carry a grown accumulator.
 (:wat::core::defn :census::hunt
@@ -124,8 +124,8 @@
   (:wat::core::let
     [s (:census::src form)]
     (:wat::core::or
-      (:wat::core::String/contains? s ":wat::stream::lazy")
-      (:wat::core::String/contains? s ":wat::stream::cons"))))
+      (:wat::string::contains? s ":wat::stream::lazy")
+      (:wat::string::contains? s ":wat::stream::cons"))))
 
 ;; At every form: if it declares a fn, hunt its body for the shape; then descend regardless.
 (:wat::core::defn :census::walk

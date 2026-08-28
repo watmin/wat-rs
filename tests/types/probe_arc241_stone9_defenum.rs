@@ -4,12 +4,12 @@
 //! Positive contracts expect startup_from_file to succeed.
 //! Negative contracts expect startup_from_file to fail.
 
-use wat::freeze::startup_from_file;
+use wat::check::error::CheckErrorKind;
+use wat::freeze::{startup_from_file, StartupError};
+use wat::types::TypeErrorKind;
 
-fn try_startup(path: &str) -> Result<(), String> {
-    startup_from_file(path)
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
+fn try_startup(path: &str) -> Result<(), StartupError> {
+    startup_from_file(path).map(|_| ())
 }
 
 // ─── Contracts 1-4: defenum success paths ─────────────────────────────────────
@@ -58,10 +58,11 @@ fn contract_04_defenum_with_variant_metadata() {
 
 #[test]
 fn contract_05_defenum_empty_metadata_rejected() {
-    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c05.wat.bad");
-    assert!(
-        result.is_err(),
-        "defenum with empty {{}} metadata should be REJECTED; got OK"
+    let result = startup_from_file("tests/types/probe_arc241_stone9_defenum_c05.wat.bad");
+    wat::assert_startup_error!(result,
+        StartupError::Type(e) if matches!(e.kind(), TypeErrorKind::MalformedDecl { head, reason }
+            if head == ":wat::core::defenum"
+            && reason == "empty `{}` metadata-map is illegal (use no metadata-map arg for plain defenum)")
     );
 }
 
@@ -69,19 +70,21 @@ fn contract_05_defenum_empty_metadata_rejected() {
 
 #[test]
 fn contract_06_legacy_enum_unit_form_rejected() {
-    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c06.wat.bad");
-    assert!(
-        result.is_err(),
-        "legacy :wat::core::enum should be HARD-CUT-rejected post-241.9; got OK"
+    let result = startup_from_file("tests/types/probe_arc241_stone9_defenum_c06.wat.bad");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::enum"
+            && reason == "':wat::core::enum' is retired (Stone 241.9)"
     );
 }
 
 #[test]
 fn contract_07_legacy_enum_tagged_pair_form_rejected() {
-    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c07.wat.bad");
-    assert!(
-        result.is_err(),
-        "legacy enum tagged pair-form should be HARD-CUT-rejected post-241.9; got OK"
+    let result = startup_from_file("tests/types/probe_arc241_stone9_defenum_c07.wat.bad");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::enum"
+            && reason == "':wat::core::enum' is retired (Stone 241.9)"
     );
 }
 

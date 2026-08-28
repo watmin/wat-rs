@@ -8,7 +8,7 @@ use crate::ast::WatAST;
 use crate::load::loader::SourceLoader;
 use crate::macros::MacroRegistry;
 use crate::value::{EnumValue, Value};
-use crate::sigma::SigmaFn;
+use crate::holon::sigma::SigmaFn;
 use crate::types::TypeEnv;
 use crate::value::{EncodingCtx, Function};
 
@@ -46,11 +46,11 @@ pub struct SymbolTable {
     /// Ambient presence-sigma function — `:fn(:i64) -> :i64`. Takes
     /// dim, returns σ count. Used by `presence?` to compute the
     /// per-d floor (`σ(d) / sqrt(d)`). Built-in default is
-    /// [`crate::sigma::DefaultPresenceSigma`]; user override via
+    /// [`crate::holon::sigma::DefaultPresenceSigma`]; user override via
     /// `set-presence-sigma!`.
     pub presence_sigma_fn: Option<Arc<dyn SigmaFn>>,
     /// Ambient coincident-sigma function — `:fn(:i64) -> :i64`.
-    /// Built-in default is [`crate::sigma::DefaultCoincidentSigma`];
+    /// Built-in default is [`crate::holon::sigma::DefaultCoincidentSigma`];
     /// user override via `set-coincident-sigma!`.
     pub coincident_sigma_fn: Option<Arc<dyn SigmaFn>>,
     /// Frozen type registry — every struct / enum / newtype / alias
@@ -427,7 +427,7 @@ impl SymbolTable {
 
     /// Attach the ambient presence-sigma function. Called once at
     /// freeze time with the user's override (from set-presence-sigma!)
-    /// or the built-in [`crate::sigma::DefaultPresenceSigma`].
+    /// or the built-in [`crate::holon::sigma::DefaultPresenceSigma`].
     pub fn set_presence_sigma_fn(
         &mut self,
         f: Arc<dyn SigmaFn>,

@@ -14,6 +14,7 @@
 //!
 //! Post-stone: all 6 contracts PASS.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── C01: def metadata-map :restricted-to — allowed caller passes ──────────────
@@ -33,9 +34,11 @@ fn contract_02_def_metadata_restricted_non_allowed_caller_fails() {
     let result = startup_from_file(
         "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_non_allowed.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "non-allowed caller (not matching :test:: prefix) must fail metadata-map restriction post-stone; got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::DefRestrictedCallerNotAllowed { callee, enclosing_fn, prefixes }
+            if callee == ":test::restricted-target"
+            && enclosing_fn == ":other::non-allowed-caller"
+            && prefixes.as_slice() == [":test::".to_string()]
     );
 }
 
@@ -47,9 +50,11 @@ fn contract_03_defn_metadata_restricted_enforces() {
     let result = startup_from_file(
         "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_non_allowed.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "defn metadata-map :restricted-to must enforce; non-allowed caller must fail post-stone; got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::DefRestrictedCallerNotAllowed { callee, enclosing_fn, prefixes }
+            if callee == ":test::restricted-target"
+            && enclosing_fn == ":other::non-allowed-caller"
+            && prefixes.as_slice() == [":test::".to_string()]
     );
 }
 
@@ -60,9 +65,10 @@ fn contract_04_def_restricted_hard_cut_rejected() {
     let result = startup_from_file(
         "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "`:wat::core::def-restricted` must be HARD-CUT-rejected post-stone (def + metadata-map is the only way); got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::def-restricted"
+            && reason == "':wat::core::def-restricted' is retired (Stone 241.14); use ':wat::core::def' with metadata-map: `(def :name {:restricted-to [<prefix-kw>...]} expr)`"
     );
 }
 
@@ -73,9 +79,10 @@ fn contract_05_defn_restricted_hard_cut_rejected() {
     let result = startup_from_file(
         "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "`:wat::core::defn-restricted` must be HARD-CUT-rejected post-stone (defn + metadata-map is the only way); got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::defn-restricted"
+            && reason == "':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`"
     );
 }
 

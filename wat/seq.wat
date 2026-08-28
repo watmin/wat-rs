@@ -126,7 +126,7 @@
 ;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`
 (:wat::core::defn :wat::core::stream->vec-spec :- [T]
   [acc <- (:wat::core::Vector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::core::Vector :- [T])
-  (:wat::core::Vector/extend
+  (:wat::vec::extend
     acc
     (:wat::core::stream->pvec-spec (:wat::core::PersistentVector) s)))
 
@@ -167,7 +167,7 @@
   [acc <- (:wat::core::PersistentVector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::core::PersistentVector :- [T])
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::stream->pvec-spec (:wat::core::PersistentVector/conj acc value) rest))
+      (:wat::core::stream->pvec-spec (:wat::vector::conj acc value) rest))
     (:wat::stream::NextOutcome::Exhausted acc)))
 
 ;; into — clojure's `(into to from)`: append every element of `from` onto `to`. `to` determines
@@ -187,13 +187,13 @@
   ;; into a PersistentVector in ONE native call, retiring the nine grid axes' hand-rolled
   ;; `foldl`+`conj` bridge (N interpreted closure invocations -> one native concat).
   ([to <- (:wat::core::PersistentVector :- [T]) from <- (:wat::core::Vector :- [T])] -> (:wat::core::PersistentVector :- [T])
-    (:wat::core::PersistentVector/concat to from))
+    (:wat::vector::concat to from))
   ;; Arc 278 — the MIRROR of the clause above, and the one `stream->vec` now needs. Its absence
   ;; was flagged as owed the moment the (PV,Vector) clause landed, and tripped a probe an hour
   ;; later: `query-by-type-string` returns a PersistentVector, so materialising one into a Vector
   ;; had no clause at all. Native one-shot, no per-element conj.
   ([to <- (:wat::core::Vector :- [T]) from <- (:wat::core::PersistentVector :- [T])] -> (:wat::core::Vector :- [T])
-    (:wat::core::Vector/extend to from)))
+    (:wat::vec::extend to from)))
 
 ;; doall / dorun — eager forcers (Stream -> Vector / nil). DIALECT NOTE: clojure's `doall`
 ;; returns the SAME (now-forced) lazy seq, replayable — wat's Stream is single-pass / NEVER

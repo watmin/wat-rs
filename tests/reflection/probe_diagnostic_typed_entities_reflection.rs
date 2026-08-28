@@ -52,22 +52,27 @@
 //!     signature? Option-wrapping wrong? composition broken?).
 //!     Stone's not done.
 
-use wat::freeze::startup_from_file;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `*_pN.wat` fixture defines a zero-arg `:user::compute`;
 // fetch it from the frozen world and `apply_function` it — no inline wat driver.
 // (Path-based rather than `call_beside_value` because this probe shares one `.rs` across
 // seven co-located fixtures, so the fixture is not the single sibling `.wat`.)
-fn run_compute_from_file(fixture: &str) -> Result<Value, String> {
-    let world = startup_from_file(fixture).map_err(|e| format!("startup: {:?}", e))?;
+fn run_compute_from_file(fixture: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(fixture)?;
     let func = world
         .symbols()
         .get(":user::compute")
-        .ok_or_else(|| format!("no :user::compute in {fixture:?}"))?
+        .ok_or_else(|| {
+            StartupError::Runtime(Box::new(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::UnboundSymbol(":user::compute".to_string()),
+            )))
+        })?
         .clone();
     apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("eval: {:?}", e))
+        .map_err(|e| StartupError::Runtime(Box::new(e)))
 }
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────

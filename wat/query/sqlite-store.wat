@@ -179,7 +179,7 @@
     (:wat::core::let
       [nm (:wat::core::first names)
        tl (:wat::core::rest names)]
-      (:wat::core::match (:wat::core::HashMap/get index-keys nm)
+      (:wat::core::match (:wat::hashmap::get index-keys nm)
         
         (:wat::core::None (:wat::query::insert-index-projections conn tl pk sk data index-keys))
         ((:wat::core::Some ik)

@@ -13,8 +13,9 @@
 //! satisfaction resolves method members for any type whose `:<T>/<method>` exists; the dispatcher derives the
 //! concrete FQDN from `receiver.type_name()`.
 
-use wat::freeze::{call_beside_value, startup_from_file};
-use wat::runtime::Value;
+use wat::check::error::CheckErrorKind;
+use wat::freeze::{call_beside_value, startup_from_file, StartupError};
+use wat::runtime::{RuntimeErrorKind, Value};
 
 /// A foreign `:wat::core::String`, taught `:t::Tagged` via `extend-type`, satisfies the surface and
 /// dispatches `:t::Tagged/tag` to the adapter's impl (constant 42).
@@ -39,10 +40,9 @@ fn extend_type_surface_collision_is_duplicate_define() {
     let result = startup_from_file(
         "tests/types/probe_arc293_4c_extend_type_adapter_dup.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "two extend-type impls for the same :<T>/<method> must be rejected as DuplicateDefine \
-         at startup; but startup succeeded — collision detection is broken"
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(e.kind(), RuntimeErrorKind::DuplicateDefine(name)
+            if name == ":wat::core::String/tag")
     );
 }
 
@@ -54,9 +54,11 @@ fn non_extended_foreign_type_is_rejected_at_check_time() {
     let result = startup_from_file(
         "tests/types/probe_arc293_4c_extend_type_adapter_notextended.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "a foreign type without `extend-type` for the surface must NOT satisfy it; \
-         the check must reject the call, but startup succeeded — satisfaction is broken (STOP-3)"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":t::tag-neg"
+            && param == "#1"
+            && expected == ":t::TaggedNeg"
+            && got == ":wat::core::i64"
     );
 }

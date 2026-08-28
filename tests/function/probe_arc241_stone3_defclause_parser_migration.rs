@@ -53,8 +53,8 @@
 //! Negative fixtures: probe_arc241_stone3_c04.wat.bad, probe_arc241_stone3_c05.wat.bad,
 //!   probe_arc241_stone3_c06.wat.bad.
 
-use wat::freeze::{startup_beside, startup_from_file};
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_beside, startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 
 /// just-eval (rubric): fetch `fn_name` from the co-located fixture (`startup_beside`)
 /// and `apply_function` it with `args` — no inline wat driver.
@@ -99,19 +99,40 @@ fn contract_04_name_not_symbol_errors() {
     // Slot 0 of triple is a keyword, not a Symbol.
     // A4 enforces this per arc 159/169/234 binding contract; canonical also enforces.
     let result = startup_from_file("tests/function/probe_arc241_stone3_c04.wat.bad");
-    assert!(result.is_err(), "non-Symbol at name slot must error; got Ok");
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::defclause"
+                && reason == "name must be a plain symbol (not a keyword, literal, or nested form)"
+        )
+    );
 }
 
 #[test]
 fn contract_05_missing_arrow_errors() {
     // Slot 1 of triple is `=` not `<-`.
     let result = startup_from_file("tests/function/probe_arc241_stone3_c05.wat.bad");
-    assert!(result.is_err(), "missing `<-` arrow must error; got Ok");
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::defclause"
+                && reason == "triple must be `name <- :T`; expected `<-` as the second element"
+        )
+    );
 }
 
 #[test]
 fn contract_06_incomplete_triple_errors() {
     // Argspec has fewer than 3 items at a triple position.
     let result = startup_from_file("tests/function/probe_arc241_stone3_c06.wat.bad");
-    assert!(result.is_err(), "incomplete triple must error; got Ok");
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::defclause"
+                && reason == "triple is incomplete; expected `name <- :T` but ran out of items"
+        )
+    );
 }

@@ -51,9 +51,9 @@
      n     (:wat::core::length hits)]
     (:wat::core::if (:wat::i64::= n 1)
       (:wat::core::Option/expect
-        (:wat::core::PersistentMap/get (:wat::core::first hits) "?name")
+        (:wat::map::get (:wat::core::first hits) "?name")
         "q-Guess: ?name")
-      (:wat::core::String/concat "count=" (:wat::i64::to-string n)))))
+      (:wat::string::concat "count=" (:wat::i64::to-string n)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

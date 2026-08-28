@@ -13,8 +13,14 @@ use crate::span::Span;
 /// Stone 233.1 ships only `Unknown`. Stone 233.2.a adds three variants:
 /// - `Provenance::Literal { span }` — the value appeared as a literal in source.
 /// - `Provenance::SymbolBound { binding_span, head_span }` — bound via let-symbol lookup.
-/// - `Provenance::RuntimeBuilt { producer, call_span }` — built by `keyword/from-string`,
-///   `from-holon`, mailbox payload, etc.
+/// - `Provenance::RuntimeBuilt { producer, call_span }` — built by `from-holon`, `edn::read`,
+///   `keyword-node`, `keyword/from-string`/`to-symbol`/`to-type-form`/`to-type-form-colon`,
+///   mailbox payload, etc. Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning
+///   signature (sniffed from the handler's own declared return type,
+///   `crates/wat-macros/src/wat_intrinsic.rs`), so a registry-routed producer CAN stamp this
+///   variant itself — `src/intrinsic/keyword.rs`'s four producers do. A registry-routed
+///   handler that just returns a bare `Value` still yields `Unknown` (the shim's default arm,
+///   unchanged for the ~250 non-producer handlers).
 #[derive(Debug, Clone)]
 pub enum Provenance {
     /// Default — no provenance information attached.

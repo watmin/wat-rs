@@ -64,7 +64,7 @@
                     fired (:wat::rete::fire-rules (:dm::seed-practice s0))
                     who   (:wat::rete::query fired (:dm::q-who))
                     fact  (:wat::core::Option/expect
-                            (:wat::core::PersistentMap/get
+                            (:wat::map::get
                               (:wat::core::first who)
                               "?who")
                             "sigil: no Datamancer")]

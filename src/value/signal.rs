@@ -193,6 +193,17 @@ pub enum RuntimeErrorKind {
     UnboundSymbol(String),
     #[to_edn(key = "path")]
     UnknownFunction(String),
+    /// Arc 255 Stone O-iv-a — registered in the intrinsic registry (name, arity, doc,
+    /// examples all present; it works when called directly), but with no value-level
+    /// door: it is a BINDING handler that takes `&[WatAST]`/`env`/`sym` and evaluates
+    /// its own arguments, and `:wat::core::apply` has already evaluated its arguments
+    /// into `&[Value]` — there is no AST left to hand it. PERMANENT, not transitional:
+    /// no amount of sweeping the BINDING population (Stones O-iv-b/c/d) empties this,
+    /// because a handler that needs `env`/`sym` can never be splatted. Deliberately its
+    /// own variant rather than a reuse of `MalformedForm` (the call is well-formed) or
+    /// a widened `UnknownFunction` (that tuple variant is pinned narrow — see its own
+    /// comment at the `UnknownFunction` Display arm below; this name plainly IS known).
+    NotValueDispatchable { name: String },
     NotCallable { got: Box<ValueSnapshot> },
     TypeMismatch {
         op: String,
@@ -604,6 +615,27 @@ impl RuntimeErrorKind {
                     ),
                     _ => write!(f, "{}unknown function: {}", prefix, p),
                 }
+            }
+            // ⛔ THIS MESSAGE STATES AN ABSENCE, NEVER A REASON — corrected 2026-08-28, hours
+            // after it shipped, at the builder's question: *"what prevents application?… is
+            // max-of written wrong?"* It WAS written wrong. The first draft said "it takes its
+            // arguments unevaluated", asserting an essential property of the verb. For
+            // `:wat::f64::max-of` that is FALSE: `f64_variadic_reduce` uses `env`/`sym` for
+            // exactly one thing — `eval_inner` on its own arguments — and is a pure fold after
+            // that. It is ALGEBRA wearing a BINDING signature, and so are most of the 331 this
+            // fires for. Until O-iii landed, `&[WatAST]` was the ONLY signature `#[wat_intrinsic]`
+            // accepted, so every handler took it whether or not it needed to; the registry then
+            // recorded `value_handler: None` and `apply` read that ABSENCE as an IMPOSSIBILITY.
+            // Same defect as `walk.rs:268`: a dispatch path treating what it was not told as
+            // something it knows. Say what is missing. Do not say why.
+            RuntimeErrorKind::NotValueDispatchable { name } => {
+                write!(
+                    f,
+                    "{}{} is registered, but no handler taking EVALUATED arguments is \
+                     registered under that name, and apply dispatches with evaluated \
+                     arguments. Call it directly.",
+                    prefix, name
+                )
             }
             RuntimeErrorKind::NotCallable { got } => {
                 write!(f, "{}not callable: expected Function, got {}", prefix, got)

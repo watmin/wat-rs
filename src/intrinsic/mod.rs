@@ -1,4 +1,4 @@
-//! Intrinsic registry — arc 255. The home where wat **intrinsics** (callables
+//! Intrinsic rgistry — arc 255. The home where wat **intrinsics** (callables
 //! implemented in Rust, exposed under a `:wat::…` FQDN — `runtime.rs:23931`:
 //! "intrinsics are custom Rust by definition") become registered, queryable
 //! entities. The `#[wat_intrinsic]` preamble (255.1b-ii) lives over each handler
@@ -45,7 +45,7 @@
 use std::sync::Arc;
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
+use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak, TrackedValue};
 
 // ─── The closed-domain enums the reflection surface answers with ─────────────
 //
@@ -148,9 +148,19 @@ pub(crate) enum Arity {
     Variadic,
 }
 
-/// The native dispatch handler — matches the eval-fn signature exactly.
+/// The native dispatch handler — returns `TrackedValue`, not a bare `Value`, so a producer
+/// handler CAN stamp `Provenance::RuntimeBuilt { producer, call_span }` — "this value was
+/// manufactured, by that verb, there" — the same fact a hand-written `dispatch_keyword_head`
+/// arm has always been able to record. Arc 255 Stone G.
+///
+/// The `#[wat_intrinsic]`-generated shim (`crates/wat-macros/src/wat_intrinsic.rs`) is the ONE
+/// choke point that produces this signature: a handler written to return a bare `Value` (the
+/// ~250 pre-existing handlers, untouched) is wrapped by the shim as
+/// `TrackedValue::new(v, Provenance::Unknown)` — today's behaviour, unchanged; a handler that
+/// WANTS provenance returns `TrackedValue` itself and the shim's sniff (mirroring
+/// `SniffedArgs` for the argument side) passes it through un-rewrapped.
 pub(crate) type NativeHandler =
-    fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<Value, EvalBreak>;
+    fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<TrackedValue, EvalBreak>;
 
 /// One `@example` / `@example-norun` entry carried on the registry — the
 /// structured form of `wat_doc::DocExample`, lowered to `'static` literals
@@ -177,9 +187,31 @@ pub(crate) struct ExampleSubmission {
 /// `args`, `examples`, and `see` are carried for iv-b2's verifier seam.
 /// Arc 255.1b-v — `source` carries the handler's restringified token source
 /// (via `quote!(#item).to_string()` in the macro), consumed by `show-source`.
+/// The pre-evaluated dispatch handler — what `:wat::core::apply` needs.
+///
+/// ⛔ THE SHAPE DIFFERENCE IS THE WHOLE REASON A SECOND SLOT EXISTS. [`NativeHandler`] takes
+/// UNEVALUATED `&[WatAST]` and evaluates them itself; `apply` has ALREADY evaluated its arguments
+/// and holds `&[Value]`, so it cannot call a `NativeHandler` — there is no AST left to hand it.
+/// That impedance mismatch, not laziness, is why `dispatch_substrate_impl` was a second match table
+/// with no registry lookup (arc 255 Stone N). A verb carrying this slot is served by the REGISTRY on
+/// both paths; one carrying only `handler` still falls through to the legacy match.
+pub(crate) type ValueHandler = fn(&[Value]) -> Result<Value, EvalBreak>;
+
 pub(crate) struct IntrinsicSubmission {
     pub name: &'static str,
     pub handler: NativeHandler,
+    /// Arc 255 Stone N — the value-level handler `:wat::core::apply` needs.
+    /// `handler` takes UNEVALUATED `&[WatAST]` (it evaluates its own args);
+    /// `apply` has already evaluated its args down to `&[Value]` by the time
+    /// it needs to dispatch, so `handler` cannot serve it directly — there is
+    /// no AST left to hand it. `None` (the default the `#[wat_intrinsic]`
+    /// macro emits when no `value = <path>` is named) for the ~250
+    /// pre-existing handlers, unchanged (STOP-1). `Some(f)` for a handler
+    /// that also has a value-level implementation, letting
+    /// `dispatch_substrate_impl` (`src/runtime.rs`) — `apply`'s substrate
+    /// fallback, previously a second, registry-blind dispatch table — serve
+    /// that verb from THIS registry instead.
+    pub value_handler: Option<ValueHandler>,
     /// Exact(N) for fixed-arity handlers; Variadic for `&[WatAST]` handlers.
     pub arity: Arity,
     /// GFM prose body (everything before the first `@`-tag line).
@@ -238,6 +270,56 @@ pub(crate) struct SpecialFormSubmission {
 
 inventory::collect!(SpecialFormSubmission);
 
+/// Which of the three regimes an `#[wat_special_form_impl]` annotation names — arc 255 Stone
+/// P6-a. `check` runs once, statically, before any evaluation exists; `eval` and `tail` are
+/// mutually exclusive per-invocation regimes selected by call POSITION, never both
+/// (`NOTE-a-special-form-declaration-names-none-of-its-three-implementations.md`, "the three do
+/// not compose"). Hand-defined, not `wat_enum_from!`-generated (mirrors `Arity`, just above):
+/// this is a Rust-only reflection axis over a fixed, closed three-member set, not a wat-visible
+/// enum a `.wat` `defenum` needs to drive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SpecialFormRole {
+    /// Static type inference — `src/check.rs`'s `infer_*` fns.
+    Check,
+    /// Per-invocation evaluation — `src/runtime.rs`'s eval match.
+    Eval,
+    /// Per-invocation evaluation in tail position (TCO) — `src/runtime.rs`'s tail match.
+    /// Optional at the population level (`tail: None` is an honest "falls through to
+    /// `eval_inner`, correct but not tail-optimized" — never a wrong answer), but the WALL
+    /// below requires it for neither `if` nor `let`'s absence: both of THEM have one.
+    Tail,
+}
+
+impl SpecialFormRole {
+    /// Lowercase label — used by `show-source`'s `;; role: <label>` lines and by the wall
+    /// test's failure message. Kept as a method (not a `Display` impl) because nothing outside
+    /// this reflection surface needs to print a bare role.
+    pub(crate) fn label(&self) -> &'static str {
+        match self {
+            SpecialFormRole::Check => "check",
+            SpecialFormRole::Eval => "eval",
+            SpecialFormRole::Tail => "tail",
+        }
+    }
+}
+
+/// A link-time submission of one special form IMPLEMENTATION, gathered by `inventory` — the
+/// third inventory stream (arc 255 Stone P6-a), sibling to `IntrinsicSubmission` and
+/// `SpecialFormSubmission`. `#[wat_special_form_impl("<fqdn>", role = check|eval|tail)]` emits
+/// one of these per annotated fn (`infer_if`, `eval_if`, `eval_if_tail`, …), keyed by (name,
+/// role) — never by file, since a proc-macro cannot see across files to the OTHER two
+/// implementations of the same form.
+pub(crate) struct SpecialFormImplSubmission {
+    /// The form's FQDN — the SAME string `#[wat_special_form]` declared on the doc-only struct.
+    pub name: &'static str,
+    pub role: SpecialFormRole,
+    /// Restringified fn source — `quote!(#item).to_string()`, same mechanism
+    /// `#[wat_intrinsic]` uses for its `source` field (`wat_intrinsic.rs:565`).
+    pub source: &'static str,
+}
+
+inventory::collect!(SpecialFormImplSubmission);
+
 /// One registered intrinsic's full baseline. `handler` is consumed by the
 /// runtime dispatch route (`lookup`); `name`/`arity`/`prose`/`added`/`ret` are
 /// consumed by `metadata-of`'s intrinsic branch (`lookup_entry`); `args`/
@@ -249,6 +331,13 @@ pub(crate) struct IntrinsicEntry {
     /// `Kind::SpecialForm` (special forms are dispatched by the runtime engine,
     /// not by a registered Rust fn).
     pub handler: Option<NativeHandler>,
+    /// Arc 255 Stone N — mirrors `IntrinsicSubmission::value_handler`; `None`
+    /// for `Kind::SpecialForm` and for any `Kind::Intrinsic` that hasn't
+    /// named one. Read through `lookup_entry` by `dispatch_substrate_impl`
+    /// (`src/runtime.rs`) — `:wat::core::apply`'s substrate door, which reads the
+    /// SAME entry for `arity` and guards on it (Stone O-i), so no handler is ever
+    /// called without the arity check the AST door has always had.
+    pub value_handler: Option<ValueHandler>,
     /// What kind of callable this is (`Intrinsic` or `SpecialForm`).
     pub kind: Kind,
     /// `@syntax (...)` grammar string; empty for regular intrinsics.
@@ -292,6 +381,20 @@ pub(crate) struct IntrinsicEntry {
     /// Consumed by `yields_type_matches_fn_arg_param` (cfg(test)) and `eval_render_doc`.
     #[allow(dead_code)] // read by yields_type_matches_fn_arg_param (cfg(test)) + render-doc
     pub yields_type: Option<&'static str>,
+    /// Arc 255 Stone P6-a — the gathered `#[wat_special_form_impl]` submissions for this form,
+    /// (role, source) pairs in whatever order `inventory` handed them back (NOT necessarily
+    /// check→eval→tail; a reader that cares about order — `show-source` — sorts at read time).
+    /// Empty for `Kind::Intrinsic` (that kind's source lives in `source`, above) and for a
+    /// `Kind::SpecialForm` nobody has annotated yet — the exact case `impls.is_empty()` must
+    /// keep meaning "no impl found source", not "this kind never carries one" (STOP-4).
+    ///
+    /// ⚠ Every other field on this struct is `&'static` (macro-emitted literals / fn pointers
+    /// that outlive the program). This one is OWNED (`Vec`, gathered and allocated at fold
+    /// time inside `registry()`, not at compile time by a macro) because it is built by
+    /// bucketing a THIRD inventory stream per-form rather than captured directly on the
+    /// submission — `registry()` is a `OnceLock` that owns its entries, so an owned `Vec` here
+    /// is fine; it is the one asymmetry in an otherwise all-`&'static` struct.
+    pub impls: Vec<(SpecialFormRole, &'static str)>,
 }
 
 /// `name → entry`. Built once at startup; the dispatch route reads `handler`
@@ -304,7 +407,12 @@ impl IntrinsicRegistry {
     fn new() -> Self { IntrinsicRegistry { entries: std::collections::HashMap::new() } }
 
     /// Register an intrinsic's full baseline. Duplicate registration is a
-    /// programmer error (two homes claiming the same FQDN).
+    /// programmer error (two homes claiming the same FQDN). This `debug_assert!`
+    /// is compiled out under `cargo nextest run --release` (this repo's only
+    /// trusted floor; `Cargo.toml` has no `[profile.release]`) — it still fires
+    /// fast in a debug build, but the guarantee IN RELEASE is carried by
+    /// `tests::no_two_submissions_claim_the_same_fqdn`, which walks the
+    /// `inventory::iter` submission streams before either collapses into this map.
     fn register(&mut self, entry: IntrinsicEntry) {
         debug_assert!(!self.entries.contains_key(entry.name), "duplicate intrinsic registration: {}", entry.name);
         self.entries.insert(entry.name, entry);
@@ -340,6 +448,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
             r.register(IntrinsicEntry {
                 name: submission.name,
                 handler: Some(submission.handler),
+                value_handler: submission.value_handler,
                 kind: Kind::Intrinsic,
                 syntax: "",
                 arity: submission.arity,
@@ -356,17 +465,45 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 determinism: submission.determinism,
                 category: submission.category,
                 yields_type: submission.yields_type,
+                impls: Vec::new(),
             });
+        }
+        // Arc 255 Stone P6-a — bucket the THIRD stream (`#[wat_special_form_impl]`
+        // submissions) ONCE, keyed by fqdn, before the special-form loop below drains it
+        // per form. Iterating the whole stream inside that loop would be O(n·m) and, more
+        // importantly, would read as if the (fqdn, role) association were incidental rather
+        // than the keyed relationship it is.
+        let mut impls_by_fqdn: std::collections::HashMap<&'static str, Vec<(SpecialFormRole, &'static str)>> =
+            std::collections::HashMap::new();
+        for submission in inventory::iter::<SpecialFormImplSubmission> {
+            impls_by_fqdn
+                .entry(submission.name)
+                .or_default()
+                .push((submission.role, submission.source));
         }
         // Each `#[wat_special_form("<fqdn>")]` struct submits a SpecialFormSubmission
         // via `inventory`; fold them into the registry as Kind::SpecialForm entries.
         for submission in inventory::iter::<SpecialFormSubmission> {
+            // Arc 255 Stone P2 — derive arity from the form's own declared @args instead
+            // of hardcoding Variadic. `Exact(N)` only when the form actually enumerated
+            // its arguments and none of them is a rest param; a form that declares its
+            // shape as `@syntax` instead of `@arg` (e.g. `let`) has zero @args and is
+            // genuinely variadic — Exact(0) would be a WORSE lie than the one this
+            // replaces. This mirrors what `#[wat_intrinsic]` already does
+            // (crates/wat-macros/src/wat_intrinsic.rs:653-657).
+            let arity = match submission.args {
+                args if !args.is_empty() && !args.iter().any(|(_, _, _, is_rest)| *is_rest) => {
+                    Arity::Exact(args.len())
+                }
+                _ => Arity::Variadic,
+            };
             r.register(IntrinsicEntry {
                 name: submission.name,
                 handler: None,
+                value_handler: None,
                 kind: Kind::SpecialForm,
                 syntax: submission.syntax,
-                arity: Arity::Variadic, // special forms handle their own arity
+                arity,
                 prose: submission.prose,
                 added: submission.added,
                 args: submission.args,
@@ -380,28 +517,52 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 determinism: submission.determinism,
                 category: submission.category,
                 yields_type: None,
+                impls: impls_by_fqdn.remove(submission.name).unwrap_or_default(),
             });
         }
         r
     })
 }
 
+// Arc 255 Stone HOME-12 — the AST surface gets a registry home. Pure re-registration
+// (`:wat::core::ast-*`/`symbol-node`/`keyword-node`/`read-string`/`fresh-symbol` are already the
+// final spelling); the handlers stay in `src/edn/render.rs` (STOP-5 — a file carve is a separate
+// deliverable, reported not acted on).
+mod ast;
+mod bigint;
 mod bytes;
 mod char;
+// Arc 255 Stone HOME-11 — the EDN registry home. Pure re-registration (HOME-5 already carved
+// the file home, `src/edn/`); nothing renamed, no `.wat` corpus touch.
+mod edn;
 mod f64;
+mod hashmap;
+mod hashset;
+mod holon;
 mod i64;
 mod io;
 mod kernel;
+mod keyword;
+mod linkedlist;
 mod list;
+mod map;
+// Arc 255 Stone HOME-10 — math, stat, seq get actual homes. Pure re-registration
+// (HOME-9 already renamed these off `:wat::std::`); shim-only, three files, no
+// `src/math/`/`src/stat/`/`src/seq/` directory (STOP-1 — no algebra worth naming).
+mod math;
+mod rational;
 mod reflect;
 mod regex;
-// `pub(crate)` — NOT the same default-private shape as its siblings above. The
-// `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) call
-// four of these handlers DIRECTLY (a different FQDN prefix than the registered
-// `:wat::string::*` verbs, so they bypass the registry and cannot reach them via
-// `crate::intrinsic::registry().lookup(...)`); those call sites need the path.
-pub(crate) mod string;
+mod seq;
+mod stat;
+// Arc 255 Stone F — reverted to the default-private shape of its siblings. The
+// `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) that needed
+// `pub(crate)` to call four of these handlers directly (bypassing the registry) are retired;
+// nothing outside this module calls into it anymore.
+mod string;
 mod uuid;
+mod vec;
+mod vector;
 mod witness;
 mod special;
 mod time;
@@ -414,6 +575,135 @@ mod time;
 // inline in the tests below.
 #[cfg(test)]
 mod tests {
+    /// Arc 255 Stone P4 — the frozen DEBT LEDGER for the silent skip shared by
+    /// `doc_arg_ret_types_match_checker_scheme` (`None => continue` above, "not yet in
+    /// checker — skip") and `yields_type_matches_fn_arg_param`'s second `None => continue`
+    /// (same reason). Both gates build `CheckEnv::with_builtins_and_types(&TypeEnv::new())`
+    /// and call `check_env.get(entry.name)`; for every name below that returns `None`, so
+    /// **neither gate verifies anything about that entry's `@arg`/`@ret` doc strings against
+    /// the checker.** A registration whose doc types are pure fiction passes both gates today
+    /// by being absent from `register_builtins` (`src/check.rs`) — not by being correct.
+    ///
+    /// ⚠ THIS LIST IS A DEBT LEDGER, NOT AN EXEMPTION LIST. Every name on it is an intrinsic
+    /// or special form whose declared types are checked by nothing. It is not an accusation —
+    /// `spawn-thread`/`spawn-process` (`:wat::kernel::`) are deliberately special-cased through
+    /// `infer_*_prime` elsewhere per the arc's own NOTE — but their absence from `CheckEnv`
+    /// still means THIS gate family verifies nothing for them, so they stay on the ledger like
+    /// everything else here. Driving this list to zero (registering the missing names in
+    /// `register_builtins`) is a separate, larger stone; this test only measures and freezes
+    /// the population so it cannot grow silently.
+    ///
+    /// Measured 2026-08-28 against `check_env.get(entry.name)` over `registry().all_entries()`
+    /// — the SAME construction and SAME method both gates use, so this measurement cannot
+    /// disagree with what the gates actually skip. 49 of 382 registered entries, by namespace:
+    /// - `:wat::kernel::` 23 of 46 — accept, address-wire?, after, allow, close, connect, deny,
+    ///   fn-forms, listener, peer-pid, peer-process, peer-wire?, poll, recv,
+    ///   require-wire-address, retag-op, select, send, serve-dispatch-op, signal,
+    ///   spawn-process, spawn-thread, try-send
+    /// - `:wat::holon::` 7 of 91 — coincident-explain, coincident?, cosine, dot, literal,
+    ///   simhash, to-record
+    /// - `:wat::core::` 6 of 18 — List, fresh-symbol, if, let, type-equal?, type-params-used-in
+    /// - `:wat::linkedlist::` 5 of 5 — WHOLLY ABSENT: conj, contains?, empty?, get, length
+    /// - `:wat::seq::` 3 of 3 — WHOLLY ABSENT: remove-at, window, zip
+    /// - `:wat::string::` 2 of 20 — declare-acronyms, interpolate
+    /// - `:wat::time::` 2 of 41 — +, -
+    /// - `:wat::edn::` 1 of 13 — validate
+    const FROZEN_CHECKER_DEBT_LEDGER: &[&str] = &[
+        ":wat::core::List",
+        ":wat::core::fresh-symbol",
+        ":wat::core::if",
+        ":wat::core::let",
+        ":wat::core::type-equal?",
+        ":wat::core::type-params-used-in",
+        ":wat::edn::validate",
+        ":wat::holon::coincident-explain",
+        ":wat::holon::coincident?",
+        ":wat::holon::cosine",
+        ":wat::holon::dot",
+        ":wat::holon::literal",
+        ":wat::holon::simhash",
+        ":wat::holon::to-record",
+        ":wat::kernel::accept",
+        ":wat::kernel::address-wire?",
+        ":wat::kernel::after",
+        ":wat::kernel::allow",
+        ":wat::kernel::close",
+        ":wat::kernel::connect",
+        ":wat::kernel::deny",
+        ":wat::kernel::fn-forms",
+        ":wat::kernel::listener",
+        ":wat::kernel::peer-pid",
+        ":wat::kernel::peer-process",
+        ":wat::kernel::peer-wire?",
+        ":wat::kernel::poll",
+        ":wat::kernel::recv",
+        ":wat::kernel::require-wire-address",
+        ":wat::kernel::retag-op",
+        ":wat::kernel::select",
+        ":wat::kernel::send",
+        ":wat::kernel::serve-dispatch-op",
+        ":wat::kernel::signal",
+        ":wat::kernel::spawn-process",
+        ":wat::kernel::spawn-thread",
+        ":wat::kernel::try-send",
+        ":wat::linkedlist::conj",
+        ":wat::linkedlist::contains?",
+        ":wat::linkedlist::empty?",
+        ":wat::linkedlist::get",
+        ":wat::linkedlist::length",
+        ":wat::seq::remove-at",
+        ":wat::seq::window",
+        ":wat::seq::zip",
+        ":wat::string::declare-acronyms",
+        ":wat::string::interpolate",
+        ":wat::time::+",
+        ":wat::time::-",
+    ];
+
+    #[test]
+    fn checker_skip_debt_is_named_and_frozen() {
+        use crate::check::CheckEnv;
+        use crate::types::TypeEnv;
+
+        let type_env = TypeEnv::new();
+        // The exact construction both `doc_arg_ret_types_match_checker_scheme` and
+        // `yields_type_matches_fn_arg_param` use — a measurement that cannot disagree with
+        // the thing it measures.
+        let check_env = CheckEnv::with_builtins_and_types(&type_env);
+
+        let mut measured: Vec<&'static str> = super::registry()
+            .all_entries()
+            .filter(|entry| check_env.get(entry.name).is_none())
+            .map(|entry| entry.name)
+            .collect();
+        measured.sort();
+        measured.dedup();
+
+        let frozen: Vec<&'static str> = FROZEN_CHECKER_DEBT_LEDGER.to_vec();
+
+        let newly_unverified: Vec<&&'static str> =
+            measured.iter().filter(|n| !frozen.contains(*n)).collect();
+        let no_longer_unverified: Vec<&&'static str> =
+            frozen.iter().filter(|n| !measured.contains(*n)).collect();
+
+        assert!(
+            newly_unverified.is_empty() && no_longer_unverified.is_empty(),
+            "checker-skip DEBT LEDGER drifted from the measured population.\n\
+             \n\
+             NEW — registered but absent from `CheckEnv` (`check_env.get` returns `None`), \
+             NOT on the frozen ledger — `doc_arg_ret_types_match_checker_scheme` and \
+             `yields_type_matches_fn_arg_param` are silently skipping these and verifying \
+             nothing about their `@arg`/`@ret` docs. Add each to `FROZEN_CHECKER_DEBT_LEDGER` \
+             (or register it in `register_builtins`, `src/check.rs`, to remove it from the \
+             ledger entirely): {:?}\n\
+             \n\
+             STALE — on the frozen ledger but now resolved (`check_env.get` returns `Some` for \
+             these), i.e. `register_builtins` now covers them and both gates verify them for \
+             real — delete each from `FROZEN_CHECKER_DEBT_LEDGER`: {:?}\n",
+            newly_unverified, no_longer_unverified,
+        );
+    }
+
     /// Arc 255.1b-v: every `@see` FQDN in the intrinsic corpus must resolve
     /// to a registered intrinsic. A dangling @see is a broken cross-reference
     /// in the doc system → fail loud.
@@ -707,6 +997,79 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Arc 255 Stone P1 — two homes claiming the same FQDN is a silent
+    /// `HashMap::insert` overwrite inside `IntrinsicRegistry::register` (see its
+    /// `debug_assert!`), and this repo's only trusted floor is `cargo nextest run
+    /// --release`, where `debug_assert!` is compiled out (no `[profile.release]` in
+    /// `Cargo.toml`). By the time `registry().all_entries()` can be called, a
+    /// collision has already collapsed to one entry with no trace — a test over the
+    /// collapsed map cannot fail for the reason this one exists. So this walks the
+    /// SUBMISSION streams directly (`inventory::iter::<IntrinsicSubmission>` and
+    /// `inventory::iter::<SpecialFormSubmission>`), where both halves of a collision
+    /// are still visible, before either ever reaches `register`. Both submission
+    /// kinds fold into the SAME map in `registry()`, so they are checked together
+    /// here — a per-stream-only check would miss an intrinsic colliding with a
+    /// special form.
+    #[test]
+    fn no_two_submissions_claim_the_same_fqdn() {
+        use std::collections::HashMap;
+
+        let mut seen: HashMap<&'static str, usize> = HashMap::new();
+        for s in inventory::iter::<super::IntrinsicSubmission> {
+            *seen.entry(s.name).or_insert(0) += 1;
+        }
+        for s in inventory::iter::<super::SpecialFormSubmission> {
+            *seen.entry(s.name).or_insert(0) += 1;
+        }
+
+        let mut dupes: Vec<(&'static str, usize)> = seen.into_iter().filter(|&(_, n)| n > 1).collect();
+        dupes.sort_by_key(|(name, _)| *name);
+
+        assert!(
+            dupes.is_empty(),
+            "duplicate FQDN registration(s) — two homes claiming the same name, which \
+             IntrinsicRegistry::register silently overwrites via HashMap::insert in release \
+             (its debug_assert! is compiled out there): {dupes:?}"
+        );
+    }
+
+    /// ★ Arc 255 Stone P6-a's WALL. Without this test, `entry.impls.is_empty()` silently means
+    /// BOTH "this special form has no source" (the honest population fact — nobody has
+    /// annotated it yet, e.g. every form P6-c will add) AND "this special form's checker/eval
+    /// fns forgot their `#[wat_special_form_impl]` annotation" (a real regression) — the exact
+    /// absence-read-as-an-answer defect this whole NOTE family exists to kill, re-created
+    /// inside the stone that answers it. This makes the second case loud: every registered
+    /// `Kind::SpecialForm` entry must carry at least a `check` and an `eval` impl.
+    ///
+    /// `tail` is deliberately NOT required — 8 of the eval match's heads have a tail rule, the
+    /// rest fall through to `eval_inner` correctly (just not tail-optimized); `tail: None` is
+    /// an honest absence, not a lie (see the NOTE's `None`-discriminator table). Asserting it
+    /// here would turn a real, safe default into a failure.
+    #[test]
+    fn every_special_form_carries_check_and_eval_impls() {
+        let mut missing: Vec<String> = Vec::new();
+        for entry in super::registry().all_entries() {
+            if entry.kind != super::Kind::SpecialForm {
+                continue;
+            }
+            let has_check = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Check);
+            let has_eval = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Eval);
+            if !has_check {
+                missing.push(format!("{} — missing role: check", entry.name));
+            }
+            if !has_eval {
+                missing.push(format!("{} — missing role: eval", entry.name));
+            }
+        }
+        missing.sort();
+        assert!(
+            missing.is_empty(),
+            "special form(s) registered via #[wat_special_form] but missing a required \
+             #[wat_special_form_impl] check or eval annotation:\n{}",
+            missing.join("\n")
+        );
     }
 }
 

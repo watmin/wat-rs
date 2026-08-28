@@ -189,7 +189,7 @@
                             head-nm (:wat::core::ast-name
                                       (:wat::core::first (:wat::core::ast->children form)))
                             kind  (:wat::deporder::def-head-kind head-nm)]
-            (:wat::core::HashMap/assoc m dname (:wat::deporder::SymDef :file path :kind kind)))
+            (:wat::hashmap::assoc m dname (:wat::deporder::SymDef :file path :kind kind)))
           m))
       sym-map
       forms)))
@@ -216,7 +216,7 @@
         -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
         (:wat::core::let [file (:wat::core::Option/expect  
                                   (:wat::core::get files i) "build-pos-map: get")]
-          (:wat::core::HashMap/assoc m (:wat::source::File/path file) i)))
+          (:wat::hashmap::assoc m (:wat::source::File/path file) i)))
       (:wat::core::HashMap :wat::core::String :wat::core::i64)
       (:wat::core::range 0 n))))
 
@@ -246,7 +246,7 @@
       (:wat::core::fn [viols <- (:wat::core::Vector :- [:wat::deporder::Violation])
                        kwd   <- :wat::core::String]
         -> (:wat::core::Vector :- [:wat::deporder::Violation])
-        (:wat::core::let [sym-opt (:wat::core::HashMap/get sym-map kwd)]
+        (:wat::core::let [sym-opt (:wat::hashmap::get sym-map kwd)]
           (:wat::core::match sym-opt 
             (:wat::core::None viols)
             ((:wat::core::Some sym-def)
@@ -258,7 +258,7 @@
                  viols
                  ;; look up definer position
                  (:wat::core::let [def-path    (:wat::deporder::SymDef/file sym-def)
-                                   def-pos-opt (:wat::core::HashMap/get pos-map def-path)]
+                                   def-pos-opt (:wat::hashmap::get pos-map def-path)]
                    (:wat::core::match def-pos-opt 
                      (:wat::core::None viols)
                      ((:wat::core::Some def-pos)

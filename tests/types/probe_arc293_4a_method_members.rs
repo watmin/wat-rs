@@ -13,6 +13,7 @@
 //! `struct_satisfies_surface` treats a Method member as satisfied by a matching
 //! `defn :T/name`. NO dispatcher (`:Shape/area s`) is exercised here — that is 293.4b.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 
 /// A `defsurface` mixing a field member + a method member must parse, and a record
@@ -38,9 +39,11 @@ fn method_member_not_satisfied_when_defn_is_absent() {
     let world = startup_from_file(
         "tests/types/probe_arc293_4a_method_members.wat.bad",
     );
-    assert!(
-        world.is_err(),
-        "a record with `color` field but no `defn :T/area` must NOT satisfy the surface; \
-         but startup succeeded (method satisfaction is always-accepting — fix the resolver)"
+    wat::assert_startup_error!(world, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":t::accept"
+            && param == "#1"
+            && expected == ":t::Shape"
+            && got == ":t::NoMethod"
     );
 }

@@ -8,7 +8,7 @@
 //! Run: cargo test --release -p wat --test probe_arc278_6b_eval_test
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeErrorKind, Value};
 
 /// 1 — a true comparison over bindings → true.
 #[test]
@@ -53,6 +53,22 @@ fn user_fn_predicate() {
 /// 7 — a non-bool result is a TypeMismatch (a `where` must be a predicate).
 #[test]
 fn non_bool_result_is_error() {
+    // Not a `StartupError` — `call_beside_value` returns `Result<Value, RuntimeError>`, and the
+    // fixture's own comment ("the raise happens at runtime") confirms this is a runtime, not a
+    // check-time, failure. Grounded via `./target/release/wat` on a scratch `:user::main`
+    // invoking the same body.
     let r = call_beside_value(file!(), ":user::non-bool-result-is-error");
-    assert!(r.is_err(), "non-bool where expr must error; got {r:?}");
+    let err = r.expect_err("non-bool where expr must error");
+    assert!(
+        matches!(
+            err.kind(),
+            RuntimeErrorKind::TypeMismatch { op, expected, got }
+                if op == ":wat::rete::eval-test"
+                && *expected == ":wat::core::bool (a where predicate must return bool)"
+                && got.type_name == "wat::core::i64"
+                && got.rendered == "3"
+        ),
+        "expected RuntimeErrorKind::TypeMismatch(eval-test, bool, got i64 `3`); got {:?}",
+        err
+    );
 }

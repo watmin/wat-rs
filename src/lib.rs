@@ -74,13 +74,12 @@ pub mod config;
 pub mod distribution;
 pub mod edn;
 pub mod error_ns;
-pub mod sigma;
 pub mod process;
 pub mod form_match;
 pub mod freeze;
 pub(crate) mod function;
 pub mod hash;
-pub mod hologram;
+pub mod holon;
 pub mod scope;
 pub mod io;
 pub mod lexer;
@@ -132,7 +131,7 @@ pub use edn::render::{edn_to_value, read_edn, EdnReadError};
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };
-pub use sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatFnSigmaFn};
+pub use holon::sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatFnSigmaFn};
 pub use vm_registry::{Encoders, EncoderRegistry};
 pub use freeze::{
     bootstrap_wat_vm_process, eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen,
@@ -362,6 +361,66 @@ macro_rules! assert_check_error_present {
     }};
 }
 
+/// Assert that a `Result<_, `[`StartupError`](crate::freeze::StartupError)`>` (typically
+/// `startup_from_file`'s return value) failed with a SPECIFIC error — never a bare
+/// `result.is_err()`, which a retirement, a typo, a renamed fixture, or the intended
+/// defect all satisfy identically (arc 296 Stone L).
+///
+/// ⛔ **The discriminant is the INNER error, never the outer `StartupError` variant.**
+/// `StartupError::Check(_)` is worn by both a real defect and the retirement error that
+/// used to mask it (`#wat.check/CheckErrors [ #wat.check/EnsureFnInvalid {…} ]` vs.
+/// `#wat.check/CheckErrors [ #wat.check/MalformedForm {"…is retired; use…"} ]`) —
+/// `assert!(matches!(e, StartupError::Check(_)))` passes on both, a green test proving
+/// nothing. So this macro has two forms:
+///
+/// - `assert_startup_error!(result, check $pat if $guard)` — the `StartupError::Check`
+///   case. Delegates to [`assert_check_error_present!`] against the inner
+///   [`CheckErrorKind`](crate::check::error::CheckErrorKind) (set membership, order-independent,
+///   full-EDN dump on failure) rather than duplicating its logic.
+/// - `assert_startup_error!(result, $pat if $guard)` — any other `StartupError` variant
+///   (`Resolve`, `Parse`, `Type`, …). Matches the returned error directly; `StartupError`'s
+///   `Debug` is already EDN (Stone B), so a mismatch dumps the whole error, never a bare
+///   boolean.
+///
+/// Does not consume `$result` (matches by reference), so a site that also does further
+/// work with the `Result` (e.g. `result.unwrap_err()` for an `assert_edn_matches_file!`
+/// check right after) keeps it live.
+#[macro_export]
+macro_rules! assert_startup_error {
+    ($result:expr, check $pat:pat $(if $guard:expr)? $(,)?) => {{
+        match &$result {
+            ::std::result::Result::Err($crate::freeze::StartupError::Check(
+                $crate::check::error::CheckErrors(__errs),
+            )) => {
+                $crate::assert_check_error_present!(__errs, $pat $(if $guard)?);
+            }
+            ::std::result::Result::Err(__e) => panic!(
+                "expected StartupError::Check(_) matching `{}`, got a different error:\n{:?}",
+                stringify!($pat $(if $guard)?),
+                __e,
+            ),
+            ::std::result::Result::Ok(_) => panic!(
+                "expected a startup error (StartupError::Check matching `{}`), got Ok",
+                stringify!($pat $(if $guard)?),
+            ),
+        }
+    }};
+    ($result:expr, $pat:pat $(if $guard:expr)? $(,)?) => {{
+        match &$result {
+            ::std::result::Result::Err(__e) => assert!(
+                matches!(__e, $pat $(if $guard)?),
+                "startup error did not match `{}`:\n{:?}",
+                stringify!($pat $(if $guard)?),
+                __e,
+            ),
+            ::std::result::Result::Ok(_) => panic!(
+                "expected a startup error matching `{}`, got Ok",
+                stringify!($pat $(if $guard)?),
+            ),
+        }
+    }};
+}
+
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
     eval, register_aggregate_methods, register_defines, register_struct_methods,
@@ -373,7 +432,10 @@ pub use types::{
     AliasDef, EnumDef, EnumVariant, NewtypeDef, TypeDef, TypeEnv, TypeError, TypeExpr,
 };
 
-use holon::{encode, ScalarEncoder, Vector, VectorManager};
+// `::holon` (leading `::`) forces extern-crate resolution — this crate's own
+// `pub mod holon;` (Stone HOME-8, the VSA algebra home) shadows the bare
+// name `holon` at crate-root scope, same name as the external VSA crate.
+use ::holon::{encode, ScalarEncoder, Vector, VectorManager};
 
 /// Unified error type across the parse + lower pipeline.
 #[derive(Debug)]

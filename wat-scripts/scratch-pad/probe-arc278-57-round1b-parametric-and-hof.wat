@@ -6,13 +6,13 @@
 ;; site below). Not a test file itself (see tests/rete for the durable gate); this is a
 ;; loadable, type-checked reference proving the new spellings resolve and, for the PV trio,
 ;; that a real parametric TypeScheme is now attached (round 1a's rows were all monomorphic).
-(def :probe-pv-length (:wat::rete::core::PersistentVector/length (:wat::core::PersistentVector 1 2 3)))
-(def :probe-pv-contains (:wat::rete::core::PersistentVector/contains? (:wat::core::PersistentVector 1 2 3) 2))
+(def :probe-pv-length (:wat::rete::vector::length (:wat::core::PersistentVector 1 2 3)))
+(def :probe-pv-contains (:wat::rete::vector::contains? (:wat::core::PersistentVector 1 2 3) 2))
 ;; BRIEF-get-is-total-by-fallback.md (2026-08-05) — `PersistentVector/get` converted from
 ;; `Alias` (2-arg: container, index) to `Fallback` (4-arg: container, index, `:undefined`,
 ;; fallback) — STOP-5's own predicted collateral, found here: this call site was the one
 ;; existing caller (of 276 corpus files) still on the old 2-arg shape. Updated in place.
-(def :probe-pv-get (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector 1 2 3) 1 :undefined -1))
+(def :probe-pv-get (:wat::rete::vector::get (:wat::core::PersistentVector 1 2 3) 1 :undefined -1))
 
 ;; ── T=String — the instantiation that makes this file test PARAMETRICITY, not resolution ────
 ;;
@@ -30,11 +30,11 @@
 ;; is refused at `--check`: "parameter #4 expects :wat::core::String; got :wat::core::i64",
 ;; exit 1. `T` is inferred String from the container and the i64 fallback is rejected.
 (def :probe-pv-length-str
-  (:wat::rete::core::PersistentVector/length (:wat::core::PersistentVector "a" "b")))
+  (:wat::rete::vector::length (:wat::core::PersistentVector "a" "b")))
 (def :probe-pv-contains-str
-  (:wat::rete::core::PersistentVector/contains? (:wat::core::PersistentVector "a" "b") "a"))
+  (:wat::rete::vector::contains? (:wat::core::PersistentVector "a" "b") "a"))
 (def :probe-pv-get-str
-  (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector "a" "b") 1 :undefined "missing"))
+  (:wat::rete::vector::get (:wat::core::PersistentVector "a" "b") 1 :undefined "missing"))
 
 (def :probe-foldl
   (:wat::rete::core::foldl

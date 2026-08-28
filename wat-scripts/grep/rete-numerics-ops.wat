@@ -15,7 +15,7 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::rete::core::i64::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::i64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-i64-op"
            :captures (:wat::rete::core::PersistentVector
@@ -27,7 +27,7 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::rete::core::f64::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::f64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-f64-op"
            :captures (:wat::rete::core::PersistentVector

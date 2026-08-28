@@ -36,9 +36,9 @@
     ((:wat::spawn::ServiceEvent::Message _idx msg)
       (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] nil))
     ((:wat::spawn::ServiceEvent::Closed idx)
-      (:probe::serve-thread self l (:wat::std::list::remove-at peers idx)))
+      (:probe::serve-thread self l (:wat::seq::remove-at peers idx)))
     ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:probe::serve-thread self l (:wat::std::list::remove-at peers idx)))
+      (:probe::serve-thread self l (:wat::seq::remove-at peers idx)))
     (_ nil)))
 
 (:wat::core::defn :probe::thread-timer-in-poll [] -> :wat::core::keyword
@@ -77,9 +77,9 @@
                  ((:wat::spawn::ServiceEvent::Message _idx msg)
                    (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] nil))
                  ((:wat::spawn::ServiceEvent::Closed idx)
-                   (:probe::serve-proc self l (:wat::std::list::remove-at peers idx)))
+                   (:probe::serve-proc self l (:wat::seq::remove-at peers idx)))
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
-                   (:probe::serve-proc self l (:wat::std::list::remove-at peers idx)))
+                   (:probe::serve-proc self l (:wat::seq::remove-at peers idx)))
                  (_ nil)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::core::let

@@ -42,22 +42,38 @@
 //! Run: cargo test --release -p wat --test rete probe_arc278_concurrent_retes
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 /// Call a zero-arg entry point and read its `Vector<i64>` of witnesses.
-fn witnesses(entry: &str) -> Result<Vec<i64>, String> {
-    let out = call_beside_value(file!(), entry).map_err(|e| format!("eval {entry}: {e:?}"))?;
+fn witnesses(entry: &str) -> Result<Vec<i64>, RuntimeError> {
+    let out = call_beside_value(file!(), entry)?;
     let items: Vec<&Value> = match &out {
         Value::wat__core__PersistentVector(v) => v.iter().collect(),
         Value::Vec(v) => v.iter().collect(),
-        other => return Err(format!("{entry}: expected a vector; got {other:?}")),
+        other => {
+            return Err(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: format!("witnesses({entry})"),
+                    expected: "vector",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            ))
+        }
     };
     items
         .into_iter()
         .enumerate()
         .map(|(i, v)| match v {
             Value::i64(x) => Ok(*x),
-            other => Err(format!("{entry} slot {i}: expected i64; got {other:?}")),
+            other => Err(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: format!("witnesses({entry}) slot {i}"),
+                    expected: "i64",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )),
         })
         .collect()
 }

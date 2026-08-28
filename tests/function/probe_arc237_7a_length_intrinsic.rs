@@ -17,7 +17,7 @@
 //! Wat source: tests/function/probe_arc237_7a_length_intrinsic.wat
 
 use wat::freeze::startup_beside;
-use wat::runtime::{apply_function, Value};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
 // fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
@@ -68,5 +68,16 @@ fn length_on_noncollection_errors() {
         .expect("fixture defines :user::length-noncollection")
         .clone();
     let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
-    assert!(result.is_err(), "length on non-collection (i64) must error at runtime; got Ok({:?})", result.ok());
+    assert!(
+        matches!(
+            &result,
+            Err(e) if matches!(
+                e.kind(),
+                RuntimeErrorKind::TypeMismatch { op, got, .. }
+                    if op == ":wat::core::length" && got.type_name == "wat::core::i64"
+            )
+        ),
+        "length on non-collection (i64) must error at runtime with RuntimeErrorKind::TypeMismatch{{op: \":wat::core::length\", got: i64}}; got {:?}",
+        result
+    );
 }

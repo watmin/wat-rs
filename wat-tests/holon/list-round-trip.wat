@@ -10,7 +10,7 @@
   
   (:wat::core::let
     [xs (:wat::core::List 1 2 3)
-     n  (:wat::core::List/length xs)]
+     n  (:wat::linkedlist::length xs)]
     (:wat::test::assert-eq n 3)))
 
 ;; ─── 2: Empty list ─────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@
   
   (:wat::core::let
     [xs (:wat::core::List)]
-    (:wat::test::assert-eq (:wat::core::List/empty? xs) true)))
+    (:wat::test::assert-eq (:wat::linkedlist::empty? xs) true)))
 
 ;; ─── 3: List/empty? false ─────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@
   
   (:wat::core::let
     [xs (:wat::core::List 1)]
-    (:wat::test::assert-eq (:wat::core::List/empty? xs) false)))
+    (:wat::test::assert-eq (:wat::linkedlist::empty? xs) false)))
 
 ;; ─── 4: List/contains? found ─────────────────────────────────────────────
 
@@ -35,7 +35,7 @@
   
   (:wat::core::let
     [xs (:wat::core::List 1 2 3)]
-    (:wat::test::assert-eq (:wat::core::List/contains? xs 2) true)))
+    (:wat::test::assert-eq (:wat::linkedlist::contains? xs 2) true)))
 
 ;; ─── 5: List/contains? not found ─────────────────────────────────────────
 
@@ -43,7 +43,7 @@
   
   (:wat::core::let
     [xs (:wat::core::List 1 2 3)]
-    (:wat::test::assert-eq (:wat::core::List/contains? xs 99) false)))
+    (:wat::test::assert-eq (:wat::linkedlist::contains? xs 99) false)))
 
 ;; ─── 6: rest length ────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@
   (:wat::core::let
     [xs (:wat::core::List 1 2 3)
      tl (:wat::core::rest xs)]
-    (:wat::test::assert-eq (:wat::core::List/length tl) 2)))
+    (:wat::test::assert-eq (:wat::linkedlist::length tl) 2)))
 
 ;; ─── 7: conj prepends — length increases ──────────────────────────────────
 
@@ -60,8 +60,8 @@
   
   (:wat::core::let
     [xs (:wat::core::List 2 3)
-     ys (:wat::core::List/conj xs 1)]
-    (:wat::test::assert-eq (:wat::core::List/length ys) 3)))
+     ys (:wat::linkedlist::conj xs 1)]
+    (:wat::test::assert-eq (:wat::linkedlist::length ys) 3)))
 
 ;; ─── 8: same-type equality List == List (same contents) ─────────────────
 

@@ -56,7 +56,7 @@ fn compound_slot_concat_is_left_untouched() {
             // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
             "(:wat::core::defn :u::h [n <- :wat::core::i64] -> :wat::core::String ",
             // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
-            "(:wat::core::string::concat ",
+            "(:wat::string::concat ",
             "\"n=\" (:wat::core::i64::to-string n)))"
         ),
         "compound-value concat must stay untouched (report-only) golden"

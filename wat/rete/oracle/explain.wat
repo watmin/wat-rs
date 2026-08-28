@@ -17,7 +17,7 @@
                      node-id <- :wat::core::i64]
       -> :wat::core::PersistentMap
       (:wat::core::let [node (:wat::core::Option/expect
-                                (:wat::core::PersistentMap/get network node-id)
+                                (:wat::map::get network node-id)
                                 "harvest-support: node")]
         (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode")
           (:wat::core::let [rname (:wat::rete::ProductionNode/rule-name node)
@@ -35,10 +35,10 @@
                     -> :wat::core::PersistentMap
                     (:wat::core::let [derived (:wat::rete::eval-insert form
                                                  (:wat::rete::Token/bindings tok))]
-                      (:wat::core::match (:wat::core::PersistentMap/get s2 derived)
+                      (:wat::core::match (:wat::map::get s2 derived)
                         ((:wat::core::Some _) s2)
                         (:wat::core::None
-                         (:wat::core::PersistentMap/assoc s2 derived
+                         (:wat::map::assoc s2 derived
                            (:wat::rete::Support :rule rname :token tok))))))
                   s
                   rhs))
@@ -46,7 +46,7 @@
               toks))
           sup)))
     (:wat::core::PersistentMap)
-    (:wat::core::PersistentMap/keys network)))
+    (:wat::map::keys network)))
 
 ;; fire-rules-explain$oracle — wat reference for explain. Same session as
 ;; fire-rules$oracle; support harvested from a fire-once$oracle replay of the

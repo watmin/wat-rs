@@ -41,17 +41,18 @@
 //! has already been type-verified.
 
 use crate::ast::WatAST;
+use crate::holon::*;
 use crate::span::Span;
 use holon::{encode, HolonAST, Similarity, DEGENERATE_EPSILON};
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::ToPrimitive;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use wat_macros::restricted_to;
+use wat_macros::wat_special_form_impl;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
@@ -4551,6 +4552,7 @@ fn emit_tail_call(
 
 /// Tail-position twin of [`eval_if`]. Same validation; the selected
 /// branch body is evaluated via [`eval_tail`] instead of [`eval`].
+#[wat_special_form_impl(":wat::core::if", role = tail)]
 fn eval_if_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -4608,6 +4610,7 @@ fn eval_if_tail(
 ///
 /// Mirrors the 233.2.j eval_let pattern: the tail-call path now preserves
 /// provenance through the trampoline boundary.
+#[wat_special_form_impl(":wat::core::let", role = tail)]
 fn eval_let_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -5230,52 +5233,34 @@ fn dispatch_keyword_head(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
+    // Arc 255 Stone G — the registry-first door, hoisted to THIS TrackedValue-returning
+    // function (not `dispatch_keyword_head_value`, whose `Result<Value, _>` signature would
+    // force a discard of whatever provenance the handler stamped). `NativeHandler` now returns
+    // `TrackedValue` directly, so a registered producer's `Provenance::RuntimeBuilt` survives
+    // un-rewrapped here; a non-producer handler still yields `Provenance::Unknown`, exactly as
+    // the shim's default arm always has (`crates/wat-macros/src/wat_intrinsic.rs`). Registered
+    // wins, always — same order guarantee `dispatch_keyword_head_value`'s own registry door
+    // documents (`DESIGN-STONE-255.1c-guard-hoist.md`); consulting it a second time there (for
+    // callers that reach that function directly, e.g. `dispatch_rete_op`) is redundant for
+    // heads that land here first but not incorrect, since a lookup is idempotent.
+    if let Some(handler) = crate::intrinsic::registry().lookup(head) {
+        return handler(args, list_span, env, sym);
+    }
     // Producers + forms that preserve provenance: return TrackedValue directly.
     match head {
-        ":wat::core::keyword/from-string" => {
-            return eval_keyword_from_string(args, list_span, env, sym)
-        }
-        ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
-        ":wat::edn::read" => {
-            return crate::edn::render::eval_edn_read(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 278 Stone 1 (`wat --mcp`) — the JSON-input twin of `edn::read`: parses JSON
-        // (not EDN) text and NEVER raises (matchable `ReadJsonOutcome`), because this verb's
-        // input arrives from a remote, untrusted harness over stdio. Producer (returns
-        // TrackedValue with RuntimeBuilt provenance).
-        ":wat::edn::read-json" => {
-            return crate::edn::render::eval_edn_read_json(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // Arc 278 Stone A — the DATA-MODE sibling: unknown tag → self-describing
-        // dynamic value (ForeignRecord/ForeignVariant) instead of UnknownTag.
-        // Producer (returns TrackedValue with RuntimeBuilt provenance).
-        ":wat::edn::read-foreign" => {
-            return crate::edn::render::eval_edn_read_foreign(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // Arc 251.5a-i — the homoiconic `read`: wat SOURCE text → forms-as-data
-        // (what `edn::read` can't do — it runs the EDN parser; this runs wat's own).
-        ":wat::core::read-string" => {
-            return crate::edn::render::eval_read_string(args, list_span, env, sym).map_err(Into::into)
-        }
+        // Arc 255 Stone HOME-11 — `:wat::edn::{read,read-json,read-foreign}` RETIRED as literal
+        // arms this stone; registry-routed via `src/intrinsic/edn.rs` (the registry-first door
+        // above already reaches them, same reasoning as `keyword/from-string`'s note in
+        // `src/intrinsic/keyword.rs`).
+        // Arc 255 Stone HOME-12 — `:wat::core::{read-string, ast->source, ast->children,
+        // ast-kind, ast-name, ast-span, ast-end-span, symbol-node, fresh-symbol, keyword-node}`
+        // RETIRED as literal arms this stone; registry-routed via `src/intrinsic/ast.rs` (the
+        // registry-first door above already reaches them, same reasoning as above). `write-forms`
+        // and `with-children` stay literal arms here — they are not this stone's ten.
         // Arc 251.5a-ii — write side: forms-as-data → clean EDN String (the inverse
         // of read-string; the fixer's read→transform→write cycle closes here).
         ":wat::core::write-forms" => {
             return crate::edn::render::eval_write_forms(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 278 Stone 1 — the sift Predicate's enabling primitive: forms-as-data →
-        // VERBATIM `::`-source text (does NOT dial `::`→`.` the way write-forms does).
-        ":wat::core::ast->source" => {
-            return crate::edn::render::eval_ast_to_source(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // Arc 251.5a-iii — the AST↔walkable bridge: decompose a :wat::WatAST node
-        // into a (Vector :- [:wat::WatAST]) the first/rest/map vocab walks (so a recursive
-        // role-inversion transform can be written IN WAT).
-        ":wat::core::ast->children" => {
-            return crate::edn::render::eval_ast_children(args, list_span, env, sym)
-                .map_err(Into::into)
         }
         // Arc 251.5a-iv — the kind-preserving REBUILD: same kind as template, new children.
         // The inverse of ast->children given the decomposed node.
@@ -5283,44 +5268,13 @@ fn dispatch_keyword_head(
             return crate::edn::render::eval_with_children(args, list_span, env, sym)
                 .map_err(Into::into)
         }
-        // Arc 251.5a-v — node recognition + construction.
-        ":wat::core::ast-kind" => {
-            return crate::edn::render::eval_ast_kind(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::ast-name" => {
-            return crate::edn::render::eval_ast_name(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::ast-span" => {
-            return crate::edn::render::eval_ast_span(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::ast-end-span" => {
-            return crate::edn::render::eval_ast_end_span(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::symbol-node" => {
-            return crate::edn::render::eval_symbol_node(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 274.1 — capture-proof binder for program-body macros (sets-of-scopes, fresh ScopeId).
-        ":wat::core::fresh-symbol" => {
-            return crate::edn::render::eval_fresh_symbol(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::keyword-node" => {
-            return crate::edn::render::eval_keyword_node(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::keyword/to-symbol" => {
-            return crate::edn::render::eval_keyword_to_symbol(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::keyword/to-type-form" => {
-            return crate::edn::render::eval_keyword_to_type_form(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::keyword/to-type-form-colon" => {
-            return crate::edn::render::eval_keyword_to_type_form_colon(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
+        // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,
+        // to-type-form-colon}` RETIRED this stone; their replacements
+        // (`:wat::keyword::{to-symbol,to-type-form,to-type-form-colon}`,
+        // `src/intrinsic/keyword.rs`) are registry-routed, not literal arms here — same
+        // reasoning as `keyword/from-string`'s note above (`RuntimeBuilt` provenance no longer
+        // survives; downgraded to `Provenance::Unknown`, the same shape every other
+        // registry-routed verb already has).
         // Arc 258 Stone 258.2b — first-class macro-abort. Evaluates the one String arg and
         // returns Err(MacroAbort) so the macro engine (macro_eval_pre_validated) wraps it into
         // a clean MacroError without "runtime::eval failed:" prefix noise. Macro-body-only.
@@ -5399,8 +5353,14 @@ fn dispatch_keyword_head_value(
     // literal arm below this point can no longer shadow a registration by
     // sitting higher in the match (it was shadowable at HEAD — see
     // docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-255.1c-guard-hoist.md).
+    // Arc 255 Stone G — `NativeHandler` now returns `TrackedValue`; THIS function's signature
+    // is the bare-`Value` inner dispatch (shared by `dispatch_rete_op`'s recursive calls, which
+    // have no use for provenance), so any provenance a producer handler stamped is discarded
+    // here via `value_owned()` — the caller that wants it, `dispatch_keyword_head`, now
+    // consults the registry itself BEFORE ever reaching this function, so a provenance-bearing
+    // producer never actually flows through this discard on that path.
     if let Some(handler) = crate::intrinsic::registry().lookup(head) {
-        return handler(args, list_span, env, sym);
+        return handler(args, list_span, env, sym).map(TrackedValue::value_owned);
     }
     match head {
         // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
@@ -5447,12 +5407,11 @@ fn dispatch_keyword_head_value(
         // Signature: (value :TypeExpr) -> :wat::core::bool
         // Error contract: well-formed type + no-match → false; unknown/Fn/Var type → Err.
         ":wat::core::conforms?" => eval_conforms(args, list_span, env, sym),
-        // Arc 278 the REQUEST-MALFORMED wall (Stone 1) — `:wat::edn::validate`, the DEEP
-        // shape check `conforms?` structurally cannot do (its Aggregate arm is nominal-only,
-        // never recursing into fields — the exact gap the wire DoS rode through).
-        // Signature: (value :DeclaredType) -> :wat::edn::Validation
-        // A value mismatch is the matchable `Invalid[path expected got]`, never a raise.
-        ":wat::edn::validate" => eval_edn_validate(args, list_span, env, sym),
+        // Arc 255 Stone HOME-11 — `:wat::edn::validate` RETIRED as a literal arm this stone;
+        // registry-routed via `src/intrinsic/edn.rs` (`eval_edn_validate`'s body — the DEEP
+        // shape check `conforms?` structurally cannot do — is untouched and un-moved; only the
+        // dispatch route changed, plus a visibility widening to `pub(crate) fn` so the registry
+        // handler can reach it).
         // Arc 237 Stone S-A — `:wat::core::subtype?` is-a hierarchy predicate.
         // Directional, transitive, reflexive walk over the `typesub` child→parent registry.
         // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
@@ -5484,7 +5443,6 @@ fn dispatch_keyword_head_value(
         // RETIRED 293 K3-revise: `:wat::core::to-struct` — projection is ONE-WAY UP, never
         // down; `$struct` is the impure tier; you already have the struct in locus.
         ":wat::core::to-record" => eval_to_core_record(args, list_span, env, sym),
-        ":wat::holon::to-record" => eval_to_holon_record(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::core::Record/field-at` accessor.
         // Accessor: (record index) -> field-value at fields[index]
         // Arc 296 G-1b — `:wat::core::Record::of` / `:wat::holon::Record::of` DELETED (finish
@@ -5582,7 +5540,6 @@ fn dispatch_keyword_head_value(
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
         // `Value::wat__WatAST` through `watast_to_holon` at runtime.rs:14437).
-        ":wat::holon::literal" => to_holon_inner(eval_quote(args, list_span)?, list_span),
         ":wat::core::quasiquote" => eval_quasiquote(args, list_span, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, list_span, env, sym),
         // Arc 143 slice 1 — runtime introspection: look up a named
@@ -5609,8 +5566,6 @@ fn dispatch_keyword_head_value(
         // leaf-unwrap counterpart (`:wat::core::atom-value`) was already
         // minted by arc 057; SCORE-SLICE-2 § Sibling check documents the
         // decision to reuse it rather than mint `Atom/value` as a duplicate.
-        ":wat::holon::Bundle/children" => eval_bundle_children(args, list_span, env, sym),
-        ":wat::holon::Bundle/first" => eval_bundle_first(args, list_span, env, sym),
         // Arc 232 Stone 232.0a — typed-entities reflection layer.
         // Three verbs that lift existing Rust helpers (extract_classifier)
         // and mint new structural accessors (bind_left + bind_right) as
@@ -5620,9 +5575,6 @@ fn dispatch_keyword_head_value(
         // Bundle/children. Naming convention: Bind/left + Bind/right are
         // positional (structural fact); extract-classifier is semantic
         // (classifier-wrap convention). Per intueri cast 2026-05-23 night.
-        ":wat::holon::extract-classifier" => eval_extract_classifier(args, list_span, env, sym),
-        ":wat::holon::Bind/left" => eval_bind_left(args, list_span, env, sym),
-        ":wat::holon::Bind/right" => eval_bind_right(args, list_span, env, sym),
         // Arc 259 — The Forced Hand: ambient program environment.
         // Reads the calling thread's PROGRAM_ENV slot (installed via
         // install_program_env at the post-bootstrap / pre-:user::main seam).
@@ -5756,7 +5708,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
-        // ":wat::holon::from-holon" is routed by dispatch_keyword_head directly (producer).
+        // Arc 255 Stone HOME-8 — ":wat::holon::from-holon" (the one holon producer) is now
+        // registered via `#[wat_intrinsic]` (`src/intrinsic/holon/atom.rs`); the registry-first
+        // door at the top of `dispatch_keyword_head` finds it before this match is ever reached.
         ":wat::core::match" => eval_match(args, list_span, env, sym),
         // Arc 255.1c-kernel-remainder (home #8) — `:wat::kernel::serve-dispatch-op`'s
         // non-tail literal arm (and its `eval_kernel_serve_dispatch_op` delegate, which
@@ -5828,9 +5782,10 @@ fn dispatch_keyword_head_value(
             crate::collection::transform::eval_vec_find_last_index(args, list_span, env, sym)
         }
         ":wat::core::rest" => crate::collection::eval::eval_rest(args, list_span, env, sym),
-        ":wat::std::list::map-with-index" => {
-            crate::collection::transform::eval_vec_map_with_index(args, list_span, env, sym)
-        }
+        // Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index`'s dispatch arm (which lived
+        // here) is DELETED, not moved. `:wat::core::map-indexed` is its non-drop-in Seqable-
+        // generic replacement (arg order flips, result is a lazy Stream) — see
+        // `src/collection/transform.rs`'s note beside the deleted `eval_vec_map_with_index`.
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
         ":wat::core::u8" => eval_u8_cast(args, list_span, env, sym),
@@ -5844,56 +5799,17 @@ fn dispatch_keyword_head_value(
         // there is nothing left for this match to do for i64 arithmetic; a wrong
         // per-type name is now a check-time retirement error, not a fallthrough
         // here.
-        // Arc 300 stone C1 — bigint arithmetic. Arbitrary precision — NO
-        // wrapping/overflow branch (contrast i64 above); `+ - *` always
-        // succeed. `/` collapses to bigint (divisible) or rational (else),
-        // reusing Stone B's `BigRational` — never a runtime error except
-        // division by zero.
-        ":wat::core::bigint::+" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
-            Ok(Value::wat__core__BigInt(Box::new(a + b)))
-        }),
-        ":wat::core::bigint::-" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
-            Ok(Value::wat__core__BigInt(Box::new(a - b)))
-        }),
-        ":wat::core::bigint::*" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
-            Ok(Value::wat__core__BigInt(Box::new(a * b)))
-        }),
-        ":wat::core::bigint::/" => eval_bigint_arith(head, args, list_span, env, sym, bigint_div),
-        // Arc 255 Stone C — `:wat::core::i64::to-bigint`'s arm retired; the
-        // surviving `:wat::i64::to-bigint` resolves via the registry-first door
-        // above (`intrinsic/i64.rs`'s `eval_i64_to_bigint`, same shared fn this
-        // arm used to call directly). `wat/core.wat`'s i64⊕bigint contagion arms
-        // now spell the new name.
-        // Arc 300 stone C1 — bigint -> f64 (lossy beyond f64's 53-bit
-        // mantissa; same posture as i64::to-f64).
-        ":wat::core::bigint::to-f64" => eval_bigint_to_f64(args, list_span, env, sym),
-        // Arc 300 stone C2 — rational arithmetic. Every op COLLAPSES: a
-        // BigRational result reducing to a whole number becomes `:wat::core::
-        // bigint` (C1's type), the inverse of C1's `bigint::/` -> rational
-        // collapse. Arbitrary precision — never overflows.
-        ":wat::core::rational::+" => {
-            eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b))
-        }
-        ":wat::core::rational::-" => {
-            eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b))
-        }
-        ":wat::core::rational::*" => {
-            eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b))
-        }
-        ":wat::core::rational::/" => {
-            eval_rational_arith(head, args, list_span, env, sym, rational_div)
-        }
-        // Arc 255 Stone C — `:wat::core::i64::to-rational`'s arm retired (same
-        // shape as `i64::to-bigint` above); the surviving `:wat::i64::to-rational`
-        // resolves via the registry-first door.
-        // Arc 300 stone C2 — bigint → rational promotion (infallible; used by the
-        // bigint⊕rational contagion arm in `wat/core.wat`'s arithmetic defclauses).
-        ":wat::core::bigint::to-rational" => eval_bigint_to_rational(args, list_span, env, sym),
-        // Arc 300 stone C2 — rational -> f64 (float-contagion path + explicit cast).
-        ":wat::core::rational::to-f64" => eval_rational_to_f64(args, list_span, env, sym),
-        // Arc 300 stone C2 — numerator/denominator slash-form accessors (cf Uuid/version).
-        ":wat::core::rational/numerator" => eval_rational_numerator(args, list_span, env, sym),
-        ":wat::core::rational/denominator" => eval_rational_denominator(args, list_span, env, sym),
+        // Arc 255 Stone D — the old `:wat::core::bigint::{+,-,*,/,to-f64,to-rational}`
+        // and `:wat::core::rational::{+,-,*,/,to-f64}` /
+        // `:wat::core::rational/{numerator,denominator}` arms that lived here are
+        // RETIRED. The registry-first door above (`crate::intrinsic::registry().lookup(head)`)
+        // already dispatches the surviving `:wat::bigint::*` / `:wat::rational::*` spellings to
+        // `intrinsic/bigint.rs` / `intrinsic/rational.rs`'s handlers, which call the SAME shared
+        // fns (`eval_bigint_arith`, `bigint_div`, `eval_bigint_to_{f64,rational}`,
+        // `eval_rational_arith`, `rational_div`, `eval_rational_{to_f64,numerator,denominator}`,
+        // all still defined above/below) this match's old arms used to call directly — so there
+        // is nothing left for this match to do for bigint/rational; a wrong per-type name is now
+        // a check-time retirement error, not a fallthrough here.
         // arc 237 Stone 237.8a — mixed-type binary leaf arms DELETED
         // under THE DECISION (`feedback_no_implicit_coercion`).
         // +'i64'f64, -'i64'f64, *'i64'f64, /'i64'f64,
@@ -5929,9 +5845,11 @@ fn dispatch_keyword_head_value(
         // (`intrinsic/string.rs`, arc 255 home #4 phase 2) — no arm here; see the
         // registry-hoist note a few dozen lines up this match.
         ":wat::core::bool::to-string" => eval_bool_to_string(args, list_span, env, sym),
-        // Arc 170 slice 3 Gap A — keyword reflection primitives.
-        ":wat::core::keyword/to-string" => eval_keyword_to_string(args, list_span, env, sym),
-        // ":wat::core::keyword/from-string" is routed by dispatch_keyword_head directly (producer).
+        // Arc 170 slice 3 Gap A — keyword reflection primitives. Arc 255 Stone E-iv —
+        // `:wat::core::keyword/to-string` RETIRED this stone; `:wat::keyword::to-string`
+        // (`src/intrinsic/keyword.rs`) is registry-routed — no arm here (the registry-first
+        // door above this match, `crate::intrinsic::registry().lookup(head)`, already
+        // dispatches it).
 
         // Comparison — return :bool
         // Stone 237.8b — `=`/`not=` stay here (migrate to 8c defclauses later).
@@ -5962,76 +5880,12 @@ fn dispatch_keyword_head_value(
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
 
-        // Stone 237.3 — String/ namespace aliases (uppercase; probe 14).
-        // Delegates to the same handlers the registered `:wat::string::*` verbs use
-        // (`intrinsic/string.rs`, arc 255 home #4 phase 2 carve). Those are now
-        // FIXED-ARG (each wat arg its own `&WatAST` param, arity checked by the
-        // `#[wat_intrinsic]` shim) rather than the old slice-taking
-        // `Result<Value, RuntimeError>` form — this arm is NOT a registry entry (a
-        // different FQDN prefix, `:wat::core::String/` not `:wat::string::`), so it
-        // does not go through that shim and must arity-check for itself, same shape
-        // the shim generates.
-        ":wat::core::String/concat" => crate::intrinsic::string::eval_string_concat(args, env, sym, list_span),
-        ":wat::core::String/starts-with?" => {
-            if args.len() != 2 {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/starts-with?".into(),
-                        expected: 2,
-                        got: args.len(),
-                    })
-                .into());
-            }
-            crate::intrinsic::string::eval_string_starts_with(&args[0], &args[1], env, sym, list_span)
-        }
-        ":wat::core::String/ends-with?" => {
-            if args.len() != 2 {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/ends-with?".into(),
-                        expected: 2,
-                        got: args.len(),
-                    })
-                .into());
-            }
-            crate::intrinsic::string::eval_string_ends_with(&args[0], &args[1], env, sym, list_span)
-        }
-        ":wat::core::String/contains?" => {
-            if args.len() != 2 {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/contains?".into(),
-                        expected: 2,
-                        got: args.len(),
-                    })
-                .into());
-            }
-            crate::intrinsic::string::eval_string_contains(&args[0], &args[1], env, sym, list_span)
-        }
-        ":wat::core::String/empty?" => {
-            // :String/empty? :: :String -> :bool. True iff string is empty.
-            if args.len() != 1 {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/empty?".into(),
-                        expected: 1,
-                        got: args.len(),
-                    },
-                )
-                .into());
-            }
-            let val = eval_inner(&args[0], env, sym).map(|tv| tv.value_owned())?;
-            match val {
-                Value::String(s) => Ok(Value::bool(s.is_empty())),
-                other => Err(RuntimeError::new(
-                    args[0].span().clone(),
-                    RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::String/empty?".into(),
-                        expected: "String",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                    },
-                )
-                .into()),
-            }
-        }
+        // Arc 255 Stone F — the `String/` namespace aliases (Stone 237.3) that lived here
+        // (concat/starts-with?/ends-with?/contains?/empty?) are RETIRED. Their replacement is
+        // `:wat::string::*`, reached through the ordinary registry-first door above (each is a
+        // `#[wat_intrinsic]` in `intrinsic/string.rs`) — no explicit match arm needed here at
+        // all, unlike this Stone 237.3 shim which had to arity-check for itself. See
+        // `src/remedy/retirement.rs`'s five new rows for the old-spelling error message.
 
         // Stone 237.8b — HARD CUT: explicit `+`/`-`/`*`/`/` arms removed.
         // These ops are now wat defclauses (registered in runtime_def_values)
@@ -6132,138 +5986,50 @@ fn dispatch_keyword_head_value(
         // these per-Type impls by inspecting the arg's value tag.
         // Direct calls to the per-Type names are also legal and
         // bypass the dispatch hop.
-        ":wat::core::Vector/length" => {
-            crate::collection::eval::eval_vector_length(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/length" => {
-            crate::collection::eval::eval_hashmap_length(args, list_span, env, sym)
-        }
-        // Arc-278-0b — PersistentVector per-type ops.
-        ":wat::core::PersistentVector/length" => {
-            crate::collection::eval::eval_persistentvector_length(args, list_span, env, sym)
-        }
-        // Arc-278-0a — PersistentMap per-type ops.
-        ":wat::core::PersistentMap/length" => {
-            crate::collection::eval::eval_persistentmap_length(args, list_span, env, sym)
-        }
-        ":wat::core::HashSet/length" => {
-            crate::collection::eval::eval_hashset_length(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List per-Type ops.
-        ":wat::core::List/length" => {
-            crate::collection::eval::eval_list_length(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/length` and `:wat::core::PersistentVector/length`
+        // RETIRED this stone; `:wat::vec::length`/`:wat::vector::length` (`src/intrinsic/{vec,vector}.rs`)
+        // are their replacements, reached via the registry-first door (`dispatch_keyword_head_value`'s
+        // `crate::intrinsic::registry().lookup(head)`, above this match) — no arm needed here.
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/length` and `:wat::core::List/length` RETIRED
+        // this stone; `:wat::hashset::length`/`:wat::linkedlist::length`
+        // (`src/intrinsic/{hashset,linkedlist}.rs`) are their replacements, reached the same
+        // registry-first way — no arm needed here either.
+        //
         // Arc 146 slice 3 — empty? / contains? / get / conj are now
         // Dispatches (declared in `wat/core.wat`). Per-Type impls also
         // directly callable; the dispatch_keyword_head guard above
         // intercepts the polymorphic surface name first.
-        ":wat::core::Vector/empty?" => {
-            crate::collection::eval::eval_vector_empty_q(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/empty?" => {
-            crate::collection::eval::eval_hashmap_empty_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/empty?" => {
-            crate::collection::eval::eval_persistentvector_empty_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/empty?" => {
-            crate::collection::eval::eval_persistentmap_empty_q(args, list_span, env, sym)
-        }
-        ":wat::core::HashSet/empty?" => {
-            crate::collection::eval::eval_hashset_empty_q(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List empty?
-        ":wat::core::List/empty?" => {
-            crate::collection::eval::eval_list_empty_q(args, list_span, env, sym)
-        }
-        ":wat::core::Vector/contains?" => {
-            crate::collection::eval::eval_vector_contains_q(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/contains-key?" => {
-            crate::collection::eval::eval_hashmap_contains_key_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/contains?" => {
-            crate::collection::eval::eval_persistentvector_contains_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/contains-key?" => {
-            crate::collection::eval::eval_persistentmap_contains_key_q(args, list_span, env, sym)
-        }
-        ":wat::core::HashSet/contains?" => {
-            crate::collection::eval::eval_hashset_contains_q(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List contains?
-        ":wat::core::List/contains?" => {
-            crate::collection::eval::eval_list_contains_q(args, list_span, env, sym)
-        }
-        ":wat::core::Vector/get" => {
-            crate::collection::eval::eval_vector_get(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/get" => {
-            crate::collection::eval::eval_hashmap_get(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/get" => {
-            crate::collection::eval::eval_persistentvector_get(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/get" => {
-            crate::collection::eval::eval_persistentmap_get(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List get
-        ":wat::core::List/get" => crate::collection::eval::eval_list_get(args, list_span, env, sym),
-        ":wat::core::Vector/conj" => {
-            crate::collection::eval::eval_vector_conj(args, list_span, env, sym)
-        }
-        // Arc-278-0b — PersistentVector per-type conj.
-        ":wat::core::PersistentVector/conj" => {
-            crate::collection::eval::eval_persistentvector_conj(args, list_span, env, sym)
-        }
-        ":wat::core::HashSet/conj" => {
-            crate::collection::eval::eval_hashset_conj(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List/conj PREPENDS (Clojure semantic; distinct from Vector/conj = APPEND)
-        ":wat::core::List/conj" => {
-            crate::collection::eval::eval_list_conj(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/empty?` and `:wat::core::PersistentVector/empty?`
+        // RETIRED this stone; `:wat::vec::empty?`/`:wat::vector::empty?` are their replacements.
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/empty?` and `:wat::core::List/empty?` RETIRED
+        // this stone; `:wat::hashset::empty?`/`:wat::linkedlist::empty?` are their replacements.
+        //
+        // Arc 255 Stone E-ii — `:wat::core::Vector/contains?` and `:wat::core::PersistentVector/contains?`
+        // RETIRED this stone; `:wat::vec::contains?`/`:wat::vector::contains?` are their replacements.
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/contains?` and `:wat::core::List/contains?`
+        // RETIRED this stone; `:wat::hashset::contains?`/`:wat::linkedlist::contains?` are their
+        // replacements.
+        //
+        // Arc 255 Stone E-ii — `:wat::core::Vector/get` and `:wat::core::PersistentVector/get`
+        // RETIRED this stone; `:wat::vec::get`/`:wat::vector::get` are their replacements.
+        // Arc 255 Stone E-iii — `:wat::core::List/get` RETIRED this stone; `:wat::linkedlist::get`
+        // is its replacement. (HashSet has no direct-call `get` verb — its "get-by-equality" is
+        // `contains?`, reached only via the generic `:wat::core::get` polymorphic surface.)
+        //
+        // Arc 255 Stone E-ii — `:wat::core::Vector/conj` and `:wat::core::PersistentVector/conj`
+        // RETIRED this stone; `:wat::vec::conj`/`:wat::vector::conj` are their replacements.
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/conj` and `:wat::core::List/conj` (PREPENDS —
+        // Clojure semantic, distinct from Vector's/HashSet's APPEND/insert `conj`) RETIRED this
+        // stone; `:wat::hashset::conj`/`:wat::linkedlist::conj` are their replacements.
+        //
         // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
         // Single-impl-per-container ops. Surface short names
         // (:assoc / :dissoc / :keys / :values / :concat) become user-define
         // aliases via `wat/core-aliases.wat`; they delegate to these per-Type
         // impls (each is also directly callable as `:HashMap/assoc` etc.).
-        ":wat::core::HashMap/assoc" => {
-            crate::collection::eval::eval_hashmap_assoc(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/dissoc" => {
-            crate::collection::eval::eval_hashmap_dissoc(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/keys" => {
-            crate::collection::eval::eval_hashmap_keys(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/values" => {
-            crate::collection::eval::eval_hashmap_values(args, list_span, env, sym)
-        }
-        // Arc-278-0a — PersistentMap per-type ops.
-        ":wat::core::PersistentMap/assoc" => {
-            crate::collection::eval::eval_persistentmap_assoc(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/dissoc" => {
-            crate::collection::eval::eval_persistentmap_dissoc(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/keys" => {
-            crate::collection::eval::eval_persistentmap_keys(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/values" => {
-            crate::collection::eval::eval_persistentmap_values(args, list_span, env, sym)
-        }
-        ":wat::core::Vector/concat" => {
-            crate::collection::eval::eval_vector_concat(args, list_span, env, sym)
-        }
-        // DESIGN-STONE-into-pv-from-vector.md — per-Type sibling; own eval fn (NOT
-        // eval_vector_concat/vector_concat_inner — those stay same-kind-only).
-        ":wat::core::Vector/extend" => {
-            crate::collection::eval::eval_vector_extend(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/concat" => {
-            crate::collection::eval::eval_persistentvector_concat(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/concat`, `:wat::core::Vector/extend`, and
+        // `:wat::core::PersistentVector/concat` RETIRED this stone; `:wat::vec::concat`,
+        // `:wat::vec::extend`, and `:wat::vector::concat` are their replacements.
         ":wat::core::reverse" => {
             crate::collection::transform::eval_vec_reverse(args, list_span, env, sym)
         }
@@ -6298,15 +6064,12 @@ fn dispatch_keyword_head_value(
         ":wat::core::filter" => {
             crate::collection::transform::eval_filter(args, list_span, env, sym)
         }
-        ":wat::std::list::zip" => {
-            crate::collection::transform::eval_vec_zip(args, list_span, env, sym)
-        }
-        ":wat::std::list::window" => {
-            crate::collection::transform::eval_vec_window(args, list_span, env, sym)
-        }
-        ":wat::std::list::remove-at" => {
-            crate::collection::transform::eval_vec_remove_at(args, list_span, env, sym)
-        }
+        // Arc 255 Stone HOME-9 moved `:wat::seq::{zip,window,remove-at}` off the dead
+        // `:wat::std::list::` namespace and made them Seqable-generic (Vector |
+        // PersistentVector | List | Stream). Arc 255 Stone HOME-10 carved their dispatch
+        // arms into `#[wat_intrinsic]` handlers (`src/intrinsic/seq.rs`) — the pre-match
+        // registry check above (arc 255.1c-guard) intercepts all three names before
+        // reaching here, same shape as `:wat::time::*` a few dozen lines up.
         ":wat::core::HashMap" => {
             // Arc 109 step ① Room 3 — accept `(HashMap [K V] …)` alongside the existing
             // positional `(HashMap :K :V …)`; see `crate::check::unwrap_type_param_bracket`.
@@ -6371,194 +6134,23 @@ fn dispatch_keyword_head_value(
         ":wat::stdlib::sources" => {
             crate::io::eval_stdlib_sources(args, list_span, env, sym).map_err(Into::into)
         }
-        // Algebra-core UpperCalls — construct HolonAST values at runtime.
-        ":wat::holon::Atom" => eval_holon_atom_constructor(args, list_span, env, sym),
-        ":wat::holon::to-holon" => eval_holon_to_holon(args, list_span, env, sym),
-        ":wat::holon::leaf" => eval_holon_leaf(args, list_span, env, sym),
-        ":wat::holon::from-wat" => eval_holon_from_wat(args, list_span, env, sym),
-        ":wat::holon::to-wat" => eval_holon_to_wat(args, list_span, env, sym),
-        ":wat::holon::Bind" => eval_algebra_bind(args, list_span, env, sym),
-        ":wat::holon::Bundle" => eval_algebra_bundle(args, list_span, env, sym),
-        ":wat::holon::Permute" => eval_algebra_permute(args, list_span, env, sym),
-        ":wat::holon::Thermometer" => eval_algebra_thermometer(args, list_span, env, sym),
-        ":wat::holon::Blend" => eval_algebra_blend(args, list_span, env, sym),
-        // Arc 228 — classifier-wrapped collection constructors (typed-entities doctrine).
-        // Each produces Bind(Atom("ClassName"), Bundle(...)) so type is recoverable from data alone.
-        ":wat::holon::Map" => eval_algebra_map(args, list_span, env, sym),
-        ":wat::holon::Set" => eval_algebra_set(args, list_span, env, sym),
-        ":wat::holon::Vector" => eval_algebra_vector(args, list_span, env, sym),
-        ":wat::holon::List" => eval_algebra_list(args, list_span, env, sym),
-        ":wat::holon::Tuple" => eval_algebra_tuple(args, list_span, env, sym),
-        // Arc 226 Stone 226.1 — type predicates via classifier-name match (VSA v1).
-        // `(is? value class-name)` — polymorphic: accepts any classifier name as String.
-        // Convenience forms for each of the 9 classifier-wrapped typed entities.
-        // v1 is STRUCTURAL exact-match on classifier name; VSA similarity scoring deferred to 226.2+.
-        ":wat::holon::is?" => eval_holon_is_predicate(args, list_span, env, sym),
-        ":wat::holon::is-Map?" => eval_holon_is_map_q(args, list_span, env, sym),
-        ":wat::holon::is-Set?" => eval_holon_is_set_q(args, list_span, env, sym),
-        ":wat::holon::is-Vector?" => eval_holon_is_vector_q(args, list_span, env, sym),
-        ":wat::holon::is-List?" => eval_holon_is_list_q(args, list_span, env, sym),
-        ":wat::holon::is-Tuple?" => eval_holon_is_tuple_q(args, list_span, env, sym),
-        ":wat::holon::is-Symbol?" => eval_holon_is_symbol_q(args, list_span, env, sym),
-        ":wat::holon::is-Keyword?" => eval_holon_is_keyword_q(args, list_span, env, sym),
-        ":wat::holon::is-Tag?" => eval_holon_is_tag_q(args, list_span, env, sym),
-        ":wat::holon::is-Nil?" => eval_holon_is_nil_q(args, list_span, env, sym),
-
-        // Term decomposition (arc 073). Read the form's structure as a
-        // Prolog term: template (the cell type), slots (the tuning
-        // values), ranges (the receptive fields). The cache slice
-        // (lab umbrella 059) and population-code consumers compose
-        // these directly.
-        ":wat::holon::term::template" => eval_term_template(args, list_span, env, sym),
-        ":wat::holon::term::slots" => eval_term_slots(args, list_span, env, sym),
-        ":wat::holon::term::ranges" => eval_term_ranges(args, list_span, env, sym),
-        ":wat::holon::term::matches?" => eval_term_matches_q(args, list_span, env, sym),
-
-        // Substrate floor accessors (arc 074). Read the substrate's
-        // presence and coincident floors at the given d. Users compose
-        // these into filter funcs for `Hologram/get`.
-        ":wat::holon::presence-floor" => eval_presence_floor(args, list_span, env, sym),
-        ":wat::holon::coincident-floor" => eval_coincident_floor(args, list_span, env, sym),
-
-        // Therm-routed coordinate-cell store (arc 076). The slot is
-        // derived from the form's structure — no caller-supplied pos.
-        // Filter is bound at construction; get is filtered-argmax.
-        ":wat::holon::Hologram/make" => eval_hologram_make(args, list_span, env, sym),
-        ":wat::holon::Hologram/put" => eval_hologram_put(args, list_span, env, sym),
-        ":wat::holon::Hologram/get" => eval_hologram_get(args, list_span, env, sym),
-        ":wat::holon::Hologram/find" => eval_hologram_find(args, list_span, env, sym),
-        ":wat::holon::Hologram/remove" => eval_hologram_remove(args, list_span, env, sym),
-        ":wat::holon::Hologram/len" => eval_hologram_len(args, list_span, env, sym),
-        ":wat::holon::Hologram/capacity" => eval_hologram_capacity(args, list_span, env, sym),
-
-        // Therm-form constructor (arc 076 slice 2). Caller passes their
-        // natural domain bounds; the form carries them; the Hologram
-        // applies its own capacity at slot time. No capacity arg —
-        // capacity lives only in the Hologram instance.
-        ":wat::holon::therm-form" => eval_therm_form(args, list_span, env, sym),
-
-        // Presence — the retrieval primitive per FOUNDATION 1718.
-        // Cosine between encoded target and encoded reference. Returns
-        // scalar :f64; the caller binarizes at the noise floor.
-        ":wat::holon::cosine" => eval_algebra_cosine(args, list_span, env, sym),
-        ":wat::holon::presence?" => eval_algebra_presence_q(args, list_span, env, sym),
-        ":wat::holon::coincident?" => eval_algebra_coincident_q(args, list_span, env, sym),
-        ":wat::holon::coincident-explain" => {
-            eval_algebra_coincident_explain(args, list_span, env, sym)
-        }
-        ":wat::holon::eval-coincident?" => eval_form_ast_coincident_q(args, list_span, env, sym),
-        ":wat::holon::eval-edn-coincident?" => {
-            eval_form_edn_coincident_q(args, list_span, env, sym)
-        }
-        ":wat::holon::eval-digest-coincident?" => {
-            eval_form_digest_coincident_q(args, list_span, env, sym)
-        }
-        ":wat::holon::eval-digest-string-coincident?" => {
-            eval_form_digest_string_coincident_q(args, list_span, env, sym)
-        }
-        ":wat::holon::eval-signed-coincident?" => {
-            eval_form_signed_coincident_q(args, list_span, env, sym)
-        }
-        ":wat::holon::eval-signed-string-coincident?" => {
-            eval_form_signed_string_coincident_q(args, list_span, env, sym)
-        }
-        ":wat::holon::dot" => eval_algebra_dot(args, list_span, env, sym),
-        ":wat::holon::simhash" => eval_algebra_simhash(args, list_span, env, sym),
-        ":wat::holon::encode" => eval_holon_encode(args, list_span, env, sym),
-        ":wat::holon::vector-bytes" => eval_holon_vector_bytes(args, list_span, env, sym),
-        ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, list_span, env, sym),
+        // Arc 255 Stone HOME-8 — every `:wat::holon::*` verb (the algebra-core
+        // constructors, classifier predicates/projections, the term/Thermometer
+        // surface, `Hologram/*`, the measurement primitives, `OnlineSubspace/*`,
+        // `Reckoner/*`, `Engram*/*`) has been carved to `#[wat_intrinsic]`
+        // registrations — see `src/intrinsic/holon/` (`atom.rs`, `hologram.rs`,
+        // `engram.rs`, `subspace.rs`, `reckoner.rs`). No `:wat::holon::` literal-
+        // match arm remains here; the registry-first door at the top of
+        // `dispatch_keyword_head`/`dispatch_keyword_head_value` reaches them all.
         ":wat::core::show" => eval_show(args, list_span, env, sym),
         // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits. Unlike `show`,
         // which wraps strings in `"..."`, `str` renders values as format fills them.
         ":wat::core::str" => eval_str(args, list_span, env, sym),
-        ":wat::edn::write" => {
-            crate::edn::render::eval_edn_write(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::write-pretty" => {
-            crate::edn::render::eval_edn_write_pretty(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::write-json" => {
-            crate::edn::render::eval_edn_write_json(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::write-json-natural" => {
-            crate::edn::render::eval_edn_write_json_natural(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // ":wat::edn::read" is routed by dispatch_keyword_head directly (producer).
-        // Arc 278 Stone A — foreign dynamic-value accessors (navigate DATA, not a
-        // typed value). ":wat::edn::read-foreign" is a producer, routed above.
-        ":wat::edn::ForeignRecord/get" => {
-            crate::edn::render::eval_foreign_record_get(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::ForeignRecord/class" => {
-            crate::edn::render::eval_foreign_record_class(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::edn::ForeignVariant/variant" => {
-            crate::edn::render::eval_foreign_variant_variant(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::edn::ForeignVariant/enum-class" => {
-            crate::edn::render::eval_foreign_variant_enum_class(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::edn::ForeignVariant/fields" => {
-            crate::edn::render::eval_foreign_variant_fields(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::holon::vector-bind" => eval_holon_vector_bind(args, list_span, env, sym),
-        ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, list_span, env, sym),
-        ":wat::holon::vector-blend" => eval_holon_vector_blend(args, list_span, env, sym),
-        ":wat::holon::vector-permute" => eval_holon_vector_permute(args, list_span, env, sym),
-
-        // Arc 053: OnlineSubspace native primitives.
-        ":wat::holon::OnlineSubspace/new" => eval_subspace_new(args, list_span, env, sym),
-        ":wat::holon::OnlineSubspace/dim" => eval_subspace_dim(args, list_span, env, sym),
-        ":wat::holon::OnlineSubspace/k" => eval_subspace_k(args, list_span, env, sym),
-        ":wat::holon::OnlineSubspace/n" => eval_subspace_n(args, list_span, env, sym),
-        ":wat::holon::OnlineSubspace/threshold" => {
-            eval_subspace_threshold(args, list_span, env, sym)
-        }
-        ":wat::holon::OnlineSubspace/eigenvalues" => {
-            eval_subspace_eigenvalues(args, list_span, env, sym)
-        }
-        ":wat::holon::OnlineSubspace/update" => eval_subspace_update(args, list_span, env, sym),
-        ":wat::holon::OnlineSubspace/residual" => eval_subspace_residual(args, list_span, env, sym),
-        ":wat::holon::OnlineSubspace/project" => eval_subspace_project(args, list_span, env, sym),
-        ":wat::holon::OnlineSubspace/reconstruct" => {
-            eval_subspace_reconstruct(args, list_span, env, sym)
-        }
-
-        // Arc 053: Reckoner native primitives.
-        ":wat::holon::Reckoner/new-discrete" => {
-            eval_reckoner_new_discrete(args, list_span, env, sym)
-        }
-        ":wat::holon::Reckoner/new-continuous" => {
-            eval_reckoner_new_continuous(args, list_span, env, sym)
-        }
-        ":wat::holon::Reckoner/observe" => eval_reckoner_observe(args, list_span, env, sym),
-        ":wat::holon::Reckoner/predict" => eval_reckoner_predict(args, list_span, env, sym),
-        ":wat::holon::Reckoner/resolve" => eval_reckoner_resolve(args, list_span, env, sym),
-        ":wat::holon::Reckoner/curve" => eval_reckoner_curve(args, list_span, env, sym),
-        ":wat::holon::Reckoner/labels" => eval_reckoner_labels(args, list_span, env, sym),
-        ":wat::holon::Reckoner/dims" => eval_reckoner_dims(args, list_span, env, sym),
-
-        // Arc 053: Engram native primitives.
-        ":wat::holon::Engram/name" => eval_engram_name(args, list_span, env, sym),
-        ":wat::holon::Engram/eigenvalue-signature" => {
-            eval_engram_eigenvalue_signature(args, list_span, env, sym)
-        }
-        ":wat::holon::Engram/n" => eval_engram_n(args, list_span, env, sym),
-        ":wat::holon::Engram/residual" => eval_engram_residual(args, list_span, env, sym),
-
-        // Arc 053: EngramLibrary native primitives.
-        ":wat::holon::EngramLibrary/new" => eval_library_new(args, list_span, env, sym),
-        ":wat::holon::EngramLibrary/add" => eval_library_add(args, list_span, env, sym),
-        ":wat::holon::EngramLibrary/match-vec" => eval_library_match_vec(args, list_span, env, sym),
-        ":wat::holon::EngramLibrary/len" => eval_library_len(args, list_span, env, sym),
-        ":wat::holon::EngramLibrary/contains" => eval_library_contains(args, list_span, env, sym),
-        ":wat::holon::EngramLibrary/names" => eval_library_names(args, list_span, env, sym),
-        ":wat::holon::statement-length" => eval_holon_statement_length(args, list_span, env, sym),
+        // Arc 255 Stone HOME-11 — the remaining 9 `:wat::edn::` verbs (the 4 `write*`
+        // renderers, and the 5 `ForeignRecord`/`ForeignVariant` accessors) RETIRED as literal
+        // arms this stone; registry-routed via `src/intrinsic/edn.rs`. The registry-first door
+        // at the top of `dispatch_keyword_head`/`dispatch_keyword_head_value` reaches them all
+        // (same shape the `:wat::holon::*` carve comment above documents).
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
@@ -6702,21 +6294,14 @@ fn dispatch_keyword_head_value(
         ":wat::config::global-seed" => eval_config_global_seed(args, sym, list_span),
         ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym, list_span),
 
-        // Stdlib math — single-method Rust calls packaged at
-        // :wat::std::math::* per FOUNDATION-CHANGELOG 2026-04-18.
-        // Not at :wat::core:: because they're numeric utilities, not
-        // Lisp or algebra primitives; only stdlib macros (Log, Circular)
-        // need them, and userland picks them up the same way.
-        ":wat::std::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln, list_span),
-        ":wat::std::math::log" => eval_math_unary(args, env, sym, "log", f64::ln, list_span),
-        ":wat::std::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp, list_span),
-        ":wat::std::math::sqrt" => eval_math_unary(args, env, sym, "sqrt", f64::sqrt, list_span),
-        ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin, list_span),
-        ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos, list_span),
-        ":wat::std::math::pi" => eval_math_pi(args, list_span),
-        ":wat::std::stat::mean" => eval_stat_mean(args, env, sym, list_span),
-        ":wat::std::stat::variance" => eval_stat_variance(args, env, sym, list_span),
-        ":wat::std::stat::stddev" => eval_stat_stddev(args, env, sym, list_span),
+        // Stdlib math (:wat::math::ln/exp/sqrt/sin/cos/pi) and stat
+        // (:wat::stat::mean/variance/stddev) — arc 255 Stone HOME-9 moved these off the dead
+        // `:wat::std::` namespace; arc 255 Stone HOME-10 carved their dispatch arms into
+        // `#[wat_intrinsic]` handlers (`src/intrinsic/math.rs`, `src/intrinsic/stat.rs`). The
+        // pre-match registry check above (arc 255.1c-guard) intercepts all 9 names before
+        // reaching here, same shape as `:wat::time::*` a few dozen lines down.
+        // `log` is DELETED, not moved: it was wired to the SAME `f64::ln` as `ln` (a level-1
+        // lie), had zero call sites, and does not carry forward under a new address.
 
         // Time primitives — arc 056/097, carved to the registry at
         // `src/intrinsic/time.rs` (arc 255.1c-time, home #2). The
@@ -9097,6 +8682,7 @@ fn val_type_path(val: &Value) -> &'static str {
 /// Non-Vector outer shape (e.g. legacy `((n e) ...)` nested-pair list)
 /// produces a clean `MalformedForm` naming the canonical shape.
 /// Arc 168 slice 3 retired the legacy outer-List fall-through arm.
+#[wat_special_form_impl(":wat::core::let", role = eval)]
 fn eval_let(
     args: &[WatAST],
     list_span: &Span,
@@ -9633,9 +9219,21 @@ fn parse_let_binding<'a>(binder: &'a WatAST, rhs: &'a WatAST) -> Result<LetBindi
 /// annotation is check-time only (runtime ignores it but validates
 /// the form's arity).
 ///
-/// Arity: exactly 5 args. Positions: [cond, `->`, `:T`, then, else].
-/// The old 3-arg form is refused with a migration-hint error; this
-/// is a hard break, no deprecation.
+/// Arity: exactly 3 args — `[cond, then, else]`.
+///
+/// ⛔ THIS DOC WAS INVERTED UNTIL 2026-08-28. It read *"Arity: exactly 5 args.
+/// Positions: [cond, `->`, `:T`, then, else]. The old 3-arg form is refused"* —
+/// the precise opposite of the code beneath it. **Arc 258.4 retired the `-> :T`
+/// ascription**: the 3-arg form is the live path (the `args.len() == 3` arm
+/// below) and a stray `->` is what gets refused now. The comment never moved.
+///
+/// It was caught because **arc 255 Stone P6-a made this comment PUBLIC**:
+/// `(:wat::core::show-source :wat::core::if)` now prints this fn, doc comment
+/// included, where it used to print `""`. A buried inverted claim became a
+/// published one the moment the source became reachable — so on this fn, and on
+/// every fn a `#[wat_special_form_impl]` names, the doc comment is USER-FACING
+/// DOCUMENTATION and stale prose here is a shipped lie.
+#[wat_special_form_impl(":wat::core::if", role = eval)]
 fn eval_if(
     args: &[WatAST],
     list_span: &Span,
@@ -9942,7 +9540,7 @@ fn dispatch_rete_op(
 /// directly (not a `BigInt`) because `/` can collapse to EITHER
 /// `Value::wat__core__BigInt` (divisible) or `Value::wat__core__Rational`
 /// (else) — a single-output-type shape can't express that.
-fn eval_bigint_arith<F>(
+pub(crate) fn eval_bigint_arith<F>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -9996,7 +9594,7 @@ where
 /// REUSING Stone B's rational representation — no new rational impl).
 /// Division by zero is a clean runtime error, never a panic (BigInt's `Div`
 /// would otherwise panic on zero divisor like a primitive integer divide).
-fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value, EvalBreak> {
     use num_traits::Zero;
     if b.is_zero() {
         return Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into());
@@ -10050,7 +9648,7 @@ fn collapse_bigrational(r: BigRational) -> Value {
 /// uniformly. Operands are coerced via [`to_bigrational`] (rational or
 /// bigint; i64 is still a type error — promote explicitly via
 /// `:wat::i64::to-rational`).
-fn eval_rational_arith<F>(
+pub(crate) fn eval_rational_arith<F>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -10104,7 +9702,7 @@ where
 
 /// `:wat::core::rational::/`'s op fn: division by zero is a clean runtime
 /// error, never a panic (mirrors `bigint_div`'s zero-divisor guard).
-fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> Result<BigRational, EvalBreak> {
+pub(crate) fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> Result<BigRational, EvalBreak> {
     use num_traits::Zero;
     if b.is_zero() {
         return Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into());
@@ -10145,14 +9743,19 @@ pub(crate) fn eval_i64_to_rational(
 
 /// `:wat::core::bigint::to-rational` — infallible promotion. Used by the
 /// `wat/core.wat` `+ - * /` defclauses' bigint⊕rational contagion arms.
-fn eval_bigint_to_rational(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::bigint::to-rational` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_bigint_to_rational(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let n = eval_one_arg(
-        ":wat::core::bigint::to-rational",
+        op,
         args,
         list_span,
         env,
@@ -10171,14 +9774,19 @@ fn eval_bigint_to_rational(
 /// `:wat::core::rational::to-f64` — `BigRational::to_f64` via num-traits
 /// `ToPrimitive` (mirrors `eval_bigint_to_f64`'s posture). Also the float-
 /// contagion path (`rational ⊕ f64 → f64`) used by the `core.wat` defclauses.
-fn eval_rational_to_f64(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::rational::to-f64` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_rational_to_f64(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let r = eval_one_arg(
-        ":wat::core::rational::to-f64",
+        op,
         args,
         list_span,
         env,
@@ -10212,14 +9820,19 @@ fn bigint_component_to_value(n: BigInt) -> Value {
 }
 
 /// `:wat::core::rational/numerator` — slash-form accessor (cf `Uuid/version`).
-fn eval_rational_numerator(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::rational/numerator` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_rational_numerator(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let r = eval_one_arg(
-        ":wat::core::rational/numerator",
+        op,
         args,
         list_span,
         env,
@@ -10234,14 +9847,19 @@ fn eval_rational_numerator(
 }
 
 /// `:wat::core::rational/denominator` — slash-form accessor (cf `Uuid/version`).
-fn eval_rational_denominator(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::rational/denominator` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_rational_denominator(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let r = eval_one_arg(
-        ":wat::core::rational/denominator",
+        op,
         args,
         list_span,
         env,
@@ -10535,14 +10153,19 @@ pub(crate) fn eval_i64_to_bigint(
 
 /// `:wat::core::bigint::to-f64` — lossy beyond f64's 53-bit mantissa (same
 /// posture as `:wat::i64::to-f64`). Arc 300 stone C1.
-fn eval_bigint_to_f64(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::bigint::to-f64` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_bigint_to_f64(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let n = eval_one_arg(
-        ":wat::core::bigint::to-f64",
+        op,
         args,
         list_span,
         env,
@@ -10693,10 +10316,10 @@ pub(crate) fn eval_f64_round(
 
 /// Arc 046 — strict-f64 unary helper for the `:wat::core::f64`
 /// namespace primitives. Mirrors `eval_math_unary`
-/// (`:wat::std::math` namespace) but takes the full op name as a
+/// (`:wat::math::*` namespace, arc 255 Stone HOME-9) but takes the full op name as a
 /// string and rejects `i64` arguments — the `:wat::core::f64`
 /// family is consistently strict (matches `eval_f64_arith`'s
-/// `f64::+/-/*//` discipline), while `:wat::std::math` permits
+/// `f64::+/-/*//` discipline), while `:wat::math::*` permits
 /// `i64 -> f64` promotion for ergonomic transcendental calls.
 pub(crate) fn eval_f64_unary(
     args: &[WatAST],
@@ -10823,21 +10446,24 @@ fn eval_bool_to_string(
 
 // ─── Arc 170 slice 3 Gap A — keyword reflection primitives ───────────────
 //
-// `:wat::core::keyword/to-string`  → extracts keyword text WITHOUT leading colon.
-// `:wat::core::keyword/from-string` → constructs a keyword Value from text;
+// `:wat::keyword::to-string`  → extracts keyword text WITHOUT leading colon.
+// `:wat::keyword::from-string` → constructs a keyword Value from text;
 //     text MUST NOT start with ':' (diagnostic error if it does).
 //
 // These two primitives are the substrate that keyword/of (macro special-form)
 // is built on top of conceptually. They also stand as first-class runtime
 // verbs usable in user code.
 
-/// `(:wat::core::keyword/to-string k)` — extract the text of a keyword value,
+/// `(:wat::keyword::to-string k)` — extract the text of a keyword value,
 /// without the leading colon sigil.
 ///
 /// Examples:
 ///   `(keyword/to-string :foo)`            → `"foo"`
 ///   `(keyword/to-string :wat::core::i64)` → `"wat::core::i64"`
-fn eval_keyword_to_string(
+// Arc 255 Stone E-iv — bumped to `pub(crate)` so `src/intrinsic/keyword.rs`'s registry-home
+// shim (`:wat::keyword::to-string`) can call the SAME algorithm; the algorithm stays here
+// (untouched), only its home's dispatch route moves.
+pub(crate) fn eval_keyword_to_string(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10847,7 +10473,7 @@ fn eval_keyword_to_string(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::keyword/to-string".into(),
+                op: ":wat::keyword::to-string".into(),
                 expected: 1,
                 got: args.len(),
             },
@@ -10867,7 +10493,7 @@ fn eval_keyword_to_string(
                 return Err(RuntimeError::new(
                     arg_span,
                     RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::keyword/to-string".into(),
+                        op: ":wat::keyword::to-string".into(),
                         expected: "keyword",
                         got: Box::new(ValueSnapshot::of(&v)),
                     },
@@ -10879,7 +10505,7 @@ fn eval_keyword_to_string(
             return Err(RuntimeError::new(
                 arg_span,
                 RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::core::keyword/to-string".into(),
+                    op: ":wat::keyword::to-string".into(),
                     expected: "keyword",
                     got: Box::new(ValueSnapshot::of(&v)),
                 },
@@ -10891,21 +10517,26 @@ fn eval_keyword_to_string(
     Ok(Value::String(Arc::new(text.to_string())))
 }
 
-/// `(:wat::core::keyword/from-string s)` — construct a keyword Value from
+/// `(:wat::keyword::from-string s)` — construct a keyword Value from
 /// a text string. The text MUST NOT start with ':' (the colon is the sigil,
 /// not part of the payload). Returns a MalformedForm error with a helpful
 /// diagnostic if the string starts with ':'.
 ///
 /// Round-trip property: `(from-string (to-string k)) == k` for any keyword `k`.
 // Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
-fn eval_keyword_from_string(
+// Arc 255 Stone E-iv — bumped to `pub(crate)` so `src/intrinsic/keyword.rs`'s registry-home
+// shim (`:wat::keyword::from-string`) can call the SAME algorithm.
+// Arc 255 Stone G — the shim now forwards this fn's returned `TrackedValue` un-rewrapped
+// (`NativeHandler` sniffs the handler's declared return type), so the registry-routed call
+// carries this fn's own `RuntimeBuilt` provenance again, not `Provenance::Unknown`.
+pub(crate) fn eval_keyword_from_string(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
     let s = eval_one_arg(
-        ":wat::core::keyword/from-string",
+        ":wat::keyword::from-string",
         args,
         list_span,
         env,
@@ -10918,14 +10549,14 @@ fn eval_keyword_from_string(
     )?;
     if angle_type_head_in_name(&s) {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::keyword/from-string".into(),
+            head: ":wat::keyword::from-string".into(),
             reason: angle_minted_name_reason(&s),
         })
         .into());
     }
     if s.starts_with(':') {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::keyword/from-string".into(),
+            head: ":wat::keyword::from-string".into(),
             reason: format!(
                 "input string {:?} starts with ':' — keyword text must not include the leading colon sigil; \
                  use keyword/to-string to produce a colon-free string, or strip the ':' before calling from-string",
@@ -10939,7 +10570,7 @@ fn eval_keyword_from_string(
     Ok(TrackedValue::new(
         kw,
         Provenance::RuntimeBuilt {
-            producer: ":wat::core::keyword/from-string",
+            producer: ":wat::keyword::from-string",
             call_span: list_span.clone(),
         },
     ))
@@ -11050,6 +10681,14 @@ fn eval_apply(
         return apply_function(func.clone(), combined, sym, list_span).map_err(Into::into);
     }
 
+    // Stone O-ii — clause-set head. `dispatch_keyword_head` has had this arm since Stone 237.2
+    // (runtime.rs:6758); `apply` never grew it, so every defclause — `+`, `reduce`, `sort` — was
+    // refused by the keyword gate below. `combined` is already the evaluated args, which is
+    // precisely what the value-level entry wants.
+    if let Value::wat__core__clauses(cs) = &head_val {
+        return eval_call_to_defclause_with_vals(cs.clone(), combined, &list_span, sym);
+    }
+
     // Step 6 — keyword-valued head: extract name + dispatch chain.
     let head_kw = match &head_val {
         Value::wat__core__keyword(k) => k.clone(),
@@ -11135,7 +10774,24 @@ fn eval_apply(
         return result;
     }
 
-    // (d) Nothing found — UnknownFunction with the keyword name.
+    // (d) Registered, but with no value-level door. Stone O-iv-a — `apply` used to call
+    // these "unknown function", which is false: the registry holds the name. A BINDING
+    // handler takes `&[WatAST]` and evaluates its own arguments; `apply` has already
+    // evaluated its arguments and holds `&[Value]`, so there is no AST left to hand it.
+    if crate::intrinsic::registry()
+        .lookup_entry(head_kw.as_str())
+        .is_some()
+    {
+        return Err(RuntimeError::new(
+            list_span,
+            RuntimeErrorKind::NotValueDispatchable {
+                name: head_kw.as_str().to_string(),
+            },
+        )
+        .into());
+    }
+
+    // (e) Genuinely not registered anywhere — UnknownFunction, and now it means it.
     Err(RuntimeError::new(
         list_span,
         RuntimeErrorKind::UnknownFunction(head_kw.as_str().to_string()),
@@ -11914,251 +11570,66 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
 /// 36 arms; now that the old spelling is retired, the fold has nothing left to
 /// fold onto, so the arms are the new spelling's ONLY implementation and the fold
 /// is gone. Reached via `apply` of a BOUND keyword — `(let [plus :wat::i64::+]
-/// (apply plus [2 3]))` — which arrives at this table directly, NOT through the
-/// registry-first door in `dispatch_keyword_head_value`
-/// (`probe_diagnostic_dynamic_keyword_invocation::probe_1`).
+/// (apply plus [2 3]))` — which arrives at this table directly.
+///
+/// Arc 255 Stone N — **the registry is consulted FIRST.** HOME-13 (retracted)
+/// found this fn was the second of two dispatch tables — `apply`'s substrate
+/// fallback, entirely registry-blind. Every one of the 44 named arms below
+/// now ALSO carries a `value_handler` registered under the SAME fqdn
+/// (`IntrinsicSubmission::value_handler`, `src/intrinsic/mod.rs`) — the exact
+/// value-level implementation each literal arm below already called (the
+/// SAME `*_inner` / `arith_*_inner` fn; no new arithmetic or algorithm). So
+/// for all 44, the registry lookup below fires and the literal match never
+/// runs; the match is kept, byte-for-byte, as the fallback for any name NOT
+/// (yet) registered with a `value_handler` — this stone makes the 44 arms
+/// **removable**, it does not remove them (STOP-2). A verb whose
+/// `value_handler` is sabotaged and whose result changes under `apply` is
+/// the proof the registry — not this match — now serves that verb.
+///
+/// Arc 255 Stone HOME-13 (reinstated) — the 44 arms Stone N made removable
+/// are now REMOVED; the registry lookup below is this fn's entire body for
+/// those fqdns, and unregistered names fall through to `None`. Before
+/// removal, the `:wat::vec::concat` / `:wat::vector::concat` pair (and
+/// `:wat::vec::extend` alongside it) carried a note worth keeping: this fn
+/// is also `eval_apply`'s substrate fallback, not only a const-eval path,
+/// so a per-Type leaf registered ONLY on `dispatch_keyword_head_value`'s
+/// keyword-dispatch arm would have left `apply` unable to reach it — an
+/// avoidable split-brain (see `docs/arc/2026/06/278-rules-engine/
+/// DESIGN-STONE-into-pv-from-vector.md` for the concat op itself; the
+/// split-brain risk was runtime.rs-local and undocumented there). The
+/// `value_handler` registrations above close that risk for all 44 at once,
+/// so it no longer needs a per-arm note now that there is no per-arm table.
 pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
 ) -> Option<Result<Value, EvalBreak>> {
-    use crate::collection::eval as ceval;
-    match impl_name {
-        ":wat::core::Vector/length" => Some(ceval::vector_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::core::HashMap/length" => Some(ceval::hashmap_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::core::HashSet/length" => Some(ceval::hashset_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/length
-        ":wat::core::List/length" => Some(ceval::list_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // empty? — 1 arg
-        ":wat::core::Vector/empty?" => Some(ceval::vector_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::core::HashMap/empty?" => Some(ceval::hashmap_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::core::HashSet/empty?" => Some(ceval::hashset_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/empty?
-        ":wat::core::List/empty?" => Some(ceval::list_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // contains? — 2 args (mixed verbs)
-        ":wat::core::Vector/contains?" => Some(ceval::vector_contains_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::core::HashMap/contains-key?" => Some(ceval::hashmap_contains_key_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::core::HashSet/contains?" => Some(ceval::hashset_contains_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/contains?
-        ":wat::core::List/contains?" => Some(ceval::list_contains_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // get — 2 args (return type varies per arm: (Option :- [T]) vs (Option :- [V]))
-        ":wat::core::Vector/get" => Some(ceval::vector_get_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::core::HashMap/get" => Some(ceval::hashmap_get_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/get
-        ":wat::core::List/get" => Some(ceval::list_get_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // conj — 2 args (returns container type)
-        ":wat::core::Vector/conj" => Some(ceval::vector_conj_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::core::HashSet/conj" => Some(ceval::hashset_conj_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/conj (PREPEND semantic)
-        ":wat::core::List/conj" => Some(ceval::list_conj_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 146 slice 4 — assoc / dissoc / keys / values / concat
-        // per-Type impls. Routed here so alias-expanded user-defines
-        // resolve to the substrate impl when the body's call lands on
-        // a per-Type primitive name.
-        ":wat::core::HashMap/assoc" => Some(ceval::hashmap_assoc_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-            vals.get(2).expect("arity-checked"),
-        )),
-        ":wat::core::HashMap/dissoc" => Some(ceval::hashmap_dissoc_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::core::HashMap/keys" => Some(ceval::hashmap_keys_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::core::HashMap/values" => Some(ceval::hashmap_values_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::core::Vector/concat" => Some(ceval::vector_concat_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // DESIGN-STONE-into-pv-from-vector.md — parity with the Vector/concat arm above.
-        // `(:wat::core::apply :wat::core::PersistentVector/concat [to from])` reaches this
-        // path (dispatch_substrate_impl is also `eval_apply`'s substrate fallback, not only a
-        // const-eval path); every other per-Type leaf on this list has both entries, so
-        // registering only the runtime.rs:5174 keyword-dispatch arm would leave `apply`
-        // unable to reach the new op — an avoidable split-brain.
-        ":wat::core::PersistentVector/concat" => Some(ceval::persistentvector_concat_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 278 — the mirror, present here for the same reason: `apply` reaches this path.
-        ":wat::core::Vector/extend" => Some(ceval::vector_extend_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 148 slice 4 — per-Type arithmetic leaves reachable via
-        // direct substrate addressing (no-privacy doctrine). The binary
-        // Dispatch entity decls were DELETED in arc 237 Stone 237.8a
-        // (no more cross-type arms); these per-Type leaves remain as
-        // the irreducible primitives.
-        //
-        // arc 237 Stone 237.8a — 4 same-type i64-i64 + 4 same-type
-        // f64-f64 = 8 leaves. Mixed-type leaves (+'i64'f64 etc.)
-        // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
-        // Stone 237.8b — drop '2 suffix from per-Type binary primitives.
-        // Arc 300 stone C3 — checked on overflow (contrast the wrapping
-        // shown in the comment above, now retired): `checked_*` -> `None`
-        // becomes `I64ArithErr::Overflow`, mapped by `arith_i64_i64_inner`
-        // to a distinct `RuntimeErrorKind::IntegerOverflow` (never
-        // conflated with `DivisionByZero`, never silently wrapped).
-        ":wat::i64::+" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            a.checked_add(b).ok_or(I64ArithErr::Overflow(a, b))
-        })),
-        ":wat::i64::-" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            a.checked_sub(b).ok_or(I64ArithErr::Overflow(a, b))
-        })),
-        ":wat::i64::*" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            a.checked_mul(b).ok_or(I64ArithErr::Overflow(a, b))
-        })),
-        ":wat::i64::/" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                // i64::MIN / -1 is the one division overflow edge (checked_div
-                // returns None here since b != 0 was already ruled out above).
-                a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
-            }
-        })),
-        // Arc 278 numeric-tower increment — clj's mod/rem/quot trio for i64,
-        // this tower's per-type intrinsic path (the surface defclause folds
-        // through here). Mirrors i64::/ above; see the primary dispatch arm's
-        // comment for the sign-rule rationale.
-        ":wat::i64::quot" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
-            }
-        })),
-        ":wat::i64::rem" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                // MIN rem -1 = 0 (clj-faithful special-case; checked_rem's
-                // None here never signals a real overflow — |rem| < |b|).
-                Ok(a.checked_rem(b).unwrap_or(0))
-            }
-        })),
-        ":wat::i64::mod" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                let r = a.checked_rem(b).unwrap_or(0);
-                Ok(if r != 0 && (r < 0) != (b < 0) {
-                    r + b
-                } else {
-                    r
-                })
-            }
-        })),
-        ":wat::f64::+" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
-        ":wat::f64::-" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
-        ":wat::f64::*" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
-        // Stone 237.8b — IEEE 754: f64 / 0.0 = ±Inf or NaN; not an error.
-        ":wat::f64::/" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a / b))),
-        // Arc 300 stone C1 — bigint arithmetic leaves. Arbitrary precision —
-        // `+ - *` never overflow (contrast the i64 leaves above).
-        ":wat::core::bigint::+" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            Ok(Value::wat__core__BigInt(Box::new(a + b)))
-        })),
-        ":wat::core::bigint::-" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            Ok(Value::wat__core__BigInt(Box::new(a - b)))
-        })),
-        ":wat::core::bigint::*" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            Ok(Value::wat__core__BigInt(Box::new(a * b)))
-        })),
-        ":wat::core::bigint::/" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            use num_traits::Zero;
-            if b.is_zero() {
-                return Err(());
-            }
-            let (q, r) = (a / b, a % b);
-            if r.is_zero() {
-                Ok(Value::wat__core__BigInt(Box::new(q)))
-            } else {
-                Ok(Value::wat__core__Rational(Box::new(
-                    num_rational::BigRational::new(a.clone(), b.clone()),
-                )))
-            }
-        })),
-        // Arc 300 stone C2 — rational arithmetic leaves. Every op COLLAPSES
-        // (contrast bigint above, where only `/` collapses) — the shared
-        // `arith_rational_rational_inner` helper applies `collapse_bigrational`
-        // after `op` returns the raw `BigRational`.
-        ":wat::core::rational::+" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                Ok(a + b)
-            }))
+    // Arc 255 Stone O-i — the value door gets the same arity guard the AST
+    // door has always had (`crates/wat-macros/src/wat_intrinsic.rs`'s
+    // generated shim). Without this, every value handler's opening
+    // `vals.first().expect("arity-checked")` names a check that happened on
+    // the OTHER door only, and a wrong-arity `apply` panics the process
+    // instead of returning the clean `ArityMismatch` the direct call gives.
+    //
+    // ONE lookup, not two. `lookup_value` had exactly one caller — this line — so
+    // consulting the entry for BOTH the handler and its arity retires it rather than
+    // paying a second `HashMap::get` to keep a single-purpose accessor alive. Two ways
+    // to ask the registry one question is the shape this arc exists to delete.
+    let entry = crate::intrinsic::registry().lookup_entry(impl_name)?;
+    let handler = entry.value_handler?;
+    if let crate::intrinsic::Arity::Exact(n) = entry.arity {
+        if vals.len() != n {
+            return Some(Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::ArityMismatch {
+                    op: impl_name.into(),
+                    expected: n,
+                    got: vals.len(),
+                },
+            )
+            .into()));
         }
-        ":wat::core::rational::-" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                Ok(a - b)
-            }))
-        }
-        ":wat::core::rational::*" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                Ok(a * b)
-            }))
-        }
-        ":wat::core::rational::/" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                use num_traits::Zero;
-                if b.is_zero() {
-                    return Err(());
-                }
-                Ok(a / b)
-            }))
-        }
-        _ => None,
     }
+    Some(handler(vals))
 }
 
 /// Arc 148 slice 4 — Value-level arithmetic leaves used by
@@ -12178,14 +11649,19 @@ pub(crate) fn dispatch_substrate_impl(
 /// `checked_*` overflow (`None`); `f64`/`bigint`/`rational` are
 /// unaffected and keep the plain `Result<T, ()>` divide-by-zero-only
 /// channel.
-enum I64ArithErr {
+// Arc 255 Stone N — widened `pub(crate)` (both were private): the 19
+// arithmetic verbs' `value_handler` adapters (`src/intrinsic/{i64,f64,
+// bigint,rational}.rs`) call these SAME fns — the exact op this table's own
+// arms already used — from a different module, so the registry can serve
+// `apply` with no new arithmetic implementation.
+pub(crate) enum I64ArithErr {
     DivByZero,
     /// `checked_add/sub/mul/div` returned `None` — carries the operands
     /// so the error names the exact overflowing expression.
     Overflow(i64, i64),
 }
 
-fn arith_i64_i64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+pub(crate) fn arith_i64_i64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
 where
     F: Fn(i64, i64) -> Result<i64, I64ArithErr>,
 {
@@ -12221,7 +11697,7 @@ where
     }
 }
 
-fn arith_f64_f64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+pub(crate) fn arith_f64_f64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
 where
     F: Fn(f64, f64) -> Result<f64, ()>,
 {
@@ -12253,7 +11729,7 @@ where
 /// directly (not a `BigInt`) so `/` can produce EITHER
 /// `Value::wat__core__BigInt` or `Value::wat__core__Rational` — same
 /// two-output-type reason as `eval_bigint_arith`.
-fn arith_bigint_bigint_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+pub(crate) fn arith_bigint_bigint_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
 where
     F: Fn(&BigInt, &BigInt) -> Result<Value, ()>,
 {
@@ -12286,7 +11762,7 @@ where
 /// where only `/` does) — this helper applies `collapse_bigrational`
 /// uniformly after `op`. Operands are coerced via `to_bigrational` (rational
 /// or bigint — see its doc for why bigint is accepted here too).
-fn arith_rational_rational_inner<F>(
+pub(crate) fn arith_rational_rational_inner<F>(
     impl_name: &str,
     vals: &[Value],
     op: F,
@@ -12487,7 +11963,7 @@ fn eval_assoc(
 /// `:wat::eval-ast!`, stored in environments, etc.
 ///
 /// Quote is how programs become holons without running.
-fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -14279,7 +13755,7 @@ fn eval_metadata_of(
 
 /// Destructure a `HolonAST` into its `Bundle` children. Returns a
 /// `RuntimeError` if the AST is not a `Bundle` variant.
-fn require_bundle<'a>(
+pub(crate) fn require_bundle<'a>(
     op: &'static str,
     holon: &'a HolonAST,
     arg_span: &Span,
@@ -14917,119 +14393,6 @@ fn resolve_aggregate_def_for_reflection<'a>(
     }
 }
 
-/// `(:wat::holon::Bundle/children bundle) -> (:wat::core::Vector :- [wat::holon::HolonAST])`
-///
-/// Arc 201 slice 2. General-purpose accessor on `HolonAST::Bundle`: returns
-/// the children sequence, each child re-wrapped as a `Value::holon__HolonAST`
-/// so consumers can recurse via the same accessor surface.
-///
-/// Errors on any non-`Bundle` HolonAST variant (Symbol, Atom, Bind, Permute,
-/// Thermometer, Blend, SlotMarker, or the primitive leaves) with
-/// `RuntimeError::TypeMismatch`. The leaf-unwrap counterpart for
-/// `HolonAST::Atom` / primitive leaves is `:wat::holon::from-holon` (arc 057; renamed
-/// from `:wat::core::atom-value` at arc 225 Stone 225.1);
-/// `Bundle/children` and `from-holon` together cover the full HolonAST
-/// decomposition surface.
-fn eval_bundle_children(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Bundle/children";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST (Bundle)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let children = require_bundle(OP, &holon_arc, args[0].span())?;
-    let out: Vec<Value> = children
-        .iter()
-        .map(|child| Value::holon__HolonAST(Arc::new(child.clone())))
-        .collect();
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::holon::Bundle/first bundle) -> :wat::holon::HolonAST`
-///
-/// Arc 201 slice 2. General-purpose accessor on `HolonAST::Bundle`: returns
-/// the first child (index 0) as a `Value::holon__HolonAST`.
-///
-/// Name mirrors `:wat::core::first` (the wat convention for "head of a
-/// sequence"); avoids inventing a parallel "head" verb.
-///
-/// Errors:
-/// - Non-Bundle input → `RuntimeError::TypeMismatch`.
-/// - Empty Bundle → `RuntimeError::TypeMismatch` (no first child to return;
-///   matches `:wat::core::first` semantics on an empty Vec but expressed
-///   structurally — there is no `(Option :- [HolonAST])` wrap at this surface).
-fn eval_bundle_first(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Bundle/first";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST (Bundle)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let children = require_bundle(OP, &holon_arc, args[0].span())?;
-    let first = children.first().ok_or_else(|| {
-        RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Bundle with at least one child",
-                got: Box::new(ValueSnapshot::unavailable("empty Bundle")),
-            },
-        )
-    })?;
-    Ok(Value::holon__HolonAST(Arc::new(first.clone())))
-}
 
 /// Arc 098 — `:wat::form::matches?` runtime walker. Clara-style
 /// single-item pattern matcher.
@@ -17204,176 +16567,6 @@ fn try_match_pattern(
     }
 }
 
-/// Arc 216 Stone 1 + 2 — Reverse one HolonAST item back to a `Value`.
-///
-/// Used by `from-holon` Bundle extraction path. Handles the six
-/// primitive leaf variants and recursively handles nested `Bundle`
-/// (dispatching on shape: bare-atom set-shape → HashSet; positional-Bind
-/// vector-shape → Vec). Returns `Err` for other composite shapes
-/// (`Permute`/`Thermometer`/`Blend`/`SlotMarker`) that have no
-/// unambiguous Value reconstruction without consumer-declared T.
-///
-/// Arc 225 Stone 225.1 — renamed from `holon_item_to_value`. `op: &str`
-/// parameter threaded through to close arc 224 L1-runtime-3 latent lie
-/// (hardcoded op name in error arm).
-// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
-// See comment on `hashset_conj_inner` for rationale.
-#[allow(clippy::mutable_key_type)]
-pub(crate) fn from_holon_item(
-    item: &HolonAST,
-    op: &str,
-    op_span: &Span,
-) -> Result<Value, EvalBreak> {
-    // Arc 230: Symbol/Keyword/Nil/Tag variants retired. Recognise via accessors.
-    // Symbol composition → keyword Value (Symbol carried colon-prefixed keywords).
-    if let Some(s) = item.as_symbol() {
-        // nil composition (symbol("nil")) → Value::Unit.
-        if s == "nil" {
-            return Ok(Value::Unit);
-        }
-        return Ok(Value::wat__core__keyword(Arc::new(s.to_string())));
-    }
-    // Keyword composition → keyword Value with leading colon restored.
-    if let Some(s) = item.as_keyword() {
-        return Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s))));
-    }
-    match item {
-        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
-        HolonAST::Char(c) => Ok(Value::wat__core__Char(*c)),
-        HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
-        HolonAST::I64(n) => Ok(Value::i64(*n)),
-        HolonAST::F64(x) => Ok(Value::f64(*x)),
-        HolonAST::Bool(b) => Ok(Value::bool(*b)),
-        // Arc 228 Stone 228.1 — classifier-dispatch for nested collection items.
-        // Recognizes Bind(Atom(String(name)), Bundle(items)) produced by to_holon_inner.
-        // Falls through to the bare-Bundle error path for unclassified Bundles.
-        item if extract_classifier(item).is_some() => {
-            let classifier = extract_classifier(item).unwrap();
-            let inner_items = extract_classifier_inner_bundle(item).ok_or_else(|| {
-                RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
-                    got: Box::new(ValueSnapshot::unavailable("classifier-wrapped non-Bundle inner"))
-                })
-            })?;
-            match classifier.as_str() {
-                "Map" => {
-                    let n = inner_items.len();
-                    #[allow(clippy::mutable_key_type)]
-                    let mut map: std::collections::HashMap<Value, Value> =
-                        std::collections::HashMap::with_capacity(n);
-                    for child in inner_items.iter() {
-                        match child {
-                            HolonAST::Bind(k_holon, v_holon) => {
-                                let k_val = from_holon_item(k_holon, op, op_span)?;
-                                let v_val = from_holon_item(v_holon, op, op_span)?;
-                                map.insert(k_val, v_val);
-                            }
-                            _ => {
-                                return Err(RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-                                    op: op.into(),
-                                    expected: "Bind(K, V) child in nested Map classifier-Bundle",
-                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items"))
-                                }).into());
-                            }
-                        }
-                    }
-                    Ok(Value::wat__std__HashMap(Arc::new(map)))
-                }
-                "Set" => {
-                    let mut set: HashSet<Value> = HashSet::with_capacity(inner_items.len());
-                    for child in inner_items.iter() {
-                        let v = from_holon_item(child, op, op_span)?;
-                        set.insert(v);
-                    }
-                    Ok(Value::wat__std__HashSet(Arc::new(set)))
-                }
-                "Vector" => {
-                    let n = inner_items.len();
-                    let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
-                    for child in inner_items.iter() {
-                        match child {
-                            HolonAST::Bind(k, v) => {
-                                let idx = match k.as_ref() {
-                                    HolonAST::I64(i) => *i,
-                                    _ => {
-                                        return Err(RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-                                            op: op.into(),
-                                            expected: "I64 positional key in nested Vector classifier-Bundle",
-                                            got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle"))
-                                        }).into());
-                                    }
-                                };
-                                let elem = from_holon_item(v, op, op_span)?;
-                                pairs.push((idx, elem));
-                            }
-                            _ => {
-                                return Err(RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-                                    op: op.into(),
-                                    expected: "Bind(I64, _) in nested Vector classifier-Bundle",
-                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items"))
-                                }).into());
-                            }
-                        }
-                    }
-                    pairs.sort_by_key(|(k, _)| *k);
-                    let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                    Ok(Value::Vec(Arc::new(elems)))
-                }
-                "List" => {
-                    let mut list = std::collections::LinkedList::new();
-                    for child in inner_items.iter() {
-                        let v = from_holon_item(child, op, op_span)?;
-                        list.push_back(v);
-                    }
-                    Ok(Value::wat__core__List(Arc::new(list)))
-                }
-                "Tuple" => {
-                    let n = inner_items.len();
-                    let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
-                    for child in inner_items.iter() {
-                        match child {
-                            HolonAST::Bind(k, v) => {
-                                let idx = match k.as_ref() {
-                                    HolonAST::I64(i) => *i,
-                                    _ => {
-                                        return Err(RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-                                            op: op.into(),
-                                            expected: "I64 positional key in nested Tuple classifier-Bundle",
-                                            got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle"))
-                                        }).into());
-                                    }
-                                };
-                                let elem = from_holon_item(v, op, op_span)?;
-                                pairs.push((idx, elem));
-                            }
-                            _ => {
-                                return Err(RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-                                    op: op.into(),
-                                    expected: "Bind(I64, _) in nested Tuple classifier-Bundle",
-                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items"))
-                                }).into());
-                            }
-                        }
-                    }
-                    pairs.sort_by_key(|(k, _)| *k);
-                    let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                    Ok(Value::Tuple(Arc::new(elems)))
-                }
-                _ => Err(RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "known classifier: Map, Set, Vector, List, or Tuple",
-                    got: Box::new(ValueSnapshot::unavailable("unknown classifier name in nested collection item"))
-                }).into()),
-            }
-        }
-        _ => Err(RuntimeError::new(op_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: op.into(),
-            expected: "primitive leaf or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon",
-            got: Box::new(ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, non-classifier Bind, Permute, Thermometer, Blend, or other composite)"))
-        }).into()),
-    }
-}
 
 /// `(:wat::core::type <any-value>) -> :wat::core::String` — arc 234 Stone 234.0.
 ///
@@ -17948,7 +17141,11 @@ fn eval_conforms(
 /// Never raises on a bad *value*: a mismatch is the matchable
 /// `Validation::Invalid[path expected got]`. A bad *type keyword* (unparseable /
 /// no registry) is a programmer error and still raises.
-fn eval_edn_validate(
+///
+/// Arc 255 Stone HOME-11 — widened from a bare `fn` to `pub(crate) fn` so
+/// `src/intrinsic/edn.rs`'s registry handler can call it directly. Visibility-only change; the
+/// body (and its `src/check.rs` special-cased type contract) is untouched.
+pub(crate) fn eval_edn_validate(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -18385,70 +17582,6 @@ fn eval_subtype(
 
 // ─── Arc 294.c.2a — aggregate-new + build_holon_hologram ─────────────────────
 
-/// Build the hologram for a HolonRecord from scratch.
-///
-/// Shape (verified against `wat/Record.wat:157-191` + `runtime.rs:14017-14031`):
-///   outer = `Bind(Atom(String(class)), Bundle(field_binds))`
-///   each  = `Bind(Atom(String(name)), Atom(<to_holon(val)>))`
-///
-/// Capacity is checked via the shared `bundle_capacity_verdict` guard (Arc 294.c.2a).
-/// Exceeded capacity → loud `RuntimeError` (construction cannot return a Result).
-///
-/// Called by `eval_aggregate_new` for `Nature::HolonRecord`; the caller already
-/// holds `ctx` from `require_encoding_ctx`.
-// Arc 294.g — `pub(crate)` (was private): the wire decode side (`edn/render.rs
-// reconstruct_holon_record`) is the SECOND caller. A holon record's wire form no longer
-// carries the hologram (294.g collapses the encode arms), so the receiver derives its own
-// index from the decoded fields via this SAME function — no second implementation.
-pub(crate) fn build_holon_hologram(
-    class: &str,
-    field_names: &[String],
-    field_values: &[Value],
-    ctx: &EncodingCtx,
-    span: &Span,
-) -> Result<Arc<HolonAST>, EvalBreak> {
-    let field_binds: Vec<HolonAST> = field_names
-        .iter()
-        .zip(field_values.iter())
-        .map(|(name, val)| -> Result<HolonAST, EvalBreak> {
-            let val_holon = match to_holon_inner(val.clone(), span)? {
-                Value::holon__HolonAST(h) => (*h).clone(),
-                _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
-            };
-            Ok(HolonAST::Bind(
-                Arc::new(HolonAST::Atom(Arc::new(HolonAST::String(Arc::from(
-                    name.as_str(),
-                ))))),
-                Arc::new(HolonAST::Atom(Arc::new(val_holon))),
-            ))
-        })
-        .collect::<Result<_, _>>()?;
-
-    // Capacity check via the shared guard — one guard, two callers.
-    // For construction, exceeded capacity is always a loud RuntimeError
-    // (mode-agnostic: the ctor cannot return a Result).
-    if let Some((cost_i, budget_i)) = bundle_capacity_verdict(field_binds.len(), ctx) {
-        return Err(RuntimeError::new(
-            span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::aggregate-new".into(),
-                reason: format!(
-                    "holon record construction capacity exceeded: \
-                     {} fields > budget {} (dim={})",
-                    cost_i, budget_i, ctx.dim_count
-                ),
-            },
-        )
-        .into());
-    }
-
-    let bundle = HolonAST::bundle(field_binds);
-    let class_atom = HolonAST::Atom(Arc::new(HolonAST::String(Arc::from(class))));
-    Ok(Arc::new(HolonAST::Bind(
-        Arc::new(class_atom),
-        Arc::new(bundle),
-    )))
-}
 
 /// Arc 294.c.2a — `(:wat::core::aggregate-new :T field…)`.
 ///
@@ -18795,7 +17928,7 @@ fn eval_kwargs_construct(
 /// pattern): derives `x_val`'s concrete FQDN, then looks up `:<T>/<field>` in `sym` and
 /// calls it. Works for any satisfier whose field accessors are registered (Struct, Record,
 /// HolonRecord, or a foreign type with extend-type).
-fn project_surface_attrs(
+pub(crate) fn project_surface_attrs(
     x_val: &Value,
     surface: &crate::types::SurfaceDef,
     sym: &SymbolTable,
@@ -18839,7 +17972,7 @@ fn project_surface_attrs(
 
 /// Parse the two-arg form `(verb x :S)` for the three projection verbs.
 /// Returns `(x_val, surface_name_keyword, surface_def)`.
-fn parse_projection_args(
+pub(crate) fn parse_projection_args(
     op: &'static str,
     args: &[WatAST],
     list_span: &Span,
@@ -18925,27 +18058,6 @@ fn eval_to_core_record(
     ))))
 }
 
-/// Arc 293 K3 — `(:wat::holon::to-record x :S)` → `:S$holon-record` (HolonRecord nature;
-/// hologram derived internally from the projected field values).
-fn eval_to_holon_record(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::to-record";
-    let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
-    let (field_names, field_values) = project_surface_attrs(&x_val, &surf, sym, list_span)?;
-    let class = format!("{}$holon-record", surface_kw.trim_start_matches(':'));
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let hologram = build_holon_hologram(&class, &field_names, &field_values, ctx, list_span)?;
-    Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
-        class,
-        field_names,
-        Arc::new(field_values),
-        hologram,
-    ))))
-}
 
 // ─── End Arc 293 K3 ───────────────────────────────────────────────────────────
 
@@ -19451,2233 +18563,15 @@ fn eval_record_assoc(
     record_assoc_inner(record_val, key_val, new_val, list_span, sym)
 }
 
-/// Arc 228 Stone 228.1 — extract the classifier name from a classifier-wrapped HolonAST.
-///
-/// Returns `Some(name)` if the outermost form is `Bind(Atom(String(name)), _)` — i.e., a
-/// classifier-wrapped collection as produced by `to_holon_inner` (arc 228) or the Pascal-Case
-/// constructor verbs (`:wat::holon::Map`, `:wat::holon::Set`, etc.).
-///
-/// Returns `None` for any other form (bare primitives, bare Bundles, Atoms, Permute, etc.).
-///
-/// Callers use this to dispatch by classifier name on the decode path (`from-holon`).
-pub(crate) fn extract_classifier(holon: &HolonAST) -> Option<String> {
-    match holon {
-        HolonAST::Bind(key, _) => match key.as_ref() {
-            HolonAST::Atom(inner) => match inner.as_ref() {
-                HolonAST::String(s) => Some(s.to_string()),
-                _ => None,
-            },
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-/// `(:wat::holon::Bind/left h)` helper — structural left-position accessor.
-///
-/// Arc 232 Stone 232.0a. Returns `Some(left)` for `HolonAST::Bind(left, _)`;
-/// `None` for any other HolonAST variant. Names the STRUCTURAL fact (left
-/// position of a Bind primitive), not the doctrine-conventional reading.
-/// Symmetric peer of `bind_right`.
-fn bind_left(holon: &HolonAST) -> Option<HolonAST> {
-    match holon {
-        HolonAST::Bind(left, _) => Some(left.as_ref().clone()),
-        _ => None,
-    }
-}
-
-/// `(:wat::holon::Bind/right h)` helper — structural right-position accessor.
-///
-/// Arc 232 Stone 232.0a. Returns `Some(right)` for `HolonAST::Bind(_, right)`;
-/// `None` for any other HolonAST variant. Names the STRUCTURAL fact (right
-/// position of a Bind primitive), not the doctrine-conventional reading.
-/// Symmetric peer of `bind_left`.
-fn bind_right(holon: &HolonAST) -> Option<HolonAST> {
-    match holon {
-        HolonAST::Bind(_, right) => Some(right.as_ref().clone()),
-        _ => None,
-    }
-}
-
-/// `(:wat::holon::extract-classifier h)` — lift existing Rust `extract_classifier`
-/// to a wat-callable verb.
-///
-/// Arc 232 Stone 232.0a. Returns `Some(class-name)` for the canonical
-/// classifier-wrap shape `(Bind (Atom <s>) <right>)`; `None` otherwise.
-/// The dispatch primitive surface-method dispatch uses to route
-/// to per-type implementations.
-fn eval_extract_classifier(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::extract-classifier";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc 234 Stone 234.5 — D3: auto-dispatch on wat::core::Record.
-    // Records always have a class_fqdn; return String directly (not Option).
-    // This is honest: a record's classifier is NEVER absent (mandatory at construction).
-    // HolonAST path returns Option<String> as before (classifier may be absent for
-    // structural HolonASTs that aren't typed-entity Binds).
-    match arg_val {
-        // Arc 293.R2.1 — Aggregate carries class (colon-free); return as String.
-        Value::Aggregate(a) => Ok(Value::String(Arc::new(a.class.to_string()))),
-        Value::holon__HolonAST(h) => {
-            let result = extract_classifier(&h).map(|s| Value::String(Arc::new(s)));
-            Ok(Value::Option(Arc::new(result)))
-        }
-        other => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::holon::HolonAST or wat::core::Record",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// `(:wat::holon::Bind/left h)` — structural left-position accessor.
-///
-/// Arc 232 Stone 232.0a. Returns `Some(left)` for `(Bind left _)`;
-/// `None` otherwise. Symmetric peer of `eval_bind_right`.
-fn eval_bind_left(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Bind/left";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let result = bind_left(&holon_arc).map(|h| Value::holon__HolonAST(Arc::new(h)));
-    Ok(Value::Option(Arc::new(result)))
-}
-
-/// `(:wat::holon::Bind/right h)` — structural right-position accessor.
-///
-/// Arc 232 Stone 232.0a. Returns `Some(right)` for `(Bind _ right)`;
-/// `None` otherwise. Symmetric peer of `eval_bind_left`.
-fn eval_bind_right(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Bind/right";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let result = bind_right(&holon_arc).map(|h| Value::holon__HolonAST(Arc::new(h)));
-    Ok(Value::Option(Arc::new(result)))
-}
-
-/// Extract the inner Bundle items from a classifier-wrapped form.
-///
-/// Given `Bind(Atom(String(_)), Bundle(items))`, returns a reference to `items`.
-/// Returns `None` if the form is not classifier-wrapped or the inner is not a Bundle.
-///
-/// Used by the decode dispatch in `from_holon_item` for nested classifier-wrapped collections.
-fn extract_classifier_inner_bundle(holon: &HolonAST) -> Option<&Vec<HolonAST>> {
-    match holon {
-        HolonAST::Bind(key, inner) => match key.as_ref() {
-            HolonAST::Atom(atom_inner) => match atom_inner.as_ref() {
-                HolonAST::String(_) => match inner.as_ref() {
-                    HolonAST::Bundle(items) => Some(items),
-                    _ => None,
-                },
-                _ => None,
-            },
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-/// `(:wat::holon::from-holon <holon>)` — lower a HolonAST back to a runtime `Value`.
-///
-/// Arc 225 Stone 225.1 — renamed from `:wat::core::atom-value` (namespace move +
-/// honest rename).
-///
-/// Arc 228 Stone 228.1 — updated decode dispatch. Previously dispatched by Bundle
-/// child-shape heuristic (three-way: bare-atom → HashSet, positional-Bind → Vec,
-/// arbitrary-Bind → HashMap). Now dispatches by classifier-atom first: if the outermost
-/// form is `Bind(Atom(String(name)), inner)`, dispatches by name
-/// ("Map" → HashMap, "Set" → HashSet, "Vector" → Vec, "List" → List, "Tuple" → Tuple).
-/// Bare Bundle (no classifier) errors with helpful diagnostic per HARD CUT discipline —
-/// the substrate refuses to decode unclassified collections. Callers must use
-/// `to_holon_inner` (or a Pascal-Case constructor) which always produces classifier-wrapped
-/// forms.
-///
-/// Polymorphic decode — the full HolonAST-to-Value materializer:
-///
-/// - Primitive leaf (Symbol/Keyword/Nil/Char/String/I64/F64/Bool) → corresponding
-///   runtime `Value`.
-/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`.
-/// - `Bind(Atom(String(name)), Bundle(items))` → classifier-dispatch by name.
-/// - `Bundle(items)` → TypeMismatch (unclassified Bundle; HARD CUT per arc 228 doctrine).
-/// - Other composite → TypeMismatch.
-// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
-// See comment on `hashset_conj_inner` for rationale.
-// Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
-#[allow(clippy::mutable_key_type)]
-fn eval_holon_from_holon(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<TrackedValue, EvalBreak> {
-    const OP: &str = ":wat::holon::from-holon";
-    // Accepts 1 arg (no type hint) or 3 args with optional `-> :T` annotation
-    // for disambiguating empty Bundle: `(from-holon h -> (:wat::core::HashMap :- [K V]))`.
-    // Arc 216 Stone 3 — the 3-arg form is the only way to signal "empty Bundle = empty HashMap".
-    if args.len() != 1 && args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    // Extract optional type annotation from `-> :T` suffix.
-    // When args.len() == 3: args[0] = holon expr, args[1] = `->` symbol, args[2] = type keyword.
-    let _hint_is_hashmap = if args.len() == 3 {
-        // Validate `->` symbol.
-        match &args[1] {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-            other => {
-                return Err(RuntimeError::new(
-                    other.span().clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!(
-                            "expected `->` at position 2 for type annotation; got {}",
-                            other.variant_name()
-                        ),
-                    },
-                )
-                .into());
-            }
-        }
-        // Check if the type keyword starts with :wat::core::HashMap.
-        // Keywords include the leading colon in their value (":wat::core::HashMap").
-        match &args[2] {
-            WatAST::Keyword(k, _) => k.starts_with(":wat::core::HashMap"),
-            other => {
-                return Err(RuntimeError::new(
-                    other.span().clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!(
-                            "expected type keyword after `->` for annotation; got {}",
-                            other.variant_name()
-                        ),
-                    },
-                )
-                .into());
-            }
-        }
-    } else {
-        false
-    };
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon = match v {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    // Arc 230: Symbol/Keyword/Nil variants retired. Recognise via accessors.
-    // These checks must come before the `match &*holon` because the compositions
-    // are Bind variants that would otherwise fall to the classifier-dispatch arm.
-    // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
-    let prov = || Provenance::RuntimeBuilt {
-        producer: ":wat::holon::from-holon",
-        call_span: list_span.clone(),
-    };
-    if let Some(s) = holon.as_symbol() {
-        // nil composition (symbol("nil")) → Value::Unit.
-        if s == "nil" {
-            return Ok(TrackedValue::new(Value::Unit, prov()));
-        }
-        return Ok(TrackedValue::new(
-            Value::wat__core__keyword(Arc::new(s.to_string())),
-            prov(),
-        ));
-    }
-    if let Some(s) = holon.as_keyword() {
-        // Keyword composition: restore leading colon for the Value round-trip.
-        return Ok(TrackedValue::new(
-            Value::wat__core__keyword(Arc::new(format!(":{}", s))),
-            prov(),
-        ));
-    }
-    match &*holon {
-        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
-        // Arc 233 Stone 233.2.j — use TrackedValue::new directly.
-        HolonAST::Char(c) => Ok(TrackedValue::new(Value::wat__core__Char(*c), prov())),
-        HolonAST::String(s) => Ok(TrackedValue::new(
-            Value::String(Arc::new(s.to_string())),
-            prov(),
-        )),
-        HolonAST::I64(n) => Ok(TrackedValue::new(Value::i64(*n), prov())),
-        HolonAST::F64(x) => Ok(TrackedValue::new(Value::f64(*x), prov())),
-        HolonAST::Bool(b) => Ok(TrackedValue::new(Value::bool(*b), prov())),
-        HolonAST::Atom(inner) => Ok(TrackedValue::new(
-            Value::holon__HolonAST(inner.clone()),
-            prov(),
-        )),
-        // Arc 228 Stone 228.1 — classifier-dispatch replaces arc 216 heuristic Bundle dispatch.
-        // The outermost form is now Bind(Atom(String(name)), Bundle(items)) for all collections.
-        // Dispatch by classifier name:
-        //   "Map"    → HashMap (arbitrary-K Binds in inner Bundle)
-        //   "Set"    → HashSet (bare items in inner Bundle)
-        //   "Vector" → Vec    (positional I64-key Binds in inner Bundle)
-        //   "List"   → List   (bare items in inner Bundle, order-preserving)
-        //   "Tuple"  → Tuple  (positional I64-key Binds in inner Bundle)
-        // Per HARD CUT discipline: bare Bundles (no classifier) error with diagnostic.
-        // The `-> (HashMap :- [K V])` consumer-hint form is preserved for empty-Map classifier.
-        other => {
-            if let Some(classifier) = extract_classifier(other) {
-                // Classifier-wrapped collection: extract inner Bundle items.
-                let inner_bundle = match other {
-                    HolonAST::Bind(_, inner) => inner,
-                    _ => unreachable!("extract_classifier returned Some for non-Bind"),
-                };
-                let items = match inner_bundle.as_ref() {
-                    HolonAST::Bundle(items) => items,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            args[0].span().clone(),
-                            RuntimeErrorKind::TypeMismatch {
-                                op: OP.into(),
-                                expected:
-                                    "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
-                                got: Box::new(ValueSnapshot::unavailable(
-                                    "classifier-wrapped non-Bundle inner",
-                                )),
-                            },
-                        )
-                        .into());
-                    }
-                };
-                match classifier.as_str() {
-                    "Map" => {
-                        // Map: inner Bundle contains Bind(K, V) pairs → HashMap.
-                        let n = items.len();
-                        // Empty Map always returns empty HashMap regardless of hint.
-                        #[allow(clippy::mutable_key_type)]
-                        let mut map: std::collections::HashMap<
-                            Value,
-                            Value,
-                        > = std::collections::HashMap::with_capacity(n);
-                        for child in items.iter() {
-                            match child {
-                                HolonAST::Bind(k_holon, v_holon) => {
-                                    let k_val = from_holon_item(k_holon, OP, args[0].span())?;
-                                    let v_val = from_holon_item(v_holon, OP, args[0].span())?;
-                                    map.insert(k_val, v_val);
-                                }
-                                _ => {
-                                    return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                                        op: OP.into(),
-                                        expected: "Bind(K, V) child in Map classifier-Bundle",
-                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items"))
-                                    }).into());
-                                }
-                            }
-                        }
-                        Ok(TrackedValue::new(
-                            Value::wat__std__HashMap(Arc::new(map)),
-                            prov(),
-                        ))
-                    }
-                    "Set" => {
-                        // Set: inner Bundle contains bare items → HashSet.
-                        let mut set: HashSet<Value> = HashSet::with_capacity(items.len());
-                        for item in items.iter() {
-                            let v = from_holon_item(item, OP, args[0].span())?;
-                            set.insert(v);
-                        }
-                        Ok(TrackedValue::new(
-                            Value::wat__std__HashSet(Arc::new(set)),
-                            prov(),
-                        ))
-                    }
-                    "Vector" => {
-                        // Vector: inner Bundle contains positional Bind(I64, _) pairs → Vec.
-                        let n = items.len();
-                        let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
-                        for child in items.iter() {
-                            match child {
-                                HolonAST::Bind(k, v) => {
-                                    let idx = match k.as_ref() {
-                                        HolonAST::I64(i) => *i,
-                                        _ => {
-                                            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                                                op: OP.into(),
-                                                expected: "I64 positional key in Vector classifier-Bundle",
-                                                got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle"))
-                                            }).into());
-                                        }
-                                    };
-                                    let elem = from_holon_item(v, OP, args[0].span())?;
-                                    pairs.push((idx, elem));
-                                }
-                                _ => {
-                                    return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                                        op: OP.into(),
-                                        expected: "Bind(I64, _) positional child in Vector classifier-Bundle",
-                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items"))
-                                    }).into());
-                                }
-                            }
-                        }
-                        pairs.sort_by_key(|(k, _)| *k);
-                        let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(TrackedValue::new(Value::Vec(Arc::new(elems)), prov()))
-                    }
-                    "List" => {
-                        // List: inner Bundle contains sequential bare items → wat::core::List.
-                        // Order-preserving (LinkedList; items were stored front-to-back).
-                        let mut list = std::collections::LinkedList::new();
-                        for item in items.iter() {
-                            let v = from_holon_item(item, OP, args[0].span())?;
-                            list.push_back(v);
-                        }
-                        Ok(TrackedValue::new(
-                            Value::wat__core__List(Arc::new(list)),
-                            prov(),
-                        ))
-                    }
-                    "Tuple" => {
-                        // Tuple: inner Bundle contains positional Bind(I64, _) pairs → Tuple.
-                        // Same internal structure as Vector; outer classifier distinguishes.
-                        let n = items.len();
-                        let mut pairs: Vec<(i64, Value)> = Vec::with_capacity(n);
-                        for child in items.iter() {
-                            match child {
-                                HolonAST::Bind(k, v) => {
-                                    let idx = match k.as_ref() {
-                                        HolonAST::I64(i) => *i,
-                                        _ => {
-                                            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                                                op: OP.into(),
-                                                expected: "I64 positional key in Tuple classifier-Bundle",
-                                                got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle"))
-                                            }).into());
-                                        }
-                                    };
-                                    let elem = from_holon_item(v, OP, args[0].span())?;
-                                    pairs.push((idx, elem));
-                                }
-                                _ => {
-                                    return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                                        op: OP.into(),
-                                        expected: "Bind(I64, _) positional child in Tuple classifier-Bundle",
-                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items"))
-                                    }).into());
-                                }
-                            }
-                        }
-                        pairs.sort_by_key(|(k, _)| *k);
-                        let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(TrackedValue::new(Value::Tuple(Arc::new(elems)), prov()))
-                    }
-                    _ => Err(RuntimeError::new(
-                        args[0].span().clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "known classifier: Map, Set, Vector, List, or Tuple",
-                            got: Box::new(ValueSnapshot::unavailable(
-                                "unknown classifier name in collection Bind",
-                            )),
-                        },
-                    )
-                    .into()),
-                }
-            } else {
-                // No classifier — bare Bundle or other structural form.
-                // Per arc 228 HARD CUT: unclassified collections are not decodeable.
-                // Bare Bundle must be upgraded to classifier-wrapped form first
-                // (use to-holon on the collection Value, or a Pascal-Case constructor).
-                Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "primitive leaf, Atom, or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon or :wat::holon::Map/Set/Vector/List/Tuple constructors",
-                    got: Box::new(ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, Bind without Atom-String classifier, Permute, Thermometer, Blend, or other composite)"))
-                }).into())
-            }
-        }
-    }
-}
 
 // ─── Algebra-core UpperCall runtime construction ────────────────────────
 
-/// `(:wat::holon::Atom holon)` — opaque-identity wrap for a HolonAST value.
-///
-/// Arc 225 Stone 225.1 — narrowed from the old polymorphic `Atom` constructor.
-/// Now accepts ONLY `Value::holon__HolonAST` input; returns `HolonAST::Atom(inner)`.
-///
-/// For lifting ANY other value type into HolonAST, use `:wat::holon::to-holon`
-/// (the new polymorphic UP verb). `Atom` is the opaque-identity wrap specifically.
-fn eval_holon_atom_constructor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Atom".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    wrap_holon_as_atom(v, args[0].span())
-}
-
-/// Wrap a HolonAST in an opaque-identity `Atom` node.
-///
-/// Arc 225 Stone 225.1 — renamed from `value_to_atom` (which was polymorphic).
-/// This function now accepts ONLY `Value::holon__HolonAST`; the polymorphic UP
-/// arms moved to `eval_holon_to_holon` / `to_holon_inner`.
-fn wrap_holon_as_atom(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
-    match v {
-        Value::holon__HolonAST(h) => Ok(Value::holon__HolonAST(Arc::new(HolonAST::Atom(h)))),
-        other => Err(RuntimeError::new(
-            arg_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: ":wat::holon::Atom".into(),
-                expected: ":wat::holon::HolonAST (use :wat::holon::to-holon for other types)",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// `(:wat::holon::to-holon value)` — polymorphic lift of any runtime `Value` into HolonAST.
-///
-/// Arc 225 Stone 225.1 — NEW verb. Absorbs the polymorphic UP arms that were
-/// retired from `:wat::holon::Atom`. The operation-name `to-holon` is honest:
-/// it signals boundary-crossing into the algebra tier without promising a specific
-/// HolonAST variant (compare: `Atom` would falsely promise `HolonAST::Atom` output
-/// for all inputs).
-///
-/// Dispatch by input type:
-/// - Primitives (i64/f64/bool/String/keyword/nil/Char/Uuid) → typed leaves.
-/// - HolonAST → `HolonAST::Atom(inner)` (opaque-identity wrap, same as narrow `Atom`).
-/// - WatAST → structural lowering via `watast_to_holon` (List→Bundle, literals→leaves).
-/// - (HashSet :- [T]) → Bundle of bare atoms (arc 216 Stone 1).
-/// - (Vector :- [T]) / Tuple → Bundle of positional-Bind pairs (arc 216 Stone 2/7).
-/// - (HashMap :- [K V]) → Bundle of arbitrary-K Bind pairs (arc 216 Stone 3).
-fn eval_holon_to_holon(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::to-holon".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    to_holon_inner(v, args[0].span())
-}
-
-// Arc 294.j RELAND — widened from private to `pub(crate)`: `edn::render`'s corrected HolonAST
-// decoder (`edn_derive_holon`, DESIGN-STONE-294.j ⛔ CORRECTION) composes this with
-// `edn_to_value` to derive a HolonAST from decoded data — the SAME holon-side lift
-// `:wat::holon::literal` (`#holon <form>`, arc 294.b) already uses. Adopting an existing total
-// function, not writing a second HolonAST-from-Value builder.
-pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
-    // Arc 225 Stone 225.1 — the polymorphic UP body, moved here from the
-    // retired `value_to_atom`. All arms preserved in semantics; rename only.
-    let holon = match v {
-        // Primitive leaves ───────────────────────────────────────────
-        Value::i64(n) => HolonAST::i64(n),
-        Value::f64(x) => HolonAST::f64(x),
-        Value::bool(b) => HolonAST::bool_(b),
-        Value::String(s) => HolonAST::string(s.as_str()),
-        // Arc 221 Stone 221.4 — Keyword primitive → HolonAST::Keyword leaf.
-        // Stone 221.3 minted HolonAST::Keyword in holon-rs commit fa48b39.
-        // Value::wat__core__keyword stores with leading colon (constructor at
-        // src/runtime.rs:7111 formats ":{name}"). HolonAST::keyword(&k) strips
-        // the colon at the boundary per Stone 221.3 doctrine (stored content has
-        // no leading colon). Pre-arc-221 used HolonAST::symbol(k.as_str()) which
-        // violated the honest-primitive discipline; retired here.
-        Value::wat__core__keyword(k) => HolonAST::keyword(&k),
-        // Arc 230: Value::Unit (wat's nil) → HolonAST::nil() composition.
-        // Arc 221 minted HolonAST::Nil; arc 230 supersedes with Bind composition.
-        // HolonAST::nil() = Bind(Atom(String("Symbol")), Atom(String("nil"))).
-        Value::Unit => HolonAST::nil(),
-        // Arc 221 Stone 221.4 — Uuid → HolonAST::Bind(Tag("uuid"), String(hex)).
-        // Closes arc 207 false-flag (5-day-latent gap since 2026-05-17).
-        // Uses tagged composition per arc 221 doctrine correction — bare-leaf
-        // payload in Bind, NOT Atom-wrapped. HolonAST::tag("uuid") strips the '#'
-        // if present; "uuid" has no '#'. The hex representation is the canonical
-        // lowercase hyphenated UUID string.
-        Value::wat__core__Uuid(u) => {
-            HolonAST::bind(HolonAST::tag("uuid"), HolonAST::string(u.to_string()))
-        }
-        // Arc 221 Stone 221.2 — Char primitive → HolonAST::Char leaf.
-        // Stone 221.1 minted HolonAST::Char + char_() constructor in holon-rs
-        // commit 243eded. Char is a proper primitive (BMP-only Unicode scalar),
-        // not a convention-based encoding inside an existing leaf.
-        Value::wat__core__Char(c) => HolonAST::char_(c),
-        // Opaque-identity wrap ───────────────────────────────────────
-        // HolonAST input → Atom(inner) wrap; the to-holon verb is the general
-        // lift, and for HolonAST inputs it behaves identically to narrow Atom.
-        Value::holon__HolonAST(h) => HolonAST::Atom(h),
-        // Structural lowering of a captured wat form ────────────────
-        Value::wat__WatAST(a) => watast_to_holon(&a),
-        // Arc 216 Stone 1 — (HashSet :- [T]) → classifier-wrapped Bundle of bare items.
-        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
-        // typed-entities doctrine: every collection carries its classifier at substrate.
-        // Output: Bind(Atom("Set"), Bundle(bare items)).
-        // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
-        Value::wat__std__HashSet(s) => {
-            let mut items: Vec<HolonAST> = Vec::with_capacity(s.len());
-            for elem in s.iter() {
-                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
-                match holon_val {
-                    Value::holon__HolonAST(h) => items.push((*h).clone()),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
-                }
-            }
-            let inner_bundle = HolonAST::bundle(items);
-            let classified = HolonAST::bind(
-                HolonAST::Atom(Arc::new(HolonAST::string("Set"))),
-                inner_bundle,
-            );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
-        }
-        // Arc 216 Stone 2 — (Vector :- [T]) → classifier-wrapped positional-Bind Bundle.
-        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
-        // typed-entities doctrine. Output: Bind(Atom("Vector"), Bundle(positional Binds)).
-        // Each element's index i becomes the Bind key as HolonAST::I64(i).
-        // Order is preserved — index 0 first.
-        Value::Vec(v) => {
-            let mut items: Vec<HolonAST> = Vec::with_capacity(v.len());
-            for (i, elem) in v.iter().enumerate() {
-                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
-                let elem_holon = match holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
-                };
-                let key = HolonAST::i64(i as i64);
-                items.push(HolonAST::bind(key, elem_holon));
-            }
-            let inner_bundle = HolonAST::bundle(items);
-            let classified = HolonAST::bind(
-                HolonAST::Atom(Arc::new(HolonAST::string("Vector"))),
-                inner_bundle,
-            );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
-        }
-        // Arc 216 Stone 7 — Tuple → classifier-wrapped positional-Bind Bundle.
-        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding + resolves the
-        // identical-encoding-as-Vec dishonesty. Output: Bind(Atom("Tuple"), Bundle(positional Binds)).
-        // Bundle internals are identical to Vec (positional Binds); the OUTER Atom("Tuple")
-        // vs Atom("Vector") classifier is the sole discriminator. NOW DISTINCT at substrate.
-        Value::Tuple(t) => {
-            let mut items: Vec<HolonAST> = Vec::with_capacity(t.len());
-            for (i, elem) in t.iter().enumerate() {
-                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
-                let elem_holon = match holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
-                };
-                let key = HolonAST::i64(i as i64);
-                items.push(HolonAST::bind(key, elem_holon));
-            }
-            let inner_bundle = HolonAST::bundle(items);
-            let classified = HolonAST::bind(
-                HolonAST::Atom(Arc::new(HolonAST::string("Tuple"))),
-                inner_bundle,
-            );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
-        }
-        // Arc 216 Stone 3 — (HashMap :- [K V]) → classifier-wrapped Bundle of arbitrary-K Binds.
-        // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
-        // typed-entities doctrine. Output: Bind(Atom("Map"), Bundle(K-V Binds)).
-        // Iteration order is non-canonical (HashMap unordered); the produced Bundle's
-        // Bind order is therefore non-deterministic. The reverse trip (from-holon)
-        // reconstructs a HashMap which is also order-agnostic — round-trip is correct.
-        // Stone 216.5c — iterate m.iter() for (k, v) directly (K is the native key).
-        Value::wat__std__HashMap(m) => {
-            let mut items: Vec<HolonAST> = Vec::with_capacity(m.len());
-            for (k, v) in m.iter() {
-                let k_holon_val = to_holon_inner(k.clone(), arg_span)?;
-                let k_holon = match k_holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
-                };
-                let v_holon_val = to_holon_inner(v.clone(), arg_span)?;
-                let v_holon = match v_holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
-                };
-                items.push(HolonAST::bind(k_holon, v_holon));
-            }
-            let inner_bundle = HolonAST::bundle(items);
-            let classified = HolonAST::bind(
-                HolonAST::Atom(Arc::new(HolonAST::string("Map"))),
-                inner_bundle,
-            );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
-        }
-        // Arc 228 Stone 228.1 — List (wat::core::List) → classifier-wrapped Bundle of
-        // sequential bare items. Output: Bind(Atom("List"), Bundle(items)).
-        // Items are sequential (like Set) but the outer Atom("List") vs Atom("Set")
-        // classifier discriminates on the reverse trip. Order is preserved via LinkedList
-        // iteration (front to back).
-        Value::wat__core__List(l) => {
-            let mut items: Vec<HolonAST> = Vec::with_capacity(l.len());
-            for elem in l.iter() {
-                let holon_val = to_holon_inner(elem.clone(), arg_span)?;
-                match holon_val {
-                    Value::holon__HolonAST(h) => items.push((*h).clone()),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
-                }
-            }
-            let inner_bundle = HolonAST::bundle(items);
-            let classified = HolonAST::bind(
-                HolonAST::Atom(Arc::new(HolonAST::string("List"))),
-                inner_bundle,
-            );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
-        }
-        // Arc 293.R2.1 — Aggregate: HolonRecord exposes hologram; Record has no hologram.
-        Value::Aggregate(a) => match &a.holon {
-            HolonForm::Hologram(h) => {
-                return Ok(Value::holon__HolonAST(Arc::new(h.as_ref().clone())));
-            }
-            HolonForm::Empty => {
-                return Err(RuntimeError::new(
-                    arg_span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::holon::to-holon".into(),
-                        reason: format!(
-                            "base record `{}` has no holon flavor; construct a holonic record \
-                         (`:wat::holon::defrecord`) to use holon operations",
-                            a.class
-                        ),
-                    },
-                )
-                .into());
-            }
-        },
-        other => {
-            return Err(RuntimeError::new(arg_span.clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::holon::to-holon".into(),
-                expected: "primitive, HolonAST, quoted wat form, (HashSet :- [T]), (Vector :- [T]), Tuple, (HashMap :- [K V]), (List :- [T]), or wat::core::Record",
-                got: Box::new(ValueSnapshot::of(&other))
-            }).into());
-        }
-    };
-    Ok(Value::holon__HolonAST(Arc::new(holon)))
-}
-
-/// Lower a captured wat form into a HolonAST. Uniform structural
-/// rule per arc 057's quote-all-the-way-down framing: every node is
-/// a coordinate; lists nest as Bundle; literals collapse to their
-/// matching primitive leaf; identifier scope is dropped (forms are
-/// spelling, scope is resolution-time).
-///
-/// Arc 221 Stone 221.4b — WatAST::Keyword lowers to HolonAST::keyword()
-/// (not HolonAST::symbol). HolonAST::keyword() strips the leading colon
-/// per Stone 221.3 doctrine (holon-rs commit fa48b39). Pre-arc-221 used
-/// HolonAST::symbol(k.as_str()) which violated the honest-primitive
-/// discipline; retired here.
-// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn::render` encode
-// arm; reverted here. The corrected design (DESIGN-STONE-294.j ⛔ CORRECTION) does not route
-// HolonAST↔EDN through the wat-source bijection at all — `edn::render` now composes
-// `from_holon_item` / `to_holon_inner` instead (both already `pub(crate)`). This fn's only
-// callers are the 8 in this file (`from-wat`, macro support, etc.); private is correct again.
-fn watast_to_holon(a: &WatAST) -> HolonAST {
-    match a {
-        WatAST::IntLit(n, _) => HolonAST::i64(*n),
-        WatAST::FloatLit(x, _) => HolonAST::f64(*x),
-        // Arc 300 stone B — SURPRISE (not in the brief's mapped rooms):
-        // holon-rs's `HolonAST` has no native rational leaf (only
-        // String/I64/F64/Bool/Char — see holon-rs/src/kernel/holon_ast.rs).
-        // holon-rs is out of scope for this stone (it belongs to a
-        // different crate, never named in the brief's room list). Lower to
-        // its canonical rendered string ("n/d") — a lossy-but-honest leaf
-        // encoding (same shape family as the String arm below), NOT a new
-        // holon-rs primitive. Revisit if/when a holon-side Rational lands.
-        WatAST::RationalLit(r, _) => HolonAST::string(format!("{}/{}", r.numer(), r.denom())),
-        // Arc 300 stone C1 — same SURPRISE as Rational immediately above: no
-        // native holon-rs bigint leaf. Lower to its canonical rendered string
-        // ("<n>N"), same lossy-but-honest shape family as the Rational arm.
-        WatAST::BigIntLit(n, _) => HolonAST::string(format!("{}N", n)),
-        // Arc 300 stone D — unlike Rational/BigInt immediately above,
-        // holon-rs's `HolonAST` DOES have a native `Char` leaf
-        // (`holon-rs/src/kernel/holon_ast.rs:77`, `HolonAST::char_`
-        // constructor) — no lossy string rendering needed.
-        WatAST::CharLit(c, _) => HolonAST::char_(*c),
-        WatAST::BoolLit(b, _) => HolonAST::bool_(*b),
-        WatAST::StringLit(s, _) => HolonAST::string(s.as_str()),
-        // Arc 244 — NilLit lowers to HolonAST::symbol("nil") — the HolonAST nil
-        // representation (symmetric with the HolonAST→Value path at runtime.rs:15048).
-        WatAST::NilLit(_) => HolonAST::symbol("nil"),
-        // Arc 221 Stone 221.4b — Keyword lowers to HolonAST::Keyword, not Symbol.
-        // HolonAST::keyword() strips the leading colon stored in WatAST::Keyword.
-        WatAST::Keyword(k, _) => HolonAST::keyword(k.as_str()),
-        WatAST::Symbol(ident, _) => HolonAST::symbol(ident.as_str()),
-        WatAST::List(items, _) => HolonAST::bundle(items.iter().map(watast_to_holon).collect()),
-        // Arc 167 slice 1 — collapses to the same Bundle shape
-        // as List for the algebra-level lowering. The list /
-        // vector distinction is a surface-syntax concern that
-        // matters for parsing and binding-position dispatch; once
-        // we cross the algebra boundary, the children form an
-        // ordered structural composition either way. Honest delta:
-        // a future arc that exposes vector-as-value at the
-        // algebra level may re-tag these distinctly.
-        WatAST::Vector(items, _) => HolonAST::bundle(items.iter().map(watast_to_holon).collect()),
-        // Arc 257 slice 1 — `Map` lowers to `Bind(Atom(String("Map")), Bundle([Bind(k,v), …]))`
-        // matching `from_holon_item`'s existing "Map" classifier arm (~11553).
-        // The symmetric encoding ensures the holon round-trip is correct.
-        WatAST::Map(pairs, _) => {
-            let pair_holons: Vec<HolonAST> = pairs
-                .iter()
-                .map(|(k, v)| HolonAST::bind(watast_to_holon(k), watast_to_holon(v)))
-                .collect();
-            HolonAST::bind(HolonAST::string("Map"), HolonAST::bundle(pair_holons))
-        }
-        // Arc 257 slice 1 — `Set` lowers to `Bind(Atom(String("Set")), Bundle([…]))`
-        // matching `from_holon_item`'s existing "Set" classifier arm.
-        WatAST::Set(items, _) => {
-            let elem_holons: Vec<HolonAST> = items.iter().map(watast_to_holon).collect();
-            HolonAST::bind(HolonAST::string("Set"), HolonAST::bundle(elem_holons))
-        }
-    }
-}
-
-/// `(:wat::holon::leaf v)` → `:wat::holon::HolonAST` (arc 065).
-/// Lift a primitive value to a typed HolonAST leaf. One named verb
-/// for the primitive case of arc 057's polymorphic Atom; reading
-/// `(leaf 42)` says exactly what's happening — "wrap this primitive
-/// as a HolonAST leaf" — where polymorphic `Atom` left the move
-/// ambiguous (primitive? wrap? structural lift?).
-///
-/// Accepts only primitive Value variants; non-primitives error
-/// with TypeMismatch and a hint pointing at the right verb
-/// (`Atom` for HolonAST inputs; `from-wat` for quoted forms).
-fn eval_holon_leaf(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::leaf";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let h = match v {
-        Value::i64(n) => HolonAST::i64(n),
-        Value::f64(x) => HolonAST::f64(x),
-        Value::bool(b) => HolonAST::bool_(b),
-        Value::String(s) => HolonAST::string(s.as_str()),
-        // Arc 230: Keyword → HolonAST::keyword() composition (Bind(Atom("Keyword"), Atom(s))).
-        // keyword() strips the leading colon; same semantics as arc 221 Stone 221.4b.
-        Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
-        // Arc 230: Value::Unit (wat nil) → HolonAST::nil() composition.
-        // HolonAST::nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil.
-        Value::Unit => HolonAST::nil(),
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "primitive (i64/f64/bool/String/keyword/nil); \
-                           use :wat::holon::Atom to wrap a HolonAST, \
-                           :wat::holon::from-wat to lower a quoted form, \
-                           :wat::holon::to-holon for other types",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::holon__HolonAST(Arc::new(h)))
-}
-
-/// `(:wat::holon::from-wat form)` → `:wat::holon::HolonAST` (arc 065).
-/// Lower a quoted wat form to a HolonAST tree (List → Bundle,
-/// Keyword → Keyword, literals → matching primitive leaves). One
-/// named verb for the WatAST case; the round-trip pair `to-wat` / `from-wat`
-/// reads visibly at call sites (arc 225 Stone 225.1: renamed from `from-watast`
-/// to drop the redundant "ast" suffix and align with the layer-name direction family).
-///
-/// Accepts only `Value::wat__WatAST` (typically produced via
-/// `:wat::core::quote`); non-WatAST inputs error with TypeMismatch
-/// and a hint pointing at the right verb.
-fn eval_holon_from_wat(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::from-wat";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let h = match v {
-        Value::wat__WatAST(a) => watast_to_holon(&a),
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: ":wat::WatAST (typically from :wat::core::quote); \
-                           use :wat::holon::Atom for HolonAST inputs, \
-                           :wat::holon::to-holon for other types, \
-                           :wat::holon::leaf for primitives",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::holon__HolonAST(Arc::new(h)))
-}
-
-/// `(:wat::holon::to-wat holon) -> :wat::WatAST` — lower a HolonAST
-/// back to a runnable wat AST. The Story-2 escape hatch per arc 057:
-/// the substrate's "next form" surface (cosine, Bind, presence, the
-/// dual-LRU coordinate cache) operates on HolonAST structure directly;
-/// when a consumer wants the actual VALUE, they `to-wat` the form
-/// and `eval-ast!` the result.
-///
-/// Arc 225 Stone 225.1 — renamed from `to-watast` to drop the redundant
-/// "ast" suffix and align with the layer-name direction family
-/// (`to-wat` / `from-wat` pair; symmetric with `to-holon` / `from-holon`).
-///
-/// The lower is the structural inverse of [`watast_to_holon`]:
-/// primitive leaves recover their corresponding WatAST literal;
-/// `Bundle`s become `List`s; `Atom`/`Bind`/`Permute`/`Thermometer`/
-/// `Blend` emit the wat source form that, when evaluated, would
-/// reconstruct that node — so a HolonAST tree round-trips through
-/// `to-wat → eval-ast!` back to the same HolonAST shape.
-///
-/// Lossy parts: identifier scope (dropped at lowering time;
-/// recovered keyword form re-resolves through the current scope) and
-/// span info (never preserved on either side).
-fn eval_holon_to_wat(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::to-wat".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::to-wat".into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::wat__WatAST(Arc::new(holon_to_watast(&h))))
-}
-
-/// `(:wat::holon::term::template form)` → `:wat::holon::HolonAST` (arc 073).
-/// Returns the form with each Thermometer leaf replaced by a SlotMarker
-/// — the template / cell type. Two thoughts that share structure-and-
-/// receptive-fields produce the same template; two thoughts that differ
-/// in any other way (variant, range, atom content) produce distinct
-/// templates. The `TermStore::get` path keys on this for exact-template
-/// HashMap lookup before sliding into per-slot tolerance.
-fn eval_term_template(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::term::template";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::holon__HolonAST(Arc::new(h.template())))
-}
-
-/// `(:wat::holon::term::slots form)` → `(:wat::core::Vector :- [f64])` (arc 073). Pre-order
-/// list of every Thermometer value in the form. Empty for forms with
-/// no Thermometer leaves. Parallel in length and order to
-/// `:wat::holon::term::ranges`. The `TermStore::get` path uses these
-/// to score per-slot tolerance against the bucket's stored slots.
-fn eval_term_slots(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::term::slots";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let items: Vec<Value> = h.slots().into_iter().map(Value::f64).collect();
-    Ok(Value::Vec(Arc::new(items)))
-}
-
-/// `(:wat::holon::term::ranges form)` → `(:wat::core::Vector :- [(f64,f64)])` (arc 073).
-/// Pre-order list of every Thermometer (min, max) pair in the form,
-/// parallel to `term::slots`. Used by `TermStore::get` to compute
-/// the per-slot tolerance window: `|q − stored| / (max − min)` against
-/// the substrate's `coincident?` floor.
-fn eval_term_ranges(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::term::ranges";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let items: Vec<Value> = h
-        .ranges()
-        .into_iter()
-        .map(|(lo, hi)| Value::Tuple(Arc::new(vec![Value::f64(lo), Value::f64(hi)])))
-        .collect();
-    Ok(Value::Vec(Arc::new(items)))
-}
-
-/// `(:wat::holon::term::matches? query stored)` → `:bool` (arc 073).
-/// Composes the three decomposition primitives plus the substrate's
-/// sigma machinery. Returns true iff:
-///
-///   1. `template(query) == template(stored)` — same cell type
-///      (structural HolonAST equality).
-///   2. For every slot i, `|q[i] - s[i]| / (max[i] - min[i]) < floor`
-///      where `floor = sigma(d) / sqrt(d)` at the d the dim router
-///      picks for the form. Per-slot fuzzy unification on the
-///      receptive field — what `coincident?` reduces to when the
-///      structural shape already matches, but cheaper because no
-///      encoding is required.
-///
-/// HolonAST/HolonAST only (per Q5 of arc 073 DESIGN). Pre-encoded
-/// Vector callers reach for `coincident?` directly; they've already
-/// crossed the encoding boundary and don't have term structure.
-fn eval_term_matches_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::term::matches?";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let q = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let s = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    if q.template() != s.template() {
-        return Ok(Value::bool(false));
-    }
-    let q_slots = q.slots();
-    let s_slots = s.slots();
-    let q_ranges = q.ranges();
-    // Same template guarantees same slot/range arity by construction —
-    // the template decomposition reads the form's shape and slots/
-    // ranges read the same Thermometer leaves in the same pre-order
-    // sequence.
-    let d = program_dim(OP, sym, list_span)?;
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let floor = ctx.encoders.get(d).coincident_floor(sym);
-    for i in 0..q_slots.len() {
-        let (lo, hi) = q_ranges[i];
-        let range = hi - lo;
-        // Zero-range slot (min == max) is degenerate; require exact
-        // value equality rather than dividing by zero. Two thoughts
-        // with a degenerate Thermometer still match if and only if
-        // their values agree bit-for-bit.
-        if range == 0.0 {
-            if q_slots[i] != s_slots[i] {
-                return Ok(Value::bool(false));
-            }
-        } else if (q_slots[i] - s_slots[i]).abs() / range >= floor {
-            return Ok(Value::bool(false));
-        }
-    }
-    Ok(Value::bool(true))
-}
 
 // ─── Arc 074 — Substrate floor accessors ────────────────────────────
 
-/// `(:wat::holon::presence-floor d)` -> `:f64`. Returns the substrate's
-/// presence floor at d: `sigma(d) / sqrt(d)`. Users compose this into
-/// filter funcs they pass to `Hologram/get`.
-fn eval_presence_floor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::presence-floor";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    if d <= 0 {
-        return Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("d must be positive; got {}", d),
-            },
-        )
-        .into());
-    }
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    Ok(Value::f64(ctx.encoders.get(d as usize).presence_floor(sym)))
-}
-
-/// `(:wat::holon::coincident-floor d)` -> `:f64`. Returns the substrate's
-/// coincident floor at d: `sigma(d) / sqrt(d)` (with sigma drawn from
-/// the coincident-sigma-fn rather than presence-sigma-fn — the same
-/// formula but a tighter sigma). Users compose this into filter funcs.
-fn eval_coincident_floor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::coincident-floor";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    if d <= 0 {
-        return Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("d must be positive; got {}", d),
-            },
-        )
-        .into());
-    }
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    Ok(Value::f64(
-        ctx.encoders.get(d as usize).coincident_floor(sym),
-    ))
-}
 
 // ─── Arc 076 — therm-routed Hologram + filtered-argmax ─────────────
 
-fn require_hologram(
-    op: &str,
-    v: Value,
-) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<crate::hologram::Hologram>>, EvalBreak> {
-    match v {
-        Value::Hologram(h) => Ok(h),
-        other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::holon::Hologram",
-                got: Box::new(ValueSnapshot::of(&other)),
-                // arc 138: no — takes Value, not WatAST; no source coords available
-            },
-        )
-        .into()),
-    }
-}
-
-fn require_fn(op: &str, v: Value) -> Result<Arc<Function>, EvalBreak> {
-    match v {
-        Value::wat__core__fn(f) => Ok(f),
-        other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "fn(f64)->bool",
-                got: Box::new(ValueSnapshot::of(&other)),
-                // arc 138: no — takes Value, not WatAST; no source coords available
-            },
-        )
-        .into()),
-    }
-}
-
-/// `(:wat::holon::Hologram/make filter)` -> `:wat::holon::Hologram`.
-/// Construct a therm-routed coordinate-cell store at the program's
-/// ambient encoding dim (read from `EncodingCtx`, configured at
-/// startup via `(:wat::config::set-dim-count! n)`; default 10000).
-/// Capacity = `floor(sqrt(d))`. The filter func is bound for the
-/// lifetime of the store and invoked during every get.
-fn eval_hologram_make(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/make";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let filter = require_fn(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let h = crate::hologram::Hologram::make(ctx.dim_count, filter);
-    Ok(Value::Hologram(Arc::new(
-        crate::rust_deps::ThreadOwnedCell::new(h),
-    )))
-}
-
-/// `(:wat::holon::Hologram/put store key val)` -> `:()`. Insert
-/// `(key, val)` at the slot determined by `key`'s structure: the first
-/// Thermometer leaf's normalized floor (in `[0, capacity-1]`), or slot
-/// 0 for non-therm forms. Existing entry at the same key is
-/// overwritten. Mutates in place.
-fn eval_hologram_put(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/put";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let key = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => (*h).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let val = match eval_inner(&args[2], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => (*h).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[2].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    store.with_mut(OP, list_span.clone(), |s| s.put(key, val))?;
-    Ok(Value::Unit)
-}
-
-/// `(:wat::holon::Hologram/get store probe)` -> `(:Option :- [HolonAST])`.
-/// Filtered-argmax over the bracket-pair determined by `probe`'s
-/// structure. Therm probes scan two adjacent slots (floor + ceil);
-/// non-therm probes scan slot 0. The construction-time filter
-/// validates each candidate's cosine; the highest-cosine accepted
-/// candidate's val is returned.
-fn eval_hologram_get(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/get";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let span = list_span.clone();
-    let result = store.with_ref(OP, |s| s.get(&probe, sym, span.clone(), &ctx.encoders))??;
-    match result {
-        Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-            Arc::new(val),
-        ))))),
-        None => Ok(Value::Option(Arc::new(None))),
-    }
-}
-/// `(:wat::holon::Hologram/find store probe)` -> `(:Option :- [:wat::holon::Match])`.
-/// Same lookup as `Hologram/get` but returns a `:wat::holon::Match {key value}`
-/// record carrying both the matched key AND the val — `HolographicLru::get`
-/// composes this to bump the matched key's LRU recency, which it cannot do
-/// without the key back. Arc 278: this was built as `find'` beside a
-/// tuple-returning non-prime; that non-prime died with its last caller
-/// (`crates/wat-holon-lru`) and this reclaimed the plain name.
-fn eval_hologram_find(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/find";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let span = list_span.clone();
-    let result = store.with_ref(OP, |s| s.find(&probe, sym, span.clone(), &ctx.encoders))??;
-    match result {
-        Some((k, v)) => Ok(Value::Option(Arc::new(Some(Value::Aggregate(Arc::new(
-            AggregateValue::record(
-                "wat::holon::Match".into(),
-                match_names(),
-                Arc::new(vec![
-                    Value::holon__HolonAST(Arc::new(k)),
-                    Value::holon__HolonAST(Arc::new(v)),
-                ]),
-            ),
-        )))))),
-        None => Ok(Value::Option(Arc::new(None))),
-    }
-}
-
-::wat_source_derive::wat_field_names_from!(MATCH_FIELDS, "wat/holon.wat", ":wat::holon::Match");
-fn match_names() -> Arc<Vec<String>> {
-    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(MATCH_FIELDS))
-        .clone()
-}
-
-/// `(:wat::holon::Hologram/remove store key)` ->
-/// `(:Option :- [wat::holon::HolonAST])`. Drop the entry whose key matches
-/// `key` exactly. Returns the previously-stored val if present, else
-/// None. HologramCache calls this on LRU eviction to keep the inner
-/// Hologram in sync.
-fn eval_hologram_remove(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/remove";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let key = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => (*h).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "wat::holon::HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let removed = store.with_mut(OP, list_span.clone(), |s| s.remove(&key))?;
-    match removed {
-        Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-            Arc::new(val),
-        ))))),
-        None => Ok(Value::Option(Arc::new(None))),
-    }
-}
-
-/// `(:wat::holon::Hologram/len store)` -> `:i64`. Total entries
-/// across all slots.
-fn eval_hologram_len(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/len";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let n = store.with_ref(OP, |s| s.len() as i64)?;
-    Ok(Value::i64(n))
-}
-
-/// `(:wat::holon::Hologram/capacity store)` -> `:i64`. Slot count for
-/// the store, derived from construction d as `floor(sqrt(d))`. Useful
-/// for callers building therm-form constructors against the same
-/// capacity.
-fn eval_hologram_capacity(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Hologram/capacity";
-    if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let cap = store.with_ref(OP, |s| s.capacity() as i64)?;
-    Ok(Value::i64(cap))
-}
-
-/// `(:wat::holon::therm-form low high value)` -> `:wat::holon::HolonAST`.
-/// Construct a Thermometer leaf in the caller's natural domain
-/// `[low, high]`. The value is clamped into the domain (OOB collapses
-/// to the boundary). The form carries low/high as min/max; the
-/// Hologram applies its own capacity at slot routing time, so capacity
-/// never crosses this call site.
-fn eval_therm_form(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::therm-form";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let low = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::f64(x) => x,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "f64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let high = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::f64(x) => x,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "f64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let value = match eval_inner(&args[2], env, sym)?.value_owned() {
-        Value::f64(x) => x,
-        other => {
-            return Err(RuntimeError::new(
-                args[2].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "f64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    if !low.is_finite() || !high.is_finite() || low >= high {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("require finite low < high; got low={}, high={}", low, high),
-            },
-        )
-        .into());
-    }
-    let clamped = if !value.is_finite() {
-        low
-    } else {
-        value.clamp(low, high)
-    };
-    let ast = HolonAST::Thermometer {
-        value: clamped,
-        min: low,
-        max: high,
-    };
-    Ok(Value::holon__HolonAST(Arc::new(ast)))
-}
-
-// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn::render` encode
-// arm; reverted here (DESIGN-STONE-294.j ⛔ CORRECTION: a HolonAST wire form is DATA, never the
-// wat source form this fn renders — `edn::render` now composes `from_holon_item` /
-// `to_holon_inner` instead). Its 8 `runtime.rs` callers are unaffected; private is correct again.
-fn holon_to_watast(h: &HolonAST) -> WatAST {
-    // Arc 230: Symbol/Keyword/Nil/Tag variants retired; check via accessors
-    // before the generic match so the Bind arm handles generic compositions.
-    // Symbol composition: bare identifier or colon-prefixed keyword.
-    if let Some(s) = h.as_symbol() {
-        // Arc 244 — nil is a Symbol composition; round-trip as NilLit (not the type keyword).
-        if s == "nil" {
-            return WatAST::NilLit(crate::rust_caller_span!());
-        }
-        // Colon-prefixed → keyword; bare → symbol identifier.
-        if s.starts_with(':') {
-            return WatAST::Keyword(s.to_string(), crate::rust_caller_span!());
-        } else {
-            return WatAST::Symbol(
-                crate::scope::Identifier::bare(s.to_string()),
-                crate::rust_caller_span!(),
-            );
-        }
-    }
-    // Keyword composition: restore leading colon for round-trip.
-    if let Some(s) = h.as_keyword() {
-        return WatAST::Keyword(format!(":{}", s), crate::rust_caller_span!());
-    }
-    // Tag composition: non-round-trip debug render (no :wat::holon::Tag constructor).
-    if let Some(s) = h.as_tag() {
-        return WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::holon::Tag".into(), crate::rust_caller_span!()),
-                WatAST::StringLit(s.to_string(), crate::rust_caller_span!()),
-            ],
-            crate::rust_caller_span!(),
-        );
-    }
-    match h {
-        HolonAST::I64(n) => WatAST::IntLit(*n, crate::rust_caller_span!()),
-        HolonAST::F64(x) => WatAST::FloatLit(*x, crate::rust_caller_span!()),
-        HolonAST::Bool(b) => WatAST::BoolLit(*b, crate::rust_caller_span!()),
-        HolonAST::String(s) => WatAST::StringLit(s.to_string(), crate::rust_caller_span!()),
-        HolonAST::Bundle(items) => WatAST::List(
-            items.iter().map(holon_to_watast).collect(),
-            crate::rust_caller_span!(),
-        ),
-        HolonAST::Atom(inner) => WatAST::List(
-            vec![
-                // Arc 225 Stone 225.1 — `:wat::holon::Atom` is now the narrow constructor
-                // (HolonAST → HolonAST::Atom). `to-wat` emits it here because the round-trip
-                // `(to-wat h → eval-ast!)` must reconstruct the same HolonAST shape.
-                WatAST::Keyword(":wat::holon::Atom".into(), crate::rust_caller_span!()),
-                holon_to_watast(inner),
-            ],
-            crate::rust_caller_span!(),
-        ),
-        HolonAST::Bind(a, b) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::holon::Bind".into(), crate::rust_caller_span!()),
-                holon_to_watast(a),
-                holon_to_watast(b),
-            ],
-            crate::rust_caller_span!(),
-        ),
-        HolonAST::Permute(child, k) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::holon::Permute".into(), crate::rust_caller_span!()),
-                holon_to_watast(child),
-                WatAST::IntLit(*k as i64, crate::rust_caller_span!()),
-            ],
-            crate::rust_caller_span!(),
-        ),
-        HolonAST::Thermometer { value, min, max } => WatAST::List(
-            vec![
-                WatAST::Keyword(
-                    ":wat::holon::Thermometer".into(),
-                    crate::rust_caller_span!(),
-                ),
-                WatAST::FloatLit(*value, crate::rust_caller_span!()),
-                WatAST::FloatLit(*min, crate::rust_caller_span!()),
-                WatAST::FloatLit(*max, crate::rust_caller_span!()),
-            ],
-            crate::rust_caller_span!(),
-        ),
-        HolonAST::Blend(a, b, w1, w2) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::holon::Blend".into(), crate::rust_caller_span!()),
-                holon_to_watast(a),
-                holon_to_watast(b),
-                WatAST::FloatLit(*w1, crate::rust_caller_span!()),
-                WatAST::FloatLit(*w2, crate::rust_caller_span!()),
-            ],
-            crate::rust_caller_span!(),
-        ),
-        // Arc 300 stone D — Char primitive leaf now renders directly to
-        // `WatAST::CharLit`; `(eval-ast! (to-wat char-holon))` round-trips
-        // via the literal, not a `char/of` call. Was: `(:wat::core::char/of
-        // "c")` (arc 221 Stone 221.2 / stone 242.1) — retired now that
-        // WatAST can hold a char literal directly.
-        HolonAST::Char(c) => WatAST::CharLit(*c, crate::rust_caller_span!()),
-        // SlotMarker (arc 073) is a substrate-internal sentinel. Non-round-trippable.
-        HolonAST::SlotMarker { min, max } => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::holon::SlotMarker".into(), crate::rust_caller_span!()),
-                WatAST::FloatLit(*min, crate::rust_caller_span!()),
-                WatAST::FloatLit(*max, crate::rust_caller_span!()),
-            ],
-            crate::rust_caller_span!(),
-        ),
-    }
-}
-
-fn eval_algebra_bind(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Bind".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
-    // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
-    // Records flow through natively; auto-dispatch extracts the hologram at the boundary.
-    let a = coerce_to_holon_ast(
-        ":wat::holon::Bind",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        args[0].span(),
-    )?;
-    let b = coerce_to_holon_ast(
-        ":wat::holon::Bind",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-        args[1].span(),
-    )?;
-
-    // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
-    // y — is a VECTOR-level identity (and per 058-024's rejection text, holds
-    // only on non-zero positions of the key; zero positions drop to 0).
-    // Lifting it to the AST as a rewrite rule would overclaim exact recovery
-    // where the algebra acknowledges quantized noise. Bind always constructs
-    // the Bind tree; the self-inverse is observable via vector-level presence
-    // measurement. FOUNDATION 1718: the retrieval primitive is cosine.
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind(a, b))))
-}
-
-/// `(:wat::holon::Bundle <list-of-holons>)` — superposition, with
-/// Kanerva-capacity enforcement per the committed capacity-mode.
-///
-/// Return type is `(:Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded])`.
-/// Always. Under every mode. Callers are forced by the type system to
-/// acknowledge the possibility of failure — either matching on the
-/// Result explicitly or propagating with `:wat::core::try`.
-///
-/// Capacity math: `budget = floor(sqrt(dims))` per the lab's prior-art
-/// trimming convention (`src/encoding/rhythm.rs` in holon-lab-trading).
-/// At d=10_000 → budget 100; at d=4_096 → 64; at d=1_024 → 32. Matches
-/// FOUNDATION's empirical "~100 at d=10k" statement exactly. There is
-/// Arc 294.c.2a — Kanerva width-bound verdict for holon Bundle construction.
-///
-/// Returns `Some((cost_i, budget_i))` when `cost` exceeds `ctx.capacity`
-/// (`floor(sqrt(ctx.dim_count))`); returns `None` when within capacity.
-///
-/// ONE guard, two callers — neither duplicates the cost/budget math:
-///   * `eval_algebra_bundle` (the `:wat::holon::Bundle` verb) — on `Some`,
-///     dispatches per `ctx.config.capacity_mode` (Panic → `panic!`;
-///     Error → `Ok(Value::Result(Err(CapacityExceeded{…})))`).
-///   * `build_holon_hologram` (`:wat::core::aggregate-new` for HolonRecord)
-///     — on `Some`, returns `Err(RuntimeError { MalformedForm })` (loud,
-///     mode-agnostic: construction cannot return a Result).
-///
-/// `pub(crate)` (BRIEF-construction-inside-a-fn.md, gap (b)) — a THIRD caller,
-/// `freeze::validate_holon_record_capacity`, reuses this SAME guard at freeze time
-/// (every registered `Nature::HolonRecord`'s OWN field count against the SAME budget),
-/// closing the gap where a program could pass `--check` and freeze clean, then raise here
-/// at the first construction. "ONE guard, {two->three} callers" — none duplicates the math.
-pub(crate) fn bundle_capacity_verdict(cost: usize, ctx: &EncodingCtx) -> Option<(i64, i64)> {
-    // ctx.capacity is floor(sqrt(ctx.dim_count)).max(1), cached at freeze.
-    // For any realistic d (>= 1) this equals (d as f64).sqrt().floor() as usize.
-    let budget = ctx.capacity;
-    if cost > budget {
-        Some((cost as i64, budget as i64))
-    } else {
-        None
-    }
-}
-
-/// no codebook factor — under AST-primary, the only physical bound is
-/// the noise floor, and `sqrt(d)` is the safe-side item count.
-///
-/// Modes (`:wat::config::CapacityMode`):
-/// - `:error`  — `Ok(h)` under budget; `Err(CapacityExceeded{cost,
-///   budget})` over. The program continues with the Err value; the
-///   type system requires the caller to handle it.
-/// - `:panic`  — `Ok(h)` under budget; `panic!` over, carrying the
-///   cost/budget/dims diagnostic. Fail-closed: the bad frame never
-///   leaves this dispatcher. (Rust's `panic!()` macro unwinds.)
-///
-/// Arc 037 (2026-04-24) retired `:silent` and `:warn`. Overflow
-/// either crashes or is handled; no middle ground that silently
-/// produces a degraded vector. Arc 045 (2026-04-24) renamed
-/// `:abort` → `:panic` for honesty with `panic!()`'s actual
-/// behavior.
-fn eval_algebra_bundle(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Bundle".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(l) => l,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::Bundle".into(),
-                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
-    // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
-    // Records auto-extract their hologram at the coerce boundary.
-    // Per-element WatAST span is gone by this point (we have Value, not
-    // WatAST — arc 138 discipline); fall back to the Bundle call's own
-    // span, which is real user source rather than a Rust line.
-    let children: Vec<HolonAST> = list
-        .iter()
-        .map(|v| coerce_to_holon_ast(":wat::holon::Bundle list element", v.clone(), list_span))
-        .collect::<Result<Vec<HolonAST>, _>>()?;
-
-    // Arc 037 slice 1 layer 3: the dim the Bundle encodes at is
-    // chosen by the ambient router given THIS Bundle's AST — not by
-    // `ctx.config.dims`. The router's verdict drives the capacity
-    // budget: `budget = floor(sqrt(d))` at the picked d. `None`
-    // means no tier fits; treated identically to cost > budget
-    // overflow.
-    let cost = children.len();
-    // Build the Bundle AST up front so the router (and any
-    // downstream failure paths) can see the full shape. Under
-    // Clone-on-use this is cheap; the AST is Arc-shared through
-    // HolonAST's internal structure.
-    let bundle_ast = HolonAST::bundle(children);
-    let ctx = require_encoding_ctx(":wat::holon::Bundle", sym, list_span)?;
-    let mode = ctx.config.capacity_mode;
-    let d = ctx.dim_count;
-
-    // Arc 077 / 294.c.2a: capacity check via the shared one-guard
-    // `bundle_capacity_verdict`. Budget = ctx.capacity = floor(sqrt(d)).
-    if let Some((cost_i, budget_i)) = bundle_capacity_verdict(cost, ctx) {
-        match mode {
-            crate::config::CapacityMode::Error => {
-                let err = Value::Aggregate(Arc::new(AggregateValue::struct_(
-                    "wat::holon::CapacityExceeded".into(),
-                    capacity_exceeded_names(),
-                    vec![Value::i64(cost_i), Value::i64(budget_i)],
-                )));
-                return Ok(Value::Result(Arc::new(Err(err))));
-            }
-            crate::config::CapacityMode::Panic => {
-                panic!(
-                    ":wat::holon::Bundle: capacity exceeded under :panic — cost {} > budget {} (d={})",
-                    cost_i, budget_i, d
-                );
-            }
-        }
-    }
-
-    let ok = Value::holon__HolonAST(Arc::new(bundle_ast));
-    Ok(Value::Result(Arc::new(Ok(ok))))
-}
-
-::wat_source_derive::wat_field_names_from!(
-    CAPACITY_EXCEEDED_FIELDS,
-    "wat/holon.wat",
-    ":wat::holon::CapacityExceeded"
-);
-fn capacity_exceeded_names() -> Arc<Vec<String>> {
-    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(CAPACITY_EXCEEDED_FIELDS))
-        .clone()
-}
-
-fn eval_algebra_permute(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Permute".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let child = require_holon(
-        ":wat::holon::Permute",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let k = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::i64(n) => i32::try_from(n).map_err(|_| {
-            RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::Permute".into(),
-                    expected: "i32 step (integer fitting in i32)",
-                    got: Box::new(ValueSnapshot::unavailable("i64 out of range")),
-                },
-            )
-        })?,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::Permute".into(),
-                    expected: "i32 step",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::permute(
-        (*child).clone(),
-        k,
-    ))))
-}
-
-/// `(:wat::holon::Thermometer value min max)` — gradient-encode a
-/// scalar `value` over the `[min, max]` axis. Two near-equal values
-/// produce vectors with cosine ≈ `1 - 2·|Δ|/(max-min)` — the encoding
-/// is locality-preserving: proximate inputs land at proximate
-/// coordinates on the algebra grid. Pairs with arc 057's typed-leaf
-/// `F64` (which is quasi-orthogonal) as the consumer's choice for
-/// "discrete identity vs. continuous identity at this leaf."
-///
-/// The NAME is borrowed from the HDC / hyperdimensional-computing and
-/// earlier ML traditions, where "thermometer encoding" refers to
-/// representing a scalar as a bit-vector with a number of '1' bits
-/// proportional to the value (mercury rising in a column). wat-rs's
-/// primitive is the continuous-bipolar variant of that discrete
-/// classical encoding, adapted to the substrate's `{-1, 0, +1}^d`
-/// algebra — different math, same metaphor, same name.
-///
-/// Substrate role: BOOK Chapters 57 (the continuum) and 66 (the
-/// fuzziness) name this primitive as the locality-preserving leaf
-/// the dual-LRU coordinate cache (Chapter 59) keys neighborhoods on.
-fn eval_algebra_thermometer(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Thermometer".into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = require_numeric(
-        ":wat::holon::Thermometer",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let mn = require_numeric(
-        ":wat::holon::Thermometer",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let mx = require_numeric(
-        ":wat::holon::Thermometer",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(
-        v, mn, mx,
-    ))))
-}
-
-fn eval_algebra_blend(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Blend".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a = require_holon(
-        ":wat::holon::Blend",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let b = require_holon(
-        ":wat::holon::Blend",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let w1 = require_numeric(
-        ":wat::holon::Blend",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let w2 = require_numeric(
-        ":wat::holon::Blend",
-        eval_inner(&args[3], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend(
-        (*a).clone(),
-        (*b).clone(),
-        w1,
-        w2,
-    ))))
-}
 
 // ─── Arc 228 — Pascal-Case collection classifier-wrap constructors ────────────
 //
@@ -21686,321 +18580,6 @@ fn eval_algebra_blend(
 // The outer Bind carries the classifier; the inner Bundle carries the data.
 // Type recovery: extract the classifier-atom from the outer Bind.
 
-/// `(:wat::holon::Map <list-of-bind-pairs>)` — map classifier-wrap.
-///
-/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` whose elements are Bind(K, V) pairs
-/// (arbitrary keys). Produces `Bind(Atom("Map"), Bundle(items))`. The outer Atom("Map")
-/// is the classifier; from-holon dispatches by extracting it.
-///
-/// Input list format mirrors `:wat::holon::Bundle` — a `:wat::core::Vector` of HolonAST items.
-/// Items should each be a `Bind(K, V)` pair as produced by `:wat::holon::Bind`.
-fn eval_algebra_map(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Map";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(l) => l,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let children: Vec<HolonAST> = list
-        .iter()
-        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
-        .collect::<Result<Vec<HolonAST>, _>>()?;
-    let inner_bundle = HolonAST::bundle(children);
-    let classified = HolonAST::bind(
-        HolonAST::Atom(Arc::new(HolonAST::string("Map"))),
-        inner_bundle,
-    );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
-}
-
-/// `(:wat::holon::Set <list-of-items>)` — set classifier-wrap.
-///
-/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` of bare items (no Bind keys).
-/// Produces `Bind(Atom("Set"), Bundle(items))`. The outer Atom("Set") is the
-/// classifier; from-holon dispatches by extracting it.
-fn eval_algebra_set(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Set";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(l) => l,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let children: Vec<HolonAST> = list
-        .iter()
-        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
-        .collect::<Result<Vec<HolonAST>, _>>()?;
-    let inner_bundle = HolonAST::bundle(children);
-    let classified = HolonAST::bind(
-        HolonAST::Atom(Arc::new(HolonAST::string("Set"))),
-        inner_bundle,
-    );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
-}
-
-/// `(:wat::holon::Vector <list-of-items>)` — vector classifier-wrap with positional Binds.
-///
-/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` of bare items. Substrate auto-applies
-/// positional Bind keys (I64(0), I64(1), ...) to each item. Produces
-/// `Bind(Atom("Vector"), Bundle([Bind(I64(0), item0), Bind(I64(1), item1), ...]))`.
-/// The outer Atom("Vector") is the classifier. Distinguished from Tuple by classifier alone.
-fn eval_algebra_vector(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Vector";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(l) => l,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let positional: Vec<HolonAST> = list
-        .iter()
-        .enumerate()
-        .map(|(i, v)| {
-            require_holon(OP, v.clone())
-                .map(|h| HolonAST::bind(HolonAST::i64(i as i64), (*h).clone()))
-        })
-        .collect::<Result<Vec<HolonAST>, _>>()?;
-    let inner_bundle = HolonAST::bundle(positional);
-    let classified = HolonAST::bind(
-        HolonAST::Atom(Arc::new(HolonAST::string("Vector"))),
-        inner_bundle,
-    );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
-}
-
-/// `(:wat::holon::List <list-of-items>)` — list classifier-wrap (sequential bare items).
-///
-/// Arc 228 Stone 228.1. Takes a `Vec<HolonAST>` of bare items (NO positional Bind keys).
-/// Produces `Bind(Atom("List"), Bundle(items))`. Distinguished from Set by classifier alone;
-/// the inner Bundle has no Bind keys (bare sequential items, like Set), but the outer
-/// classifier "List" vs "Set" discriminates on the reverse trip.
-fn eval_algebra_list(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::List";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(l) => l,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let children: Vec<HolonAST> = list
-        .iter()
-        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
-        .collect::<Result<Vec<HolonAST>, _>>()?;
-    let inner_bundle = HolonAST::bundle(children);
-    let classified = HolonAST::bind(
-        HolonAST::Atom(Arc::new(HolonAST::string("List"))),
-        inner_bundle,
-    );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
-}
-
-/// `(:wat::holon::Tuple <list-of-items>)` — tuple classifier-wrap with positional Binds.
-///
-/// Arc 228 Stone 228.1. Identical Bundle internals to `:wat::holon::Vector` (positional Binds),
-/// but outer classifier is `Atom("Tuple")` instead of `Atom("Vector")`. The classifier
-/// is the sole discriminator on the reverse trip — now distinct at substrate
-/// (was identical bare-Bundle encoding under arc 216 doctrine, now corrected per
-/// typed-entities doctrine).
-fn eval_algebra_tuple(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::Tuple";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(l) => l,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let positional: Vec<HolonAST> = list
-        .iter()
-        .enumerate()
-        .map(|(i, v)| {
-            require_holon(OP, v.clone())
-                .map(|h| HolonAST::bind(HolonAST::i64(i as i64), (*h).clone()))
-        })
-        .collect::<Result<Vec<HolonAST>, _>>()?;
-    let inner_bundle = HolonAST::bundle(positional);
-    let classified = HolonAST::bind(
-        HolonAST::Atom(Arc::new(HolonAST::string("Tuple"))),
-        inner_bundle,
-    );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
-}
-
-fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, EvalBreak> {
-    match v {
-        Value::holon__HolonAST(h) => Ok(h),
-        other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "Holon",
-                got: Box::new(ValueSnapshot::of(&other)),
-                // arc 138: no — takes Value, not WatAST; no source coords available
-            },
-        )
-        .into()),
-    }
-}
-
-/// Arc 234 Stone 234.5 — centralized "ensure HolonAST" helper (D1).
-///
-/// Accepts either a HolonAST value (existing case) OR a `Value::Aggregate(HolonRecord)`
-/// (auto-extracts the pre-built hologram). Records flow through VSA
-/// verbs natively without user-facing conversion calls; this helper is the
-/// single site that normalises the two representations into a HolonAST.
-///
-/// Pattern mirrored from T1 trap-door: `hologram.as_ref().clone()` is
-/// safe even when the Arc is shared (proven at Stone 234.2a eval_record_field_at).
-fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, EvalBreak> {
-    match v {
-        Value::holon__HolonAST(h) => Ok((*h).clone()),
-        // Arc 293.R2.1 — Aggregate: HolonRecord exposes hologram; Record has no hologram.
-        Value::Aggregate(a) => match &a.holon {
-            HolonForm::Hologram(h) => Ok(h.as_ref().clone()),
-            HolonForm::Empty => Err(RuntimeError::new(
-                arg_span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: op.into(),
-                    reason: format!(
-                        "base record `{}` has no holon flavor; construct a holonic record \
-                     (`:wat::holon::defrecord`) to use holon operations",
-                        a.class
-                    ),
-                },
-            )
-            .into()),
-        },
-        other => Err(RuntimeError::new(
-            arg_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "HolonAST or wat::core::Record",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
 
 // ─── Arc 226 Stone 226.1 — Type predicates (classifier-name match) ───────────
 //
@@ -22021,336 +18600,6 @@ fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, 
 // Non-HolonAST values (bare i64, String, etc.) are accepted but return false —
 // the absence of a classifier is an honest "not this type" signal.
 
-/// `(:wat::holon::is? value class-name) -> :bool` — polymorphic type predicate.
-///
-/// Arc 226 Stone 226.1. Accepts any classifier-wrapped HolonAST as `value` and
-/// a `String` as `class-name`. Calls `extract_classifier`; compares the result
-/// against `class-name`. Returns `true` iff the outermost classifier matches.
-///
-/// For non-HolonAST values (bare i64, String, bool, etc.), returns `false` —
-/// the absence of a classifier is "not of the named type."
-///
-/// Examples:
-///   `(is? (:wat::holon::to-holon {:a 1}) "Map")` → true
-///   `(is? (:wat::holon::to-holon #{1 2}) "Map")` → false
-fn eval_holon_is_predicate(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is?";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let class_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let class_name = match class_val {
-        Value::String(s) => s,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "String (classifier name)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some(class_name.as_str()),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Map? value) -> :bool` — Map classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "Map" (i.e., `Bind(Atom("Map"), Bundle(...))`).
-fn eval_holon_is_map_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Map?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Map"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Set? value) -> :bool` — Set classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "Set" (i.e., `Bind(Atom("Set"), Bundle(...))`).
-fn eval_holon_is_set_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Set?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Set"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Vector? value) -> :bool` — Vector classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "Vector". Distinct from `is-Tuple?` — classifier is the sole
-/// discriminator (arc 228 substrate distinction).
-fn eval_holon_is_vector_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Vector?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Vector"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-List? value) -> :bool` — List classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "List" (sequential items, no positional Bind keys).
-fn eval_holon_is_list_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-List?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("List"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Tuple? value) -> :bool` — Tuple classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "Tuple". Distinct from `is-Vector?` — classifier is the sole
-/// discriminator (arc 228 substrate distinction).
-fn eval_holon_is_tuple_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Tuple?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tuple"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Symbol? value) -> :bool` — Symbol classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "Symbol" (post-arc-230 Bind composition: `Bind(Atom("Symbol"), Atom(name))`).
-/// Note: Nil also has classifier "Symbol" (it is `symbol("nil")`); `is-Symbol?`
-/// returns true for nil-valued forms. Use `is-Nil?` for the nil-specific check.
-fn eval_holon_is_symbol_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Symbol?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Symbol"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Keyword? value) -> :bool` — Keyword classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "Keyword" (post-arc-230 Bind composition: `Bind(Atom("Keyword"), Atom(name))`).
-fn eval_holon_is_keyword_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Keyword?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Keyword"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Tag? value) -> :bool` — Tag classifier predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST whose outermost
-/// classifier is "Tag" (post-arc-230 Bind composition: `Bind(Atom("Tag"), Atom(name))`).
-fn eval_holon_is_tag_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Tag?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tag"),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
-
-/// `(:wat::holon::is-Nil? value) -> :bool` — Nil predicate.
-///
-/// Arc 226 Stone 226.1. Returns true iff `value` is a HolonAST that satisfies
-/// `HolonAST::is_nil()` — i.e., the composition `Bind(Atom("Symbol"), Atom("nil"))`.
-///
-/// Per arc 230 nil doctrine: nil = symbol("nil"). The classifier is "Symbol" AND
-/// the inner content is "nil". This is stricter than `is-Symbol?` (which returns
-/// true for any Symbol, including nil); `is-Nil?` is the nil-specific predicate.
-fn eval_holon_is_nil_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Nil?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => h.is_nil(),
-        _ => false,
-    };
-    Ok(Value::bool(matches))
-}
 
 /// Arc 052 — polymorphic-input helper for cosine/dot. Accepts
 /// HolonAST or Vector in either position; returns a (Vector, Vector)
@@ -22376,12 +18625,12 @@ fn eval_holon_is_nil_q(
 /// mismatch, per its own return-shape contract. A value that is neither
 /// Vector nor HolonAST/Record still raises via this function's `Err` arm —
 /// that is a call-site type bug, not a domain hole this wall covers.
-enum PairedVectors {
+pub(crate) enum PairedVectors {
     Paired(holon::Vector, holon::Vector),
     DimensionMismatch { expected: i64, got: i64 },
 }
 
-fn pair_values_to_vectors(
+pub(crate) fn pair_values_to_vectors(
     op: &'static str,
     a: Value,
     b: Value,
@@ -22616,82 +18865,6 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
     }
 }
 
-/// Arc 278 the cosine outcome wall — type path of `:wat::holon::DegenerateSide`
-/// (registered in `types.rs`). Diagnostic payload for `CosineOutcome::Degenerate`.
-const DEGENERATE_SIDE_TYPE: &str = ":wat::holon::DegenerateSide";
-
-/// `DegenerateSide::Target []` — the `target` (first) operand is a
-/// zero-magnitude vector.
-fn degenerate_side_target() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: DEGENERATE_SIDE_TYPE.into(),
-        variant_name: "Target".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
-}
-
-/// `DegenerateSide::Reference []` — the `reference` (second) operand is a
-/// zero-magnitude vector.
-fn degenerate_side_reference() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: DEGENERATE_SIDE_TYPE.into(),
-        variant_name: "Reference".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
-}
-
-/// `DegenerateSide::Both []` — both operands are zero-magnitude vectors.
-fn degenerate_side_both() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: DEGENERATE_SIDE_TYPE.into(),
-        variant_name: "Both".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
-}
-
-/// Arc 278 the cosine outcome wall — type path of `:wat::holon::CosineOutcome`
-/// (registered in `types.rs`).
-const COSINE_OUTCOME_TYPE: &str = ":wat::holon::CosineOutcome";
-
-/// `CosineOutcome::Similarity [similarity <- f64]` — the happy path, the raw
-/// cosine clamped to `[-1, 1]`.
-fn cosine_outcome_similarity(similarity: f64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: COSINE_OUTCOME_TYPE.into(),
-        variant_name: "Similarity".into(),
-        names: builtin_enum_variant_names(COSINE_OUTCOME_TYPE, "Similarity"),
-        fields: vec![Value::f64(similarity)],
-    }))
-}
-
-/// `CosineOutcome::Degenerate [side <- DegenerateSide]` — one operand (or
-/// both) is a zero-magnitude vector, so a direction — and therefore a cosine
-/// — is undefined. Was the guarded `0.0` in `Similarity::cosine`, which reads
-/// as "orthogonal, unrelated" in cosine's own codomain — a fabricated
-/// answer, not a result.
-fn cosine_outcome_degenerate(side: Value) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: COSINE_OUTCOME_TYPE.into(),
-        variant_name: "Degenerate".into(),
-        names: builtin_enum_variant_names(COSINE_OUTCOME_TYPE, "Degenerate"),
-        fields: vec![side],
-    }))
-}
-
-/// `CosineOutcome::DimensionMismatch [expected <- i64  got <- i64]` — the two
-/// operands disagree in dimension. Was `pair_values_to_vectors`'s
-/// `TypeMismatch` raise, now a domain fact.
-fn cosine_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: COSINE_OUTCOME_TYPE.into(),
-        variant_name: "DimensionMismatch".into(),
-        names: builtin_enum_variant_names(COSINE_OUTCOME_TYPE, "DimensionMismatch"),
-        fields: vec![Value::i64(expected), Value::i64(got)],
-    }))
-}
 
 /// Value-in cosine. Shared by `eval_algebra_cosine` (AST eval) and native
 /// `apply_op` (compiled `where`). One measurement; two mouths.
@@ -22734,80 +18907,6 @@ pub(crate) fn cosine_outcome_from_values(
     }
 }
 
-/// `(:wat::holon::cosine target reference) -> :wat::holon::CosineOutcome` —
-/// cosine measurement, TOTAL since arc 278 the cosine outcome wall
-/// (`BRIEF-cosine-outcome-wall.md`). Polymorphic since arc 052: accepts
-/// HolonAST or Vector inputs in any position. Mixed inputs are normalized
-/// (the AST side is encoded at the Vector side's d).
-///
-/// Per FOUNDATION 1718 + OPEN-QUESTIONS line 419: algebra-substrate
-/// operation. The algebra does NOT binarize — callers that want a verdict
-/// reach for [`eval_algebra_presence_q`] (alias `presence?`), which compares
-/// against the committed noise floor.
-///
-/// Was `:f64`, with two dishonest domain holes: a dimension mismatch raised
-/// `TypeMismatch` (uncatchable), and a zero-magnitude operand returned a
-/// guarded `0.0` — a fabricated "unrelated" that a rule author could not
-/// distinguish from genuine unrelatedness (probe-proven reachable,
-/// `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`: genuine
-/// unrelatedness reads `-0.0086`, the sentinel reads exactly `0.0`). Both
-/// holes are now named `CosineOutcome` variants every caller must face.
-fn eval_algebra_cosine(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::cosine".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    cosine_outcome_from_values(a, b, list_span, sym)
-}
-
-/// `(:wat::holon::presence? target reference) -> :bool` — boolean
-/// verdict: is `target` present in `reference` above the presence
-/// floor? Encodes both, computes cosine, returns
-/// `cosine > :wat::config::presence-floor`.
-///
-/// Arc 024: `presence-floor = presence-sigma * noise-floor` where
-/// `noise-floor = 1/sqrt(dims)` (the 1σ native granularity) and
-/// `presence-sigma` defaults to 15 (FPR ~10⁻⁵¹). User overridable
-/// via `(:wat::config::set-presence-sigma! <i64>)`.
-///
-/// The `?` suffix is the predicate convention (2026-04-19 naming
-/// stance). Callers that want the raw scalar reach for
-/// `:wat::holon::cosine`.
-fn eval_algebra_presence_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::presence?".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let target = eval_inner(&args[0], env, sym)?.value_owned();
-    let reference = eval_inner(&args[1], env, sym)?.value_owned();
-    presence_q_from_values(target, reference, list_span, sym)
-}
 
 /// Value-in `presence?`. Shared by AST eval and native `apply_op`.
 pub(crate) fn presence_q_from_values(
@@ -22834,51 +18933,6 @@ pub(crate) fn presence_q_from_values(
     Ok(Value::bool(cosine > enc.presence_floor(sym)))
 }
 
-/// `(:wat::holon::coincident? a b) -> :bool` — boolean verdict:
-/// are `a` and `b` the same holon within the algebra's own
-/// distinguishability threshold? Encodes both, computes cosine,
-/// returns `(1 - cosine) < :wat::config::coincident-floor`.
-///
-/// Dual to `presence?`. Arc 023 introduced the predicate; arc
-/// 024 split its threshold from presence's — `coincident-floor
-/// = coincident-sigma * noise-floor` where `coincident-sigma`
-/// defaults to 1 (the 1σ native granularity — the geometric
-/// minimum, no looser than the substrate can physically see).
-/// User overridable via `(:wat::config::set-coincident-sigma! <i64>)`.
-///
-/// `presence?` asks "is there detectable signal above random
-/// chance?" (cosine > presence-floor). `coincident?` asks "are
-/// these two holons the same point on the hypersphere within the
-/// algebra's tolerance?" (error-from-perfect-match below
-/// coincident-floor).
-///
-/// Use `coincident?` for structural-equivalence assertions
-/// (e.g., testing that a computed holon matches a hand-built
-/// expected). Use `presence?` for signal detection (is a
-/// query-holon present in a bundle?). Callers that want the
-/// raw scalar reach for `:wat::holon::cosine`.
-fn eval_algebra_coincident_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::coincident?";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    coincident_q_from_values(a, b, list_span, sym)
-}
 
 /// Value-in `coincident?`. Shared by AST eval and native `apply_op`.
 pub(crate) fn coincident_q_from_values(
@@ -22909,152 +18963,6 @@ pub(crate) fn coincident_q_from_values(
     Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
 }
 
-/// `(:wat::holon::coincident-explain a b)` — arc 069 diagnostic.
-///
-/// Returns a `:wat::holon::CoincidentExplanation` struct bundling
-/// the raw cosine, the current floor, the dim where comparison
-/// happened, the sigma feeding the floor, the same boolean
-/// `coincident?` would have returned, and the smallest sigma at
-/// which the pair would coincide.
-///
-/// Polymorphic over (HolonAST, Vector) inputs in the same shape as
-/// `cosine` / `coincident?` (arc 061): pre-encoded Vectors short-
-/// circuit the encoding step; mixed inputs promote the AST side at
-/// the Vector side's d; AST/AST pairs go through the dim router.
-///
-/// `min-sigma-to-pass` is `ceil((1 - cos) * sqrt(d))`, clamped ≥ 1.
-/// Honest math at every cosine — for orthogonal or anti-correlated
-/// pairs the value is large and the cosine field reads the
-/// situation directly. Q3 of arc 069 DESIGN.
-fn eval_algebra_coincident_explain(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::coincident-explain";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    let (va, vb) = match pair_values_to_vectors(OP, a, b, sym, list_span)? {
-        // `coincident-explain`'s return shape is a fixed `CoincidentExplanation`
-        // struct (STOP-5: do not touch it) with no field able to honestly
-        // carry "these can't be compared" — unlike `cosine`/`dot`/`coincident?`,
-        // it keeps the guard's former behavior for this one hole: raise,
-        // exactly as `pair_values_to_vectors` itself used to raise before
-        // this wall (arc 278 the cosine outcome wall).
-        PairedVectors::DimensionMismatch { .. } => {
-            return Err(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "Vector pair with matching dimensions",
-                    got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-                    // arc 138: no per-arg AST span (takes a Value pair) — list_span (the call site) used instead
-                },
-            )
-            .into());
-        }
-        PairedVectors::Paired(va, vb) => (va, vb),
-    };
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let dim = va.dimensions();
-    let enc = ctx.encoders.get(dim);
-    let cosine = Similarity::cosine(&va, &vb);
-    let floor = enc.coincident_floor(sym);
-    let sigma = sym
-        .coincident_sigma_fn()
-        .map(|f| f.sigma_at(dim, sym))
-        .unwrap_or(1);
-    let coincident = (1.0 - cosine) < floor;
-    let sqrt_d = (dim as f64).sqrt();
-    let min_sigma_raw = ((1.0 - cosine) * sqrt_d).ceil() as i64;
-    let min_sigma_to_pass = min_sigma_raw.max(1);
-    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
-        "wat::holon::CoincidentExplanation".into(),
-        coincident_explanation_names(),
-        vec![
-            Value::f64(cosine),
-            Value::f64(floor),
-            Value::i64(dim as i64),
-            Value::i64(sigma),
-            Value::bool(coincident),
-            Value::i64(min_sigma_to_pass),
-        ],
-    ))))
-}
-
-::wat_source_derive::wat_field_names_from!(
-    COINCIDENT_EXPLANATION_FIELDS,
-    "wat/holon.wat",
-    ":wat::holon::CoincidentExplanation"
-);
-fn coincident_explanation_names() -> Arc<Vec<String>> {
-    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(COINCIDENT_EXPLANATION_FIELDS))
-        .clone()
-}
-
-/// `(:wat::holon::eval-coincident? form-a form-b)` —
-/// EVALUATION-layer coincidence check. Each arg must evaluate to a
-/// `Value::wat__WatAST` (typically via `:wat::core::quote`); each
-/// captured AST runs through `run_constrained` (same discipline as
-/// `eval-ast!`), the result is atomized via `value_to_atom`, and the
-/// two Atoms are compared with the same `(1 - cosine) <
-/// coincident_floor` test that structural `coincident?` uses.
-///
-/// The difference vs structural `coincident?`:
-///
-/// - `coincident?` takes two already-built HolonASTs; it compares
-///   them as data — the tree is the question.
-/// - `eval-coincident?` takes two expressions; it reduces each first,
-///   then wraps the RESULT in Atom. Different expressions that
-///   reduce to the same value coincide: `(+ 2 2)` with `(* 1 4)`.
-///
-/// Return is uniform across the eval-family:
-/// `Value::Result<:bool, :wat::core::EvalError>`. Any failure
-/// (parse / type / non-atomizable result / mutation-form refusal /
-/// runtime error in the inner eval) arrives as `Err(<EvalError>)`
-/// rather than a panic — same discipline as `eval-ast!` /
-/// `eval-edn!` / `eval-digest!` / `eval-signed!`.
-fn eval_form_ast_coincident_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    // Structural pre-check — matches eval-ast! pattern. Arity errors
-    // fire before the EvalError wrap; they're caller-syntactic issues.
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: ":wat::holon::eval-coincident?".into(),
-                reason: format!(
-                "(:wat::holon::eval-coincident? <ast-a> <ast-b>) takes exactly 2 arguments; got {}",
-                args.len()
-            ),
-            },
-        )
-        .into());
-    }
-    wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
-        let op = ":wat::holon::eval-coincident?";
-        let value_a = run_ast_arg_for_eval_coincident(&args[0], env, sym, op)?;
-        let value_b = run_ast_arg_for_eval_coincident(&args[1], env, sym, op)?;
-        coincident_of_two_values(value_a, value_b, sym, op, list_span)
-    })())
-}
 
 /// Per-side helper for `eval-coincident?`: eval the arg to a
 /// `Value::wat__WatAST`, then run that AST under the constrained
@@ -23062,7 +18970,7 @@ fn eval_form_ast_coincident_q(
 /// Shared across the four eval-coincident-family variants for the
 /// AST side of each (the AST variant's ENTIRE side; the edn/digest/
 /// signed variants use different resolvers to obtain the AST).
-fn run_ast_arg_for_eval_coincident(
+pub(crate) fn run_ast_arg_for_eval_coincident(
     arg: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
@@ -23091,7 +18999,7 @@ fn run_ast_arg_for_eval_coincident(
 /// the per-variant resolver produces the two Values via its own
 /// verification discipline, then hands them here for the coincidence
 /// measurement.
-fn coincident_of_two_values(
+pub(crate) fn coincident_of_two_values(
     value_a: Value,
     value_b: Value,
     sym: &SymbolTable,
@@ -23115,62 +19023,8 @@ fn coincident_of_two_values(
     Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
 }
 
-/// `(:wat::holon::eval-edn-coincident? <source-a> <source-b>)` — both
-/// sides are inline EDN source strings. Arc 028 slice 3 narrowed this
-/// to string-only (matches `eval-edn!` which also narrowed). Per-side
-/// arity is 1; total is 2.
-fn eval_form_edn_coincident_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::holon::eval-edn-coincident?".into(),
-            reason: format!(
-                "(:wat::holon::eval-edn-coincident? <source-a> <source-b>) takes exactly 2 arguments; got {}",
-                args.len()
-            )
-        }).into());
-    }
-    wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
-        let op = ":wat::holon::eval-edn-coincident?";
-        let src_a = expect_string_value(op, &args[0], env, sym)?;
-        let src_b = expect_string_value(op, &args[1], env, sym)?;
-        let value_a = parse_and_run(&src_a, env, sym)?;
-        let value_b = parse_and_run(&src_b, env, sym)?;
-        coincident_of_two_values(value_a, value_b, sym, op, list_span)
-    })())
-}
 
-/// `(:wat::holon::eval-digest-coincident?
-///      <path-a> <algo-a> <payload-iface-a> <hex-a>
-///      <path-b> <algo-b> <payload-iface-b> <hex-b>)` — file-based
-/// SHA-256 verification variant. Per-side arity 4; total 8.
-fn eval_form_digest_coincident_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_form_digest_coincident_shared(args, list_span, env, sym, false)
-}
-
-/// `(:wat::holon::eval-digest-string-coincident?
-///      <src-a> <algo-a> <payload-iface-a> <hex-a>
-///      <src-b> <algo-b> <payload-iface-b> <hex-b>)` — string-based
-/// SHA-256 verification variant. Inline sources on both sides.
-fn eval_form_digest_string_coincident_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_form_digest_coincident_shared(args, list_span, env, sym, true)
-}
-
-fn eval_form_digest_coincident_shared(
+pub(crate) fn eval_form_digest_coincident_shared(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -23237,40 +19091,8 @@ fn eval_form_digest_coincident_shared(
     })())
 }
 
-/// `(:wat::holon::eval-signed-coincident?
-///      <iface-a> <loc-a> <algo-a> <sig-iface-a> <sig-a> <pk-iface-a> <pk-a>
-///      <iface-b> <loc-b> <algo-b> <sig-iface-b> <sig-b> <pk-iface-b> <pk-b>)`
-/// — Ed25519 (or sibling algo) verification variant. Each side
-/// fetches source, parses, verifies the SIGNATURE over the canonical-
-/// EDN of the parsed AST (mirrors `eval-signed!` — parse before
-/// verify, sig is over MEANING not bytes), then runs under
-/// constrained eval, atomizes, coincidence-checks.
-///
-/// `(:wat::holon::eval-signed-coincident?
-///      <path-a> <algo-a> <sig-iface-a> <sig-a> <pk-iface-a> <pk-a>
-///      <path-b> <algo-b> <sig-iface-b> <sig-b> <pk-iface-b> <pk-b>)`
-/// — file-based Ed25519 verification. Per-side arity 6; total 12.
-fn eval_form_signed_coincident_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_form_signed_coincident_shared(args, list_span, env, sym, false)
-}
 
-/// Inline-source sibling of `eval-signed-coincident?`. Both sides'
-/// sources are string literals.
-fn eval_form_signed_string_coincident_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_form_signed_coincident_shared(args, list_span, env, sym, true)
-}
-
-fn eval_form_signed_coincident_shared(
+pub(crate) fn eval_form_signed_coincident_shared(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -23341,106 +19163,6 @@ fn eval_form_signed_coincident_shared(
     })())
 }
 
-/// `(:wat::holon::dot x y) -> :f64` — scalar dot product of two
-/// encoded holons. Per 058-005: measurement primitive, not a HolonAST
-/// variant (scalar-out, not vector-out). Sibling to `presence`:
-/// presence returns cosine (dot normalized by magnitudes); dot is the
-/// raw bilinear value, used by Gram-Schmidt macros (Reject, Project)
-/// that need the unnormalized coefficient.
-/// `(:wat::holon::statement-length ast) -> :i64` — the AST's
-/// immediate surface arity. Arc 037 slice 4: the natural
-/// introspection primitive for user dim-router bodies.
-/// Atom / Permute / Thermometer → 1. Bind / Blend → 2.
-/// Bundle → `children.len()`.
-fn eval_holon_statement_length(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::statement-length".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let ast = require_holon(
-        ":wat::holon::statement-length",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
-    // the generic match so they return 1 (conceptual leaf) not 2 (Bind structural count).
-    let n = if ast.as_symbol().is_some() || ast.as_keyword().is_some() || ast.as_tag().is_some() {
-        1
-    } else {
-        match &*ast {
-            HolonAST::String(_)
-            | HolonAST::I64(_)
-            | HolonAST::F64(_)
-            | HolonAST::Bool(_)
-            // Arc 221 Stone 221.2 — Char is a primitive leaf; statement-length = 1.
-            | HolonAST::Char(_)
-            | HolonAST::Atom(_)
-            | HolonAST::Permute(_, _)
-            | HolonAST::Thermometer { .. }
-            | HolonAST::SlotMarker { .. } => 1,
-            HolonAST::Bind(_, _) | HolonAST::Blend(_, _, _, _) => 2,
-            HolonAST::Bundle(children) => children.len(),
-        }
-    };
-    Ok(Value::i64(n as i64))
-}
-
-/// Arc 278 the cosine outcome wall — type path of `:wat::holon::DotOutcome`
-/// (registered in `types.rs`). Sibling to `CosineOutcome`, not a reuse: `dot`
-/// performs no division (`Similarity::dot` sums `i8 × i8` products, bounded
-/// by `d × 127²` — reaching ±Inf needs `d ≈ 10³⁰⁴`, closed), so a
-/// zero-magnitude operand yields an HONEST `0.0` and `dot` gets no
-/// `Degenerate` arm to construct.
-const DOT_OUTCOME_TYPE: &str = ":wat::holon::DotOutcome";
-
-/// `DotOutcome::Computed [product <- f64]` — the happy path.
-fn dot_outcome_computed(product: f64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: DOT_OUTCOME_TYPE.into(),
-        variant_name: "Computed".into(),
-        names: builtin_enum_variant_names(DOT_OUTCOME_TYPE, "Computed"),
-        fields: vec![Value::f64(product)],
-    }))
-}
-
-/// `DotOutcome::DimensionMismatch [expected <- i64  got <- i64]` — the two
-/// operands disagree in dimension. Was `pair_values_to_vectors`'s
-/// `TypeMismatch` raise, now a domain fact — the same fact
-/// `CosineOutcome::DimensionMismatch` carries, reached through the same
-/// shared guard.
-fn dot_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: DOT_OUTCOME_TYPE.into(),
-        variant_name: "DimensionMismatch".into(),
-        names: builtin_enum_variant_names(DOT_OUTCOME_TYPE, "DimensionMismatch"),
-        fields: vec![Value::i64(expected), Value::i64(got)],
-    }))
-}
-
-/// Shared rete Fallback projection of holon outcome enums.
-/// `dispatch_rete_op` and native `CallFallback` both face the third failure
-/// mode through this one arm — happy payload becomes `f64`, every other
-/// named variant takes the caller's `:undefined`. The two enums do NOT
-/// share variant/field names (`Similarity`/`similarity` vs `Computed`/`product`;
-/// only cosine has `Degenerate`), so each is named explicitly. No `_`
-/// wildcard on a recognised type_path.
-pub(crate) enum HolonReteProject {
-    /// Not a holon outcome enum — caller continues with other Fallback modes.
-    NotHolon,
-    Scalar(f64),
-    Fallback,
-}
 
 /// What a fallback-carrying op's outcome MEANS for this row: use the value, or take
 /// the caller's `:undefined` expression.
@@ -23534,84 +19256,6 @@ pub(crate) fn classify_fallback_outcome(
     }
 }
 
-pub(crate) fn project_holon_rete_fallback(
-    v: &Value,
-    head: &str,
-    span: &Span,
-) -> Result<HolonReteProject, EvalBreak> {
-    match v {
-        Value::Enum(ev) if ev.type_path == COSINE_OUTCOME_TYPE => {
-            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
-                ("Similarity", [Value::f64(similarity)]) => {
-                    Ok(HolonReteProject::Scalar(*similarity))
-                }
-                ("Degenerate", [_]) | ("DimensionMismatch", [_, _]) => {
-                    Ok(HolonReteProject::Fallback)
-                }
-                (variant, fields) => Err(RuntimeError::new(
-                    span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: head.into(),
-                        reason: format!(
-                            "rete Fallback arm's holon mode has no route for CosineOutcome::{variant} ({} field(s)) — add one before shipping this shape",
-                            fields.len()
-                        ),
-                    },
-                )
-                .into()),
-            }
-        }
-        Value::Enum(ev) if ev.type_path == DOT_OUTCOME_TYPE => {
-            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
-                ("Computed", [Value::f64(product)]) => Ok(HolonReteProject::Scalar(*product)),
-                ("DimensionMismatch", [_, _]) => Ok(HolonReteProject::Fallback),
-                (variant, fields) => Err(RuntimeError::new(
-                    span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: head.into(),
-                        reason: format!(
-                            "rete Fallback arm's holon mode has no route for DotOutcome::{variant} ({} field(s)) — add one before shipping this shape",
-                            fields.len()
-                        ),
-                    },
-                )
-                .into()),
-            }
-        }
-        _ => Ok(HolonReteProject::NotHolon),
-    }
-}
-
-/// `(:wat::holon::dot target reference) -> :wat::holon::DotOutcome` — raw dot
-/// product, TOTAL since arc 278 the cosine outcome wall. Arc 052: polymorphic
-/// input, HolonAST or Vector in either position. Same dim-resolution rule as
-/// `cosine`. Was `:f64`; its one domain hole (dimension mismatch, via the
-/// shared `pair_values_to_vectors` guard) raised `TypeMismatch` and is now a
-/// named `DotOutcome::DimensionMismatch` — `dot` needs no `Degenerate` arm
-/// and no `:undefined`, see `DOT_OUTCOME_TYPE`'s comment.
-fn eval_algebra_dot(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::dot".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    // Arc 052 — polymorphic input: HolonAST or Vector in either
-    // position. Same dim-resolution rule as cosine.
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    dot_outcome_from_values(a, b, list_span, sym)
-}
 
 /// Value-in `dot`. Shared by AST eval and native `apply_op`.
 pub(crate) fn dot_outcome_from_values(
@@ -23629,130 +19273,6 @@ pub(crate) fn dot_outcome_from_values(
     Ok(dot_outcome_computed(Similarity::dot(&vx, &vy)))
 }
 
-/// `(:wat::holon::simhash holon) -> :i64` — Charikar SimHash over the
-/// materialized vector at the holon's natural d. Arc 051.
-///
-/// Output i64 is the **direction-space lattice position** of the
-/// holon's vector. Same input → same i64. Cosine-near-1 inputs share
-/// the same i64 (when angular separation is small enough that all 64
-/// bit-decisions agree); cosine-near-0 inputs have hamming-distance
-/// ≈ 32 between their keys; anti-parallel inputs have hamming
-/// distance ≈ 64.
-///
-/// **Algorithm.** For i in 0..64: bit i = `sign(v · Atom(i)_at_d) >
-/// 0 ? 1 : 0`, packed into i64. Atom(0)..Atom(63) are the canonical
-/// LSH projection basis — the SAME atoms that serve as positional
-/// markers in `Permute` / `Sequential` / `Bigram` / `Trigram`. BOOK
-/// Chapter 36's unification: position atoms and LSH anchors are one
-/// reserved resource.
-///
-/// **Sign-of-zero rule.** When `v · Atom(i) == 0` exactly (rare; only
-/// when positive and negative substrate contributions cancel), output
-/// bit i = 0. Pathological boundary case; locality-sensitivity
-/// property holds.
-///
-/// **Composition with `wat-lru` for bidirectional caches.** The i64
-/// key plugs into `(:rust::lru::LruCache :- [i64 V])` directly — values can
-/// be `:wat::holon::HolonAST` (one-AST-per-key, most-recent-wins) or
-/// `(:wat::core::Vector :- [wat::holon::HolonAST])` (full bucket). Cosine-rank within the
-/// bucket if multiple matches.
-fn eval_algebra_simhash(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::simhash".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let target = eval_inner(&args[0], env, sym)?.value_owned();
-    let ctx = require_encoding_ctx(":wat::holon::simhash", sym, list_span)?;
-    // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
-    // Vector uses its native dim directly.
-    let (v, enc) = match target {
-        Value::Vector(vec) => {
-            let d = vec.dimensions();
-            (vec.as_ref().clone(), ctx.encoders.get(d))
-        }
-        Value::holon__HolonAST(ast) => {
-            let enc = ctx.encoders.get(ctx.dim_count);
-            let v = encode(&ast, &enc.vm, &enc.scalar);
-            (v, enc)
-        }
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::simhash".into(),
-                    expected: "wat::holon::HolonAST or wat::holon::Vector",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-
-    // Project onto I64(0)..I64(63) via the canonical LSH basis.
-    let mut key: u64 = 0;
-    for i in 0..64u32 {
-        let atom_ast = HolonAST::i64(i as i64);
-        let atom_vec = encode(&atom_ast, &enc.vm, &enc.scalar);
-        let dot = Similarity::dot(&v, &atom_vec);
-        if dot > 0.0 {
-            key |= 1u64 << i;
-        }
-        // else: bit i stays 0 (sign-of-zero rule: dot == 0 → bit off)
-    }
-    Ok(Value::i64(key as i64))
-}
-
-/// `(:wat::holon::encode holon) -> :wat::holon::Vector` — explicit
-/// materialization of a HolonAST into a wat-tier Vector value. Arc 052.
-///
-/// The substrate already materializes Vectors implicitly inside
-/// `cosine` / `dot` / `simhash`; this primitive surfaces that
-/// materialization as a callable so users can hold onto the Vector,
-/// store it in caches, or pass it through Vector-tier algebra
-/// (shipping in arc 053+). User-facing signature is one-arg: the
-/// encoding context (`vm`, `scalar`, `registry`) is ambient on the
-/// SymbolTable, picked up via `require_encoding_ctx` same as cosine.
-///
-/// Dimension chosen by the ambient dim-router (per arc 037). Same AST
-/// at different d produces different Vectors; that's by design.
-fn eval_holon_encode(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::encode".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let target = require_holon(
-        ":wat::holon::encode",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
-    let enc = ctx.encoders.get(ctx.dim_count);
-    let v = encode(&target, &enc.vm, &enc.scalar);
-    Ok(Value::Vector(Arc::new(v)))
-}
 
 // ─── Vector portability (arc 061) — vector-bytes / bytes-vector ──────
 //
@@ -23780,252 +19300,6 @@ fn eval_holon_encode(
 // the receiver's responsibility to know. V + K + F three-factor
 // verification UX.
 
-/// `(:wat::holon::vector-bytes vec)` → `(:wat::core::Vector :- [u8])` (arc 061).
-/// Serialize a Vector to a portable byte buffer. Deterministic:
-/// same Vector → same bytes.
-fn eval_holon_vector_bytes(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::vector-bytes";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = require_vector(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let dim = v.dimensions();
-    let dim_u32 = u32::try_from(dim).map_err(|_| {
-        RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vector with dim representable as u32",
-                got: Box::new(ValueSnapshot::unavailable("oversized Vector dim")),
-                // arc 138: no per-value AST span — dim comes from Vector value, not AST; list_span (call site) used instead
-            },
-        )
-    })?;
-    // 4-byte dim header + ceil(dim/4) data bytes.
-    let data_len = dim.div_ceil(4);
-    let mut out: Vec<Value> = Vec::with_capacity(4 + data_len);
-    for &b in dim_u32.to_le_bytes().iter() {
-        out.push(Value::u8(b));
-    }
-    let data = v.data();
-    for chunk in data.chunks(4) {
-        let mut byte: u8 = 0;
-        for (i, &cell) in chunk.iter().enumerate() {
-            let bits: u8 = match cell {
-                0 => 0b00,
-                1 => 0b01,
-                -1 => 0b10,
-                other => {
-                    return Err(RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "Vector cell in {-1, 0, +1}",
-                            got: Box::new(ValueSnapshot::described(
-                                "wat::core::i64",
-                                format!("cell value out of ternary range ({})", other),
-                            )),
-                            // arc 138: no per-value AST span — cell value from Vector data, not AST; list_span (call site) used instead
-                        },
-                    )
-                    .into());
-                }
-            };
-            byte |= bits << (i * 2);
-        }
-        out.push(Value::u8(byte));
-    }
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// Arc 278 the dimension-heresy strike — the type path of `bytes-vector`'s
-/// matchable decode outcome enum (`:wat::holon::VectorDecodeOutcome`,
-/// registered in `types.rs`).
-const VECTOR_DECODE_OUTCOME_TYPE: &str = ":wat::holon::VectorDecodeOutcome";
-
-/// `VectorDecodeOutcome::Decoded [vector <- Vector]` — the happy path.
-fn vector_decode_outcome_decoded(v: holon::Vector) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
-        variant_name: "Decoded".into(),
-        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "Decoded"),
-        fields: vec![Value::Vector(Arc::new(v))],
-    }))
-}
-
-/// `VectorDecodeOutcome::DimensionMismatch [expected <- i64  got <- i64]` —
-/// the wire header's dim disagrees with this program's constant `dim-count`.
-fn vector_decode_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
-        variant_name: "DimensionMismatch".into(),
-        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "DimensionMismatch"),
-        fields: vec![Value::i64(expected), Value::i64(got)],
-    }))
-}
-
-/// `VectorDecodeOutcome::TruncatedHeader [got <- i64]` — fewer than the
-/// 4-byte dim header. No `expected` field — 4 is a protocol constant, not a
-/// per-call datum.
-fn vector_decode_outcome_truncated_header(got: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
-        variant_name: "TruncatedHeader".into(),
-        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "TruncatedHeader"),
-        fields: vec![Value::i64(got)],
-    }))
-}
-
-/// `VectorDecodeOutcome::LengthMismatch [expected <- i64  got <- i64]` — the
-/// header's dim parsed fine, but the data bytes don't match `ceil(dim/4)`.
-fn vector_decode_outcome_length_mismatch(expected: i64, got: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
-        variant_name: "LengthMismatch".into(),
-        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "LengthMismatch"),
-        fields: vec![Value::i64(expected), Value::i64(got)],
-    }))
-}
-
-/// `VectorDecodeOutcome::InvalidCell [at <- i64]` — a 2-bit cell decoded to
-/// the reserved `0b11` pattern at cell index `at`.
-fn vector_decode_outcome_invalid_cell(at: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
-        variant_name: "InvalidCell".into(),
-        names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "InvalidCell"),
-        fields: vec![Value::i64(at)],
-    }))
-}
-
-/// `(:wat::holon::bytes-vector bs)` → `:wat::holon::VectorDecodeOutcome`
-/// (arc 061; arc 278 the dimension-heresy strike upgraded the bare
-/// `(:Option :- [Vector])` to a matchable outcome — see `VectorDecodeOutcome`'s
-/// registration in `types.rs` for the full "why five variants" reasoning).
-/// Deserialize a byte buffer back into a Vector. Returns a failure variant on:
-///   - input shorter than 4-byte dim header → `TruncatedHeader`
-///   - data length doesn't match `ceil(dim/4)` bytes → `LengthMismatch`
-///   - dim header doesn't match the ambient encoder's d (cross-universe
-///     transmission would still let this through; cross-DIM is the
-///     structural error this validates against) → `DimensionMismatch`
-///   - any cell decodes to the reserved 0b11 pattern → `InvalidCell`
-fn eval_holon_bytes_vector(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::bytes-vector";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    // Pull the byte vector contents out as Vec<u8>.
-    let xs = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(xs) => xs,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "(Vector :- [u8])",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let mut bytes: Vec<u8> = Vec::with_capacity(xs.len());
-    for v in xs.iter() {
-        match v {
-            Value::u8(b) => bytes.push(*b),
-            other => {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::TypeMismatch {
-                        op: OP.into(),
-                        expected: "(Vector :- [u8])",
-                        got: Box::new(ValueSnapshot::of(other)),
-                        // arc 138: no per-value AST span — element from Vec value, not AST; list_span (call site) used instead
-                    },
-                )
-                .into());
-            }
-        }
-    }
-    // Header.
-    if bytes.len() < 4 {
-        return Ok(vector_decode_outcome_truncated_header(bytes.len() as i64));
-    }
-    let header = [bytes[0], bytes[1], bytes[2], bytes[3]];
-    let dim = u32::from_le_bytes(header) as usize;
-    let expected_data_len = dim.div_ceil(4);
-    if bytes.len() != 4 + expected_data_len {
-        return Ok(vector_decode_outcome_length_mismatch(
-            (4 + expected_data_len) as i64,
-            bytes.len() as i64,
-        ));
-    }
-    // Cross-dim validation: this program's dim-count is a static, once-only
-    // constant (`config::collect_entry_file`); a vector whose wire header
-    // names a different d is a foreign-dimension value, not a structural
-    // parse failure — matchable, not fatal (BRIEF-dimension-heresy-screams.md).
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    if dim != ctx.dim_count {
-        return Ok(vector_decode_outcome_dimension_mismatch(
-            ctx.dim_count as i64,
-            dim as i64,
-        ));
-    }
-    // Decode cells.
-    let mut cells: Vec<i8> = Vec::with_capacity(dim);
-    for byte in &bytes[4..] {
-        for shift in 0..4 {
-            if cells.len() == dim {
-                break;
-            }
-            let bits = (byte >> (shift * 2)) & 0b11;
-            let cell: i8 = match bits {
-                0b00 => 0,
-                0b01 => 1,
-                0b10 => -1,
-                _ => return Ok(vector_decode_outcome_invalid_cell(cells.len() as i64)),
-            };
-            cells.push(cell);
-        }
-    }
-    // arc 278 STOP-6 (grounded, not assumed): `cells.len() != dim` here is
-    // UNREACHABLE and was deleted rather than mapped to a variant. The length
-    // check above guarantees `bytes[4..].len() == dim.div_ceil(4)`, so this
-    // loop has `4 * dim.div_ceil(4) >= dim` decodable bit-pairs available —
-    // always enough to reach `cells.len() == dim` (the `break` never lets it
-    // exceed dim, and an early return already fires above on any invalid
-    // cell). There is no byte-length value that reaches this point with
-    // `cells.len() != dim`.
-    Ok(vector_decode_outcome_decoded(holon::Vector::from_data(
-        cells,
-    )))
-}
 
 // ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
 //
@@ -24137,1402 +19411,6 @@ fn eval_str(
     Ok(Value::String(Arc::new(s)))
 }
 
-/// Arc 053 — helper. Extract a `Value::Vector` payload, error on
-/// non-Vector input. Cousin of `require_holon`. Used by the
-/// Vector-tier algebra primitives.
-fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, EvalBreak> {
-    match v {
-        Value::Vector(vec) => Ok(vec),
-        other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::holon::Vector",
-                got: Box::new(ValueSnapshot::of(&other)),
-                // arc 138: no — takes Value, not WatAST; no source coords available
-            },
-        )
-        .into()),
-    }
-}
-
-/// Arc 278 the dimension-heresy strike, part 2 — the type path of the
-/// matchable outcome enum shared by `vector-bind` / `vector-bundle` /
-/// `vector-blend` (`:wat::holon::CombineOutcome`, registered in `types.rs`).
-/// ONE shared enum, not three per-verb siblings — the three verbs' outcome
-/// spaces are identical (`[expected, got]` on disagreement), unlike
-/// `RecvOutcome`/`SendOutcome`/`TrySendOutcome` whose split is earned by a
-/// genuine shape difference.
-const COMBINE_OUTCOME_TYPE: &str = ":wat::holon::CombineOutcome";
-
-/// `CombineOutcome::Combined [vector <- Vector]` — the happy path (bind's
-/// XOR-compose / bundle's superposition / blend's weighted linear
-/// combination — one shape of success across all three verbs).
-fn combine_outcome_combined(v: holon::Vector) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: COMBINE_OUTCOME_TYPE.into(),
-        variant_name: "Combined".into(),
-        names: builtin_enum_variant_names(COMBINE_OUTCOME_TYPE, "Combined"),
-        fields: vec![Value::Vector(Arc::new(v))],
-    }))
-}
-
-/// `CombineOutcome::DimensionMismatch [expected <- i64  got <- i64]` — the
-/// operands disagree. Deliberately the same variant name as
-/// `VectorDecodeOutcome::DimensionMismatch` (one fact, two routes) — but
-/// neither vector here is "foreign": both are ordinary in-program values
-/// that simply disagree.
-fn combine_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: COMBINE_OUTCOME_TYPE.into(),
-        variant_name: "DimensionMismatch".into(),
-        names: builtin_enum_variant_names(COMBINE_OUTCOME_TYPE, "DimensionMismatch"),
-        fields: vec![Value::i64(expected), Value::i64(got)],
-    }))
-}
-
-/// `(:wat::holon::vector-bind v1 v2) -> :wat::holon::CombineOutcome` —
-/// XOR-like bind on two materialized Vectors. Arc 053; arc 278 the
-/// dimension-heresy strike upgraded the differing-dimension RAISE to the
-/// matchable `CombineOutcome` (was a `TypeMismatch` raise — a mismatched-dim
-/// pair is cheap to detect and meaningful to recover from, per the standing
-/// law: "for any options — four-questions — we deliver an enum for code to
-/// handle exceptions with; raise is uncatchable on purpose, a thing that
-/// must never happen").
-///
-/// Mirrors `:wat::holon::Bind` (the AST constructor) at the Vector
-/// tier. Use when you have two Vectors already materialized and want
-/// to compose them without round-tripping through HolonAST.
-fn eval_holon_vector_bind(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-bind".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let va = require_vector(
-        ":wat::holon::vector-bind",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let vb = require_vector(
-        ":wat::holon::vector-bind",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    if va.dimensions() != vb.dimensions() {
-        return Ok(combine_outcome_dimension_mismatch(
-            va.dimensions() as i64,
-            vb.dimensions() as i64,
-        ));
-    }
-    let result = holon::primitives::Primitives::bind(&va, &vb);
-    Ok(combine_outcome_combined(result))
-}
-
-/// `(:wat::holon::vector-bundle vs) -> :wat::holon::CombineOutcome` —
-/// superposition over a `(:wat::core::Vector :- [Vector])`. Arc 053; arc 278 the
-/// dimension-heresy strike (see `vector-bind` above for the raise-to-outcome
-/// rationale).
-///
-/// Mirrors `:wat::holon::Bundle` at the Vector tier. Empty Vec input still
-/// RAISES — there is no dimension to report a mismatch against, so this
-/// stays a must-never-happen call-site bug, not a handleable outcome (no
-/// zero-vector default; use the substrate's encode path if a "neutral"
-/// vector is needed).
-fn eval_holon_vector_bundle(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-bundle".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let vec_value = eval_inner(&args[0], env, sym)?.value_owned();
-    let elements = match vec_value {
-        Value::Vec(v) => v,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::vector-bundle".into(),
-                    expected: "Vec of wat::holon::Vector",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    if elements.is_empty() {
-        return Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: ":wat::holon::vector-bundle".into(),
-                expected: "non-empty Vec of Vector",
-                got: Box::new(ValueSnapshot::unavailable("empty Vec")),
-            },
-        )
-        .into());
-    }
-    let mut owned: Vec<Arc<holon::Vector>> = Vec::with_capacity(elements.len());
-    for elem in elements.iter() {
-        owned.push(require_vector(":wat::holon::vector-bundle", elem.clone())?);
-    }
-    // Verify dim match.
-    let d = owned[0].dimensions();
-    for v in &owned[1..] {
-        if v.dimensions() != d {
-            return Ok(combine_outcome_dimension_mismatch(
-                d as i64,
-                v.dimensions() as i64,
-            ));
-        }
-    }
-    let refs: Vec<&holon::Vector> = owned.iter().map(|v| v.as_ref()).collect();
-    let result = holon::primitives::Primitives::bundle(&refs);
-    Ok(combine_outcome_combined(result))
-}
-
-/// `(:wat::holon::vector-blend v1 v2 w1 w2) -> :wat::holon::CombineOutcome` —
-/// weighted linear combination of two Vectors. Arc 053; arc 278 the
-/// dimension-heresy strike (see `vector-bind` above for the raise-to-outcome
-/// rationale).
-///
-/// Mirrors `:wat::holon::Blend` at the Vector tier. Used by Reject /
-/// Project / weighted prototype updates.
-fn eval_holon_vector_blend(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-blend".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let va = require_vector(
-        ":wat::holon::vector-blend",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let vb = require_vector(
-        ":wat::holon::vector-blend",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let w1 = require_numeric(
-        ":wat::holon::vector-blend",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let w2 = require_numeric(
-        ":wat::holon::vector-blend",
-        eval_inner(&args[3], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    if va.dimensions() != vb.dimensions() {
-        return Ok(combine_outcome_dimension_mismatch(
-            va.dimensions() as i64,
-            vb.dimensions() as i64,
-        ));
-    }
-    let result = holon::primitives::Primitives::blend_weighted(&va, &vb, w1, w2);
-    Ok(combine_outcome_combined(result))
-}
-
-/// `(:wat::holon::vector-permute v k) -> :Vector` — circular shift
-/// of a Vector by k positions. Arc 053.
-///
-/// Mirrors `:wat::holon::Permute` at the Vector tier. Used for
-/// position-bound binding when the position has already been resolved
-/// to a Vector.
-fn eval_holon_vector_permute(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-permute".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = require_vector(
-        ":wat::holon::vector-permute",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let k_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let k = match k_val {
-        Value::i64(n) => n as i32,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::vector-permute".into(),
-                    expected: "i64 shift amount",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    let result = holon::primitives::Primitives::permute(&v, k);
-    Ok(Value::Vector(Arc::new(result)))
-}
-
-/// Arc 053 — extract a `Value::OnlineSubspace` payload.
-fn require_subspace(
-    op: &str,
-    v: Value,
-    list_span: &Span,
-) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::OnlineSubspace>>, EvalBreak> {
-    match v {
-        Value::OnlineSubspace(s) => Ok(s),
-        other => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::holon::OnlineSubspace",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// Arc 053 — wrap a `Vec<f64>` into a wat-tier `(:wat::core::Vector :- [f64])` Value.
-fn vec_f64_to_value(xs: Vec<f64>) -> Value {
-    Value::Vec(Arc::new(xs.into_iter().map(Value::f64).collect()))
-}
-
-/// `(:wat::holon::OnlineSubspace/new dim k) -> :OnlineSubspace` — arc 053.
-fn eval_subspace_new(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/new".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let dim = require_i64(
-        ":wat::holon::OnlineSubspace/new",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let k = require_i64(
-        ":wat::holon::OnlineSubspace/new",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let s = holon::OnlineSubspace::new(dim as usize, k as usize);
-    Ok(Value::OnlineSubspace(Arc::new(
-        crate::rust_deps::ThreadOwnedCell::new(s),
-    )))
-}
-
-fn eval_subspace_dim(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/dim".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/dim",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
-    Ok(Value::i64(n as i64))
-}
-
-fn eval_subspace_k(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/k".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/k",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
-    Ok(Value::i64(n as i64))
-}
-
-fn eval_subspace_n(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/n".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/n",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
-    Ok(Value::i64(n as i64))
-}
-
-fn eval_subspace_threshold(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/threshold".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/threshold",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
-    Ok(Value::f64(t))
-}
-
-fn eval_subspace_eigenvalues(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/eigenvalues".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/eigenvalues",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| {
-        s.eigenvalues()
-    })?;
-    Ok(vec_f64_to_value(xs))
-}
-
-fn eval_subspace_update(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/update".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/update",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/update",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let xs = v.to_f64();
-    let residual = s.with_mut(
-        ":wat::holon::OnlineSubspace/update",
-        list_span.clone(),
-        |s| s.update(&xs),
-    )?;
-    Ok(Value::f64(residual))
-}
-
-fn eval_subspace_residual(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/residual".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/residual",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/residual",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let xs = v.to_f64();
-    let r = s.with_ref(":wat::holon::OnlineSubspace/residual", |s| s.residual(&xs))?;
-    Ok(Value::f64(r))
-}
-
-fn eval_subspace_project(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/project".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/project",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/project",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let xs = v.to_f64();
-    let projected = s.with_ref(":wat::holon::OnlineSubspace/project", |s| s.project(&xs))?;
-    Ok(vec_f64_to_value(projected))
-}
-
-fn eval_subspace_reconstruct(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/reconstruct".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let xs = v.to_f64();
-    let r = s.with_ref(":wat::holon::OnlineSubspace/reconstruct", |s| {
-        s.reconstruct(&xs)
-    })?;
-    Ok(vec_f64_to_value(r))
-}
-
-/// Arc 053 — extract a `Value::Reckoner` payload.
-fn require_reckoner(
-    op: &str,
-    v: Value,
-    list_span: &Span,
-) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Reckoner>>, EvalBreak> {
-    match v {
-        Value::Reckoner(r) => Ok(r),
-        other => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::holon::Reckoner",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// `(:wat::holon::Reckoner/new-discrete name dims recalib-interval labels) -> :Reckoner`
-fn eval_reckoner_new_discrete(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/new-discrete".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let name_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let name = match name_val {
-        Value::String(s) => (*s).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::Reckoner/new-discrete".into(),
-                    expected: "String",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    let dims = require_i64(
-        ":wat::holon::Reckoner/new-discrete",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let recalib = require_i64(
-        ":wat::holon::Reckoner/new-discrete",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-    )?;
-    let labels_val = eval_inner(&args[3], env, sym)?.value_owned();
-    let label_asts: Vec<HolonAST> = match labels_val {
-        Value::Vec(items) => {
-            let mut out = Vec::with_capacity(items.len());
-            for item in items.iter() {
-                let h = require_holon(":wat::holon::Reckoner/new-discrete", item.clone())?;
-                out.push((*h).clone());
-            }
-            out
-        }
-        other => {
-            return Err(RuntimeError::new(
-                args[3].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::Reckoner/new-discrete".into(),
-                    expected: "Vec of HolonAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    let r = holon::Reckoner::new(
-        &name,
-        dims as usize,
-        recalib as usize,
-        holon::ReckConfig::Discrete(label_asts),
-    );
-    Ok(Value::Reckoner(Arc::new(
-        crate::rust_deps::ThreadOwnedCell::new(r),
-    )))
-}
-
-/// `(:wat::holon::Reckoner/new-continuous name dims recalib default-value buckets) -> :Reckoner`
-fn eval_reckoner_new_continuous(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 5 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/new-continuous".into(),
-                expected: 5,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let name_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let name = match name_val {
-        Value::String(s) => (*s).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::Reckoner/new-continuous".into(),
-                    expected: "String",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    let dims = require_i64(
-        ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let recalib = require_i64(
-        ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-    )?;
-    let default_value = require_numeric(
-        ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[3], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let buckets = require_i64(
-        ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[4], env, sym)?.value_owned(),
-    )?;
-    let r = holon::Reckoner::new(
-        &name,
-        dims as usize,
-        recalib as usize,
-        holon::ReckConfig::Continuous {
-            default_value,
-            buckets: buckets as usize,
-        },
-    );
-    Ok(Value::Reckoner(Arc::new(
-        crate::rust_deps::ThreadOwnedCell::new(r),
-    )))
-}
-
-/// `(:wat::holon::Reckoner/observe r vec label weight) -> :()`
-fn eval_reckoner_observe(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/observe".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let label_idx = require_i64(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-    )?;
-    let weight = require_numeric(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(&args[3], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    r.with_mut(":wat::holon::Reckoner/observe", list_span.clone(), |r| {
-        r.observe(&v, holon::Label::from_index(label_idx as usize), weight)
-    })?;
-    Ok(Value::Unit)
-}
-
-/// `(:wat::holon::Reckoner/predict r vec) -> :((Vector :- [(i64,f64)]), (Option :- [i64]), f64, f64)`
-///
-/// Returns a tuple: scores (Vec of (label-index, cosine) pairs sorted
-/// descending by abs cosine), winning direction (Some label-index or
-/// :None), conviction (|max cosine|), raw_cos (signed cosine of
-/// winner).
-fn eval_reckoner_predict(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/predict".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/predict",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::Reckoner/predict",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
-    // Pack scores as Vec<(i64, f64)> tuples.
-    let scores: Vec<Value> = pred
-        .scores
-        .into_iter()
-        .map(|ls| {
-            Value::Tuple(Arc::new(vec![
-                Value::i64(ls.label.index() as i64),
-                Value::f64(ls.cosine),
-            ]))
-        })
-        .collect();
-    let scores_value = Value::Vec(Arc::new(scores));
-    let direction = match pred.direction {
-        Some(label) => Value::Option(Arc::new(Some(Value::i64(label.index() as i64)))),
-        None => Value::Option(Arc::new(None)),
-    };
-    let conviction = Value::f64(pred.conviction);
-    let raw_cos = Value::f64(pred.raw_cos);
-    Ok(Value::Tuple(Arc::new(vec![
-        scores_value,
-        direction,
-        conviction,
-        raw_cos,
-    ])))
-}
-
-/// `(:wat::holon::Reckoner/resolve r conviction correct) -> :()`
-fn eval_reckoner_resolve(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/resolve".into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/resolve",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let conviction = require_numeric(
-        ":wat::holon::Reckoner/resolve",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let correct_val = eval_inner(&args[2], env, sym)?.value_owned();
-    let correct = match correct_val {
-        Value::bool(b) => b,
-        other => {
-            return Err(RuntimeError::new(
-                args[2].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::holon::Reckoner/resolve".into(),
-                    expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    r.with_mut(":wat::holon::Reckoner/resolve", list_span.clone(), |r| {
-        r.resolve(conviction, correct)
-    })?;
-    Ok(Value::Unit)
-}
-
-/// `(:wat::holon::Reckoner/curve r) -> (:Option :- [(f64,f64)])`
-fn eval_reckoner_curve(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/curve".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/curve",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| {
-        r.curve()
-    })?;
-    Ok(match curve {
-        Some((a, b)) => Value::Option(Arc::new(Some(Value::Tuple(Arc::new(vec![
-            Value::f64(a),
-            Value::f64(b),
-        ]))))),
-        None => Value::Option(Arc::new(None)),
-    })
-}
-
-/// `(:wat::holon::Reckoner/labels r) -> (:wat::core::Vector :- [i64])`
-fn eval_reckoner_labels(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/labels".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/labels",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
-    let xs: Vec<Value> = labels
-        .into_iter()
-        .map(|l| Value::i64(l.index() as i64))
-        .collect();
-    Ok(Value::Vec(Arc::new(xs)))
-}
-
-fn eval_reckoner_dims(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/dims".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/dims",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
-    Ok(Value::i64(n as i64))
-}
-
-/// Arc 053 — extract a `Value::Engram` payload.
-fn require_engram(
-    op: &str,
-    v: Value,
-    list_span: &Span,
-) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Engram>>, EvalBreak> {
-    match v {
-        Value::Engram(e) => Ok(e),
-        other => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::holon::Engram",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// Arc 053 — extract a `Value::EngramLibrary` payload.
-fn require_engram_library(
-    op: &str,
-    v: Value,
-    list_span: &Span,
-) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>, EvalBreak> {
-    match v {
-        Value::EngramLibrary(l) => Ok(l),
-        other => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::holon::EngramLibrary",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// Arc 053 — extract a String from a Value.
-fn require_string(op: &str, v: Value, list_span: &Span) -> Result<String, EvalBreak> {
-    match v {
-        Value::String(s) => Ok((*s).clone()),
-        other => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
-fn eval_engram_name(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Engram/name".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let e = require_engram(
-        ":wat::holon::Engram/name",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
-    Ok(Value::String(Arc::new(s)))
-}
-
-fn eval_engram_eigenvalue_signature(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Engram/eigenvalue-signature".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let e = require_engram(
-        ":wat::holon::Engram/eigenvalue-signature",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let xs = e.with_ref(":wat::holon::Engram/eigenvalue-signature", |e| {
-        e.eigenvalue_signature().to_vec()
-    })?;
-    Ok(vec_f64_to_value(xs))
-}
-
-fn eval_engram_n(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Engram/n".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let e = require_engram(
-        ":wat::holon::Engram/n",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
-    Ok(Value::i64(n as i64))
-}
-
-fn eval_engram_residual(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Engram/residual".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let e = require_engram(
-        ":wat::holon::Engram/residual",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::Engram/residual",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let xs = v.to_f64();
-    let r = e.with_mut(":wat::holon::Engram/residual", list_span.clone(), |e| {
-        e.residual(&xs)
-    })?;
-    Ok(Value::f64(r))
-}
-
-/// `(:wat::holon::EngramLibrary/new dim) -> :EngramLibrary`
-fn eval_library_new(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::EngramLibrary/new".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let dim = require_i64(
-        ":wat::holon::EngramLibrary/new",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let lib = holon::EngramLibrary::new(dim as usize);
-    Ok(Value::EngramLibrary(Arc::new(
-        crate::rust_deps::ThreadOwnedCell::new(lib),
-    )))
-}
-
-/// `(:wat::holon::EngramLibrary/add lib name subspace) -> :()`
-///
-/// Simplified surface: omits surprise_profile and metadata args
-/// (passed as defaults — empty maps). Future arc can add a
-/// `/add-with-meta` variant if metadata becomes a real concern.
-fn eval_library_add(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::EngramLibrary/add".into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/add",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let name = require_string(
-        ":wat::holon::EngramLibrary/add",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let subspace = require_subspace(
-        ":wat::holon::EngramLibrary/add",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    // EngramLibrary::add takes &OnlineSubspace by reference; we have
-    // ThreadOwnedCell. Borrow immutably to get the reference.
-    lib.with_mut(":wat::holon::EngramLibrary/add", list_span.clone(), |lib| {
-        subspace.with_ref(":wat::holon::EngramLibrary/add", |s| {
-            lib.add(&name, s, None, std::collections::HashMap::new());
-        })
-    })??;
-    Ok(Value::Unit)
-}
-
-/// `(:wat::holon::EngramLibrary/match-vec lib probe top-k prefilter-k) -> (:wat::core::Vector :- [(String,f64)])`
-fn eval_library_match_vec(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::EngramLibrary/match-vec".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let probe = require_vector(
-        ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let top_k = require_i64(
-        ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[2], env, sym)?.value_owned(),
-    )?;
-    let prefilter_k = require_i64(
-        ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(&args[3], env, sym)?.value_owned(),
-    )?;
-    let xs = probe.to_f64();
-    let matches = lib.with_mut(
-        ":wat::holon::EngramLibrary/match-vec",
-        list_span.clone(),
-        |lib| lib.match_vec(&xs, top_k as usize, prefilter_k as usize),
-    )?;
-    let elems: Vec<Value> = matches
-        .into_iter()
-        .map(|(name, residual)| {
-            Value::Tuple(Arc::new(vec![
-                Value::String(Arc::new(name)),
-                Value::f64(residual),
-            ]))
-        })
-        .collect();
-    Ok(Value::Vec(Arc::new(elems)))
-}
-
-fn eval_library_len(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::EngramLibrary/len".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/len",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let n = lib.with_ref(":wat::holon::EngramLibrary/len", |lib| lib.len())?;
-    Ok(Value::i64(n as i64))
-}
-
-fn eval_library_contains(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::EngramLibrary/contains".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/contains",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let name = require_string(
-        ":wat::holon::EngramLibrary/contains",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let b = lib.with_ref(":wat::holon::EngramLibrary/contains", |lib| {
-        lib.contains(&name)
-    })?;
-    Ok(Value::bool(b))
-}
-
-fn eval_library_names(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::EngramLibrary/names".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/names",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let names = lib.with_ref(":wat::holon::EngramLibrary/names", |lib| {
-        lib.names()
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>()
-    })?;
-    let elems: Vec<Value> = names
-        .into_iter()
-        .map(|s| Value::String(Arc::new(s)))
-        .collect();
-    Ok(Value::Vec(Arc::new(elems)))
-}
-
-fn require_numeric(op: &str, v: Value, list_span: &Span) -> Result<f64, EvalBreak> {
-    match v {
-        Value::i64(n) => Ok(n as f64),
-        Value::f64(x) => Ok(x),
-        other => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "numeric",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
 
 // ─── Function application ───────────────────────────────────────────────
 
@@ -26195,7 +20073,7 @@ pub(crate) fn eval_user_signal_reset(
 // any context as long as the SymbolTable carries an EncodingCtx (which
 // it does after freeze).
 
-fn require_encoding_ctx<'a>(
+pub(crate) fn require_encoding_ctx<'a>(
     op: &'static str,
     sym: &'a SymbolTable,
     list_span: &Span,
@@ -26211,7 +20089,7 @@ fn require_encoding_ctx<'a>(
 /// Arc 077: the program runs at one d. Read it from the ambient
 /// `EncodingCtx`. Returns `NoEncodingCtx` if no ctx is attached
 /// (test harnesses that bypass freeze).
-fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span) -> Result<usize, EvalBreak> {
+pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span) -> Result<usize, EvalBreak> {
     let ctx = require_encoding_ctx(op, sym, list_span)?;
     Ok(ctx.dim_count)
 }
@@ -26263,7 +20141,7 @@ fn eval_config_dim_capacity(
         None => {
             let d = crate::config::DEFAULT_DIM_COUNT;
             // Arc 294.c.2a — the ONE capacity formula (no recompute).
-            let cap = crate::hologram::kanerva_capacity(d);
+            let cap = crate::holon::hologram::kanerva_capacity(d);
             Ok(Value::i64(cap as i64))
         }
     }
@@ -26888,10 +20766,12 @@ pub(crate) fn eval_deny_prime(
 }
 
 /// Shared implementation for the unary stdlib math calls —
-/// `:wat::std::math::ln`, `log`, `sin`, `cos`. Arity 1. Argument must
+/// `:wat::math::ln`, `sin`, `cos`, `exp`, `sqrt` (arc 255 Stone HOME-9 — moved off the dead
+/// `:wat::std::` namespace; `log` was deleted here rather than moved, see the dispatch arm's
+/// comment). Arity 1. Argument must
 /// evaluate to `:f64` (or `:i64` auto-promoted). `op_name` is the
 /// wat-facing short name for error messages.
-fn eval_math_unary(
+pub(crate) fn eval_math_unary(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -26903,7 +20783,7 @@ fn eval_math_unary(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: format!(":wat::std::math::{}", op_name),
+                op: format!(":wat::math::{}", op_name),
                 expected: 1,
                 got: args.len(),
             },
@@ -26917,7 +20797,7 @@ fn eval_math_unary(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
-                    op: format!(":wat::std::math::{}", op_name),
+                    op: format!(":wat::math::{}", op_name),
                     expected: "f64",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
@@ -26928,14 +20808,15 @@ fn eval_math_unary(
     Ok(Value::f64(f(x)))
 }
 
-/// `(:wat::std::math::pi)` — the mathematical constant π as `:f64`.
+/// `(:wat::math::pi)` — the mathematical constant π as `:f64` (arc 255 Stone HOME-9 — moved
+/// off the dead `:wat::std::` namespace).
 /// Nullary. Backing: `std::f64::consts::PI`.
-fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::std::math::pi".into(),
+                op: ":wat::math::pi".into(),
                 expected: 0,
                 got: args.len(),
             },
@@ -26945,20 +20826,21 @@ fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     Ok(Value::f64(std::f64::consts::PI))
 }
 
-/// `(:wat::std::stat::mean (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
+/// `(:wat::stat::mean (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
 /// mean. None on empty input — matches `f64::min-of`/`max-of`'s
-/// reduction-empty convention.
+/// reduction-empty convention. Arc 255 Stone HOME-9 — moved off the dead `:wat::std::`
+/// namespace.
 ///
 /// Surfaced by holon-lab-trading arc 026 slice 9 (Hurst's R/S
 /// analysis) and slice 4 (Bollinger's RollingStddev). Universal
 /// enough to live in core stdlib.
-fn eval_stat_mean(
+pub(crate) fn eval_stat_mean(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::std::stat::mean";
+    const OP: &str = ":wat::stat::mean";
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -26997,16 +20879,17 @@ fn eval_stat_mean(
     )))))
 }
 
-/// `(:wat::std::stat::variance (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
+/// `(:wat::stat::variance (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
 /// variance (divides by n). Matches numpy default `ddof=0`. None on
 /// empty input. Single-point input returns `Some(0.0)` (no spread).
-fn eval_stat_variance(
+/// Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace.
+pub(crate) fn eval_stat_variance(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::std::stat::variance";
+    const OP: &str = ":wat::stat::variance";
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -27052,15 +20935,16 @@ fn eval_stat_variance(
     Ok(Value::Option(Arc::new(Some(Value::f64(sq / n)))))
 }
 
-/// `(:wat::std::stat::stddev (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Square
-/// root of population variance.
-fn eval_stat_stddev(
+/// `(:wat::stat::stddev (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Square
+/// root of population variance. Arc 255 Stone HOME-9 — moved off the dead `:wat::std::`
+/// namespace.
+pub(crate) fn eval_stat_stddev(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::std::stat::stddev";
+    const OP: &str = ":wat::stat::stddev";
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -28642,6 +22526,22 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
         RuntimeErrorKind::NotCallable { got, .. } => {
             ("not-callable", format!("not callable: {}", got))
         }
+        // Arc 255 Stone O-iv-a. This arm is NOT cosmetic: without it the variant falls to the
+        // wildcard below, whose `format!("{}", err)` renders `RuntimeError`'s Display — the full
+        // EDN WIRE FORM, not the prose. So `EvalError/message` would hand a wat program a nested
+        // blob for the one diagnostic this stone exists to make READABLE, while every other error
+        // on the same path returns a sentence. The rider that struck O-iv-a stayed inside its
+        // measured blast radius and reported this rather than widening scope — correctly; the
+        // orchestrator then ruled it part of the deliverable, because a stone about an honest
+        // message that ships an unreadable one has not shipped.
+        RuntimeErrorKind::NotValueDispatchable { name, .. } => (
+            "not-value-dispatchable",
+            format!(
+                "{} is registered, but no handler taking EVALUATED arguments is registered under \
+                 that name, and apply dispatches with evaluated arguments. Call it directly.",
+                name
+            ),
+        ),
         // Fallback for variants that don't deserve a dedicated kind.
         _ => ("runtime-error", format!("{}", err)),
     };
@@ -28674,7 +22574,7 @@ fn eval_error_names() -> Arc<Vec<String>> {
 /// code still propagate to the calling function. Every diagnostic break
 /// becomes `Err(EvalError{...})` as a value. TailCall signals pass through
 /// (they originate from within an apply_function and will be caught there).
-fn wrap_as_eval_result(inner: Result<Value, EvalBreak>) -> Result<Value, EvalBreak> {
+pub(crate) fn wrap_as_eval_result(inner: Result<Value, EvalBreak>) -> Result<Value, EvalBreak> {
     match inner {
         Ok(v) => Ok(Value::Result(Arc::new(Ok(v)))),
         Err(EvalBreak::Signal(_)) => inner, // pass through all signals
@@ -29113,51 +23013,6 @@ pub(crate) fn eval_form_against_defs(
     Ok((form_outcome("Evaluated", vec![result]), Some(session_sym)))
 }
 
-/// Arc 066 — wrap a wat Value as a HolonAST Value. Used by
-/// `eval-ast!` to honor its `(Result :- [HolonAST EvalError])` scheme;
-/// returns TypeMismatch for Values that have no HolonAST
-/// representation (channels, fns, ProgramHandles, etc.).
-///
-/// Reuses arc 065's named-verb conventions: primitives lift via the
-/// matching HolonAST leaf constructor (same shape as
-/// `:wat::holon::leaf` would produce); a Value::holon__HolonAST
-/// passes through unchanged (the value IS already a HolonAST per
-/// arc 057's closed algebra).
-fn value_to_holon(op: &'static str, v: Value) -> Result<Value, EvalBreak> {
-    let h = match v {
-        // Primitives — same dispatch as :wat::holon::leaf.
-        Value::i64(n) => HolonAST::i64(n),
-        Value::f64(x) => HolonAST::f64(x),
-        Value::bool(b) => HolonAST::bool_(b),
-        Value::String(s) => HolonAST::string(s.as_str()),
-        // Arc 221 Stone 221.4b — Keyword primitive → HolonAST::Keyword leaf.
-        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
-        // HolonAST::keyword() strips the leading colon (Stone 221.3 holon-rs fa48b39).
-        Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
-        // Arc 230 — Value::Unit (wat nil) → HolonAST::nil() composition.
-        // nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil (retired).
-        Value::Unit => HolonAST::nil(),
-        // Already a HolonAST — pass through unchanged. Eval-ast!'s
-        // contract is "return the form's value as a HolonAST." If
-        // it's already a HolonAST, return it directly; wrapping
-        // would force callers to unwrap a depth they didn't ask for.
-        Value::holon__HolonAST(h) => return Ok(Value::holon__HolonAST(h)),
-        other => {
-            return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "form whose terminal value has a HolonAST \
-                           representation (primitive or HolonAST)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — receives a Value, no originating AST in scope
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::holon__HolonAST(Arc::new(h)))
-}
 
 // ─── Incremental evaluator (arc 068) — :wat::eval-step! ─────────────
 //
@@ -29562,187 +23417,6 @@ fn step_form(form: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Step
     }
 }
 
-/// Arc 070 — try to recognize a WatAST as a holon-value shape. If
-/// every node down the tree is a literal, a holon-constructor call
-/// with value args, or a bare-list (Bundle-shape) of values, return
-/// the corresponding HolonAST. Otherwise None.
-///
-/// This is what lets `eval-step!` distinguish "input was already a
-/// value" (`AlreadyTerminal`) from "this step reduced a redex"
-/// (`Terminal`). The substrate's accounting matters at the walker /
-/// tracer / cache layer: chain length 0 vs ≥ 1.
-///
-/// Forms with reduction-shape (arithmetic, comparison, logical,
-/// special forms, user fn calls) return None — they're β-redexes
-/// and step normally.
-fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
-    match form {
-        WatAST::IntLit(n, _) => Some(HolonAST::i64(*n)),
-        WatAST::FloatLit(x, _) => Some(HolonAST::f64(*x)),
-        // Arc 300 stone B — SURPRISE (see `watast_to_holon`'s note): holon-rs
-        // has no native rational leaf; lower to its canonical rendered string.
-        WatAST::RationalLit(r, _) => Some(HolonAST::string(format!("{}/{}", r.numer(), r.denom()))),
-        // Arc 300 stone C1 — same SURPRISE as Rational immediately above.
-        WatAST::BigIntLit(n, _) => Some(HolonAST::string(format!("{}N", n))),
-        // Arc 300 stone D — native holon-rs Char leaf (see `watast_to_holon`'s
-        // note); no lossy string rendering needed.
-        WatAST::CharLit(c, _) => Some(HolonAST::char_(*c)),
-        WatAST::BoolLit(b, _) => Some(HolonAST::bool_(*b)),
-        WatAST::StringLit(s, _) => Some(HolonAST::string(s.as_str())),
-        // Arc 221 Stone 221.4b — Keyword value-shape recognition → HolonAST::Keyword leaf.
-        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
-        WatAST::Keyword(k, _) => Some(HolonAST::keyword(k.as_str())),
-        // A bare Symbol could be either an unbound free variable
-        // (NoStepRule territory) or a HolonAST::Symbol leaf (lifted
-        // from a `holon::Symbol` per arc 057's `holon_to_watast`).
-        // The substrate can't distinguish at this layer; we treat
-        // it as a value-shape since the alternative (free var)
-        // would still trigger NoStepRule via the existing path
-        // when stepping fires. Conservative: don't recognize
-        // bare symbols here; let them go to the symbol-ref error.
-        WatAST::Symbol(_, _) => None,
-        WatAST::List(items, _) => {
-            if items.is_empty() {
-                return None;
-            }
-            match &items[0] {
-                WatAST::Keyword(k, _) => match k.as_str() {
-                    ":wat::holon::Atom" if items.len() == 2 => {
-                        // Arc 225 Stone 225.1 — `Atom` is now the NARROW constructor:
-                        // accepts only a HolonAST value and wraps it as HolonAST::Atom(inner).
-                        // At eval time, primitive literals would error (they evaluate to
-                        // non-HolonAST Values). The recognizer only accepts nested holon
-                        // constructor forms (whose evaluation produces HolonAST); primitive
-                        // literals are rejected here so the stepper fires eval for them
-                        // (which produces the honest TypeMismatch at runtime).
-                        match &items[1] {
-                            // Primitive literals are NOT recognized — they don't produce HolonAST.
-                            // Callers passing primitives to Atom should use :wat::holon::to-holon.
-                            WatAST::IntLit(_, _)
-                            | WatAST::FloatLit(_, _)
-                            // Arc 300 stone B — Rational joins the primitive-literal group.
-                            | WatAST::RationalLit(_, _)
-                            // Arc 300 stone C1 — BigInt joins it too.
-                            | WatAST::BigIntLit(_, _)
-                            // Arc 300 stone D — Char joins it too.
-                            | WatAST::CharLit(_, _)
-                            | WatAST::BoolLit(_, _)
-                            | WatAST::StringLit(_, _)
-                            | WatAST::Keyword(_, _) => None,
-                            _ => {
-                                let inner = try_recognize_holon_value(&items[1])?;
-                                Some(HolonAST::Atom(std::sync::Arc::new(inner)))
-                            }
-                        }
-                    }
-                    ":wat::holon::leaf" if items.len() == 2 => {
-                        // Arc 065's primitive-only constructor.
-                        // Always emits a typed leaf — refuses non-
-                        // primitive inputs at eval time. Recognize
-                        // only when the arg is a primitive literal.
-                        match &items[1] {
-                            WatAST::IntLit(_, _)
-                            | WatAST::FloatLit(_, _)
-                            // Arc 300 stone B — Rational joins the primitive-literal group.
-                            | WatAST::RationalLit(_, _)
-                            // Arc 300 stone C1 — BigInt joins it too.
-                            | WatAST::BigIntLit(_, _)
-                            // Arc 300 stone D — Char joins it too.
-                            | WatAST::CharLit(_, _)
-                            | WatAST::BoolLit(_, _)
-                            | WatAST::StringLit(_, _)
-                            | WatAST::Keyword(_, _) => {
-                                try_recognize_holon_value(&items[1])
-                            }
-                            _ => None,
-                        }
-                    }
-                    ":wat::holon::Bind" if items.len() == 3 => {
-                        let a = try_recognize_holon_value(&items[1])?;
-                        let b = try_recognize_holon_value(&items[2])?;
-                        Some(HolonAST::bind(a, b))
-                    }
-                    ":wat::holon::Permute" if items.len() == 3 => {
-                        let inner = try_recognize_holon_value(&items[1])?;
-                        let k = match &items[2] {
-                            WatAST::IntLit(n, _) if *n >= 0 && *n <= i64::from(i32::MAX) => {
-                                *n as i32
-                            }
-                            _ => return None,
-                        };
-                        Some(HolonAST::permute(inner, k))
-                    }
-                    ":wat::holon::Thermometer" if items.len() == 4 => {
-                        let v = match &items[1] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        let lo = match &items[2] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        let hi = match &items[3] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        Some(HolonAST::Thermometer {
-                            value: v,
-                            min: lo,
-                            max: hi,
-                        })
-                    }
-                    ":wat::holon::Blend" if items.len() == 5 => {
-                        let a = try_recognize_holon_value(&items[1])?;
-                        let b = try_recognize_holon_value(&items[2])?;
-                        let w1 = match &items[3] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        let w2 = match &items[4] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        Some(HolonAST::blend(a, b, w1, w2))
-                    }
-                    // Source-form `:wat::holon::Bundle` is NOT a
-                    // value-shape — it takes a `(:wat::core::Vector :T
-                    // …)` arg and runs the encoder/capacity check
-                    // when fired. The lifted Bundle (bare list, no
-                    // keyword head) IS handled by the bare-list
-                    // branch below.
-                    //
-                    // Any other keyword head → reduction-shape.
-                    _ => None,
-                },
-                _ => {
-                    // Bare-list head (List or Symbol). Structural
-                    // Bundle lift per arc 057's
-                    // `holon_to_watast(Bundle(items))` — the source
-                    // shape `to-wat` produces. Recognize as a
-                    // Bundle iff every child recognizes too.
-                    let mut children = Vec::with_capacity(items.len());
-                    for item in items {
-                        children.push(try_recognize_holon_value(item)?);
-                    }
-                    Some(HolonAST::bundle(children))
-                }
-            }
-        }
-        // Arc 244 — NilLit is a value literal (evaluates to nil / Unit).
-        // Recognized as a terminal value for the stepper.
-        WatAST::NilLit(_) => Some(HolonAST::symbol("nil")),
-        // Arc 167 slice 1 — vectors are not value-shape forms
-        // for the stepper. They live in binding-position grammar
-        // (slice 2's fn / defn signatures); the stepper sees an
-        // expression tree. Refuse recognition so the caller falls
-        // through to step_form, which surfaces NoStepRule.
-        WatAST::Vector(_, _) => None,
-        // Arc 257 slice 1 — Map/Set literals are not stepper value-shapes.
-        // They evaluate to HashMap/HashSet values but the stepper path
-        // doesn't reduce them; fall through to eval via NoStepRule.
-        WatAST::Map(_, _) | WatAST::Set(_, _) => None,
-    }
-}
 
 /// Dispatcher for a `List` form. Recognizes the head keyword and
 /// chooses the matching rule: special forms (if / let / match) get
@@ -29892,17 +23566,36 @@ fn step_list(
 
 /// Prefix-based effectful guess — the pre-arc-255 classifier, kept as a
 /// named fallback for verbs not yet carved into the intrinsic registry.
-/// Anything under `:wat::kernel::*`, `:wat::io::*`, or the eval/load family
-/// is rejected in step mode — the consumer falls back to `:wat::eval-ast!`
-/// for those sub-forms.
+/// Anything under `:wat::kernel::*`, `:wat::io::*`, `:wat::holon::*`, or the
+/// eval/load family is rejected in step mode — the consumer falls back to
+/// `:wat::eval-ast!` for those sub-forms.
 ///
 /// This is a GUESS about a namespace, not a fact about a body — a
 /// registered row's declared purity is a stronger signal (`is_effectful_op`
-/// consults it first). Kept `pub(crate)` for `src/intrinsic/mod.rs`'s test
-/// module (arc 255.1c site 3's census).
+/// consults it first, and every `:wat::holon::*` verb is registered as of
+/// Stone HOME-8, so this prefix never actually fires for one of them today).
+/// Kept `pub(crate)` for `src/intrinsic/mod.rs`'s test module (arc 255.1c
+/// site 3's census).
+///
+/// `:wat::holon::*` joined this list at Stone HOME-8: several verbs
+/// (`Hologram/put`/`remove`, `OnlineSubspace/new`/`update`,
+/// `Reckoner/new-discrete`/`new-continuous`/`observe`/`resolve`/`curve`,
+/// `EngramLibrary/new`/`add`/`match-vec`, `Engram/residual`, and the six
+/// `eval-*-coincident?` forms) are honestly `@Purity Effectful` — they mutate
+/// a native `ThreadOwnedCell`-backed handle via `with_mut`, or (the
+/// `eval-*-coincident?` family) evaluate arbitrary embedded wat source.
+/// `declared_purity_vs_effectful_by_prefix_census` asserts `Effectful ⇒
+/// effectful_by_prefix` for every registered row — leaving `:wat::holon::`
+/// off this list would have left that assertion failing not because the
+/// verbs are mis-declared, but because the fallback oracle hadn't caught up
+/// to a namespace that used to have zero registry presence. Unlike
+/// `string.rs`'s `declare-acronyms` (Stone HOME-4), which had the honest
+/// escape hatch of a genuinely side-effect-free body at eval time, these
+/// verbs do not: reclassifying them `Pure` would be the dishonest fix.
 pub(crate) fn effectful_by_prefix(head: &str) -> bool {
     head.starts_with(":wat::kernel::")
         || head.starts_with(":wat::io::")
+        || head.starts_with(":wat::holon::")
         || head.starts_with(":wat::eval-")
         || head.starts_with(":wat::load")
         || head.starts_with(":wat::config::")
@@ -30044,51 +23737,6 @@ fn step_holon_descend_then_fire(
     Ok(StepValue::Terminal(h))
 }
 
-/// Holon-constructor argument canonicity. Admits primitives and
-/// holon-constructor calls whose own args are recursively canonical.
-/// This is what lets `(Bind (Atom "k") (Atom "v"))` fire as a single
-/// step instead of trying to step `(Atom "k")` separately and lift
-/// the typed leaf back through a primitive WatAST (where it'd lose
-/// its HolonAST identity).
-fn is_holon_arg_canonical(form: &WatAST) -> bool {
-    match form {
-        WatAST::IntLit(_, _)
-        | WatAST::FloatLit(_, _)
-        | WatAST::BoolLit(_, _)
-        | WatAST::StringLit(_, _)
-        | WatAST::Keyword(_, _) => true,
-        WatAST::List(items, _) => match items.first() {
-            Some(WatAST::Keyword(k, _)) => match k.as_str() {
-                // Arc 225 Stone 225.1 — `to-holon` added (always returns HolonAST).
-                ":wat::holon::Atom"
-                | ":wat::holon::to-holon"
-                | ":wat::holon::leaf"
-                | ":wat::holon::Bind"
-                | ":wat::holon::Permute"
-                | ":wat::holon::Thermometer"
-                | ":wat::holon::Blend" => items[1..].iter().all(is_holon_arg_canonical),
-                // `(:wat::core::Vector :T <elems>...)` — Bundle's
-                // canonical input shape. The first arg is a type
-                // keyword (not evaluated, always canonical);
-                // subsequent args are the holon elements that must
-                // be recursively canonical for the parent
-                // constructor to fire as a single step.
-                //
-                // Arc 163 slice 3d — retired `:wat::core::vec` /
-                // `:wat::core::list` keywords removed; only the
-                // canonical `:wat::core::Vector` arm remains.
-                ":wat::core::Vector" => {
-                    items.len() >= 2
-                        && matches!(items[1], WatAST::Keyword(_, _))
-                        && items[2..].iter().all(is_holon_arg_canonical)
-                }
-                _ => false,
-            },
-            _ => false,
-        },
-        _ => false,
-    }
-}
 
 /// `(:wat::core::if cond then else)` — five-arg shape per
 /// arc 023. If `cond` is a canonical `BoolLit`, project to the chosen
@@ -30951,7 +24599,7 @@ fn eval_form_signed_shared(
 /// Evaluate a string-literal or string-expression arg and return
 /// its :String value. Shared helper for eval-edn! and similar
 /// forms that take an inline source / string payload directly.
-fn expect_string_value(
+pub(crate) fn expect_string_value(
     op: &'static str,
     arg: &WatAST,
     env: &Environment,
@@ -31157,7 +24805,7 @@ fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, EvalBreak> {
 /// Parse a source string and evaluate all forms in sequence under the
 /// constrained-eval discipline. Returns the value of the last form
 /// (or Unit if the program was empty).
-fn parse_and_run(source: &str, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn parse_and_run(source: &str, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let forms = parse_program(source, ":wat::eval-edn!")?;
     run_program(&forms, env, sym)
 }
@@ -34827,23 +28475,23 @@ mod tests {
     fn math_exp_round_trips_with_ln() {
         // exp(0) == 1.0 exactly.
         assert_eq!(
-            expect_f64(eval_expr("(:wat::std::math::exp 0.0)").unwrap()),
+            expect_f64(eval_expr("(:wat::math::exp 0.0)").unwrap()),
             1.0
         );
         // exp(1) ≈ e.
-        let v = expect_f64(eval_expr("(:wat::std::math::exp 1.0)").unwrap());
+        let v = expect_f64(eval_expr("(:wat::math::exp 1.0)").unwrap());
         assert!((v - std::f64::consts::E).abs() < 1e-12, "got {}", v);
         // exp(-1) ≈ 1/e.
-        let v = expect_f64(eval_expr("(:wat::std::math::exp -1.0)").unwrap());
+        let v = expect_f64(eval_expr("(:wat::math::exp -1.0)").unwrap());
         assert!((v - (1.0 / std::f64::consts::E)).abs() < 1e-12, "got {}", v);
     }
 
     #[test]
     fn math_exp_accepts_i64_promotion() {
-        // :wat::std::math:: permits i64 → f64 promotion (matches
-        // ln/log/sin/cos siblings); :wat::core::f64 namespace does not.
+        // :wat::math:: permits i64 → f64 promotion (matches
+        // ln/sin/cos siblings); :wat::core::f64 namespace does not.
         assert_eq!(
-            expect_f64(eval_expr("(:wat::std::math::exp 0)").unwrap()),
+            expect_f64(eval_expr("(:wat::math::exp 0)").unwrap()),
             1.0
         );
     }
@@ -35581,8 +29229,8 @@ mod tests {
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&cfg)));
         // Arc 077: dim router retired; program-d lives in EncodingCtx.
         // Tests still install the default sigma fns to mirror freeze.
-        sym.set_presence_sigma_fn(Arc::new(crate::sigma::DefaultPresenceSigma));
-        sym.set_coincident_sigma_fn(Arc::new(crate::sigma::DefaultCoincidentSigma));
+        sym.set_presence_sigma_fn(Arc::new(crate::holon::sigma::DefaultPresenceSigma));
+        sym.set_coincident_sigma_fn(Arc::new(crate::holon::sigma::DefaultCoincidentSigma));
         sym
     }
 
@@ -37094,13 +30742,39 @@ mod tests {
     #[test]
     fn list_window_builds_sliding_windows() {
         let src = r#"
-            (:wat::std::list::window (:wat::core::Vector :i64 1 2 3 4) 2)
+            (:wat::seq::window (:wat::core::Vector :i64 1 2 3 4) 2)
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(outer) => {
                 // Expect 3 windows of size 2.
                 assert_eq!(outer.len(), 3);
                 // First window = [1, 2].
+                match &outer[0] {
+                    Value::Vec(w) => {
+                        assert_eq!(w.len(), 2);
+                        match (&w[0], &w[1]) {
+                            (Value::i64(1), Value::i64(2)) => {}
+                            other => panic!("expected [1,2], got {:?}", other),
+                        }
+                    }
+                    v => panic!("expected Vec window, got {:?}", v),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_window_accepts_list_too() {
+        // Arc 255 Stone HOME-9, acceptance row 2 — the SEQABLE PROOF: `window` used to call
+        // `require_vec` and REJECT a `List` outright; it accepts one now, same result shape as
+        // the Vector case immediately above.
+        let src = r#"
+            (:wat::seq::window (:wat::core::List 1 2 3 4) 2)
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(outer) => {
+                assert_eq!(outer.len(), 3);
                 match &outer[0] {
                     Value::Vec(w) => {
                         assert_eq!(w.len(), 2);
@@ -37257,12 +30931,19 @@ mod tests {
     }
 
     #[test]
-    fn map_with_index_attaches_positions() {
+    fn map_indexed_attaches_positions_replacing_deleted_map_with_index() {
+        // Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index` is DELETED;
+        // `:wat::core::map-indexed` is its replacement, migrated deliberately (NOT a drop-in):
+        // the argument order flips ((Vector,fn) -> (fn,coll)), the closure's own params flip
+        // too ((item,index) -> (index,item)), and the result is a lazy Stream, not an eager
+        // Vector — `into []` forces it back to the same shape this test used to assert on.
+        // Same VALUES as the deleted verb's test: 10+0, 20+1, 30+2.
         let src = r#"
-            (:wat::std::list::map-with-index
-              (:wat::core::Vector :i64 10 20 30)
-              (:wat::core::fn [x <- :i64 i <- :i64] -> :i64
-                (:wat::i64::+ x i)))
+            (:wat::core::into []
+              (:wat::core::map-indexed
+                (:wat::core::fn [i <- :i64 x <- :i64] -> :i64
+                  (:wat::i64::+ x i))
+                (:wat::core::Vector :i64 10 20 30)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -38116,7 +31797,7 @@ mod tests {
     #[test]
     fn zip_pairs_shorter_length() {
         let src = r#"
-            (:wat::std::list::zip
+            (:wat::seq::zip
               (:wat::core::Vector :i64 1 2 3)
               (:wat::core::Vector :String "a" "b"))
         "#;
@@ -38141,13 +31822,42 @@ mod tests {
     #[test]
     fn zip_empty_with_nonempty_is_empty() {
         let src = r#"
-            (:wat::std::list::zip
+            (:wat::seq::zip
               (:wat::core::Vector :i64)
               (:wat::core::Vector :i64 1 2 3))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
             v => panic!("expected empty Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_zip_accepts_list_too() {
+        // Arc 255 Stone HOME-9, acceptance row 2 — the SEQABLE PROOF: `zip` used to call
+        // `require_vec` on BOTH inputs and REJECT a `List`; each side accepts one
+        // independently now. Same result shape as `zip_pairs_shorter_length` above, mixed
+        // List + Vector inputs.
+        let src = r#"
+            (:wat::seq::zip
+              (:wat::core::List 1 2 3)
+              (:wat::core::Vector :String "a" "b"))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(items) => {
+                assert_eq!(items.len(), 2);
+                match &items[0] {
+                    Value::Tuple(t) => {
+                        assert_eq!(t.len(), 2);
+                        match (&t[0], &t[1]) {
+                            (Value::i64(1), Value::String(s)) => assert_eq!(&**s, "a"),
+                            other => panic!("expected (1,\"a\"); got {:?}", other),
+                        }
+                    }
+                    v => panic!("expected Tuple, got {:?}", v),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
         }
     }
 
@@ -38168,9 +31878,46 @@ mod tests {
 
     #[test]
     fn list_window_bigger_than_length_is_empty() {
-        match eval_expr("(:wat::std::list::window (:wat::core::Vector :i64 1 2) 5)").unwrap() {
+        match eval_expr("(:wat::seq::window (:wat::core::Vector :i64 1 2) 5)").unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
             v => panic!("expected empty Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_remove_at_on_vector_drops_the_index() {
+        match eval_expr("(:wat::seq::remove-at (:wat::core::Vector :i64 10 20 30) 1)").unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<i64> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        other => panic!("expected i64, got {:?}", other),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![10, 30]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_remove_at_accepts_list_too() {
+        // Arc 255 Stone HOME-9, acceptance row 2 — the SEQABLE PROOF: `remove-at` used to call
+        // `require_vec` and REJECT a `List`; it accepts one now, same result as the Vector case
+        // immediately above.
+        match eval_expr("(:wat::seq::remove-at (:wat::core::List 10 20 30) 1)").unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<i64> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        other => panic!("expected i64, got {:?}", other),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![10, 30]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
         }
     }
 
@@ -39328,8 +33075,8 @@ mod tests {
             redef_allowed: false,
             eval_redef_allowed: false,
         })));
-        sym.set_presence_sigma_fn(Arc::new(crate::sigma::DefaultPresenceSigma));
-        sym.set_coincident_sigma_fn(Arc::new(crate::sigma::DefaultCoincidentSigma));
+        sym.set_presence_sigma_fn(Arc::new(crate::holon::sigma::DefaultPresenceSigma));
+        sym.set_coincident_sigma_fn(Arc::new(crate::holon::sigma::DefaultCoincidentSigma));
         let rest = register_defines(expanded, &mut sym)?;
         let env = Environment::new();
         let mut last = Value::Unit;
@@ -39811,30 +33558,21 @@ mod tests {
     #[test]
     fn math_ln_of_e_is_one() {
         // ln(e) = 1.
-        let src = "(:wat::std::math::ln 2.718281828459045)";
+        let src = "(:wat::math::ln 2.718281828459045)";
         match eval_expr(src).unwrap() {
             Value::f64(x) => assert!((x - 1.0).abs() < 1e-10, "got {}", x),
             v => panic!("expected f64, got {:?}", v),
         }
     }
 
-    #[test]
-    fn math_log_is_natural_log() {
-        // `log` is the natural-log alias; matches ln for identical input.
-        let a = match eval_expr("(:wat::std::math::log 2.718281828459045)").unwrap() {
-            Value::f64(x) => x,
-            v => panic!("expected f64, got {:?}", v),
-        };
-        let b = match eval_expr("(:wat::std::math::ln 2.718281828459045)").unwrap() {
-            Value::f64(x) => x,
-            v => panic!("expected f64, got {:?}", v),
-        };
-        assert_eq!(a, b);
-    }
+    // Arc 255 Stone HOME-9 — `math_log_is_natural_log` (which asserted `log` and `ln` agree)
+    // is DELETED along with `log` itself: that test was proving the level-1 lie
+    // (`:wat::std::math::log` was wired to the SAME `f64::ln` as `ln`), not a real feature.
+    // `log` had zero call sites in the corpus and is not carried forward under `:wat::math::`.
 
     #[test]
     fn math_sin_pi_is_zero() {
-        let src = "(:wat::std::math::sin (:wat::std::math::pi))";
+        let src = "(:wat::math::sin (:wat::math::pi))";
         match eval_expr(src).unwrap() {
             Value::f64(x) => assert!(x.abs() < 1e-10, "got {}", x),
             v => panic!("expected f64, got {:?}", v),
@@ -39843,7 +33581,7 @@ mod tests {
 
     #[test]
     fn math_cos_zero_is_one() {
-        match eval_expr("(:wat::std::math::cos 0.0)").unwrap() {
+        match eval_expr("(:wat::math::cos 0.0)").unwrap() {
             Value::f64(x) => assert_eq!(x, 1.0),
             v => panic!("expected f64, got {:?}", v),
         }
@@ -39851,7 +33589,7 @@ mod tests {
 
     #[test]
     fn math_pi_is_std_const() {
-        match eval_expr("(:wat::std::math::pi)").unwrap() {
+        match eval_expr("(:wat::math::pi)").unwrap() {
             Value::f64(x) => assert_eq!(x, std::f64::consts::PI),
             v => panic!("expected f64, got {:?}", v),
         }
@@ -39860,7 +33598,7 @@ mod tests {
     #[test]
     fn math_ln_accepts_i64_promotion() {
         // Integer arg gets promoted to f64 before the call.
-        match eval_expr("(:wat::std::math::ln 1)").unwrap() {
+        match eval_expr("(:wat::math::ln 1)").unwrap() {
             Value::f64(x) => assert_eq!(x, 0.0),
             v => panic!("expected f64, got {:?}", v),
         }
@@ -39868,7 +33606,7 @@ mod tests {
 
     #[test]
     fn math_ln_wrong_arity() {
-        let err = eval_expr("(:wat::std::math::ln 1.0 2.0)").unwrap_err();
+        let err = eval_expr("(:wat::math::ln 1.0 2.0)").unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -39876,9 +33614,39 @@ mod tests {
 
     #[test]
     fn math_ln_refuses_non_number() {
-        let err = eval_expr(r#"(:wat::std::math::ln "nope")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::math::ln "nope")"#).unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }))
+        );
+    }
+
+    #[test]
+    fn math_old_std_spelling_is_retired_not_silently_accepted() {
+        // Arc 255 Stone HOME-9, acceptance row 3 — the OLD spelling names its replacement,
+        // not a bare `unknown function`. `eval_expr` here bypasses `check.rs` (parse +
+        // macro-expand + `eval_inner` only — see its own doc a few dozen lines up), so this
+        // exercises the RUNTIME retirement consult (door 2, `src/value/signal.rs`); the
+        // CHECK-TIME door (door 1) is what `tests/cli/retirement_table_reachable.rs` drives
+        // end-to-end through the real binary for every `RETIREMENT_TABLE` row, this one
+        // included.
+        let err = eval_expr("(:wat::std::math::sqrt 16.0)").unwrap_err();
+        // Arc 255 HOME-9 — assert the MECHANISM, not the rendering. The runtime door's
+        // Display consults `remedies_for` (src/value/signal.rs:598); a `contains("is retired")`
+        // check passes on any error whose text happens to hold that phrase and tripped
+        // `no_loose_string_assert`. Match the discriminant, then ask the remedy table itself
+        // for the replacement — byte-exact, and it fails if the retirement row is ever removed.
+        let EvalBreak::Diagnostic(rt) = err else {
+            panic!("expected a RuntimeError from the retired spelling; got a non-Diagnostic break")
+        };
+        let RuntimeErrorKind::UnknownFunction(path) = rt.kind() else {
+            panic!("expected UnknownFunction; got {:?}", rt.kind())
+        };
+        assert_eq!(path.as_str(), ":wat::std::math::sqrt");
+        let remedies = crate::remedy::remedies_for(path, std::iter::empty());
+        assert_eq!(
+            remedies.first().map(|r| r.form.as_str()),
+            Some(":wat::math::sqrt"),
+            "the retirement table must name the replacement for the retired spelling"
         );
     }
 
@@ -40222,16 +33990,16 @@ mod tests {
         // — is unaffected by the angle bracket, so it keeps exercising a
         // plain multi-segment keyword instead.
         assert_eq!(
-            expect_string(eval_expr("(:wat::core::keyword/to-string :foo)").unwrap()),
+            expect_string(eval_expr("(:wat::keyword::to-string :foo)").unwrap()),
             "foo"
         );
         assert_eq!(
-            expect_string(eval_expr("(:wat::core::keyword/to-string :wat::core::i64)").unwrap()),
+            expect_string(eval_expr("(:wat::keyword::to-string :wat::core::i64)").unwrap()),
             "wat::core::i64"
         );
         assert_eq!(
             expect_string(
-                eval_expr("(:wat::core::keyword/to-string :wat::core::Vector)")
+                eval_expr("(:wat::keyword::to-string :wat::core::Vector)")
                     .unwrap()
             ),
             "wat::core::Vector"
@@ -40240,12 +34008,12 @@ mod tests {
 
     #[test]
     fn keyword_from_string_prepends_colon() {
-        let result = eval_expr(r#"(:wat::core::keyword/from-string "foo")"#).unwrap();
+        let result = eval_expr(r#"(:wat::keyword::from-string "foo")"#).unwrap();
         match result {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":foo"),
             other => panic!("expected keyword; got {:?}", other),
         }
-        let result2 = eval_expr(r#"(:wat::core::keyword/from-string "wat::core::i64")"#).unwrap();
+        let result2 = eval_expr(r#"(:wat::keyword::from-string "wat::core::i64")"#).unwrap();
         match result2 {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::core::i64"),
             other => panic!("expected keyword; got {:?}", other),
@@ -40272,12 +34040,12 @@ mod tests {
         for (kw, expected_text) in &cases {
             // to-string strips colon
             let text = expect_string(
-                eval_expr(&format!("(:wat::core::keyword/to-string {})", kw)).unwrap(),
+                eval_expr(&format!("(:wat::keyword::to-string {})", kw)).unwrap(),
             );
             assert_eq!(&text, expected_text, "to-string({}) should strip ':'", kw);
             // from-string(to-string(k)) == k
             let roundtrip = eval_expr(&format!(
-                r#"(:wat::core::keyword/from-string (:wat::core::keyword/to-string {}))"#,
+                r#"(:wat::keyword::from-string (:wat::keyword::to-string {}))"#,
                 kw
             ))
             .unwrap();
@@ -40292,7 +34060,7 @@ mod tests {
 
     #[test]
     fn keyword_from_string_rejects_colon_prefix() {
-        let err = eval_expr(r#"(:wat::core::keyword/from-string ":foo")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::keyword::from-string ":foo")"#).unwrap_err();
         let msg = format!("{}", err);
         // rune:lint(loose-assert) — Display embeds a Rust source file path/line/col prefix
         // (e.g. "src/runtime.rs:N:col:end_col:"); the line number shifts when lines are added

@@ -276,7 +276,7 @@
       ((:wat::core::= row 9) (:wsc::if-let-arm))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-control: unknown row " (:wat::i64::to-string row))
+          (:wat::string::concat "where-control: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild). Every field is a
@@ -292,7 +292,7 @@
                           n       (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 6) 6)))
                           is-mult3 (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
                           o       (:wat::core::if is-mult3 :wat::core::None (:wat::core::Some i))]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wsc::Req :k i :a a :b b :n n :o o))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -303,7 +303,7 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wsc::Hit/k f)))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wsc::Hit/k f)))
         (:wat::rete::query fired (:wsc::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
@@ -311,8 +311,8 @@
 (:wat::core::defn :wsc::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::i64::to-string x))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -338,14 +338,14 @@
                     staged  (:wsc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsc::q-Hit))) (:wsc::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wsc::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::i64::to-string row))
-        (:wat::core::String/concat " " (:wsc::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
-        (:wat::core::String/concat " ->" (:wsc::render-ints derived))))))
+                    n       (:wat::vec::length derived)]
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "row " (:wat::i64::to-string row))
+        (:wat::string::concat " " (:wsc::rule-display-name (:wat::rete::Rule/name rule))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string n))
+        (:wat::string::concat " ->" (:wsc::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

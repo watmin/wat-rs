@@ -44,7 +44,7 @@
       ;; count — bare i64 result (always); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::count")
        (:wat::core::let [v   (:wat::rete::acc::count gathered)
-                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         nb  (:wat::map::assoc tok-binds result-var v)
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
       ;; sum — bare i64 result (always); assoc directly
@@ -54,7 +54,7 @@
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: sum missing ?var"))
                          v   (:wat::rete::acc::sum var gathered)
-                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         nb  (:wat::map::assoc tok-binds result-var v)
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
       ;; min — (Option :- [i64]); Some → assoc, None → drop
@@ -67,7 +67,7 @@
            ((:wat::core::Some v)
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
-                :bindings (:wat::core::PersistentMap/assoc tok-binds result-var v))))
+                :bindings (:wat::map::assoc tok-binds result-var v))))
            (:wat::core::None bm))))
       ;; max — (Option :- [i64]); Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::max")
@@ -79,7 +79,7 @@
            ((:wat::core::Some v)
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
-                :bindings (:wat::core::PersistentMap/assoc tok-binds result-var v))))
+                :bindings (:wat::map::assoc tok-binds result-var v))))
            (:wat::core::None bm))))
       ;; mean — (Option :- [i64]); Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::mean")
@@ -91,7 +91,7 @@
            ((:wat::core::Some v)
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
-                :bindings (:wat::core::PersistentMap/assoc tok-binds result-var v))))
+                :bindings (:wat::map::assoc tok-binds result-var v))))
            (:wat::core::None bm))))
       ;; distinct — bare PV result (always; empty → []); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::distinct")
@@ -100,13 +100,13 @@
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: distinct missing ?var"))
                          v   (:wat::rete::acc::distinct var gathered)
-                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         nb  (:wat::map::assoc tok-binds result-var v)
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
       ;; all — bare (PV :- [Record]) result (always; empty → []); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::all")
        (:wat::core::let [v   (:wat::rete::acc::all gathered)
-                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         nb  (:wat::map::assoc tok-binds result-var v)
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
       ;; group-by — bare PM result (always; empty → {}); assoc directly
@@ -116,7 +116,7 @@
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: group-by missing ?var"))
                          v   (:wat::rete::acc::group-by var gathered)
-                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         nb  (:wat::map::assoc tok-binds result-var v)
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
       ;; 8-custom — a non-built-in head is a USER fold fn. Gather the ?var values into a
@@ -137,7 +137,7 @@
                          v    (:wat::core::Result/expect  
                                 (:wat::eval-ast! call)
                                 "accumulate-pass-for-token: custom fold eval failed")
-                         nb   (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         nb   (:wat::map::assoc tok-binds result-var v)
                          ntk  (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk))))))
 
@@ -157,7 +157,7 @@
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind kid) "symbol")
             (:wat::core::let [nm (:wat::core::ast-name kid)]
               (:wat::core::if (:wat::string::starts-with? nm "?")
-                (:wat::core::PersistentVector/conj acc nm)
+                (:wat::vector::conj acc nm)
                 acc))
             acc)))
       (:wat::core::PersistentVector)
@@ -172,9 +172,9 @@
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                      k   <- :wat::core::String]
       -> (:wat::core::PersistentVector :- [:wat::core::String])
-      (:wat::core::if (:wat::core::PersistentVector/contains? drop k)
+      (:wat::core::if (:wat::vector::contains? drop k)
         acc
-        (:wat::core::PersistentVector/conj acc k)))
+        (:wat::vector::conj acc k)))
     (:wat::core::PersistentVector)
     from))
 
@@ -188,8 +188,8 @@
       (:wat::core::fn [acc <- :wat::core::PersistentMap
                        k   <- :wat::core::String]
         -> :wat::core::PersistentMap
-        (:wat::core::match (:wat::core::PersistentMap/get eb k)
-          ((:wat::core::Some v) (:wat::core::PersistentMap/assoc acc k v))
+        (:wat::core::match (:wat::map::get eb k)
+          ((:wat::core::Some v) (:wat::map::assoc acc k v))
           (:wat::core::None acc)))
       (:wat::core::PersistentMap)
       keys)))
@@ -214,7 +214,7 @@
    node-id   <- :wat::core::i64]
   -> :wat::core::PersistentMap
   (:wat::core::let [node (:wat::core::Option/expect  
-                             (:wat::core::PersistentMap/get network node-id)
+                             (:wat::map::get network node-id)
                              "accumulate-pass: node not found")
                     kind (:wat::rete::node-kind-label node)]
     (:wat::core::if (:wat::core::= kind "AccumulateNode")
@@ -224,12 +224,12 @@
                         tokens        (:wat::rete::tokens-or-empty-seed
                                         network beta-mem node-id)
                         from-els      (:wat::core::match
-                                         (:wat::core::PersistentMap/get alpha-mem from-alpha-id)
+                                         (:wat::map::get alpha-mem from-alpha-id)
                                          
                                        ((:wat::core::Some pv) pv)
                                        (:wat::core::None (:wat::core::PersistentVector)))
                         from-alpha    (:wat::core::Option/expect
-                                         (:wat::core::PersistentMap/get network from-alpha-id)
+                                         (:wat::map::get network from-alpha-id)
                                          "accumulate-pass: from alpha missing")
                         from-cond     (:wat::core::Option/expect
                                          (:wat::core::get (:wat::rete::AlphaNode/tests from-alpha) 0)
@@ -248,7 +248,7 @@
                                                                  (:wat::rete::Element/fact el)
                                                                  (:wat::rete::Token/bindings tok))
                                               ((:wat::core::Some _)
-                                               (:wat::core::PersistentVector/conj acc el))
+                                               (:wat::vector::conj acc el))
                                               (:wat::core::None acc)))
                                           (:wat::core::PersistentVector)
                                           from-els)
@@ -256,9 +256,9 @@
                                           (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                                            k   <- :wat::core::String]
                                             -> (:wat::core::PersistentVector :- [:wat::core::String])
-                                            (:wat::core::PersistentVector/conj acc k))
+                                            (:wat::vector::conj acc k))
                                           (:wat::core::PersistentVector)
-                                          (:wat::core::PersistentMap/keys
+                                          (:wat::map::keys
                                             (:wat::rete::Token/bindings tok)))
                               group-keys (:wat::rete::keys-minus
                                            (:wat::rete::keys-minus from-keys tok-keys)
@@ -274,7 +274,7 @@
                                         (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
                                                          el  <- :wat::rete::Element]
                                           -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
-                                          (:wat::core::PersistentVector/conj
+                                          (:wat::vector::conj
                                             acc
                                             (:wat::rete::project-group-keys el group-keys)))
                                         (:wat::core::PersistentVector)
@@ -289,23 +289,23 @@
                                                              el  <- :wat::rete::Element]
                                               -> (:wat::core::PersistentVector :- [:wat::rete::Element])
                                               (:wat::core::if
-                                                (:wat::core::PersistentVector/contains?
-                                                  (:wat::core::PersistentVector/conj
+                                                (:wat::vector::contains?
+                                                  (:wat::vector::conj
                                                     (:wat::core::PersistentVector) km)
                                                   (:wat::rete::project-group-keys el group-keys))
-                                                (:wat::core::PersistentVector/conj acc el)
+                                                (:wat::vector::conj acc el)
                                                 acc))
                                             (:wat::core::PersistentVector)
                                             gathered)
-                                          km-keys (:wat::core::PersistentMap/keys km)
+                                          km-keys (:wat::map::keys km)
                                           ext-binds
                                           (:wat::core::foldl
                                             (:wat::core::fn [nb <- :wat::core::PersistentMap
                                                              k  <- :wat::core::String]
                                               -> :wat::core::PersistentMap
-                                              (:wat::core::match (:wat::core::PersistentMap/get km k)
+                                              (:wat::core::match (:wat::map::get km k)
                                                 ((:wat::core::Some v)
-                                                 (:wat::core::PersistentMap/assoc nb k v))
+                                                 (:wat::map::assoc nb k v))
                                                 (:wat::core::None nb)))
                                             (:wat::rete::Token/bindings tok)
                                             km-keys)

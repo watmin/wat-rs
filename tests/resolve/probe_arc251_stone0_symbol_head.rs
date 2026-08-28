@@ -4,14 +4,26 @@
 //! Run: `cargo test --release --test probe_arc251_stone0_symbol_head`
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each `:user::compute-cNN` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed i64.
-fn eval_i64(fn_name: &str) -> Result<i64, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
+//
+// arc 296 Stone M: `call_beside_value` already returns `Result<Value, RuntimeError>` — not a
+// `StartupError` chain — so the real (never-flattened) error type here is `RuntimeError`
+// itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
+// the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
+fn eval_i64(fn_name: &str) -> Result<i64, RuntimeError> {
+    match call_beside_value(file!(), fn_name)? {
         Value::i64(n) => Ok(n),
-        other => Err(format!("non-i64: {:?}", other)),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.into(),
+                expected: "i64",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 
@@ -20,8 +32,8 @@ fn eval_i64(fn_name: &str) -> Result<i64, String> {
 #[test]
 fn contract_01_symbol_head_resolves_like_keyword() {
     assert_eq!(
-        eval_i64(":user::compute-c01"),
-        Ok(3),
+        eval_i64(":user::compute-c01").expect("eval_i64"),
+        3,
         "dotted symbol head wat.core/+ must resolve to the :wat::core::+ entity"
     );
 }
@@ -31,8 +43,8 @@ fn contract_01_symbol_head_resolves_like_keyword() {
 #[test]
 fn contract_02_keyword_head_still_resolves() {
     assert_eq!(
-        eval_i64(":user::compute-c02"),
-        Ok(3),
+        eval_i64(":user::compute-c02").expect("eval_i64"),
+        3,
         ":wat::core::+ keyword head must keep working during the transition"
     );
 }

@@ -8,4 +8,4 @@
   (:wat::lint::lint-source
     (:wat::core::Vector :wat::source::File
       (:wat::source::File :path "t.wat"
-        :source "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" of \" b))"))))
+        :source "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::string::concat \"x: \" a \" of \" b))"))))

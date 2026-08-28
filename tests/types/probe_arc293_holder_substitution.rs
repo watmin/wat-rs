@@ -4,6 +4,7 @@
 //! separate branch.  Widening (holon → record) must be accepted; narrowing (record →
 //! holon) must be rejected even when the fields match.  Struct is disjoint from Record.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 /// Case 1 — a core record IS a record: passing `:geo::Pt` where `:wat::core::Record` is
@@ -59,8 +60,14 @@ fn core_record_rejected_where_holon_wanted() {
 #[test]
 fn struct_rejected_where_record_wanted() {
     let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c5.wat.bad");
-    assert!(
-        world.is_err(),
-        "a struct must NOT satisfy :wat::core::Record (struct is a separate branch of the nature lattice)"
+    // The set also carries an incidental MalformedForm (arc294 kwargs-construct retirement, a
+    // side effect of the fixture's bare-positional constructor syntax) — the substitution
+    // rule under test is the TypeMismatch below (set membership, per `assert_check_error_present!`).
+    wat::assert_startup_error!(world, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":u::wants-record"
+            && param == "#1"
+            && expected == ":wat::core::Record"
+            && got == ":geo::SPt"
     );
 }

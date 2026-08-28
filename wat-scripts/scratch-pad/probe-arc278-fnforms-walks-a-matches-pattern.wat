@@ -46,13 +46,13 @@
   (:wat::core::let
     [;; ARM 1 — the control. A closure comes back.
      ctl (:wat::kernel::fn-forms :probe::control
-           (:wat::core::keyword/from-string "user::root-ctl"))
+           (:wat::keyword::from-string "user::root-ctl"))
      _c  (:wat::kernel::println
            (:wat::string::concat "CONTROL forms="
              (:wat::i64::to-string (:wat::core::length ctl))))
      ;; ARM 2 — the subject. This raised before the fix, naming `=` from inside the pattern.
      sub (:wat::kernel::fn-forms :probe::subject
-           (:wat::core::keyword/from-string "user::root-sub"))
+           (:wat::keyword::from-string "user::root-sub"))
      _s  (:wat::kernel::println
            (:wat::string::concat "SUBJECT forms="
              (:wat::i64::to-string (:wat::core::length sub))))]

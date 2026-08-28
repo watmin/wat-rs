@@ -24,10 +24,10 @@
                      (:user::serve self l clients)))
                  ;; SHRINK — clients[idx] left gracefully.
                  ((:wat::spawn::ServiceEvent::Closed idx)
-                   (:user::serve self l (:wat::std::list::remove-at clients idx)))
+                   (:user::serve self l (:wat::seq::remove-at clients idx)))
                  ;; SHRINK — clients[idx]'s transport broke (remote tier; cause is a Failure).
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
-                   (:user::serve self l (:wat::std::list::remove-at clients idx)))
+                   (:user::serve self l (:wat::seq::remove-at clients idx)))
                  ;; Admin wildcard — arc 291 new variant; not exercised by this probe.
                  (_ nil)))
              ;; the child entry: autobind (no name — unguessable capability), hand the minted

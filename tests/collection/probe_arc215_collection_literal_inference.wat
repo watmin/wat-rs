@@ -7,7 +7,7 @@
 
 ;; probe 1b: single pair contains :foo
 (:wat::core::defn :t::p1b-map-contains [] -> :wat::core::bool
-  (:wat::core::HashMap/contains-key? {:foo 42} :foo))
+  (:wat::hashmap::contains-key? {:foo 42} :foo))
 
 ;; probe 2a: multi pair length 3
 (:wat::core::defn :t::p2a-map-len [] -> :wat::core::i64

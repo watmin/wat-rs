@@ -9,22 +9,22 @@
 
 ;; 1. ctor + length
 (:wat::core::defn :t::p1-ctor-length [] -> :wat::core::i64
-  (:wat::core::PersistentVector/length (:wat::core::PersistentVector 10 20 30)))
+  (:wat::vector::length (:wat::core::PersistentVector 10 20 30)))
 
 ;; 2. get by index
 (:wat::core::defn :t::p2-get-by-index [] -> (:wat::core::Option :- [:wat::core::i64])
-  (:wat::core::PersistentVector/get (:wat::core::PersistentVector 10 20 30) 1))
+  (:wat::vector::get (:wat::core::PersistentVector 10 20 30) 1))
 
 ;; 3. IMMUTABILITY / structural sharing — conj does not mutate the original.
 (:wat::core::defn :t::p3-conj-immutable-original [] -> :wat::core::i64
   (:wat::core::let [pv  (:wat::core::PersistentVector 1 2)
-                     _pv2 (:wat::core::PersistentVector/conj pv 3)]
-    (:wat::core::PersistentVector/length pv)))
+                     _pv2 (:wat::vector::conj pv 3)]
+    (:wat::vector::length pv)))
 
 ;; 3. conj returns the extended vector
 (:wat::core::defn :t::p4-conj-extended [] -> :wat::core::i64
-  (:wat::core::PersistentVector/length
-    (:wat::core::PersistentVector/conj (:wat::core::PersistentVector 1 2) 3)))
+  (:wat::vector::length
+    (:wat::vector::conj (:wat::core::PersistentVector 1 2) 3)))
 
 ;; 4. LAYER-1 polymorphism — generic get dispatches on PersistentVector.
 (:wat::core::defn :t::p5-generic-get [] -> (:wat::core::Option :- [:wat::core::i64])
@@ -32,4 +32,4 @@
 
 ;; 4. LAYER-1 polymorphism — generic conj dispatches on PersistentVector.
 (:wat::core::defn :t::p6-generic-conj [] -> :wat::core::i64
-  (:wat::core::PersistentVector/length (:wat::core::conj (:wat::core::PersistentVector 1) 2)))
+  (:wat::vector::length (:wat::core::conj (:wat::core::PersistentVector 1) 2)))

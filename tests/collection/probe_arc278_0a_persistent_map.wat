@@ -9,31 +9,31 @@
 
 ;; 1. ctor + length
 (:wat::core::defn :t::p1-ctor-length [] -> :wat::core::i64
-  (:wat::core::PersistentMap/length (:wat::core::PersistentMap :a 1 :b 2)))
+  (:wat::map::length (:wat::core::PersistentMap :a 1 :b 2)))
 
 ;; 2. contains-key? hit
 (:wat::core::defn :t::p2-contains-hit [] -> :wat::core::bool
-  (:wat::core::PersistentMap/contains-key? (:wat::core::PersistentMap :a 1) :a))
+  (:wat::map::contains-key? (:wat::core::PersistentMap :a 1) :a))
 
 ;; 2. contains-key? miss
 (:wat::core::defn :t::p3-contains-miss [] -> :wat::core::bool
-  (:wat::core::PersistentMap/contains-key? (:wat::core::PersistentMap :a 1) :z))
+  (:wat::map::contains-key? (:wat::core::PersistentMap :a 1) :z))
 
 ;; 3. IMMUTABILITY / structural sharing — assoc does not mutate the original.
 (:wat::core::defn :t::p4-assoc-immutable-original [] -> :wat::core::i64
   (:wat::core::let [pm  (:wat::core::PersistentMap :a 1)
-                     _pm2 (:wat::core::PersistentMap/assoc pm :b 2)]
-    (:wat::core::PersistentMap/length pm)))
+                     _pm2 (:wat::map::assoc pm :b 2)]
+    (:wat::map::length pm)))
 
 ;; 3. assoc returns the extended map
 (:wat::core::defn :t::p5-assoc-extended [] -> :wat::core::i64
-  (:wat::core::PersistentMap/length
-    (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap :a 1) :b 2)))
+  (:wat::map::length
+    (:wat::map::assoc (:wat::core::PersistentMap :a 1) :b 2)))
 
 ;; 4. dissoc removes the key
 (:wat::core::defn :t::p6-dissoc-removes [] -> :wat::core::bool
-  (:wat::core::PersistentMap/contains-key?
-    (:wat::core::PersistentMap/dissoc (:wat::core::PersistentMap :a 1) :a) :a))
+  (:wat::map::contains-key?
+    (:wat::map::dissoc (:wat::core::PersistentMap :a 1) :a) :a))
 
 ;; 5. LAYER-1 polymorphism — generic contains? dispatches on PersistentMap.
 (:wat::core::defn :t::p7-generic-contains [] -> :wat::core::bool
@@ -41,4 +41,4 @@
 
 ;; 5. LAYER-1 polymorphism — generic assoc dispatches on PersistentMap.
 (:wat::core::defn :t::p8-generic-assoc [] -> :wat::core::i64
-  (:wat::core::PersistentMap/length (:wat::core::assoc (:wat::core::PersistentMap :a 1) :b 2)))
+  (:wat::map::length (:wat::core::assoc (:wat::core::PersistentMap :a 1) :b 2)))

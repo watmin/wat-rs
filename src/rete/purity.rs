@@ -250,6 +250,35 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head == ":wat::uuid::v4" {
         return Some(OpMeta { pure: true, deterministic: false, total: false });
     }
+    // Keyed-collection ITERATION is pure and total but NOT deterministic — measured
+    // 2026-08-26, three consecutive processes, three different orders, for BOTH containers:
+    //
+    //   HashMap/keys        [:c :a :b :d :e] · [:c :d :a :e :b] · [:e :b :c :d :a]
+    //   PersistentMap/keys  [:i :d :a :f :j …] · [:f :e :g :a :j …] · [:e :h :d :a :g …]
+    //
+    // Both were previously in `pure_det`, i.e. classified DETERMINISTIC. That was a lie in a
+    // first-class axis: the fence admits a head into a `where` on the strength of this claim.
+    // `src/value/pmap.rs` says it plainly for the persistent side — *"iteration order is
+    // deliberately NOT part of the contract (the trie has no meaningful order, so promising one
+    // would be a lie the array arm could keep and the trie arm could not)"* — and the same is
+    // true of `Arc<std::HashMap>`, whose default hasher is seeded per process.
+    //
+    // ⚠ NON-VACUITY, stated because the floor did not move when this landed: ZERO `.wat` rules
+    // use these verbs inside a `where`/`then`/accumulator today (39 call sites, none in a fence),
+    // so nothing could break. This is prophylaxis — it closes the lie BEFORE the persistent-backend
+    // swap makes it load-bearing, at which point changing which container a literal produces would
+    // change observed key order while this axis said that was impossible.
+    // Scrutiny of the wider class: `docs/arc/2026/06/255-builtin-registry/NOTE-the-registry-asserts-properties-nothing-verifies.md`
+    // Arc 255 Stone E-i — the maps get their homes. The old `:wat::core::{HashMap,
+    // PersistentMap}/{keys,values}` spelling retired this stone; `:wat::hashmap::{keys,values}`
+    // and `:wat::map::{keys,values}` carry the identical non-deterministic classification
+    // (name-only rename; the iteration-order argument is unchanged).
+    if matches!(head,
+        ":wat::hashmap::keys" | ":wat::hashmap::values"
+        | ":wat::map::keys" | ":wat::map::values")
+    {
+        return Some(OpMeta { pure: true, deterministic: false, total: true });
+    }
     // Pure ∧ deterministic by namespace prefix — every op here is referentially transparent.
     // `total` is NOT blanket over the prefix (unlike pure/deterministic): `string::subs` is
     // GENUINELY PARTIAL — verified `intrinsic/string.rs::eval_string_subs` raises `MalformedForm` when
@@ -263,6 +292,19 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
         let total = matches!(
             head,
             ":wat::string::length" | ":wat::string::trim" | ":wat::string::to-lowercase"
+            // Arc 255 Stone F — the five verbs carried over from `:wat::core::String/*`.
+            // `intrinsic_meta` is consulted with the CORE-spelled head (e.g. a `where` clause
+            // written as `(:wat::string::concat ...)` directly, not through the rete-prefixed
+            // alias), which does NOT hit `rete_op_for`'s early return (that keys on
+            // `rete_name`, a different string) — so it falls through to this prefix block.
+            // Their totality was previously carried by the two hand-lists this stone deletes
+            // (`purity.rs`'s old pure_det/total lists, `:wat::core::String/*`-keyed); listed
+            // here so the fact survives the move, not merely the classification mechanism.
+            // Each is total by construction: `concat`/`contains?`/`starts-with?`/`ends-with?`
+            // always return for any two strings; `empty?` always returns for any one string.
+            | ":wat::string::concat" | ":wat::string::contains?"
+            | ":wat::string::starts-with?" | ":wat::string::ends-with?"
+            | ":wat::string::empty?"
         );
         return Some(OpMeta { pure: true, deterministic: true, total });
     }
@@ -387,25 +429,36 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::i64::/"
             | ":wat::i64::to-string"
             | ":wat::i64::to-f64"
-            // Arc 300 stone C1 — bigint arithmetic + conversions.
-            | ":wat::core::bigint::+"
-            | ":wat::core::bigint::-"
-            | ":wat::core::bigint::*"
-            | ":wat::core::bigint::/"
-            | ":wat::core::bigint::to-f64"
+            // Arc 300 stone C1 — bigint arithmetic + conversions. Arc 255
+            // Stone D — `:wat::bigint::*` is the bigint home (the old
+            // `:wat::core::bigint::*` spelling is retired); every one of
+            // these forwards straight to `crate::runtime::eval_bigint_arith` /
+            // `crate::runtime::eval_bigint_to_{f64,rational}` (see
+            // `src/intrinsic/bigint.rs`'s module doc).
+            | ":wat::bigint::+"
+            | ":wat::bigint::-"
+            | ":wat::bigint::*"
+            | ":wat::bigint::/"
+            | ":wat::bigint::to-f64"
+            | ":wat::bigint::to-rational"
             // Arc 255 Stone C — i64→bigint promotion, i64 home spelling.
             | ":wat::i64::to-bigint"
-            // Arc 300 stone C2 — rational arithmetic + conversions.
-            | ":wat::core::rational::+"
-            | ":wat::core::rational::-"
-            | ":wat::core::rational::*"
-            | ":wat::core::rational::/"
+            // Arc 300 stone C2 — rational arithmetic + conversions. Arc 255
+            // Stone D — `:wat::rational::*` is the rational home (the old
+            // `:wat::core::rational::*` / `:wat::core::rational/*` spellings
+            // are retired). Every one of these forwards straight to
+            // `crate::runtime::eval_rational_arith` /
+            // `crate::runtime::eval_rational_{to_f64,numerator,denominator}`
+            // (see `src/intrinsic/rational.rs`'s module doc).
+            | ":wat::rational::+"
+            | ":wat::rational::-"
+            | ":wat::rational::*"
+            | ":wat::rational::/"
+            | ":wat::rational::to-f64"
+            | ":wat::rational::numerator"
+            | ":wat::rational::denominator"
             // Arc 255 Stone C — i64→rational promotion, i64 home spelling.
             | ":wat::i64::to-rational"
-            | ":wat::core::bigint::to-rational"
-            | ":wat::core::rational::to-f64"
-            | ":wat::core::rational/numerator"
-            | ":wat::core::rational/denominator"
             // Arc 255 Stone C — `:wat::f64::*` is the f64 home (the old
             // `:wat::core::f64::*` spelling is retired); every one of these forwards
             // straight to `crate::runtime::eval_f64_arith` / `crate::runtime::eval_f64_unary`
@@ -470,33 +523,34 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::stream->pvec"
             | ":wat::core::record?"
             | ":wat::core::str"
-            // PersistentVector ops
+            // PersistentVector ops — bare TYPE constructor unmoved (STOP-3); the 5 `/`-verbs
+            // below moved to `:wat::vector::*` this stone (arc 255 Stone E-ii).
             | ":wat::core::PersistentVector"
-            | ":wat::core::PersistentVector/length"
-            | ":wat::core::PersistentVector/empty?"
-            | ":wat::core::PersistentVector/contains?"
-            | ":wat::core::PersistentVector/get"
-            | ":wat::core::PersistentVector/conj"
-            // PersistentMap ops
+            | ":wat::vector::length"
+            | ":wat::vector::empty?"
+            | ":wat::vector::contains?"
+            | ":wat::vector::get"
+            | ":wat::vector::conj"
+            // PersistentMap / HashMap TYPE constructors — bare, no rename this stone
+            // (arc 255 Stone E-i moved only the `/`-verb ops; the type constructors are a
+            // separate future stone, per the numerics type/ops split precedent).
             | ":wat::core::PersistentMap"
-            | ":wat::core::PersistentMap/length"
-            | ":wat::core::PersistentMap/empty?"
-            | ":wat::core::PersistentMap/contains-key?"
-            | ":wat::core::PersistentMap/get"
-            | ":wat::core::PersistentMap/assoc"
-            | ":wat::core::PersistentMap/dissoc"
-            | ":wat::core::PersistentMap/keys"
-            | ":wat::core::PersistentMap/values"
-            // HashMap ops
             | ":wat::core::HashMap"
-            | ":wat::core::HashMap/length"
-            | ":wat::core::HashMap/empty?"
-            | ":wat::core::HashMap/contains-key?"
-            | ":wat::core::HashMap/get"
-            | ":wat::core::HashMap/assoc"
-            | ":wat::core::HashMap/dissoc"
-            | ":wat::core::HashMap/keys"
-            | ":wat::core::HashMap/values"
+            // Arc 255 Stone E-i — the maps get their homes. `:wat::core::{PersistentMap,
+            // HashMap}/*` retired this stone; `keys`/`values` excluded here (classified
+            // non-deterministic by the special-case block earlier in this fn).
+            | ":wat::map::length"
+            | ":wat::map::empty?"
+            | ":wat::map::contains-key?"
+            | ":wat::map::get"
+            | ":wat::map::assoc"
+            | ":wat::map::dissoc"
+            | ":wat::hashmap::length"
+            | ":wat::hashmap::empty?"
+            | ":wat::hashmap::contains-key?"
+            | ":wat::hashmap::get"
+            | ":wat::hashmap::assoc"
+            | ":wat::hashmap::dissoc"
             // Deterministic Uuid ops (v5 = SHA1(ns,name); from-string/to-string/nil)
             | ":wat::uuid::v5"
             | ":wat::uuid::from-string"
@@ -558,24 +612,31 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::f64::round" | ":wat::f64::clamp"
             | ":wat::f64::max-of" | ":wat::f64::min-of"
             | ":wat::f64::to-i64" | ":wat::f64::to-string"
-            // The `String/` family — ENTIRELY absent. Note `:wat::string::` (lowercase, a
-            // namespace) is whitelisted by prefix above; `String/` is the per-Type family users
-            // actually call, and it is a different namespace, so the prefix never covered it.
-            | ":wat::core::String/concat"      | ":wat::core::String/contains?"
-            | ":wat::core::String/empty?"      | ":wat::core::String/starts-with?"
-            | ":wat::core::String/ends-with?"
+            // Arc 255 Stone F — the `:wat::core::String/{concat,contains?,empty?,starts-with?,
+            // ends-with?}` entries that lived HERE are DELETED, not migrated: their replacement
+            // (`:wat::string::*`) is already covered by the `:wat::string::` prefix whitelist
+            // above (this stone added the five verbs to ITS small `total` list), so a
+            // hand-list entry here would be redundant the moment the verbs moved — a hand-list
+            // deleted beats a hand-list migrated. `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`
             // `Vector/`, `List/`, `HashSet/` — the value containers. `PersistentVector/`,
             // `PersistentMap/` and `HashMap/` were classified; these three were skipped.
-            | ":wat::core::Vector"        | ":wat::core::Vector/length"   | ":wat::core::Vector/get"
-            | ":wat::core::Vector/conj"   | ":wat::core::Vector/contains?" | ":wat::core::Vector/empty?"
-            | ":wat::core::Vector/concat" | ":wat::core::Vector/extend"
-            | ":wat::core::List?"         | ":wat::core::List"            | ":wat::core::List/length"
-            | ":wat::core::List/get"      | ":wat::core::List/conj"       | ":wat::core::List/contains?"
-            | ":wat::core::List/empty?"
-            | ":wat::core::HashSet"       | ":wat::core::HashSet/length"  | ":wat::core::HashSet/conj"
-            | ":wat::core::HashSet/contains?" | ":wat::core::HashSet/empty?"
+            // Arc 255 Stone E-ii — the bare TYPE `:wat::core::Vector` is unmoved (STOP-3); the
+            // 7 `/`-verbs moved to `:wat::vec::*` this stone.
+            | ":wat::core::Vector"      | ":wat::vec::length"   | ":wat::vec::get"
+            | ":wat::vec::conj"         | ":wat::vec::contains?" | ":wat::vec::empty?"
+            | ":wat::vec::concat"       | ":wat::vec::extend"
+            // Arc 255 Stone E-iii — the bare TYPE `:wat::core::List` (and `List?`) is unmoved
+            // (STOP-3); the 5 `/`-verbs moved to `:wat::linkedlist::*` this stone.
+            | ":wat::core::List?"         | ":wat::core::List"            | ":wat::linkedlist::length"
+            | ":wat::linkedlist::get"     | ":wat::linkedlist::conj"      | ":wat::linkedlist::contains?"
+            | ":wat::linkedlist::empty?"
+            // Arc 255 Stone E-iii — the bare TYPE `:wat::core::HashSet` is unmoved (STOP-3);
+            // the 4 `/`-verbs moved to `:wat::hashset::*` this stone.
+            | ":wat::core::HashSet"       | ":wat::hashset::length"  | ":wat::hashset::conj"
+            | ":wat::hashset::contains?" | ":wat::hashset::empty?"
             // The persistent sibling the `into` stone minted; its `Vector/extend` twin is above.
-            | ":wat::core::PersistentVector/concat"
+            // Arc 255 Stone E-ii — moved to `:wat::vector::concat`.
+            | ":wat::vector::concat"
             // Scalar conversions — total, same-in-same-out.
             | ":wat::core::bool::to-string"
             | ":wat::core::i64/to-f64" | ":wat::core::i64/to-string"
@@ -627,9 +688,10 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //     two f64 inputs including NaN/±Inf (IEEE says `NaN > x` is `false`, never a raise), so the
     //     OUTPUT itself can never be the undefined thing this axis polices — same shape as the
     //     `coincident?`/`presence?` predicates below.
-    //   `PersistentVector/length` `/contains?` — always defined.
-    //   `PersistentVector/get` — ALREADY total by design (returns `Option`, `None` on
-    //     out-of-range — verified `persistentvector_get_inner`, never raises for a valid index).
+    //   `vector::length` `/contains?` (arc 255 Stone E-ii home for `PersistentVector`'s verbs)
+    //     — always defined.
+    //   `vector::get` — ALREADY total by design (returns `Option`, `None` on out-of-range —
+    //     verified `persistentvector_get_inner`, never raises for a valid index).
     //   `String/concat` `/starts-with?` `/ends-with?` `/contains?` `/empty?` — verified
     //     (`intrinsic/string.rs`) total for any two strings, no domain restriction.
     //   `foldl` — CONDITIONALLY total exactly like its pure∧det entry above: the verb ITSELF never
@@ -721,14 +783,14 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // `f64::>` (kept total) already uses immediately above.
             | ":wat::f64::="
             | ":wat::f64::not="
-            | ":wat::core::PersistentVector/length"
-            | ":wat::core::PersistentVector/contains?"
-            | ":wat::core::PersistentVector/get"
-            | ":wat::core::String/concat"
-            | ":wat::core::String/starts-with?"
-            | ":wat::core::String/ends-with?"
-            | ":wat::core::String/contains?"
-            | ":wat::core::String/empty?"
+            // Arc 255 Stone E-ii — moved to `:wat::vector::*` this stone (name-only; the
+            // totality argument above is unchanged).
+            | ":wat::vector::length"
+            | ":wat::vector::contains?"
+            | ":wat::vector::get"
+            // Arc 255 Stone F — the `:wat::core::String/*` five that lived here are DELETED,
+            // not migrated: their `:wat::string::*` replacement's totality is carried by the
+            // `:wat::string::` prefix block above, which this stone extended to cover them.
             | ":wat::core::foldl"
             // ★ THE FOUR HOF SIBLINGS, added 2026-08-05 (task #80) — `foldl` stood here ALONE for
             // three days and its four siblings did not, which was an inconsistency inside ONE
@@ -2126,7 +2188,7 @@ mod completeness_gate {
         (":wat::holon::", Disp::Unreviewed, "4 ruled pure 2026-08-01 (cosine/dot/coincident?/presence?). The rest split into threshold siblings (likely pure), LEARNING ops (update/add/put — a semantics question before a purity one), and the eval-* family (purity is the argument's)"),
         (":wat::rete::", Disp::Unreviewed, "engine verbs — insert/query/fire are pure value transforms over a Session, but a rete verb inside a rete predicate wants a ruling on recursion before a ruling on purity"),
         (":wat::stream::", Disp::Unreviewed, "laziness — a Stream's purity is its producer's"),
-        (":wat::std::", Disp::Unreviewed, "arc 109 is annihilating this namespace; classify only what survives"),
+        (":wat::std::", Disp::Unreviewed, "arc 255 Stone HOME-9 (2026-08-27) retired the last 14 dispatched verbs that survived arc 109's sweep (math/stat/list) — this scan currently finds NOTHING under this prefix; the rule is kept as insurance against a stray future re-add, not because anything lives here"),
         (":wat::verify::", Disp::Unreviewed, "signature verification — reads keys; needs review"),
         (":wat::form::", Disp::Unreviewed, "form/AST manipulation; kin to the `:wat::core::ast->*` family"),
         (":wat::stdlib::", Disp::Unreviewed, "single verb; unexamined"),
@@ -2238,8 +2300,6 @@ mod completeness_gate {
     ":wat::core::find-last-index",
     ":wat::core::fn",
     ":wat::core::forms",
-    ":wat::core::keyword/from-string",
-    ":wat::core::keyword/to-string",
     ":wat::core::last",
     ":wat::core::macroexpand",
     ":wat::core::macroexpand-1",
@@ -2354,6 +2414,31 @@ mod completeness_gate {
     ":wat::holon::vector-bundle",
     ":wat::holon::vector-bytes",
     ":wat::holon::vector-permute",
+    // Arc 255 Stone E-iv — `keyword` gets its home. `to-string`/`from-string` carry forward
+    // the SAME open ruling under their OLD spelling (this ledger never classified them
+    // either); `to-symbol`/`to-type-form`/`to-type-form-colon` are newly VISIBLE to this scan
+    // for the first time — registering all five via `#[wat_intrinsic]` makes `dispatch_verbs`'
+    // intrinsic-homes scan see them, where before the three producers lived only in
+    // `dispatch_keyword_head`'s producer match (a region this scan never reads). Parked here
+    // rather than classified in `intrinsic_meta`: the F5 `is_pure_total` allow-list
+    // (`macros/eval.rs`) already treats all five as pure/deterministic, but ruling on THIS
+    // axis (RETE-fireability) for a verb nothing forces into a `where` is out of this stone's
+    // scope — same restraint as E-iii's refused `RETE_MODULES` entry.
+    ":wat::keyword::from-string",
+    ":wat::keyword::to-string",
+    ":wat::keyword::to-symbol",
+    ":wat::keyword::to-type-form",
+    ":wat::keyword::to-type-form-colon",
+    // Arc 255 Stone HOME-9 — `:wat::std::math::*` moved to `:wat::math::*`. Carries forward
+    // the SAME open ruling under the new spelling (this ledger never classified them either);
+    // `log` (the seventh old verb) is DELETED, not moved, so it drops out of this ledger
+    // rather than being renamed.
+    ":wat::math::cos",
+    ":wat::math::exp",
+    ":wat::math::ln",
+    ":wat::math::pi",
+    ":wat::math::sin",
+    ":wat::math::sqrt",
     ":wat::rete::alpha-match",
     ":wat::rete::alpha-match-local",
     ":wat::rete::alpha-match-under",
@@ -2383,20 +2468,20 @@ mod completeness_gate {
     ":wat::rete::step-payload",
     ":wat::rete::total?",
     ":wat::rete::vocabulary-admitted?",
-    ":wat::std::list::map-with-index",
-    ":wat::std::list::remove-at",
-    ":wat::std::list::window",
-    ":wat::std::list::zip",
-    ":wat::std::math::cos",
-    ":wat::std::math::exp",
-    ":wat::std::math::ln",
-    ":wat::std::math::log",
-    ":wat::std::math::pi",
-    ":wat::std::math::sin",
-    ":wat::std::math::sqrt",
-    ":wat::std::stat::mean",
-    ":wat::std::stat::stddev",
-    ":wat::std::stat::variance",
+    // Arc 255 Stone HOME-9 — `:wat::std::list::{zip,window,remove-at}` moved to
+    // `:wat::seq::*` (and became Seqable-generic in the same motion — a runtime/check
+    // concern, not a purity ruling; they carry forward the SAME open ruling under the new
+    // spelling). `map-with-index` (the fourth old verb) is DELETED, not moved, so it drops
+    // out of this ledger; its replacement `:wat::core::map-indexed` was already classified
+    // (or already unreviewed under its own name) before this stone and is unaffected.
+    ":wat::seq::remove-at",
+    ":wat::seq::window",
+    ":wat::seq::zip",
+    // Arc 255 Stone HOME-9 — `:wat::std::stat::*` moved to `:wat::stat::*`. Carries forward
+    // the SAME open ruling under the new spelling.
+    ":wat::stat::mean",
+    ":wat::stat::stddev",
+    ":wat::stat::variance",
     ":wat::stdlib::sources",
     ":wat::stream::cons",
     ":wat::stream::empty",
@@ -2407,6 +2492,42 @@ mod completeness_gate {
     // inherits exactly their unreviewed status, not a fresh one. Ruling purity is out of
     // scope for this stone (additive: mint the verb, change nothing else).
     ":wat::stream::next",
+
+        // ── ADDED 2026-08-27 (HOME-12, the AST registry home). These ten were ALWAYS
+        // dispatched and ALWAYS unreviewed; the gate simply could not SEE them. Its scan
+        // anchors on `dispatch_keyword_head_value` and `dispatch_substrate_impl`
+        // (`dispatch_verbs`, below) and has never covered `dispatch_keyword_head` — the
+        // `Result<TrackedValue, _>` path where PRODUCERS live. All ten are producers, so all
+        // ten sat in the blind spot. HOME-12 registered them as `#[wat_intrinsic]`, the scan's
+        // other half, and the gate saw them for the first time and went red.
+        //
+        // ⚠ THE RED WAS THE GATE WORKING, and it is the mirror of this ledger's own 2026-08-20
+        // lesson: carve stones used to REMOVE verbs from the scan's sight and call the smaller
+        // number a review. This carve ADDED verbs to its sight. Parking them here is the honest
+        // disposition — nobody has ruled on their purity — not a ratchet being loosened.
+        //
+        // ⛔ FOUR ARMS REMAIN INVISIBLE for exactly the same reason and are NOT parked here,
+        // because the gate cannot count what it cannot see: `:wat::core::write-forms`,
+        // `with-children`, `macro-error`, `let` still live in `dispatch_keyword_head`. Widening
+        // `dispatch_verbs` to a third anchor is a separate stone; until it happens this ledger
+        // is exact only over what the scan reaches.
+        //
+        // Measured while parking, so the eventual ruling starts from evidence rather than a guess:
+        //   read-string   is TOTAL — malformed input returns `ReadOutcome/Malformed`, it does not raise.
+        //   fresh-symbol  is NONDETERMINISTIC — `fresh_scope()` is a process-global AtomicU64;
+        //                 two calls in ONE process returned `scopes [1069]` then `[1070]`.
+        //                 (Two calls in two PROCESSES both return [1069] — an instrument that
+        //                 cannot see the defect it is pointed at.)
+        ":wat::core::ast->children",
+        ":wat::core::ast->source",
+        ":wat::core::ast-end-span",
+        ":wat::core::ast-kind",
+        ":wat::core::ast-name",
+        ":wat::core::ast-span",
+        ":wat::core::fresh-symbol",
+        ":wat::core::keyword-node",
+        ":wat::core::read-string",
+        ":wat::core::symbol-node",
     ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the

@@ -18,6 +18,7 @@
 //! message is the raised Fault's message ("boom"). The `:user::main` assertions
 //! (below, run via `call_beside_value`) fire a panic if that mapping doesn't hold.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 
 /// Wall proof: (raise! 42) is rejected at compile time.
@@ -27,10 +28,12 @@ fn raise_bare_integer_is_compile_error() {
     let result = startup_from_file(
         "tests/diagnostics/probe_arc296_raise_gate.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "raise! 42 should be rejected at compile time (wall holds); \
-         startup unexpectedly succeeded"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::kernel::raise!"
+            && param == "#1"
+            && expected == ":wat::core::Error"
+            && got == ":wat::core::i64"
     );
     let msg = format!("{}", result.unwrap_err());
     // The error must be the exact type-mismatch diagnostic from the checker (EDN face,

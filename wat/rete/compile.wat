@@ -40,14 +40,14 @@
    child-id <- :wat::core::i64]
   -> :wat::core::PersistentMap
   (:wat::core::let [node   (:wat::core::Option/expect
-                                  (:wat::core::PersistentMap/get network node-id)
+                                  (:wat::map::get network node-id)
                                   "network-add-child: node not found")
                     old-ch (:wat::rete::node-children-ids node)]
-    (:wat::core::if (:wat::core::PersistentVector/contains? old-ch child-id)
+    (:wat::core::if (:wat::vector::contains? old-ch child-id)
       network
-      (:wat::core::let [new-ch   (:wat::core::PersistentVector/conj old-ch child-id)
+      (:wat::core::let [new-ch   (:wat::vector::conj old-ch child-id)
                         new-node (:wat::core::Record/assoc node :children new-ch)]
-        (:wat::core::PersistentMap/assoc network node-id new-node)))))
+        (:wat::map::assoc network node-id new-node)))))
 
 ;; find-or-mint-alpha — find an existing AlphaNode whose tests == cond, or mint a new one.
 ;; Dedup key: "alpha:<write-forms cond>".
@@ -63,7 +63,7 @@
                     network   (:wat::rete::CompileState/network state)
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
-                    found-opt (:wat::core::HashMap/get dedup dkey)]
+                    found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
       ((:wat::core::Some existing-id)
        (:wat::rete::MintResult :id existing-id :state state))
@@ -72,8 +72,8 @@
                                       :id next-id
                                       :tests (:wat::core::PersistentVector cond)
                                       :children (:wat::core::PersistentVector))
-                         new-net   (:wat::core::PersistentMap/assoc network next-id alpha)
-                         new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
+                         new-net   (:wat::map::assoc network next-id alpha)
+                         new-dedup (:wat::hashmap::assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
                                       :network new-net
                                       :next-id (:wat::i64::+ next-id 1)
@@ -104,7 +104,7 @@
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                        i   <- :wat::core::i64]
         -> (:wat::core::PersistentVector :- [:wat::WatAST])
-        (:wat::core::PersistentVector/conj acc
+        (:wat::vector::conj acc
           (:wat::core::Option/expect
             (:wat::core::get ch i)
             "cond-children")))
@@ -155,7 +155,7 @@
                     network   (:wat::rete::CompileState/network state)
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
-                    found-opt (:wat::core::HashMap/get dedup dkey)]
+                    found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
       ((:wat::core::Some existing-id)
        (:wat::rete::MintResult :id existing-id :state state))
@@ -163,8 +163,8 @@
        (:wat::core::let [join-node (:wat::rete::RootJoinNode
                                       :id next-id
                                       :children (:wat::core::PersistentVector))
-                         new-net   (:wat::core::PersistentMap/assoc network next-id join-node)
-                         new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
+                         new-net   (:wat::map::assoc network next-id join-node)
+                         new-dedup (:wat::hashmap::assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
                                       :network new-net
                                       :next-id (:wat::i64::+ next-id 1)
@@ -184,7 +184,7 @@
                     network   (:wat::rete::CompileState/network state)
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
-                    found-opt (:wat::core::HashMap/get dedup dkey)]
+                    found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
       ((:wat::core::Some existing-id)
        (:wat::rete::MintResult :id existing-id :state state))
@@ -192,8 +192,8 @@
        (:wat::core::let [join-node (:wat::rete::HashJoinNode
                                       :id next-id
                                       :children (:wat::core::PersistentVector))
-                         new-net   (:wat::core::PersistentMap/assoc network next-id join-node)
-                         new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
+                         new-net   (:wat::map::assoc network next-id join-node)
+                         new-dedup (:wat::hashmap::assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
                                       :network new-net
                                       :next-id (:wat::i64::+ next-id 1)
@@ -390,7 +390,7 @@
                                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                   i   <- :wat::core::i64]
                                    -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                   (:wat::core::PersistentVector/conj acc
+                                   (:wat::vector::conj acc
                                      (:wat::core::Option/expect
                                        (:wat::core::get or-ch i)
                                        "compile-condition: or arm")))
@@ -413,7 +413,7 @@
                                         arm)]
               (:wat::rete::CondFoldAcc
                 :state (:wat::rete::CondFoldAcc/state arm-acc)
-                :parent-ids (:wat::core::PersistentVector/concat
+                :parent-ids (:wat::vector::concat
                               (:wat::rete::CondFoldAcc/parent-ids fold-acc)
                               (:wat::rete::CondFoldAcc/parent-ids arm-acc)))))
           (:wat::rete::CondFoldAcc :state state0 :parent-ids (:wat::core::PersistentVector))
@@ -426,7 +426,7 @@
                                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                   i   <- :wat::core::i64]
                                    -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                   (:wat::core::PersistentVector/conj acc
+                                   (:wat::vector::conj acc
                                      (:wat::core::Option/expect
                                        (:wat::core::get and-ch i)
                                        "compile-condition: and child")))
@@ -475,7 +475,7 @@
                         next-id0  (:wat::rete::CompileState/next-id state0)
                         dedup0    (:wat::rete::CompileState/dedup   state0)
                         test-node (:wat::rete::TestNode :id next-id0 :expr expr :children (:wat::core::PersistentVector))
-                        net1      (:wat::core::PersistentMap/assoc network0 next-id0 test-node)
+                        net1      (:wat::map::assoc network0 next-id0 test-node)
                         state1    (:wat::rete::CompileState
                                      :network net1
                                      :next-id (:wat::i64::+ next-id0 1)
@@ -490,7 +490,7 @@
                                      :next-id (:wat::rete::CompileState/next-id state1)
                                      :dedup (:wat::rete::CompileState/dedup   state1))]
         (:wat::rete::CondFoldAcc :state state2
-          :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id0)))
+          :parent-ids (:wat::vector::conj (:wat::core::PersistentVector) next-id0)))
       (:wat::core::if is-not
         ;; ── :not branch (7-a) ───────────────────────────────────────────────────
         ;; Leading :not is legal (Clara negated conjunction matches the empty world).
@@ -507,7 +507,7 @@
                           next-id1    (:wat::rete::CompileState/next-id state1)
                           dedup1      (:wat::rete::CompileState/dedup   state1)
                           neg-node    (:wat::rete::NegationNode :id next-id1 :negated-alpha-id neg-alpha-id :children (:wat::core::PersistentVector))
-                          net2        (:wat::core::PersistentMap/assoc network1 next-id1 neg-node)
+                          net2        (:wat::map::assoc network1 next-id1 neg-node)
                           state2      (:wat::rete::CompileState
                                          :network net2
                                          :next-id (:wat::i64::+ next-id1 1)
@@ -521,7 +521,7 @@
                                          :next-id (:wat::rete::CompileState/next-id state2)
                                          :dedup (:wat::rete::CompileState/dedup   state2))]
           (:wat::rete::CondFoldAcc :state state3
-            :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id1)))
+            :parent-ids (:wat::vector::conj (:wat::core::PersistentVector) next-id1)))
         (:wat::core::if is-exists
           ;; ── :exists branch (7-exists) ────────────────────────────────────────────
           ;; Leading :exists is legal (Clara test-simple-exists). Empty parent-ids:
@@ -538,7 +538,7 @@
                             next-id1     (:wat::rete::CompileState/next-id state1)
                             dedup1       (:wat::rete::CompileState/dedup   state1)
                             ex-node      (:wat::rete::ExistsNode :id next-id1 :exists-alpha-id ex-alpha-id :children (:wat::core::PersistentVector))
-                            net2         (:wat::core::PersistentMap/assoc network1 next-id1 ex-node)
+                            net2         (:wat::map::assoc network1 next-id1 ex-node)
                             state2       (:wat::rete::CompileState
                                            :network net2
                                            :next-id (:wat::i64::+ next-id1 1)
@@ -552,7 +552,7 @@
                                            :next-id (:wat::rete::CompileState/next-id state2)
                                            :dedup (:wat::rete::CompileState/dedup   state2))]
             (:wat::rete::CondFoldAcc :state state3
-              :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id1)))
+              :parent-ids (:wat::vector::conj (:wat::core::PersistentVector) next-id1)))
         (:wat::core::if is-accumulate
           ;; ── accumulate branch (8-a) ─────────────────────────────────────────────
           ;; Form: (?result-var <- (<acc-form>) :from (<inner>))
@@ -642,7 +642,7 @@
                                              :acc-form acc-form
                                              :from-alpha-id from-alpha-id
                                              :children (:wat::core::PersistentVector))
-                            net2         (:wat::core::PersistentMap/assoc network1 next-id1 acc-node)
+                            net2         (:wat::map::assoc network1 next-id1 acc-node)
                             state2       (:wat::rete::CompileState
                                             :network net2
                                             :next-id (:wat::i64::+ next-id1 1)
@@ -656,7 +656,7 @@
                                             :next-id (:wat::rete::CompileState/next-id state2)
                                             :dedup (:wat::rete::CompileState/dedup   state2))]
             (:wat::rete::CondFoldAcc :state state3
-              :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) next-id1)))
+              :parent-ids (:wat::vector::conj (:wat::core::PersistentVector) next-id1)))
           ;; ── alpha+join: first condition → RootJoin; later → one HashJoin per parent
           (:wat::core::let [alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
                         alpha-id   (:wat::rete::MintResult/id    alpha-res)
@@ -675,7 +675,7 @@
                                            :next-id (:wat::rete::CompileState/next-id state2)
                                            :dedup (:wat::rete::CompileState/dedup state2))]
                 (:wat::rete::CondFoldAcc :state state3
-                  :parent-ids (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) join-id)))
+                  :parent-ids (:wat::vector::conj (:wat::core::PersistentVector) join-id)))
               (:wat::core::let [fan (:wat::core::foldl
                                       (:wat::core::fn [acc <- :wat::rete::CondFoldAcc
                                                        pid <- :wat::core::i64]
@@ -694,7 +694,7 @@
                                                                 :next-id (:wat::rete::CompileState/next-id st1)
                                                                 :dedup (:wat::rete::CompileState/dedup st1))]
                                           (:wat::rete::CondFoldAcc :state st2
-                                            :parent-ids (:wat::core::PersistentVector/conj
+                                            :parent-ids (:wat::vector::conj
                                                           (:wat::rete::CondFoldAcc/parent-ids acc)
                                                           jid))))
                                       (:wat::rete::CondFoldAcc :state state1
@@ -793,7 +793,7 @@
                     ret-ty    (:wat::runtime::return-type-of head-fn)
                     ;; `keyword/from-string` wants COLON-FREE input (it adds the sigil itself);
                     ;; `return-type-of` already returns a colon-free FQDN — do not re-prepend one.
-                    ret-kw    (:wat::core::keyword/from-string ret-ty)
+                    ret-kw    (:wat::keyword::from-string ret-ty)
                     ;; raises unless ret-kw names a registered record/struct — "produces a fact."
                     _fact-ty  (:wat::runtime::field-names-of ret-kw)]
     acc))
@@ -806,7 +806,7 @@
     (:wat::core::if (:wat::core::= k "symbol")
       (:wat::core::let [nm (:wat::core::ast-name ast)]
         (:wat::core::if (:wat::string::starts-with? nm "?")
-          (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) nm)
+          (:wat::vector::conj (:wat::core::PersistentVector) nm)
           (:wat::core::PersistentVector)))
       (:wat::core::if
         (:wat::core::if (:wat::core::= k "list")
@@ -825,9 +825,9 @@
                   (:wat::core::fn [out <- (:wat::core::PersistentVector :- [:wat::core::String])
                                    nm  <- :wat::core::String]
                     -> (:wat::core::PersistentVector :- [:wat::core::String])
-                    (:wat::core::if (:wat::core::PersistentVector/contains? out nm)
+                    (:wat::core::if (:wat::vector::contains? out nm)
                       out
-                      (:wat::core::PersistentVector/conj out nm)))
+                      (:wat::vector::conj out nm)))
                   acc
                   (:wat::rete::ast-qvars kid))))
             (:wat::core::PersistentVector)
@@ -862,12 +862,12 @@
                         (:wat::core::fn [out <- (:wat::core::PersistentVector :- [:wat::core::String])
                                          nm  <- :wat::core::String]
                           -> (:wat::core::PersistentVector :- [:wat::core::String])
-                          (:wat::core::if (:wat::core::PersistentVector/contains? out nm)
+                          (:wat::core::if (:wat::vector::contains? out nm)
                             out
-                            (:wat::core::PersistentVector/conj out nm)))
+                            (:wat::vector::conj out nm)))
                         acc
                         (:wat::rete::cond-bind-keys kid))))
-                  (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
+                  (:wat::vector::conj (:wat::core::PersistentVector) hnm)
                   (:wat::core::range 3 n))
                 (:wat::core::if
                   (:wat::core::if (:wat::string::starts-with? hnm "?")
@@ -885,7 +885,7 @@
                         false)
                       false)
                     false)
-                  (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
+                  (:wat::vector::conj (:wat::core::PersistentVector) hnm)
                   (:wat::core::if
                     (:wat::core::if (:wat::string::starts-with? hnm "?")
                       (:wat::core::if (:wat::core::= n 5)
@@ -900,10 +900,10 @@
                       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                        nm  <- :wat::core::String]
                         -> (:wat::core::PersistentVector :- [:wat::core::String])
-                        (:wat::core::if (:wat::core::PersistentVector/contains? acc nm)
+                        (:wat::core::if (:wat::vector::contains? acc nm)
                           acc
-                          (:wat::core::PersistentVector/conj acc nm)))
-                      (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
+                          (:wat::vector::conj acc nm)))
+                      (:wat::vector::conj (:wat::core::PersistentVector) hnm)
                       (:wat::rete::cond-bind-keys
                         (:wat::core::Option/expect
                           (:wat::core::get ch 4)
@@ -931,9 +931,9 @@
                            (:wat::core::fn [out <- (:wat::core::PersistentVector :- [:wat::core::String])
                                             nm  <- :wat::core::String]
                              -> (:wat::core::PersistentVector :- [:wat::core::String])
-                             (:wat::core::if (:wat::core::PersistentVector/contains? out nm)
+                             (:wat::core::if (:wat::vector::contains? out nm)
                                out
-                               (:wat::core::PersistentVector/conj out nm)))
+                               (:wat::vector::conj out nm)))
                            acc
                            (:wat::rete::cond-bind-keys kid))))
                      (:wat::core::PersistentVector)
@@ -1009,7 +1009,7 @@
                         -> (:wat::core::PersistentVector :- [:wat::core::String])
                         (:wat::core::if (:wat::rete::cond-is-accumulate cond)
                           (:wat::core::let [ch (:wat::core::ast->children cond)]
-                            (:wat::core::PersistentVector/conj
+                            (:wat::vector::conj
                               acc
                               (:wat::core::ast-name (:wat::core::first ch))))
                           acc))
@@ -1024,7 +1024,7 @@
                             -> :wat::core::bool
                             (:wat::core::if hit
                               true
-                              (:wat::core::PersistentVector/contains? qs rv)))
+                              (:wat::vector::contains? qs rv)))
                           false
                           result-vars)))
                     independent
@@ -1036,7 +1036,7 @@
                           (:wat::core::if (:wat::rete::cond-is-accumulate cond)
                             false
                             (:wat::core::not (uses-result? cond)))
-                          (:wat::core::PersistentVector/conj acc cond)
+                          (:wat::vector::conj acc cond)
                           acc))
                       (:wat::core::PersistentVector)
                       lhs)
@@ -1046,7 +1046,7 @@
                                        cond <- :wat::WatAST]
                         -> (:wat::core::PersistentVector :- [:wat::WatAST])
                         (:wat::core::if (:wat::rete::cond-is-accumulate cond)
-                          (:wat::core::PersistentVector/conj acc cond)
+                          (:wat::vector::conj acc cond)
                           acc))
                       (:wat::core::PersistentVector)
                       lhs)
@@ -1059,13 +1059,13 @@
                           (:wat::core::if (:wat::rete::cond-is-accumulate cond)
                             false
                             (uses-result? cond))
-                          (:wat::core::PersistentVector/conj acc cond)
+                          (:wat::vector::conj acc cond)
                           acc))
                       (:wat::core::PersistentVector)
                       lhs)]
-    (:wat::core::PersistentVector/concat
+    (:wat::vector::concat
       independent
-      (:wat::core::PersistentVector/concat accums rest))))
+      (:wat::vector::concat accums rest))))
 
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
@@ -1094,7 +1094,7 @@
                     network2   (:wat::rete::CompileState/network state2)
                     next-id2   (:wat::rete::CompileState/next-id state2)
                     prod       (:wat::rete::ProductionNode :id next-id2 :rule-name rname)
-                    net3       (:wat::core::PersistentMap/assoc network2 next-id2 prod)
+                    net3       (:wat::map::assoc network2 next-id2 prod)
                     net4       (:wat::rete::wire-parents net3 pids next-id2)]
     (:wat::rete::CompileState :network net4 :next-id (:wat::i64::+ next-id2 1)
       :dedup (:wat::rete::CompileState/dedup state2))))
@@ -1118,7 +1118,7 @@
                                  :id next-id2
                                  :query-name qname
                                  :param-keys (:wat::rete::Query/params q))
-                    net3       (:wat::core::PersistentMap/assoc network2 next-id2 qnode)
+                    net3       (:wat::map::assoc network2 next-id2 qnode)
                     net4       (:wat::rete::wire-parents net3 pids next-id2)]
     (:wat::rete::CompileState :network net4 :next-id (:wat::i64::+ next-id2 1)
       :dedup (:wat::rete::CompileState/dedup state2))))

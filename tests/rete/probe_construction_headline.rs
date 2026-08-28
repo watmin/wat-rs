@@ -21,34 +21,42 @@
 //! Run: cargo test --release -p wat --test probe_construction_headline
 
 use wat::assertion::AssertionPayload;
-use wat::freeze::startup_from_file;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 const WORLD_GREEN: &str = "tests/rete/probe_construction_headline_green.wat";
 const WORLD_RED: &str = "tests/rete/probe_construction_headline_red.wat";
 const WORLD_ARITY_BAD: &str = "tests/rete/probe_construction_arity_check_rejects.wat.bad";
 
-/// Call the named zero-arg entry fn and return its result, or an `Err` string for either an
+/// Call the named zero-arg entry fn and return its result, or a typed `StartupError` for either an
 /// ordinary raise OR the fence's `Option/expect` panic (caught via `catch_unwind`, exactly as
-/// `probe_arc278_then_user_forms.rs`'s `run` does).
-fn run(world_path: &str, fn_name: &str) -> Result<Value, String> {
-    let world = startup_from_file(world_path).map_err(|e| format!("startup: {e:?}"))?;
+/// `probe_arc278_then_user_forms.rs`'s `run` does) — arc 296 Stone M: the panic's
+/// `AssertionPayload` fields land in `RuntimeErrorKind::AssertionFailed` instead of being
+/// `format!`-collapsed to a bare String.
+fn run(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(world_path)?;
     let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no entry fn {fn_name:?}")).clone();
     let sym = world.symbols();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         apply_function(func, vec![], sym, wat::rust_caller_span!())
     })) {
-        Ok(res) => res.map_err(|e| format!("eval: {e:?}")),
+        Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
         Err(panic_payload) => {
-            if let Some(p) = panic_payload.downcast_ref::<AssertionPayload>() {
-                Err(p.message.clone())
-            } else if let Some(s) = panic_payload.downcast_ref::<String>() {
-                Err(s.clone())
-            } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                Err((*s).to_string())
-            } else {
-                Err("panic-opaque".to_string())
-            }
+            let (message, actual, expected) = match panic_payload.downcast_ref::<AssertionPayload>() {
+                Some(p) => (p.message.clone(), p.actual.clone(), p.expected.clone()),
+                None => {
+                    let message = panic_payload
+                        .downcast_ref::<String>()
+                        .cloned()
+                        .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                        .unwrap_or_else(|| "panic-opaque".to_string());
+                    (message, None, None)
+                }
+            };
+            Err(StartupError::Runtime(Box::new(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::AssertionFailed { message, actual, expected },
+            ))))
         }
     }
 }
@@ -75,10 +83,13 @@ fn construct_and_return_derives_via_native_kernel() {
 #[test]
 fn construct_plus_impure_op_still_refused() {
     let r = run(WORLD_RED, ":user::run-compile");
-    let msg = r.expect_err("a :then item head that touches an impure op must fail to compile, even if it also constructs a record");
-    assert_eq!(
-        msg,
-        "compile-condition: then expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: then expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+        )
     );
 }
 

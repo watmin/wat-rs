@@ -79,15 +79,15 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc (:pcf::Req :k i)))
+        (:wat::vector::conj acc (:pcf::Req :k i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 10))))
 
 (:wat::core::defn :pcf::derived [fired <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::Vector/length
+  (:wat::vec::length
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:pcf::Hit/k f)))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pcf::Hit/k f)))
         (:wat::rete::query fired (:pcf::q-Hit))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -96,7 +96,7 @@
     [ctl     (:wat::rete::fire-rules
                (:pcf::seed (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit)))))
      _ok     (:wat::kernel::println
-               (:wat::core::String/concat "if-control derived n=" (:wat::i64::to-string (:pcf::derived ctl))))
+               (:wat::string::concat "if-control derived n=" (:wat::i64::to-string (:pcf::derived ctl))))
 
      ;; 2. COMPILE the cond rule. The purity fence runs HERE and passes — this line does not raise,
      ;;    which is precisely the defect: every static gate has now said yes.

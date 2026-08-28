@@ -11,7 +11,7 @@
 ;; keyword/from-string is a producer (Stone 233.2.b) — wraps its return with
 ;; RuntimeBuilt provenance naming the producer.
 (:wat::core::defn :user::kw-from-string [] -> :wat::core::keyword
-  (:wat::core::keyword/from-string "wat::core::nil"))
+  (:wat::keyword::from-string "wat::core::nil"))
 
 (:wat::core::defn :user::hello [] -> :wat::core::String
   "hello")

@@ -14,6 +14,7 @@
 //! (slurped via startup_beside(file!())).
 //! Negative startup test uses: tests/value/wat_eval_result_wrong_arity.wat
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
@@ -94,7 +95,12 @@ fn eval_edn_bang_wrong_arity_surfaces_as_err() {
     // shows up at startup (the type checker catches it as wrong-arity).
     // Negative fixture fails to freeze; startup_from_file returns Err.
     let result = startup_from_file("tests/value/wat_eval_result_wrong_arity.wat");
-    assert!(result.is_err(), "expected startup-time arity failure");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::ArityMismatch { callee, expected, got }
+            if callee == ":wat::eval-edn!"
+            && *expected == 1
+            && *got == 2
+    );
 }
 
 // ─── try-based propagation through a Result-returning helper ─────────

@@ -45,5 +45,5 @@
       (:wat::kernel::println (:wat::string::concat "arg1-kind: " a1kind))
       (:wat::kernel::println (:wat::string::concat "arg1-name: " a1name))
       (:wat::kernel::println (:wat::string::concat "arg2-name: " a2name))
-      (:wat::kernel::println (:wat::core::keyword/to-string nm0))
+      (:wat::kernel::println (:wat::keyword::to-string nm0))
       (:wat::kernel::println "c1-ast-shape: ok"))))

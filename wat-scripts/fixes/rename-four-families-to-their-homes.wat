@@ -61,13 +61,13 @@
          ;; corpus, so the guard changes no outcome here — kept anyway, it is what makes the
          ;; count honest as well as the rewrite safe.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::Uuid/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::Uuid/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "uuid"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::uuid::"
+                         :value (:wat::rete::string::concat ":wat::uuid::"
                                   (:wat::rete::string::subs ?n 17
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -78,13 +78,13 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::regex::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::regex::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "regex"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::regex::"
+                         :value (:wat::rete::string::concat ":wat::regex::"
                                   (:wat::rete::string::subs ?n 19
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -160,9 +160,9 @@
                      row <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
-        [line     (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?line")     "q-match: ?line")
-         col      (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?col")      "q-match: ?col")
-         captures (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?captures") "q-match: ?captures")
+        [line     (:wat::core::Option/expect (:wat::map::get row "?line")     "q-match: ?line")
+         col      (:wat::core::Option/expect (:wat::map::get row "?col")      "q-match: ?col")
+         captures (:wat::core::Option/expect (:wat::map::get row "?captures") "q-match: ?captures")
          old-text (:wat::grep::Capture/value (:fhc::first-capture captures))
          new-text (:wat::grep::Capture/value (:fhc::second-capture captures))
          start    {:line line     :col col}

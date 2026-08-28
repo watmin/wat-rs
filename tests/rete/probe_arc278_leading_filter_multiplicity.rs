@@ -33,23 +33,38 @@
 //! Run: cargo test --release -p wat --test rete probe_arc278_leading_filter
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 /// `[exists@2rounds, not@2rounds, exists@6rounds, not@6rounds]`.
-fn leading_rows() -> Result<Vec<i64>, String> {
-    let out = call_beside_value(file!(), ":user::leading-rows")
-        .map_err(|e| format!("eval :user::leading-rows: {e:?}"))?;
+fn leading_rows() -> Result<Vec<i64>, RuntimeError> {
+    let out = call_beside_value(file!(), ":user::leading-rows")?;
     let items: Vec<&Value> = match &out {
         Value::wat__core__PersistentVector(v) => v.iter().collect(),
         Value::Vec(v) => v.iter().collect(),
-        other => return Err(format!("expected a vector; got {other:?}")),
+        other => {
+            return Err(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: "leading_rows".into(),
+                    expected: "vector",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            ))
+        }
     };
     items
         .into_iter()
         .enumerate()
         .map(|(i, v)| match v {
             Value::i64(x) => Ok(*x),
-            other => Err(format!("slot {i}: expected i64; got {other:?}")),
+            other => Err(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: format!("leading_rows slot {i}"),
+                    expected: "i64",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )),
         })
         .collect()
 }

@@ -33,4 +33,4 @@
      (:wat::core::mapv
        (:wat::core::fn [window <- :wat::holon::Holons] -> :wat::holon::HolonAST
          (:wat::holon::Sequential window))
-       (:wat::std::list::window ~xs ~n))))
+       (:wat::seq::window ~xs ~n))))

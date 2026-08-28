@@ -1244,9 +1244,9 @@ impl OpExec {
             ":wat::string::=" => Self::StrEq,
             ":wat::string::not=" => Self::StrNotEq,
             ":wat::string::length" => Self::StrLen,
-            ":wat::string::starts-with?" | ":wat::core::String/starts-with?" => Self::StartsWith,
-            ":wat::string::ends-with?" | ":wat::core::String/ends-with?" => Self::EndsWith,
-            ":wat::string::contains?" | ":wat::core::String/contains?" => Self::Contains,
+            ":wat::string::starts-with?" => Self::StartsWith,
+            ":wat::string::ends-with?" => Self::EndsWith,
+            ":wat::string::contains?" => Self::Contains,
             ":wat::core::not" => Self::Not,
             ":wat::i64::+" => Self::I64Add,
             ":wat::i64::-" => Self::I64Sub,
@@ -1268,16 +1268,22 @@ impl OpExec {
             ":wat::f64::/" => Self::F64Div,
             ":wat::f64::to-string" => Self::F64ToStr,
             ":wat::core::bool::to-string" => Self::BoolToStr,
-            ":wat::core::String/empty?" => Self::StrEmpty,
-            ":wat::core::String/concat" => Self::StrConcat,
+            ":wat::string::empty?" => Self::StrEmpty,
+            ":wat::string::concat" => Self::StrConcat,
             ":wat::string::trim" => Self::StrTrim,
             ":wat::string::to-lowercase" => Self::StrLower,
             ":wat::string::subs" => Self::StrSubs,
-            ":wat::core::PersistentVector/length" => Self::PvLen,
-            ":wat::core::PersistentVector/contains?" => Self::PvContains,
-            ":wat::core::PersistentVector/get" => Self::PvGet,
-            ":wat::core::Vector/get" => Self::VecGet,
-            ":wat::core::List/get" => Self::ListGet,
+            // Arc 255 Stone E-ii — `core` arrives as `row.core_name`, which for the moved
+            // PersistentVector/Vector verbs now reads `:wat::vector::*`/`:wat::vec::*` (E-ii's
+            // homes), not `:wat::core::PersistentVector/*`/`:wat::core::Vector/*`. Mirrors Stone
+            // C's numerics fold-removal note above: keyed on the new spelling directly.
+            ":wat::vector::length" => Self::PvLen,
+            ":wat::vector::contains?" => Self::PvContains,
+            ":wat::vector::get" => Self::PvGet,
+            ":wat::vec::get" => Self::VecGet,
+            // Arc 255 Stone E-iii — `:wat::core::List/get` retired this stone;
+            // `:wat::linkedlist::get` is its replacement. Mirrors the E-ii note above.
+            ":wat::linkedlist::get" => Self::ListGet,
             ":wat::core::first" => Self::First,
             ":wat::core::PersistentVector" => Self::PvNew,
             ":wat::core::Vector" => Self::VecNew,

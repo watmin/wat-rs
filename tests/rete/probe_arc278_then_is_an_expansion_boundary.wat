@@ -85,15 +85,15 @@
                     fz (:teb::fired "z")
                     ga (:wat::core::fn [s <- :wat::rete::Session] -> :wat::core::String
                          (:teb::Out/v (:wat::core::Option/expect
-                           (:wat::core::PersistentMap/get (:teb::fact s (:teb::q-out)) "?fact") "out")))
+                           (:wat::map::get (:teb::fact s (:teb::q-out)) "?fact") "out")))
                     wa (:wat::core::Option/expect
-                         (:wat::core::PersistentMap/get (:teb::fact fa (:teb::q-wrap)) "?fact") "wrap")]
+                         (:wat::map::get (:teb::fact fa (:teb::q-wrap)) "?fact") "wrap")]
     (:wat::core::mapv
       (:wat::core::fn [x <- :wat::core::String] -> :wat::core::String x)
       (:wat::core::PersistentVector
         (ga fa) (ga fb) (ga fz)
         (:teb::Pair/a (:wat::core::Option/expect
-          (:wat::core::PersistentMap/get (:teb::fact fa (:teb::q-pair)) "?fact") "pair"))
+          (:wat::map::get (:teb::fact fa (:teb::q-pair)) "?fact") "pair"))
         (:teb::Pair/a (:teb::Wrap/p wa))
         (:teb::Pair/b (:teb::Wrap/p wa))
         (:wat::i64::to-string (:wat::core::length (:wat::rete::query fa (:teb::q-lhs))))))))

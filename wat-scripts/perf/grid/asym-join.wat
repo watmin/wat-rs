@@ -81,19 +81,19 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc (:asym::A i)))
+        (:wat::vector::conj acc (:asym::A i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
 ;; b-codes / c-codes — every derived fact of each type, canonically encoded.
 (:wat::core::defn :asym::b-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::Vector :wat::core::i64)
-    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:asym::encode 0 (:asym::B/k f))))
+    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:asym::encode 0 (:asym::B/k f))))
       (:wat::rete::query fired (:asym::q-B)))))
 
 (:wat::core::defn :asym::c-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::Vector :wat::core::i64)
-    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:asym::encode 1 (:asym::C/k f))))
+    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:asym::encode 1 (:asym::C/k f))))
       (:wat::rete::query fired (:asym::q-C)))))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-

@@ -14,7 +14,8 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc279_format -- --include-ignored
 
-use wat::freeze::{call_beside_value, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file, StartupError};
+use wat::macros::{MacroError, MacroErrorKind};
 use wat::runtime::Value;
 
 // just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
@@ -40,11 +41,19 @@ fn format_fills_named_placeholders_unquoted() {
 // time with a diagnostic naming the missing placeholder.
 #[test]
 fn format_strict_missing_kwarg_is_macro_error() {
-    let r = startup_from_file("tests/macros/probe_arc279_format_missing_kwarg.wat")
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"));
-    assert!(r.is_err(), "format with a missing kwarg must be a macro-error at startup");
-    let msg = r.unwrap_err();
+    let r = startup_from_file("tests/macros/probe_arc279_format_missing_kwarg.wat");
+    wat::assert_startup_error!(r,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::core::format"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "format: placeholder {y} has no matching kwarg"
+            )
+    );
+    let msg = format!("{:?}", r.unwrap_err());
     wat::assert_edn_matches_file!(
         msg,
         "probe_arc279_format__format_strict_missing_kwarg_is_macro_error.edn",
@@ -58,11 +67,19 @@ fn format_strict_missing_kwarg_is_macro_error() {
 // at expand time with a diagnostic naming the unused kwarg.
 #[test]
 fn format_strict_unused_kwarg_is_macro_error() {
-    let r = startup_from_file("tests/macros/probe_arc279_format_unused_kwarg.wat")
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"));
-    assert!(r.is_err(), "format with an unused kwarg must be a macro-error at startup");
-    let msg = r.unwrap_err();
+    let r = startup_from_file("tests/macros/probe_arc279_format_unused_kwarg.wat");
+    wat::assert_startup_error!(r,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::core::format"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "format: kwarg :y is unused — no {y} in template"
+            )
+    );
+    let msg = format!("{:?}", r.unwrap_err());
     wat::assert_edn_matches_file!(
         msg,
         "probe_arc279_format__format_strict_unused_kwarg_is_macro_error.edn",

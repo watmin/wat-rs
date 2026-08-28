@@ -21,6 +21,7 @@
 //!
 //! Run: `cargo nextest run --release -E 'binary(diagnostics)' -F probe_arc242_stone2_value_position_doctrine`
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── C01: :wat::core::nil in body REJECTED ─────────────────────────────────────
@@ -34,9 +35,10 @@ fn contract_01_keyword_nil_in_body_rejected() {
     // would defeat the test.)
     // Fixture: probe_arc242_stone2_value_position_doctrine_c01.wat.bad
     let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c01.wat.bad");
-    assert!(
-        result.is_err(),
-        "keyword form :wat::core::nil in value position must be REJECTED (Doctrine 1); got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::nil"
+            && reason == "Doctrine 1 (arc 242): ':wat::core::nil' is a TYPE keyword, not a value; use bare `nil` in value position"
     );
 }
 
@@ -96,9 +98,10 @@ fn contract_05_keyword_nil_in_let_binding_rejected() {
     // (:wat::core::let [x :wat::core::nil] x) — ILLEGAL (let-binding value).
     // Fixture: probe_arc242_stone2_value_position_doctrine_c05.wat.bad
     let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c05.wat.bad");
-    assert!(
-        result.is_err(),
-        "keyword :wat::core::nil in let-binding value position must be REJECTED; got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::nil"
+            && reason == "Doctrine 1 (arc 242): ':wat::core::nil' is a TYPE keyword, not a value; use bare `nil` in value position"
     );
 }
 

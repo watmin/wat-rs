@@ -100,7 +100,7 @@ use crate::value::{
 /// @arg     b :wat::core::f64 the right addend
 /// @ret     :wat::core::f64 the sum of `a` and `b`
 /// @example (:wat::f64::+ 1.0 2.0) #=> 3.0
-#[wat_intrinsic(":wat::f64::+")]
+#[wat_intrinsic(":wat::f64::+", value = eval_f64_add_value)]
 pub(crate) fn eval_f64_add(
     a: &WatAST,
     b: &WatAST,
@@ -110,6 +110,15 @@ pub(crate) fn eval_f64_add(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::+";
     crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_add_op)
+}
+
+// Arc 255 Stone N — value-level twin, for `dispatch_substrate_impl`'s
+// registry-first door (`src/runtime.rs`). Same `arith_f64_f64_inner`-based
+// implementation `dispatch_substrate_impl`'s own `:wat::f64::+` arm already
+// used before this stone — see `i64.rs`'s `eval_i64_add_value` comment for
+// why this is deliberately not merged with `eval_f64_arith` above.
+fn eval_f64_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::+", vals, |a, b| Ok(a + b))
 }
 
 /// `(:wat::f64::- a b)` → `a` minus `b`, strict f64. Same shared op fn as
@@ -123,7 +132,7 @@ pub(crate) fn eval_f64_add(
 /// @arg     b :wat::core::f64 the subtrahend
 /// @ret     :wat::core::f64 `a` minus `b`
 /// @example (:wat::f64::- 5.0 3.0) #=> 2.0
-#[wat_intrinsic(":wat::f64::-")]
+#[wat_intrinsic(":wat::f64::-", value = eval_f64_sub_value)]
 pub(crate) fn eval_f64_sub(
     a: &WatAST,
     b: &WatAST,
@@ -133,6 +142,11 @@ pub(crate) fn eval_f64_sub(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::-";
     crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_sub_op)
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
+fn eval_f64_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::-", vals, |a, b| Ok(a - b))
 }
 
 /// `(:wat::f64::* a b)` → `a` times `b`, strict f64. Same shared op fn as
@@ -146,7 +160,7 @@ pub(crate) fn eval_f64_sub(
 /// @arg     b :wat::core::f64 the second factor
 /// @ret     :wat::core::f64 `a` times `b`
 /// @example (:wat::f64::* 3.0 4.0) #=> 12.0
-#[wat_intrinsic(":wat::f64::*")]
+#[wat_intrinsic(":wat::f64::*", value = eval_f64_mul_value)]
 pub(crate) fn eval_f64_mul(
     a: &WatAST,
     b: &WatAST,
@@ -156,6 +170,11 @@ pub(crate) fn eval_f64_mul(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::*";
     crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_mul_op)
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
+fn eval_f64_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::*", vals, |a, b| Ok(a * b))
 }
 
 /// `(:wat::f64::/ a b)` → `a` divided by `b`. IEEE 754 division: `b = 0.0`
@@ -170,7 +189,7 @@ pub(crate) fn eval_f64_mul(
 /// @arg     b :wat::core::f64 the divisor
 /// @ret     :wat::core::f64 `a` divided by `b`
 /// @example (:wat::f64::/ 6.0 2.0) #=> 3.0
-#[wat_intrinsic(":wat::f64::/")]
+#[wat_intrinsic(":wat::f64::/", value = eval_f64_div_value)]
 pub(crate) fn eval_f64_div(
     a: &WatAST,
     b: &WatAST,
@@ -180,6 +199,11 @@ pub(crate) fn eval_f64_div(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::/";
     crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_div_op)
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
+fn eval_f64_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::/", vals, |a, b| Ok(a / b))
 }
 
 // ─── max / min (binary) ─────────────────────────────────────────────────────

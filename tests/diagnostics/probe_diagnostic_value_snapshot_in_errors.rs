@@ -33,18 +33,17 @@
 //!              runtime path.
 //!   ANY FAIL — specific RuntimeError variant's promotion incomplete.
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
 use wat::runtime::{apply_function, Value};
 
-fn run_compute(path: &str) -> Result<Value, String> {
-    let world = startup_from_file(path)
-        .map_err(|e| format!("startup: {:?}", e))?;
+fn run_compute(path: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(path)?;
     let func = world
         .symbols()
         .get(":user::compute")
         .unwrap_or_else(|| panic!("fixture {path:?} must define :user::compute"));
     apply_function(func.clone(), vec![], world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("eval: {:?}", e))
+        .map_err(|e| StartupError::Runtime(Box::new(e)))
 }
 
 // ─── Probe 1: NotCallable renders the offending keyword content ─────────────
@@ -75,7 +74,7 @@ fn probe_1_not_callable_renders_offending_keyword() {
             // and this note need not be extended again. `.wat`-facing spans below are
             // unaffected: normalization never touches a span whose `:file` is not `.rs`.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_1_not_callable_renders_offending_keyword.edn",
                 "Probe 1: NotCallable must surface type name + rendered keyword content"
             );
@@ -103,7 +102,7 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
             // CLOSED by arc 255 Stone A-i repair — `.rs`-file spans are now
             // line-normalized before comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_2_not_callable_renders_runtime_built_keyword.edn",
                 "Probe 2: NotCallable must surface type name + rendered runtime-built keyword"
             );
@@ -136,7 +135,7 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
             // this session with a column-arithmetic script against the actual fixture text.
             // The old golden pinned a wrong value; the new value is the correct one.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_3_type_mismatch_renders_non_keyword_head.edn",
                 "Probe 3: TypeMismatch must surface rendered String content"
             );
@@ -164,7 +163,7 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
             // byte-exact: `line[129:131]` (0-idx) == `"42"`, the i64 literal, verified this
             // session against the actual fixture text.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_4_type_mismatch_renders_non_vector_spread.edn",
                 "Probe 4: TypeMismatch must surface rendered i64 content"
             );
@@ -178,15 +177,20 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 // (closes the "what value" gap).
 // After Stone 233.2.a: substrate has Value::Tracked + Provenance::RuntimeBuilt
 // (scaffolding; no producers tag yet).
-// After Stone 233.2.b (THIS): eval_keyword_from_string wraps return in
+// After Stone 233.2.b: eval_keyword_from_string wraps return in
 // Value::Tracked { provenance: Provenance::RuntimeBuilt { producer:
 // ":wat::core::keyword/from-string", call_span } }. ValueSnapshot::Display
 // renders producer info inline.
 //
-// This probe asserts the error message now mentions the producer.
-// Currently FAILS (Provenance always Unknown even from keyword/from-string).
-// After 233.2.b ships, PASSES — closes the load-bearing runtime-built case
-// from INVENTORY § O three-case table.
+// Arc 255 Stone E-iv moved `keyword/from-string`'s dispatch route onto the
+// `#[wat_intrinsic]` registry, whose `NativeHandler` signature at the time had no slot for a
+// custom `Provenance` — this probe's golden was RECAPTURED to the degraded `SymbolBound`
+// shape, with an honest `⚠ REGRESSED` comment recording the mechanism (see arc 255 Stone G's
+// commit / `probe_stone_233_2_j_producer_migration.rs` probe 2 for the full account).
+// Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning signature (sniffed from the
+// handler's own declared return type), so `src/intrinsic/keyword.rs`'s `from-string` handler
+// stamps `Provenance::RuntimeBuilt` again — this probe's golden is RESTORED to that shape,
+// now under the new `:wat::keyword::from-string` spelling.
 #[test]
 fn probe_6_runtime_built_keyword_renders_producer_info() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat (same WAT as probe_2)
@@ -199,9 +203,9 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
             // Stone A-i repair — `.rs`-file spans are now line-normalized before
             // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_6_runtime_built_keyword_renders_producer_info.edn",
-                "Probe 6: must surface rendered keyword content + producer info (Stone 233.1+233.2.b)"
+                "Probe 6: must surface rendered keyword content and producer info"
             );
         }
     }
@@ -231,7 +235,7 @@ fn probe_7_from_holon_produces_tagged_value() {
             // arc 255 Stone A-i repair — `.rs`-file spans are now line-normalized before
             // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_7_from_holon_produces_tagged_value.edn",
                 "Probe 7: error must mention from-holon producer (Stone 233.2.c)"
             );
@@ -262,7 +266,7 @@ fn probe_8_edn_read_produces_tagged_value() {
             // arc 255 Stone A-i repair — `.rs`-file spans are now line-normalized before
             // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_8_edn_read_produces_tagged_value.edn",
                 "Probe 8: error must mention edn::read producer (Stone 233.2.c)"
             );

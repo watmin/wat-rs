@@ -5,53 +5,65 @@
 //! Run: `cargo test --release --test probe_arc251_keyword_to_symbol`
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each `:user::…` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed String.
-fn eval_string(fn_name: &str) -> Result<String, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+//
+// arc 296 Stone M: `call_beside_value` already returns `Result<Value, RuntimeError>` — not a
+// `StartupError` chain — so the real (never-flattened) error type here is `RuntimeError`
+// itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
+// the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
+fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
+    match call_beside_value(file!(), fn_name)? {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(format!("non-string: {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.into(),
+                expected: "String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 
 #[test]
 fn contract_01_simple_head() {
-    assert_eq!(eval_string(":user::convert-c01a"), Ok("wat.core/if".into()));
-    assert_eq!(eval_string(":user::convert-c01b"), Ok("wat.holon/HolonAST".into()));
-    assert_eq!(eval_string(":user::convert-c01c"), Ok("user/main".into()));
+    assert_eq!(eval_string(":user::convert-c01a").expect("eval_string"), "wat.core/if");
+    assert_eq!(eval_string(":user::convert-c01b").expect("eval_string"), "wat.holon/HolonAST");
+    assert_eq!(eval_string(":user::convert-c01c").expect("eval_string"), "user/main");
 }
 
 #[test]
 fn contract_02_division_is_clojure_core_slashslash() {
-    assert_eq!(eval_string(":user::convert-c02a"), Ok("wat.core//".into()));
-    assert_eq!(eval_string(":user::convert-c02b"), Ok("wat.core/+".into()));
+    assert_eq!(eval_string(":user::convert-c02a").expect("eval_string"), "wat.core//");
+    assert_eq!(eval_string(":user::convert-c02b").expect("eval_string"), "wat.core/+");
 }
 
 #[test]
 fn contract_03_type_method_folds_type_into_namespace() {
-    assert_eq!(eval_string(":user::convert-c03a"), Ok("wat.core.Option/expect".into()));
-    assert_eq!(eval_string(":user::convert-c03b"), Ok("wat.core.HashMap/dissoc".into()));
+    assert_eq!(eval_string(":user::convert-c03a").expect("eval_string"), "wat.core.Option/expect");
+    assert_eq!(eval_string(":user::convert-c03b").expect("eval_string"), "wat.core.HashMap/dissoc");
 }
 
 #[test]
 fn contract_04_deep_and_nested() {
     assert_eq!(
-        eval_string(":user::convert-c04a"),
-        Ok("wat.kernel.services.StdErrService/handle".into())
+        eval_string(":user::convert-c04a").expect("eval_string"),
+        "wat.kernel.services.StdErrService/handle"
     );
     assert_eq!(
-        eval_string(":user::convert-c04b"),
-        Ok("wat.kernel.services.StdErrService.Rep/new".into())
+        eval_string(":user::convert-c04b").expect("eval_string"),
+        "wat.kernel.services.StdErrService.Rep/new"
     );
 }
 
 #[test]
 fn contract_05_result_is_a_symbol_not_a_keyword() {
     assert_eq!(
-        eval_string(":user::c05"),
-        Ok("symbol".into()),
+        eval_string(":user::c05").expect("eval_string"),
+        "symbol",
         "the converted head is a Symbol node (a call head), not a Keyword"
     );
 }

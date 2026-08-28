@@ -96,7 +96,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:ins::Reading])  i <- :wat::core::i64]
       -> (:wat::core::PersistentVector :- [:ins::Reading])
-      (:wat::core::PersistentVector/conj acc (:ins::Reading :g 0 :v i)))
+      (:wat::vector::conj acc (:ins::Reading :g 0 :v i)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 

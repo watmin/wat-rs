@@ -186,6 +186,34 @@ pub(crate) fn eval_string_ends_with(
     Ok(Value::bool(hay.ends_with(suffix.as_str())))
 }
 
+/// `(:wat::string::empty? s)` → whether `s` has zero characters.
+///
+/// Arc 255 Stone F, Phase 1 — the home's missing twin. `:wat::core::String/empty?`
+/// (`runtime.rs`, Stone 237.3) has no `#[wat_intrinsic]` registration and no other
+/// `:wat::string::*` verb duplicates it; the polymorphic `:wat::core::empty?` refuses a
+/// String by construction (its arms are Vector/HashMap/PersistentMap/PersistentVector/
+/// HashSet/List — String was never among them). Registered here first so the corpus
+/// migration has a live target to move onto.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Probe
+/// @arg     s :wat::core::String the string to test
+/// @ret     :wat::core::bool true iff `s` has zero characters
+/// @example (:wat::string::empty? "") #=> true
+/// @see     :wat::string::length
+#[wat_intrinsic(":wat::string::empty?")]
+pub(crate) fn eval_string_empty(
+    s: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `s`'s own span (`arg_string`)
+) -> Result<Value, EvalBreak> {
+    let s = arg_string(":wat::string::empty?", s, env, sym)?;
+    Ok(Value::bool(s.is_empty()))
+}
+
 /// `(:wat::string::length s)` → the number of Unicode scalar values in `s`.
 ///
 /// Unicode scalar count (`chars().count()`) — matches the mental model of

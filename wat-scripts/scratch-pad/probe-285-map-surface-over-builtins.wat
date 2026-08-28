@@ -25,10 +25,10 @@
   :features [(mget [self <- (:user::Mapping :- [K V]) k <- K] -> (:wat::core::Option :- [V]))])
 
 (:wat::core::extend-type :wat::core::HashMap (:user::Mapping :- [K V])
-  (mget [self k] -> (:wat::core::Option :- [V]) (:wat::core::HashMap/get self k)))
+  (mget [self k] -> (:wat::core::Option :- [V]) (:wat::hashmap::get self k)))
 
 (:wat::core::extend-type :wat::core::PersistentMap (:user::Mapping :- [K V])
-  (mget [self k] -> (:wat::core::Option :- [V]) (:wat::core::PersistentMap/get self k)))
+  (mget [self k] -> (:wat::core::Option :- [V]) (:wat::map::get self k)))
 
 ;; The payoff: ONE fn, typed against the surface, taking EITHER family.
 (:wat::core::defn :user::lookup [m <- (:user::Mapping :- [:wat::core::String :wat::core::i64])]

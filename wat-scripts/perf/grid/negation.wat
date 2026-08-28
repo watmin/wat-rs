@@ -71,9 +71,9 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::let [a2 (:wat::core::PersistentVector/conj acc (:neg::Item i))]
+        (:wat::core::let [a2 (:wat::vector::conj acc (:neg::Item i))]
           (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
-            (:wat::core::PersistentVector/conj a2 (:neg::Bad i))
+            (:wat::vector::conj a2 (:neg::Bad i))
             a2)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -89,7 +89,7 @@
 (:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
                               (:wat::rete::query fired (:neg::q-Ok))))]
     (:neg::vec->pvec (:wat::core::sort codes))))
 

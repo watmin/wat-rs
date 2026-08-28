@@ -1,4 +1,5 @@
-//! Carry-along — `:wat::std::math::sqrt`.
+//! Carry-along — `:wat::math::sqrt` (arc 255 Stone HOME-9 — moved off the dead `:wat::std::`
+//! namespace).
 //!
 //! Surfaced by holon-lab-trading arc 026 slice 4 (Bollinger's
 //! RollingStddev needs `var.sqrt()`). Same shape as ln/exp/sin/cos —

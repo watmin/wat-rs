@@ -14,7 +14,7 @@
           (:wat::core::do
             (:wat::kernel::println
               (:wat::string::interpolate "{fqdn}  ::  {reason}"
-                :fqdn (:wat::core::keyword/to-string (:wat::doctest::Failure/fqdn f))
+                :fqdn (:wat::keyword::to-string (:wat::doctest::Failure/fqdn f))
                 :reason (:wat::doctest::Failure/reason f)))
             (:wat::i64::+ acc 1)))
         0

@@ -41,7 +41,7 @@
      r       (:wat::core::first derived)]
     (:cg::Inner/x
       (:wat::core::Option/expect
-        (:wat::core::PersistentMap/get r "?inner")
+        (:wat::map::get r "?inner")
         "q-Outer: ?inner"))))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path
@@ -56,5 +56,5 @@
      r       (:wat::core::first derived)]
     (:cg::Inner/x
       (:wat::core::Option/expect
-        (:wat::core::PersistentMap/get r "?inner")
+        (:wat::map::get r "?inner")
         "q-Outer: ?inner"))))

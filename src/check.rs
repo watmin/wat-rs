@@ -58,6 +58,7 @@ use crate::span::Span;
 use crate::types::{TypeError, TypeErrorKind, TypeEnv, TypeExpr};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use wat_macros::wat_special_form_impl;
 
 /// A function's declared signature: universally-quantified type
 /// parameters, then parameter types and return type.
@@ -3026,12 +3027,18 @@ fn infer_list(
                 };
             }
             // Arc 220 Stone 220.4 — `:wat::core::List/conj` prepend.
-            // `(:wat::core::List/conj list item)` → `(List :- [T])`.
+            // `(:wat::linkedlist::conj list item)` → `(List :- [T])`.
             // Clojure semantic: prepends item to front; distinct from Vector/conj (append).
-            ":wat::core::List/conj" => {
+            // Arc 255 Stone E-iii — `:wat::core::List/conj` RETIRED this stone;
+            // `:wat::linkedlist::conj` is its replacement. This custom arm lives entirely in
+            // check.rs (no `collection::infer` delegate the way `Vector/extend`/
+            // `PersistentVector/concat` do), so BOTH the match key and its internal `callee`
+            // diagnostics move together — there is no separate "algorithm home" left on the
+            // old spelling.
+            ":wat::linkedlist::conj" => {
                 if args.len() != 2 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::core::List/conj".into(),
+                        callee: ":wat::linkedlist::conj".into(),
                         expected: 2,
                         got: args.len()
                     } });
@@ -3056,7 +3063,7 @@ fn infer_list(
                         TypeExpr::Var(_) => {}
                         _ => {
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                callee: ":wat::core::List/conj".into(),
+                                callee: ":wat::linkedlist::conj".into(),
                                 param: "#1".into(),
                                 expected: "(List :- [T])".into(),
                                 got: format_type(&apply_subst(lt, subst))
@@ -4468,6 +4475,35 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 255 Stone HOME-9 — `:wat::seq::zip`/`window`/`remove-at` are Seqable-generic
+            // now (accept Vector | PersistentVector | List | Stream, same set as map/take/drop
+            // above), which a static `TypeScheme` cannot express — custom arms, same shape as
+            // take/drop. The static Vector-only schemes that used to live at
+            // `:wat::std::list::{zip,window,remove-at}` are RETIRED (register_builtins).
+            ":wat::seq::zip" => {
+                let (val, mut errs) = crate::collection::infer::infer_zip(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::seq::window" => {
+                let (val, mut errs) = crate::collection::infer::infer_window(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::seq::remove-at" => {
+                let (val, mut errs) = crate::collection::infer::infer_remove_at(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — `seqable->stream` is
             // native now (was a wat `defclause`, `wat/seq.wat`); check-side parity with
             // map/take/drop above (same `extract_lazyable_elem` Seqable set).
@@ -4498,7 +4534,9 @@ fn infer_list(
             // Vector/concat) is never consulted — this arm always intercepts first.
             // Arc 278 — the mirror: destination fixes the kind (Vector), source takes either.
             // Same reason for a custom arm: a static TypeScheme cannot express arg2's dual shape.
-            ":wat::core::Vector/extend" => {
+            // arc 255 Stone E-ii — `:wat::core::Vector/extend` RETIRED this stone;
+            // `:wat::vec::extend` is its replacement.
+            ":wat::vec::extend" => {
                 let (val, mut errs) = crate::collection::infer::infer_vector_extend(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -4506,7 +4544,9 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::core::PersistentVector/concat" => {
+            // arc 255 Stone E-ii — `:wat::core::PersistentVector/concat` RETIRED this stone;
+            // `:wat::vector::concat` is its replacement.
+            ":wat::vector::concat" => {
                 let (val, mut errs) = crate::collection::infer::infer_persistentvector_concat(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -4849,6 +4889,16 @@ fn infer_list(
             }
             _ if (k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::"))
                 && !k.starts_with(":wat::std::math::")
+                // Arc 255 Stone HOME-9 — `math` was already excluded (it kept a registered
+                // scheme until this stone retired it); `stat`/`list` need the SAME exclusion
+                // now that their old spellings are retired too, or a retired
+                // `:wat::std::stat::*`/`:wat::std::list::*` call would be silently
+                // accept-and-recursed HERE instead of reaching Door 1 (the retirement-table
+                // consult a few hundred lines down) — an inert-row regression
+                // `tests/cli/retirement_table_reachable.rs` measures directly. Found by this
+                // stone's own rider, not named in the brief's Rooms list.
+                && !k.starts_with(":wat::std::stat::")
+                && !k.starts_with(":wat::std::list::")
                 && env.get(k).is_none()
                 // Arc 259 S2c-ii-b — stdlib defclauses under :wat::kernel:: have no
                 // scheme (the stub is removed by register_stdlib_defclauses) but DO
@@ -4861,9 +4911,9 @@ fn infer_list(
                 && env.get_defclause_clauses(k).is_none() =>
             {
                 // Unknown kernel / std path with no registered scheme or defclause —
-                // accept and recurse. Math lives at `:wat::std::math::*`
-                // and has registered schemes; exclude it so the normal
-                // scheme lookup below kicks in.
+                // accept and recurse. Math/stat/list (arc 255 Stone HOME-9's three retired
+                // families) are excluded so a retired call reaches Door 1 below instead of
+                // being silently waved through.
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
@@ -7383,15 +7433,15 @@ fn check_subpattern(
 /// `(:wat::core::if cond then else)` — typed conditional per
 /// the 2026-04-20 INSCRIPTION.
 ///
-/// Arity: 5 args exactly. Positions: [cond, `->`, `:T`, then, else].
-/// The declared `:T` is the expected type for BOTH branches; each
-/// branch body is checked against it independently so the error
-/// message names WHICH branch diverged (rather than "branches
-/// didn't unify" which doesn't name the author's intent).
+/// Arity: exactly 3 args — `[cond, then, else]`. Both branches are checked
+/// against one another so the error names WHICH branch diverged, rather than
+/// "branches didn't unify", which does not name the author's intent.
 ///
-/// The old 3-arg form is refused with a migration-hint MalformedForm
-/// at resolve time via the runtime's eval_if; by the time we reach
-/// infer_if with the wrong arity, we emit MalformedForm and bail.
+/// ⛔ THIS DOC WAS INVERTED UNTIL 2026-08-28, in the same way `eval_if`'s was:
+/// it claimed *"5 args exactly … the old 3-arg form is refused"*. Arc 258.4
+/// retired the `-> :T` ascription; 3 args is the live form. See `eval_if`'s
+/// comment for why this now matters — `show-source` publishes it.
+#[wat_special_form_impl(":wat::core::if", role = check)]
 fn infer_if(
     args: &[WatAST],
     head_span: &Span,
@@ -7666,6 +7716,7 @@ fn infer_do(
 // uniformity; functions that don't emit errors at the head site
 // underscore-prefix the parameter (`_head_span`) — the signature stays
 // consistent across the family.
+#[wat_special_form_impl(":wat::core::let", role = check)]
 fn infer_let(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: MalformedForm at the bad node's own span (the outer Vector's / `other.span()`); process-join errors at their threaded join/bind spans
@@ -16951,11 +17002,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // 2-ary signature mirrors i64/f64; the `wat/core.wat` defclause folds
     // these into 0/1/N-ary surface + the i64⊕bigint contagion arms (which
     // reuse `:wat::i64::to-bigint` to promote i64 before calling in).
-    for op in &[
-        ":wat::core::bigint::+",
-        ":wat::core::bigint::-",
-        ":wat::core::bigint::*",
-    ] {
+    //
+    // Arc 255 Stone D — `:wat::bigint::*` is the bigint home (the old
+    // `:wat::core::bigint::*` spelling is retired); every one of these
+    // forwards straight to `crate::runtime::eval_bigint_arith` /
+    // `crate::runtime::eval_bigint_to_{f64,rational}` (see
+    // `src/intrinsic/bigint.rs`'s module doc).
+    for op in &[":wat::bigint::+", ":wat::bigint::-", ":wat::bigint::*"] {
         env.register(
             op.to_string(),
             TypeScheme {
@@ -16975,7 +17028,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // are the honest runtime backstop) — the same posture already used
     // throughout this file's comments.
     env.register(
-        ":wat::core::bigint::/".to_string(),
+        ":wat::bigint::/".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![bigint_ty(), bigint_ty()],
@@ -16996,9 +17049,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 300 stone C1 — bigint -> f64 (lossy for magnitudes beyond f64's
-    // 53-bit mantissa; same posture as i64::to-f64 above).
+    // 53-bit mantissa; same posture as i64::to-f64 above). Arc 255 Stone D —
+    // `:wat::bigint::to-f64`, the new home.
     env.register(
-        ":wat::core::bigint::to-f64".to_string(),
+        ":wat::bigint::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![bigint_ty()],
@@ -17017,12 +17071,17 @@ fn register_builtins(env: &mut CheckEnv) {
     // only `/` collapses) — same "sound-enough" posture as `bigint::/`
     // immediately above (check is the optimistic primary gate; the runtime
     // collapse is the honest backstop).
+    //
+    // Arc 255 Stone D — `:wat::rational::*` is the rational home (the old
+    // `:wat::core::rational::*` spelling is retired); every one of these
+    // forwards straight to `crate::runtime::eval_rational_arith` (see
+    // `src/intrinsic/rational.rs`'s module doc).
     let rational_ty = || TypeExpr::Path(":wat::core::rational".into());
     for op in &[
-        ":wat::core::rational::+",
-        ":wat::core::rational::-",
-        ":wat::core::rational::*",
-        ":wat::core::rational::/",
+        ":wat::rational::+",
+        ":wat::rational::-",
+        ":wat::rational::*",
+        ":wat::rational::/",
     ] {
         env.register(
             op.to_string(),
@@ -17045,8 +17104,9 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 255 Stone D — `:wat::bigint::to-rational`, the new home.
     env.register(
-        ":wat::core::bigint::to-rational".to_string(),
+        ":wat::bigint::to-rational".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![bigint_ty()],
@@ -17055,9 +17115,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 300 stone C2 — rational -> f64 (float-contagion path + explicit
-    // cast; same posture as bigint::to-f64 above).
+    // cast; same posture as bigint::to-f64 above). Arc 255 Stone D —
+    // `:wat::rational::to-f64`, the new home.
     env.register(
-        ":wat::core::rational::to-f64".to_string(),
+        ":wat::rational::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![rational_ty()],
@@ -17065,12 +17126,16 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 300 stone C2 — numerator/denominator slash-form accessors (cf
-    // Uuid/version). Declared optimistically as returning i64 (the common
-    // case); the runtime returns bigint for a component that overflows i64
-    // (same "sound-enough" posture as bigint::/ above).
+    // Arc 300 stone C2 — numerator/denominator accessors (cf Uuid/version).
+    // Declared optimistically as returning i64 (the common case); the
+    // runtime returns bigint for a component that overflows i64 (same
+    // "sound-enough" posture as bigint::/ above). Arc 255 Stone D — the new
+    // home. The old slash form (`:wat::core::rational/numerator`) becomes an
+    // ordinary `::` verb (`:wat::rational::numerator`) — the
+    // `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent this stone's brief
+    // names.
     env.register(
-        ":wat::core::rational/numerator".to_string(),
+        ":wat::rational::numerator".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![rational_ty()],
@@ -17079,7 +17144,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::rational/denominator".to_string(),
+        ":wat::rational::denominator".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![rational_ty()],
@@ -17339,57 +17404,13 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Stone 237.3 — String/ namespace aliases (uppercase) for probe 14.
-    // String/concat :: :String :String -> :String (2-arg; matches probe usage).
-    env.register(
-        ":wat::core::String/concat".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: string_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/starts-with? :: :String :String -> :bool
-    env.register(
-        ":wat::core::String/starts-with?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/ends-with? :: :String :String -> :bool
-    env.register(
-        ":wat::core::String/ends-with?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/contains? :: :String :String -> :bool
-    env.register(
-        ":wat::core::String/contains?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/empty? :: :String -> :bool
-    env.register(
-        ":wat::core::String/empty?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone F — the Stone 237.3 `String/` namespace aliases (uppercase; concat/
+    // starts-with?/ends-with?/contains?/empty?) that were registered here are RETIRED. Their
+    // replacement, `:wat::string::*`, is registered above/below (see the `for op in &[...]`
+    // loop and the standalone `:wat::string::empty?`/`:wat::string::concat` registrations in
+    // this function). Calling the old spelling now produces an unresolved-function error that
+    // the retirement table (`src/remedy/retirement.rs`) turns into a remedy naming the
+    // replacement, rather than a bare "unknown function".
 
     env.register(
         ":wat::f64::to-string".to_string(),
@@ -17449,9 +17470,12 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 170 slice 3 Gap A — keyword reflection primitives.
     // keyword/to-string: keyword → String (colon-free text).
     // keyword/from-string: String → keyword (inverse; rejects ':'-prefixed input).
+    // Arc 255 Stone E-iv — `:wat::core::keyword/{to-string,from-string}` RETIRED this stone;
+    // `:wat::keyword::{to-string,from-string}` (registered here, VERBATIM schemes — name-only
+    // rename) are their replacements (see `src/remedy/retirement.rs`).
     let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
     env.register(
-        ":wat::core::keyword/to-string".to_string(),
+        ":wat::keyword::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![keyword_ty()],
@@ -17460,7 +17484,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::keyword/from-string".to_string(),
+        ":wat::keyword::from-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17472,6 +17496,19 @@ fn register_builtins(env: &mut CheckEnv) {
     // String basics — :wat::string::*. Per-type ops, char-
     // oriented (length counts unicode scalars, not bytes). See
     // src/intrinsic/string.rs (registry) + src/string/ (implementation) for the handlers.
+    // Arc 255 Stone F, Phase 1 — `:wat::string::empty?`, the home's missing twin
+    // (see `intrinsic/string.rs::eval_string_empty`'s doc). Registered ahead of the
+    // corpus migration so `wat/core.wat`'s `format` macro has a live target to move onto.
+    env.register(
+        ":wat::string::empty?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
     for op in &[
         ":wat::string::contains?",
         ":wat::string::starts-with?",
@@ -19261,19 +19298,16 @@ fn register_builtins(env: &mut CheckEnv) {
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 251 head role-inversion — a rust-scheme call-head Keyword node → a faithful-Clojure
     // Symbol node (the inverse of `ns_to_wat_path`'s grammar; the kind change IS the inversion).
-    env.register(":wat::core::keyword/to-symbol".into(), TypeScheme {
+    // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,to-type-form-colon}`
+    // RETIRED this stone; `:wat::keyword::{to-symbol,to-type-form,to-type-form-colon}`
+    // (registered here, VERBATIM schemes) are their replacements (see `src/remedy/retirement.rs`).
+    env.register(":wat::keyword::to-symbol".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
-    // Arc 251 type-position rendering — a rust-scheme TYPE Keyword node → the faithful-Clojure
-    // type FORM node (`:wat::core::Vector<wat::core::i64>` → `(wat.type/Vector [wat.type/i64])`).
-    env.register(":wat::core::keyword/to-type-form".into(), TypeScheme {
+    env.register(":wat::keyword::to-type-form".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
-    // Arc 109 Stone ②-i — Colon-mode sibling of `keyword/to-type-form`: same parse+render, the
-    // rust-ish `:wat::core::` head spelling instead of the Clojure `wat.type/` flip
-    // (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])`). Step ②'s
-    // corpus codemod needs this spelling; the Clojure head-flip is separate and later.
-    env.register(":wat::core::keyword/to-type-form-colon".into(), TypeScheme {
+    env.register(":wat::keyword::to-type-form-colon".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
@@ -19938,9 +19972,15 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
     // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.
     // Packaged here so Log / Circular expansions get proper checking.
-    for name in ["ln", "log", "exp", "sin", "cos", "sqrt"] {
+    //
+    // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::math::*`.
+    // `log` is DELETED here, not moved: it was wired to the SAME `f64::ln` as `ln` (a level-1
+    // lie — `log(100.0)` = `4.605...` = `ln(100.0)`, not `log10(100.0)` = `2.0`), had zero call
+    // sites in the corpus, and duplicating `ln` under a name that implies a different base is
+    // not a decision worth carrying forward under a new address.
+    for name in ["ln", "exp", "sin", "cos", "sqrt"] {
         env.register(
-            format!(":wat::std::math::{}", name),
+            format!(":wat::math::{}", name),
             TypeScheme {
                 type_params: vec![],
                 params: vec![f64_ty()],
@@ -19950,7 +19990,7 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     env.register(
-        ":wat::std::math::pi".into(),
+        ":wat::math::pi".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![],
@@ -19962,6 +20002,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stat reductions over (Vector :- [f64]) — population variance/stddev
     // (matches numpy default ddof=0); all return (:Option :- [f64]) with
     // None on empty input (matches f64::min-of/max-of convention).
+    // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::stat::*`.
     let opt_f64_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
         args: vec![f64_ty()],
@@ -19972,7 +20013,7 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     for name in ["mean", "variance", "stddev"] {
         env.register(
-            format!(":wat::std::stat::{}", name),
+            format!(":wat::stat::{}", name),
             TypeScheme {
                 type_params: vec![],
                 params: vec![vec_f64_ty()],
@@ -20142,7 +20183,9 @@ fn register_builtins(env: &mut CheckEnv) {
     //   drop     : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [T])
     //   map      : ∀T,U. (Vector :- [T]) × [T :-> U] -> (Vector :- [U])
     //   foldl    : ∀T,Acc. (Vector :- [T]) × Acc × [Acc T :-> Acc] -> Acc
-    //   window   : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [(Vector :- [T])])   (at :wat::std::list::)
+    //   Arc 255 Stone HOME-9 — zip/window/remove-at moved to :wat::seq::*, and Seqable-generic
+    //   (custom infer_zip/infer_window/infer_remove_at arms, collection/infer.rs, same shape as
+    //   take/drop below — a static TypeScheme cannot express "any Seqable").
     let u_var = || TypeExpr::Path(":U".into());
     let acc_var = || TypeExpr::Path(":Acc".into());
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
@@ -20260,38 +20303,17 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    env.register(
-        ":wat::std::list::zip".into(),
-        TypeScheme {
-            type_params: vec!["T".into(), "U".into()],
-            params: vec![vec_of(t_var()), vec_of(u_var())],
-            ret: vec_of(TypeExpr::Tuple(vec![t_var(), u_var()])),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone HOME-9 — the static Vector-only schemes for `:wat::std::list::{zip,
+    // window, remove-at}` that used to live here are RETIRED. Superseded by
+    // `infer_zip`/`infer_window`/`infer_remove_at` (collection/infer.rs), dispatched from the
+    // keyword-head match above at `:wat::seq::{zip,window,remove-at}` — Seqable-generic
+    // (Vector | PersistentVector | List | Stream), which a static TypeScheme cannot express.
+    //
     // get, assoc, conj, and contains? are all polymorphic over
     // container type — dispatched by the infer_* arms above. No
     // narrow schemes registered here.
     // :wat::std::member? RETIRED in arc 025. Use `:wat::core::contains?`
     // instead — now polymorphic over HashMap / HashSet / Vec.
-    env.register(
-        ":wat::std::list::remove-at".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), i64_ty()],
-            ret: vec_of(t_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::std::list::window".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), i64_ty()],
-            ret: vec_of(vec_of(t_var())),
-            rest_param_type: None,
-        },
-    );
 
     // first/second/third are special-cased (polymorphic over Vec + tuple;
     // see infer_positional_accessor). rest is simple:
@@ -20311,23 +20333,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // pairing). Dispatched by `infer_conj` at check.rs arm above.
     //
     // No narrow scheme registered; handled entirely by infer_conj.
-    // :wat::std::list::map-with-index — needed by Sequential for
-    // indexed fold.
-    env.register(
-        ":wat::std::list::map-with-index".into(),
-        TypeScheme {
-            type_params: vec!["T".into(), "U".into()],
-            params: vec![
-                vec_of(t_var()),
-                TypeExpr::Fn {
-                    args: vec![t_var(), i64_ty()],
-                    ret: Box::new(u_var()),
-                },
-            ],
-            ret: vec_of(u_var()),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index`'s scheme (registered here) is
+    // DELETED, not moved. `:wat::core::map-indexed` (already registered/type-checked via
+    // `wat/seq.wat`'s own `defn`) is its Seqable-generic, non-drop-in replacement — see
+    // `src/remedy/retirement.rs`'s row for the check-time redirect and its migration note.
 
     // ─── Arc 144 slice 3 — fingerprints for hardcoded callables ─────────────
     //
@@ -20367,162 +20376,36 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::core::length` (declared in `wat/core.wat`) routes call
     // sites to one of these clean rank-1 schemes based on the arg's
     // value-tag. infer_dispatch_call instantiates the matched arm's
-    // scheme to determine the call's return type. Each per-Type impl
-    // is also directly callable as `:wat::core::Vector/length` etc.
+    // scheme to determine the call's return type.
+    //
+    // Arc 255 Stone E-ii — `:wat::core::Vector/length` RETIRED this stone;
+    // `:wat::vec::length` (registered below, near its E-ii siblings) is its replacement.
+    // Arc 255 Stone E-iii — `:wat::core::HashSet/length` RETIRED this stone;
+    // `:wat::hashset::length` (registered below, near its E-iii siblings) is its replacement.
     //
     // `t_var()` / `k_var()` / `v_var()` defined below at line ~11770
     // return `Path(":T")` etc. — the substrate's convention for
     // user-named type variables (instantiated to fresh unification
     // vars during scheme instantiation).
-    env.register(
-        ":wat::core::Vector/length".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var())],
-            ret: i64_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/length".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::HashMap".into(),
-                args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
-            }],
-            ret: i64_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashSet/length".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::HashSet".into(),
-                args: vec![t_var()],
-            }],
-            ret: i64_ty(),
-            rest_param_type: None,
-        },
-    );
 
     // Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls.
     // Same shape as slice 2's length registrations: each impl is a
     // clean rank-1 scheme; the dispatch (declared in `wat/core.wat`)
     // routes call sites by value-tag. infer_dispatch_call instantiates
     // the matched arm's scheme to determine the call's return type.
-    // Each per-Type impl is also directly callable as
-    // `:wat::core::Vector/empty?` etc.
+    //
+    // Arc 255 Stone E-ii — `:wat::core::Vector/{empty?,contains?,get,conj}` RETIRED this
+    // stone; `:wat::vec::{empty?,contains?,get,conj}` (registered below) are their replacements.
+    // Arc 255 Stone E-iii — `:wat::core::HashSet/{empty?,contains?,conj}` RETIRED this
+    // stone; `:wat::hashset::{empty?,contains?,conj}` (registered below) are their replacements.
+    // HashSet has no direct-call `get` verb (its "get-by-equality" is `contains?`, per arc 146
+    // DESIGN audit table) — nothing to retire on that verb.
 
-    // empty? — 3 arms (Vector / HashMap / HashSet → :bool)
-    env.register(
-        ":wat::core::Vector/empty?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var())],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/empty?".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashSet/empty?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![hashset_of(t_var())],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-
-    // contains? — 3 arms with MIXED VERBS. HashMap tests KEY
-    // membership (verb `contains-key?`); Vector + HashSet test
-    // ELEMENT membership (verb `contains?`). Per arc 146 slice 3
-    // BRIEF: the surface dispatch `(:contains? c x)` routes by
-    // container shape; impl name verbs differ by semantic role.
-    env.register(
-        ":wat::core::Vector/contains?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), t_var()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/contains-key?".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashSet/contains?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![hashset_of(t_var()), t_var()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-
-    // get — 2 arms; per-arm return-type variance:
-    //   Vector/get :: ∀T. (Vec :- [T]) × :i64 -> (:Option :- [T])
+    // get — per-arm return-type variance:
+    //   Vector/get (moved to `:wat::vec::get` below) :: ∀T. (Vec :- [T]) × :i64 -> (:Option :- [T])
     //   HashMap/get :: ∀K,V. (HashMap :- [K V]) × K -> (:Option :- [V])
     // infer_dispatch_call returns the matched arm's specific (Option :- [_]);
     // no union-type machinery needed (per arc 146 DESIGN).
-    env.register(
-        ":wat::core::Vector/get".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), i64_ty()],
-            ret: opt(t_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/get".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var()],
-            ret: opt(v_var()),
-            rest_param_type: None,
-        },
-    );
-
-    // conj — 2 arms (HashMap excluded; HashMap uses assoc).
-    //   Vector/conj :: ∀T. (Vector :- [T]) × T -> (Vector :- [T])
-    //   HashSet/conj :: ∀T. (HashSet :- [T]) × T -> (HashSet :- [T])
-    env.register(
-        ":wat::core::Vector/conj".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), t_var()],
-            ret: vec_of(t_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashSet/conj".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![hashset_of(t_var()), t_var()],
-            ret: hashset_of(t_var()),
-            rest_param_type: None,
-        },
-    );
 
     // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat
     // impls. These ops aren't dispatched (only one container per name);
@@ -20535,58 +20418,13 @@ fn register_builtins(env: &mut CheckEnv) {
     //   HashMap/assoc  :: ∀K,V. (HashMap :- [K V]) × K × V -> (HashMap :- [K V])
     //   HashMap/dissoc :: ∀K,V. (HashMap :- [K V]) × K     -> (HashMap :- [K V])
     //   HashMap/keys   :: ∀K,V. (HashMap :- [K V])         -> (Vector :- [K])
-    //   HashMap/values :: ∀K,V. (HashMap :- [K V])         -> (Vector :- [V])
-    env.register(
-        ":wat::core::HashMap/assoc".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
-            ret: hashmap_of(k_var(), v_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/dissoc".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var()],
-            ret: hashmap_of(k_var(), v_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/keys".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: vec_of(k_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/values".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: vec_of(v_var()),
-            rest_param_type: None,
-        },
-    );
 
     // concat — Vector-only (DESIGN audit; string::concat already
     // namespaced separately). 2-arg fingerprint per arc 144 slice 3
     // limitation; pre-arc-146 1+ variadic shape collapsed to honest
     // binary; callers nest for >2 args (or fold).
-    //   Vector/concat :: ∀T. (Vector :- [T]) × (Vector :- [T]) -> (Vector :- [T])
-    env.register(
-        ":wat::core::Vector/concat".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), vec_of(t_var())],
-            ret: vec_of(t_var()),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone E-ii — `:wat::core::Vector/concat` RETIRED this stone;
+    // `:wat::vec::concat` (registered below, near its E-ii siblings) is its replacement.
 
     // DESIGN-STONE-into-pv-from-vector.md — the per-Type sibling of Vector/concat above.
     // Fallback rank-1 fingerprint scheme (for the env.get path / reflection tools only —
@@ -20594,21 +20432,12 @@ fn register_builtins(env: &mut CheckEnv) {
     // (`infer_persistentvector_concat`) intercepts BEFORE this scheme is ever consulted,
     // and is where the real dual-shape coverage lives (arg2 accepts (Vector :- [T]) OR
     // (PersistentVector :- [T]), which a single static TypeScheme cannot express).
-    //   PersistentVector/concat :: ∀T. (PersistentVector :- [T]) × (PersistentVector :- [T]) -> (PersistentVector :- [T])
-    //                             (fingerprint; arg2 ALSO accepts (Vector :- [T]) per the custom arm)
+    // Arc 255 Stone E-ii — `:wat::core::PersistentVector/concat` RETIRED this stone;
+    // `:wat::vector::concat` (registered below, near its E-ii siblings) is its replacement.
     let pv_of = |inner: TypeExpr| TypeExpr::Parametric {
         head: "wat::core::PersistentVector".into(),
         args: vec![inner],
     };
-    env.register(
-        ":wat::core::PersistentVector/concat".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![pv_of(t_var()), pv_of(t_var())],
-            ret: pv_of(t_var()),
-            rest_param_type: None,
-        },
-    );
 
     // BRIEF-STONE-the-thirteen-schemes (docs/arc/2026/04/109-kill-std/) — the 13 PersistentMap/*
     // and PersistentVector/* verbs, previously blanket-accepted (no scheme registered, so the
@@ -20619,9 +20448,16 @@ fn register_builtins(env: &mut CheckEnv) {
     // `persistentmap_of` (above) and `pv_of` (just above, for PersistentVector/concat) rather
     // than minting fresh helpers.
 
-    // PersistentMap/get ← HashMap/get (check.rs:19990)
+
+    // ── arc 255 Stone E-i — the maps get their homes ────────────────────────
+    // `:wat::map::*` (PersistentMap's new, UNMARKED home — it never moves again
+    // once the persistent-backend swap lands) and `:wat::hashmap::*` (HashMap's
+    // new, flavor-marked home). Both spellings LIVE alongside the
+    // `:wat::core::{PersistentMap,HashMap}/*` schemes above during Phase 1/2;
+    // Phase 3 retires the old spellings (see `src/remedy/retirement.rs`).
+    // Each scheme below is its old spelling's, VERBATIM — name-only rename.
     env.register(
-        ":wat::core::PersistentMap/get".into(),
+        ":wat::map::get".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
@@ -20629,9 +20465,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/assoc ← HashMap/assoc (check.rs:20034)
     env.register(
-        ":wat::core::PersistentMap/assoc".into(),
+        ":wat::map::assoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var(), v_var()],
@@ -20639,9 +20474,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/dissoc ← HashMap/dissoc (check.rs:20043)
     env.register(
-        ":wat::core::PersistentMap/dissoc".into(),
+        ":wat::map::dissoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
@@ -20649,9 +20483,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/keys ← HashMap/keys (check.rs:20052)
     env.register(
-        ":wat::core::PersistentMap/keys".into(),
+        ":wat::map::keys".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20659,9 +20492,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/values ← HashMap/values (check.rs:20061)
     env.register(
-        ":wat::core::PersistentMap/values".into(),
+        ":wat::map::values".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20669,9 +20501,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/length ← HashMap/length (check.rs:19881)
     env.register(
-        ":wat::core::PersistentMap/length".into(),
+        ":wat::map::length".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20679,9 +20510,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/empty? ← HashMap/empty? (check.rs:19924)
     env.register(
-        ":wat::core::PersistentMap/empty?".into(),
+        ":wat::map::empty?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20689,9 +20519,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/contains-key? ← HashMap/contains-key? (check.rs:19957)
     env.register(
-        ":wat::core::PersistentMap/contains-key?".into(),
+        ":wat::map::contains-key?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
@@ -20699,30 +20528,94 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    env.register(
+        ":wat::hashmap::get".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: opt(v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::assoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
+            ret: hashmap_of(k_var(), v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::dissoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: hashmap_of(k_var(), v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::keys".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(k_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::values".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::length".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::empty?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::contains-key?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
 
-    // PersistentVector/get ← Vector/get (check.rs:19981)
+    // Arc 255 Stone E-ii — `:wat::core::PersistentVector/{get,conj,length,empty?,contains?}`
+    // and `:wat::core::Vector/extend` RETIRED this stone; `:wat::vector::*`/`:wat::vec::extend`
+    // (registered below, near their E-ii siblings) are their replacements.
+
+    // ── arc 255 Stone E-ii — the vectors get their homes ────────────────────
+    // `:wat::vector::*` (PersistentVector's new, UNMARKED home — it never moves again
+    // once the persistent-backend swap lands) and `:wat::vec::*` (Vector's new,
+    // flavor-marked home). Both spellings LIVE alongside the
+    // `:wat::core::{PersistentVector,Vector}/*` schemes above during Phase 1/2;
+    // Phase 3 retires the old spellings (see `src/remedy/retirement.rs`).
+    // Each scheme below is its old spelling's, VERBATIM — name-only rename.
+    // ⚠ `empty?` is a REAL verb for both families (measured against the corpus +
+    // `collection/eval.rs`; the brief's verb list omitted it) — registered here too.
     env.register(
-        ":wat::core::PersistentVector/get".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![pv_of(t_var()), i64_ty()],
-            ret: opt(t_var()),
-            rest_param_type: None,
-        },
-    );
-    // PersistentVector/conj ← Vector/conj (check.rs:20003)
-    env.register(
-        ":wat::core::PersistentVector/conj".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![pv_of(t_var()), t_var()],
-            ret: pv_of(t_var()),
-            rest_param_type: None,
-        },
-    );
-    // PersistentVector/length ← Vector/length (check.rs:19872)
-    env.register(
-        ":wat::core::PersistentVector/length".into(),
+        ":wat::vector::length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![pv_of(t_var())],
@@ -20730,9 +20623,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentVector/empty? ← Vector/empty? (check.rs:19915)
     env.register(
-        ":wat::core::PersistentVector/empty?".into(),
+        ":wat::vector::empty?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![pv_of(t_var())],
@@ -20740,9 +20632,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentVector/contains? ← Vector/contains? (check.rs:19948)
     env.register(
-        ":wat::core::PersistentVector/contains?".into(),
+        ":wat::vector::contains?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![pv_of(t_var()), t_var()],
@@ -20750,17 +20641,148 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-
-    // Arc 278 — the mirror. Same fingerprint-only status: `infer_vector_extend` intercepts
-    // first, and is where arg2's dual shape ((Vector :- [T]) OR (PersistentVector :- [T])) actually lives.
-    //   Vector/extend :: ∀T. (Vector :- [T]) × (Vector :- [T]) -> (Vector :- [T])
-    //                    (fingerprint; arg2 ALSO accepts (PersistentVector :- [T]) per the custom arm)
     env.register(
-        ":wat::core::Vector/extend".into(),
+        ":wat::vector::get".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), i64_ty()],
+            ret: opt(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vector::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), t_var()],
+            ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    // concat — fingerprint only (same-kind); the dual-shape `from` (Vector OR
+    // PersistentVector) is handled by the custom `infer_list` arm below, which
+    // always intercepts before this scheme is consulted.
+    env.register(
+        ":wat::vector::concat".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), pv_of(t_var())],
+            ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vec::length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vec::empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vec::contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vec::get".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), i64_ty()],
+            ret: opt(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vec::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), t_var()],
+            ret: vec_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vec::concat".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), vec_of(t_var())],
             ret: vec_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    // extend — fingerprint only (same-kind); the dual-shape `from` (Vector OR
+    // PersistentVector) is handled by the custom `infer_list` arm below.
+    env.register(
+        ":wat::vec::extend".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), vec_of(t_var())],
+            ret: vec_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    // ── arc 255 Stone E-iii — set + list get their homes ────────────────────
+    // `:wat::hashset::*` — `HashSet`'s new, flavor-marked home (`Arc<HashSet<Value>>` is the
+    // copy-on-write flavor, same axis-side as `HashMap`/`Vector`; `:wat::set::` stays FREE for
+    // the persistent-backed sibling the builder has ruled is coming, the same reason
+    // `:wat::map::`/`:wat::vector::` stayed free above). Both spellings LIVE alongside the
+    // `:wat::core::HashSet/*` schemes above during Phase 1/2; Phase 3 retires the old spelling
+    // (see `src/remedy/retirement.rs`). Each scheme below is its old spelling's, VERBATIM —
+    // name-only rename. `List`'s non-`conj` per-Type verbs (`length`/`empty?`/`contains?`/`get`)
+    // carry NO scheme here, matching their old `:wat::core::List/*` spellings above, which
+    // ALSO carried none (measured: check.rs never registered them) — they fall through to the
+    // same "no scheme found for multi-arg form" silent-accept both before and after this
+    // stone. `List/conj` is the one exception: it has a bespoke `infer_list` arm (below,
+    // renamed to `:wat::linkedlist::conj`), not a scheme.
+    env.register(
+        ":wat::hashset::length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashset::empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashset::contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var()), t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashset::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var()), t_var()],
+            ret: hashset_of(t_var()),
             rest_param_type: None,
         },
     );

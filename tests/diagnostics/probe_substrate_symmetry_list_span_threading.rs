@@ -44,19 +44,42 @@ fn every_dispatch_arm_calling_eval_threads_list_span() {
     let body = extract_dispatch_match_body(&src);
     let arms = parse_arms(&body);
 
-    // Sanity check: the dispatch table is large; if parsing returned a
-    // tiny count, something is wrong with the parser (not the substrate).
-    // Arc 255 Stone C — the old `:wat::core::{i64,f64}::*` per-type numeric
-    // arms (36 ops' worth of match arms) were DELETED from this table (the
-    // surviving `:wat::{i64,f64}::*` spelling dispatches through the
-    // registry-first door above the match instead), lowering the count from
-    // ~354 to ~318. The floor drops with it — 300 still catches a genuinely
-    // broken parser without re-triggering on this intentional shrinkage.
+    // ── PARSER SANITY — a POSITIVE CONTROL, not a tuned magnitude.
+    //
+    // This was `arms.len() >= 300`, a bound set to the then-current count minus a
+    // margin. That is a REGRESSION detector wearing a sanity check's clothes, and it
+    // is at war with arc 255: the campaign's whole purpose is to move per-type verbs
+    // OUT of this match and into registry homes, so the count only ever falls. Stone C
+    // lowered the bound once (354 -> ~318, floor 300); Stone E-i deleted 16 more and
+    // tripped it again at 289; E-ii and E-iii will trip it again. Each lowering weakens
+    // the guard until it guards nothing.
+    // `[[feedback_a_gate_freezes_names_never_a_count]]`
+    //
+    // What this check actually needs to catch is "the parser returned garbage" — so it
+    // names arms the carve CANNOT take. These are polymorphic/structural heads, not
+    // per-type verbs: nothing in the homes campaign relocates them, and if the parser
+    // breaks they vanish together.
+    const MUST_FIND: &[&str] = &[
+        ":wat::core::apply",
+        ":wat::core::and",
+        ":wat::core::ann-form",
+        ":wat::core::aggregate-new",
+    ];
+    for needle in MUST_FIND {
+        assert!(
+            arms.iter().any(|a| a.keywords.contains(needle)),
+            "parser sanity: {needle} is a structural dispatch arm that no home carve \
+             relocates, and the parser did not find it among {} arms. Investigate the \
+             parser before trusting the symmetry verdict.",
+            arms.len(),
+        );
+    }
+    // A floor loose enough to never need nudging again: it catches "returned nothing
+    // useful", which is the only failure the positive control above cannot.
     assert!(
-        arms.len() >= 300,
-        "parser sanity: expected at least 300 dispatch arms; got {}. \
-         Investigate the parser before trusting the symmetry verdict.",
-        arms.len()
+        arms.len() >= 50,
+        "parser sanity: got {} arms — the parser is broken, not the substrate.",
+        arms.len(),
     );
 
     let mut compliant: usize = 0;

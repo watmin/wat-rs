@@ -26,6 +26,7 @@
 //! Negative fixtures: probe_arc237_8b_gate2_cross.wat.bad, probe_arc237_8b_regression_cross_plus.wat.bad,
 //!   probe_arc237_8b_regression_cross_lt.wat.bad, probe_arc237_8b_zero_ary_minus.wat.bad.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
@@ -65,7 +66,12 @@ fn gate_2_defclause_dispatches_by_arg_type() {
 #[test]
 fn gate_2_cross_no_matching_clause() {
     let result = startup_from_file("tests/function/probe_arc237_8b_gate2_cross.wat.bad");
-    assert!(result.is_err(), "GATE 2-cross: (i64, f64) mixed args MUST reject; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
+            if name == ":my::add"
+            && *called_arity == 2
+            && called_arg_types.as_slice() == [":wat::core::i64".to_string(), ":wat::core::f64".to_string()]
+    );
 }
 
 /// Gate 3 — 0-ary clause body literal `0` infers as :i64.
@@ -168,5 +174,10 @@ fn mint_arith_zero_ary_star_identity() {
 #[test]
 fn mint_arith_zero_ary_minus_errors() {
     let result = startup_from_file("tests/function/probe_arc237_8b_zero_ary_minus.wat.bad");
-    assert!(result.is_err(), "0-ary `-` MUST error (no clause for it); got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
+            if name == ":wat::core::-"
+            && *called_arity == 0
+            && called_arg_types.is_empty()
+    );
 }

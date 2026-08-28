@@ -39,17 +39,17 @@
 ;; head-keyword-str? — name string is ::-namespaced.
 (:wat::rete::core::defn :fix::head-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::rete::core::String/contains? name "::"))
+  (:wat::rete::string::contains? name "::"))
 
 ;; type-shaped-keyword-str? — name has matching "<" + ">" OR "(" + ")".
 (:wat::rete::core::defn :fix::type-shaped-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::rete::core::if (:wat::rete::core::if (:wat::rete::core::String/contains? name "<")
-                    (:wat::rete::core::String/contains? name ">")
+  (:wat::rete::core::if (:wat::rete::core::if (:wat::rete::string::contains? name "<")
+                    (:wat::rete::string::contains? name ">")
                     false)
     true
-    (:wat::rete::core::if (:wat::rete::core::String/contains? name "(")
-      (:wat::rete::core::String/contains? name ")")
+    (:wat::rete::core::if (:wat::rete::string::contains? name "(")
+      (:wat::rete::string::contains? name ")")
       false)))
 
 ;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────
@@ -136,7 +136,7 @@
      session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::defrecord" :offset 1 :len 21 :post-arrow false))
      fired   (:wat::rete::fire-rules session)]
     (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get
+      (:wat::map::get
         (:wat::core::first (:wat::rete::query fired (:fix::q-HeadConv)))
         "?name")
       "q-HeadConv: ?name")))
@@ -148,7 +148,7 @@
      session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::defrecord" :offset 1 :len 21 :post-arrow false))
      fired   (:wat::rete::fire-rules session)]
     (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get
+      (:wat::map::get
         (:wat::core::first (:wat::rete::query fired (:fix::q-HeadConv)))
         "?offset")
       "q-HeadConv: ?offset")))
@@ -178,7 +178,7 @@
      session (:wat::rete::insert session (:fix::Node :kind "symbol" :name "<-" :offset 0 :len 2 :post-arrow false))
      fired   (:wat::rete::fire-rules session)]
     (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get
+      (:wat::map::get
         (:wat::core::first (:wat::rete::query fired (:fix::q-ArrowConv)))
         "?offset")
       "q-ArrowConv: ?offset")))
@@ -225,7 +225,7 @@
      session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::String" :offset 10 :len 18 :post-arrow true))
      fired   (:wat::rete::fire-rules session)]
     (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get
+      (:wat::map::get
         (:wat::core::first (:wat::rete::query fired (:fix::q-TypeConv)))
         "?name")
       "q-TypeConv: ?name")))

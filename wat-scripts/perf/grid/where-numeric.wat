@@ -221,7 +221,7 @@
       ((:wat::core::= row 10) (:wnm::mix-and))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-numeric: unknown row " (:wat::i64::to-string row))
+          (:wat::string::concat "where-numeric: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed session items — stage Num(i) for i in [0, items). Every field a FORMULA over i (rule 3):
@@ -239,7 +239,7 @@
                           z (:wat::i64::- (:wat::i64::mod i 5) 2)
                           x (:wat::f64::- (:wat::f64::* (:wat::i64::to-f64 i) 0.25) 25.0)
                           y (:wat::f64::* (:wat::i64::to-f64 i) 0.1)]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wnm::Num :k i :a a :z z :x x :y y))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -250,7 +250,7 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wnm::Hit/k f)))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wnm::Hit/k f)))
         (:wat::rete::query fired (:wnm::q-Hit))))))
 
 ;; render-ints — mirrors where-shapes.wat's render-ints EXACTLY (own rendering, not the EDN
@@ -258,8 +258,8 @@
 (:wat::core::defn :wnm::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::i64::to-string x))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -287,14 +287,14 @@
                     staged  (:wnm::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnm::q-Hit))) (:wnm::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wnm::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::i64::to-string row))
-        (:wat::core::String/concat " " (:wnm::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
-        (:wat::core::String/concat " ->" (:wnm::render-ints derived))))))
+                    n       (:wat::vec::length derived)]
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "row " (:wat::i64::to-string row))
+        (:wat::string::concat " " (:wnm::rule-display-name (:wat::rete::Rule/name rule))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string n))
+        (:wat::string::concat " ->" (:wnm::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

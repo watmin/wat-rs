@@ -10,14 +10,17 @@
 //! type-checks (startup is Ok). GREEN after K1b: the derived nature (Record) < the floor (HolonRecord),
 //! so the world fails to type-check (startup is Err).
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_beside;
 
 #[test]
 fn foreign_nature_is_checked_a_nonholon_cannot_satisfy_a_holon_floor_surface() {
     let result = startup_beside(file!());
-    assert!(
-        result.is_err(),
-        "a non-holon foreign type (String, Record-capable) must NOT satisfy a :nature :HolonRecord \
-         surface — the extend-type edge must honor the nature ladder; got Ok (nature-exempt)"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":k1b::use"
+            && param == "#1"
+            && expected == ":k1b::Vsa"
+            && got == ":wat::core::String"
     );
 }

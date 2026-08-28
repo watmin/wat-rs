@@ -61,6 +61,19 @@
 //! | `":wat::core::char/of"`               | 255 | char constructor's redundant `/of` suffix     | `:wat::core::char` (finishing, not starting) |
 //! | `":wat::core::i64::*"` (17 ops)       | 255 Stone C | per-type i64 verbs, junk-drawer home | `:wat::i64::*` |
 //! | `":wat::core::f64::*"` (19 ops)       | 255 Stone C | per-type f64 verbs, junk-drawer home | `:wat::f64::*` (`max-of`/`min-of` also change calling convention — see the table) |
+//! | `":wat::core::bigint::*"` (6 ops)     | 255 Stone D | per-type bigint verbs, junk-drawer home   | `:wat::bigint::*` |
+//! | `":wat::core::rational::*"` (5 ops) + `":wat::core::rational/*"` (2 ops) | 255 Stone D | per-type rational verbs, junk-drawer home | `:wat::rational::*` (the two slash-form accessors also become `::` verbs — see the table) |
+//! | `":wat::core::PersistentMap/*"` (8 ops) | 255 Stone E-i | per-type PersistentMap verbs, junk-drawer home | `:wat::map::*` (the UNMARKED home — never moves again once the persistent-backend swap lands) |
+//! | `":wat::core::HashMap/*"` (8 ops)       | 255 Stone E-i | per-type HashMap verbs, junk-drawer home       | `:wat::hashmap::*` (the flavor-marked home) |
+//! | `":wat::core::PersistentVector/*"` (6 ops) | 255 Stone E-ii | per-type PersistentVector verbs, junk-drawer home | `:wat::vector::*` (the UNMARKED home — never moves again once the persistent-backend swap lands) |
+//! | `":wat::core::Vector/*"` (7 ops)        | 255 Stone E-ii | per-type Vector verbs, junk-drawer home        | `:wat::vec::*` (the flavor-marked home; `extend` is Vector-only, no PersistentVector twin) |
+//! | `":wat::core::HashSet/*"` (4 ops)       | 255 Stone E-iii | per-type HashSet verbs, junk-drawer home     | `:wat::hashset::*` (the flavor-marked home; `:wat::set::` stays free for the persistent sibling) |
+//! | `":wat::core::List/*"` (5 ops)          | 255 Stone E-iii | per-type List verbs, junk-drawer home        | `:wat::linkedlist::*` (the flavor-marked home; `:wat::list::` stays free for the persistent sibling) |
+//! | `":wat::core::keyword/*"` (5 ops)       | 255 Stone E-iv | keyword verbs, junk-drawer home; the LAST scalar without a home | `:wat::keyword::*` (the plain, unmarked home — `keyword` has only one flavor) |
+//! | `":wat::std::math::*"` (6 ops)          | 255 Stone HOME-9 | 4-month-old dispatch-arm survivors of arc 109's incomplete "kill-std" sweep | `:wat::math::*` (`log` DELETED, not moved — see the table's own comment) |
+//! | `":wat::std::stat::*"` (3 ops)          | 255 Stone HOME-9 | ditto | `:wat::stat::*` |
+//! | `":wat::std::list::{zip,window,remove-at}"` (3 ops) | 255 Stone HOME-9 | ditto; also made Seqable-generic | `:wat::seq::*` (`:wat::list::` stays reserved, unclaimed) |
+//! | `":wat::std::list::map-with-index"`     | 255 Stone HOME-9 | ditto | `:wat::core::map-indexed` (NOT a drop-in — see the table's own note) |
 
 use super::{Remedy, RemedyKind};
 
@@ -212,6 +225,135 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::f64::round",       replacement: ":wat::f64::round",       note: None },
     RetirementEntry { retired: ":wat::core::f64::to-i64",      replacement: ":wat::f64::to-i64",      note: None },
     RetirementEntry { retired: ":wat::core::f64::to-string",   replacement: ":wat::f64::to-string",   note: None },
+    // Stone D (arc 255) — bigint/rational, the numeric tower's last two verb families.
+    RetirementEntry { retired: ":wat::core::bigint::+",             replacement: ":wat::bigint::+",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::-",             replacement: ":wat::bigint::-",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::*",             replacement: ":wat::bigint::*",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::/",             replacement: ":wat::bigint::/",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::to-f64",        replacement: ":wat::bigint::to-f64",        note: None },
+    RetirementEntry { retired: ":wat::core::bigint::to-rational",   replacement: ":wat::bigint::to-rational",   note: None },
+    RetirementEntry { retired: ":wat::core::rational::+",           replacement: ":wat::rational::+",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::-",           replacement: ":wat::rational::-",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::*",           replacement: ":wat::rational::*",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::/",           replacement: ":wat::rational::/",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::to-f64",      replacement: ":wat::rational::to-f64",      note: None },
+    RetirementEntry { retired: ":wat::core::rational/numerator",    replacement: ":wat::rational::numerator",
+        note: Some("the slash-form accessor becomes an ordinary `::` verb (arc 255's `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent), not just a namespace move") },
+    RetirementEntry { retired: ":wat::core::rational/denominator",  replacement: ":wat::rational::denominator",
+        note: Some("the slash-form accessor becomes an ordinary `::` verb (arc 255's `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent), not just a namespace move") },
+    // Arc 255 Stone E-i — "the maps get their homes": PersistentMap moves to the UNMARKED
+    // `:wat::map::*` home (it never moves again once the persistent-backend swap lands, "probably
+    // a week or two" out per the builder); HashMap moves to the flavor-marked `:wat::hashmap::*`
+    // home. Both flavors survive — this is a spelling migration, not a backend decision. Each
+    // slash-form op becomes an ordinary `::` verb (same shape as the Uuid/v4 and rational/numerator
+    // precedents above). Name-only; handler bodies untouched (they already lived in
+    // `src/collection/eval.rs`, unmoved by this stone).
+    RetirementEntry { retired: ":wat::core::PersistentMap/length",         replacement: ":wat::map::length",         note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/empty?",         replacement: ":wat::map::empty?",         note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/contains-key?",  replacement: ":wat::map::contains-key?",  note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/get",            replacement: ":wat::map::get",            note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/assoc",          replacement: ":wat::map::assoc",          note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/dissoc",         replacement: ":wat::map::dissoc",         note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/keys",           replacement: ":wat::map::keys",           note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/values",         replacement: ":wat::map::values",         note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/length",               replacement: ":wat::hashmap::length",     note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/empty?",               replacement: ":wat::hashmap::empty?",     note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/contains-key?",        replacement: ":wat::hashmap::contains-key?", note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/get",                  replacement: ":wat::hashmap::get",        note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/assoc",                replacement: ":wat::hashmap::assoc",      note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/dissoc",               replacement: ":wat::hashmap::dissoc",     note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/keys",                 replacement: ":wat::hashmap::keys",       note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/values",               replacement: ":wat::hashmap::values",     note: None },
+    // Arc 255 Stone E-ii — "the vectors get their homes": PersistentVector moves to the
+    // UNMARKED `:wat::vector::*` home (it never moves again once the persistent-backend swap
+    // lands); Vector moves to the flavor-marked `:wat::vec::*` home. Both flavors survive —
+    // this is a spelling migration, not a backend decision. Verb sets are NOT symmetric:
+    // `extend` exists only on Vector. Name-only; handler bodies untouched (they already lived
+    // in `src/collection/eval.rs`, unmoved by this stone).
+    RetirementEntry { retired: ":wat::core::PersistentVector/length",   replacement: ":wat::vector::length",   note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/empty?",   replacement: ":wat::vector::empty?",   note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/contains?", replacement: ":wat::vector::contains?", note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/get",      replacement: ":wat::vector::get",      note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/conj",     replacement: ":wat::vector::conj",     note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/concat",   replacement: ":wat::vector::concat",   note: None },
+    RetirementEntry { retired: ":wat::core::Vector/length",             replacement: ":wat::vec::length",      note: None },
+    RetirementEntry { retired: ":wat::core::Vector/empty?",             replacement: ":wat::vec::empty?",      note: None },
+    RetirementEntry { retired: ":wat::core::Vector/contains?",          replacement: ":wat::vec::contains?",   note: None },
+    RetirementEntry { retired: ":wat::core::Vector/get",                replacement: ":wat::vec::get",         note: None },
+    RetirementEntry { retired: ":wat::core::Vector/conj",               replacement: ":wat::vec::conj",        note: None },
+    RetirementEntry { retired: ":wat::core::Vector/concat",             replacement: ":wat::vec::concat",      note: None },
+    RetirementEntry { retired: ":wat::core::Vector/extend",             replacement: ":wat::vec::extend",      note: None },
+    // Arc 255 Stone E-iii — "set + list get their homes": both HashSet and List are the
+    // copy-on-write flavor (same axis-side as HashMap/Vector), so BOTH take a MARKED name —
+    // `:wat::set::`/`:wat::list::` stay free for the persistent-backed siblings the builder has
+    // ruled are coming, same reason `:wat::map::`/`:wat::vector::` stayed free above. Verb sets
+    // are NOT symmetric: HashSet has no `get` (its "get-by-equality" is `contains?`); List has
+    // no `concat`/`extend`. Name-only; handler bodies untouched (they already lived in
+    // `src/collection/eval.rs`, unmoved by this stone).
+    RetirementEntry { retired: ":wat::core::HashSet/length",   replacement: ":wat::hashset::length",   note: None },
+    RetirementEntry { retired: ":wat::core::HashSet/empty?",   replacement: ":wat::hashset::empty?",   note: None },
+    RetirementEntry { retired: ":wat::core::HashSet/contains?", replacement: ":wat::hashset::contains?", note: None },
+    RetirementEntry { retired: ":wat::core::HashSet/conj",     replacement: ":wat::hashset::conj",     note: None },
+    RetirementEntry { retired: ":wat::core::List/length",      replacement: ":wat::linkedlist::length",   note: None },
+    RetirementEntry { retired: ":wat::core::List/empty?",      replacement: ":wat::linkedlist::empty?",   note: None },
+    RetirementEntry { retired: ":wat::core::List/contains?",   replacement: ":wat::linkedlist::contains?", note: None },
+    RetirementEntry { retired: ":wat::core::List/get",         replacement: ":wat::linkedlist::get",      note: None },
+    RetirementEntry { retired: ":wat::core::List/conj",        replacement: ":wat::linkedlist::conj",     note: None },
+    // Arc 255 Stone E-iv — "keyword gets its home": the LAST scalar without one. One flavor,
+    // so the plain unmarked name (contrast E-iii's hashset/linkedlist, both marked). Name-only;
+    // handler bodies untouched (`eval_keyword_to_string`/`eval_keyword_from_string` stay in
+    // `runtime.rs`; `eval_keyword_to_symbol`/`eval_keyword_to_type_form`/
+    // `eval_keyword_to_type_form_colon` stay in `edn/render.rs`).
+    RetirementEntry { retired: ":wat::core::keyword/to-string",         replacement: ":wat::keyword::to-string",         note: None },
+    RetirementEntry { retired: ":wat::core::keyword/from-string",       replacement: ":wat::keyword::from-string",       note: None },
+    RetirementEntry { retired: ":wat::core::keyword/to-symbol",         replacement: ":wat::keyword::to-symbol",         note: None },
+    RetirementEntry { retired: ":wat::core::keyword/to-type-form",      replacement: ":wat::keyword::to-type-form",      note: None },
+    RetirementEntry { retired: ":wat::core::keyword/to-type-form-colon", replacement: ":wat::keyword::to-type-form-colon", note: None },
+    // Arc 255 Stone F — the `String/` verbs leave the `extend-type`-generated instance-method
+    // namespace. `:wat::core::String` (the bare TYPE, no trailing `/`) is UNCHANGED and remains
+    // the home `extend-type` mints real instance methods into (e.g. `String/tag`); only these
+    // five plain functions — never methods — move. Name-only; handler bodies untouched
+    // (`intrinsic/string.rs`'s `eval_string_{concat,starts_with,ends_with,contains,empty}`,
+    // four of which already backed the old spelling via `runtime.rs`'s deleted alias arms).
+    RetirementEntry { retired: ":wat::core::String/concat",       replacement: ":wat::string::concat",       note: None },
+    RetirementEntry { retired: ":wat::core::String/starts-with?", replacement: ":wat::string::starts-with?", note: None },
+    RetirementEntry { retired: ":wat::core::String/ends-with?",   replacement: ":wat::string::ends-with?",   note: None },
+    RetirementEntry { retired: ":wat::core::String/contains?",    replacement: ":wat::string::contains?",    note: None },
+    RetirementEntry { retired: ":wat::core::String/empty?",       replacement: ":wat::string::empty?",       note: None },
+    // Arc 255 Stone HOME-9 — `:wat::std::` FINALLY dies. Arc 109 ("kill-std") deleted the
+    // `wat/std/` DIRECTORY and swept the `.wat` stdlib (2026-04-30/05-01) but never swept these
+    // fourteen Rust dispatch arms in `runtime.rs` — survivors, not growth (all predate 109).
+    // Thirteen move; one (`log`) is deleted outright (see below).
+    RetirementEntry { retired: ":wat::std::math::ln",   replacement: ":wat::math::ln",   note: None },
+    RetirementEntry { retired: ":wat::std::math::exp",  replacement: ":wat::math::exp",  note: None },
+    RetirementEntry { retired: ":wat::std::math::sqrt", replacement: ":wat::math::sqrt", note: None },
+    RetirementEntry { retired: ":wat::std::math::sin",  replacement: ":wat::math::sin",  note: None },
+    RetirementEntry { retired: ":wat::std::math::cos",  replacement: ":wat::math::cos",  note: None },
+    RetirementEntry { retired: ":wat::std::math::pi",   replacement: ":wat::math::pi",   note: None },
+    // `:wat::std::math::log` has NO row here — it is DELETED, not renamed. Measured: it was
+    // wired to the SAME `f64::ln` as `ln` (`log(100.0)` = `4.605...` = `ln(100.0)`, not
+    // `log10(100.0)` = `2.0` — a level-1 lie), had zero call sites in the corpus, and no name
+    // in this table would be honest: `ln` is not what a bare `log` implies, and minting a
+    // fresh `log10` nobody asked for is a new feature this stone does not own.
+    RetirementEntry { retired: ":wat::std::stat::mean",     replacement: ":wat::stat::mean",     note: None },
+    RetirementEntry { retired: ":wat::std::stat::variance", replacement: ":wat::stat::variance", note: None },
+    RetirementEntry { retired: ":wat::std::stat::stddev",   replacement: ":wat::stat::stddev",   note: None },
+    // `:wat::std::list::` dies in favour of `:wat::seq::` (builder-ruled: "`:wat::list::` was
+    // meant to be killed in favor of `:wat::seq::`" — the reserved `:wat::list::` name is NOT
+    // claimed here). `zip`/`window`/`remove-at` are ALSO made Seqable-generic in the same
+    // motion (name-only from the retirement table's point of view; the behavior widening is in
+    // `src/collection/transform.rs`'s `eval_seq_*`, not a caveat a caller needs to migrate
+    // around — a program that only ever passed a Vector still gets exactly the same answer).
+    RetirementEntry { retired: ":wat::std::list::zip",        replacement: ":wat::seq::zip",        note: None },
+    RetirementEntry { retired: ":wat::std::list::window",     replacement: ":wat::seq::window",     note: None },
+    RetirementEntry { retired: ":wat::std::list::remove-at",  replacement: ":wat::seq::remove-at",  note: None },
+    // `map-with-index` is DELETED, not moved — `:wat::core::map-indexed` already does this job,
+    // Seqable-generic, but is NOT a drop-in: the note is the caveat a caller actually needs.
+    RetirementEntry { retired: ":wat::std::list::map-with-index", replacement: ":wat::core::map-indexed",
+        note: Some("NOT a drop-in: the argument order flips from (coll, fn) to (fn, coll), the \
+            closure's own params flip from (item, index) to (index, item), and the result is a \
+            LAZY Stream, not an eager Vector — wrap in `(:wat::core::into [] ...)` to force it \
+            back to a Vector if the caller needs one") },
 ];
 
 /// Look up `needle` in the retirement table.

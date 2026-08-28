@@ -416,8 +416,10 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::string::to-bool"
 
         // ── Keyword / symbol ops (pure) ────────────────────────────────
-        | ":wat::core::keyword/to-string"
-        | ":wat::core::keyword/from-string"  // pure constructor (routed via dispatch_keyword_head)
+        // Arc 255 Stone E-iv — `keyword` gets its home. `:wat::core::keyword/{to-string,
+        // from-string}` RETIRED this stone; `:wat::keyword::*` (below) is their replacement.
+        | ":wat::keyword::to-string"
+        | ":wat::keyword::from-string"  // pure constructor (routed via the intrinsic registry)
 
         // ── Macro diagnostics (pure: deterministic abort, no IO) ────────
         // Arc 258 Stone 258.2b — first-class macro-abort. Aborts expansion
@@ -436,17 +438,17 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::kernel::macro-call-site"
 
         // ── String ops (pure) ─────────────────────────────────────────
+        // Arc 255 Stone F — the dual-spelled `:wat::core::String/*` entries that lived beside
+        // each of these (concat/contains?/starts-with?/ends-with?/empty? below) are RETIRED and
+        // deleted, not carried forward: the uppercase spelling can no longer be produced by any
+        // corpus program, so listing it here would be dead weight.
         | ":wat::string::concat"
         // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
         // the format macro, but interpolates at call time → expand-time-legal in macro bodies.
         | ":wat::string::interpolate"
-        | ":wat::core::String/concat"
         | ":wat::string::contains?"
-        | ":wat::core::String/contains?"
         | ":wat::string::starts-with?"
-        | ":wat::core::String/starts-with?"
         | ":wat::string::ends-with?"
-        | ":wat::core::String/ends-with?"
         | ":wat::string::length"
         // Arc 279.1 — subs is on is_pure_total: the `format` macro walks the template
         // character-by-character at expand time (length + subs i (i+1)) to collapse the
@@ -469,7 +471,11 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::string::kebab->pascal-in"
         | ":wat::string::split"
         | ":wat::string::join"
-        | ":wat::core::String/empty?"
+        // Arc 255 Stone F — `:wat::string::empty?` is the home's missing twin
+        // (`intrinsic/string.rs::eval_string_empty`); `wat/core.wat`'s `format` macro calls it
+        // in its OWN body (two sites, migrated by the corpus codemod). The dual-listed
+        // `:wat::core::String/empty?` this replaced is retired and deleted, not carried forward.
+        | ":wat::string::empty?"
 
         // ── Type inspection (pure) ─────────────────────────────────────
         | ":wat::core::type"
@@ -524,24 +530,36 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::rest"
 
         // ── Collections — per-type ops ────────────────────────────────
-        | ":wat::core::Vector/length"
-        | ":wat::core::Vector/empty?"
-        | ":wat::core::Vector/contains?"
-        | ":wat::core::Vector/get"
-        | ":wat::core::Vector/conj"
-        | ":wat::core::Vector/concat"
-        | ":wat::core::HashMap/length"
-        | ":wat::core::HashMap/empty?"
-        | ":wat::core::HashMap/contains-key?"
-        | ":wat::core::HashMap/get"
-        | ":wat::core::HashMap/assoc"
-        | ":wat::core::HashMap/dissoc"
-        | ":wat::core::HashMap/keys"
-        | ":wat::core::HashMap/values"
-        | ":wat::core::HashSet/length"
-        | ":wat::core::HashSet/empty?"
-        | ":wat::core::HashSet/contains?"
-        | ":wat::core::HashSet/conj"
+        // Arc 255 Stone E-ii — the vectors get their homes. `:wat::core::Vector/*` retired this
+        // stone; `:wat::vec::*` is its replacement (PersistentVector was never on this list —
+        // that asymmetry predates this stone and is not this stone's to fix; `:wat::vector::*`
+        // is therefore deliberately absent here too, same shape as E-i's map/hashmap note below).
+        | ":wat::vec::length"
+        | ":wat::vec::empty?"
+        | ":wat::vec::contains?"
+        | ":wat::vec::get"
+        | ":wat::vec::conj"
+        | ":wat::vec::concat"
+        // Arc 255 Stone E-i — the maps get their homes. `:wat::core::HashMap/*` retired this
+        // stone; `:wat::hashmap::*` is its replacement (PersistentMap was never on this list —
+        // that asymmetry predates this stone and is not this stone's to fix; `:wat::map::*` is
+        // therefore deliberately absent here too).
+        | ":wat::hashmap::length"
+        | ":wat::hashmap::empty?"
+        | ":wat::hashmap::contains-key?"
+        | ":wat::hashmap::get"
+        | ":wat::hashmap::assoc"
+        | ":wat::hashmap::dissoc"
+        | ":wat::hashmap::keys"
+        | ":wat::hashmap::values"
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/*` retired this stone;
+        // `:wat::hashset::*` is its replacement (List was never on this list — that
+        // asymmetry predates this stone and is not this stone's to fix; `:wat::linkedlist::*`
+        // is therefore deliberately absent here too, same shape as E-i/E-ii's notes above).
+        | ":wat::hashset::length"
+        | ":wat::hashset::empty?"
+        | ":wat::hashset::contains?"
+        | ":wat::hashset::conj"
 
         // ── Collections — HOFs (bounded iteration over finite lists) ──
         | ":wat::core::map"
@@ -585,18 +603,20 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::Result/try"
 
         // ── Math (pure functions, deterministic) ─────────────────────
-        | ":wat::std::math::ln"
-        | ":wat::std::math::log"
-        | ":wat::std::math::exp"
-        | ":wat::std::math::sqrt"
-        | ":wat::std::math::sin"
-        | ":wat::std::math::cos"
-        | ":wat::std::math::pi"
+        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::math::*`.
+        // `log` is DELETED, not moved (was wired to the SAME `f64::ln` as `ln`; zero call sites).
+        | ":wat::math::ln"
+        | ":wat::math::exp"
+        | ":wat::math::sqrt"
+        | ":wat::math::sin"
+        | ":wat::math::cos"
+        | ":wat::math::pi"
 
         // ── Statistics (pure over closed data) ───────────────────────
-        | ":wat::std::stat::mean"
-        | ":wat::std::stat::variance"
-        | ":wat::std::stat::stddev"
+        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::stat::*`.
+        | ":wat::stat::mean"
+        | ":wat::stat::variance"
+        | ":wat::stat::stddev"
 
         // ── Holon AST / form construction (pure; no IO) ──────────────
         | ":wat::holon::Atom"
@@ -681,11 +701,12 @@ fn is_pure_total(head: &str) -> bool {
         // scoped symbols that cannot collide with caller variables. "Does a macro need it?" → YES.
         | ":wat::core::fresh-symbol"
         | ":wat::core::keyword-node"
-        | ":wat::core::keyword/to-symbol"
-        | ":wat::core::keyword/to-type-form"
-        // Arc 109 Stone ②-i — Colon-mode sibling of keyword/to-type-form (Room 3); same
-        // pure/deterministic category, just the rust-ish `:wat::core::` head spelling.
-        | ":wat::core::keyword/to-type-form-colon"
+        // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,
+        // to-type-form-colon}` RETIRED this stone; `:wat::keyword::*` (below) is their
+        // replacement.
+        | ":wat::keyword::to-symbol"
+        | ":wat::keyword::to-type-form"
+        | ":wat::keyword::to-type-form-colon"
 
         // ── Form-shape predicates (pure over WatAST form-values) ──────
         // core form-shape predicate over WatAST::List; distinct from

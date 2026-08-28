@@ -14,6 +14,7 @@
 //!
 //! WAT fixtures: tests/kernel/probe_arc259_s2d_internal_only_{spawn_thread,close}.wat.bad
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 /// A `:user::` fn calling the internal `spawn-thread'` must be a CHECK error
@@ -23,9 +24,11 @@ fn user_calling_spawn_thread_prime_is_a_check_error() {
     let result = startup_from_file(
         "tests/kernel/probe_arc259_s2d_internal_only_spawn_thread.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "a :user:: caller of the internal spawn-thread' must be a check error (restricted-to :wat::kernel::)"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::DefRestrictedCallerNotAllowed { callee, enclosing_fn, prefixes }
+            if callee == ":wat::kernel::spawn-thread"
+            && enclosing_fn == ":user::compute"
+            && prefixes.as_slice() == [":wat::kernel::".to_string()]
     );
 }
 
@@ -36,8 +39,10 @@ fn user_calling_close_prime_is_a_check_error() {
     let result = startup_from_file(
         "tests/kernel/probe_arc259_s2d_internal_only_close.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "a :user:: caller of the internal close' must be a check error (teardown is RAII)"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::DefRestrictedCallerNotAllowed { callee, enclosing_fn, prefixes }
+            if callee == ":wat::kernel::close"
+            && enclosing_fn == ":user::compute"
+            && prefixes.as_slice() == [":wat::kernel::".to_string()]
     );
 }

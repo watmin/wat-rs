@@ -27,14 +27,16 @@
 //!
 //! Run: `cargo test --release --test function`
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
 
-/// Load a fixture by path and return Ok(()) or Err(diagnostic string).
-/// Shared by positive contracts in this file and by `stone18a_errors.rs`.
-pub(super) fn try_startup(path: &str) -> Result<(), String> {
-    startup_from_file(path)
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
+/// Load a fixture by path and return Ok(()) or the raw `StartupError` — the
+/// typed discriminant, not a flattened string (arc 296 Stone M). Shared by the
+/// positive contracts in this file (which only ever check `.is_ok()`) and by
+/// `stone18a_errors.rs`'s negative contracts (which need to match the inner
+/// `CheckErrorKind`, so this signature is what makes them reachable by
+/// `assert_startup_error!` directly, no parallel typed helper needed).
+pub(super) fn try_startup(path: &str) -> Result<(), StartupError> {
+    startup_from_file(path).map(|_| ())
 }
 
 // ─── C01: fn program (single typed param) preserved post-migration ─────────────

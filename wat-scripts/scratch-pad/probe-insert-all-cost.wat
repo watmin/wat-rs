@@ -56,7 +56,7 @@
   (:wat::core::let [facts (:wat::core::foldl
                              (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:iac::Reading])  i <- :wat::core::i64]
                                -> (:wat::core::PersistentVector :- [:iac::Reading])
-                               (:wat::core::PersistentVector/conj acc (:iac::Reading :g 0 :v i)))
+                               (:wat::vector::conj acc (:iac::Reading :g 0 :v i)))
                              (:wat::core::PersistentVector)
                              (:wat::core::range 0 n))]
     (:wat::rete::insert-all session facts)))

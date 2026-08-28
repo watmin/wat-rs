@@ -80,10 +80,8 @@ fn mint_bare_symbol_step() {
 /// `(-> x ())` — empty list step raises at macro-expansion time.
 #[test]
 fn witness_thread_first_empty_step_panics_at_expansion() {
-    fn attempt() -> Result<(), String> {
-        startup_from_file("tests/macros/probe_arc249_threading_witness_tf_empty.wat")
-            .map(|_| ())
-            .map_err(|e| format!("{:?}", e))
+    fn attempt() -> Result<(), wat::freeze::StartupError> {
+        startup_from_file("tests/macros/probe_arc249_threading_witness_tf_empty.wat").map(|_| ())
     }
     let result = std::panic::catch_unwind(attempt);
     match result {
@@ -92,7 +90,7 @@ fn witness_thread_first_empty_step_panics_at_expansion() {
         Ok(Ok(())) => panic!("expected failure but startup succeeded"),
         Ok(Err(e)) => {
             wat::assert_edn_matches_file!(
-                e,
+                format!("{:?}", e),
                 "probe_arc249_threading__witness_thread_first_empty_step_panics_at_expansion.edn",
                 "empty -> step must match macro-expansion failure golden"
             );
@@ -104,9 +102,8 @@ fn witness_thread_first_empty_step_panics_at_expansion() {
 /// Startup succeeds; eval fails with MalformedForm.
 #[test]
 fn witness_thread_last_empty_step_desugars_to_call_on_acc() {
-    fn attempt_startup() -> Result<wat::freeze::FrozenWorld, String> {
+    fn attempt_startup() -> Result<wat::freeze::FrozenWorld, wat::freeze::StartupError> {
         startup_from_file("tests/macros/probe_arc249_threading_witness_tl_empty.wat")
-            .map_err(|e| format!("startup: {:?}", e))
     }
     let world = std::panic::catch_unwind(attempt_startup)
         .expect("startup must not panic for ->> empty step")

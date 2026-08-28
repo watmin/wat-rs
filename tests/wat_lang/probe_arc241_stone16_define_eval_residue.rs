@@ -12,6 +12,7 @@
 //!
 //! Post-stone: all 4 contracts PASS.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── C01: define rejection error mentions "Stone 241.16" marker ────────────────
@@ -48,9 +49,10 @@ fn contract_02_retirement_remedy_preserves_defn_replacement() {
 fn contract_03_define_in_let_body_still_rejected() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone16_define_in_let.wat.bad");
-    assert!(
-        result.is_err(),
-        "define-headed AST in nested let-body must be rejected (consistency with Stone 241.11 HARD CUT); got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::define"
+            && reason == "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)"
     );
 }
 
@@ -60,8 +62,9 @@ fn contract_03_define_in_let_body_still_rejected() {
 fn contract_04_define_in_fn_body_still_rejected() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone16_define_in_fn.wat.bad");
-    assert!(
-        result.is_err(),
-        "define-headed AST in fn-body do-prefix must be rejected; got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::define"
+            && reason == "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)"
     );
 }

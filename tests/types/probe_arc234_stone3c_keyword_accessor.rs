@@ -4,10 +4,10 @@
 //!
 //! Probe 3 is expected to produce an error at eval time (unknown field :nonexistent).
 
-use wat::freeze::call_beside_value;
+use wat::freeze::{call_beside_value, StartupError};
 use wat::runtime::Value;
 
-/// Strip the `eval: ` prefix a runtime error renders with, leaving the structured EDN body.
+/// The structured EDN body of a startup/eval failure.
 ///
 /// The error IS data — `#wat.runtime/UnknownField {…}` — so it is asserted STRUCTURALLY
 /// against a co-located `.edn` golden, never by `.contains` on a rendered string. These
@@ -16,15 +16,18 @@ use wat::runtime::Value;
 /// repo-relative path (`load::span_display_path`), so the reason no longer holds and the
 /// runes are retired rather than re-justified — the exemption existed for a constraint
 /// that is gone.
-fn edn_body(msg: &str) -> String {
-    msg.strip_prefix("eval: ")
-        .unwrap_or_else(|| panic!("a runtime error renders as `eval: <EDN>`; got: {msg}"))
-        .to_string()
+///
+/// Arc 296 Stone M: `run` used to flatten the error to a `String` prefixed with
+/// `"eval: "`, which this helper stripped. `run` now returns the typed `StartupError`
+/// directly, whose `Display`/`Debug` IS the raw EDN (no prefix to strip) — this is a
+/// straight `to_string()`, kept as a named helper only so the call sites read the same.
+fn edn_body(e: &StartupError) -> String {
+    e.to_string()
 }
 
 
-fn run(fn_name: &str) -> Result<Value, String> {
-    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
+fn run(fn_name: &str) -> Result<Value, StartupError> {
+    call_beside_value(file!(), fn_name).map_err(StartupError::from)
 }
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────

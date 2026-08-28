@@ -29,7 +29,7 @@
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3be_process_env_fn
 
 use wat::freeze::{resolve_env_program, startup_beside};
-use wat::runtime::Value;
+use wat::runtime::{RuntimeErrorKind, Value};
 use wat::types::Nature;
 
 // A world that has `app::Env` (a :wat::core::Record SUBTYPE) + a named env-fn loaded — i.e. the
@@ -82,9 +82,24 @@ fn non_record_non_fn_is_an_error() {
     // An env-fn that produces a non-record (here an i64) is rejected — user-data MUST be a
     // :wat::core::Record.
     let src = include_str!("probe_arc209_c0b3be_process_env_fn_non_record.wat");
+    // Not a `StartupError` — `resolve_env_program` returns `Result<Value, RuntimeError>`
+    // directly (src/freeze.rs), and is a Rust-only API with no wat-CLI-reachable equivalent
+    // (no builtin calls it), so `./target/release/wat --check` cannot ground it the way the
+    // other sites in this stone were grounded. Reading `src/freeze.rs::resolve_env_program`'s
+    // final `other =>` arm directly: the i64 result falls through both the fn-branch and the
+    // bare-Aggregate branch into `RuntimeErrorKind::MalformedForm { head: "env-fn", .. }` — the
+    // ONE arm in that function reachable for a non-record, non-fn value. `head` is asserted;
+    // `reason` embeds a `{:?}`-Debug-formatted `ValueSnapshot` (field order/shape could drift
+    // with an unrelated derive change) and is not independently confirmed against a live run
+    // (this rider does not build/run cargo per its brief), so it is deliberately left
+    // unasserted rather than guessed.
     let outcome = resolve_env_program(&world(), src.trim());
+    let err = outcome.expect_err(
+        "expected an error: env-fn must produce a :wat::core::Record, not an i64",
+    );
     assert!(
-        outcome.is_err(),
-        "expected an error: env-fn must produce a :wat::core::Record, not an i64; got {outcome:?}"
+        matches!(err.kind(), RuntimeErrorKind::MalformedForm { head, .. } if head == "env-fn"),
+        "expected RuntimeErrorKind::MalformedForm(head = \"env-fn\"); got {:?}",
+        err
     );
 }

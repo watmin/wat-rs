@@ -18,9 +18,9 @@
                            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                             k   <- :wat::core::String]
                              -> (:wat::core::PersistentVector :- [:wat::core::String])
-                             (:wat::core::PersistentVector/conj acc k))
+                             (:wat::vector::conj acc k))
                            (:wat::core::PersistentVector)
-                           (:wat::core::PersistentMap/keys params))
+                           (:wat::map::keys params))
                     missing (:wat::rete::keys-minus want got)
                     extra   (:wat::rete::keys-minus got want)
                     _params (:wat::core::Option/expect
@@ -32,7 +32,7 @@
                                 :wat::core::None)
                               "query: params must match the query's :params")
                     raw (:wat::core::match
-                           (:wat::core::PersistentMap/get
+                           (:wat::map::get
                              (:wat::rete::Session/query-memory session)
                              (:wat::rete::Query/name q))
                            ((:wat::core::Some pv) pv)
@@ -47,8 +47,8 @@
                                k  <- :wat::core::String]
                 -> :wat::core::bool
                 (:wat::core::if ok
-                  (:wat::core::= (:wat::core::PersistentMap/get m k)
-                                 (:wat::core::PersistentMap/get params k))
+                  (:wat::core::= (:wat::map::get m k)
+                                 (:wat::map::get params k))
                   false))
               true
               want))
@@ -74,7 +74,7 @@
                                  (:wat::string::length knm))
                                knm)]
         `(:wat::rete::query-params-form
-           (:wat::core::PersistentMap/assoc ~acc ~kstr ~v)
+           (:wat::map::assoc ~acc ~kstr ~v)
            ~@(:wat::core::rest (:wat::core::rest items)))))))
 
 ;; query — ONE mouth. q is a Query. Optional Clara-shaped kwargs.
@@ -166,14 +166,14 @@
                                (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                 c   <- :wat::WatAST]
                                  -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                 (:wat::core::PersistentVector/conj acc c))
+                                 (:wat::vector::conj acc c))
                                (:wat::core::PersistentVector)
                                (:wat::core::ast->children when-ast))
                     rhs-pv (:wat::core::foldl
                                (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                 c   <- :wat::WatAST]
                                  -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                 (:wat::core::PersistentVector/conj acc c))
+                                 (:wat::vector::conj acc c))
                                (:wat::core::PersistentVector)
                                (:wat::core::ast->children then-ast))]
     (:wat::rete::Rule :name name :lhs lhs-pv :rhs rhs-pv)))
@@ -232,14 +232,14 @@
                                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                                   p   <- :wat::WatAST]
                                    -> (:wat::core::PersistentVector :- [:wat::core::String])
-                                   (:wat::core::PersistentVector/conj acc (:wat::core::ast-name p)))
+                                   (:wat::vector::conj acc (:wat::core::ast-name p)))
                                  (:wat::core::PersistentVector)
                                  (:wat::core::ast->children params-ast))
                     lhs-pv (:wat::core::foldl
                               (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                c   <- :wat::WatAST]
                                 -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                (:wat::core::PersistentVector/conj acc c))
+                                (:wat::vector::conj acc c))
                               (:wat::core::PersistentVector)
                               (:wat::core::ast->children when-ast))]
     (:wat::rete::Query :name name :params params-pv :lhs lhs-pv)))

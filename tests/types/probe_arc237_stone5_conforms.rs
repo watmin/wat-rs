@@ -32,13 +32,13 @@
 //! Per FM 2-bis (recovery doc § 6): probe COMMITTED before BRIEF; BRIEF cites this
 //! file verbatim as "the working contract sonnet must satisfy."
 
-use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::freeze::{call_beside_value, StartupError};
+use wat::runtime::{RuntimeErrorKind, Value};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-fn run_bool(fn_name: &str) -> Result<Value, String> {
-    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
+fn run_bool(fn_name: &str) -> Result<Value, StartupError> {
+    call_beside_value(file!(), fn_name).map_err(StartupError::from)
 }
 
 fn assert_true(fn_name: &str) {
@@ -134,9 +134,17 @@ fn probe_11_nested_vector_of_union() {
 
 #[test]
 fn probe_12_unknown_type_name_errors() {
-    let r = run_bool(":user::probe12");
+    // Bypasses `run_bool` (which formats the error to a bare String) — the discriminant
+    // needs the structured `RuntimeError` (arc 296 Stone L: a bare `is_err()` is satisfied
+    // by ANY error, including a retirement or a renamed fixture, not just the declared one).
+    let r = call_beside_value(file!(), ":user::probe12");
     assert!(
-        r.is_err(),
+        matches!(&r, Err(e) if matches!(e.kind(), RuntimeErrorKind::MalformedForm { head, reason }
+            if head == ":wat::core::conforms?"
+            && reason == "unknown type name ':my::DoesNotExist' is not registered in the TypeEnv \
+                           and is not a built-in primitive; cannot determine conformance (this is \
+                           bad input, not a negative result — check the spelling and ensure the \
+                           type is declared before use)")),
         "conforms? against an unknown type name must error (bad input), not return false; got {:?}",
         r
     );

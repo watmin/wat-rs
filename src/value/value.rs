@@ -15,7 +15,7 @@ use wat_macros::wat_value;
 
 use crate::ast::WatAST;
 use crate::process::ChildHandle;
-use crate::hologram::Hologram;
+use crate::holon::hologram::Hologram;
 use crate::io::{WatReader, WatWriter};
 use crate::rust_deps::{RustOpaqueInner, ThreadOwnedCell};
 use crate::channel::{SenderInner, ReceiverInner};
@@ -1707,7 +1707,7 @@ impl Value {
             // ── Nominal forms: per-instance declared FQDN ────────────────────
             Value::holon__HolonAST(h) => {
                 // rune:solvere(historical-shape) — transitional back-arc into the monolith; extract_classifier lifts to its home at the algebra/ migration stone (docs/arc/2026/06/251-types-as-forms/SCOUT-LIFT-MAP.md); the back-arc resolves then.
-                crate::runtime::extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
+                crate::holon::extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
             }
             // Arc 293.R2.1 — Aggregate: class is already colon-free (all natures).
             // Struct nature: type_name was `:my::Point` → stripped → stored as `my::Point`.

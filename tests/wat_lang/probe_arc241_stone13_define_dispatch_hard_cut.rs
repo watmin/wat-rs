@@ -14,6 +14,7 @@
 //!
 //! Post-stone: both contracts PASS.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── C01: :wat::core::define-dispatch HARD-CUT-rejected at startup ─────────────
@@ -24,9 +25,10 @@ fn contract_01_define_dispatch_hard_cut_rejected() {
     let result = startup_from_file(
         "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "`:wat::core::define-dispatch` must be HARD-CUT-rejected post-stone; got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::define-dispatch"
+            && reason == "':wat::core::define-dispatch' is retired (Stone 241.13); use ':wat::core::defclause' instead"
     );
 }
 

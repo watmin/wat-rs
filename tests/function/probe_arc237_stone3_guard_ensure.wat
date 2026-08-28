@@ -57,16 +57,16 @@
   ([x <- :wat::core::i64 y <- :wat::core::i64]
     :guard (:wat::i64::> x y)
     -> :wat::core::String
-    (:wat::core::String/concat "x>y:" (:wat::core::i64/to-string x)))
+    (:wat::string::concat "x>y:" (:wat::core::i64/to-string x)))
   ([x <- :wat::core::i64 y <- :wat::core::i64]
     :guard (:wat::i64::< x y)
     -> :wat::core::String
-    (:wat::core::String/concat "x<y:" (:wat::core::i64/to-string y)))
+    (:wat::string::concat "x<y:" (:wat::core::i64/to-string y)))
   ([x <- :wat::core::i64 y <- :wat::core::i64 z <- :wat::core::i64]
     :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
-              (:wat::core::String/starts-with? result "result:"))
+              (:wat::string::starts-with? result "result:"))
     -> :wat::core::String
-    (:wat::core::String/concat "result: sum="
+    (:wat::string::concat "result: sum="
       (:wat::core::i64/to-string
         (:wat::i64::+ (:wat::i64::+ x y) z)))))
 (:wat::core::defn :user::probe-14 [] -> :wat::core::String (:p14::process 1 2 3))

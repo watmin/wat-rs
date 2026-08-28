@@ -99,7 +99,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
       -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::PersistentVector/conj acc (:nsh::build-rule i n)))
+      (:wat::vector::conj acc (:nsh::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 
@@ -113,7 +113,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj (:wat::core::PersistentVector/conj acc (:nsh::A i)) (:nsh::B i)))
+        (:wat::vector::conj (:wat::vector::conj acc (:nsh::A i)) (:nsh::B i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
@@ -131,7 +131,7 @@
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:nsh::Out/k f)))
+          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:nsh::Out/k f)))
           (:wat::rete::query fired (:nsh::q-Out)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. min-finding.wat).

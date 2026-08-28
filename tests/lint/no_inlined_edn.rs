@@ -799,7 +799,8 @@ fn tests_carry_no_inlined_edn() {
          `wat::assert_edn_eq!(actual_edn, include_str!(\"...edn\"))` — never a string-literal compare.\n\
          A literal that merely LOOKS EDN-esque but is genuinely not EDN is NOT a rune candidate —\n\
          restructure the CODE so the compared literal's trimmed content doesn't open that way.\n\
-         `// rune:lint(no-inlined-edn) — <reason>` (file-scoped) is reserved for a literal that IS\n\
+         `// rune:lint(no-inlined-edn) — <reason>` (PER-OFFENSE: on the offending line or the one\n\
+         above it — NOT file-wide, unlike no_inlined_wat) is reserved for a literal that IS\n\
          genuinely EDN yet legitimately cannot be a file (e.g. a parser/reader test whose raw\n\
          literal is the input under test) — an EXTREMELY hard bar, justify hard.\n\
          \n\

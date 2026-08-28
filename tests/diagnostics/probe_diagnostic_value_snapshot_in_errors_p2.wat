@@ -1,4 +1,4 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-      [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
+      [head (:wat::keyword::from-string "ns::nonexistent-verb")]
       (head 1 2)))

@@ -65,9 +65,10 @@ fn get<'a>(map: &'a std::collections::HashMap<Value, Value>, key: &str) -> Optio
     map.get(&Value::wat__core__keyword(Arc::new(key.to_string())))
 }
 
-// RED at HEAD: a rust builtin is not registered -> metadata-of returns None.
+// Arc 255 Stone P3 (2026-08-28): re-measured — it PASSES. The intrinsic registry's
+// metadata-of branch (runtime.rs ~13683) has answered Some for a rust builtin since
+// 255.1b-iii shipped; this `#[ignore]` was stale by weeks. Un-ignored.
 #[test]
-#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_answers_for_a_rust_builtin() {
     assert!(
         builtin_metadata_is_some(),
@@ -79,7 +80,15 @@ fn metadata_of_answers_for_a_rust_builtin() {
 
 // RED at HEAD: a bare user defn has no guaranteed baseline -> metadata-of None.
 #[test]
-#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
+#[ignore = "RE-POINTED arc 255 Stone P3 (2026-08-28): still genuinely blocked, but not on the \
+            intrinsic side (255.1b-i..iv-c shipped that). `sym.binding_metadata` is only inserted \
+            for a def carrying EXPLICIT metadata (runtime.rs ~860/977/1410 insert sites); a bare \
+            `defn` with no {} metadata never gets an entry, so metadata-of returns None (verified \
+            live: tests/reflection/probe_arc255_reflection_parity_user_form.wat). The unbuilt \
+            mechanism is DESIGN.md's Layer 1 BASELINE (docs/arc/2026/06/255-builtin-registry/\
+            DESIGN.md, LOCKED RECORD MODEL section, ~line 396: auto-derived baseline on EVERY \
+            registered name) for the USER-form registration path. Check by re-running this fixture \
+            after that lands."]
 fn user_form_carries_guaranteed_baseline() {
     assert!(
         user_form_metadata_is_some(),

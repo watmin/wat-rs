@@ -17,12 +17,11 @@
 //!
 //! Run: `cargo test --release --test probe_arc256_generic_defclause`
 
-use wat::freeze::startup_from_file;
+use wat::check::error::CheckErrorKind;
+use wat::freeze::{startup_from_file, StartupError};
 
-fn check_file(path: &str) -> Result<(), String> {
-    startup_from_file(path)
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"))
+fn check_file(path: &str) -> Result<(), StartupError> {
+    startup_from_file(path).map(|_| ())
 }
 
 #[test]
@@ -42,9 +41,14 @@ fn c02_generic_clause_call_checks() {
 #[test]
 fn c03_illtyped_generic_call_rejected() {
     // Guard: T:=i64 from a=1, then b="two" (String) must fail to unify → REJECT.
-    assert!(
-        check_file("tests/types/probe_arc256_generic_defclause_c03.wat.bad").is_err(),
-        "ill-typed generic clause call must be rejected (T:=i64 then String)"
+    // Bypasses `check_file` — the discriminant needs to match the inner `CheckErrorKind`
+    // structurally via `assert_startup_error!`, not just discard it into `Result<(), _>`.
+    let r = startup_from_file("tests/types/probe_arc256_generic_defclause_c03.wat.bad");
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
+            if name == ":user::firstof"
+            && *called_arity == 2
+            && called_arg_types.as_slice() == [":wat::core::i64".to_string(), ":wat::core::String".to_string()]
     );
 }
 

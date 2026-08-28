@@ -12,14 +12,14 @@
 
 ;; Probe 2 — runtime-built keyword dispatched via apply (result 5)
 (:wat::core::defn :user::probe-2 [] -> :wat::core::i64
-  (:wat::core::let [plus (:wat::core::keyword/from-string "wat::i64::+")]
+  (:wat::core::let [plus (:wat::keyword::from-string "wat::i64::+")]
     (:wat::core::apply  plus [2 3])))
 
 ;; Probe 3 — mangled-namespace user defn via apply (result "hello world")
 (:wat::core::defn :ns::greeting [name <- :wat::core::String] -> :wat::core::String
   (:wat::string::concat "hello " name))
 (:wat::core::defn :user::probe-3 [] -> :wat::core::String
-  (:wat::core::let [verb (:wat::core::keyword/from-string "ns::greeting")]
+  (:wat::core::let [verb (:wat::keyword::from-string "ns::greeting")]
     (:wat::core::apply  verb ["world"])))
 
 ;; Probe 4 — leading positional args + tail spread vector (result 10)
@@ -38,5 +38,5 @@
 ;; Probe 6 — special-form head rejection (runtime error; startup succeeds since keyword is built at runtime)
 (:wat::core::defn :user::probe-6-err [] -> :wat::core::String
   (:wat::core::apply 
-    (:wat::core::keyword/from-string "wat::core::defn")
+    (:wat::keyword::from-string "wat::core::defn")
     []))

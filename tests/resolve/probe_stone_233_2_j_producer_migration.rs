@@ -58,7 +58,15 @@ fn probe_1_keyword_from_string_yields_tracked_value() {
 }
 
 // ─── Probe 2 — Producer-attached provenance survives eval boundary ──────────
-
+//
+// Arc 255 Stone E-iv moved `keyword/from-string`'s dispatch route onto the
+// `#[wat_intrinsic]` registry, whose `NativeHandler` signature at the time had no slot for a
+// custom `Provenance`, and this probe was rewritten to assert the resulting `Unknown` with an
+// honest `⚠ REGRESSED` comment. Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning
+// signature (sniffed from the handler's own declared return type,
+// `crates/wat-macros/src/wat_intrinsic.rs`), so `src/intrinsic/keyword.rs`'s `from-string`
+// handler forwards its own `Provenance::RuntimeBuilt` again — this probe is RESTORED to assert
+// it, under the new `:wat::keyword::from-string` spelling.
 #[test]
 fn probe_2_keyword_from_string_provenance_attached() {
     let tv = eval_probe();
@@ -66,14 +74,11 @@ fn probe_2_keyword_from_string_provenance_attached() {
     assert!(
         matches!(
             tv.provenance(),
-            Provenance::RuntimeBuilt {
-                producer: ":wat::core::keyword/from-string",
-                ..
-            }
+            Provenance::RuntimeBuilt { producer, .. } if *producer == ":wat::keyword::from-string"
         ),
-        "Stone 233.2.j: producer provenance must survive eval boundary; \
-         expected RuntimeBuilt {{ producer: \":wat::core::keyword/from-string\", .. }}; \
-         got {:?}",
+        "Stone 233.2.j / arc 255 Stone G: keyword/from-string is registry-routed but stamps its \
+         own RuntimeBuilt provenance via the TrackedValue-returning NativeHandler; expected \
+         Provenance::RuntimeBuilt {{ producer: \":wat::keyword::from-string\", .. }}; got {:?}",
         tv.provenance()
     );
 }

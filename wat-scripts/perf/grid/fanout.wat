@@ -70,8 +70,8 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  f <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj
-        (:wat::core::PersistentVector/conj acc (:fan::Left :key k :lid f))
+      (:wat::vector::conj
+        (:wat::vector::conj acc (:fan::Left :key k :lid f))
         (:fan::Right :key k :rid f)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 fanout)))
@@ -81,7 +81,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  k <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/concat acc (:fan::facts-key k fanout)))
+      (:wat::vector::concat acc (:fan::facts-key k fanout)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 keys)))
 
@@ -109,7 +109,7 @@
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
+          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
           (:wat::rete::query fired (:fan::q-Pair)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors accum.wat's ns-between).
@@ -138,7 +138,7 @@
                     enc0    (:wat::time::now)
                     encoded (:wat::core::mapv
                               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
-                                (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")]
+                                (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                                   (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
                               raw)
                     enc1    (:wat::time::now)

@@ -67,7 +67,7 @@
                   (:wat::core::let [names (:user::fieldvec-names fv)]
                     (:wat::core::if (:wat::core::empty? names)
                       m
-                      (:wat::core::HashMap/assoc m tyname names))))))
+                      (:wat::hashmap::assoc m tyname names))))))
             m))))
     m))
 
@@ -109,7 +109,7 @@
            args  (:wat::core::into [] (:wat::core::rest ch))
            hname (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
                    (:wat::core::ast-name head) "")
-           fopt  (:wat::core::HashMap/get m hname)
+           fopt  (:wat::hashmap::get m hname)
            this  (:wat::core::match fopt 
                    (:wat::core::None (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))
                    ((:wat::core::Some fields)

@@ -36,9 +36,9 @@
 //! Per FM 2-bis (recovery doc § 6): probe COMMITTED before BRIEF; BRIEF cites
 //! this file verbatim as "the working contract sonnet must satisfy."
 
-use wat::freeze::startup_from_file;
-use wat::runtime::{apply_function, Value};
-use wat::types::{is_subtype, TypeEnv};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
+use wat::types::{is_subtype, TypeEnv, TypeErrorKind};
 
 // ─── Rust-API helpers (mirror probe_arc237_stone1_typeunion_substrate) ────────
 
@@ -95,8 +95,10 @@ fn probe_05_cycle_rejected() {
     env.register_subtype(":my::A", ":my::B", wat::rust_caller_span!()).expect("A→B ok");
     let closes_cycle = env.register_subtype(":my::B", ":my::A", wat::rust_caller_span!());
     assert!(
-        closes_cycle.is_err(),
-        "B→A closes a cycle through A→B; must be rejected at registration"
+        matches!(&closes_cycle, Err(e) if matches!(e.kind(), TypeErrorKind::CyclicSubtype { child, parent }
+            if child == ":my::B" && parent == ":my::A")),
+        "B→A closes a cycle through A→B; must be rejected at registration; got {:?}",
+        closes_cycle
     );
 }
 
@@ -116,15 +118,18 @@ fn probe_06_builtin_roots() {
 
 // ─── wat-surface helper ────────────────────────────────────────────────────────
 
-fn eval_probe(file: &str, fn_name: &str) -> Result<Value, String> {
-    let world = startup_from_file(file).map_err(|e| format!("startup: {:?}", e))?;
+fn eval_probe(file: &str, fn_name: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(file)?;
+    // Arc 296 Stone M: "no entry fn" is a fixture/test-authorship bug, not a startup-pipeline
+    // failure with a StartupError variant to wrap into — mirrors `call_beside_value`'s own
+    // `.unwrap_or_else(|| panic!(...))` for the identical condition (src/freeze.rs).
     let func = world
         .symbols()
         .get(fn_name)
-        .ok_or_else(|| format!("no entry fn {fn_name:?} in {file:?}"))?
+        .unwrap_or_else(|| panic!("no entry fn {fn_name:?} in {file:?}"))
         .clone();
     apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("eval: {:?}", e))
+        .map_err(StartupError::from)
 }
 
 // ─── Probe 7 — subtype? roots → true ──────────────────────────────────────────
@@ -164,7 +169,12 @@ fn probe_10_subtype_unknown_name_errors() {
             let func = world.symbols().get(":user::probe10").expect(":user::probe10").clone();
             let r = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
             assert!(
-                r.is_err(),
+                matches!(&r, Err(e) if matches!(e.kind(), RuntimeErrorKind::MalformedForm { head, reason }
+                    if head == ":wat::core::subtype?"
+                    && reason == "unknown type name ':my::Nonexistent' is not registered in the \
+                                   TypeEnv and is not a built-in primitive; cannot determine \
+                                   subtype relationship (this is bad input, not a negative result \
+                                   — check the spelling and ensure the type is declared before use)")),
                 "unknown type name must error at startup or eval (keeps `false` honest); got {:?}",
                 r
             );

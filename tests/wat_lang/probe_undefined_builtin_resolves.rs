@@ -14,11 +14,28 @@ use wat::freeze::{startup_beside, startup_from_file};
 // A renamed-away operator (`+'2` → `+`): a wrong leaf under :wat::core::i64::.
 // RED at HEAD: freezes clean today (deferred to runtime); GREEN after the fix.
 #[test]
-#[ignore = "RED-at-HEAD: checker rejection of undefined builtins (arc-255 builtin-registry) not yet built; unlock when we circle back to arc 255"]
+#[ignore = "RE-POINTED arc 255 Stone P3 (2026-08-28): re-measured, still fails identically — \
+            src/resolve/walk.rs:268 `if is_reserved_prefix(head) { return true; }` still blanket- \
+            accepts any leaf under a reserved prefix. This is the arc's own named ENDGAME, not a \
+            small unlock: deleting the blanket-accept is sized at 2,539 of 5,059 tests failing if \
+            default-denied today (docs/arc/2026/06/255-builtin-registry/\
+            DESIGN-STONE-O-one-declaration-feeds-both-doors.md:271, cross-confirmed \
+            NOTE-the-registry-asserts-properties-nothing-verifies.md:91). Check by reading either \
+            doc's cited `cargo nextest` summary line, or by flipping walk.rs:268 to `return false` \
+            and re-measuring the floor — do not do this without a ruling, it is the campaign finale."]
 fn wrong_operator_leaf_is_a_check_error() {
     let result = startup_from_file(
         "tests/wat_lang/probe_undefined_builtin_resolves_wrong_leaf.wat.bad",
     );
+    // ⛔ STOP-1-SHAPED FINDING (arc 296 Stone L) — NOT migrated, and no bare-is-err exemption
+    // taken either (that door is for a REAL error with no stable discriminant; this fixture
+    // raises NO error at all). Grounded via `./target/release/wat --check`: exits 0
+    // today, confirming the `#[ignore]` above's own "RED-at-HEAD: checker rejection ... not yet
+    // built" — the checker rejection this message describes does not exist yet. Lower-severity
+    // than an active green false-proof (this test is `#[ignore]`d, so it proves nothing to
+    // anyone today either way), but asserting a discriminant now would still be fabricating
+    // grounding for behavior that isn't there. Un-ignoring this test (arc 255 circling back) is
+    // the trigger to migrate it for real.
     assert!(
         result.is_err(),
         "(:wat::core::i64::+'2 ...) — a renamed-away operator leaf — must be caught \
@@ -28,11 +45,19 @@ fn wrong_operator_leaf_is_a_check_error() {
 
 // A bogus leaf under a real namespace. RED at HEAD.
 #[test]
-#[ignore = "RED-at-HEAD: checker rejection of undefined builtins (arc-255 builtin-registry) not yet built; unlock when we circle back to arc 255"]
+#[ignore = "RE-POINTED arc 255 Stone P3 (2026-08-28): same as the sibling test above — \
+            src/resolve/walk.rs:268's blanket-accept is still live. The arc's own ENDGAME, sized \
+            at 2,539 of 5,059 tests failing if default-denied today \
+            (docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-O-one-declaration-feeds-both-\
+            doors.md:271). Check the same way: read that doc's summary line, or re-measure with \
+            walk.rs:268 flipped — not without a ruling first."]
 fn bogus_leaf_under_known_namespace_is_a_check_error() {
     let result = startup_from_file(
         "tests/wat_lang/probe_undefined_builtin_resolves_bogus.wat.bad",
     );
+    // ⛔ STOP-1-SHAPED FINDING (arc 296 Stone L) — NOT migrated, same reasoning as the sibling
+    // test above: `--check` exits 0 on this fixture too (verified), so there is no error yet,
+    // let alone a discriminant, until arc 255's builtin-registry lands.
     assert!(
         result.is_err(),
         "(:wat::core::Bogus ...) — a wrong leaf under a real namespace — must be a \

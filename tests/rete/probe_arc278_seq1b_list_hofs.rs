@@ -17,27 +17,29 @@
 //! Run: cargo test --release -p wat --test probe_arc278_seq1b_list_hofs
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::check::error::CheckErrorKind;
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::loader::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 /// Type-check a whole program at freeze time. Ok = clean; Err = a CheckError fired.
 // rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
-fn check(src: &str) -> Result<(), String> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"))
+fn check(src: &str) -> Result<(), StartupError> {
+    startup_from_source(src, None, Arc::new(InMemoryLoader::new())).map(|_| ())
 }
 
 /// Build a world from one probe `defn`, start it (TYPE-CHECK fires here), then eval `call`.
+/// Arc 296 Stone M — THE CANONICAL CASE: this helper used to chain three distinct error types
+/// (`StartupError`, `ParseError`, `RuntimeError`) through one `?`, `format!`-collapsing each into
+/// a `String` and destroying the discriminant. `StartupError` is the union of all three, so each
+/// step now wraps into its REAL variant instead.
 // rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
-fn eval_probe(defn: &str, call: &str) -> Result<Value, String> {
+fn eval_probe(defn: &str, call: &str) -> Result<Value, StartupError> {
     let world = defn.to_string();
-    let w = startup_from_source(&world, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;
+    let w = startup_from_source(&world, None, Arc::new(InMemoryLoader::new()))?;
+    let ast = wat::parse_one!(call).map_err(StartupError::Parse)?;
     eval_in_frozen(&ast, &w, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
+        .map_err(|e| StartupError::Runtime(Box::new(e)))
         .map(|tv| tv.value_owned())
 }
 
@@ -105,7 +107,19 @@ fn wrong_element_rejected() {
     let str_sum = "(:wat::core::fn [acc <- :wat::core::String x <- :wat::core::String] -> :wat::core::String \
                      (:wat::core::string::concat acc x))";
     let src = format!("(:wat::core::defn :user::bad [] -> :wat::core::String (:wat::core::foldl {str_sum} \"\" {L123}))\n{MAIN}");
-    assert!(check(&src).is_err(), "String reducer over i64 List must be rejected. Got: {:?}", check(&src));
+    // Not via `check()` here — it collapses the typed error to a Debug-formatted `String`
+    // (`.map_err(|e| format!("{e:?}"))`), erasing the discriminant. Call `startup_from_source`
+    // directly to keep the typed `StartupError`.
+    let result = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()));
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::foldl"
+            && param == "#1"
+            // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
+            && expected == "[:wat::core::String :wat::core::i64 :-> :wat::core::String]"
+            // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
+            && got == "[:wat::core::String :wat::core::String :-> :wat::core::String]"
+    );
 }
 
 // ── Runtime values: each op produces the right elements ──
@@ -168,5 +182,16 @@ fn list_map_is_not_vector() {
     let src = format!(
         "(:wat::core::defn :user::wrong [] -> :wat::core::Vector<wat::core::i64> (:wat::core::map {DBL} {L123}))\n{MAIN}"
     );
+    // ⛔ STOP-1 FINDING (arc 296 Stone L) — NOT migrated. The message claims this proves
+    // "map over a List must NOT satisfy a Vector return (preservation, not coercion)" — a
+    // TYPE-level rejection. Grounded via `./target/release/wat --check` on this exact `src`:
+    // the ACTUAL failure is `StartupError::Parse(ParseError { kind: ParseErrorKind::Lex(
+    // LexError { kind: LexErrorKind::AngleTypeHeadInName, .. }), .. })` — a LEX-time rejection
+    // of the retired angle-bracket spelling `:wat::core::Vector<wat::core::i64>` itself (arc
+    // 109 "annihilate the angle bracket"), fired before the program ever reaches the checker's
+    // List/Vector preservation logic this test claims to exercise. The fixture's return-type
+    // annotation needs the surviving `(:wat::core::Vector :- [:wat::core::i64])` spelling to
+    // reach the intended check; left as a bare `is_err()` rather than asserting a discriminant
+    // for logic this `src` never reaches.
     assert!(check(&src).is_err(), "map over a List must NOT satisfy a Vector return (preservation, not coercion). Got: {:?}", check(&src));
 }

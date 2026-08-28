@@ -11,6 +11,7 @@
 //! (LIFT the arc-232 protocol dispatch shape at `src/runtime.rs:5101`, routing to the plain `defn :T/method`,
 //! NOT an `extend:<P>:<T>` impl). Plus the check-side call typing (mirror `src/check.rs:5789`).
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
@@ -52,10 +53,11 @@ fn surface_method_dispatches_by_runtime_type() {
 #[test]
 fn non_satisfier_receiver_rejected_at_check_time() {
     let result = startup_from_file("tests/types/probe_arc293_4b_surface_dispatch.wat.bad");
-    assert!(
-        result.is_err(),
-        "a record without `defn :T/area` must NOT satisfy :t::Shape; \
-         the surface dispatcher must reject the call at check time, \
-         but startup succeeded — satisfaction check is broken"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":t::Shape/area"
+            && param == "#1 (receiver)"
+            && expected == ":t::Shape"
+            && got == ":t::NoArea"
     );
 }

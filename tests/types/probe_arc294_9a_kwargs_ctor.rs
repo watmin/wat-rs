@@ -15,6 +15,7 @@
 //! therefore encoded as a single `.wat` fixture (co-located) whose forms this file
 //! exercises directly against a scoped world — no dependency on `wat/sqlite.wat`.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 /// The fixture loads clean: bare kwargs (either key order) reorders to the prime
@@ -35,9 +36,12 @@ fn kwargs_ctor_fixture_checks_clean() {
 #[test]
 fn bare_positional_construction_is_rejected() {
     let r = startup_from_file("tests/types/probe_arc294_9a_kwargs_ctor_bad.wat.bad");
-    assert!(
-        r.is_err(),
-        "arc294 9a: bare-positional construction of a flipped aggregate ctor must be \
-         REJECTED (the bare name is now the kwargs macro) — got Ok"
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::kwargs-construct"
+            && reason == "bare-positional construction of :probe294abad::Pair is retired (the \
+                           bare name is the kwargs macro); write kwargs \
+                           `(:probe294abad::Pair :field value …)` or use the positional prime \
+                           `:probe294abad::Pair'`"
     );
 }

@@ -16,13 +16,16 @@
 //!
 //! Run: cargo test --release --test rete
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 #[test]
 fn omitting_the_undefined_marker_and_fallback_fails_to_check() {
     let result = startup_from_file("tests/rete/probe_arc278_55_slice_one_undefined_mandatory.wat");
-    assert!(
-        result.is_err(),
-        "a 3-arg call to a 4-param-registered rete op must fail to type-check"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::ArityMismatch { callee, expected, got }
+            if callee == ":wat::rete::i64::+"
+            && *expected == 4
+            && *got == 3
     );
 }

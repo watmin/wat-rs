@@ -24,4 +24,4 @@
 ;; never echo its own (wrong) name back. Proves src/runtime.rs eval_return_type_of's former
 ;; echo-on-keyword branch is dead.
 (:wat::core::defn :user::return-type-of-unknown-raises [] -> :wat::core::String
-  (:wat::runtime::return-type-of (:wat::core::keyword/from-string "s::Nope'")))
+  (:wat::runtime::return-type-of (:wat::keyword::from-string "s::Nope'")))

@@ -7,17 +7,17 @@
   (:wat::core::let
     [n0 (:wat::rete::RootJoinNode :id 0 :children (:wat::core::PersistentVector 1))
      n1 (:wat::rete::ProductionNode :id 1 :rule-name "rule-1")
-     net (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap [:wat::core::i64 :wat::core::Record]) 0 n0) 1 n1)
+     net (:wat::map::assoc (:wat::map::assoc (:wat::core::PersistentMap [:wat::core::i64 :wat::core::Record]) 0 n0) 1 n1)
      em  (:wat::core::PersistentMap)
      ev  (:wat::core::PersistentVector)
      s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts ev :next-id 2 :query-memory em)]
-    (:wat::core::PersistentMap/length (:wat::rete::Session/network s))))
+    (:wat::map::length (:wat::rete::Session/network s))))
 
 (:wat::core::defn :user::render-dag-of-session [] -> :wat::core::String
   (:wat::core::let
     [n0 (:wat::rete::RootJoinNode :id 0 :children (:wat::core::PersistentVector 1))
      n1 (:wat::rete::ProductionNode :id 1 :rule-name "rule-1")
-     net (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap [:wat::core::i64 :wat::core::Record]) 0 n0) 1 n1)
+     net (:wat::map::assoc (:wat::map::assoc (:wat::core::PersistentMap [:wat::core::i64 :wat::core::Record]) 0 n0) 1 n1)
      em  (:wat::core::PersistentMap)
      ev  (:wat::core::PersistentVector)
      s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts ev :next-id 2 :query-memory em)]

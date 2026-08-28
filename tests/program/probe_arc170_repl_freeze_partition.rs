@@ -47,14 +47,14 @@
 //! consumes its head. One authority per half, neither of them a hand-kept list.
 
 use std::sync::Arc;
+use wat::freeze::StartupError;
 
 /// Freeze one session's forms and return the residue the freeze left behind,
 /// rendered head-first so a failure message names the actual forms.
-fn residue_of(src: &str, file: &str) -> Result<Vec<String>, String> {
-    let forms = wat::parse_all_with_file(src, file).map_err(|e| format!("parse failed: {e:?}"))?;
+fn residue_of(src: &str, file: &str) -> Result<Vec<String>, StartupError> {
+    let forms = wat::parse_all_with_file(src, file).map_err(StartupError::Parse)?;
     let loader: Arc<dyn wat::load::loader::SourceLoader> = Arc::new(wat::load::loader::InMemoryLoader::new());
-    let world = wat::freeze::startup_from_forms(forms, None, loader)
-        .map_err(|e| format!("freeze failed: {e}"))?;
+    let world = wat::freeze::startup_from_forms(forms, None, loader)?;
     Ok(world.program.iter().map(|f| format!("{f:?}")).collect())
 }
 

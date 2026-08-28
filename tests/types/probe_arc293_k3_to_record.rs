@@ -8,7 +8,7 @@
 //! `to-struct` is GONE (unbound; dispatch arm removed from runtime.rs and check.rs).
 
 use wat::freeze::{eval_in_frozen, startup_beside, call_beside_value};
-use wat::runtime::{Environment, Value};
+use wat::runtime::{Environment, RuntimeErrorKind, Value};
 
 #[test]
 fn pair_projection_emits_core_and_holon_records() {
@@ -32,9 +32,14 @@ fn to_struct_is_gone_at_runtime() {
         .unwrap_or_else(|e| panic!("expr fragment {expr_path:?} must exist: {e}"));
     let ast = wat::parse_one_with_file(&src, expr_path).expect("parse to-struct call fragment");
     let result = eval_in_frozen(&ast, &world, &Environment::new());
+    // Grounded via an equivalent dynamic-dispatch route (`:wat::eval-edn!` on the same call
+    // shape, since `eval_in_frozen`'s Rust API isn't independently invokable from `wat --check`):
+    // the deleted verb falls through the dispatch cluster to a plain symbol lookup, which
+    // fails as `RuntimeErrorKind::UnknownFunction`, not a bespoke "to-struct is gone" kind.
     assert!(
-        result.is_err(),
-        "`:wat::core::to-struct` must be GONE (unbound); got Ok({:?})",
-        result.ok()
+        matches!(&result, Err(e) if matches!(e.kind(), RuntimeErrorKind::UnknownFunction(path)
+            if path == ":wat::core::to-struct")),
+        "`:wat::core::to-struct` must be GONE (unbound); got {:?}",
+        result
     );
 }

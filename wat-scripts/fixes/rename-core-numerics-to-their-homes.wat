@@ -81,13 +81,13 @@
          ;; the literal into unquoted keyword syntax. See rename-core-string-to-string.wat's
          ;; header for the fuller argument; the same trap applies here verbatim.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::i64::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::i64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-i64-to-i64"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::i64::"
+                         :value (:wat::rete::string::concat ":wat::i64::"
                                   (:wat::rete::string::subs ?n 17
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -99,13 +99,13 @@
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-i64's comment.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::f64::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::f64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-f64-to-f64"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::f64::"
+                         :value (:wat::rete::string::concat ":wat::f64::"
                                   (:wat::rete::string::subs ?n 17
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -152,9 +152,9 @@
                      row <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
-        [line     (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?line")     "q-match: ?line")
-         col      (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?col")      "q-match: ?col")
-         captures (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?captures") "q-match: ?captures")
+        [line     (:wat::core::Option/expect (:wat::map::get row "?line")     "q-match: ?line")
+         col      (:wat::core::Option/expect (:wat::map::get row "?col")      "q-match: ?col")
+         captures (:wat::core::Option/expect (:wat::map::get row "?captures") "q-match: ?captures")
          old-text (:wat::grep::Capture/value (:rn::first-capture captures))
          new-text (:wat::grep::Capture/value (:rn::second-capture captures))
          start    {:line line     :col col}

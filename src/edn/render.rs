@@ -1228,7 +1228,7 @@ pub fn eval_keyword_node(
     ))
 }
 
-/// `(:wat::core::keyword/to-symbol <keyword-node>)` — arc 251 head role-inversion. Convert a
+/// `(:wat::keyword::to-symbol <keyword-node>)` — arc 251 head role-inversion (arc 255 Stone E-iv rename). Convert a
 /// wat rust-scheme call-head Keyword node into a faithful-Clojure Symbol node via
 /// [`wat_keyword_to_clojure_symbol`]. The kind CHANGE (Keyword → Symbol) is the inversion: a
 /// call head is a symbol in Clojure, never a keyword. Errors if the keyword is not a
@@ -1239,7 +1239,7 @@ pub fn eval_keyword_to_symbol(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<crate::value::TrackedValue, RuntimeError> {
-    const OP: &str = ":wat::core::keyword/to-symbol";
+    const OP: &str = ":wat::keyword::to-symbol";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let kw: String = match &v {
         Value::wat__WatAST(a) => match a.as_ref() {
@@ -1484,7 +1484,7 @@ fn eval_keyword_to_type_form_impl(
     ))
 }
 
-/// `(:wat::core::keyword/to-type-form <keyword-node>)` — arc 251 type-position rendering.
+/// `(:wat::keyword::to-type-form <keyword-node>)` — arc 251 type-position rendering (arc 255 Stone E-iv rename).
 /// Convert an old rust-scheme TYPE keyword (`:wat::core::Vector<wat::core::i64>`) into the
 /// faithful-Clojure type FORM (`(wat.type/Vector [wat.type/i64])`). Parses the keyword string
 /// via the EXISTING type parser ([`crate::types::parse_type_expr_with_span`] → `TypeExpr`),
@@ -1497,11 +1497,11 @@ pub fn eval_keyword_to_type_form(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<crate::value::TrackedValue, RuntimeError> {
-    const OP: &str = ":wat::core::keyword/to-type-form";
+    const OP: &str = ":wat::keyword::to-type-form";
     eval_keyword_to_type_form_impl(OP, TypeFormHeadMode::Clojure, args, list_span, env, sym)
 }
 
-/// `(:wat::core::keyword/to-type-form-colon <keyword-node>)` — arc 109 Stone ②-i, Room 3 sibling
+/// `(:wat::keyword::to-type-form-colon <keyword-node>)` — arc 109 Stone ②-i, Room 3 sibling (arc 255 Stone E-iv rename)
 /// of [`eval_keyword_to_type_form`]. Same parse + render pipeline, [`TypeFormHeadMode::Colon`]:
 /// `:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])` — a colon-
 /// quoted Keyword head, bracketed args, the rust-ish spelling step ②'s corpus codemod needs
@@ -1512,7 +1512,7 @@ pub fn eval_keyword_to_type_form_colon(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<crate::value::TrackedValue, RuntimeError> {
-    const OP: &str = ":wat::core::keyword/to-type-form-colon";
+    const OP: &str = ":wat::keyword::to-type-form-colon";
     eval_keyword_to_type_form_impl(OP, TypeFormHeadMode::Colon, args, list_span, env, sym)
 }
 
@@ -3495,7 +3495,7 @@ fn reconstruct_holon_record(
         )),
     })?;
     let span = crate::rust_caller_span!();
-    let hologram = crate::runtime::build_holon_hologram(&class, &field_names, &fields, ctx, &span)
+    let hologram = crate::holon::build_holon_hologram(&class, &field_names, &fields, ctx, &span)
         .map_err(|e| EdnReadError {
             span: crate::rust_caller_span!(),
             kind: EdnReadErrorKind::Other(format!(
@@ -4224,7 +4224,7 @@ fn opaque_nil(ns: &str, name: &str) -> OwnedValue {
 ///   `#wat.holon/Thermometer {:value :min :max}` /
 ///   `#wat.holon/SlotMarker {:min :max}` — legible, self-describing, plain
 ///   EDN, never a call form.
-/// - anything else that IS data — [`crate::runtime::from_holon_item`] (the
+/// - anything else that IS data — [`crate::holon::from_holon_item`] (the
 ///   holon→data inverse `:wat::holon::from-holon` already uses) recovers the
 ///   `Value` it derived from; that `Value` renders through the SAME
 ///   `value_to_edn_with` this function is itself an arm of, wrapped in
@@ -4260,7 +4260,7 @@ fn holon_ast_to_edn_data(h: &holon::HolonAST, types: Option<&crate::types::TypeE
                 (OwnedValue::Keyword(Keyword::new("max")), OwnedValue::Float(*max)),
             ])),
         ),
-        other => match crate::runtime::from_holon_item(
+        other => match crate::holon::from_holon_item(
             other,
             ":wat::edn::write",
             &crate::rust_caller_span!(),
@@ -4335,7 +4335,7 @@ fn edn_derive_holon(
 /// hand-kept-in-sync copies (the same reasoning as
 /// [`decode_holon_directive_tag`] for the directive tags).
 fn decode_holon_data_tag(value: Value) -> Result<holon::HolonAST, EdnReadError> {
-    match crate::runtime::to_holon_inner(value, &crate::rust_caller_span!()) {
+    match crate::holon::to_holon_inner(value, &crate::rust_caller_span!()) {
         Ok(Value::holon__HolonAST(h)) => Ok((*h).clone()),
         Ok(other) => unreachable!(
             "to_holon_inner always returns holon__HolonAST on Ok; got {other:?}"

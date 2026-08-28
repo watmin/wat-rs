@@ -25,11 +25,11 @@
 //! do not exist → fail (UnknownFunction). is-Circle? (record) already exists → green.
 //! Post-stone 237.6: 10/10 PASS.
 
-use wat::freeze::call_beside_value;
+use wat::freeze::{call_beside_value, StartupError};
 use wat::runtime::Value;
 
-fn run_bool(fn_name: &str) -> Result<Value, String> {
-    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
+fn run_bool(fn_name: &str) -> Result<Value, StartupError> {
+    call_beside_value(file!(), fn_name).map_err(StartupError::from)
 }
 
 fn assert_true(fn_name: &str) {

@@ -34,7 +34,7 @@
     [fired (:test::fire-once (:test::compile-temp-rule))
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::PersistentMap/keys amem))))
+    (:wat::core::length (:wat::map::keys amem))))
 
 (:wat::core::defn :user::seed-temps-fact-count [] -> :wat::core::i64
   (:wat::core::length (:wat::rete::Session/facts (:test::seed-temps (:test::compile-temp-rule)))))
@@ -45,7 +45,7 @@
     [fired (:test::fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::PersistentMap/keys amem))))
+    (:wat::core::length (:wat::map::keys amem))))
 
 ;; (2) the populated alpha holds ONE Element — 15 was rejected by (> ?t 20).
 (:wat::core::defn :user::alpha-matching-element-count [] -> :wat::core::i64
@@ -53,8 +53,8 @@
     [fired (:test::fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)
-     aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
-     elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")]
+     aid   (:wat::core::Option/expect (:wat::core::get (:wat::map::keys amem) 0) "aid")
+     elems (:wat::core::Option/expect (:wat::map::get amem aid) "elems")]
     (:wat::core::length elems)))
 
 ;; (3) the stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
@@ -63,8 +63,8 @@
     [fired (:test::fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)
-     aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
-     elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")
+     aid   (:wat::core::Option/expect (:wat::core::get (:wat::map::keys amem) 0) "aid")
+     elems (:wat::core::Option/expect (:wat::map::get amem aid) "elems")
      elem  (:wat::core::Option/expect (:wat::core::get elems 0) "elem")
      binds (:wat::rete::Element/bindings elem)]
-    (:wat::core::PersistentMap/get binds "?t")))
+    (:wat::map::get binds "?t")))

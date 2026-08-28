@@ -88,6 +88,38 @@ filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100                                            # schedule first
 
+# ⏱ retirement_table_is_fully_reachable — STARTUP-bound, and the ARC GROWS ITS INPUT.
+#
+# MEASURED 2026-08-26, because the first version of this comment said "spawn-bound" and that
+# was wrong:
+#     one `wat` invocation, TRIVIAL program ......... 147 ms
+#     bare process spawn (/bin/true) ..................  ~0 ms
+#     98 rows x 147 ms ............................... 14.6 s   (test measures 14.9 s)
+#
+# The cost is not the fork. Every `wat` invocation parses, type-checks and freezes the baked
+# stdlib first — 54 `include_str!`ed `.wat` files, 19,672 lines — before it can look at the
+# one-line question. The gate asks 98 one-line questions and pays that boot 98 times. The
+# retirement lookups themselves are free.
+#
+# It crossed the 15s/30s default under end-of-run contention: a TIMEOUT, not a hang. Same
+# argument as `a_counter_increments_across_turns` above.
+#
+# ⚠ A THRESHOLD IS NOT THE FIX, and the obvious fix DOES NOT WORK. Every home carved adds rows,
+# so this number will need raising again. But batching all rows into ONE program does not
+# collapse it: measured, a 98-row batch reports **"1 type-check error" and stops** — the check
+# walk short-circuits, so 97 rows go unexamined and the gate would silently weaken to testing
+# one row. (Three independent well-formed calls DO all report; the abort is shape-dependent, and
+# nothing here establishes which shapes collect and which stop.)
+#
+# So the real fix is OPEN, not merely undone. Whatever it is must keep the gate's three-way
+# discrimination — inert / diagnosed-at-runtime (door 2) / diagnosed-at-check (door 1) — which
+# is why it runs the program rather than `--check`ing it.
+[[profile.default.overrides]]
+filter = 'test(retirement_table_is_fully_reachable)'
+slow-timeout = { period = "120s", terminate-after = 2 }
+priority = 97                                             # startup-heavy: start it early
+
+
 # The REST of the lint binary, immediately behind the scripts gate.
 #
 # The `lint` target (Cargo.toml:219, tests/lint/mod.rs) is the second-longest
@@ -200,6 +232,11 @@ priority = 98                                             # just below the lint 
 [[profile.ci.overrides]]
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
+
+[[profile.ci.overrides]]
+filter = 'test(retirement_table_is_fully_reachable)'
+slow-timeout = { period = "180s", terminate-after = 2 }
+priority = 97
 
 [[profile.ci.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'

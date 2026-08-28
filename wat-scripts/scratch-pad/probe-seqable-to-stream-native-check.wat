@@ -17,14 +17,14 @@
 (:wat::core::defn :cx::build-list [n <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::List :- [:wat::core::i64])  i <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
-      (:wat::core::List/conj acc i))
+      (:wat::linkedlist::conj acc i))
     (:wat::core::List)
     (:wat::core::reverse (:wat::core::range 0 n))))
 
 (:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-      (:wat::core::PersistentVector/conj acc i))
+      (:wat::vector::conj acc i))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 

@@ -6,13 +6,13 @@
 ;; spelling anywhere, keeping the exact same test topology.
 (:wat::core::defmacro :test::mk-kw
   [head <- :wat::WatAST arg <- :wat::WatAST] -> :wat::WatAST
-  (:wat::core::let [head-text (:wat::core::keyword/to-string head)
-                    arg-text  (:wat::core::keyword/to-string arg)
+  (:wat::core::let [head-text (:wat::keyword::to-string head)
+                    arg-text  (:wat::keyword::to-string arg)
                     full (:wat::string::concat head-text
                            (:wat::string::concat "-" arg-text))]
-    `~(:wat::core::keyword/from-string full)))
+    `~(:wat::keyword::from-string full)))
 (:wat::core::defmacro :my::mk
   [e <- :wat::WatAST] -> :wat::WatAST
   `(:test::mk-kw :foo ~e))
 (:wat::core::defn :user::compute [] -> :wat::core::String
-  (:wat::core::keyword/to-string (:my::mk :bar)))
+  (:wat::keyword::to-string (:my::mk :bar)))

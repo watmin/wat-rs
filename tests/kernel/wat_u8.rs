@@ -9,6 +9,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -87,9 +88,12 @@ fn u8_type_mismatch_rejected_at_check_time() {
     // Passing :wat::core::i64 directly where :wat::core::u8 is expected should fail type
     // check — not silently coerce.
     let result = startup_from_file("tests/kernel/wat_u8.wat.bad");
-    assert!(
-        result.is_err(),
-        "expected type check to reject :wat::core::i64 literal where :wat::core::u8 was expected"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":my::app::byte-taker"
+            && param == "#1"
+            && expected == ":wat::core::u8"
+            && got == ":wat::core::i64"
     );
 }
 

@@ -16,19 +16,28 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_program_env_record`
 
-use wat::freeze::startup_beside;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_beside, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
-fn call_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<i64, String> {
-    let func = world
-        .symbols()
-        .get(fn_name)
-        .ok_or_else(|| format!("{fn_name} not found in world"))?;
+fn call_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<i64, StartupError> {
+    let func = world.symbols().get(fn_name).ok_or_else(|| {
+        StartupError::Runtime(Box::new(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::UnboundSymbol(fn_name.to_string()),
+        )))
+    })?;
     match apply_function(func.clone(), Vec::new(), world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("startup/check: {e:?}"))?
+        .map_err(|e| StartupError::Runtime(Box::new(e)))?
     {
         Value::i64(n) => Ok(n),
-        other => Err(format!("non-i64: {other:?}")),
+        other => Err(StartupError::Runtime(Box::new(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.to_string(),
+                expected: "i64",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )))),
     }
 }
 
@@ -36,9 +45,16 @@ fn call_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<i64, Stri
 fn c01_base_record_started_at() {
     // Construct the base program::Env with started-at = at-millis(5000), read it back.
     let world = startup_beside(file!()).expect("startup");
-    let got = call_i64(&world, ":probe::c01-compute");
-    assert_eq!(got, Ok(5000),
-        "program::Env is a record with a started-at : Instant field, constructed + read");
+    match call_i64(&world, ":probe::c01-compute") {
+        Ok(n) => assert_eq!(
+            n, 5000,
+            "program::Env is a record with a started-at : Instant field, constructed + read"
+        ),
+        Err(e) => panic!(
+            "program::Env is a record with a started-at : Instant field, constructed + read; \
+             call failed: {e:?}"
+        ),
+    }
 }
 
 // c02_user_extends_program_env DELETED — arc 293 inheritance annihilation:

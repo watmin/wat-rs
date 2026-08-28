@@ -95,7 +95,7 @@
                     ctr2 (:wat::core::if is-where
                            (:wat::core::let
                              [n    (:wat::core::+ ctr 1)
-                              ln   (:wat::core::Option/expect (:wat::core::HashMap/get (:wat::core::ast-span node) :line) "line")
+                              ln   (:wat::core::Option/expect (:wat::hashmap::get (:wat::core::ast-span node) :line) "line")
                               tag  (:wat::string::concat path
                                      (:wat::string::concat " #"
                                        (:wat::string::concat (:wat::core::str n)

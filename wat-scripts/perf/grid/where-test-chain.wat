@@ -48,7 +48,7 @@
       ((:wat::core::= row 2) (:wtc::join-first))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-test-chain: unknown row " (:wat::i64::to-string row))
+          (:wat::string::concat "where-test-chain: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :wtc::seed [session <- :wat::rete::Session] -> :wat::rete::Session
@@ -63,23 +63,23 @@
                     shown (:wat::core::foldl
                              (:wat::core::fn [acc <- :wat::core::String  p <- :wat::core::PersistentMap]
                                -> :wat::core::String
-                               (:wat::core::String/concat acc
-                                 (:wat::core::String/concat " "
-                                   (:wat::core::String/concat
+                               (:wat::string::concat acc
+                                 (:wat::string::concat " "
+                                   (:wat::string::concat
                                      (:wat::i64::to-string
                                        (:wat::core::Option/expect
-                                         (:wat::core::PersistentMap/get p "?a")
+                                         (:wat::map::get p "?a")
                                          "q-Pair: ?a"))
-                                     (:wat::core::String/concat ","
+                                     (:wat::string::concat ","
                                        (:wat::i64::to-string
                                          (:wat::core::Option/expect
-                                           (:wat::core::PersistentMap/get p "?b")
+                                           (:wat::map::get p "?b")
                                            "q-Pair: ?b")))))))
                              ""
                              pairs)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat " n=" (:wat::i64::to-string n))
-      (:wat::core::String/concat " ->" shown))))
+    (:wat::string::concat
+      (:wat::string::concat " n=" (:wat::i64::to-string n))
+      (:wat::string::concat " ->" shown))))
 
 (:wat::core::defn :wtc::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules (:wtc::build-rules row)
@@ -90,9 +90,9 @@
                                -> :wat::core::String seg)
                              (:wat::rete::Rule/name rule)
                              (:wat::string::split (:wat::rete::Rule/name rule) "::"))]
-    (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::i64::to-string row))
-      (:wat::core::String/concat (:wat::core::String/concat " " name) (:wtc::render fired)))))
+    (:wat::string::concat
+      (:wat::string::concat "row " (:wat::i64::to-string row))
+      (:wat::string::concat (:wat::string::concat " " name) (:wtc::render fired)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

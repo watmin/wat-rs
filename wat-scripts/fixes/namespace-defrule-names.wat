@@ -120,9 +120,9 @@
       (:wat::core::if (:user::bare-defrule? f)
         (:wat::core::let [old  (:wat::core::ast-name (:user::defrule-name-node f))
                           bare (:wat::string::strip-leading-colon old)
-                          new  (:wat::core::String/concat ":"
-                                 (:wat::core::String/concat ns
-                                   (:wat::core::String/concat "::" bare)))]
+                          new  (:wat::string::concat ":"
+                                 (:wat::string::concat ns
+                                   (:wat::string::concat "::" bare)))]
           (:wat::core::concat
             (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new))
             (:user::rule-renames tl ns)))
@@ -186,7 +186,7 @@
 (:wat::core::defn :user::concat-all [parts <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  p <- :wat::core::String] -> :wat::core::String
-      (:wat::core::String/concat acc p))
+      (:wat::string::concat acc p))
     ""
     parts))
 
@@ -224,7 +224,7 @@
          target   (:wat::core::Option/expect (:user::find-call run-row ":wat::rete::Rule/name")
                      "migrate: no Rule/name call found in run-row")
          wrap-eds (:wat::fix::wrap-edits target
-                    (:wat::core::String/concat "(:" (:wat::core::String/concat ns "::rule-display-name "))
+                    (:wat::string::concat "(:" (:wat::string::concat ns "::rule-display-name "))
                     ")"
                     lines1)
          ins-off  (:wat::fix::node-start-offset run-row lines1)
@@ -240,7 +240,7 @@
     (:wat::core::let [p (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file p (:user::migrate (:wat::io::read-file p)))
-        (:wat::kernel::println (:wat::core::String/concat "[namespace-defrule-names] " p))
+        (:wat::kernel::println (:wat::string::concat "[namespace-defrule-names] " p))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

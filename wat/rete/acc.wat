@@ -44,7 +44,7 @@
       -> :wat::core::i64
       (:wat::core::+ acc
         (:wat::core::Option/expect  
-          (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
+          (:wat::map::get (:wat::rete::Element/bindings e) var)
           "acc: var unbound")))
     0
     els))
@@ -61,7 +61,7 @@
                      e   <- :wat::rete::Element]
       -> (:wat::core::Option :- [:wat::core::i64])
       (:wat::core::let [v (:wat::core::Option/expect  
-                             (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
+                             (:wat::map::get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc 
           ((:wat::core::Some cur)
@@ -80,7 +80,7 @@
                      e   <- :wat::rete::Element]
       -> (:wat::core::Option :- [:wat::core::i64])
       (:wat::core::let [v (:wat::core::Option/expect  
-                             (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
+                             (:wat::map::get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc 
           ((:wat::core::Some cur)
@@ -113,11 +113,11 @@
                      e   <- :wat::rete::Element]
       -> (:wat::core::PersistentVector :- [:wat::core::i64])
       (:wat::core::let [v (:wat::core::Option/expect  
-                             (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
+                             (:wat::map::get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
-        (:wat::core::if (:wat::core::PersistentVector/contains? acc v)
+        (:wat::core::if (:wat::vector::contains? acc v)
           acc
-          (:wat::core::PersistentVector/conj acc v))))
+          (:wat::vector::conj acc v))))
     (:wat::core::PersistentVector)
     els))
 
@@ -129,7 +129,7 @@
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                      e   <- :wat::rete::Element]
       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj acc (:wat::rete::Element/fact e)))
+      (:wat::vector::conj acc (:wat::rete::Element/fact e)))
     (:wat::core::PersistentVector)
     els))
 
@@ -145,14 +145,14 @@
                      e    <- :wat::rete::Element]
       -> :wat::rete::GroupByMap
       (:wat::core::let [k    (:wat::core::Option/expect  
-                                (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
+                                (:wat::map::get (:wat::rete::Element/bindings e) var)
                                 "acc: var unbound")
                         fact (:wat::rete::Element/fact e)
-                        pv   (:wat::core::match (:wat::core::PersistentMap/get acc k)
+                        pv   (:wat::core::match (:wat::map::get acc k)
                                
                                ((:wat::core::Some existing) existing)
                                (:wat::core::None (:wat::core::PersistentVector)))]
-        (:wat::core::PersistentMap/assoc acc k (:wat::core::PersistentVector/conj pv fact))))
+        (:wat::map::assoc acc k (:wat::vector::conj pv fact))))
     (:wat::core::PersistentMap)
     els))
 
@@ -168,9 +168,9 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::i64])
                      e   <- :wat::rete::Element]
       -> (:wat::core::Vector :- [:wat::core::i64])
-      (:wat::core::Vector/conj acc
+      (:wat::vec::conj acc
         (:wat::core::Option/expect  
-          (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
+          (:wat::map::get (:wat::rete::Element/bindings e) var)
           "acc: var unbound")))
     (:wat::core::Vector :wat::core::i64)
     els))

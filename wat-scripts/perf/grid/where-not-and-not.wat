@@ -44,11 +44,11 @@
 
 (:wat::core::defn :wnan::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::i64::to-string row))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " " name)
-        (:wat::core::String/concat " n=" (:wat::i64::to-string n))))))
+    (:wat::string::concat
+      (:wat::string::concat "row " (:wat::i64::to-string row))
+      (:wat::string::concat
+        (:wat::string::concat " " name)
+        (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [lead (:wat::core::PersistentVector (:wnan::lead))

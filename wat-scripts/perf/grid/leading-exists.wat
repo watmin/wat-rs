@@ -101,12 +101,12 @@
 (:wat::core::defn :lx::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
   (:wat::rete::insert-all
     session
-    (:wat::core::PersistentVector/conj
+    (:wat::vector::conj
       (:wat::core::foldl
         (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                         -> (:wat::core::PersistentVector :- [:wat::core::Record])
-          (:wat::core::PersistentVector/conj
-            (:wat::core::PersistentVector/conj acc (:lx::Wind i))
+          (:wat::vector::conj
+            (:wat::vector::conj acc (:lx::Wind i))
             (:lx::Wind i)))
         (:wat::core::PersistentVector)
         (:wat::core::range 0 items))
@@ -121,7 +121,7 @@
   (:wat::core::let [locs (:wat::core::into (:wat::core::Vector :wat::core::i64)
                            (:wat::core::map
                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
-                               (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?loc") "query: ?loc"))
+                               (:wat::core::Option/expect (:wat::map::get p "?loc") "query: ?loc"))
                              (:wat::rete::query fired (:lx::q-exists))))]
     (:lx::vec->pvec (:wat::core::sort locs))))
 

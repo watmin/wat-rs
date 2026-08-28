@@ -226,7 +226,7 @@
       ((:wat::core::= row 12) (:wmv::chain-arith))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-multivar: unknown row " (:wat::i64::to-string row))
+          (:wat::string::concat "where-multivar: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
@@ -252,7 +252,7 @@
            d (:wat::i64::mod i 5)
            e (:wat::i64::mod i 3)
            s (:wat::i64::to-string i)]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wmv::Req :k i :a a :b b :c c :d d :e e :s s))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -263,7 +263,7 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wmv::Hit/k f)))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wmv::Hit/k f)))
         (:wat::rete::query fired (:wmv::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
@@ -271,8 +271,8 @@
 (:wat::core::defn :wmv::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::i64::to-string x))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -300,14 +300,14 @@
      staged  (:wmv::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wmv::q-Hit))) (:wmv::items))
      fired   (:wat::rete::fire-rules staged)
      derived (:wmv::derived-ints fired)
-     n       (:wat::core::Vector/length derived)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::i64::to-string row))
-        (:wat::core::String/concat " " (:wmv::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
-        (:wat::core::String/concat " ->" (:wmv::render-ints derived))))))
+     n       (:wat::vec::length derived)]
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "row " (:wat::i64::to-string row))
+        (:wat::string::concat " " (:wmv::rule-display-name (:wat::rete::Rule/name rule))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string n))
+        (:wat::string::concat " ->" (:wmv::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

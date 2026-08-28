@@ -67,7 +67,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
       -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::PersistentVector/conj acc (:nsp::build-rule i n)))
+      (:wat::vector::conj acc (:nsp::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 
@@ -77,19 +77,19 @@
 (:wat::core::defn :nsp::count-kinds
   [session <- :wat::rete::Session] -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
   (:wat::core::let [network (:wat::rete::Session/network session)
-                    keys    (:wat::core::PersistentMap/keys network)]
+                    keys    (:wat::map::keys network)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
                        k   <- :wat::core::i64]
         -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
         (:wat::core::let [node (:wat::core::Option/expect
-                                 (:wat::core::PersistentMap/get network k)
+                                 (:wat::map::get network k)
                                  "count-kinds: node not found")
                           kind (:wat::rete::node-kind-label node)
-                          cur  (:wat::core::match (:wat::core::HashMap/get acc kind)
+                          cur  (:wat::core::match (:wat::hashmap::get acc kind)
                                  ((:wat::core::Some v) v)
                                  (:wat::core::None 0))]
-          (:wat::core::HashMap/assoc acc kind (:wat::i64::+ cur 1))))
+          (:wat::hashmap::assoc acc kind (:wat::i64::+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
       (:wat::core::HashMap :wat::core::String :wat::core::i64)
       keys)))
@@ -107,7 +107,7 @@
                     session (:wat::rete::compile rules)
                     kinds   (:nsp::count-kinds session)
                     network (:wat::rete::Session/network session)
-                    total   (:wat::core::length (:wat::core::PersistentMap/keys network))]
+                    total   (:wat::core::length (:wat::map::keys network))]
     (:wat::kernel::println
       (:probe::NodeCounts :n n :total total
         :next-id (:wat::rete::Session/next-id session)

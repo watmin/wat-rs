@@ -67,7 +67,7 @@
   :when [(:fixr::Node  (?id <- :id) (?k <- :kind))
          (:fixr::Named (?id <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/contains? ?n "::"))]
+         (:wat::rete::where (:wat::rete::string::contains? ?n "::"))]
   :then [(:fixr::IsHeadKw :id ?id)])
 
 ;; RULE C — ★ THE ONE THAT REPLACES `prev-arrow?`.

@@ -9,6 +9,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 use wat_macros::wat_dispatch;
@@ -76,5 +77,11 @@ fn option_none_via_macro_generated_shim() {
 fn type_check_rejects_wrong_arg_types() {
     install_fixture_shim();
     let result = startup_from_file("tests/kernel/wat_dispatch_193a.wat.bad");
-    assert!(result.is_err(), "expected type error; got {:?}", result.ok());
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":rust::test::MathUtils::add"
+            && param == "#1"
+            && expected == "Path(\":wat::core::i64\")"
+            && got == "Path(\":wat::core::String\")"
+    );
 }

@@ -18,19 +18,27 @@
 //! the exemplar this stone copies, and yields the `Err` value the golden compares against; both
 //! reach the same `defservice` macro expansion `--check` does.
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
+use wat::macros::{MacroError, MacroErrorKind};
 
 // ── Case 1: old keyword spelling, :peers names a surface with no matching ephemeral field ──────
 #[test]
 fn peers_bijection_old_spelling_missing_ephemeral_is_rejected() {
-    let r = startup_from_file("tests/services/probe_arc278_peers_bijection_case1_old_missing.wat")
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"));
-    assert!(
-        r.is_err(),
-        ":peers [:probe::Bogus] with no matching :ephemeral peer field must be a macro-error"
+    let r = startup_from_file("tests/services/probe_arc278_peers_bijection_case1_old_missing.wat");
+    wat::assert_startup_error!(r,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::service::defservice"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "probe::caller: :peers declares surface :probe::Bogus but no \
+                        :ephemeral field is typed :wat::kernel::Peer<probe::Bogus::Op,…::Reply> \
+                        — add the dialed peer as a root :ephemeral field, or drop it from :peers"
+            )
     );
-    let msg = r.unwrap_err();
+    let msg = format!("{:?}", r.unwrap_err());
     wat::assert_edn_matches_file!(
         msg,
         "probe_arc278_peers_bijection__case1_old_spelling_missing_ephemeral_is_rejected.edn",
@@ -41,14 +49,22 @@ fn peers_bijection_old_spelling_missing_ephemeral_is_rejected() {
 // ── Case 2: old keyword spelling, :peers dropped while an ephemeral peer field remains ─────────
 #[test]
 fn peers_bijection_old_spelling_undeclared_peer_is_rejected() {
-    let r = startup_from_file("tests/services/probe_arc278_peers_bijection_case2_old_extra.wat")
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"));
-    assert!(
-        r.is_err(),
-        "an :ephemeral Peer field with no matching :peers entry must be a macro-error"
+    let r = startup_from_file("tests/services/probe_arc278_peers_bijection_case2_old_extra.wat");
+    wat::assert_startup_error!(r,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::service::defservice"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "probe::caller: :ephemeral holds a dialed \
+                        Peer<probe::Echo::Op,…::Reply> but surface :probe::Echo is not declared \
+                        in :peers — add :peers [… :probe::Echo …] (the explicit s2s dependency \
+                        DAG)"
+            )
     );
-    let msg = r.unwrap_err();
+    let msg = format!("{:?}", r.unwrap_err());
     wat::assert_edn_matches_file!(
         msg,
         "probe_arc278_peers_bijection__case2_old_spelling_undeclared_peer_is_rejected.edn",
@@ -77,15 +93,21 @@ fn peers_bijection_form_spelling_matching_peer_is_accepted() {
 #[test]
 fn peers_bijection_form_spelling_missing_ephemeral_is_rejected() {
     let r =
-        startup_from_file("tests/services/probe_arc278_peers_bijection_case4_form_missing.wat")
-            .map(|_| ())
-            .map_err(|e| format!("{e:?}"));
-    assert!(
-        r.is_err(),
-        ":peers [:probe::Bogus] with no matching :ephemeral peer field (form spelling) must be a \
-         macro-error"
+        startup_from_file("tests/services/probe_arc278_peers_bijection_case4_form_missing.wat");
+    wat::assert_startup_error!(r,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::service::defservice"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "probe::caller: :peers declares surface :probe::Bogus but no \
+                        :ephemeral field is typed :wat::kernel::Peer<probe::Bogus::Op,…::Reply> \
+                        — add the dialed peer as a root :ephemeral field, or drop it from :peers"
+            )
     );
-    let msg = r.unwrap_err();
+    let msg = format!("{:?}", r.unwrap_err());
     wat::assert_edn_matches_file!(
         msg,
         "probe_arc278_peers_bijection__case4_form_spelling_missing_ephemeral_is_rejected.edn",
@@ -103,14 +125,22 @@ fn peers_bijection_form_spelling_missing_ephemeral_is_rejected() {
 // the diagnostic literally names `probe::Echo`, not merely that startup raised an error.
 #[test]
 fn peers_bijection_form_spelling_undeclared_peer_names_the_surface() {
-    let r = startup_from_file("tests/services/probe_arc278_peers_bijection_case5_form_extra.wat")
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"));
-    assert!(
-        r.is_err(),
-        "an :ephemeral Peer field (form spelling) with no matching :peers entry must be a macro-error"
+    let r = startup_from_file("tests/services/probe_arc278_peers_bijection_case5_form_extra.wat");
+    wat::assert_startup_error!(r,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::service::defservice"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "probe::caller: :ephemeral holds a dialed \
+                        Peer<probe::Echo::Op,…::Reply> but surface :probe::Echo is not declared \
+                        in :peers — add :peers [… :probe::Echo …] (the explicit s2s dependency \
+                        DAG)"
+            )
     );
-    let msg = r.unwrap_err();
+    let msg = format!("{:?}", r.unwrap_err());
     // rune:lint(loose-assert) — a targeted PRESENCE over a large structured output, and the one
     // assertion in this file that `UPDATE_EDN=1` cannot rewrite. The golden below is CAPTURED, not
     // authored: it records whatever the macro emitted at capture time. Had the structural reader

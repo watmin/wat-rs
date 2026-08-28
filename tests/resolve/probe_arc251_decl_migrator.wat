@@ -5,7 +5,7 @@
   (:wat::core::let [stripped (:wat::core::first
                                 (:wat::string::split (:wat::core::ast-name kw) "<"))]
     (:wat::core::if (:wat::string::contains? stripped "::")
-      (:wat::core::keyword/to-symbol (:wat::core::keyword-node stripped))
+      (:wat::keyword::to-symbol (:wat::core::keyword-node stripped))
       (:wat::core::symbol-node
         (:wat::string::subs stripped 1 (:wat::string::length stripped))))))
 
@@ -30,7 +30,7 @@
     (:wat::core::Vector :wat::WatAST)
     (:wat::core::let [h   (:wat::core::first items)
                       out (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
-                            (:wat::core::keyword/to-type-form h)
+                            (:wat::keyword::to-type-form h)
                             (:wat::fix::fix-source h))]
       (:wat::core::concat (:wat::core::Vector :wat::WatAST out)
                           (:migrate::fix-types (:wat::core::rest items))))))
@@ -49,7 +49,7 @@
         ;; param) both directly and via further `rest`/`concat`, so materialize here.
         (:wat::core::let [ch1   (:wat::core::nth ch 1)
                           rest2  (:wat::core::into [] (:wat::core::drop ch 2))
-                          fixed-head (:wat::core::keyword/to-symbol head)
+                          fixed-head (:wat::keyword::to-symbol head)
                           fixed-name (:migrate::name-fix ch1)
                           fixed-rest (:wat::core::if (:migrate::type-slot-2? (:wat::core::ast-name head))
                                        (:wat::core::if (:wat::core::empty? rest2)
@@ -58,7 +58,7 @@
                                                            rest3  (:wat::core::rest rest2)]
                                            (:wat::core::concat
                                              (:wat::core::Vector :wat::WatAST
-                                               (:wat::core::keyword/to-type-form ch2))
+                                               (:wat::keyword::to-type-form ch2))
                                              (:wat::fix::fix-seq rest3 false))))
                                      (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::typeunion")
                                        (:wat::core::if (:wat::core::empty? rest2)

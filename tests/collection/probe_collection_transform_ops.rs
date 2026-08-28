@@ -11,15 +11,20 @@
 //!
 //! ### Five transform ops (Item 4)
 //!
-//! - `eval_vec_zip` (`:wat::std::list::zip`)
-//! - `eval_vec_window` (`:wat::std::list::window`)
-//! - `eval_vec_remove_at` (`:wat::std::list::remove-at`)
-//! - `eval_vec_map_with_index` (`:wat::std::list::map-with-index`)
+//! Arc 255 Stone HOME-9 — `zip`/`window`/`remove-at` moved to `:wat::seq::*` and became
+//! Seqable-generic (`eval_seq_*`); `map-with-index` is DELETED, replaced by
+//! `:wat::core::map-indexed` (item4g/item4h below), which is NOT a drop-in.
+//!
+//! - `eval_seq_zip` (`:wat::seq::zip`)
+//! - `eval_seq_window` (`:wat::seq::window`)
+//! - `eval_seq_remove_at` (`:wat::seq::remove-at`)
+//! - `:wat::core::map-indexed` (replacing the deleted `eval_vec_map_with_index` /
+//!   `:wat::std::list::map-with-index`)
 //! - `eval_vec_find_last_index` (`:wat::core::find-last-index`)
 //!
 //! ### Vector conj immutability (Item 5)
 //!
-//! Witnesses that `(:wat::core::Vector/conj v0 x)` does not mutate `v0`
+//! Witnesses that `(:wat::vec::conj v0 x)` does not mutate `v0`
 //! (analogous to the HashSet witness in `probe_arc216_stone5b_hashset_native_storage.rs`).
 
 use wat::freeze::call_beside_value;
@@ -62,7 +67,7 @@ fn item1_list_empty_q_polymorphic() {
 
 // ─── Item 4 — zip ────────────────────────────────────────────────────────────
 
-/// `(:wat::std::list::zip xs ys)` happy path: length = 3.
+/// `(:wat::seq::zip xs ys)` happy path: length = 3.
 #[test]
 fn item4_zip_happy_path() {
     match call_beside_value(file!(), ":t::item4a-zip-happy-len").expect("eval") {
@@ -71,7 +76,7 @@ fn item4_zip_happy_path() {
     }
 }
 
-/// `(:wat::std::list::zip xs ys)` boundary: empty input → empty output.
+/// `(:wat::seq::zip xs ys)` boundary: empty input → empty output.
 #[test]
 fn item4_zip_empty_input() {
     match call_beside_value(file!(), ":t::item4b-zip-empty-len").expect("eval") {
@@ -82,7 +87,7 @@ fn item4_zip_empty_input() {
 
 // ─── Item 4 — window ─────────────────────────────────────────────────────────
 
-/// `(:wat::std::list::window xs n)` happy path: 3 windows.
+/// `(:wat::seq::window xs n)` happy path: 3 windows.
 #[test]
 fn item4_window_happy_path() {
     match call_beside_value(file!(), ":t::item4c-window-happy-len").expect("eval") {
@@ -91,7 +96,7 @@ fn item4_window_happy_path() {
     }
 }
 
-/// `(:wat::std::list::window xs n)` boundary: n > len → empty output.
+/// `(:wat::seq::window xs n)` boundary: n > len → empty output.
 #[test]
 fn item4_window_n_greater_than_len() {
     match call_beside_value(file!(), ":t::item4d-window-n-gt-len").expect("eval") {
@@ -102,7 +107,7 @@ fn item4_window_n_greater_than_len() {
 
 // ─── Item 4 — remove-at ──────────────────────────────────────────────────────
 
-/// `(:wat::std::list::remove-at xs i)` happy path: length 2.
+/// `(:wat::seq::remove-at xs i)` happy path: length 2.
 #[test]
 fn item4_remove_at_happy_path() {
     match call_beside_value(file!(), ":t::item4e-remove-at-happy-len").expect("eval") {
@@ -111,7 +116,7 @@ fn item4_remove_at_happy_path() {
     }
 }
 
-/// `(:wat::std::list::remove-at xs i)` boundary: out-of-range index returns Vec unchanged.
+/// `(:wat::seq::remove-at xs i)` boundary: out-of-range index returns Vec unchanged.
 #[test]
 fn item4_remove_at_out_of_range_unchanged() {
     match call_beside_value(file!(), ":t::item4f-remove-at-oob-len").expect("eval") {
@@ -120,22 +125,27 @@ fn item4_remove_at_out_of_range_unchanged() {
     }
 }
 
-// ─── Item 4 — map-with-index ─────────────────────────────────────────────────
+// ─── Item 4 — map-indexed (replacing the deleted map-with-index) ─────────────
 
-/// `(:wat::std::list::map-with-index xs f)` happy path: sum of indices = 3.
+/// Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index` is DELETED;
+/// `:wat::core::map-indexed` is its migration target here (NOT a drop-in: arg order and
+/// closure-param order both flip, and the result is a lazy Stream — see the `.wat` fixture's
+/// own comment). Happy path: sum of indices = 3, the SAME value the deleted verb's test
+/// asserted.
 #[test]
-fn item4_map_with_index_happy_path() {
-    match call_beside_value(file!(), ":t::item4g-map-with-index-happy").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 3, "map-with-index indices must be 0,1,2 (sum = 3)"),
+fn item4_map_indexed_happy_path_replacing_deleted_map_with_index() {
+    match call_beside_value(file!(), ":t::item4g-map-indexed-happy").expect("eval") {
+        Value::i64(n) => assert_eq!(n, 3, "map-indexed indices must be 0,1,2 (sum = 3)"),
         other => panic!("expected i64; got {:?}", other),
     }
 }
 
-/// `(:wat::std::list::map-with-index xs f)` boundary: empty input → empty output.
+/// `(:wat::core::map-indexed f xs)` boundary: empty input → empty output (same VALUE as the
+/// deleted `map-with-index` verb's boundary test).
 #[test]
-fn item4_map_with_index_empty_input() {
-    match call_beside_value(file!(), ":t::item4h-map-with-index-empty").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 0, "map-with-index on empty vector must produce empty output"),
+fn item4_map_indexed_empty_input() {
+    match call_beside_value(file!(), ":t::item4h-map-indexed-empty").expect("eval") {
+        Value::i64(n) => assert_eq!(n, 0, "map-indexed on empty vector must produce empty output"),
         other => panic!("expected i64; got {:?}", other),
     }
 }
@@ -162,7 +172,7 @@ fn item4_find_last_index_no_match() {
 
 // ─── Item 5 — Vector conj immutability ───────────────────────────────────────
 
-/// `(:wat::core::Vector/conj v0 x)` does not mutate `v0`.
+/// `(:wat::vec::conj v0 x)` does not mutate `v0`.
 #[test]
 fn item5_vector_conj_does_not_mutate_input() {
 

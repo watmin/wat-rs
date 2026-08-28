@@ -15,8 +15,9 @@
 //! Coverage (feedback_logic_coverage_mandate): base ops · holonic preserved · Liskov accept/reject
 //! · cross-flavor.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_beside, startup_from_file};
-use wat::runtime::Value;
+use wat::runtime::{RuntimeErrorKind, Value};
 
 fn eval_bool(fn_name: &str) -> bool {
     match call_beside_value(file!(), fn_name).expect("eval") {
@@ -44,7 +45,14 @@ fn eval_i64(fn_name: &str) -> i64 {
 #[test] fn base_to_holon_errors() {
     // base has NO holon flavor — to-holon must error (teaching error), not return Ok.
     let h = call_beside_value(file!(), ":user::base-to-holon-errors");
-    assert!(h.is_err(), "to-holon on a BASE record must error; got {:?}", h);
+    assert!(
+        matches!(&h, Err(e) if matches!(e.kind(), RuntimeErrorKind::MalformedForm { head, reason }
+            if head == ":wat::holon::to-holon"
+            && reason == "base record `my::Pt` has no holon flavor; construct a holonic record \
+                           (`:wat::holon::defrecord`) to use holon operations")),
+        "to-holon on a BASE record must error; got {:?}",
+        h
+    );
 }
 
 // ─── HOLONIC flavor (:my::HPt via :wat::holon::defrecord) ────────────────────
@@ -75,7 +83,13 @@ fn eval_i64(fn_name: &str) -> i64 {
     let r = startup_from_file(
         "tests/types/probe_arc237_sC3_macro_split_liskov_base_into_holon.wat.bad",
     );
-    assert!(r.is_err(), "a base-defined record must be REJECTED at a :wat::holon::Record param");
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":my::wh"
+            && param == "#1"
+            && expected == ":wat::holon::Record"
+            && got == ":my::Pt"
+    );
 }
 
 // ─── Cross-flavor (needs both macros) ─────────────────────────────────────────
