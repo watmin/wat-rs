@@ -140,8 +140,8 @@ pub(crate) fn eval_step_payload(
                 if classify_constraint_head(op).is_none() {
                     continue;
                 }
-                let a_val = resolve_operand(lhs, sfact.fields, &sfact_field_names, &token_bindings);
-                let b_val = resolve_operand(rhs, sfact.fields, &sfact_field_names, &token_bindings);
+                let a_val = resolve_operand(lhs, sfact.fields, &sfact_field_names, &token_bindings, None);
+                let b_val = resolve_operand(rhs, sfact.fields, &sfact_field_names, &token_bindings, None);
                 let (Some(a_val), Some(b_val)) = (a_val, b_val) else { continue; };
                 let (Some(a_ast), Some(b_ast)) = (value_to_ast_literal(a_val), value_to_ast_literal(b_val)) else { continue; };
                 let substituted = WatAST::List(

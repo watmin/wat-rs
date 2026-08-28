@@ -824,8 +824,15 @@ fn validate_clause(
         // from `compile_seq` is tracked as its own strike; it is not made worse here.
         ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::Constraint { op, lhs, rhs } => {
-            check_operand_field_ref(lhs, clause, rule_name, fact_type, field_names, errors);
-            check_operand_field_ref(rhs, clause, rule_name, fact_type, field_names, errors);
+            // The comparator's own type, so a keyword operand that is not a field can be judged as
+            // the CONSTANT it is. `None` for the core-generic spelling, which is refused by
+            // `check_constraint_head` on its own grounds anyway.
+            let op_type = match classify_constraint_head(op) {
+                Some((_, ConstraintSpelling::Rete { ty })) => Some(ty),
+                _ => None,
+            };
+            check_operand_field_ref(lhs, clause, ctx, op_type, errors);
+            check_operand_field_ref(rhs, clause, ctx, op_type, errors);
             check_constraint_head(op, lhs, rhs, clause, ctx, errors);
         }
         ReteClauseShape::And(subs) | ReteClauseShape::Or(subs) => {
@@ -852,16 +859,40 @@ fn validate_clause(
 
 /// A constraint operand is schema-checked ONLY when it is a `:field` reference; a `?var`
 /// (free or bound) and a literal are left alone (design: "the free `?v` stays free").
+/// ★ THE ONE RULE, and it is the one `compiled_cond::bind_field_refs` has always used:
+/// **a keyword operand is a FIELD REFERENCE if it names a declared field; otherwise it is a
+/// CONSTANT.** rete has keyword-valued and enum-valued constants only, so at any other comparator
+/// type there is no constant the keyword could be — and then "you meant a field" is both true and
+/// the more actionable thing to say, so the located `UnknownField` is still what is reported.
+///
+/// ⚠ **THIS FUNCTION USED TO DEMAND THAT EVERY KEYWORD BE A FIELD**, which is why
+/// `(keyword::= :v :alpha)` and `(enum::= :v :probe::E::A)` were refused for the life of the
+/// engine — while the IDENTICAL comparison, nested one level as an operand of another call, fired
+/// and answered correctly, because the nested path asked the question this one never did.
+///
+/// It can only ADMIT programs, never change one: a non-field keyword here was a hard freeze error,
+/// so no program that compiles today contains one.
 fn check_operand_field_ref(
     operand: &WatAST,
     clause: &WatAST,
-    rule_name: &str,
-    fact_type: &str,
-    field_names: &[String],
+    ctx: &ClauseCtx<'_>,
+    op_type: Option<&str>,
     errors: &mut Vec<ReteCheckError>,
 ) {
+    // Taken as the whole `ClauseCtx` rather than four loose borrows — the same shape
+    // `check_constraint_head` already uses, and the reason is not tidiness: this function grew two
+    // parameters on 2026-08-28 and clippy's arity ceiling caught it at 8, which is the ceiling
+    // doing its job. Bundling is the fix; an `#[allow]` would have been the patch.
+    let ClauseCtx { rule_name, fact_type, field_names, types, .. } = *ctx;
     if let WatAST::Keyword(k, _) = operand {
         let field = k.trim_start_matches(':');
+        if field_names.iter().any(|f| f == field) {
+            return; // a declared field — the field reference wins, exactly as before.
+        }
+        // A usable constant AT THIS COMPARATOR is legitimate; say nothing.
+        if op_type == Some(keyword_constant_segment(k, types)) {
+            return;
+        }
         check_field_at(field, clause.span().clone(), rule_name, fact_type, field_names, errors);
     }
 }
@@ -992,6 +1023,38 @@ fn rete_type_segment_of(field_type: &str, types: &TypeEnv) -> Option<&'static st
     }
 }
 
+/// A keyword operand that names no declared field — i.e. one the ONE RULE reads as a CONSTANT.
+///
+/// Used only to suppress a second, misleading diagnostic: when such a keyword does not type-check
+/// at the comparator, `check_operand_field_ref` has already reported the located `UnknownField`,
+/// which is the actionable message. This predicate is deliberately NOT the rule itself — the rule
+/// lives in `check_operand_field_ref` and in `compiled_cond::bind_field_refs`; this only answers
+/// "has that already been reported?".
+fn is_non_field_keyword(operand: &WatAST, field_names: &[String]) -> bool {
+    match operand {
+        WatAST::Keyword(k, _) => {
+            let field = k.trim_start_matches(':');
+            !field_names.iter().any(|f| f == field)
+        }
+        _ => false,
+    }
+}
+
+/// The rete type a bare keyword CONSTANT carries: `enum` when its prefix names a registered enum,
+/// else `keyword`.
+///
+/// `:probe::E::A` -> prefix `:probe::E` -> a `TypeDef::Enum` -> `enum`. Note this keyword could
+/// never have been a field reference in the first place: it carries `::`, and a field name is a
+/// bare identifier (`available fields: [k, v]`). The engine refused it as an unknown field anyway.
+fn keyword_constant_segment(k: &str, types: &TypeEnv) -> &'static str {
+    if let Some((type_path, _variant)) = k.rsplit_once("::") {
+        if matches!(types.get(type_path), Some(TypeDef::Enum(_))) {
+            return "enum";
+        }
+    }
+    "keyword"
+}
+
 /// LAW A + the per-type type check for an inline alpha constraint
 /// (`DESIGN-STONE-inline-constraint-admits-non-rete.md`).
 ///
@@ -1084,6 +1147,13 @@ fn check_constraint_head(
         ConstraintSpelling::Rete { ty: op_type } => {
             for (operand, ty) in &resolved {
                 match ty {
+                    // ⛔ DO NOT DOUBLE-REPORT. A keyword that names no field has already been
+                    // reported by `check_operand_field_ref` as the unknown field it almost
+                    // certainly is — and a second error here would teach the WRONG fix, telling
+                    // the author to switch comparator (`use the rete comparator for keyword`)
+                    // when they actually mistyped a field name. R29 `RVINA ERVDIT`: the ruin must
+                    // teach, and two ruins pointing opposite ways teach worse than one.
+                    OperandType::Resolved(_) if is_non_field_keyword(operand, field_names) => {}
                     OperandType::Resolved(actual) if *actual != op_type => {
                         errors.push(ReteCheckError {
                             span: clause.span().clone(),
@@ -1219,9 +1289,10 @@ fn resolve_operand_type(
             let field = k.trim_start_matches(':');
             match field_names.iter().position(|f| f == field).and_then(|i| field_types.get(i)) {
                 Some(t) => t.clone(),
-                // An unknown field is already reported by `check_operand_field_ref`; do not
-                // double-report it here as a type problem.
-                None => return OperandType::UnboundInThisRule,
+                // Not a declared field -> a CONSTANT, and its type is the constant's own. This
+                // used to return `UnboundInThisRule`, which is why `(keyword::= :v :alpha)` had
+                // no type at all and `:alpha` could only ever be reported as a missing field.
+                None => return OperandType::Resolved(keyword_constant_segment(k, types)),
             }
         }
         // 2. `?var` — the field its bind names, anywhere in the rule.

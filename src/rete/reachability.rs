@@ -343,10 +343,34 @@ fn i64_gt() -> Cell {
     operands_for(":wat::rete::core::i64::>").expect("the baseline row must be in the table")
 }
 
-/// Keyword equality — reachable in a fence, NOT as an inline constraint. The asymmetry this whole
-/// ledger exists because of.
+/// Keyword equality — the asymmetry this whole ledger exists because of, and CLOSED 2026-08-28.
+/// It is kept as a calibration cell precisely because its expected verdict CHANGED: it is the
+/// worked example of the ledger noticing a surface move rather than a driver breaking.
 fn keyword_eq() -> Cell {
     operands_for(":wat::rete::core::keyword::=").expect("the keyword row must be in the table")
+}
+
+/// ★ THE DURABLE REFUSAL — Law A: the rete query language is composed from RETE primitives, so a
+/// core-spelled head is refused in EVERY position, by design, permanently.
+///
+/// ⚠ **This cell exists because the calibration ran out of refusals.** Until 2026-08-28 the
+/// mixed control was `keyword::=` — reachable in a fence, refused inline. That asymmetry is now
+/// gone (deliberately: the surface admits the constant), and with it went the only `Refused`
+/// verdict the calibration had. A control made only of fires is passed by a driver that never
+/// applies its constraint, which is exactly the failure this file's own header warns about — so
+/// the refusal had to be re-sourced from something that cannot become reachable. Law A is that
+/// thing: a `:wat::core::` head being refused is not a gap, it is the surface's founding rule.
+fn law_a_core_head() -> Cell {
+    Cell {
+        op: ":wat::core::>",
+        arity: 0,
+        expr_is_verbatim: true,
+        field_ty: ":wat::core::i64",
+        hit: "42",
+        miss: "3",
+        extra: "",
+        expr: "(:wat::core::> {f} 10)".to_string(),
+    }
 }
 
 /// Report a cell's outcome with the SOURCE attached.
@@ -399,56 +423,97 @@ fn expect(cell: &Cell, site: CallSite, want: &Verdict) {
 /// | `i64::>` inline | FIRES | `tests/rete/probe_arc278_inline_constraint_per_type.wat` compiles, fires, prunes |
 /// | `i64::>` fence | FIRES | the `where` family across the grid |
 /// | `keyword::=` fence | FIRES | arc 109's NOTE, proven twice (`where-eq=1`) |
-/// | `keyword::=` inline | REFUSED | a keyword LITERAL cannot be written there: `:alpha` in operand position is a FIELD REFERENCE |
+/// | `keyword::=` inline | FIRES | **since 2026-08-28** — see below |
+/// | `:wat::core::>` inline | REFUSED | Law A: the rete surface admits only rete heads |
+/// | `:wat::core::>` fence | REFUSED | Law A again — refused in every position, by design |
 ///
-/// ⚠ That last row's REASON changed on 2026-08-28 and the row survived, which is the calibration
-/// working. It used to refuse with `ConstraintTypeNotComparable` because `rete_type_segment_of`
-/// mapped only the uninhabitable capital `Keyword` (arc 109's NOTE). That is fixed — keyword
-/// equality FIELD-TO-FIELD now compiles and fires inline — so the cell refuses one step later, on
-/// the literal instead. The asymmetry is half closed, not gone.
+/// ⚠ **THE KEYWORD ROW FLIPPED FROM `REFUSED` TO `FIRES`, AND THAT IS THE CALIBRATION WORKING.**
+/// Its verdict has now moved twice. It first refused with `ConstraintTypeNotComparable` (the
+/// keyword type-map recognised only the uninhabitable capital `Keyword`), then one step later with
+/// `UnknownField` once that was fixed, and now not at all: a keyword operand naming no declared
+/// field is read as the CONSTANT it is, the same rule the nested-operand path always used. A
+/// calibration cell whose answer is allowed to change — deliberately, in one commit, with the
+/// reason written down — is the instrument noticing a surface move. One that is never allowed to
+/// change is a golden nobody re-reads.
 ///
-/// Two of each verdict is the load-bearing part. A template that renders NOTHING would pass a
-/// control made only of refusals; a template that never applies its constraint would pass one made
-/// only of fires. Only a mixed control can fail in both directions.
+/// ⛔ **AND THAT FLIP COST THE CALIBRATION ITS ONLY REFUSAL, WHICH IS WHY LAW A IS NOW HERE.**
+/// Two of each verdict is the load-bearing part: a template that renders NOTHING passes a control
+/// made only of refusals, and one that never applies its constraint passes a control made only of
+/// fires. With `keyword::=` reachable, every remaining cell was a fire — so the control had gone
+/// one-directional without a single assertion changing. The refusal is re-sourced from Law A,
+/// which cannot become reachable without the rete surface ceasing to be one.
 #[test]
 fn the_ledger_reproduces_four_known_cells_before_it_reports_an_unknown_one() {
     expect(&i64_gt(), CallSite::InlineConstraint, &Verdict::Fires);
     expect(&i64_gt(), CallSite::WhereFence, &Verdict::Fires);
     expect(&keyword_eq(), CallSite::WhereFence, &Verdict::Fires);
-    expect(&keyword_eq(), CallSite::InlineConstraint, &Verdict::Refused(String::new()));
+    expect(&keyword_eq(), CallSite::InlineConstraint, &Verdict::Fires);
+    expect(&law_a_core_head(), CallSite::InlineConstraint, &Verdict::Refused(String::new()));
+    expect(&law_a_core_head(), CallSite::WhereFence, &Verdict::Refused(String::new()));
 }
 
-/// The asymmetry itself, stated as a property rather than as two independent cells.
+/// ★★ THE ASYMMETRY THIS LEDGER WAS BUILT FOR IS CLOSED — and the unit stays (row x position).
 ///
-/// This is what a per-ROW ledger would miss and why the unit is (row x call-site kind): the SAME
-/// op, the SAME record, the SAME field, the SAME comparison — one position fires and the other
-/// refuses. A ledger that recorded `keyword::=` as one row would have to pick one answer, and
-/// either choice is a lie about half the surface.
+/// ⚠ **THIS TEST USED TO ASSERT THE OPPOSITE, AND IT SAID SO IN ITS OWN FAILURE MESSAGE**: *"if
+/// this ever starts firing, the asymmetry is GONE and arc 109's NOTE plus this ledger's entire
+/// reason for existing are stale."* It started firing on 2026-08-28, on purpose, and it took the
+/// floor red — which is the alarm behaving exactly as designed. The asymmetry was a DEFECT, and
+/// the whole point of the ledger was to find and close it. A gate that pins a defect must be
+/// rewritten when the defect dies, and rewritten deliberately: quietly deleting it would erase the
+/// evidence that the surface ever had the hole.
+///
+/// **The unit is still (row x call-site kind), and the reason is stronger than before, not weaker.**
+/// The two positions are DIFFERENT MACHINERY — an inline constraint compiles through
+/// `compiled_cond` into an alpha's op list; a fence lowers through `expr_ir` behind
+/// `:wat::rete::where`. They agreed on nothing for the life of the engine and now agree on every
+/// generable row. That agreement is a PROPERTY THE SWEEP HOLDS, not a fact about the language: it
+/// can regress at any time, and only a per-position drive would see it.
+///
+/// **What is asserted here now** is the thing that no longer follows from the engine and so must
+/// be checked directly: that the driver actually renders two DIFFERENT programs. While the two
+/// positions disagreed, a driver that rendered one program twice was caught instantly by the
+/// verdicts diverging. Now that every verdict agrees, that bug would be invisible — a
+/// position-blind driver would report a perfect ledger. So the rendering is pinned structurally.
 #[test]
-fn one_op_can_be_reachable_in_one_position_and_refused_in_another() {
-    let fence = drive(&synth(&keyword_eq(), CallSite::WhereFence), keyword_eq().op);
-    // Adjudicated the same way `expect` and the sweep do: the fence firing proves the expression
-    // is valid wat, so a refusal inline is about the POSITION however the diagnostic is worded.
-    // Since 2026-08-28 that wording is `UnknownField` (the literal `:alpha` reads as a field)
-    // rather than `ConstraintTypeNotComparable` (the keyword type-map, now fixed).
-    let inline = match drive(&synth(&keyword_eq(), CallSite::InlineConstraint), keyword_eq().op) {
-        Verdict::TemplateDefect(DefectKind::Unattributed, m) => Verdict::Refused(m),
-        other => other,
-    };
-    assert_eq!(fence, Verdict::Fires, "the fence position must be reachable");
-    assert!(
-        matches!(inline, Verdict::Refused(_)),
-        "the inline position must be refused — if this ever starts firing, the asymmetry is \
-         GONE and arc 109's NOTE plus this ledger's entire reason for existing are stale; got \
-         {inline:?}"
-    );
-    // NON-VACUITY: the two positions must actually disagree. Without this the pair would pass
-    // just as happily if the template made every cell refuse.
+fn the_two_positions_render_differently_and_now_agree() {
+    let cell = keyword_eq();
+    let fence_src = synth(&cell, CallSite::WhereFence);
+    let inline_src = synth(&cell, CallSite::InlineConstraint);
+
+    // ⛔ THE DRIVER CONTROL, and it is load-bearing precisely because the engine no longer
+    // distinguishes these. A driver that rendered the same program for both positions would now
+    // agree with itself on all 79 rows and look like a clean sweep.
     assert_ne!(
-        fence,
-        inline,
-        "the two positions must DISAGREE — that disagreement is the ledger's whole premise"
+        fence_src, inline_src,
+        "the two call sites must render DIFFERENT programs — with the verdicts no longer \
+         diverging, this is the only thing left that can catch a position-blind driver"
     );
+    // Counted, not `contains`-ed. The count is exact and strictly stronger — "exactly one fence"
+    // rules out a rendering that opened two — and it sidesteps the loose-string-assert rune
+    // entirely: a substring test would have needed an exemption, while a number needs none. A
+    // whole-program golden would be the wrong tool here for the reason the rubric names: it would
+    // go stale on any edit to the synthesis template, which is not what this is measuring.
+    assert_eq!(
+        fence_src.matches(":wat::rete::where").count(),
+        1,
+        "the fence rendering must place the predicate behind exactly one fence"
+    );
+    assert_eq!(
+        inline_src.matches(":wat::rete::where").count(),
+        0,
+        "the inline rendering must NOT use the fence — otherwise it measures the fence twice"
+    );
+
+    // And the verdicts: equal, and equal to FIRES. `assert_eq` on the pair rather than two
+    // separate `Fires` checks, so a future divergence names itself as a divergence.
+    let fence = drive(&fence_src, cell.op);
+    let inline = drive(&inline_src, cell.op);
+    assert_eq!(
+        fence, inline,
+        "the same comparison must answer the same way in both positions; they disagreed for the \
+         life of the engine and that was fix-list F's whole family"
+    );
+    assert_eq!(fence, Verdict::Fires, "and the answer they agree on must be FIRES");
 }
 
 /// ★★ THE ATTRIBUTION'S OWN GATE — a refusal that does not name the op is NOT a finding.
@@ -1470,4 +1535,176 @@ fn every_provably_boolean_form_is_admitted_inline() {
              constraint that is never true and matches nothing, silently, which is fix-list F"
         );
     }
+}
+
+/// ★★ A KEYWORD OPERAND IS A FIELD REF IF IT NAMES A FIELD, ELSE A CONSTANT — the ONE RULE.
+///
+/// ⚠ **THE ENGINE WAS ALREADY DECIDING THIS CORRECTLY ONE LEVEL DOWN.** `(keyword::= :v :alpha)`
+/// and `(enum::= :v :probe::E::A)` were refused for the life of the engine — "`:probe::In` has no
+/// field `:alpha`" — while the IDENTICAL comparison, nested one level as an operand of another
+/// call, fired and answered correctly. Measured 2026-08-28, both directions. The cause was two
+/// answers to one question, ~120 lines apart in `compiled_cond.rs`: `bind_field_refs` ran
+/// `field_names.position(...)` and fell through to a keyword literal; `compile_operand_expr` ran
+/// the same lookup and returned `Unresolvable`.
+///
+/// **There was no ambiguity to resolve, which is the part the record got wrong.** It called this a
+/// syntactic ambiguity. `:probe::E::A` carries `::` and a field name is a bare identifier
+/// (`available fields: [k, v]`), so an enum variant could never have been a field reference at
+/// all. And a bare `:alpha` is ambiguous ONLY when the class actually declares a field `alpha` —
+/// which the rule resolves in the field's favour, exactly as before.
+///
+/// **This can only ADMIT programs, never change one.** A keyword operand naming no declared field
+/// was a hard freeze error, so no program that compiles today contains one. The `field_wins` row
+/// below is what proves the other half of that claim.
+#[test]
+fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
+    const KW: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::keyword])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) (:wat::rete::core::keyword::= :v :alpha))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v :alpha))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v :beta))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+
+    const EN: &str = r#"(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)
+
+(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :probe::E])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) (:wat::rete::core::enum::= :v :probe::E::A))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v :probe::E::A))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v :probe::E::B))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+
+    for (name, src, other) in [("keyword", KW, ":beta"), ("enum", EN, ":probe::E::B")] {
+        assert_eq!(
+            raw_count(src),
+            Ok(1),
+            "`{name}::=` must be writable DIRECTLY inline, selecting exactly the hit. This was \
+             refused as an unknown field while the same comparison fired when nested one deeper"
+        );
+        // ⛔ THE ORACLE. Its `resolve_operand` read the fact field and returned `None` on a miss,
+        // which `eval_clause` maps to "no match" — so before this strike native answered 1 and the
+        // oracle answered 0. Two engines quietly DISAGREEING is the same instrument failure as the
+        // two of them quietly agreeing; only driving both catches either.
+        let oracle = src.replace(":wat::rete::fire-rules ", ":wat::rete::fire-rules$oracle ");
+        assert_ne!(src, oracle, "the rewrite must select the oracle");
+        assert_eq!(raw_count(&oracle), Ok(1), "`{name}`: the $oracle must agree");
+
+        // ⛔ DISCRIMINATION. A constant matching NEITHER fact must select nothing — otherwise the
+        // operand is being evaluated but not compared, and the rows above prove nothing.
+        let never = src.replacen(&format!("::= :v {other}"), "::= :v :zeta", 1);
+        if never != *src {
+            assert_eq!(
+                raw_count(&never),
+                Ok(0),
+                "`{name}`: a constant equal to no fact must select NOTHING"
+            );
+        }
+    }
+
+    // ⛔⛔ THE FIELD REFERENCE STILL WINS — the backward-compatibility proof, and the load-bearing
+    // row of this test. `:alpha` here IS a declared field, so it must be read as a FIELD, never as
+    // the constant `:alpha`. If the rule had been "keyword is a constant", the hit fact would
+    // compare `:x` against the constant `:alpha`, match nothing, and this would read 0.
+    const FIELD_WINS: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::keyword  alpha <- :wat::core::keyword])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) (:wat::rete::core::keyword::= :v :alpha))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v :x :alpha :x))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v :x :alpha :y))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+    assert_eq!(
+        raw_count(FIELD_WINS),
+        Ok(1),
+        "a keyword that NAMES A DECLARED FIELD is still a field reference — the hit has v == alpha \
+         and the miss does not. This is what makes the rule purely additive: every program that \
+         compiles today keeps its exact meaning"
+    );
+}
+
+/// ★★ A MISTYPED FIELD STILL SAYS "no field", and says it ONCE.
+///
+/// The companion to the rule above, and the reason that rule is safe to state so broadly. Reading
+/// a non-field keyword as a constant could have turned the single most common real mistake — a
+/// typo'd field name — into a silent never-match. It does not, and the diagnostic did not degrade:
+///
+///   · rete has keyword-valued and enum-valued constants ONLY. At `i64::>` there is no constant a
+///     keyword could be, so "you meant a field" is both true and the actionable thing to say.
+///   · and it is said ONCE. A first cut reported the located `UnknownField` AND a type mismatch
+///     advising *"use the rete comparator for `keyword`"* — which teaches the WRONG fix for a
+///     typo. R29 `RVINA ERVDIT`: two ruins pointing opposite ways teach worse than one.
+#[test]
+fn a_mistyped_field_still_names_the_field_and_only_once() {
+    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  celsius <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) (:wat::rete::core::i64::> :celcius 5))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+    let msg = raw_count(SRC).expect_err("a mistyped field must not compile");
+    // rune:lint(loose-assert) — the refusal is a `ReteCheckErrors` batch embedding a Span path;
+    // pin the TEACHING halves. The structured face is asserted exactly by validate.rs's own tests.
+    assert!(
+        msg.contains("has no field"),
+        "the typo must still be reported as a missing FIELD, not as a type mismatch about a \
+         keyword constant; got:\n{msg}"
+    );
+    // rune:lint(loose-assert) — same batch. This half is the count, and it is the whole point:
+    // ONE error, so the author is not also told to switch comparator.
+    assert!(
+        msg.contains("1 rete rule validation error"),
+        "exactly ONE error — a second, mismatch-flavoured one would teach the wrong fix; got:\n{msg}"
+    );
 }

@@ -624,7 +624,25 @@ fn compile_operand_expr(
         WatAST::Keyword(k, _) => {
             let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
             let Some(field_idx) = ctx.field_names.iter().position(|n| n == field_name) else {
-                return OperandLowering::Unresolvable;
+                // ⛔ NOT A FIELD -> A CONSTANT. This `else` used to be `Unresolvable`, and that is
+                // the whole reason `keyword::=` / `enum::=` could not be written inline: a keyword
+                // in operand position was read as a field reference UNCONDITIONALLY, so
+                // `(keyword::= :v :alpha)` was refused with "`:probe::In` has no field `:alpha`".
+                //
+                // ⚠ The engine was already deciding this correctly ONE LEVEL DOWN. The identical
+                // comparison, nested as an operand of another call, fires and answers correctly —
+                // because `bind_field_refs` (this same file, ~120 lines up) runs the SAME
+                // `position(...)` lookup and falls through to a keyword literal. Same question,
+                // two answers, one file. Measured 2026-08-28.
+                //
+                // `keyword_value` is the resolver that path already used: an enum unit variant if
+                // the symbol table knows one, else a plain keyword. `:probe::E::A` therefore lands
+                // as an enum value — and note it could never have been a field reference at all,
+                // since it carries `::` and a field name is a bare identifier.
+                //
+                // This can only ADMIT programs, never change one: a non-field keyword here was a
+                // hard freeze error, so no program that compiles today contains one.
+                return lowered(Some(Expr::Lit(crate::rete::expr_ir::keyword_value(k, ctx.sym))));
             };
             if let Some(&slot) = field_slots.get(&field_idx) {
                 return lowered(expr_slot(slot));

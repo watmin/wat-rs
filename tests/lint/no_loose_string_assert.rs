@@ -101,7 +101,17 @@ fn tests_carry_no_loose_string_assert() {
             if stmt_has_assert && !stmt_has_rune && has_loose_string_match(line) {
                 violations.push(format!("{}:{}", rel, idx + 1));
             }
+            // ⛔ A COMMENT IS NOT A STATEMENT BOUNDARY. Without this guard a rune whose prose
+            // happened to end a line with `;` — e.g. "…embedding a Span path;" — silently reset
+            // `stmt_has_rune` before reaching its own assert, and the site was reported as an
+            // offender while carrying a perfectly good exemption two lines above it. Found
+            // 2026-08-28 by writing exactly that comment. The failure direction was safe (a false
+            // POSITIVE, never a missed violation), which is why it survived: it costs a confusing
+            // red rather than a silent pass.
             let t = line.trim_end();
+            if t.trim_start().starts_with("//") {
+                continue;
+            }
             if t.ends_with(';') || t.ends_with('{') || t.ends_with('}') {
                 stmt_has_assert = false;
                 stmt_has_rune = false;

@@ -308,7 +308,12 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     }
 }
 
-fn keyword_value(k: &str, sym: &SymbolTable) -> Value {
+/// A bare keyword's VALUE: an enum unit variant if the symbol table knows one, else a plain
+/// keyword. `pub(crate)` since 2026-08-28 — `compiled_cond` and `matcher` need the identical
+/// resolution for a keyword in DIRECT operand position, which was refused as an unknown field
+/// while this exact function was already resolving it correctly one level down, inside a nested
+/// operand. One question, one answer, one function.
+pub(crate) fn keyword_value(k: &str, sym: &SymbolTable) -> Value {
     if let Some(ev) = sym.unit_variant(k) {
         return Value::Enum(Arc::new(ev.clone()));
     }

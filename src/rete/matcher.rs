@@ -676,9 +676,9 @@ fn eval_clause(
         // (`:wat::core::<op>`) is freeze-walled and compile_condition_local-refused.
         // Operands resolved from {bindings, field, literal}.
         ReteClauseShape::Constraint { op, lhs, rhs } => {
-            let a = resolve_operand(lhs, fact_fields, field_names, &bindings)
+            let a = resolve_operand(lhs, fact_fields, field_names, &bindings, sym)
                 .or_else(|| eval_computed_operand(sym, lhs, fact_fields, field_names, &bindings));
-            let b = resolve_operand(rhs, fact_fields, field_names, &bindings)
+            let b = resolve_operand(rhs, fact_fields, field_names, &bindings, sym)
                 .or_else(|| eval_computed_operand(sym, rhs, fact_fields, field_names, &bindings));
             let (a, b) = match (a, b) {
                 (Some(a), Some(b)) => (a, b),
@@ -885,6 +885,7 @@ pub(crate) fn resolve_operand<B: Bindings>(
     fact_fields: &[Value],
     field_names: &[String],
     bindings: &B,
+    sym: Option<&SymbolTable>,
 ) -> Option<Value> {
     match operand {
         WatAST::Symbol(ident, _) => {
@@ -904,9 +905,22 @@ pub(crate) fn resolve_operand<B: Bindings>(
             }
         }
         WatAST::Keyword(k, _) => {
-            // Field reference: :field-name → read from the fact.
+            // THE ONE RULE: a declared field is a field reference; anything else is a CONSTANT.
+            //
+            // ⚠ The `or_else` is new (2026-08-28) and is the oracle's half of admitting
+            // `(keyword::= :v :alpha)` / `(enum::= :v :probe::E::A)` in DIRECT operand position.
+            // Without it the two engines disagree — native resolves the constant and matches, the
+            // oracle reads no field and returns `None`, which `eval_clause` maps to "no match".
+            // Caught by driving both before shipping, which is the only way this class is ever
+            // caught: `$native` and `$oracle` quietly disagreeing is the same instrument failure
+            // as the two of them quietly agreeing.
+            //
+            // `keyword_value` is `expr_ir`'s — the same resolver the nested-operand path has
+            // always used, so an enum unit variant becomes an enum value and everything else a
+            // plain keyword. One question, one answer, one function.
             let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
             read_fact_field(fact_fields, field_names, field_name)
+                .or_else(|| sym.map(|s| crate::rete::expr_ir::keyword_value(k, s)))
         }
         // Literals: direct Value construction — no eval, no environment.
         other => ast_literal_value(other),
