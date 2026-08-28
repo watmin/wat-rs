@@ -329,6 +329,90 @@ and the compiler asked: **ONE** non-exhaustive-match site, `src/value/signal.rs:
 impl). Reverted. `[[feedback_impose_the_check_and_read_the_screams]]` The EDN rendering needs no arm
 at all — `RuntimeErrorKind` carries `#[derive(wat_edn::ToEdn)]` (`signal.rs:189`), so the wire form
 is generated.
+
+## ⛔⛔ THE BUILDER'S QUESTION, AND THE THIRD CATEGORY IT FOUND — 2026-08-28, hours after O-iv-a shipped
+
+> *"what prevents application?… what don't we know when we need to know?… and why did we forget?….
+> or….. is max-of written wrong?…. and this now reveals what it must be?"*
+
+**`max-of` is written wrong.** Read on the disk, `src/intrinsic/f64.rs`:
+
+```rust
+#[wat_intrinsic(":wat::f64::max-of")]
+pub(crate) fn eval_f64_max_of(args: &[WatAST], env, sym, _span) -> Result<Value, EvalBreak> {
+    f64_variadic_reduce(":wat::f64::max-of", args, env, sym, f64::max)
+}
+fn f64_variadic_reduce(op, args: &[WatAST], env, sym, fold) -> … {
+    for a in args { match eval_inner(a, env, sym)?.value_owned() { Value::f64(x) => …fold…, … } }
+}
+```
+
+`env`/`sym` are used for **exactly one thing** — `eval_inner` on its own arguments — and everything
+after is a pure fold over `f64`. It is **ALGEBRA WEARING A BINDING SIGNATURE.** Nothing prevents its
+application. It has no value door because nobody wrote one.
+
+**And the answer to *why did we forget* is that we never chose.** Until O-iii landed this morning,
+`&[WatAST]` was the **only** signature `#[wat_intrinsic]` accepted. All 380 handlers take ASTs
+because there was no other way to write one. The registry then recorded `value_handler: None`, and
+`apply` read that **absence as an impossibility** — the same defect as `walk.rs:268` with the sign
+flipped, for the third time in this arc.
+
+**O-iv-a's first message asserted the reason and the reason was false**: *"it takes its arguments
+unevaluated"* is an essential claim about the verb, and I had established it for none of the 331 —
+only inferred it from a signature that was, until that morning, the only signature available. The
+message now states the ABSENCE and never the reason:
+
+> *`:wat::f64::max-of` is registered, but no handler taking EVALUATED arguments is registered under
+> that name, and apply dispatches with evaluated arguments. Call it directly.*
+
+`[[feedback_an_error_names_where_it_gave_up_not_what_is_missing]]`
+
+### The population is much larger than the SHELL census said — and it has a THIRD category
+
+The 137 SHELL figure is a **lower bound**, as this design already flagged: the classifier calls a
+handler BINDING when it passes `env`/`sym` to a helper, even if that helper only evals args.
+Measured 2026-08-28 (`$CLAUDE_JOB_DIR`-local instrument, shape recorded here):
+
+| class | count | what it is |
+|---|---|---|
+| **SHELL** | 137 | evals its args inline, calls a span-free `_inner`. **Proven** migratable — O-iii's population. |
+| **DELEGATE** | 187 | body is a single call handing `(args…, env, sym)` to ONE helper. **Candidates, NOT proven** — each helper must be read; `max-of` is one and reads as pure algebra, `eval_iowriter_new` is one and takes no wat args at all. |
+| remainder | ~56 | plausibly genuine BINDING — needs `env`/`sym` for real. |
+
+⚠ **Do not quote 324 as "migratable".** The DELEGATE class is a candidate set produced by a
+body-shape test; its members are algebra only if their helper is. One was read (`max-of`: yes).
+`[[feedback_a_census_without_attribution_is_not_a_census]]`
+
+### ★ THE THIRD CATEGORY — SPAN-CARRYING ALGEBRA, and it changes the sweep
+
+`f64_variadic_reduce` raises `TypeMismatch` at **`a.span()` — the offending argument's own span**.
+Its handler's `_span` rune says so outright: *"no own error path; every error is per-element,
+carrying that element's own span."* So `max-of` is not the shell shape O-iii proved:
+
+```
+SHELL             ASTs -> Values -> span-free `_inner`        both doors already share span behaviour
+SPAN-CARRYING     ASTs -> uses THE ARGUMENT'S OWN SPAN in its own error, then pure algebra
+```
+
+Migrating a span-carrying verb to `&[Value]` **loses per-element span fidelity** — the error would
+point at the call instead of at the argument that was wrong. That is exactly the trade Stone N
+refused for the 19 arithmetic pairs, and this design cut it out of scope **on the grounds that the
+shell population delegates to span-free `_inner` fns**. That reasoning holds for the 137 and does
+**not** cover the span-carrying ones.
+
+**So the sweep waves must classify before they migrate**, and the classification is not the SHELL
+census. Three dispositions per verb:
+
+1. **span-free algebra** → migrate to ALGEBRA; both doors, no loss. (The 137, proven.)
+2. **span-carrying algebra** → migrating trades per-argument spans for `apply` reachability.
+   **A real cost, and the builder's call, not a rider's.** Do not let a wave brief decide it
+   silently by treating the verb as "just another shell."
+3. **genuine binding** → stays BINDING; O-iv-a's message is the honest, permanent answer.
+
+⚠ **O-iv-b (the collections) is unaffected** — `map`/`hashmap`/`vec`/`linkedlist`/`hashset` are the
+proven span-free shape, siblings of the `vector` file O-iii already migrated. **O-iv-c and O-iv-d
+must carry disposition rows**, because `f64`, `i64`, `time`, `edn` and `ast` are where the
+span-carrying handlers live.
 ## The four questions
 
 - **Obvious? YES.** One declaration, one implementation, and the signature's leading param says which

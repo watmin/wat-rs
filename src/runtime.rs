@@ -22521,8 +22521,8 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
         RuntimeErrorKind::NotValueDispatchable { name, .. } => (
             "not-value-dispatchable",
             format!(
-                "{} is registered but cannot be reached through apply: it takes its arguments \
-                 unevaluated, and apply has already evaluated them. Call it directly.",
+                "{} is registered, but no handler taking EVALUATED arguments is registered under \
+                 that name, and apply dispatches with evaluated arguments. Call it directly.",
                 name
             ),
         ),
