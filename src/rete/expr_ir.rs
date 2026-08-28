@@ -376,6 +376,35 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
         if row.class == OpClass::Fallback {
             return lower_fallback(op, &items[1..], span, cx, hof);
         }
+        // ⛔ THE RETE SURFACE ADMITS ONLY `reduce`'s TOTAL ARITY, and refuses the other at COMPILE
+        // time rather than raising at fire time.
+        //
+        // `wat/seq.wat:317-329` defines both clauses: 3-arity is literally `(foldl f init coll)`,
+        // and 2-arity seeds from the first element and RAISES BY NAME on an empty collection. The
+        // row declares `total: true` — which every row must, by `every_rete_row_is_total`, because
+        // "a jump table over a partial op is not a thing". So the 2-arity form and that declaration
+        // cannot both stand.
+        //
+        // The table's own comment already ruled how a partial core op earns a rete surface: NOT by
+        // weakening the wall, but by BUYING totality with a mandatory `:undefined` (`OpClass::Fallback`,
+        // which is exactly why partial `i64::/` is `total: true` here). `Fallback` is a property of
+        // the ROW though, so taking it would force the ceremony onto the 3-arity form, which is
+        // already total and needs nothing. Refusing the partial arity is the narrower reading of
+        // the same doctrine, and it keeps rete's surface narrower than core's for the reason it
+        // always is — per-type comparators, eager materializers, and now total arities only.
+        //
+        // Found 2026-08-28 by the § 4.1 ledger. The partiality is not new; it was UNREACHABLE
+        // until `exec_reduce` landed hours earlier, which is what turned a latent false
+        // declaration into a live one.
+        if row.core_name == ":wat::core::reduce" && items.len() == 3 {
+            return Err(LowerError::unsupported(
+                span.clone(),
+                "the rete surface admits only the 3-arity `reduce` — `(reduce f init coll)`. The \
+                 2-arity form seeds the fold from the first element and raises on an empty \
+                 collection, and every rete row must be TOTAL. Supply an explicit init."
+                    .to_string(),
+            ));
+        }
         let args = lower_call_args(&items[1..], cx, hof)?;
         return Ok(Expr::Call { op, args });
     }
