@@ -220,6 +220,53 @@ impl ParamType {
     }
 }
 
+/// A row's RETURN type — and, load-bearing, whether it HAS one that may be read.
+///
+/// ── WHY THIS IS AN ENUM AND NOT A `ParamType` ────────────────────────────────────────────────
+///
+/// It used to be a bare `ParamType`, and `Form`/`Redispatch` rows carried `ret: ParamType::Bool`
+/// as a documented PLACEHOLDER meaning "this row has no rank-1 scheme; do not read me". So ONE
+/// value meant two different things — *"returns bool"* and *"has no scheme at all"* — and every
+/// reader had to know the convention. Three of them re-derived the same guard by hand:
+///
+///     clause.rs   `expr_is_provably_boolean`  — believe `ret` only for Alias/Fallback
+///     validate.rs `resolve_operand_type`      — believe `ret` only for Alias/Fallback
+///     check.rs    the `TypeScheme` registration loop — register only Alias/Fallback
+///
+/// A rule hand-copied at three sites is rung ONE of the extirpare ladder, and on 2026-08-28 it
+/// produced a live wrong answer: `:wat::rete::holon::coincident?` GENUINELY returns bool, but its
+/// row is `Redispatch` (its PARAMS keep core's `HolonAST | Vector` polymorphism, so they cannot be
+/// a rank-1 scheme), so its true `ret` was unreadable and the op was **refused as an inline
+/// constraint** — "malformed rete clause … not a recognized :when shape" — while working fine in a
+/// `where` fence. The fifth instance in this arc of one pattern: a representation where one value
+/// means both "legitimately absent" and "I have no arm for this".
+///
+/// ⛔ THE ONE-LINE WIDENING WAS TRIED AND IS UNSOUND — driven before it was proposed. Simply
+/// adding `Redispatch` to those guards admits `(Tuple/first (Tuple :v 99))` — an `i64` — as an
+/// inline boolean constraint that compiles, fires, and SILENTLY MATCHES NOTHING. That is fix-list
+/// F's class reopened on a new row. Do not re-propose it.
+///
+/// With this enum the placeholder has NO SPELLING. A row states a return type or states that it
+/// has none, and every reader may believe what it finds without consulting `class` at all.
+///
+/// ── PARAMS ARE A SEPARATE QUESTION, DELIBERATELY ──────────────────────────────────────────────
+///
+/// `coincident?` is the proof that they are independent: its params are unstatable and its return
+/// is perfectly statable. Folding both into one `Scheme` enum could not express that row, which is
+/// exactly the row that forced this change. `params: &[]` carries the same two-facts shape and is
+/// an AFFIRMATIVE CUT rather than an oversight: no rete row takes zero operands (an op with no
+/// operands is a constant), so `&[]` is unambiguous in practice today. If a zero-arity row is ever
+/// minted, `params` needs this same treatment and this paragraph is the notice.
+#[derive(Clone, Copy)]
+pub(crate) enum Ret {
+    /// A real, statable return type. Believe it — that is the whole point of the variant.
+    Is(ParamType),
+    /// This row has NO rank-1 return type to read: the checker computes it another way
+    /// (`Form` — a bespoke inference arm; `Redispatch` — core's own inference for `core_name`).
+    /// There is no value here that can be mistaken for a type.
+    NoScheme,
+}
+
 /// One rete-surface op. THE single place any rete op is named (STOP-2).
 pub(crate) struct ReteOp {
     /// The rete-surface FQDN, e.g. `":wat::rete::core::i64::>"`.
@@ -233,8 +280,11 @@ pub(crate) struct ReteOp {
     /// `Form`/`Redispatch` (no `TypeScheme`; the checker consults a dedicated inference arm
     /// instead).
     pub(crate) params: &'static [ParamType],
-    /// `Alias`/`Fallback` only — unused for `Form`/`Redispatch`.
-    pub(crate) ret: ParamType,
+    /// The row's return type, or [`Ret::NoScheme`] when it has none to state. NOT gated on
+    /// `class`: a `Redispatch` row whose params are unstatable may still have a perfectly
+    /// statable return (`coincident?` is exactly that), and a reader may believe whatever it
+    /// finds here. See [`Ret`] for the defect that shape was written to delete.
+    pub(crate) ret: Ret,
     /// Arc 278 #57 round 1b — the row's OWN type-parameter names, e.g. `&["T"]` for the PV
     /// trio. `&[]` on every row that does not need one (all pre-existing rows, plus the five
     /// `Redispatch` rows, which carry no scheme at all). Fed into `check.rs`'s registration
@@ -260,7 +310,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::>",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── Fallback-carrying — the `:undefined` shape, and the only class touching runtime
@@ -277,7 +327,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::+",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── Form — that a form can be mirrored at all. `total: true` mirrors `:wat::core::and`'s own
@@ -290,7 +340,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::and",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Comparison alias — `:wat::core::i64::<` is already `total: true` in `intrinsic_meta`'s
@@ -302,7 +352,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::<",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Comparison alias — `:wat::core::i64::>=` is already `total: true` in `intrinsic_meta`'s
@@ -314,7 +364,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::>=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Comparison alias — `:wat::core::i64::<=` is already `total: true` in `intrinsic_meta`'s
@@ -326,7 +376,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::<=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── BRIEF-the-f64-surface-is-a-stub.md Part C (2026-08-05) — the four f64 comparator
@@ -343,7 +393,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::>",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -352,7 +402,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::<",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -361,7 +411,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::>=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -370,7 +420,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::<=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Fallback-carrying — `:wat::core::i64::-` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
@@ -381,7 +431,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::-",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Fallback-carrying — `:wat::core::i64::*` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
@@ -392,7 +442,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::*",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Fallback-carrying — `:wat::core::i64::/` is undefined at a zero divisor, and overflows at MIN/-1. Total BY CONSTRUCTION: the caller's `:undefined` value covers
@@ -403,7 +453,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::/",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Fallback-carrying — `:wat::core::i64::mod` is undefined at a zero divisor (floored; sign of the divisor). Total BY CONSTRUCTION: the caller's `:undefined` value covers
@@ -414,7 +464,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::mod",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Fallback-carrying — `:wat::core::i64::rem` is undefined at a zero divisor (sign of the dividend). Total BY CONSTRUCTION: the caller's `:undefined` value covers
@@ -425,7 +475,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::rem",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Fallback-carrying — `:wat::core::i64::quot` is undefined at a zero divisor (truncates toward zero). Total BY CONSTRUCTION: the caller's `:undefined` value covers
@@ -436,7 +486,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::quot",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #56, the head-table form mirrors (12 + 8 corpus `where` forms respectively).
@@ -451,7 +501,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::not",
         class: OpClass::Alias,
         params: &[ParamType::Bool],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // `or` is `and`'s twin at every site that matters: the checker handles them in ONE arm
@@ -466,7 +516,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::or",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #56 phase 1, the head-table pair. Both were ALREADY admitted structurally by
@@ -492,7 +542,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::if",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -501,7 +551,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::let",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #56 phase 2, the FIRST of the structural-guard pair. `match` is admitted through a
@@ -528,7 +578,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::match",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #56's leftover, closed — `fn`, the second and last of the structural-guard pair.
@@ -552,7 +602,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::fn",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── BRIEF-rete-cond-is-its-own-macro.md (2026-08-05) — `cond`, the FIRST MACRO-BACKED rete
@@ -592,7 +642,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::cond",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── `do` — CUT, not minted (BRIEF-cond-the-first-macro-backed-rete-row.md Part B, builder
@@ -625,7 +675,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::String/concat",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -634,7 +684,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::String/starts-with?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -643,7 +693,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::String/ends-with?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -652,7 +702,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::String/contains?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -661,7 +711,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::String/empty?",
         class: OpClass::Alias,
         params: &[ParamType::String],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -670,7 +720,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::string::length",
         class: OpClass::Alias,
         params: &[ParamType::String],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -679,7 +729,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::string::trim",
         class: OpClass::Alias,
         params: &[ParamType::String],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -688,7 +738,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::string::to-lowercase",
         class: OpClass::Alias,
         params: &[ParamType::String],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -697,7 +747,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::to-f64",
         class: OpClass::Alias,
         params: &[ParamType::I64],
-        ret: ParamType::F64,
+        ret: Ret::Is(ParamType::F64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #57 round 1b, the parametric pair (`Alias`, with the FIRST non-empty `type_params`
@@ -715,7 +765,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::PersistentVector/length",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T")],
-        ret: ParamType::I64,
+        ret: Ret::Is(ParamType::I64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ─── THE CONTAINER CONSTRUCTORS (task #81, 2026-08-05) ────────────────────────────────────
@@ -757,7 +807,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::PersistentVector",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -766,7 +816,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::Vector",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -775,7 +825,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::List",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -784,7 +834,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::PersistentMap",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -793,7 +843,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::Tuple",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -802,7 +852,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::PersistentVector/contains?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::Var("T")],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // Arc 278 #57 — the LAST UNSURE-bucket straggler, resolved by AUDIT (the seam's own
@@ -830,7 +880,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::PersistentMap/contains-key?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentMapOf("K", "V"), ParamType::Var("K")],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // BRIEF-get-is-total-by-fallback.md (2026-08-05) — `PersistentVector/get` CONVERTED from
@@ -857,7 +907,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::PersistentVector/get",
         class: OpClass::Fallback,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
-        ret: ParamType::Var("T"),
+        ret: Ret::Is(ParamType::Var("T")),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -866,7 +916,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::Vector/get",
         class: OpClass::Fallback,
         params: &[ParamType::VectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
-        ret: ParamType::Var("T"),
+        ret: Ret::Is(ParamType::Var("T")),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -875,7 +925,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::List/get",
         class: OpClass::Fallback,
         params: &[ParamType::ListOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
-        ret: ParamType::Var("T"),
+        ret: Ret::Is(ParamType::Var("T")),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #57 round 1b, originally the five higher-order combinators (`Redispatch` — this
@@ -901,7 +951,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::foldl",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── 2026-08-28: `map`/`filter` -> `mapv`/`filterv`, and the reason is the whole point of the
@@ -923,7 +973,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::mapv",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -932,7 +982,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::filterv",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // `reduce` is a wat-level `defclause` (`wat/seq.wat`), NOT a checker special form like
@@ -976,7 +1026,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::first",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -985,7 +1035,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::second",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -994,7 +1044,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::third",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1003,7 +1053,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::reduce",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::NoScheme,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── #57 round 1c, the ten per-type equality/inequality aliases (`=`/`not=` across the five
@@ -1045,7 +1095,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1054,7 +1104,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::not=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1063,7 +1113,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1072,7 +1122,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::not=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // BRIEF-the-f64-surface-is-a-stub.md Part D (2026-08-05) — casing bug fixed. Round 1c
@@ -1116,7 +1166,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::=",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1125,7 +1175,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::not=",
         class: OpClass::Form,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1134,7 +1184,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1143,7 +1193,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1152,7 +1202,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::Bool, ParamType::Bool],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1161,7 +1211,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::Bool, ParamType::Bool],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1170,7 +1220,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::Keyword, ParamType::Keyword],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1179,7 +1229,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::Keyword, ParamType::Keyword],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── 2026-08-28 — THE KEYWORD CONVERTERS. Measured gap, not a guess.
@@ -1205,7 +1255,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::keyword/to-string",
         class: OpClass::Alias,
         params: &[ParamType::Keyword],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         // TOTAL, and audited rather than assumed. `eval_keyword_to_string` has exactly two failure
         // exits and both are TYPE mismatches — a non-Keyword `WatAST`, and a value that is neither
         // keyword nor WatAST. This row DECLARES its operand `Keyword`, so the checker refuses both
@@ -1225,7 +1275,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         // `total: true` two hundred lines up.
         class: OpClass::Fallback,
         params: &[ParamType::String, ParamType::Keyword, ParamType::Keyword],
-        ret: ParamType::Keyword,
+        ret: Ret::Is(ParamType::Keyword),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── BRIEF-f64-fallback-rows.md (2026-08-05) — the f64 arithmetic quartet. Builder's
@@ -1248,7 +1298,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::+",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
-        ret: ParamType::F64,
+        ret: Ret::Is(ParamType::F64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1257,7 +1307,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::-",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
-        ret: ParamType::F64,
+        ret: Ret::Is(ParamType::F64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1266,7 +1316,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::*",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
-        ret: ParamType::F64,
+        ret: Ret::Is(ParamType::F64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1275,7 +1325,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::/",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
-        ret: ParamType::F64,
+        ret: Ret::Is(ParamType::F64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — the VSA seam opens: the four
@@ -1300,7 +1350,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::holon::cosine",
         class: OpClass::Fallback,
         params: &[ParamType::Holon, ParamType::Holon, ParamType::Keyword, ParamType::F64],
-        ret: ParamType::F64,
+        ret: Ret::Is(ParamType::F64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1309,7 +1359,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::holon::dot",
         class: OpClass::Fallback,
         params: &[ParamType::Holon, ParamType::Holon, ParamType::Keyword, ParamType::F64],
-        ret: ParamType::F64,
+        ret: Ret::Is(ParamType::F64),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1318,7 +1368,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::holon::coincident?",
         class: OpClass::Redispatch,
         params: &[],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1327,7 +1377,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::holon::presence?",
         class: OpClass::Alias,
         params: &[ParamType::Holon, ParamType::Holon],
-        ret: ParamType::Bool,
+        ret: Ret::Is(ParamType::Bool),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — the `to-string` trio.
@@ -1346,7 +1396,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::i64::to-string",
         class: OpClass::Alias,
         params: &[ParamType::I64],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1355,7 +1405,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::f64::to-string",
         class: OpClass::Alias,
         params: &[ParamType::F64],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1364,7 +1414,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::bool::to-string",
         class: OpClass::Alias,
         params: &[ParamType::Bool],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `first`, per container,
@@ -1404,7 +1454,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::first",
         class: OpClass::Fallback,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::Keyword, ParamType::Var("T")],
-        ret: ParamType::Var("T"),
+        ret: Ret::Is(ParamType::Var("T")),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1413,7 +1463,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::first",
         class: OpClass::Fallback,
         params: &[ParamType::VectorOf("T"), ParamType::Keyword, ParamType::Var("T")],
-        ret: ParamType::Var("T"),
+        ret: Ret::Is(ParamType::Var("T")),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     ReteOp {
@@ -1422,7 +1472,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::first",
         class: OpClass::Fallback,
         params: &[ParamType::ListOf("T"), ParamType::Keyword, ParamType::Var("T")],
-        ret: ParamType::Var("T"),
+        ret: Ret::Is(ParamType::Var("T")),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // arc 278 #57 round 2 — `string::subs`, `Fallback` class. `:wat::core::string::subs` is
@@ -1442,7 +1492,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         core_name: ":wat::core::string::subs",
         class: OpClass::Fallback,
         params: &[ParamType::String, ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::String],
-        ret: ParamType::String,
+        ret: Ret::Is(ParamType::String),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
 ];
@@ -1637,6 +1687,78 @@ mod naming_rule_tests {
         // NON-VACUITY: without this the assert would pass just as happily against an emptied table
         // or a renamed field — a filter that can see nothing always finds nothing wrong.
         assert!(RETE_OPS.len() > 60, "RETE_OPS looks empty — this gate would pass vacuously");
+    }
+
+    /// ★ WHICH ROWS STATE A RETURN TYPE — frozen by NAME, both directions.
+    ///
+    /// [`Ret`] deleted a conflation: `ret: ParamType::Bool` on a `Form`/`Redispatch` row used to
+    /// mean "no scheme", so a row that GENUINELY returns bool could not say so. The type now makes
+    /// the placeholder unspellable — but nothing stops a future hand from writing `Ret::NoScheme`
+    /// on a row that does have a return type, or `Ret::Is(Bool)` on one that does not. Either
+    /// mistake is silent: the first re-refuses a working op inline, the second admits a non-boolean
+    /// as a predicate that compiles, fires and matches nothing (fix-list F's class).
+    ///
+    /// So the five rows whose class carries no param scheme and whose RETURN is nonetheless a real
+    /// bool are listed here by name. A count could not tell "+1 correct, −1 wrong" from "nothing
+    /// changed" (`[[feedback_a_gate_freezes_names_never_a_count]]`), and the failure text names the
+    /// offender either way.
+    ///
+    /// `and`/`or` are here because boolean short-circuit forms return bool; `enum::=`/`enum::not=`
+    /// because equality does; `coincident?` because it answers a yes/no question about two holons.
+    /// Every OTHER `Form`/`Redispatch` row is genuinely un-statable — `if`/`let`/`cond`/`match` are
+    /// polymorphic in their body, `fn` returns a function, and the container/HOF rows return
+    /// containers and elements.
+    const PLACEHOLDER_CLASS_ROWS_THAT_DO_RETURN_BOOL: &[&str] = &[
+        ":wat::rete::core::and",
+        ":wat::rete::core::or",
+        ":wat::rete::core::enum::=",
+        ":wat::rete::core::enum::not=",
+        ":wat::rete::holon::coincident?",
+    ];
+
+    #[test]
+    fn only_the_named_scheme_less_rows_declare_a_return_type() {
+        let mut declares = Vec::new();
+        let mut silent = Vec::new();
+        for op in RETE_OPS.iter() {
+            if matches!(op.class, OpClass::Alias | OpClass::Fallback) {
+                // These carry a full rank-1 scheme; `check.rs` registers it. A `NoScheme` here
+                // would drop the row out of the type environment entirely.
+                assert!(
+                    matches!(op.ret, Ret::Is(_)),
+                    "`{}` is {} and MUST state its return type — `check.rs` registers a TypeScheme \
+                     from it, and `Ret::NoScheme` would silently unregister the row",
+                    op.rete_name,
+                    if matches!(op.class, OpClass::Alias) { "Alias" } else { "Fallback" }
+                );
+                continue;
+            }
+            match op.ret {
+                Ret::Is(_) => declares.push(op.rete_name),
+                Ret::NoScheme => silent.push(op.rete_name),
+            }
+        }
+        declares.sort_unstable();
+        let mut expected: Vec<&str> = PLACEHOLDER_CLASS_ROWS_THAT_DO_RETURN_BOOL.to_vec();
+        expected.sort_unstable();
+        assert_eq!(
+            declares, expected,
+            "a `Form`/`Redispatch` row that states a return type is believed by \
+             `expr_is_provably_boolean` as an inline predicate and by `validate.rs` as an operand \
+             type. Adding one is a real decision; removing one re-refuses a working op. Name it \
+             here in the same commit"
+        );
+        // NON-VACUITY, both halves. Without these the assert passes just as happily against an
+        // emptied table (nothing declares, nothing is expected) — the exact shape of gate this
+        // arc has already been burned by twice.
+        assert!(RETE_OPS.len() > 60, "RETE_OPS looks empty — this gate would pass vacuously");
+        assert!(
+            silent.len() > 10,
+            "expected the majority of scheme-less rows to state NOTHING; got {} — if this \
+             collapsed, `Ret::NoScheme` has stopped being used and the conflation is back in \
+             another spelling: {silent:#?}",
+            silent.len()
+        );
     }
 
     const NAMING_RULE_EXCEPTIONS: &[&str] = &[

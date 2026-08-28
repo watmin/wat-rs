@@ -6,7 +6,7 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `85c87314d`; the commit carrying this stamp
+earlier 2026-08-28 ones. Written against HEAD `4a5f0fd1c-PENDING`; the commit carrying this stamp
 lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
 touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
 That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
@@ -42,7 +42,21 @@ The column went **16 → 68 → 71 → 75 of 79** across one day; the last four 
 by hand and NOT yet reflected in the ledger. Four commits: `1a97cf12b` `4c19b9029` `ad2286133`
 `b7f54a17f`. Floor 5147/5147. Clara 38 pairs / 315 rows.
 
-**⛔ THE LEDGER IS LYING ABOUT FOUR ROWS — AND THE ENTRY THAT SAID SO WAS ALSO WRONG.**
+**✅ `coincident?` INLINE IS FIXED — THE FIFTH INSTANCE OF THE PATTERN IS CLOSED.** `ret` is now
+`Ret::Is(ParamType) | Ret::NoScheme` (`vocabulary.rs`), so a row that has no return type to state
+CANNOT SPELL ONE, and `Ret::Is(Bool)` is a fact from any class. 79 rows migrated (57 `Is`, 5
+`Is(Bool)`, 17 `NoScheme`); **the compiler then named SEVEN readers, not the three I predicted** —
+four reach `ret` through a shared helper and were invisible to grep, which is itself the argument
+for the type over the convention. `clause.rs` and `validate.rs` lost their `class` test entirely;
+`check.rs` KEEPS its, and that is correct — it builds a whole rank-1 scheme, so it guards on
+PARAMS. Two gates, both mutation-proven, including the soundness twin that keeps `Tuple/first`
+refused (mutate it and the failure prints `Got: Ok(0)` — the F-class signature). Floor 5150/5150.
+
+⚠ **`params: &[]` STILL HOLDS THE SAME TWO FACTS — an affirmative cut, not an oversight.** No rete
+row takes zero operands, so it is unambiguous today; `Ret`'s doc carries the notice for whoever
+mints a zero-arity row.
+
+**⛔ THE LEDGER IS STILL LYING ABOUT FOUR ROWS — AND THE ENTRY THAT SAID SO WAS ALSO WRONG.**
 `NOT_YET_GENERABLE` in `src/rete/reachability.rs` reports the four `:wat::rete::holon::*` rows
 un-drivable. Re-driven 2026-08-28 (LATE) with `v` AND `w` both `HolonAST` on one record:
 **SEVEN of eight cells fire, not eight.** `presence?`, `cosine`, `dot` fire in both positions;
@@ -50,8 +64,8 @@ un-drivable. Re-driven 2026-08-28 (LATE) with `v` AND `w` both `HolonAST` on one
 and fence" on this page came from a hand-drive whose shape was never written down — it was wrong,
 and the ledger existing precisely to catch that is the point.
 
-**`coincident?` inline is THE FIFTH INSTANCE OF THE PATTERN BELOW, and the one row of the table
-still holding it.** It is `Redispatch` (its PARAMS are polymorphic) but genuinely returns `bool`;
+**`coincident?` inline WAS the fifth instance of the pattern below — now FIXED (see the top of
+this stamp). The reproduction is kept here because the ledger still cannot GENERATE these cells.** It is `Redispatch` (its PARAMS are polymorphic) but genuinely returns `bool`;
 `expr_is_provably_boolean` trusts `ret` only for `Alias`/`Fallback`, because on
 `Form`/`Redispatch` rows `ret: Bool` ALSO means "no scheme at all". ⛔ The one-line widening is
 UNSOUND — driven: it admits `Tuple/first` (an `i64`) as an inline constraint that compiles, fires
@@ -81,9 +95,15 @@ placeholder has no spelling. ⛔ The one-line widening is UNSOUND (driven: it ad
 an `i64`, as an inline constraint that silently matches nothing).
 
 Every one produced either a false refusal or a SILENT never-match. **When you meet a catch-all in
-this codebase, ask which two facts it is holding.** Three of the five are closed; the wildcards are
-deleted, so a new `WatAST` variant is now a compile error in both rewriters and in the operand
-typer. **The `ret: Bool` row is NOT closed and is the next bug.**
+this codebase, ask which two facts it is holding.** **ALL FIVE ARE NOW CLOSED** — the wildcards are
+deleted (a new `WatAST` variant is a compile error in both rewriters and in the operand typer) and
+`ret: Bool` became `Ret::Is | Ret::NoScheme`, so a placeholder has no spelling. The one that
+remains is `params: &[]`, cut affirmatively because no rete row takes zero operands.
+
+**★ AND THE CLOSING TAUGHT SOMETHING THE FIRST FOUR DID NOT.** Fixing the shape made the COMPILER
+enumerate the readers — seven, where I had grepped three. Four of them touch `ret` only through a
+shared helper, so no search for `.ret` could have found them. **That is the argument for the type
+over the convention, in one number: a convention cannot make the compiler find its own violations.**
 
 **⛔⛔ MY STATED RATIONALE WAS FALSE FIVE TIMES ACROSS TWO SESSIONS, AND THE BUILDER CAUGHT TWO OF
 THEM.** This is the single most important line on this page.

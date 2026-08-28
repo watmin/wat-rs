@@ -1323,25 +1323,26 @@ fn resolve_operand_type(
                 // path. Not a type question, and not this function's to answer.
                 return OperandType::ComputedNotDerivableHere;
             };
-            // `Form`/`Redispatch` carry `ret` as a PLACEHOLDER — see the variant's doc. Reading it
-            // would assert `bool` for `let`, `match` and `fn`, which is simply false.
-            if !matches!(
-                row.class,
-                crate::rete::vocabulary::OpClass::Alias | crate::rete::vocabulary::OpClass::Fallback
-            ) {
-                return OperandType::ComputedNotDerivableHere;
-            }
+            // The row's own answer, believed as it stands. This used to test `class` first —
+            // "`Form`/`Redispatch` carry `ret` as a PLACEHOLDER" — which was true of the old bare
+            // `ParamType` and is now impossible to express: a row with nothing to state says
+            // `Ret::NoScheme`. Same outcome for `let`/`match`/`fn` (which genuinely have no
+            // statable return), and `coincident?` stops being collateral damage.
+            //
             // A `Var` ret is a type VARIABLE resolved from the ARGUMENTS, never a type this row
             // states. Rejected BEFORE the path mapping so it cannot accidentally resolve against a
             // user type that happens to share the variable's spelling.
-            if matches!(row.ret, crate::rete::vocabulary::ParamType::Var(_)) {
+            let crate::rete::vocabulary::Ret::Is(declared) = row.ret else {
+                return OperandType::ComputedNotDerivableHere;
+            };
+            if matches!(declared, crate::rete::vocabulary::ParamType::Var(_)) {
                 return OperandType::ComputedNotDerivableHere;
             }
             // ONE mapping, not a second copy: the row's `ret` becomes a `TypeExpr` by the same
             // `to_type_expr` the checker registers schemes with, and the path goes through this
             // file's own `rete_type_segment_of`. A private ParamType->segment table here would be
             // a second place for the keyword bug of 2026-08-28 to live.
-            return match row.ret.to_type_expr() {
+            return match declared.to_type_expr() {
                 crate::types::TypeExpr::Path(p) => match rete_type_segment_of(&p, types) {
                     Some(seg) => OperandType::Resolved(seg),
                     None => OperandType::ComputedNotDerivableHere,

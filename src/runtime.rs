@@ -23734,14 +23734,20 @@ pub(crate) enum FallbackVerdict {
 /// silently-substituted value, which is the one failure this shape exists to prevent.
 pub(crate) fn classify_fallback_outcome(
     outcome: Result<Value, EvalBreak>,
-    ret: &crate::rete::vocabulary::ParamType,
+    ret: &crate::rete::vocabulary::Ret,
     core_name: &str,
     holon_name: &str,
     span: &Span,
 ) -> Result<FallbackVerdict, EvalBreak> {
     match outcome {
+        // `Ret::Is(F64)`, never a bare `F64` — see `vocabulary::Ret`. A row with no declared
+        // return type cannot be F64, and now cannot be MISTAKEN for one either; the old bare
+        // `ParamType` could not tell "returns f64" from "placeholder".
         Ok(Value::f64(x))
-            if matches!(ret, crate::rete::vocabulary::ParamType::F64) && !x.is_finite() =>
+            if matches!(
+                ret,
+                crate::rete::vocabulary::Ret::Is(crate::rete::vocabulary::ParamType::F64)
+            ) && !x.is_finite() =>
         {
             Ok(FallbackVerdict::UseFallback)
         }

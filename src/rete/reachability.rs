@@ -1673,6 +1673,104 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 ///   · and it is said ONCE. A first cut reported the located `UnknownField` AND a type mismatch
 ///     advising *"use the rete comparator for `keyword`"* — which teaches the WRONG fix for a
 ///     typo. R29 `RVINA ERVDIT`: two ruins pointing opposite ways teach worse than one.
+/// A ROW THAT DECLARES `bool` IS BELIEVED INLINE, WHATEVER ITS CLASS — and one that declares
+/// nothing is still refused. Both halves, or this proves nothing.
+///
+/// `:wat::rete::holon::coincident?` genuinely returns bool and is `OpClass::Redispatch`, because
+/// its PARAMS keep core's `HolonAST | Vector` polymorphism and cannot be a rank-1 scheme. Its
+/// return was collateral damage: `expr_is_provably_boolean` believed `ret` only for
+/// `Alias`/`Fallback`, since on the other two classes `ret: ParamType::Bool` was a PLACEHOLDER
+/// meaning "no scheme". One value, two facts — the fifth instance of that pattern in this arc.
+///
+/// So the op worked in a `where` fence and was REFUSED as an inline constraint —
+/// "malformed rete clause … not a recognized :when shape" — for a full day, invisibly, because
+/// nothing drove the inline position of a holon row.
+///
+/// ⛔ THE SECOND HALF IS NOT DECORATION. Widening the old guard to admit `Redispatch` "fixes"
+/// `coincident?` and simultaneously admits `Tuple/first` — an `i64` whose row ALSO said
+/// `ret: Bool` — as an inline boolean constraint that compiles, fires and SILENTLY MATCHES
+/// NOTHING. That is fix-list F's class reopened. It was driven before it was proposed, and this
+/// row is what keeps it dead: the fix must let `coincident?` through WITHOUT letting `Tuple/first`
+/// through, which only a real `Ret::Is(Bool)` / `Ret::NoScheme` distinction can do.
+#[test]
+fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
+    const HOLON_DECLS: &str = r#"(:wat::core::defn :probe::alpha [] -> :wat::holon::HolonAST
+  (:wat::holon::to-holon (:wat::core::Vector :wat::core::i64 1 2 3)))
+(:wat::core::defn :probe::beta [] -> :wat::holon::HolonAST
+  (:wat::holon::to-holon (:wat::core::Vector :wat::core::i64 7 8 9)))
+
+(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::holon::HolonAST  w <- :wat::holon::HolonAST])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+"#;
+    // Two HolonAST fields, not a literal: the ledger's own exclusion says a holon "has no literal
+    // spelling", which is true and beside the point — one field cannot discriminate, because
+    // `coincident?(h, h)` is true for every `h`. The hit fact matches; the miss fact does not.
+    const HOLON_TAIL: &str = r#"
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v (:probe::alpha) :w (:probe::alpha)))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v (:probe::beta)  :w (:probe::alpha)))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+    let inline = format!(
+        "{HOLON_DECLS}\n(:wat::rete::defrule :probe::rule\n  :when\n  \
+         [(:probe::In (?k <- :k) (:wat::rete::holon::coincident? :v :w))]\n  :then\n  \
+         [(:probe::Out :k ?k)])\n{HOLON_TAIL}"
+    );
+    let fence = format!(
+        "{HOLON_DECLS}\n(:wat::rete::defrule :probe::rule\n  :when\n  \
+         [(:probe::In (?k <- :k) (?v <- :v) (?w <- :w))\n   \
+         (:wat::rete::where (:wat::rete::holon::coincident? ?v ?w))]\n  :then\n  \
+         [(:probe::Out :k ?k)])\n{HOLON_TAIL}"
+    );
+    assert_eq!(
+        raw_count(&inline),
+        Ok(1),
+        "`coincident?` declares `Ret::Is(Bool)` and must be admitted as an inline constraint. A \
+         refusal here means a class test crept back into `expr_is_provably_boolean`"
+    );
+    assert_eq!(
+        raw_count(&fence),
+        Ok(1),
+        "the `where` fence always accepted it — this arm is the CONTROL, and its job is to prove \
+         an inline failure is positional rather than the op being broken"
+    );
+
+    // THE SOUNDNESS TWIN. `Tuple/first` returns the tuple's first element, an `i64`. Its row
+    // declares `Ret::NoScheme`, so it must NOT be readable as a boolean predicate.
+    const TUPLE: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple :v 99)))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "a" :v 7))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+    let verdict = raw_count(TUPLE);
+    assert!(
+        verdict.is_err(),
+        "an `i64`-returning row must be REFUSED inline, not admitted. Admitting it yields a \
+         constraint that compiles, fires and silently matches nothing — fix-list F's class. \
+         Got: {verdict:?}"
+    );
+}
+
 #[test]
 fn a_mistyped_field_still_names_the_field_and_only_once() {
     const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  celsius <- :wat::core::i64])

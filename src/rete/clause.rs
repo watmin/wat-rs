@@ -260,17 +260,26 @@ fn expr_is_provably_boolean(ast: &WatAST) -> bool {
                             _ => false,
                         })
                 }
-                // Every other head: the row's DECLARED `ret`, and ONLY for the classes that have
-                // a real one. A `Form`/`Redispatch` row not named above carries a placeholder and
-                // is refused rather than believed.
+                // Every other head: the row's DECLARED `ret`, believed as it stands.
+                //
+                // ⛔ THERE IS NO `class` TEST HERE ANY MORE, AND ITS ABSENCE IS THE POINT. This
+                // used to read `class is Alias|Fallback AND ret is Bool`, because on a
+                // `Form`/`Redispatch` row `ret: ParamType::Bool` was a PLACEHOLDER meaning "no
+                // scheme". That convention refused `:wat::rete::holon::coincident?` as an inline
+                // constraint — a row that genuinely returns bool, refused because the
+                // representation could not say so without also saying "placeholder" (2026-08-28;
+                // it worked in a `where` fence the whole time, which is how it stayed invisible).
+                //
+                // `Ret::NoScheme` now carries the placeholder, so `Ret::Is(Bool)` is a FACT from
+                // any class and this test asks the one question it means to ask. Widening the old
+                // guard to admit `Redispatch` instead was tried and is UNSOUND — it lets
+                // `Tuple/first` (an `i64`, whose row also said `ret: Bool`) through as a
+                // constraint that silently matches nothing.
                 other => match crate::rete::vocabulary::rete_op_for(other) {
-                    Some(row) => {
-                        matches!(
-                            row.class,
-                            crate::rete::vocabulary::OpClass::Alias
-                                | crate::rete::vocabulary::OpClass::Fallback
-                        ) && matches!(row.ret, crate::rete::vocabulary::ParamType::Bool)
-                    }
+                    Some(row) => matches!(
+                        row.ret,
+                        crate::rete::vocabulary::Ret::Is(crate::rete::vocabulary::ParamType::Bool)
+                    ),
                     None => false,
                 },
             }

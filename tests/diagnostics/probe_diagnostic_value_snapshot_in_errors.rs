@@ -65,11 +65,21 @@ fn probe_1_not_callable_renders_offending_keyword() {
             // 296 recapture: staleness — EDN face (Stone B), same type_name/rendered/
             // provenance/binding-span/head-span values as the pre-stone-B Debug face;
             // additive :message/:causes. The outer src/runtime.rs span moved internally
-            // (line 18900→21351→25369→25361→25366→25429→…→25695→25722) — an internal
-            // src/*.rs span move is staleness, recaptured and kept pinned.
+            // (line 18900→21351→25369→25361→25366→25429→…→25695→25722→25793→25799) — an
+            // internal src/*.rs span move is staleness, recaptured and kept pinned.
             // (`cosine_outcome_from_values` helpers shifted apply_tracked_callee; the
             // 25695→25722 move is `classify_fallback_outcome` landing above this site,
             // 2026-08-24.)
+            //
+            // ⚠ `classify_fallback_outcome` MOVED THIS SITE A SECOND TIME — 25793→25799,
+            // 2026-08-28, when its `ret` param became `vocabulary::Ret` and gained the comment
+            // explaining why. Nothing user-facing changed in any of the five goldens: the diff is
+            // ONE integer per file, this span's line. Twice from one function is the signal worth
+            // recording — a golden that pins an INTERPRETER line number goes red on edits that
+            // cannot affect it, and the value it pins (`rust_caller_span!()`, the sentinel for
+            // "no recoverable user location") teaches nothing at line granularity. Not changed
+            // here, because a probe strike is the wrong place to re-rule a golden's shape; noted
+            // so whoever does rule on it has the second data point rather than the first.
             //
             // ⚠ THIS TRAIL HAD ITSELF GONE STALE: it ended at 25429 while the golden
             // pinned 25695, so at least one recapture updated the .edn and not the note.
