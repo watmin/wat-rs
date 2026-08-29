@@ -1284,44 +1284,52 @@ field. Reachable, but not constructible inside a fence.
    **Blast radius: substrate-wide** — a `#[global_allocator]` wrapper is not a rete change, and the
    ceiling would bound every allocation, not just facts. **Not started; the builder's call.**
 
-   ⚠⚠ **THE COUNTING ALLOCATOR IS BUILT AND GATED — AND DELIBERATELY UNWIRED. Two measurements
-   say so, one of them the builder's catch.** `src/alloc_counter.rs`, `#[global_allocator]` in
-   `lib.rs`, exact bytes in `current_bytes()` / `peak_bytes()`, two tests (the counter tracks and
-   releases; a grow counts the DELTA, which is the arm that catches the default `realloc`).
+   ✅ **THE PER-SESSION MEMORY CEILING IS BUILT — 1 GiB default, wat-configurable.** Builder's
+   ruling: *"the limit is imposed on a per session basis… that's the contract… the user can change
+   this value with a wat-config value - but we default to 1GB per session."*
 
-   **① IT IS PROCESS-GLOBAL, AND A SESSION CEILING IS NOT A PROCESS FACT.** Builder, before it was
-   wired: *"if i had 512 threads running… each with their own session… there's no conflict?"* There
-   is. A rete session is THREAD-AFFINE by contract — `arm.rs`'s intern table is `thread_local!` and
-   its rune reads *"Connection-thread affinity is the ZERO-MUTEX contract"* — so 512 threads is 512
-   sessions and this counter reports their SUM. A fixpoint reading it would **refuse the innocent**
-   (stopped because a sibling thread is large) and **answer non-deterministically** (same program,
-   different verdict by scheduling). **Determinism is held by construction here; a check like that
-   spends it.** Caught before a line of it was wired, which is the only reason this is a note and
-   not a defect.
+   `(:wat::config::rete::set-max-session-bytes! n)`, `DEFAULT_MAX_SESSION_BYTES = 1 GiB`, checked at
+   every round boundary in `delta.rs` and raised as `SessionMemoryCeilingExceeded { limit, used,
+   rounds }`. Backed by `src/alloc_counter.rs` — a counting global allocator with a THREAD-LOCAL
+   figure beside the process one.
 
-   **② IT COSTS ~5–8% ON THE FIRE PATH.** Measured against the 2026-08-27 grid, `wat-ns`:
+   **PER-SESSION IS THREAD-LOCAL, and that is not an approximation — it is the contract.** A rete
+   session is thread-affine (`arm.rs`: *"Connection-thread affinity is the ZERO-MUTEX contract"*),
+   so while a fire runs, "this thread" and "this session" name the same thing. 512 sessions on 512
+   threads get 512 independent readings. **The process-global figure could never do this** — it
+   reports their sum, so a check on it would refuse the innocent and answer differently by
+   scheduling. That was the builder's catch, before a line was wired.
 
-   | cell | before | with allocator | Δ |
-   |---|---|---|---|
-   | `fanout [40000]` | 22_221_651 | 23_917_347 | **+7.6%** |
-   | `fanout [10000]` | 3_964_973 | 4_317_620 | **+8.9%** |
-   | `accum [200 200]` | 13_472_006 | 14_796_945 | **+9.8%** |
-   | `negation [1000]` | 1_176_575 | 1_241_969 | +5.6% |
-   | `accum [50 200]` | 2_535_373 | 2_540_301 | +0.2% |
+   ⚠ **IT OVER-COUNTS IN EXACTLY ONE DIRECTION, AND THAT IS THE SAFE ONE.** An `Arc` allocated here
+   and freed on another thread decrements the FREEING thread, so this thread's figure stays high —
+   the ceiling refuses slightly EARLY, never late. Under-counting cannot happen: nothing charges a
+   thread for another's allocation.
 
-   The grid's own noise floor is ~3%, so the fanout and accum tops are real and the smallest cells
-   are inside it. Two `Relaxed` atomics per allocation is not free on a path this arc has spent
-   weeks shaving.
+   **THE CHECK RUNS BEFORE THE ROUND CAP, deliberately.** A fanout divergence multiplies WITHIN a
+   round, so it reaches the allocator while `rounds_run` is in single digits — the round cap cannot
+   see it and never fires. That is why the error reports `rounds`: **a low count is the signal**,
+   saying the growth was fanout rather than depth.
 
-   **THE FORK, and it is the builder's:**
-   - **Thread-local counting** — matches the affinity contract, so a session ceiling becomes
-     sound. Caveat to state plainly: a cross-thread `Arc` free decrements the FREEING thread, so a
-     thread-local net figure drifts exactly as far as values cross threads.
-   - **Keep it global, as a PROCESS backstop only** — honest, deterministic in a single-threaded
-     program, and it bounds the machine rather than the session. Then the finite-domain proof stays
-     the only per-session bound and `MAX_PROVABLE_FACT_POPULATION` does NOT go away.
-   - **Revert it** — ~6% of fire is a real price for a counter nothing reads, and the OOM it would
-     catch is already refused at compile by the cyclicity check.
+   **WHAT IT BOUNDS, precisely:** the bytes ONE FIRE adds. Not the process (see above), and not the
+   session's whole history — `insert … fire … insert … fire` grows by the user's own hand, one call
+   at a time, and bounding that would refuse legitimate incremental use. **Divergence happens inside
+   one fire.**
+
+   **Gated and mutation-proven on both arms** — removing the check, and hardcoding the default
+   instead of reading the config, each fail the row. Plus a non-vacuity row: the same workload at
+   the default ceiling must still complete, or a ceiling of zero would pass everything.
+
+   ⚠ **AND IT COSTS ~5–8% ON FIRE**, measured against the 2026-08-27 grid (`fanout [10000]` +8.9%,
+   `accum [200 200]` +9.8%, `negation [1000]` +5.6%, `accum [50 200]` +0.2%; noise floor ~3%). Two
+   `Relaxed` atomics per allocation on a path this arc has spent weeks shaving. **That price is
+   now paid for a live guarantee rather than an unread counter**, but it is real and it is the
+   first thing to re-measure if the grid regresses.
+
+   ⚠ **`MAX_PROVABLE_FACT_POPULATION` DID NOT GO AWAY, and the reason is worth keeping.** With a
+   runtime ceiling it was supposed to become redundant — but it refuses at COMPILE, and the ceiling
+   fires at RUN after the memory is already taken. A proof that admits a 2^20-fact cycle and then
+   trips a ceiling mid-fire is worse UX than refusing it up front. **Two mechanisms, two moments;
+   they are not duplicates.**
 
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are

@@ -334,6 +334,21 @@ pub enum RuntimeErrorKind {
     /// so no rule can mint a value that was not already there. A `:then` that COMPUTES breaks that
     /// RANGE RESTRICTION, and inside a derivation cycle it means a structurally novel fact every
     /// round, forever. Outside a cycle a computed head is fine and stays legal.
+    /// One `fire-rules` grew its session past `max-session-bytes`.
+    ///
+    /// Distinct from [`RuntimeErrorKind::FixpointRoundCapExceeded`] on purpose: the round cap
+    /// counts ROUNDS and a fanout diverges WITHIN one, so a branching derivation reaches the
+    /// allocator while the round counter is still in single digits (measured 2026-08-29: an
+    /// allocator abort at 6.2s, no wat error, no rule named). This is the ceiling that fires there.
+    SessionMemoryCeilingExceeded {
+        /// The configured ceiling, in bytes.
+        limit: usize,
+        /// Bytes this session's thread had live when the round boundary was reached.
+        used: usize,
+        /// Rounds completed before the ceiling was hit — small here is the SIGNAL, not a detail:
+        /// it says the growth was per-round fanout rather than depth.
+        rounds: usize,
+    },
     RuleSetMayNotTerminate {
         rule: String,
         /// The `:then` fact type whose value is computed rather than copied.
@@ -705,6 +720,21 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 write!(f, "eval verification failed: {}", err)
             }
+            RuntimeErrorKind::SessionMemoryCeilingExceeded { limit, used, rounds } => write!(
+                f,
+                "{}rete fire-rules: this session used {} bytes in a single fire, past the \
+                 {}-byte `max-session-bytes` ceiling, after {} round(s). The ceiling is PER \
+                 SESSION and measured on this session's own thread, so a sibling session on \
+                 another thread cannot have caused it. A LOW round count means the growth was \
+                 FANOUT — a `:then` deriving several novel facts per fact, which multiplies within \
+                 one round and never reaches the round cap. Either bound the derivation (a \
+                 `:then` that copies rather than computes, or a fact type with finitely many \
+                 inhabitants), or raise the ceiling with \
+                 `(:wat::config::rete::set-max-session-bytes! n)` if the workload genuinely needs \
+                 the memory — raising it is a claim about YOUR rule set, never a fix for one that \
+                 diverges.",
+                prefix, used, limit, rounds
+            ),
             RuntimeErrorKind::RuleSetMayNotTerminate { rule, fact_type } => write!(
                 f,
                 "{}rete compile-all: rule `{}` derives `:{}` with a COMPUTED value, and `:{}` feeds \

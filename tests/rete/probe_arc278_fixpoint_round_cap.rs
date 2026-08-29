@@ -188,6 +188,56 @@ fn a_mint_hidden_inside_a_rete_fn_body_is_refused() {
     assert_eq!(field_str(&e, "fact-type"), "fm::N");
 }
 
+/// ★ THE PER-SESSION MEMORY CEILING — the axis the round cap cannot see.
+///
+/// The round cap counts ROUNDS. A fanout divergence multiplies WITHIN a round, so it reaches the
+/// allocator while `rounds_run` is in single digits — measured 2026-08-29 as `memory allocation of
+/// 56 bytes failed` at 6.2s, with no wat error and no rule named. `DEFAULT_MAX_FIRE_ROUNDS`'s own
+/// doc had claimed a runaway fires "far short of the memory wall"; that is true of a LINEAR
+/// runaway and false of a branching one.
+///
+/// ⛔ THIS IS DRIVEN AT THE CEILING'S FLOOR (4096) ON A LEGITIMATE WORKLOAD, deliberately. The
+/// shape that actually needs it — a fanout cycle — is refused at COMPILE by the cyclicity check,
+/// so it cannot reach the fixpoint to be measured. Rather than disarm a wall to test another, the
+/// ceiling is lowered until an honest workload crosses it. What is proven is the MECHANISM: the
+/// bytes are counted, the boundary is checked, and the failure is a located diagnostic rather than
+/// an abort.
+///
+/// The second row is why this is not vacuous: the SAME workload at the default ceiling must
+/// succeed. Without it, a ceiling of zero would pass just as well.
+#[test]
+fn a_session_that_outgrows_its_memory_ceiling_says_so_instead_of_aborting() {
+    let (ok, _out, err) = run("tests/rete/probe_arc278_session_memory_ceiling.wat");
+    assert!(!ok, "a fire past `max-session-bytes` must be refused\n{err}");
+    let e = rete_error(&err, "SessionMemoryCeilingExceeded");
+    assert_eq!(
+        field_i64(&e, "limit"),
+        4096,
+        "the ceiling reported must be the CONFIGURED one — a hardcoded default here would mean \
+         the wat directive is decorative"
+    );
+    assert!(
+        field_i64(&e, "used") > 4096,
+        "the reported usage must exceed the limit it tripped; got {}",
+        field_i64(&e, "used")
+    );
+    // A LOW round count is the signal, not a detail: it distinguishes fanout (multiplies within a
+    // round) from depth (which the round cap already handles).
+    assert!(
+        field_i64(&e, "rounds") >= 1,
+        "the round at which it tripped must be reported"
+    );
+
+    // NON-VACUITY: the identical workload at the DEFAULT ceiling completes. Without this row a
+    // ceiling of zero — or one checked before any work — would satisfy everything above.
+    let (ok_ok, out_ok, err_ok) = run("tests/rete/probe_arc278_fixpoint_round_cap_deep.wat");
+    assert!(
+        ok_ok,
+        "a 500-round range-restricted closure is a legitimate workload and must not trip the \
+         memory ceiling at its default\n{out_ok}{err_ok}"
+    );
+}
+
 /// ★ A FINITE-TYPED COMPUTED HEAD IS ADMITTED, AND CONVERGES — the eBPF `[u32; 16]` bound,
 /// computed instead of declared.
 ///

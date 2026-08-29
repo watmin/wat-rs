@@ -71,10 +71,35 @@
 //! § "The order" item 8.
 
 use std::alloc::{GlobalAlloc, Layout, System};
+use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static LIVE: AtomicUsize = AtomicUsize::new(0);
 static PEAK: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    /// Bytes live on THIS thread. `const { }` init is load-bearing, not style: a lazily
+    /// initialised `thread_local!` allocates on first touch, and this is read from inside the
+    /// allocator — that recursion is a stack overflow, not a slow path.
+    static THREAD_LIVE: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Bytes currently live on the CALLING thread.
+///
+/// ── WHY THIS IS THE PER-SESSION NUMBER ───────────────────────────────────────────────────────
+///
+/// A rete session is THREAD-AFFINE by contract (`arm.rs`: *"Connection-thread affinity is the
+/// ZERO-MUTEX contract"*), so "this thread" and "this session" name the same thing while a fire
+/// is running. 512 threads with 512 sessions get 512 independent readings — which is exactly what
+/// [`current_bytes`] cannot give, since it reports their sum.
+///
+/// ⚠ **IT OVER-COUNTS IN ONE DIRECTION, AND THAT IS THE SAFE ONE.** An `Arc` allocated here and
+/// dropped on another thread decrements the FREEING thread, so this thread's figure stays high.
+/// A ceiling built on it therefore refuses slightly EARLY, never late. Under-counting would be the
+/// dangerous direction and cannot happen: nothing charges this thread for another's allocation.
+pub fn thread_bytes() -> usize {
+    THREAD_LIVE.try_with(|c| c.get()).unwrap_or(0)
+}
 
 /// Bytes currently allocated and not yet freed.
 ///
@@ -105,6 +130,9 @@ unsafe impl GlobalAlloc for CountingAllocator {
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         LIVE.fetch_sub(layout.size(), Ordering::Relaxed);
+        // `saturating_sub`, because a cross-thread free legitimately arrives on a thread that
+        // never allocated it. Wrapping would turn that into a colossal figure and a false refusal.
+        let _ = THREAD_LIVE.try_with(|c| c.set(c.get().saturating_sub(layout.size())));
         unsafe { System.dealloc(ptr, layout) }
     }
 
@@ -119,7 +147,9 @@ unsafe impl GlobalAlloc for CountingAllocator {
             if new_size >= layout.size() {
                 bump(new_size - layout.size());
             } else {
-                LIVE.fetch_sub(layout.size() - new_size, Ordering::Relaxed);
+                let shrink = layout.size() - new_size;
+                LIVE.fetch_sub(shrink, Ordering::Relaxed);
+                let _ = THREAD_LIVE.try_with(|c| c.set(c.get().saturating_sub(shrink)));
             }
         }
         p
@@ -137,6 +167,8 @@ unsafe impl GlobalAlloc for CountingAllocator {
 /// Add to LIVE and raise PEAK if this is a new high-water mark.
 #[inline]
 fn bump(n: usize) {
+    // `try_with`: during TLS teardown the slot is gone, and an allocation there must not panic.
+    let _ = THREAD_LIVE.try_with(|c| c.set(c.get() + n));
     let now = LIVE.fetch_add(n, Ordering::Relaxed) + n;
     // A plain `if now > PEAK { store }` would race two threads into a LOWER peak. The CAS keeps
     // the maximum monotone; `Relaxed` is fine because nothing is ordered against it.

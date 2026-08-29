@@ -105,6 +105,30 @@ pub const DEFAULT_DIM_COUNT: usize = 10000;
 /// never the fix for a rule set that diverges.
 pub const DEFAULT_MAX_FIRE_ROUNDS: usize = 10_000;
 
+/// Default per-session memory ceiling for one `fire-rules`, when
+/// `(:wat::config::rete::set-max-session-bytes!)` is omitted. **1 GiB.**
+///
+/// ── WHAT IT BOUNDS, EXACTLY ──────────────────────────────────────────────────────────────────
+///
+/// The bytes a SINGLE FIRE may add, measured on the session's own thread
+/// ([`crate::alloc_counter::thread_bytes`]). Not the process, and not the session's whole history:
+///
+/// - **Not the process.** `alloc_counter`'s global figure is the sum over every thread, so with
+///   512 sessions on 512 threads it would refuse the innocent and answer differently depending on
+///   scheduling. A rete session is thread-affine by contract (`arm.rs`, the ZERO-MUTEX rune), so
+///   the thread reading IS the session reading while a fire runs.
+/// - **Not cumulative across fires.** `insert … fire … insert … fire` grows a session by the
+///   user's own hand, one call at a time, and each is a decision they made. Bounding that would
+///   refuse legitimate incremental use. **Divergence happens INSIDE one fire** — that is the
+///   quantity worth a ceiling, and it is the one measured.
+///
+/// **Why 1 GiB.** Measured 2026-08-29 at ~600 B/fact for the narrowest record and ~1_266 B for a
+/// wider one, so this is roughly 0.8–1.7 million derived facts — comfortably past the largest
+/// legitimate population in our own corpus (the grid's `fanout` at 40_000) and short of a figure
+/// that would take a modest machine down before it fired. It is a DEFAULT, not a law: a program
+/// that genuinely needs more says so, and a program that should never come close can lower it.
+pub const DEFAULT_MAX_SESSION_BYTES: usize = 1024 * 1024 * 1024;
+
 /// Committed configuration values.
 ///
 /// Arc 037 slice 6: every substrate default is a FUNCTION; users
@@ -129,6 +153,10 @@ pub struct Config {
     /// `fire_fixpoint_delta_armed` via `sym.encoding_ctx()`; user override via
     /// `(:wat::config::rete::set-max-fire-rounds! n)`.
     pub max_fire_rounds: usize,
+    /// Per-session memory ceiling for one fire, in bytes. Set by
+    /// `(:wat::config::rete::set-max-session-bytes! n)`; see [`DEFAULT_MAX_SESSION_BYTES`] for
+    /// what it bounds and what it deliberately does not.
+    pub max_session_bytes: usize,
     /// User-supplied presence-sigma function AST. Signature
     /// `:fn(:i64) -> :i64` — takes d, returns sigma count.
     /// `None` → built-in default `floor(sqrt(d)/2) - 1` (arc 024's
@@ -378,6 +406,10 @@ fn collect_entry_file_inner(
         .map(|c| c.max_fire_rounds)
         .unwrap_or(DEFAULT_MAX_FIRE_ROUNDS);
     let mut set_max_fire_rounds = false;
+    let mut max_session_bytes: usize = inherit
+        .map(|c| c.max_session_bytes)
+        .unwrap_or(DEFAULT_MAX_SESSION_BYTES);
+    let mut set_max_session_bytes = false;
     let mut presence_sigma_ast: Option<WatAST> =
         inherit.and_then(|c| c.presence_sigma_ast.clone());
     let mut coincident_sigma_ast: Option<WatAST> =
@@ -525,6 +557,35 @@ fn collect_entry_file_inner(
                 }
                 max_fire_rounds = n as usize;
             }
+            ":wat::config::rete::set-max-session-bytes!" => {
+                if set_max_session_bytes {
+                    return Err(ConfigError { span: form_span, kind: ConfigErrorKind::DuplicateField { field: "max-session-bytes".into() } });
+                }
+                set_max_session_bytes = true;
+                if args.len() != 1 {
+                    return Err(ConfigError {
+                        span: form_span,
+                        kind: ConfigErrorKind::BadArity { head: setter_head, expected: 1, got: args.len() },
+                    });
+                }
+                let arg_span = args[0].span().clone();
+                let n = parse_u64(&args[0], "max-session-bytes", arg_span.clone())?;
+                // Same call `max-fire-rounds` and `dim-count` make: 0 is not a stricter policy, it
+                // is a program that can never fire once. The floor is a page, not a byte — below
+                // that the ceiling would trip on the engine's own scaffolding rather than on the
+                // rule set, which reports the wrong thing.
+                if n < 4096 {
+                    return Err(ConfigError {
+                        span: arg_span,
+                        kind: ConfigErrorKind::BadValue {
+                            field: "max-session-bytes".into(),
+                            reason: "must be >= 4096 — a ceiling below one page trips on the \
+                                     engine's own working set, not on the rule set".into(),
+                        },
+                    });
+                }
+                max_session_bytes = n as usize;
+            }
             ":wat::config::set-dim-count!" => {
                 if set_dim_count {
                     return Err(ConfigError { span: form_span, kind: ConfigErrorKind::DuplicateField { field: "dim-count".into() } });
@@ -657,6 +718,7 @@ fn collect_entry_file_inner(
         redef_allowed,
         eval_redef_allowed,
             max_fire_rounds,
+            max_session_bytes,
     };
 
     let remainder = match remainder_start {
@@ -1009,6 +1071,7 @@ mod tests {
             global_seed: 99,
             dim_count: DEFAULT_DIM_COUNT,
             max_fire_rounds: DEFAULT_MAX_FIRE_ROUNDS,
+            max_session_bytes: DEFAULT_MAX_SESSION_BYTES,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
             redef_allowed: false,
