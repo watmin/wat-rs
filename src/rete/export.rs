@@ -203,6 +203,14 @@ fn check_pat_slots(pat: &Pat, frame_len: u16, span: &Span) -> Result<(), EvalBre
             Some(inner) => check_pat_slots(inner, frame_len, span),
             None => Ok(()),
         },
+        // Every bound slot is checked, not just the first — a hash-destructure binds N of them
+        // and an out-of-frame slot in ANY position is the same wire defect.
+        Pat::Fields(binds) => {
+            for (_, slot) in binds.iter() {
+                check_slot(*slot, frame_len, span, "pfields")?;
+            }
+            Ok(())
+        }
     }
 }
 
@@ -421,6 +429,16 @@ fn pack_pat(p: &Pat) -> Value {
             }
             pv(xs)
         }
+        // `[:pfields "field" slot "field2" slot2 …]` — flat pairs, so the arity check on the
+        // other side is one `% 2` rather than a nested sequence per binding.
+        Pat::Fields(binds) => {
+            let mut xs = vec![kw(":pfields")];
+            for (field, slot) in binds.iter() {
+                xs.push(Value::String(Arc::new(field.to_string())));
+                xs.push(Value::i64(*slot as i64));
+            }
+            pv(xs)
+        }
     }
 }
 
@@ -445,6 +463,23 @@ fn unpack_pat(v: &Value, span: &Span) -> Result<Pat, EvalBreak> {
                 "pbind",
             )?;
             Ok(Pat::Bind(n))
+        }
+        ":pfields" => {
+            let rest = &items[1..];
+            if rest.is_empty() || rest.len() % 2 != 0 {
+                return Err(malformed(
+                    span,
+                    IMPORT_OP,
+                    format!("pfields takes non-empty (field, slot) PAIRS; got {} item(s)", rest.len()),
+                ));
+            }
+            let mut binds: Vec<(std::sync::Arc<str>, u16)> = Vec::with_capacity(rest.len() / 2);
+            for pair in rest.chunks_exact(2) {
+                let field = expect_str(&pair[0], IMPORT_OP, span)?;
+                let slot = expect_u16(&pair[1], span, "pfields")?;
+                binds.push((std::sync::Arc::from(field), slot));
+            }
+            Ok(Pat::Fields(binds.into_boxed_slice()))
         }
         ":pvar" => {
             let name = expect_str(

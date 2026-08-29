@@ -1670,6 +1670,105 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 ///   · and it is said ONCE. A first cut reported the located `UnknownField` AND a type mismatch
 ///     advising *"use the rete comparator for `keyword`"* — which teaches the WRONG fix for a
 ///     typo. R29 `RVINA ERVDIT`: two ruins pointing opposite ways teach worse than one.
+/// ★ THE HASH-DESTRUCTURE MATCH ARM — `{var :field …}` — IN BOTH POSITIONS.
+///
+/// Refused until 2026-08-28 as *"match map-destructure is not lowered in v1"*, which is a STATUS
+/// and not a reason. Those two lines were the LAST `v1` refusal left in the rete expression core.
+/// Core supports the form and drives `:md::Point{40,2}` -> 42 through it.
+///
+/// The design question was whether this arm is genuinely different from its settled sibling
+/// `(:ns::Type/field ?x)`, which compiles its field index because class AND field are both in the
+/// accessor head. It is not. Core must dispatch on the receiver at runtime because nothing
+/// declares it; a rete `?p` gets its class from the fact pattern's declared field type, so **rete
+/// has MORE static information here, not less.** The refusal had inherited core's
+/// runtime-polymorphism problem into a place that does not have it.
+///
+/// ⛔ THE THIRD ROW IS THE LOAD-BEARING ONE. My first cut returned "arm does not match" for a
+/// field the class does not declare. Core RAISES `UnknownField` there — verified, and it raises
+/// even with a catch-all arm after it. Silently not-matching would have meant the same expression
+/// answering differently in the two engines, AND would have turned a typo into a constraint that
+/// compiles, fires and matches nothing: fix-list F's class, minted fresh. It raises now, and the
+/// message carries the available fields because the ruin must teach.
+#[test]
+fn a_match_hash_destructure_binds_fields_in_both_positions() {
+    fn program(condition: &str) -> String {
+        format!(
+            r#"(:wat::core::defrecord :probe::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :probe::In  [k <- :wat::core::String  p <- :probe::Point])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [{condition}]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :p (:probe::Point :x 40 :y 2)))
+     session (:wat::rete::insert session (:probe::In :k "miss" :p (:probe::Point :x 1 :y 1)))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#
+        )
+    }
+    const SUM: &str = "(:wat::rete::core::match {SUBJ} ({vx :x  vy :y} \
+                       (:wat::rete::core::i64::+ vx vy :undefined 0)))";
+
+    // INLINE — `{f}` renders as the bare field keyword; the arm binds from the fact's own field.
+    let inline = program(&format!(
+        "(:probe::In (?k <- :k) (:wat::rete::core::i64::= {} 42))",
+        SUM.replace("{SUBJ}", ":p")
+    ));
+    // FENCE — the control. This position was never the problem, so an inline-only failure is
+    // positional rather than the form being broken.
+    let fence = program(&format!(
+        "(:probe::In (?k <- :k) (?p <- :p))\n   (:wat::rete::where (:wat::rete::core::i64::= {} 42))",
+        SUM.replace("{SUBJ}", "?p")
+    ));
+    assert_eq!(
+        raw_count(&inline),
+        Ok(1),
+        "a hash-destructure arm must bind and select exactly the hit (40+2=42; the miss is 1+1)"
+    );
+    assert_eq!(raw_count(&fence), Ok(1), "and identically in a `where` fence");
+
+    // ⛔ AN UNDECLARED FIELD RAISES — it does NOT quietly fail to match.
+    let typo = program(&format!(
+        "(:probe::In (?k <- :k) (?p <- :p))\n   (:wat::rete::where (:wat::rete::core::i64::= {} 42))",
+        "(:wat::rete::core::match ?p ({vz :nope} vz))"
+    ));
+    let verdict = raw_count(&typo).expect_err("an undeclared field must not be silently non-matching");
+    for needle in ["nope", "probe::Point", "does not declare"] {
+        // rune:lint(loose-assert) — targeted presence of three independent facts in one long EDN
+        // error face; an exact assert_eq! would pin a span and a whole rendered diagnostic, which
+        // is not what this row is about.
+        assert!(
+            verdict.contains(needle),
+            "the diagnostic must name the field, the class, and WHY — core's `UnknownField` does, \
+             and a rete row that answered differently would be the divergence this gate exists \
+             for. missing {needle:?} in: {verdict}"
+        );
+    }
+
+    // `{:keys […]}` is refused BY NAME rather than falling through to a generic "unsupported
+    // pattern", so the diagnostic teaches the spelling that works. Core refuses it too.
+    let keys = program(&format!(
+        "(:probe::In (?k <- :k) (?p <- :p))\n   (:wat::rete::where (:wat::rete::core::i64::= {} 42))",
+        "(:wat::rete::core::match ?p ({:keys [x y]} 1))"
+    ));
+    let kv = raw_count(&keys).expect_err("keys-destructure is not a match pattern");
+    // rune:lint(loose-assert) — targeted presence in a long EDN error face, same reason as above.
+    assert!(
+        kv.contains("must be a bare"),
+        "refusing `{{:keys …}}` must name the supported form; got: {kv}"
+    );
+}
+
 /// A ROW THAT DECLARES `bool` IS BELIEVED INLINE, WHATEVER ITS CLASS — and one that declares
 /// nothing is still refused. Both halves, or this proves nothing.
 ///

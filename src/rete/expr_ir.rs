@@ -86,6 +86,23 @@ pub(crate) enum Pat {
         name: String,
         payload: PatPayload,
     },
+    /// Clojure-shape hash-destructure arm — `{var :field  var2 :field2}` — binding each
+    /// `var` to the subject's `field`. Carries `(bare field name, slot)` pairs.
+    ///
+    /// ── WHY THE FIELD NAME AND NOT A COMPILED INDEX ───────────────────────────────────────
+    ///
+    /// Its settled sibling `(:ns::Type/field ?x)` compiles to `Expr::Field { idx }` because the
+    /// CLASS is in the accessor head, so `field_index` resolves at lower time. Here the field is
+    /// in the pattern and the class is the SUBJECT's — and `LowerCx` carries no type for a slot,
+    /// only names. So the index is resolved in `pat_matches` against the value's own `class`,
+    /// which is the same lookup `field_index` performs, just later.
+    ///
+    /// That is a deliberate, stated cost rather than an oversight: rete DOES know `?p`'s declared
+    /// type at validate time (`validate.rs`'s `collect_rule_bind_types`), so the index is
+    /// compilable in principle — it would take threading those bind types into `LowerCx`, which is
+    /// a wider change than making the form work. **If this arm ever shows on a profile, that is
+    /// the fix, and it is a pure win with no semantic change.**
+    Fields(Box<[(Arc<str>, u16)]>),
 }
 
 pub(crate) type PatPayload = Option<Box<Pat>>;
@@ -667,7 +684,11 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
                 }
             };
             if tag.contains('{') || matches!(items[0], WatAST::Map(_, _)) {
-                return Err(LowerError::unsupported(span.clone(), "match map-destructure is not lowered in v1".into()));
+                return Err(LowerError::unsupported(
+                    span.clone(),
+                    "a map in match-arm position must be the hash-destructure `{var :field …}`;                      it cannot be the HEAD of a list pattern"
+                        .to_string(),
+                ));
             }
             let name = option_result_tag(tag).unwrap_or_else(|| tag.to_string());
             let payload = if items.len() > 1 {
@@ -677,7 +698,53 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
             };
             Ok(Pat::Variant { name, payload })
         }
-        WatAST::Map(_, span) => Err(LowerError::unsupported(span.clone(), "match map-destructure is not lowered in v1".into())),
+        // ── `{var :field  var2 :field2}` — the hash-destructure arm ────────────────────────────
+        //
+        // Refused until 2026-08-28 as "match map-destructure is not lowered in v1". That was a
+        // STATUS, not a reason, and it was the last `v1` refusal left in this file. Core supports
+        // the form (`try_match_pattern`'s `WatAST::Map` arm, receiver-polymorphic over
+        // record / struct / HashMap) and drives `:md::Point{40,2}` -> 42 through it.
+        //
+        // The open design question was whether this arm is genuinely different from its settled
+        // sibling `(:ns::Type/field ?x)`, which compiles its field index. It is not — and rete has
+        // MORE static information than core here, not less: core must dispatch on the receiver at
+        // runtime because nothing declares it, while a rete `?p` gets its class from the fact
+        // pattern's declared field type. See `Pat::Fields` for why the index is nonetheless
+        // resolved at match time today, and exactly what compiling it would take.
+        //
+        // ⛔ ACCEPTS ONLY the hash-destructure, matching core's own rule. `{:keys [a b]}` and a
+        // plain map literal are refused BY NAME rather than by falling through to a generic
+        // "unsupported pattern", so the diagnostic teaches the supported spelling.
+        WatAST::Map(pairs, span) => {
+            let mut binds: Vec<(Arc<str>, u16)> = Vec::with_capacity(pairs.len());
+            for (k, v) in pairs {
+                let WatAST::Symbol(var, _) = k else {
+                    return Err(LowerError::unsupported(
+                        span.clone(),
+                        "a match hash-destructure binds `{var :field …}` — the key must be a bare                          variable name. `{:keys […]}` and plain map literals are not match patterns"
+                            .to_string(),
+                    ));
+                };
+                let WatAST::Keyword(field, _) = v else {
+                    return Err(LowerError::unsupported(
+                        span.clone(),
+                        format!(
+                            "a match hash-destructure binds `{{var :field …}}` — `{}` must be                              followed by a `:field` keyword",
+                            var.as_str()
+                        ),
+                    ));
+                };
+                let bare = field.trim_start_matches(':');
+                if bare.is_empty() {
+                    return Err(LowerError::unsupported(span.clone(), "empty field name in match hash-destructure".to_string()));
+                }
+                binds.push((Arc::from(bare), cx.slot(var.as_str())));
+            }
+            if binds.is_empty() {
+                return Err(LowerError::unsupported(span.clone(), "an empty map is not a match pattern".to_string()));
+            }
+            Ok(Pat::Fields(binds.into_boxed_slice()))
+        }
         other => Err(LowerError::unsupported(other.span().clone(), "unsupported match pattern".into())),
     }
 }
@@ -1125,7 +1192,7 @@ pub(crate) fn exec(
         Expr::Match { scrutinee, arms } => {
             let v = exec(scrutinee, frame, names, sym, span)?;
             for (pat, body) in arms.iter() {
-                if pat_matches(pat, &v, frame) {
+                if pat_matches(pat, &v, frame, sym, span)? {
                     return exec(body, frame, names, sym, span);
                 }
             }
@@ -1426,8 +1493,22 @@ fn exec_filterv(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
-    match pat {
+/// `Ok(true)` the arm binds, `Ok(false)` it does not, `Err` the PATTERN itself is wrong.
+///
+/// The third case exists because of the hash-destructure arm and it is not a widening of the
+/// match's partiality — it is refusing to be SILENT. Core raises `UnknownField` for a field the
+/// class does not declare (verified: it raises even with a catch-all arm after it), so returning
+/// "does not match" here would make the same expression answer differently in the two engines,
+/// AND would turn a typo into a constraint that compiles, fires and matches nothing — fix-list
+/// F's class exactly. Diverging from core silently is the more expensive of the two.
+fn pat_matches(
+    pat: &Pat,
+    v: &Value,
+    frame: &mut [Option<Value>],
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<bool, EvalBreak> {
+    Ok(match pat {
         Pat::Wild => true,
         Pat::Bind(s) => match frame.get_mut(*s as usize) {
             Some(slot) => {
@@ -1441,18 +1522,18 @@ fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
             Value::Option(opt) => match (name.as_str(), opt.as_ref()) {
                 ("None", None) => payload.is_none(),
                 ("Some", Some(inner)) => match payload {
-                    Some(p) => pat_matches(p, inner, frame),
+                    Some(p) => pat_matches(p, inner, frame, sym, span)?,
                     None => true,
                 },
                 _ => false,
             },
             Value::Result(r) => match (name.as_str(), r.as_ref()) {
                 ("Ok", Ok(inner)) => match payload {
-                    Some(p) => pat_matches(p, inner, frame),
+                    Some(p) => pat_matches(p, inner, frame, sym, span)?,
                     None => true,
                 },
                 ("Err", Err(inner)) => match payload {
-                    Some(p) => pat_matches(p, inner, frame),
+                    Some(p) => pat_matches(p, inner, frame, sym, span)?,
                     None => true,
                 },
                 _ => false,
@@ -1461,16 +1542,72 @@ fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
                 let composed = format!("{}::{}", e.type_path, e.variant_name);
                 let last = wat_reader::identifier::leaf(name).trim_start_matches(':');
                 if composed != *name && e.variant_name != *name && e.variant_name != last {
-                    return false;
+                    return Ok(false);
                 }
                 match payload {
                     None => e.fields.is_empty(),
-                    Some(p) => e.fields.first().is_some_and(|f| pat_matches(p, f, frame)),
+                    Some(p) => match e.fields.first() { Some(f) => pat_matches(p, f, frame, sym, span)?, None => false },
                 }
             }
             _ => false,
         },
-    }
+        // The subject carries its OWN class, so the index is resolved here rather than at lower
+        // time — see `Pat::Fields`. `field_index` is the SAME lookup the accessor path uses, so
+        // there is one definition of "which slot is `:x`", not two.
+        //
+        // A field the class does not declare makes the ARM not match, exactly as a wrong literal
+        // or a wrong variant would; it is not an error. That keeps a `match` total, which every
+        // rete row must be — an arm that raised would put a partial op inside the jump table.
+        // The fall-through when NO arm matches is `PatternMatchFailed`, already this fn's caller's
+        // job and unchanged.
+        Pat::Fields(binds) => {
+            // A non-aggregate subject does NOT match — same as a wrong literal or wrong variant.
+            // That half is a legitimate arm outcome and stays silent, exactly like core's, whose
+            // receiver dispatch falls through for any other value type.
+            let Value::Aggregate(a) = v else { return Ok(false) };
+            for (field, slot) in binds.iter() {
+                // An undeclared field RAISES, mirroring core's `UnknownField` — see this fn's doc.
+                // The message carries the available fields for the same reason core's does: the
+                // ruin must teach, and "no arm matched" would teach nothing about the typo.
+                let Some(idx) = field_index(sym, &a.class, field) else {
+                    let available = sym
+                        .types()
+                        .and_then(|t| t.get(&format!(":{}", a.class.trim_start_matches(':'))).cloned())
+                        .and_then(|d| match d {
+                            crate::types::TypeDef::Aggregate(ag) => {
+                                Some(ag.field_names().collect::<Vec<_>>().join(", "))
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| "<class not registered>".to_string());
+                    return Err(RuntimeError::new(
+                        span.clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: ":wat::rete::core::match".into(),
+                            reason: format!(
+                                "match hash-destructure binds `{}` from field `:{}`, which \
+                                 `{}` does not declare; available: [{}]",
+                                names_of_slot(*slot), field, a.class, available
+                            ),
+                        },
+                    )
+                    .into());
+                };
+                let Some(val) = a.fields.get(idx) else { return Ok(false) };
+                match frame.get_mut(*slot as usize) {
+                    Some(cell) => *cell = Some(val.clone()),
+                    None => return Ok(false),
+                }
+            }
+            true
+        }
+    })
+}
+
+/// A slot has no name at exec time — the frame is positional. The diagnostic above still wants to
+/// say WHICH binder failed, so it names the slot rather than pretending to know the identifier.
+fn names_of_slot(slot: u16) -> String {
+    format!("slot {slot}")
 }
 
 #[derive(Clone, Copy, Debug)]

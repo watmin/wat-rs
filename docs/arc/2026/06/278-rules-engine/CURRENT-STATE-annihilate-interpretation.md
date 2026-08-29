@@ -6,7 +6,7 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `3c6a4920f`; the commit carrying this stamp
+earlier 2026-08-28 ones. Written against HEAD `PENDING7`; the commit carrying this stamp
 lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
 touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
 That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
@@ -127,11 +127,20 @@ needs. **When a measurement says a tool needs widening, check the substrate firs
   The **`CLAUDE.md` gap is CLOSED** as a POINTER, not a copy — both proposals on the table made a
   second copy, which is what rotted in the first place; ⚠ the edit is **UNCOMMITTED, holon root is
   FROZEN**.
-- ⚠⚠ **ITEM 5② IS THE LIVE ONE, AND IT IS TODAY'S PATTERN.** `match` map-destructure is refused at
-  `expr_ir.rs:670`/`:680` with *"not lowered in v1"* — and those two lines are **the LAST `v1`
-  refusal in the rete expression core**. Same shape and same words as every denial this arc removed
-  on 2026-08-28, each of which fell to ONE probe. Its settled sibling `(:Type/field ?var)` compiles
-  its index at rule-compile. **Check the premise before running the four questions on it.**
+- ✅ **ITEM 5② IS CLOSED — `:md::Point{40,2}` -> 42 WORKS IN A RETE RULE, BOTH POSITIONS.** It was
+  the LAST `v1` refusal in the rete expression core and it fell to the same move as every other
+  denial removed this arc: *"not lowered in v1"* is a STATUS, not a reason. **The design question
+  answered itself:** core must dispatch on the receiver at runtime because nothing declares it,
+  while a rete `?p` gets its class from its fact pattern's declared field type — **rete has MORE
+  static information than core here, not less**, so "compile the index" applies exactly as it did
+  to the settled sibling.
+- ⛔ **AND MY FIRST CUT MINTED FIX-LIST F's CLASS FRESH — this is the part to carry.** It returned
+  "arm does not match" for a field the class does not declare. **Core RAISES `UnknownField` there**
+  (verified: it raises even with a catch-all arm after it). Silent non-match would have meant the
+  same expression answering differently in the two engines AND a typo becoming a constraint that
+  compiles, fires and matches nothing. **When adding a rete form, drive CORE's answer for the same
+  input before deciding rete's** — agreement is the contract, and "it didn't match" is the easiest
+  wrong answer to ship.
 - `RETE-OPEN-WORK.md` § "The order, and why" — item 6 is the last inherited ruling (
   TRACKED ① ②, `circumspicere` 1); **items 7–8 are new**: the holon surface (rete has 4 of ~40 ops,
   all from one group) and the `Bundle`/`:panic` builder ruling.
