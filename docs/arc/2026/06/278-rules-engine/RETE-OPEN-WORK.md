@@ -964,7 +964,7 @@ field. Reachable, but not constructible inside a fence.
    **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
    with our own green floor). That is exactly when this class is cheapest to widen.
 
-10. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — three false reds in one day, none of them
+10. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
     behaviour.** `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs`'s five goldens
     pin `:location #wat.core/Span {:file "src/runtime.rs" :line N}`. On 2026-08-28 that `N` moved
     **three times** — 25722→25793→25799→25802 — and **every move was a COMMENT**
@@ -975,6 +975,14 @@ field. Reachable, but not constructible inside a fence.
     USER source location"*. What deserves assertion is that the location IS that sentinel (file
     `src/runtime.rs`), never WHICH LINE of it. A line number there teaches a reader nothing and
     taxes every edit above it: a gate testing its own accident.
+
+    ⚠ **FOURTH OCCURRENCE, 2026-08-29, AND IT WIDENED THE CLASS.**
+    `tests/process/probe_supervisor_select_lost__process_panics.edn` pins **`src/freeze.rs`**
+    line 1521, and a one-line edit there moved it to 1522. So this is not one golden pinning one
+    file — `src/runtime.rs` and `src/freeze.rs` are both pinned, by goldens in different suites,
+    and any edit above either line costs a 375-second floor to discover. **A survey of which
+    goldens pin a `src/*.rs` line is now part of the work**, not an afterthought: the three known
+    sites were found by breaking them, which is the worst way to enumerate a class.
 
     **The likely cure** is in `assert_edn_matches_file!` — normalise a `src/*.rs` span's `:line` on
     both sides — but that macro backs every golden in the repo, so it is its own strike and needs

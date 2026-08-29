@@ -975,7 +975,7 @@ pub fn spawn_process_peer(
     // INNER record is rendered (never the Option wrapper) — `Some(r) => "#ns/
     // Name {...}"`, `None => no label at all`.
     let label: Option<String> = identity.as_ref().map(|record| {
-        crate::edn_shim::value_to_edn_string_with(record, sym.types().map(|a| a.as_ref()))
+        crate::edn_shim::value_to_edn_string_lossy(record, sym.types().map(|a| a.as_ref()))
     });
 
     // Arc 170 step 4 — the exec payload, built HERE in the parent. Everything

@@ -186,9 +186,19 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
         None => OwnedValue::Nil,
         Some(chain) if chain.is_empty() => OwnedValue::Nil,
         Some(chain) => {
+            // ⛔ INSIDE THE PANIC HOOK. An encode failure here must not panic — that is a
+            // panic while reporting a panic. Each item degrades to its own marker so the rest
+            // of the chain still reaches the operator.
             let items = chain
                 .iter()
-                .map(|v| crate::edn_shim::value_to_edn_with(v, None))
+                .map(|v| match crate::edn_shim::value_to_edn_with(v, None) {
+                    Ok(e) => e,
+                    Err(e) => OwnedValue::String(std::borrow::Cow::Owned(format!(
+                        "#wat.edn/Unencodable {{:type {:?} :reason {:?}}}",
+                        v.type_name(),
+                        e.to_string()
+                    ))),
+                })
                 .collect();
             OwnedValue::Vector(items)
         }

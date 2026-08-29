@@ -177,11 +177,12 @@ impl ProcessRuntime {
             stop_accepted_names(),
             Arc::new(vec![Value::Vec(Arc::new(service_names))]),
         )));
-        let edn = crate::edn_shim::value_to_edn_with(
+        // Lossy: this is the STOP-protocol path and its signature is infallible — an
+        // unencodable value must not take the shutdown down with it. See `value_to_edn_string_lossy`.
+        let mut line = crate::edn_shim::value_to_edn_string_lossy(
             &stop_accepted,
             self.sym.types().map(|t| t.as_ref()),
         );
-        let mut line = wat_edn::write(&edn);
         line.push('\n');
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             crate::services::verbs::write_via_stdout(
@@ -1049,7 +1050,7 @@ impl DeftestOutcome {
                 // that renders 296's `field-N` failure blob. Making it name its fields means
                 // threading a registry into `DeftestOutcome` — 296's actual stone, now a
                 // VISIBLE gap rather than a hidden default.
-                crate::edn_shim::value_to_edn_string_with(&failure, None)
+                crate::edn_shim::value_to_edn_string_lossy(&failure, None)
             ),
             DeftestOutcome::DidNotRun { error } => panic!(
                 "{context}\n  deftest DID NOT RUN (the entry fn raised before returning a \

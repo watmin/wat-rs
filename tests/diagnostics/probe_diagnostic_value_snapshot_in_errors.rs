@@ -84,6 +84,13 @@ fn probe_1_not_callable_renders_offending_keyword() {
             // value to a reader and full maintenance cost to every edit above it, which is the
             // definition of a gate that tests its own accident.
             //
+            // ⚠ FOURTH OCCURRENCE 2026-08-29, in a DIFFERENT suite and a DIFFERENT source file:
+            // `tests/process/probe_supervisor_select_lost__process_panics.edn` pins
+            // `src/freeze.rs:1521`, and a one-line edit there moved it. So the class is not "this
+            // golden" — at least two `src/*.rs` files are pinned by goldens in different suites,
+            // and all four sites were found by BREAKING them, which is the worst way to enumerate
+            // a class. A survey belongs in the fix.
+            //
             // ⚠ DELIBERATELY NOT FIXED HERE, and this is a scope boundary rather than a deferral:
             // the cure lives in `assert_edn_matches_file!` and would touch every golden in the
             // repo, which is not a change to smuggle into a rete strike. Tracked as its own item —

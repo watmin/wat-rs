@@ -20,7 +20,7 @@
 // as `probe_rational_C2_arithmetic.rs`'s exemption.
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use wat::edn_shim::value_to_edn;
+use wat::edn_shim::value_to_edn_with;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::runtime::Environment;
 
@@ -42,7 +42,7 @@ fn wat_eval_edn(expr: &str) -> String {
     let call = wat::parse_one!("(:probe::e)").expect("parse the probe call");
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
         match eval_in_frozen(&call, &world, &Environment::new()) {
-            Ok(tv) => wat_edn::write(&value_to_edn(&tv.value_owned())),
+            Ok(tv) => wat_edn::write(&value_to_edn_with(&tv.value_owned(), None).expect("test value must encode")),
             Err(_) => ":ERR".to_string(),
         }
     })) {

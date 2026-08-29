@@ -60,7 +60,7 @@ fn small_foo_over_budget_fails_with_the_reason() {
              VALUE (never a raise, which would unwind past the reader); got Err: {e:?}"
         )
     });
-    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn_with(&v, None).expect("the probe's value must encode"));
     wat::assert_edn_matches_file!(
         edn,
         "service_max_frame_bytes__small_foo_over_budget_fails_with_the_reason.edn",

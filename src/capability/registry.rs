@@ -218,10 +218,14 @@ fn address_codec() -> CapCodec {
         encode: |inner, types| {
             let addr = inner.payload.downcast_ref::<crate::kernel::address::Address>()?;
             let (minter_pid, name_bytes) = addr.portable_form()?;
-            Some(crate::edn_shim::value_to_edn_with(
+            // `.ok()` not `?`: this codec's contract is `Option`, and an address record is
+            // built from primitives here, so an encode failure would be a substrate bug rather
+            // than user data. Reporting it as "no codec output" is the honest shape available.
+            crate::edn_shim::value_to_edn_with(
                 &socket_address_wire_to_record(minter_pid, name_bytes),
                 Some(types),
-            ))
+            )
+            .ok()
         },
         decode: |body, types| {
             // body is the OwnedValue body of #wat.kernel/Address — expected to be a
@@ -388,7 +392,7 @@ mod waist_proof {
             socket_address_wire_names(),
             std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name]),
         )));
-        crate::edn_shim::value_to_edn_with(&record, Some(types))
+        crate::edn_shim::value_to_edn_with(&record, Some(types)).expect("test address record must encode")
     }
 
     #[test]

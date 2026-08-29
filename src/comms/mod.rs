@@ -160,7 +160,7 @@ impl EdnRepresentable for crate::value::Value {
         // 258.5b-ii already moved the socket tier OFF it (encode in the eval layer, ship
         // bytes) precisely for this reason; the thread tier passes `T` directly. Anything
         // still reaching here with a record is a plumbing gap, not a rendering choice.
-        crate::edn_shim::value_to_edn_string_with(self, None)
+        crate::edn_shim::value_to_edn_string_lossy(self, None)
     }
 
     fn from_wire(s: &str) -> Result<Self, WireError>

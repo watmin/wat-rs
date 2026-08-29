@@ -100,8 +100,8 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
 /// vector, read by generic `edn::read` (the head element's own tag is the
 /// self-describing marker the stderr scanner / `recv'` Lost decoder key on).
 fn emit_chain_envelope(chain: crate::runtime::Value, types: Option<&crate::types::TypeEnv>) {
-    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
-    let line = format!("{}\n", wat_edn::write(&edn));
+    let edn_line = crate::edn_shim::value_to_edn_string_lossy(&chain, types);
+    let line = format!("{edn_line}\n");
     crate::process::stdio::emit_panic_envelope(&line);
 }
 

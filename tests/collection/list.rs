@@ -266,7 +266,7 @@ fn edn_roundtrip_vector_still_goes_to_vec() {
 fn edn_roundtrip_list_writes_as_parens() {
     // Write a wat__core__List → should produce EDN parens form, not brackets
     use wat_edn::write;
-    use wat::edn_shim::value_to_edn;
+    use wat::edn_shim::value_to_edn_with;
 
     let list = Value::wat__core__List(Arc::new({
         let mut ll = LinkedList::new();
@@ -276,7 +276,7 @@ fn edn_roundtrip_list_writes_as_parens() {
         ll
     }));
 
-    let owned = value_to_edn(&list);
+    let owned = value_to_edn_with(&list, None).expect("test value must encode");
     let written = write(&owned);
     // EDN list form uses parens
     assert!(

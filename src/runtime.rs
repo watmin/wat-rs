@@ -16527,7 +16527,7 @@ pub(crate) fn eval_kernel_raise(
         // Defensive: the checker gates `data` to `:wat::core::Error` (a String
         // `message` field), so this only fires for an out-of-band caller — fall
         // back to the EDN rendering rather than an empty message.
-        .unwrap_or_else(|| wat_edn::write(&crate::edn_shim::value_to_edn_with(&data, types)));
+        .unwrap_or_else(|| crate::edn_shim::value_to_edn_string_lossy(&data, types));
     let frames = snapshot_call_stack();
     let location = frames.first().map(|f| f.call_span.clone());
     let payload = crate::assertion::AssertionPayload {
@@ -18224,7 +18224,7 @@ fn eval_edn_validate(
             reason: "validate requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
         }).into());
     }
-    let edn = crate::edn_shim::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn_shim::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()))?;
     Ok(
         match crate::edn_shim::edn_to_typed_value(&texpr, &edn, sym) {
             Ok(_) => Value::Enum(Arc::new(EnumValue {
@@ -27960,8 +27960,7 @@ pub(crate) fn thread_crash_panic_edn(
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
     let chain = single_died_chain(thread_died_error_panic(message, assertion));
-    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
-    wat_edn::write(&edn)
+    crate::edn_shim::value_to_edn_string_lossy(&chain, types)
 }
 
 /// Arc 278 no-hidden-failures — the RuntimeError sibling of
@@ -27974,8 +27973,7 @@ pub(crate) fn thread_crash_runtime_edn(
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
     let chain = single_died_chain(thread_died_error_runtime(crate::to_edn::to_wire_edn(re)));
-    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
-    wat_edn::write(&edn)
+    crate::edn_shim::value_to_edn_string_lossy(&chain, types)
 }
 
 /// Arc 113 slice 2 — conj a fresh DiedError onto the FRONT of an
@@ -31547,7 +31545,7 @@ pub(crate) fn eval_peer_send_prime(
             let edn_str = wat_edn::write(&crate::edn_shim::value_to_edn_with(
                 &payload_val,
                 sym.types().map(|a| a.as_ref()),
-            ));
+            )?);
             let outcome = cell
                 .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
                     match opt_bundle {
@@ -31603,7 +31601,7 @@ pub(crate) fn eval_peer_send_prime(
                             let wire = crate::edn_shim::value_to_edn_string_with(
                                 &payload_val,
                                 sym.types().map(|a| a.as_ref()),
-                            );
+                            )?;
                             match peer.send_wire(wire) {
                                 Ok(()) => send_outcome_sent(),
                                 Err(e) => send_outcome_from_error(&e),
@@ -31680,16 +31678,23 @@ pub(crate) fn eval_peer_try_send_prime(
                     OP,
                     list_span.clone(),
                 )?;
+            // ENCODED BEFORE THE CLOSURE, deliberately. `with_ref`'s callback here returns a
+            // bare outcome (this is `try-send'`, whose whole contract is "never block, never
+            // fail"), so a `?` has nowhere to go inside it — and a LOSSY encode would be worse
+            // than either: it would put an `#wat.edn/Unencodable` marker on the WIRE as if it
+            // were the payload. An unencodable value must fail the call, not be transmitted.
+            // The encode needs no peer, so it simply happens where the error can propagate.
+            let wire_pre = crate::edn_shim::value_to_edn_string_with(
+                &payload_val,
+                sym.types().map(|a| a.as_ref()),
+            )?;
             let outcome = cell
                 .with_ref(OP, |opt_peer| {
                     match opt_peer {
                         // Already closed → Closed (never an error).
                         None => try_send_outcome_closed(),
                         Some(peer) if peer.is_socket_tier() => {
-                            let wire = crate::edn_shim::value_to_edn_string_with(
-                                &payload_val,
-                                sym.types().map(|a| a.as_ref()),
-                            );
+                            let wire = wire_pre.clone();
                             match peer.try_send_wire(wire) {
                                 crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
                                 crate::kernel::peer::TrySendResult::Full => {
@@ -33496,7 +33501,7 @@ pub(crate) fn eval_kernel_after(
         // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'
         // and as a real socket peer's frames, so `poll'`/`select'` decode it via
         // `decode_trusted_wire` identically to any accepted connection.
-        let edn_node = crate::edn_shim::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()));
+        let edn_node = crate::edn_shim::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()))?;
         let edn_str = wat_edn::write(&edn_node);
         let mut frame: Vec<u8> = edn_str.into_bytes();
         frame.push(b'\n');

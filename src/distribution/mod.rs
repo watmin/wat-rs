@@ -592,8 +592,8 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
             // non-zero exit — and this write IS immediately before one. Exit 0 would claim the
             // stop was clean when it was not.
             let stop_failed = crate::runtime::stop_failed_value(failures);
-            let edn = crate::edn_shim::value_to_edn_with(&stop_failed, Some(world.types()));
-            let line = format!("{}\n", wat_edn::write(&edn));
+            let edn_line = crate::edn_shim::value_to_edn_string_lossy(&stop_failed, Some(world.types()));
+            let line = format!("{edn_line}\n");
             crate::process::stdio::emit_panic_envelope(&line);
             if code == crate::process::EXIT_SUCCESS {
                 code = crate::process::EXIT_RUNTIME_ERROR;

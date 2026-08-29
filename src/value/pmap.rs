@@ -446,7 +446,7 @@ mod tests {
 
         // The same, through an EDN read -> write -> read round trip — the wire-visible case.
         let outer_a_value = Value::wat__core__PersistentMap(outer_a);
-        let s = crate::edn_shim::value_to_edn_string_with(&outer_a_value, None);
+        let s = crate::edn_shim::value_to_edn_string_with(&outer_a_value, None).expect("test value must encode");
         let back = crate::edn_shim::edn_string_to_value(&s).expect("round-trip parse");
         let back_pm = match back {
             Value::wat__core__PersistentMap(m) => m,

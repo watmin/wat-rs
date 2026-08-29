@@ -183,7 +183,7 @@ fn row4_thermometer_renders_to_directive_tag_and_decodes_to_real_thermometer() {
 fn row5_slotmarker_renders_to_directive_tag_and_roundtrips() {
     let original = HolonAST::SlotMarker { min: 0.0, max: 10.0 };
     let v = Value::holon__HolonAST(Arc::new(original.clone()));
-    let edn = wat::edn_shim::value_to_edn_with(&v, None);
+    let edn = wat::edn_shim::value_to_edn_with(&v, None).expect("test value must encode");
     let w = wat_edn::write(&edn);
     wat::assert_edn_matches_file!(
         w.clone(),
@@ -219,7 +219,7 @@ fn row6_data_holon_roundtrips_under_wat_slash_holon_tag() {
         )]),
     );
     let v = Value::holon__HolonAST(Arc::new(original.clone()));
-    let edn = wat::edn_shim::value_to_edn_with(&v, None);
+    let edn = wat::edn_shim::value_to_edn_with(&v, None).expect("test value must encode");
     let w = wat_edn::write(&edn);
     // The builder: "the only things that need tags are stuff like thermometers" — but
     // CORRECTION 2 found the originally-specified bare `#wat.holon <data>` spelling cannot
@@ -256,27 +256,28 @@ fn row7_bare_bundle_raises_on_encode_never_falls_back() {
     let bare_bundle = HolonAST::bundle(vec![HolonAST::i64(1), HolonAST::i64(2)]);
     let v = Value::holon__HolonAST(Arc::new(bare_bundle));
 
-    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        wat::edn_shim::value_to_edn_with(&v, None)
-    }));
-    let err = caught.expect_err(
-        "a bare Bundle is neither data nor a recognized directive — encode must RAISE, \
+    // ⛔ THIS ROW CHANGED SHAPE 2026-08-29 AND THE CONTRACT DID NOT. It used to assert a
+    // `panic!`; `value_to_edn_with` now returns `Result`, because an unencodable value is
+    // DATA-DEPENDENT — it comes from the user's program — and the failure channel already
+    // existed one frame up (`eval_edn_write` has always returned `Result`). What this row
+    // actually pins is unchanged and is the part that matters: encode must REFUSE a bare
+    // Bundle rather than fall back to some best-effort rendering, and the refusal must NAME
+    // THE MECHANISM. Both survived the conversion — deliberately: returning the inner
+    // diagnostic alone would have dropped the doctrine sentence, and this row is what caught
+    // that.
+    let err = wat::edn_shim::value_to_edn_with(&v, None).expect_err(
+        "a bare Bundle is neither data nor a recognized directive — encode must REFUSE, \
          never fall back to a Bundle/nil/best-effort rendering",
     );
-    let msg = err
-        .downcast_ref::<String>()
-        .cloned()
-        .or_else(|| err.downcast_ref::<&str>().map(|s| s.to_string()))
-        .unwrap_or_else(|| "<non-string panic payload>".to_string());
-    assert!( // rune:lint(loose-assert) — the panic message embeds a #wat.core/Span with a
-             // source :line/:col that legitimately drifts whenever edn_shim.rs gains or loses
-             // lines above the RAISE site; a byte-identical assert_eq! would fail on an
-             // unrelated refactor even though the RAISE behavior is unchanged. Two targeted
-             // substrings (both authored in `holon_ast_to_edn_data`'s own panic!, not the
-             // wrapped inner error) are the deterministic, drift-proof contract.
+    let msg = format!("{err}");
+    assert!( // rune:lint(loose-assert) — the message embeds a #wat.core/Span whose :line/:col
+             // legitimately drifts whenever edn_shim.rs gains or loses lines above the refusal
+             // site; a byte-identical assert_eq! would fail on an unrelated refactor even though
+             // the REFUSAL behavior is unchanged. Two targeted substrings are the drift-proof
+             // contract.
         msg.contains("cannot encode HolonAST to the wire")
             && msg.contains("never crosses the wire in any form"),
-        "the RAISE must name the mechanism (algebra never crosses the wire), not just fail \
+        "the refusal must name the mechanism (algebra never crosses the wire), not just fail \
          silently; got: {msg}"
     );
 }

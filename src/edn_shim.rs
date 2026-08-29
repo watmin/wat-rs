@@ -69,7 +69,7 @@ pub fn eval_edn_write(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     Ok(Value::String(Arc::new(wat_edn::write(&edn))))
 }
 
@@ -82,7 +82,7 @@ pub fn eval_edn_write_pretty(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-pretty";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     Ok(Value::String(Arc::new(wat_edn::write_pretty(&edn))))
 }
 
@@ -96,7 +96,7 @@ pub fn eval_edn_write_json(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
 }
 
@@ -137,7 +137,7 @@ pub fn eval_edn_write_json_natural(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json-natural";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = value_to_json_natural(&v, sym.types().map(|a| a.as_ref()));
+    let edn = value_to_json_natural(&v, sym.types().map(|a| a.as_ref()))?;
     Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
 }
 
@@ -2878,12 +2878,14 @@ fn enum_variant_ns(type_path: &str) -> String {
 /// - enum unit variants render as plain strings
 ///
 /// Designed for ingestion-tooling consumers (ELK / DataDog / CloudWatch Logs).
+/// Fallible for the same reason as [`value_to_edn_with`], which it falls through to: an
+/// unencodable holon has to be reportable rather than fatal.
 pub fn value_to_json_natural(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
-) -> OwnedValue {
+) -> Result<OwnedValue, RuntimeError> {
     use std::borrow::Cow;
-    match v {
+    Ok(match v {
         Value::Instant(t) => OwnedValue::String(Cow::Owned(
             t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         )),
@@ -2899,12 +2901,12 @@ pub fn value_to_json_natural(
                 .iter()
                 .zip(sv.fields.iter())
                 .map(|(name, fv)| {
-                    (
+                    Ok((
                         OwnedValue::String(Cow::Owned(name.clone())),
-                        value_to_json_natural(fv, types),
-                    )
+                        value_to_json_natural(fv, types)?,
+                    ))
                 })
-                .collect();
+                .collect::<Result<Vec<_>, RuntimeError>>()?;
             OwnedValue::Map(entries)
         }
         Value::Enum(ev) => {
@@ -2930,31 +2932,31 @@ pub fn value_to_json_natural(
                 for (name, fv) in ev.names.iter().zip(ev.fields.iter()) {
                     entries.push((
                         OwnedValue::String(Cow::Owned(name.clone())),
-                        value_to_json_natural(fv, types),
+                        value_to_json_natural(fv, types)?,
                     ));
                 }
                 OwnedValue::Map(entries)
             }
         }
         Value::Vec(xs) => OwnedValue::Vector(
-            xs.iter().map(|x| value_to_json_natural(x, types)).collect(),
+            xs.iter().map(|x| value_to_json_natural(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?,
         ),
         Value::Tuple(xs) => OwnedValue::Vector(
-            xs.iter().map(|x| value_to_json_natural(x, types)).collect(),
+            xs.iter().map(|x| value_to_json_natural(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?,
         ),
         // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
         Value::wat__std__HashMap(m) => OwnedValue::Map(
             m.iter()
                 .map(|(k, v)| {
-                    let key_v = value_to_json_natural(k, types);
+                    let key_v = value_to_json_natural(k, types)?;
                     // JSON keys must be strings; coerce keywords/ints/etc.
                     let key_s = match &key_v {
                         OwnedValue::String(_) => key_v,
                         other => OwnedValue::String(Cow::Owned(wat_edn::write(other))),
                     };
-                    (key_s, value_to_json_natural(v, types))
+                    Ok((key_s, value_to_json_natural(v, types)?))
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, RuntimeError>>()?,
         ),
         // Arc 278 Stone A.0 — Option gets the uniform vector-bodied variant form in JSON too.
         Value::Option(opt) => match &**opt {
@@ -2964,13 +2966,13 @@ pub fn value_to_json_natural(
             ),
             Some(inner) => OwnedValue::Tagged(
                 Tag::ns("wat.core.Option", "Some"),
-                Box::new(OwnedValue::Vector(vec![value_to_json_natural(inner, types)])),
+                Box::new(OwnedValue::Vector(vec![value_to_json_natural(inner, types)?])),
             ),
         },
         // Fallback: use the tagged walker. Result now falls through to
         // value_to_edn_with which emits #wat.core.Result/Ok|Err (arc 298.1).
-        _ => value_to_edn_with(v, types),
-    }
+        _ => value_to_edn_with(v, types)?,
+    })
 }
 
 /// Convert a wat type path like `:demo::Event` to an EDN-friendly
@@ -3651,14 +3653,6 @@ fn build_foreign_variant(
 
 // ─── The walker ──────────────────────────────────────────────────
 
-/// Convert a wat `Value` to a `wat_edn::OwnedValue`. Back-compat
-/// shim that calls [`value_to_edn_with`] without a type registry —
-/// renders structs with positional `:field-N` keys. Prefer
-/// `value_to_edn_with` when a registry is reachable so structs
-/// render with their declared field names.
-pub fn value_to_edn(v: &Value) -> OwnedValue {
-    value_to_edn_with(v, None)
-}
 
 // ⛔ `value_to_edn_string(v)` — the types-less door — is DELETED (2026-08-14).
 //
@@ -3681,11 +3675,38 @@ pub fn value_to_edn(v: &Value) -> OwnedValue {
 /// arm) to encode with `sym.types()` so records cross the wire with named
 /// fields rather than positional `:field-{i}` fallback.  The resulting `String`
 /// is shipped via `Peer::send_wire` — no thread-local involved.
-pub(crate) fn value_to_edn_string_with(
+/// The LOSSY door, for call sites that structurally cannot propagate — a panic hook, a crash
+/// reporter, an exit path, a `Drop`. It renders the encode failure INTO the output instead of
+/// returning it.
+///
+/// ⛔ THIS IS NOT A CONVENIENCE, AND IT IS NOT FOR ORDINARY CALLERS. Every site that CAN return a
+/// `Result` must use [`value_to_edn_string_with`] and report honestly; reaching for this one to
+/// avoid threading an error is how the panic being removed here got written in the first place.
+/// The whole point of the conversion is that failure has somewhere to go — this door exists only
+/// where there is genuinely nowhere.
+///
+/// Dying while reporting a crash is strictly worse than printing a marker: the marker still names
+/// the value's type and the reason, so the operator sees WHAT could not be encoded instead of a
+/// second panic on top of the first.
+pub(crate) fn value_to_edn_string_lossy(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
-    wat_edn::write(&value_to_edn_with(v, types))
+    match value_to_edn_with(v, types) {
+        Ok(edn) => wat_edn::write(&edn),
+        Err(e) => format!(
+            "#wat.edn/Unencodable {{:type {:?} :reason {:?}}}",
+            v.type_name(),
+            e.to_string()
+        ),
+    }
+}
+
+pub(crate) fn value_to_edn_string_with(
+    v: &Value,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<String, RuntimeError> {
+    Ok(wat_edn::write(&value_to_edn_with(v, types)?))
 }
 
 /// Decode a compact EDN `String` back to a `Value` — the inverse of
@@ -3800,11 +3821,32 @@ mod cap_decode_boundary {
 ///
 /// The registry comes through `SymbolTable.types` (arc 085's
 /// capability carrier).
+/// ── WHY THIS RETURNS `Result` (2026-08-29) ────────────────────────────────────────────────────
+///
+/// It used to return a bare `OwnedValue`, and the holon arm below `panic!`ed when it met a value
+/// it could not tag. That panic was reachable from a two-line wat program —
+/// `(:wat::edn::write #holon [1 2 3])` — because a source-macro holon is an unclassified `Bundle`
+/// and the encoder cannot name it.
+///
+/// **The failure channel already existed and stopped ONE FUNCTION SHORT.** `eval_edn_write` (this
+/// file, `:64`) has returned `Result<Value, RuntimeError>` the whole time; only this callee could
+/// not express failure, so the failure had nowhere to go but the process. Worse, the error it
+/// discarded was ALREADY a located diagnostic from `from_holon_item` — the panic stringified a
+/// perfectly good `TypeMismatch` and then aborted.
+///
+/// Encoding failure here is DATA-DEPENDENT — the value comes from the user's program — which is
+/// the same category as writing a record whose type is not registered, and that path has always
+/// returned an error. An invariant violation would deserve a panic; this does not.
+///
+/// ⚠ The sibling panics on this path are deliberately UNCHANGED: `:2823`/`:3563` are genuine
+/// internal invariants, and `struct_tag_for`/`tag_from_type_path` guard an unnamespaced type path
+/// that the macro layer already makes unrepresentable (`#wat.macro/UnnamespacedName` at load).
+/// Converting those would be churn against guards that are already right.
 pub fn value_to_edn_with(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
-) -> OwnedValue {
-    match v {
+) -> Result<OwnedValue, RuntimeError> {
+    Ok(match v {
         // ── Primitive leaves ─────────────────────────────────────
         Value::Unit => OwnedValue::Nil,
         Value::bool(b) => OwnedValue::Bool(*b),
@@ -3827,38 +3869,38 @@ pub fn value_to_edn_with(
             ),
             Some(inner) => OwnedValue::Tagged(
                 Tag::ns("wat.core.Option", "Some"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)])),
+                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)?])),
             ),
         },
         Value::Result(r) => match &**r {
             Ok(inner) => OwnedValue::Tagged(
                 Tag::ns("wat.core.Result", "Ok"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)])),
+                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)?])),
             ),
             Err(inner) => OwnedValue::Tagged(
                 Tag::ns("wat.core.Result", "Err"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)])),
+                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)?])),
             ),
         },
 
         // ── Compound containers ──────────────────────────────────
         Value::Vec(xs) => {
-            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect())
+            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?)
         }
         // Arc 220 Stone 220.4 — List → EDN parens form (OwnedValue::List).
         // Preserves the List/Vector distinction on the wire so Clojure sees
         // a proper list `(1 2 3)` rather than a vector `[1 2 3]`.
         Value::wat__core__List(xs) => {
-            OwnedValue::List(xs.iter().map(|x| value_to_edn_with(x, types)).collect())
+            OwnedValue::List(xs.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?)
         }
         Value::Tuple(xs) => {
-            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect())
+            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?)
         }
         // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
         Value::wat__std__HashMap(m) => OwnedValue::Map(
             m.iter()
-                .map(|(k, v)| (value_to_edn_with(k, types), value_to_edn_with(v, types)))
-                .collect(),
+                .map(|(k, v)| Ok((value_to_edn_with(k, types)?, value_to_edn_with(v, types)?)))
+                .collect::<Result<Vec<_>, RuntimeError>>()?,
         ),
         // Arc-278-0a — PersistentMap writes as a TAGGED literal `#wat.core/PersistentMap {…}`
         // so round-trip IDENTITY is preserved: a std-HashMap `{}` reads back as wat__std__HashMap;
@@ -3867,8 +3909,8 @@ pub fn value_to_edn_with(
             Tag::ns("wat.core", "PersistentMap"),
             Box::new(OwnedValue::Map(
                 m.iter()
-                    .map(|(k, v)| (value_to_edn_with(k, types), value_to_edn_with(v, types)))
-                    .collect(),
+                    .map(|(k, v)| Ok((value_to_edn_with(k, types)?, value_to_edn_with(v, types)?)))
+                    .collect::<Result<Vec<_>, RuntimeError>>()?,
             )),
         ),
         // Arc-278-0b — PersistentVector writes as a TAGGED literal `#wat.core/PersistentVector [...]`
@@ -3879,12 +3921,12 @@ pub fn value_to_edn_with(
             Box::new(OwnedValue::Vector(
                 pv.iter()
                     .map(|x| value_to_edn_with(x, types))
-                    .collect(),
+                    .collect::<Result<Vec<_>, RuntimeError>>()?,
             )),
         ),
         Value::wat__std__HashSet(s) => OwnedValue::Set(
             // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
-            s.iter().map(|x| value_to_edn_with(x, types)).collect(),
+            s.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?,
         ),
 
         // ── User-declared struct / record / holon-record ─────────
@@ -3898,12 +3940,12 @@ pub fn value_to_edn_with(
                 .iter()
                 .zip(sv.fields.iter())
                 .map(|(name, fv)| {
-                    (
+                    Ok((
                         OwnedValue::Keyword(Keyword::new(name.clone())),
-                        value_to_edn_with(fv, types),
-                    )
+                        value_to_edn_with(fv, types)?,
+                    ))
                 })
-                .collect();
+                .collect::<Result<Vec<_>, RuntimeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         Value::Enum(ev) => {
@@ -3920,7 +3962,7 @@ pub fn value_to_edn_with(
                     .fields
                     .iter()
                     .map(|x| value_to_edn_with(x, types))
-                    .collect();
+                    .collect::<Result<Vec<_>, RuntimeError>>()?;
                 OwnedValue::Tagged(tag, Box::new(OwnedValue::Vector(payload)))
             }
         }
@@ -3937,12 +3979,12 @@ pub fn value_to_edn_with(
                 .fields
                 .iter()
                 .map(|(k, v)| {
-                    (
+                    Ok((
                         OwnedValue::Keyword(Keyword::new(k.clone())),
-                        value_to_edn_with(v, types),
-                    )
+                        value_to_edn_with(v, types)?,
+                    ))
                 })
-                .collect();
+                .collect::<Result<Vec<_>, RuntimeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         Value::ForeignVariant(fv) => {
@@ -3952,7 +3994,7 @@ pub fn value_to_edn_with(
                 .fields
                 .iter()
                 .map(|x| value_to_edn_with(x, types))
-                .collect();
+                .collect::<Result<Vec<_>, RuntimeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Vector(payload)))
         }
 
@@ -3968,7 +4010,7 @@ pub fn value_to_edn_with(
         // refuses (Err) on anything that is not data — Thermometer/SlotMarker
         // included, because they are constructor directives, not data. See
         // `holon_ast_to_edn_data` below for the three-case dispatch.
-        Value::holon__HolonAST(h) => holon_ast_to_edn_data(h, types),
+        Value::holon__HolonAST(h) => holon_ast_to_edn_data(h, types)?,
         // Arc 294.j — the realized VSA vector is the algebra's OWN terminal
         // artifact (the materialized `holon::Vector` a Bind/Bundle tree
         // evaluates to), so it shares the "derived, not shipped" disposition
@@ -4026,7 +4068,7 @@ pub fn value_to_edn_with(
             // other sites in this file (structs, enums, records).
             if let Some(t) = types {
                 if let Some(cap_tag) = crate::capability::encode_capability(inner, t) {
-                    return cap_tag;
+                    return Ok(cap_tag);
                 }
             }
             OwnedValue::Tagged(
@@ -4081,12 +4123,12 @@ pub fn value_to_edn_with(
                 .iter()
                 .zip(a.fields.iter())
                 .map(|(name, fv)| {
-                    (
+                    Ok((
                         OwnedValue::Keyword(Keyword::new(name.clone())),
-                        value_to_edn_with(fv, types),
-                    )
+                        value_to_edn_with(fv, types)?,
+                    ))
                 })
-                .collect();
+                .collect::<Result<Vec<_>, RuntimeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         // Arc 118 — Stream: opaque (lazy; realizing for EDN would diverge on infinite seqs).
@@ -4101,7 +4143,7 @@ pub fn value_to_edn_with(
                     // only the namespace moves home (arc 294.i).
                     OwnedValue::Tagged(
                         Tag::ns("wat.stream", "Stream"),
-                        Box::new(value_to_edn_with(head, types)),
+                        Box::new(value_to_edn_with(head, types)?),
                     )
                 }
                 // Arc 294.i — lazy-seq is a Stream::Thunk|NativeThunk sub-state, not its own
@@ -4120,7 +4162,7 @@ pub fn value_to_edn_with(
             let _ = ed;
             "extend-def"
         }),
-    }
+    })
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -4225,9 +4267,12 @@ fn opaque_nil(ns: &str, name: &str) -> OwnedValue {
 ///   through is out of this stone's scope) so `panic!` is the wall, matching
 ///   the house convention for a "fails closed" wat-visible condition
 ///   (`tests/collection/bundle_capacity.rs`'s `:panic` mode).
-fn holon_ast_to_edn_data(h: &holon::HolonAST, types: Option<&crate::types::TypeEnv>) -> OwnedValue {
+fn holon_ast_to_edn_data(
+    h: &holon::HolonAST,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<OwnedValue, RuntimeError> {
     use holon::HolonAST;
-    match h {
+    Ok(match h {
         HolonAST::Thermometer { value, min, max } => OwnedValue::Tagged(
             Tag::ns("wat.holon", "Thermometer"),
             Box::new(OwnedValue::Map(vec![
@@ -4257,15 +4302,43 @@ fn holon_ast_to_edn_data(h: &holon::HolonAST, types: Option<&crate::types::TypeE
             // service argument), unlike the bare-untagged data the first RELAND emitted.
             Ok(v) => OwnedValue::Tagged(
                 Tag::ns("wat", "holon"),
-                Box::new(value_to_edn_with(&v, types)),
+                Box::new(value_to_edn_with(&v, types)?),
             ),
-            Err(e) => panic!(
-                "cannot encode HolonAST to the wire — {e} — the algebra \
-                 (Bind/Bundle/Atom/Permute/Blend) never crosses the wire in any form, per \
-                 DESIGN-STONE-294.j; only DATA and the two directives (Thermometer/SlotMarker) do"
-            ),
+            // The old `panic!` carried TWO things worth keeping: the located diagnostic
+            // `from_holon_item` had already built, and the DOCTRINE explaining why the algebra is
+            // refused. Returning the inner error alone would have kept the first and silently
+            // dropped the second — caught by `row7_bare_bundle_raises_on_encode_never_falls_back`,
+            // which asserts the mechanism is named. So both survive: the inner message is
+            // embedded, the doctrine is appended, and the inner SPAN is reused so the diagnostic
+            // still points where the panic did.
+            Err(crate::runtime::EvalBreak::Diagnostic(e)) => {
+                return Err(RuntimeError::new(
+                    e.span().clone(),
+                    crate::runtime::RuntimeErrorKind::MalformedForm {
+                        head: ":wat::edn::write".into(),
+                        reason: format!(
+                            "cannot encode HolonAST to the wire — {e} — the algebra \
+                             (Bind/Bundle/Atom/Permute/Blend) never crosses the wire in any form, \
+                             per DESIGN-STONE-294.j; only DATA and the two directives \
+                             (Thermometer/SlotMarker) do"
+                        ),
+                    },
+                ));
+            }
+            Err(crate::runtime::EvalBreak::Signal(s)) => {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    crate::runtime::RuntimeErrorKind::MalformedForm {
+                        head: ":wat::edn::write".into(),
+                        reason: format!(
+                            "eval-loop signal escaped holon encoding ({s}) — this is an \
+                             interpreter bug, not a user error"
+                        ),
+                    },
+                ));
+            }
         },
-    }
+    })
 }
 
 /// Arc 294.j RELAND — the ONE collapsed HolonAST reader (DESIGN-STONE-294.j,
@@ -4633,7 +4706,7 @@ mod tests {
         ]));
 
         // Serialize → tagged EDN string.
-        let s = value_to_edn_string_with(&orig, None);
+        let s = value_to_edn_string_with(&orig, None).expect("test value must encode");
 
         // Parse back.
         let back = edn_string_to_value(&s).expect("round-trip parse");
@@ -4657,7 +4730,7 @@ mod tests {
             .expect("parse the form");
         let ast = forms.into_iter().next().expect("one form");
         let v = Value::wat__WatAST(Arc::new(ast));
-        let s = value_to_edn_string_with(&v, None);
+        let s = value_to_edn_string_with(&v, None).expect("test value must encode");
         assert_eq!(s, "(:wat.core/< -5 0)", "a WatAST must render as its form (with operands), not opaque-nil");
     }
 
@@ -4673,7 +4746,7 @@ mod tests {
         let pm = Value::wat__core__PersistentMap(m);
 
         // Serialize → tagged EDN string.
-        let s = value_to_edn_string_with(&pm, None);
+        let s = value_to_edn_string_with(&pm, None).expect("test value must encode");
 
         // Parse back.
         let back = edn_string_to_value(&s).expect("round-trip parse");
@@ -4725,7 +4798,7 @@ mod tests {
             fields: vec![Value::i64(3), Value::i64(4)],
         }));
 
-        let json = value_to_json_natural(&ev, Some(&types));
+        let json = value_to_json_natural(&ev, Some(&types)).expect("test value must encode");
         let OwnedValue::Map(entries) = &json else {
             panic!("expected a JSON object, got {json:?}");
         };

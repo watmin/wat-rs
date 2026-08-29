@@ -17,11 +17,11 @@
 //! Round-trip: `edn_to_value(parse(write(v))) == v` for all four.
 
 use std::sync::Arc;
-use wat::edn_shim::{edn_to_value, value_to_edn};
+use wat::edn_shim::{edn_to_value, value_to_edn_with};
 use wat::runtime::Value;
 
 fn write_value(v: &Value) -> String {
-    wat_edn::write(&value_to_edn(v))
+    wat_edn::write(&value_to_edn_with(v, None).expect("test value must encode"))
 }
 
 fn round_trip(v: &Value) -> Value {

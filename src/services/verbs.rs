@@ -163,7 +163,7 @@ pub fn eval_kernel_println(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::println";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     // Append the line terminator HERE (the service is now a raw byte writer — no implicit newline);
     // the batched `stdio-write-out` fragments this `<edn>\n` payload into ≤budget raw chunks, so the
     // bytes on fd1 are identical to the old `writeln(edn)` path (`<edn>\n`) even for oversized output.
@@ -183,7 +183,7 @@ pub fn eval_kernel_pprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::pprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     // Terminator appended here (raw-writer service); batched → identical bytes to old `writeln(pretty)`.
     let mut line = wat_edn::write_pretty(&edn);
     line.push('\n');
@@ -204,7 +204,7 @@ pub fn eval_kernel_eprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::eprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     // The emitted value's EDN is the crash reason carried by the terminal panic (no trailing newline —
     // a reason is a message, not stream bytes). The written PAYLOAD gets the terminator (raw-writer
     // service); batched → identical bytes to the old `writeln(edn)` path.
@@ -225,7 +225,7 @@ pub fn eval_kernel_epprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::epprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     let reason = wat_edn::write_pretty(&edn);
     let payload = format!("{reason}\n");
     write_via_stderr(OP, list_span, sym, payload)?;

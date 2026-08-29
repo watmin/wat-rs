@@ -34,7 +34,7 @@ fn a_forked_service_that_cannot_decode_a_message_speaks_its_reason_to_the_caller
              RecvOutcome::Lost VALUE (never a raise, which would unwind past the reader); got Err: {e:?}"
         )
     });
-    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn_with(&v, None).expect("the probe's value must encode"));
     wat::assert_edn_matches_file!(
         edn,
         "dead_child_speaks__forked_service_speaks_its_reason.edn",
