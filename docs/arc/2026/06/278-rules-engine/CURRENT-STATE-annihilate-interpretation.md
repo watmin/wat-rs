@@ -5,49 +5,51 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-29 — supersedes every dated block below it. Written against HEAD
-`8c10ee490`; the commit carrying this stamp lands on top, so a ONE-COMMIT gap at your wake is
-expected. That commit touches `docs/` only — a gap containing `src/` or `tests/` IS staleness,
+**CURRENT STAMP 2026-08-29 (LATE) — supersedes every dated block below it. Written against HEAD
+`f006f77d5`; the commit carrying this stamp lands on top, so a ONE-COMMIT gap at your wake is
+expected. That commit touches `docs/` ONLY — a gap containing `src/` or `tests/` IS staleness,
 whatever its size.**
 
-**⛔⛔ THE TERMINATION VERIFIER WAS THE DAY'S WORK, AND THE FRAMING IT INHERITED WAS WRONG TWICE.**
-Item 8. Read the item before touching any of it; the short version:
+**⛔⛔ START HERE: `insert` IS UNBOUNDED AND THE SESSION CEILING IS NOT YET A SESSION CEILING.**
+`RETE-OPEN-WORK.md` § "The order" item 9, and it is the next work. Measured: **2.5M facts inserted
+with NO fire reached 4.0 GB against a 1 GiB contract, with no diagnostic.** The builder's ruling is
+that the SESSION is the boundary — two limits expressed and enforced, `max-session-memory` and
+`max-fire-rounds` — and today the first is enforced in only one of the two places a session grows.
+**The design is fully worked out in item 9 and was deliberately REVERTED rather than left unwired**
+(`check_session_ceiling` compiled with no caller, which is the dead-code trap this arc keeps
+pulling out). Pick it up from the item; nothing needs re-deriving.
 
-- **Its blind spot is the TYPE, not the `where` fence.** Both this file and the inbound report said
-  "the cyclicity test does not read the fence". Too narrow: a fact domain of **TWO** (`bool`), with
-  no fence at all, was refused. Range restriction is SYNTACTIC; finiteness is a TYPE property.
-- **So a finite-typed computed head is now ADMITTED** (`bool`, unit `defenum`) and converges. The
-  `i64` axis is untouched and the gate pins that as its second half — that axis is where the danger
-  measured.
-- **`bpf_loop` was MY paraphrase, not prior art.** We shipped a rete engine on eBPF
-  (`holon-lab-ddos/veth-lab/filter-ebpf`) and it declares NO bound: fixed-size state, a
-  HOST-enforced step ceiling, no loop, branches hoisted out. And its rete has **no fixpoint at
-  all**. Prior art for bounded TRAVERSAL, not bounded DERIVATION.
-- **It is an ALLOCATION problem, not an instruction-count one.** We copied eBPF's STEP ceiling
-  (`max_fire_rounds`) and not its STATE ceiling (`with_max_entries`). Measured: linear divergence
-  hits the round cap in 0.35s; **fanout divergence OOMs in 6.2s and the cap never fires**, because
-  it counts ROUNDS and a fanout diverges WITHIN one.
-- **✅ So there is now a PER-SESSION MEMORY CEILING** — `(:wat::config::rete::set-max-session-bytes! n)`,
-  1 GiB default, checked BEFORE the round cap, raised as `SessionMemoryCeilingExceeded`. Backed by
-  a counting global allocator (`src/alloc_counter.rs`) that is **THREAD-LOCAL ONLY**.
+**WHAT LANDED TODAY, in one line each — the item is the detail, this is the map:**
+- **The termination verifier's blind spot is the TYPE, not the `where` fence.** A fact domain of
+  TWO was refused. Finite-typed computed heads (`bool`, unit `defenum`) are now ADMITTED.
+- **`bpf_loop` was MY paraphrase, not prior art.** The eBPF rete we shipped declares NO bound —
+  fixed-size state, a HOST step ceiling, no loop — and has no fixpoint at all.
+- **It is an ALLOCATION problem.** We copied eBPF's STEP ceiling and not its STATE ceiling. So
+  there is now a per-session memory ceiling + a counting allocator (thread-local only).
+- **The guarded counter is provably TERMINATING, not provably BOUNDED** — its size is the SEED,
+  which is runtime data. That closed the fence half and killed the analysis it was going to need.
+- **Every vigilia row is closed and audited.** `complectens` 1 was the last, CUT affirmatively.
 
-**★ THE BUILDER CAUGHT TWO DESIGN ERRORS BEFORE THEY SHIPPED, AND BOTH ARE THE SAME SHAPE — a
-number chosen by symmetry instead of measurement.**
-- *"why is 10k our preferred limit?"* — `MAX_PROVABLE_FACT_POPULATION` was set to match
-  `DEFAULT_MAX_FIRE_ROUNDS`. A round cap bounds WORK, that bounds STATE. And 10_000 was **below**
-  the grid's own `fanout` at 40_000, which CI runs on every push. Re-derived from measured
-  ~600 B/fact to 1_000_000.
-- *"if i had 512 threads… each with their own session… there's no conflict?"* — the counter was
-  process-global, so a per-session check on it would **refuse the innocent and answer
-  non-deterministically**. Caught before a line was wired.
+**★★ THE BUILDER CAUGHT FOUR THINGS I HAD WRONG, AND THEY SHARE ONE SHAPE — a claim I had not
+measured, stated with confidence:**
+1. *"why is 10k our preferred limit?"* — a cap set by symmetry with a ROUNDS cap, sitting BELOW the
+   grid's own 40_000 workload.
+2. *"if i had 512 threads… no conflict?"* — a process-global counter behind a per-session check.
+3. *"we've been at the physics boundary… it's all just noise"* — I quoted "~5–8%" as a measurement;
+   it was three-sample deltas across different HEADs, spread −1.3% to +18.1%.
+4. *"insert affects memory just as much…"* — and chasing it found the SAME hole in my own check.
+**Every one was settled by a measurement I could have taken first. `[[six-samples-or-no-number]]`
+and `[[a-reading-cannot-see-an-execution-defect]]` are memories I wrote and then broke.**
 
-**⛔ AND I QUOTED A PERFORMANCE NUMBER THAT WAS NOT A MEASUREMENT.** "~5–8% on fire" was
-three-sample deltas against a reference from another day at another HEAD; the cell spread was
-−1.3% to +18.1%, several times the effect. Builder: *"we've been at the physics boundary for
-awhile… i think its all just noise here."* **`[[six-samples-or-no-number]]` is a memory I wrote and
-then broke.** The allocator's cost is NOT RESOLVABLE by the grid; removing the global atomics is
-justified STRUCTURALLY (512 threads on one cache line), and the grid is single-threaded so it
-cannot see contention at all.
+⚠ **THE FLOOR WENT RED ONCE AND DID NOT REPRODUCE — read this before you re-run anything.**
+`probe_arc278_partial_frame_residue::probe_sender_send_leaves_headless_partial_frame_on_shutdown`,
+a 20s `recv_timeout` missing by 79ms. Captured whole and surfaced BEFORE any re-run, per the floor
+rules. **NOT a flake — that word is banned here and it is not what this is.**
+`BRIEF-278-a-liveness-bound-only-catches-a-hang.md` already owns this exact test and message: a
+wall-clock bound on another OS process's scheduling cannot distinguish its subject from CPU
+contention, and the panic message says so itself. **Its bound was widened 3s → 20s once and has now
+gone red at 20s — new evidence FOR that brief.** If you see it again, that is a third data point,
+not a nuisance.
 
 **✅ ITEM 6 CLOSED 2026-08-29 — the grid's SPEED half runs, as its own `grid-speed` CI job.** Both
 stated reasons for its absence were dead, and **the second had never been measured**: "a shared

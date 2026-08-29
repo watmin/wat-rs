@@ -1450,7 +1450,42 @@ field. Reachable, but not constructible inside a fence.
    **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
    with our own green floor). That is exactly when this class is cheapest to widen.
 
-9. **`fire-rules` IS PARTIAL AND ITS SIGNATURE DOES NOT SAY SO — the outcome wall, not yet applied
+9. **⛔ `insert` IS UNBOUNDED — THE SESSION CEILING IS NOT YET A SESSION CEILING. NEXT UP.**
+   Builder's ruling: *"the session is the boundary — it may not consume more than the configured
+   amount of memory, 1G by default… insert affects memory just as much as insert via derivation in
+   fire-rules… we can exhaust memory before fire-rules begins?"* **Yes. Measured:**
+
+   ```
+   2_500_000 facts inserted, NO fire   ->  peak RSS 4_153_324 KB ~= 4.0 GB
+                                           against a 1 GiB contract, no diagnostic
+   ```
+
+   **A ceiling that only watches derivation is a FIRE ceiling wearing a SESSION ceiling's name.**
+   Two boundaries are meant to be expressed and enforced — `max-session-memory` and
+   `max-fire-rounds` — and today the first is enforced in one of the two places a session grows.
+
+   **THE DESIGN, worked out and then REVERTED rather than left unwired across a compaction** (half
+   of it compiled; `check_session_ceiling` existed and nothing called it, which is exactly the
+   dead-code trap this arc keeps pulling out):
+
+   1. **A per-session ORIGIN.** The ceiling is a per-session contract so it needs a per-session
+      zero — and `:wat::rete::Session` is an immutable 8-field record with nowhere to hang one. The
+      THREAD is the anchor, licensed by the affinity contract: one session armed per thread at a
+      time, so "bytes since this thread's last `compile-all`" IS "bytes this session has taken".
+      `alloc_counter::mark_session_origin()` at `compile-all`, `session_bytes()` to read.
+      ⚠ **State the assumption:** a thread building a SECOND session re-bases, so the first stops
+      being charged. Sequential-per-thread holds in every shape this substrate supports; if it ever
+      stops, this is the line that moves to a Session field.
+   2. **ONE shared check called from BOTH doors** — `insert`/`insert-all` and the fixpoint — so the
+      two cannot drift. Two places holding one truth is the defect this arc pulls out most.
+   3. `sym` is already in scope at both `insert` entry points (`kernel/insert.rs:47,81`), so nothing
+      needs threading.
+
+   ⚠ **AND THE FIXPOINT'S OWN CHECK HAD THE SAME HOLE ONE LEVEL IN** — fixed in `f006f77d5`. The
+   `break` sat ABOVE it, so it never ran for a converged fire or any `fire-once`. **The builder's
+   question about `insert` is what surfaced it**; I would not have looked at my own check otherwise.
+
+10. **`fire-rules` IS PARTIAL AND ITS SIGNATURE DOES NOT SAY SO — the outcome wall, not yet applied
    to rete.** Builder: *"when do these 'raise'?… can we make them total?… the user must deal with
    their consequences?… how can we force the user's code into totality for handling these?"*
 
@@ -1493,7 +1528,7 @@ field. Reachable, but not constructible inside a fence.
 
    **NOT STARTED. The ruling is the builder's** — it changes the type of the engine's main verb.
 
-10. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
+11. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
     behaviour.** `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs`'s five goldens
     pin `:location #wat.core/Span {:file "src/runtime.rs" :line N}`. On 2026-08-28 that `N` moved
     **three times** — 25722→25793→25799→25802 — and **every move was a COMMENT**
