@@ -24,7 +24,7 @@
     (:user::Temp :value 15)))
 
 (:wat::core::defn :test::fire-once [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::fire-once s))
+  (:wat::core::match (:wat::rete::fire-once s) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::fired-temp-alpha [] -> :wat::rete::Session
   (:test::fire-once (:test::seed-temps (:test::compile-temp-rule))))

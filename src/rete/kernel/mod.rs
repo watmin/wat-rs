@@ -24,6 +24,7 @@
 //! query-memory      <- :wat::core::PersistentMap
 //! ```
 
+pub(crate) mod outcome;
 pub(crate) mod session;
 pub(crate) use session::*;
 mod node;

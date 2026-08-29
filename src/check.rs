@@ -21353,12 +21353,16 @@ fn register_builtins(env: &mut CheckEnv) {
     // (:wat::rete::fire-once <session: :wat::rete::Session>) → :wat::rete::Session
     // Equivalent to fire-once$oracle on AST Sessions; Export is native-only.
     // fire-once is a wat defn (first-class Fn). `$native` is the rust kernel.
+    // Arc 278 the FIRE-OUTCOME wall — `fire-once` returns a matchable
+    // `(:wat::rete::FireOutcome)`, never a bare Session and never a raise. Its two ceilings
+    // (`max-fire-rounds`, `max-session-bytes`) cannot be proven at load, so the failure is
+    // irreducibly dynamic — and a dynamic failure in this substrate is a VALUE.
     env.register(
         ":wat::rete::fire-once$native".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
-            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            ret: TypeExpr::Path(":wat::rete::FireOutcome".into()),
             rest_param_type: None,
         },
     );

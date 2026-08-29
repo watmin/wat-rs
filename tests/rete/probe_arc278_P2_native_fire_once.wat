@@ -61,30 +61,30 @@
   (:wat::core::first (:wat::rete::collect-derived (:wat::rete::Session/production-memory s))))
 
 (:wat::core::defn :user::compile-cw-fires-once-nothing [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-once (:test::compile-cw))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::compile-cw)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::count-native-oslo [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-once (:test::staged-oslo))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::staged-oslo)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::count-wat-oslo [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-once$oracle (:test::staged-oslo))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-once$oracle (:test::staged-oslo)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::count-native-bergen [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-once (:test::staged-bergen))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::staged-bergen)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::count-wat-bergen [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-once$oracle (:test::staged-bergen))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-once$oracle (:test::staged-bergen)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 ;; native_derives_the_right_fact — the native-derived fact is a ColdAndWindy at "Oslo" (content, not just count).
 (:wat::core::defn :user::native-fact-type [] -> :wat::core::String
-  (:wat::core::type (:test::cw-fact (:wat::rete::fire-once (:test::staged-oslo)))))
+  (:wat::core::type (:test::cw-fact (:wat::core::match (:wat::rete::fire-once (:test::staged-oslo)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))))
 
 (:wat::core::defn :user::native-fact-location [] -> :wat::core::String
-  (:test::cw-loc (:wat::rete::fire-once (:test::staged-oslo))))
+  (:test::cw-loc (:wat::core::match (:wat::rete::fire-once (:test::staged-oslo)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 ;; native_no_cross_loc_leakage — 2×2: 2 Temps × 2 Winds / 2 locs → exactly the 2 same-loc joins → 2 derived.
 (:wat::core::defn :user::count-native-2x2 [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-once (:test::staged-2x2))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::staged-2x2)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::count-wat-2x2 [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-once$oracle (:test::staged-2x2))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-once$oracle (:test::staged-2x2)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))

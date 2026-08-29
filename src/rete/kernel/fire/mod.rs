@@ -1206,8 +1206,13 @@ pub(crate) fn eval_fire_once_native(
     }
 
     // Evaluate the session argument, then delegate to the pure single-pass fn.
+    //
+    // ⛔ THE WALL STANDS HERE, at the wat boundary. `fire_once_session` still returns a
+    // `Result<Session>` because its other reader is rust; this is the one place `fire-once`
+    // becomes a wat value, so it is the one place the ceilings become matchable arms rather than
+    // a raise that unwinds past the caller. See `rete::kernel::outcome`.
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    fire_once_session(&session, sym)
+    crate::rete::kernel::outcome::fire_result_to_outcome(fire_once_session(&session, sym))
 }
 
 // ── Cascade fixpoint helpers (P4a) ───────────────────────────────────────────

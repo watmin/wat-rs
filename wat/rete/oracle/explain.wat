@@ -60,16 +60,38 @@
                                   (:wat::rete::Session/production-memory oracle-sess))
                     closed      (:wat::rete::merge-facts input derived)
                     empty       (:wat::core::PersistentMap)
-                    replay      (:wat::rete::fire-once$oracle
-                                  (:wat::rete::Session
-                                    :network (:wat::rete::Session/network session)
-                                    :rules (:wat::rete::Session/rules session)
-                                    :alpha-memory empty
-                                    :beta-memory empty
-                                    :production-memory empty
-                                    :facts closed
-                                    :next-id (:wat::rete::Session/next-id session)
-                                    :query-memory empty))
+                    ;; ⛔ HAND-FACED, not codemod'd — arc 278 the fire-outcome wall. This is a
+                    ;; STDLIB site with per-site semantics (the oracle's own replay), and the
+                    ;; codemod is a wat program that cannot load while the stdlib is red, so the
+                    ;; bootstrap order is: face this by hand, THEN sweep the corpus with the tool.
+                    ;; Same precedent as the connect'-wall codemod, whose header records that its
+                    ;; stdlib sites were hand-faced for exactly this reason.
+                    ;;
+                    ;; The `$oracle` enforces no ceilings, so it can only ever answer `Fired` —
+                    ;; the standing accepted asymmetry ("the $oracle is the reference an embedder
+                    ;; never runs"). The other two arms are therefore UNREACHABLE HERE, and they
+                    ;; say so loudly rather than being swallowed: if one ever fires, the oracle has
+                    ;; grown a ceiling and this comment is the thing that was wrong.
+                    replay      (:wat::core::match
+                                  (:wat::rete::fire-once$oracle
+                                    (:wat::rete::Session
+                                      :network (:wat::rete::Session/network session)
+                                      :rules (:wat::rete::Session/rules session)
+                                      :alpha-memory empty
+                                      :beta-memory empty
+                                      :production-memory empty
+                                      :facts closed
+                                      :next-id (:wat::rete::Session/next-id session)
+                                      :query-memory empty))
+                                  ((:wat::rete::FireOutcome::Fired __replayed) __replayed)
+                                  ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds)
+                                    (:wat::kernel::assertion-failed!
+                                      "fire-rules-explain$oracle: the oracle replay hit a memory ceiling — the oracle enforces none"
+                                      :wat::core::None :wat::core::None))
+                                  ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still)
+                                    (:wat::kernel::assertion-failed!
+                                      "fire-rules-explain$oracle: the oracle replay hit a round cap — the oracle enforces none"
+                                      :wat::core::None :wat::core::None)))
                     support     (:wat::rete::harvest-support
                                   (:wat::rete::Session/network replay)
                                   (:wat::rete::Session/beta-memory replay)

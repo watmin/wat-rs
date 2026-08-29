@@ -128,9 +128,15 @@
 ;; Recomputes all memories from Session.facts each call (re-run-from-scratch); derived facts
 ;; go to production-memory only — they do not re-enter facts here (cascade is `fire-rules`'s job).
 ;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::core::Record).
+;;
+;; ⛔ RETURNS `(:wat::rete::FireOutcome)` TOO — the dual-impl contract is that the oracle and the
+;; native answer the same TYPE, and a differential harness that had to unwrap one side only would
+;; be comparing two different things. It can only ever answer `Fired`: the oracle enforces no
+;; ceilings, which is the standing accepted asymmetry (*"the `$oracle` is the slow-but-correct
+;; reference an embedder never runs"*) — the same asymmetry the round cap already carries.
 (:wat::core::defn :wat::rete::fire-once$oracle
   [session <- :wat::rete::Session]
-  -> :wat::rete::Session
+  -> :wat::rete::FireOutcome
   (:wat::core::let [network  (:wat::rete::Session/network session)
                     rules    (:wat::rete::Session/rules   session)
                     _export (:wat::core::Option/expect
@@ -161,20 +167,28 @@
                     new-pmem (:wat::rete::walk-prod-ids network filtered-bmem rules node-ids 0
                                  (:wat::core::PersistentMap))
                     qmem     (:wat::rete::collect-query-memory network filtered-bmem)]
-    (:wat::rete::Session
-      :network (:wat::rete::Session/network session)
-      :rules (:wat::rete::Session/rules   session)
-      :alpha-memory new-amem
-      :beta-memory filtered-bmem
-      :production-memory new-pmem
-      :facts facts
-      :next-id (:wat::rete::Session/next-id session)
-      :query-memory qmem)))
+    (:wat::rete::FireOutcome::Fired
+      (:wat::rete::Session
+        :network (:wat::rete::Session/network session)
+        :rules (:wat::rete::Session/rules   session)
+        :alpha-memory new-amem
+        :beta-memory filtered-bmem
+        :production-memory new-pmem
+        :facts facts
+        :next-id (:wat::rete::Session/next-id session)
+        :query-memory qmem))))
 
 ;; fire-once — public single-pass verb. Keyword-head is rust; this defn is the first-class Fn.
+;;
+;; ⛔ RETURNS A MATCHABLE `(:wat::rete::FireOutcome)`, NOT a bare Session. A fire carries two
+;; ceilings (`max-fire-rounds`, `max-session-bytes`) that cannot be proven at load, so the failure
+;; is irreducibly dynamic — and a dynamic failure here is a VALUE the caller must handle, never a
+;; raise that unwinds past them. The `Fired` arm carries the session; the ceiling arms carry no
+;; session because a caller already holds the one it passed in (Session is an immutable value), so
+;; nothing half-fired can escape.
 (:wat::core::defn :wat::rete::fire-once
   [session <- :wat::rete::Session]
-  -> :wat::rete::Session
+  -> :wat::rete::FireOutcome
   (:wat::rete::fire-once$native session))
 
 ;; collect-derived — flatten production-memory's per-node (PV :- [Record]) values into one (PV :- [:wat::core::Record]).
@@ -224,7 +238,20 @@
 (:wat::core::defn :wat::rete::fire-fixpoint
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
-  (:wat::core::let [fired     (:wat::rete::fire-once$oracle session)
+  ;; ⛔ HAND-FACED (arc 278 the fire-outcome wall) — a STDLIB site, per-site semantic, and the
+  ;; codemod is a wat program that cannot load while the stdlib is red. The oracle enforces no
+  ;; ceilings, so only `Fired` is reachable; the other arms say so loudly instead of being
+  ;; swallowed, so that if the oracle ever grows a ceiling this comment is what was wrong.
+  (:wat::core::let [fired     (:wat::core::match (:wat::rete::fire-once$oracle session)
+                               ((:wat::rete::FireOutcome::Fired __f) __f)
+                               ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds)
+                                 (:wat::kernel::assertion-failed!
+                                   ":wat::rete::fire-fixpoint: the oracle hit a memory ceiling — the oracle enforces none"
+                                   :wat::core::None :wat::core::None))
+                               ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still)
+                                 (:wat::kernel::assertion-failed!
+                                   ":wat::rete::fire-fixpoint: the oracle hit a round cap — the oracle enforces none"
+                                   :wat::core::None :wat::core::None)))
                     derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
                     old-facts (:wat::rete::Session/facts session)
                     new-facts (:wat::rete::merge-facts old-facts derived)]
@@ -342,7 +369,17 @@
                                 :facts closed
                                 :next-id (:wat::rete::Session/next-id session)
                                 :query-memory (:wat::core::PersistentMap))
-                    q-fired   (:wat::rete::fire-once$oracle q-seed)]
+                    ;; HAND-FACED, same reason as `fire-fixpoint` above.
+                    q-fired   (:wat::core::match (:wat::rete::fire-once$oracle q-seed)
+                               ((:wat::rete::FireOutcome::Fired __f) __f)
+                               ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds)
+                                 (:wat::kernel::assertion-failed!
+                                   ":wat::rete::fire-stratified: the oracle hit a memory ceiling — the oracle enforces none"
+                                   :wat::core::None :wat::core::None))
+                               ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still)
+                                 (:wat::kernel::assertion-failed!
+                                   ":wat::rete::fire-stratified: the oracle hit a round cap — the oracle enforces none"
+                                   :wat::core::None :wat::core::None)))]
     (:wat::rete::Session
       :network (:wat::rete::Session/network session)
       :rules (:wat::rete::Session/rules   session)

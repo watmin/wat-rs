@@ -192,6 +192,40 @@
    next-id           <- :wat::core::i64
    query-memory      <- :wat::core::PersistentMap])
 
+;; ─── FireOutcome — a fire's bounded result, as a VALUE ───────────────────────────────────────
+;;
+;; ⛔ WHY AN ENUM AND NOT A RAISE. A session carries two ceilings — `max-fire-rounds` and
+;; `max-session-bytes` — and both are enforced at RUNTIME because they CANNOT be proven at load.
+;; eBPF refuses an unbounded program statically; this substrate measured that it cannot follow:
+;; a guarded counter's bound is its SEED, which is input data (arc 278, "provably TERMINATING,
+;; not provably BOUNDED"). So the failure is irreducibly dynamic — and a dynamic failure here is
+;; a matchable value, never an unwinding raise. Builder: *"let's impose session's strict limits
+;; via totality."* The same wall `RecvOutcome`/`SendOutcome` put on comms, now on the engine.
+;;
+;; ⛔ THE FAILURE ARMS CARRY NO SESSION, AND THAT IS WHAT MAKES THIS CLEAN. `Session` is an
+;; immutable VALUE, so a caller that gets a ceiling arm still holds the session it passed in.
+;; Nothing half-fired escapes and there is no mid-fixpoint session with inconsistent memories to
+;; hand back — the objection this shape would normally founder on, dissolved by value semantics.
+;;
+;;   :Fired                 [session]              — the happy path; the fired session.
+;;   :MemoryCeilingExceeded [limit used rounds]    — past `max-session-bytes`. `rounds` is rounds
+;;                                                   COMPLETED: 0 says the growth was FANOUT
+;;                                                   (multiplying inside one round), which the
+;;                                                   round cap cannot see.
+;;   :RoundCapExceeded      [cap still-deriving]   — past `max-fire-rounds`. `still-deriving` is
+;;                                                   the evidence it was still GROWING, not merely
+;;                                                   deep.
+;;
+;; Pure: every payload is plain data (a Session, i64s) — no fd, no peer, nothing live. That is the
+;; honest marking, and it is what lets a FireOutcome cross a wire like any other rete value.
+(:wat::core::defenum :wat::rete::FireOutcome :wat::enum::Pure
+  :Fired                 [session <- :wat::rete::Session]
+  :MemoryCeilingExceeded [limit <- :wat::core::i64
+                          used <- :wat::core::i64
+                          rounds <- :wat::core::i64]
+  :RoundCapExceeded      [cap <- :wat::core::i64
+                          still-deriving <- :wat::core::i64])
+
 (:wat::core::typealias :wat::rete::GroupByMap
   (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])]))
 (:wat::core::typealias :wat::rete::ClassFields

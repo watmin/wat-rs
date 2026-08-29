@@ -123,12 +123,26 @@ the same power.
   already carries `(defenum :wat::rete::Axis :wat::enum::Pure)`, and arc 296's doctrine is *wat is
   the source of truth; Rust consumes it*. `RecvOutcome` is a `types.rs` builtin only because
   `recv'` is used inside the stdlib before a wat `defenum` would load; rete has no such load-order
-  problem. **The mechanism exists:** `::wat_source_derive::wat_enum_from!` reads a `.wat` `defenum`
-  at BUILD time and emits the registration (`src/intrinsic/mod.rs:54,60,66`), and
-  `builtin_enum_variant_names` (`runtime.rs:22813`) already carries a `.wat`-declared-exceptions
-  arm for exactly the case where Rust must CONSTRUCT a wat-declared variant — which `insert` and
-  `fire-rules` will, being native. Rust builds the value with `Value::Enum(Arc::new(EnumValue{…}))`;
-  `next_outcome_item` (`runtime.rs:12798`) is the two-field exemplar to copy.
+  problem.
+
+  ⚠ **THE MECHANISM, CORRECTED 2026-08-29 BY BUILDING IT — the first draft of this stone named the
+  wrong macro.** It said `wat_enum_from!`, which mirrors a wat `defenum` into a RUST enum and
+  handles UNIT variants only (`src/intrinsic/mod.rs:54,60,66` — `Kind`, `DefinedIn`, `Layer`, all
+  unit). `FireOutcome`'s variants are TAGGED, and Rust does not need a mirror; it needs the field
+  NAMES so it can construct a `Value::Enum`. Two facts settle it:
+  - A wat `defenum` registers its own TypeDef when the file loads, so **the checker needs nothing
+    added to `types.rs`.**
+  - `builtin_enum_variant_names` (`runtime.rs:22813`) **PANICS** on a type `TypeEnv::with_builtins`
+    does not carry (*"is not a registered builtin enum"*), which is why it opens with a
+    `.wat`-declared exceptions table. The entries there come from
+    **`::wat_source_derive::wat_enum_field_names_from!(CONST, "<file>.wat", ":type", "Variant")`**
+    (`runtime.rs:22730`, for `ServiceEvent`) — the names read from the wat source at BUILD time, so
+    wat stays the source of truth and a renamed field is a compile error, not a runtime surprise.
+
+  So the recipe is: `defenum` in wat → one `wat_enum_field_names_from!` per tagged variant → an arm
+  in `builtin_enum_variant_names` → construct with `Value::Enum(Arc::new(EnumValue{…}))`.
+  `next_outcome_item` (`runtime.rs:12798`) is the two-field construction exemplar.
+  **This is exactly what sending the 31-site verb first was for.**
 
 **THE FAILURE ARMS CARRY NO SESSION, and that is what makes this clean.** `Session` is an immutable
 VALUE, so the caller still holds the pre-call one. Nothing half-fired or half-staged escapes, and
@@ -181,10 +195,46 @@ The unknowns it settles, all of them cheap to learn at 31 sites and expensive at
 - does the `$oracle` dual-impl contract hold when only the native side can produce a failure arm?
 
 1. ~~**S1** — one contract, two doors, still raising.~~ **LANDED.**
-2. **S2a — `fire-once` end to end.** `FireOutcome` in wat, the derive, the rust construction, the
-   signature, and its 31 call sites migrated by a recorded codemod. Floor green before anything
-   else moves. **This is the strike that proves the pattern.**
-3. **S2b — `fire-rules` + `fire-rules-explain`** on the proven pattern (529 + explain).
+2. ~~**S2a — `fire-once` end to end.**~~ **LANDED 2026-08-29 — and it earned its keep. What the
+   31-site verb settled, each of which would have been expensive to learn at 530:**
+
+   - ⛔ **The macro was the WRONG ONE, twice over.** This stone first said `wat_enum_from!`; that
+     mirrors a wat `defenum` into a RUST enum and takes UNIT variants only. Rust does not want a
+     mirror — it wants the FIELD NAMES, via `wat_enum_field_names_from!`, plus an arm in
+     `builtin_enum_variant_names` (which **panics** on a type `with_builtins()` does not carry).
+     And `types.rs` needs NOTHING: a wat `defenum` registers its own TypeDef at load.
+   - ⛔ **THE STDLIB IS A BOOTSTRAP TRAP, and it stopped the codemod dead.** `wat/rete/oracle/`
+     itself calls `fire-once$oracle` (3 sites). Reshaping the verb turned the STDLIB red — and the
+     codemod is a *wat program*, so it could not load to fix anything. **Hand-face the stdlib
+     sites first, THEN sweep the corpus with the tool.** This is not a doctrine violation; it is
+     the connect'-wall codemod's own recorded practice (*"the stdlib sites … were hand-faced
+     (per-site semantic …), not uniform codemod material"*). ⚠ **`fire-rules` has MORE stdlib
+     sites than `fire-once` did — expect this first, not as a surprise.**
+   - ⛔ **The stdlib is `include_str!`'d** (`stdlib.rs:41`), so a `.wat` edit is invisible until
+     `cargo build`. Two of my "the codemod is still broken" readings were a stale binary.
+   - ⚠ **wat inside a Rust `format!` is invisible to any `.wat` tree-walk.**
+     `benches/perf_arc278_fire_baseline.rs:107` builds a program as a string; hand-faced. **Grep
+     `.rs` for embedded rete verbs before declaring a sweep complete.**
+   - ✅ **A call site reads fine.** `(f (fire-once s))` becomes `(f (match (fire-once s) ((Fired
+     __fired) __fired) (…ceiling arms… assertion-failed!)))` — one line, and the ceiling arms are
+     LOUD rather than swallowed, which is the honest disposition for a fixture deriving a handful
+     of facts against a 1 GiB default.
+   - ✅ **The `$oracle` dual-impl contract holds.** It returns the same TYPE and can only answer
+     `Fired`, covered by the standing asymmetry (*"the reference an embedder never runs"*).
+   - ✅ **The codemod is written, dry-run-diffed, and IDEMPOTENT** —
+     `wat-scripts/fixes/wrap-fire-once-in-fireoutcome.wat`. **It is the tool that sweeps
+     `fire-rules`:** change the two head keywords and the arm strings. Writing 177 lines for 13
+     sites was never the argument; writing it once for 1_182 is.
+   - ⚠ **Its binders are `__`-prefixed on purpose.** The connect' codemod used a bare `p`, which
+     SHADOWS any same-named enclosing binding at every site it rewrites. It got away with it at
+     160 sites; a 1_182-site sweep will not.
+
+3. **S2b — `fire-rules` + `fire-rules-explain` (529 + explain), NEXT.** The enum, the derive, the
+   `builtin_enum_variant_names` arms and the codemod all EXIST — this reuses them. Order: hand-face
+   the stdlib sites first (there are more than `fire-once` had), rebuild, then sweep with a copy of
+   `wrap-fire-once-in-fireoutcome.wat` carrying the two head keywords changed.
+   `fire-rules-explain` returns `:wat::rete::Explained`, so it needs the one open decision — an
+   `ExplainOutcome`, or `Explained` reached through `FireOutcome`.
 4. **S2c — `insert` / `insert-all`** with `InsertOutcome` (640).
 5. **S2d — the lint wall:** a ceiling breach may not be constructed as a raise anywhere in rete.
    The rung that stops the class regrowing; the recv wall's S4 is the shape to copy.

@@ -47,7 +47,7 @@
 ;; over a workload that matches nothing. `fire-once` is deliberately left untouched by this stone.
 (:wat::core::defn :user::single-pass-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
-    [fired (:wat::rete::fire-once (:afs::built))
+    [fired (:wat::core::match (:wat::rete::fire-once (:afs::built)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))

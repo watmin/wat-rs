@@ -22733,6 +22733,31 @@ pub(crate) fn no_field_names() -> Arc<Vec<String>> {
     ":wat::spawn::ServiceEvent",
     "Admin"
 );
+
+// Arc 278 the FIRE-OUTCOME wall — `(:wat::rete::FireOutcome)`'s tagged variants, declared in
+// `wat/rete.wat` and read from that source at BUILD time. wat is the source of truth (arc 296);
+// these constants exist because `TypeEnv::with_builtins` does not carry a wat-declared enum, so
+// `builtin_enum_variant_names` would panic on it. A renamed field in the `defenum` becomes a
+// COMPILE error here rather than a runtime surprise at the first ceiling breach — which is the
+// whole point of deriving them instead of writing them out.
+::wat_source_derive::wat_enum_field_names_from!(
+    FIRE_OUTCOME_FIRED_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::FireOutcome",
+    "Fired"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    FIRE_OUTCOME_MEMORY_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::FireOutcome",
+    "MemoryCeilingExceeded"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    FIRE_OUTCOME_ROUNDS_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::FireOutcome",
+    "RoundCapExceeded"
+);
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_CONNECTION_FIELDS,
     "wat/spawn.wat",
@@ -22844,6 +22869,17 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
             return crate::value::value::names_arc_from_static(CELL_STR_FIELDS)
         }
         (":wat::sqlite::Cell", "Nil") => return no_field_names(),
+        // Arc 278 the fire-outcome wall — declared in `wat/rete.wat`, so `with_builtins()` does
+        // not carry it and the registry lookup below would panic.
+        (":wat::rete::FireOutcome", "Fired") => {
+            return crate::value::value::names_arc_from_static(FIRE_OUTCOME_FIRED_FIELDS)
+        }
+        (":wat::rete::FireOutcome", "MemoryCeilingExceeded") => {
+            return crate::value::value::names_arc_from_static(FIRE_OUTCOME_MEMORY_FIELDS)
+        }
+        (":wat::rete::FireOutcome", "RoundCapExceeded") => {
+            return crate::value::value::names_arc_from_static(FIRE_OUTCOME_ROUNDS_FIELDS)
+        }
         _ => {}
     }
     static ENV: OnceLock<crate::types::TypeEnv> = OnceLock::new();
