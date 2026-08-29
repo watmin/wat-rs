@@ -964,7 +964,33 @@ it is a finding, not a lack of time:
 ever occurs as `Bind/left` of a uuid holon, so a rule can only hold one if HOST wat put it in a
 field. Reachable, but not constructible inside a fence.
 
-8. **THE TERMINATION VERIFIER REFUSES A CLASS OF PROVABLY BOUNDED RECURSION.** Reported by
+8. **THE TERMINATION VERIFIER — the FINITE-TYPE half is BUILT (2026-08-29); the fence half stays
+   refused.** A computed head whose fields are all finite-typed is now ADMITTED: `bool` and unit
+   `defenum` cycles compile and converge, and the `i64` axis — where the danger was measured — is
+   untouched. `stratify.rs`'s `domain_cardinality` + `computed_fields_are_provably_finite`, capped
+   at `MAX_PROVABLE_FACT_POPULATION = 10_000` so a provably-finite-but-enormous product (twenty
+   `bool` fields is 2^20) is refused as "too large to prove" rather than admitted on a technicality.
+
+   ⚠ **THE ANALYSIS I DESIGNED WAS BIGGER THAN THE ONE THAT WAS NEEDED, and building it showed
+   that.** The plan was exhaustive closure — evaluate the `:then` at every point of a finite domain
+   and take the reachable set, licensed by (pure ∧ deterministic ∧ total ∧ non-recursive). **No
+   evaluation was required.** If every computed field's type has finitely many inhabitants then the
+   fact type does, dedup bites at that count, and the fixpoint converges — the CARDINALITY alone is
+   the proof, and the closure would only have tightened a bound that did not need tightening (the
+   enum cycle reaches 2 of 3; 3 is already sufficient). The evaluation machinery stays available and
+   unbuilt. **Design the smallest thing that discharges the obligation, then check whether the
+   obligation is smaller than the design.**
+
+   ⚠ **AND THE FIRST CUT SILENTLY REFUSED EVERYTHING IT WAS WRITTEN TO ADMIT.** It walked the
+   `:then` as `:field value` pairs, which is what the SOURCE looks like — but by the time
+   `stratify` sees the form, `reorder_then_kwargs` has already normalised it into POSITIONAL
+   declaration order and dropped the keywords. `(:ft::F :flag (not ?b))` arrives as
+   `(:ft::F (not ?b))`. The walk found no keyword and bailed to `None`, which is the CONSERVATIVE
+   direction — so it compiled, passed every existing test, and did nothing. Found by instrumenting
+   the bail points, not by reading. **A conservative default makes a broken analysis look like a
+   working one.**
+
+   ~~THE TERMINATION VERIFIER REFUSES A CLASS OF PROVABLY BOUNDED RECURSION.~~ Reported by
    claude-compute (the main x grok-rete integration branch) 2026-08-28 as
    `~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`. **Weighed against
    this tree and CONFIRMED** — every citation checked, and the refusal reproduced by driving:

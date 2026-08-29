@@ -188,6 +188,51 @@ fn a_mint_hidden_inside_a_rete_fn_body_is_refused() {
     assert_eq!(field_str(&e, "fact-type"), "fm::N");
 }
 
+/// ★ A FINITE-TYPED COMPUTED HEAD IS ADMITTED, AND CONVERGES — the eBPF `[u32; 16]` bound,
+/// computed instead of declared.
+///
+/// `(:ft::F :flag (not ?b))` has a fact population of TWO. It was refused for the life of the
+/// check, because the cyclicity test measures RANGE RESTRICTION (a syntactic property — the head's
+/// value came from the body) and finiteness is a TYPE property. A domain of two was refused exactly
+/// as an unbounded `i64` counter is.
+///
+/// ⛔ THE SECOND HALF IS THE LOAD-BEARING ONE, and it is why this row is not just `assert ok`.
+/// Admitting on the wrong axis is far worse than refusing: the `i64` shapes are where the danger
+/// was MEASURED — unguarded `i64` reaches an allocator abort in 6.2s with no wat diagnostic,
+/// because the round cap counts ROUNDS and a fanout diverges within one. So this row pins that the
+/// admission did NOT widen that axis. If a future relaxation lets an `i64` computed head through,
+/// this fails here rather than in someone's process.
+#[test]
+fn a_finite_typed_computed_head_is_admitted_and_the_i64_axis_is_not() {
+    let (ok, stdout, stderr) = run("tests/rete/probe_arc278_termination_finite_domain.wat");
+    assert!(
+        ok,
+        "a computed head over a 2-inhabitant type cannot mint unboundedly — it must compile\n{stdout}{stderr}"
+    );
+    assert_eq!(
+        stdout.trim(),
+        "2",
+        "and it must CONVERGE at the population, not merely compile — 2 is {{F(true), F(false)}}, \
+         the product of the cardinalities. A number other than 2 means the admission is resting on \
+         something other than the bound it claims.\n{stderr}"
+    );
+
+    // THE AXIS THAT MUST NOT MOVE. Each of these has a computed `i64` head; each is refused today
+    // and must stay refused. `_guarded` terminates (at 501) and is refused anyway — that is the
+    // KNOWN narrowing, item 8, and it is deliberately still here: this admission reads the TYPE,
+    // never the `where` fence.
+    for fixture in [
+        "tests/rete/probe_arc278_fixpoint_round_cap.wat",
+        "tests/rete/probe_arc278_termination_fn_head.wat",
+        "tests/rete/probe_arc278_termination_guarded_counter.wat",
+    ] {
+        let (ok, _out, err) = run(fixture);
+        assert!(!ok, "{fixture} must still be refused");
+        let e = rete_error(&err, "RuleSetMayNotTerminate");
+        let _ = e;
+    }
+}
+
 /// THE GUARDED COUNTER — refused, and it terminates. Both halves are the assertion.
 ///
 /// `N(k+1) :- N(k), (where (< ?k 500))` halts at k=500 and is refused anyway, because the

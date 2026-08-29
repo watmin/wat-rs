@@ -398,6 +398,11 @@ struct RuleEdge {
     consumed: Vec<String>,
     /// The `:then` form that computes rather than copies, if any, with its own span for the error.
     computed: Option<(String, crate::span::Span)>,
+    /// `Some(n)` when that form's COMPUTED fields are all finite-typed and their product is `n`,
+    /// under [`MAX_PROVABLE_FACT_POPULATION`]. A cycle through such a form terminates after at
+    /// most `n` distinct facts, so it is admitted. `None` is "this analysis cannot bound it" —
+    /// never "unbounded"; see [`domain_cardinality`].
+    provably_finite: Option<u128>,
 }
 
 /// Does a rete fn's BODY construct a fact from a computed value?
@@ -484,6 +489,104 @@ fn then_form_computes(form: &WatAST) -> bool {
     items.iter().skip(1).any(|a| matches!(a, WatAST::List(..)))
 }
 
+/// The largest fact population this analysis will certify as finite.
+///
+/// A finite domain still has to FIT. Twenty `bool` fields is 2^20 facts — provably terminating and
+/// an allocator abort all the same, which is the exact failure this whole item exists to stop. So
+/// the product of cardinalities is capped, and over the cap the rule is refused with "too large to
+/// prove" rather than admitted on a technicality.
+///
+/// **10_000 matches `DEFAULT_MAX_FIRE_ROUNDS` deliberately.** Both answer the same question — how
+/// much derivation is this engine willing to stand behind — and two different numbers for one
+/// question is a second place for a number to rot (FM 30). If one moves, both should be argued.
+const MAX_PROVABLE_FACT_POPULATION: u128 = 10_000;
+
+/// How many values can inhabit `ty`? `None` = not finite, or not finitely KNOWABLE here.
+///
+/// ⛔ `None` MEANS ONE THING ONLY: "this analysis cannot bound it." It is never "unbounded" as a
+/// fact about the world — an `i64` field constrained by a `where` fence may well be finite, and
+/// saying so is the fence half of this item, deliberately not attempted. Conflating the two is
+/// this arc's most-repeated defect, so the name and this note keep them apart.
+fn domain_cardinality(ty: &crate::types::TypeExpr, types: &crate::types::TypeEnv) -> Option<u128> {
+    let crate::types::TypeExpr::Path(p) = ty else {
+        // Parametric / fn / tuple types: a container's population is its element type's raised to
+        // an unbounded length. Not finite, and not this strike's business.
+        return None;
+    };
+    match p.as_str() {
+        // The only primitive small enough to enumerate. `i64`/`f64`/`String`/`keyword` are 2^64 and
+        // up — infeasible by exhaustion, which is why the fence half stays punted.
+        ":wat::core::bool" => Some(2),
+        _ => match types.get(p)? {
+            // A `defenum`'s inhabitants are its variants — but ONLY when every variant is a unit.
+            // A payload-carrying variant's population is its payload's, which reintroduces the
+            // whole question one level down; refusing here keeps the analysis one level deep.
+            crate::types::TypeDef::Enum(e) => e
+                .variants
+                .iter()
+                .all(|v| matches!(v, crate::types::EnumVariant::Unit(_)))
+                .then_some(e.variants.len() as u128),
+            _ => None,
+        },
+    }
+}
+
+/// Is every COMPUTED field of this `:then` form finite-typed, with a population under the cap?
+///
+/// ── WHY THIS ADMITS WHAT THE CYCLICITY TEST REFUSES ──────────────────────────────────────────
+///
+/// Range restriction is a SYNTACTIC property — the head's value came from the body. Finiteness is a
+/// TYPE property. The cyclicity test measures the first, so a fact domain of TWO is refused exactly
+/// as an unbounded `i64` counter is: `(:F :flag (not ?flag))` converges after two rounds and was
+/// refused for the life of the check. Measured 2026-08-29, `bool` → converges at 2, enum(3) → 2,
+/// guarded i64 → 501, unguarded i64 → allocator abort.
+///
+/// COPIED fields are not examined and do not need to be: a copied value comes from a matched fact,
+/// so it is range-restricted by construction — that is the property the whole check is built on.
+/// Only a COMPUTED field can introduce a value that was not already present.
+///
+/// ⚠ CONSTRUCTOR-HEADED FORMS ONLY. A fn-headed `:then` hides its constructor inside the fn body
+/// (`rete_fn_body_mints`), so the fields are not visible here and it stays refused. Widening to it
+/// means walking the body, which is a different strike.
+fn computed_fields_are_provably_finite(form: &WatAST, sym: &SymbolTable) -> Option<u128> {
+    let types = sym.types()?;
+    let head = fact_type_head(form)?;
+    let key = format!(":{}", head.trim_start_matches(':'));
+    let crate::types::TypeDef::Aggregate(def) = types.get(&key)? else {
+        return None;
+    };
+    let WatAST::List(items, _) = form else { return None };
+
+    // ⚠ THE `:then` FORM IS POSITIONAL BY THE TIME IT REACHES HERE, not kwargs.
+    // `(:fd::F :flag (not ?b))` in source arrives as `(:fd::F (not ?b))` — `reorder_then_kwargs`
+    // (`validate.rs`) has already normalised the kwargs into DECLARATION order and dropped the
+    // keywords. So `items[1..]` maps 1:1 onto `def.fields`, and reading it as `:field value` pairs
+    // (which is what the source looks like) finds no keyword and bails. Measured, not assumed: the
+    // first cut walked pairs and silently refused everything it was written to admit.
+    if items.len() != def.fields.len() + 1 {
+        // Arity disagrees with the declaration — a shape this walk does not understand. An
+        // unrecognized shape is NOT proof of finiteness.
+        return None;
+    }
+    let mut population: u128 = 1;
+    let mut saw_computed = false;
+    for (idx, value) in items.iter().enumerate().skip(1) {
+        // A COMPUTED field is a call; anything else is a literal or a bound variable, and a bound
+        // variable is range-restricted by construction — the property the whole check rests on.
+        if !matches!(value, WatAST::List(..)) {
+            continue;
+        }
+        saw_computed = true;
+        let (_, ty) = &def.fields[idx - 1];
+        let card = domain_cardinality(ty, types)?;
+        population = population.checked_mul(card)?;
+        if population > MAX_PROVABLE_FACT_POPULATION {
+            return None;
+        }
+    }
+    saw_computed.then_some(population)
+}
+
 /// Refuse a rule set that cannot be proven to terminate.
 ///
 /// See the doctrine block above. Called from `arm-session`, so it covers every rule that reaches
@@ -528,8 +631,13 @@ pub(crate) fn refuse_non_terminating(
                     f.span().clone(),
                 )
             });
+        let provably_finite = rhs
+            .iter()
+            .find(|f| then_form_computes(f) || rete_fn_body_mints(f, sym))
+            .and_then(|f| computed_fields_are_provably_finite(f, sym));
         edges.push(RuleEdge {
             name,
+            provably_finite,
             produced: rule_produces(&rhs, sym),
             consumed: rule_consumes(&lhs),
             computed,
@@ -595,7 +703,26 @@ pub(crate) fn refuse_non_terminating(
                     .get(p)
                     .is_some_and(|rs| rs.iter().any(|t| e.consumed.contains(t)))
         });
+        // ── THE FINITE-DOMAIN ADMISSION ─────────────────────────────────────────────────────
+        //
+        // A cycle whose computed fields are all finite-typed cannot mint an unbounded stream of
+        // facts: the fact population is the product of those cardinalities, dedup bites at that
+        // count, and the fixpoint converges. Driven 2026-08-29 with the check disarmed —
+        // `(:F :flag (not ?flag))` converged at exactly 2, the product.
+        //
+        // This is eBPF's `[u32; 16]` bound COMPUTED rather than declared: the ceiling comes from
+        // the shape of the state, and nothing is trusted. It is not an escape hatch — the author
+        // asserts nothing and there is nothing to assert. A type either has finitely many
+        // inhabitants or it does not.
+        //
+        // ⛔ IT DOES NOT WIDEN THE `i64` AXIS, which is where the danger measured. An `i64`
+        // computed field is `None` here and stays refused, so the shape that reaches an allocator
+        // abort in 6.2s is untouched by this admission.
         if cyclic {
+            if let Some(population) = e.provably_finite {
+                let _ = population; // the bound is the PROOF; nothing downstream needs the number yet
+                continue;
+            }
             return Err(crate::runtime::RuntimeError::new(
                 span.clone(),
                 crate::runtime::RuntimeErrorKind::RuleSetMayNotTerminate {
