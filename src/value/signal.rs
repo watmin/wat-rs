@@ -345,8 +345,10 @@ pub enum RuntimeErrorKind {
         limit: usize,
         /// Bytes this session's thread had live when the round boundary was reached.
         used: usize,
-        /// Rounds completed before the ceiling was hit — small here is the SIGNAL, not a detail:
-        /// it says the growth was per-round fanout rather than depth.
+        /// Rounds COMPLETED before the ceiling was hit. **`0` is the common and most informative
+        /// value** — it says the breach happened inside the very first round, i.e. the growth was
+        /// per-round FANOUT rather than depth. A large value means depth, which the round cap
+        /// would also have caught.
         rounds: usize,
     },
     RuleSetMayNotTerminate {
@@ -723,7 +725,8 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::SessionMemoryCeilingExceeded { limit, used, rounds } => write!(
                 f,
                 "{}rete fire-rules: this session used {} bytes in a single fire, past the \
-                 {}-byte `max-session-bytes` ceiling, after {} round(s). The ceiling is PER \
+                 {}-byte `max-session-bytes` ceiling, after {} completed round(s) — 0 means it \
+                 breached inside the FIRST round. The ceiling is PER \
                  SESSION and measured on this session's own thread, so a sibling session on \
                  another thread cannot have caused it. A LOW round count means the growth was \
                  FANOUT — a `:then` deriving several novel facts per fact, which multiplies within \

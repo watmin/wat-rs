@@ -664,22 +664,18 @@ pub(crate) fn fire_fixpoint_delta_armed(
             owned_delta = next_delta;
         }
         phase_end("  └ round:epilogue", __ep);
-        if __done || matches!(kind, FireKind::Once) {
-            break;
-        }
-        // Counted only on rounds that did NOT terminate, so a fire that converges can never trip
-        // this no matter how deep it ran.
-        rounds_run += 1;
-        // ── THE MEMORY CEILING, CHECKED BEFORE THE ROUND CAP ────────────────────────────────
+        // ── THE MEMORY CEILING, CHECKED ON EVERY ROUND INCLUDING THE LAST ───────────────────
         //
-        // Order matters and is not incidental. A FANOUT divergence multiplies within a round, so
-        // it reaches the allocator while `rounds_run` is still in single digits — the round cap
-        // cannot see it and never fires (measured 2026-08-29: allocator abort at 6.2s, no wat
-        // error, no rule named). Checking bytes first is what turns that abort into a diagnostic.
-        // A LINEAR divergence trips the round cap first, as it always did.
+        // ⛔ THIS SITS ABOVE THE `break`, AND THE FIRST CUT DID NOT. Placed below it, the check was
+        // unreachable for a fire that CONVERGED (`__done`) and for every `fire-once` — so it only
+        // covered a multi-round fire still in progress, which is far narrower than the per-session
+        // contract it is named for. A single round can allocate without bound (this file's own
+        // header: "`fanout` derives 40_000 facts in one round"), so "it converged" is not evidence
+        // it was cheap. Found 2026-08-29 when the builder asked whether `insert` could exceed the
+        // limit; the answer sent me back to my own check, which had the same hole one level in.
         //
-        // `saturating_sub`: a fire that FREES more than it allocates (a retraction-heavy pass)
-        // legitimately ends below its entry reading, and that is 0 growth, not an underflow.
+        // `saturating_sub`: a retraction-heavy fire legitimately ends below its entry reading, and
+        // that is 0 growth, not an underflow.
         let grown = crate::alloc_counter::thread_bytes().saturating_sub(bytes_at_entry);
         if grown > max_session_bytes {
             return Err(RuntimeError::new(
@@ -692,6 +688,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
             )
             .into());
         }
+        if __done || matches!(kind, FireKind::Once) {
+            break;
+        }
+        rounds_run += 1;
         if rounds_run >= max_fire_rounds {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),

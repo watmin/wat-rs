@@ -221,11 +221,15 @@ fn a_session_that_outgrows_its_memory_ceiling_says_so_instead_of_aborting() {
         "the reported usage must exceed the limit it tripped; got {}",
         field_i64(&e, "used")
     );
-    // A LOW round count is the signal, not a detail: it distinguishes fanout (multiplies within a
-    // round) from depth (which the round cap already handles).
-    assert!(
-        field_i64(&e, "rounds") >= 1,
-        "the round at which it tripped must be reported"
+    // `rounds` is rounds COMPLETED, so 0 means "tripped during the first round" — which is the
+    // most informative value it can take, not a missing one. A low count is the SIGNAL: it
+    // distinguishes fanout (multiplies within a round) from depth (which the round cap handles).
+    // Asserting `>= 0` on a usize would be vacuous, so this pins the value the fixture produces.
+    assert_eq!(
+        field_i64(&e, "rounds"),
+        0,
+        "this fixture breaches inside its FIRST round, so 0 rounds completed is the honest report \
+         — a non-zero value here would mean the check no longer runs before the round counter"
     );
 
     // NON-VACUITY: the identical workload at the DEFAULT ceiling completes. Without this row a
