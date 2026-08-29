@@ -1129,6 +1129,56 @@ field. Reachable, but not constructible inside a fence.
       converges on. Narrows the REFUSAL.
    They are independent: (1) makes divergence safe, (2) makes provable convergence legal.
 
+   ★★★★★ **WHAT (pure ∧ deterministic ∧ total) ACTUALLY AFFORDS — and it is the mechanism, not a
+   heuristic.** Builder: *"we know its (pure, deterministic, total) … that property set affords us
+   what tooling?"* It affords exactly one thing, and it is the thing this item needs:
+
+   > **The checker may EVALUATE a `:then` expression, at check time, on inputs of its own choosing,
+   > safely.**
+
+   Each property earns one clause of that sentence, and none is spare:
+   - **total** → the evaluation cannot raise mid-analysis. The checker needs no error path for
+     "analysing your program blew up".
+   - **deterministic** → one evaluation per input point SUFFICES. No sampling, no repetition, no
+     flake.
+   - **pure** → evaluating at check time cannot affect the program being checked.
+   - ⚠ **AND A FOURTH THAT THE PHRASE OMITS AND THE ANALYSIS CANNOT DO WITHOUT: non-recursion.**
+     `#87` — *"a rete-defn may not recurse"* (`purity.rs:1774`, `rete_defn_cycle`, a LOAD refusal) —
+     is what makes the evaluation itself terminate. Without it the checker could hang on the very
+     program it is checking. The fence is stated as four conjuncts (`pure? ∧ deterministic? ∧
+     total? ∧ primitive?`) and the recursion wall is a fifth rule kept elsewhere; **for this
+     analysis it is load-bearing and should be cited alongside the other three.**
+
+   The machinery is already reachable: `lower_in_frame` (`expr_ir.rs:230`) builds a `Program`,
+   `exec_value` / `exec_call` run one. Nothing new is needed to evaluate.
+
+   **THE ANALYSIS, THEN — exhaustive closure over finite-typed fields.** For the `bool` cycle:
+   evaluate the `:then` at `flag=true` → `false`, at `flag=false` → `true`; the closure is
+   `{true,false}`, size 2, finite. **Two evaluations and it is PROVEN, not estimated** — and the
+   measured run converged at exactly 2, the product of the cardinalities. This is eBPF's
+   `[u32; 16]` bound *computed* instead of declared.
+
+   | field type | points to evaluate | verdict |
+   |---|---|---|
+   | `bool` | 2 | exhaustive, trivial |
+   | `defenum`, N variants | N | exhaustive |
+   | `i64` / `f64` / `String` | 2^64 and up | **infeasible** — stays refused, and the fence half stays punted |
+
+   Multi-field cycles multiply: `bool × bool` = 4, `enum(10)²` = 100, and it climbs fast.
+
+   ⛔⛔ **SO THE ANALYSIS NEEDS A BUDGET ON ITS OWN WORK — WHICH IS EXACTLY eBPF's 1M-PATH LIMIT,
+   and the builder's first instinct lands after all.** The comparison table above says the ~1M
+   verification-path ceiling has *"n/a — our analysis is a graph walk, it never explodes"*. True of
+   the analysis we HAVE. The analysis this would ADD is a state-space enumeration, and it is
+   precisely the thing a path budget exists to stop. **If the product of cardinalities exceeds the
+   budget, refuse exactly as today** — a refusal that says "too large to prove" rather than
+   "unprovable", which is also the honest message.
+
+   ⚠ **WHAT IT IS NOT: "run their program and see how it explodes".** Running the PROGRAM needs
+   facts, and facts arrive at runtime via `insert` — the checker has none and cannot invent
+   representative ones. What is evaluable is the `:then` EXPRESSION over its input TYPES, which
+   needs no user data at all. That distinction is the difference between a fuzzer and a proof.
+
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
    their reason for themselves?"*). An author's string is not a proof. The direction the design
