@@ -5,21 +5,43 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-29 (LATEST — supersedes the earlier 2026-08-29 stamp and every dated block
-below it). Written against HEAD `52213d3b0`; the commit carrying this stamp lands on top, so a
+**CURRENT STAMP 2026-08-29 (LATEST — supersedes every earlier stamp and every dated block below
+it). Written against HEAD `cb2b58117`; the commit carrying this stamp lands on top, so a
 ONE-COMMIT gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/`
 or `tests/` IS staleness, whatever its size.**
 
-**⛔⛔ START HERE: TOTALITY IS THE WORK, AND ONLY ITS PREREQUISITE IS DONE.**
-Builder: *"let's impose session's strict limits via totality."* Two halves:
+**⛔⛔ START HERE: TOTALITY IS LANDING VERB BY VERB. ONE OF FOUR IS DONE.**
+Builder: *"let's impose session's strict limits via totality."*
 
-- ✅ **S1 — ENFORCEMENT. LANDED.** The session ceiling is now a SESSION ceiling: enforced at BOTH
-  doors, measured from `compile-all`, not from fire entry. `RETE-OPEN-WORK.md` item 9 is CLOSED.
-- ⛔ **S2 — TOTALITY. DESIGNED, PINNED, NOT STARTED.** `fire-rules` and `insert` still RAISE, and
-  their signatures still say `Session -> Session`. **The full design, with the contract decision
-  pinned, is `DESIGN-STONE-the-session-is-the-boundary.md` § S2 — read it before touching a call
-  site.** Item 10 carries the summary. **Start with `fire-once` (31 sites), NOT `fire-rules` (529)**
-  — the small verb settles every unknown in the pattern before the corpus rides on the answer.
+- ✅ **S1 — ENFORCEMENT.** The session ceiling is a SESSION ceiling: both doors, measured from
+  `compile-all`. Item 9 CLOSED.
+- ✅ **S2a — `fire-once` IS TOTAL.** Returns `(:wat::rete::FireOutcome)`; `Fired` carries the
+  session, the two ceiling arms carry none (the caller still holds the session it passed in).
+- ⛔ **S2b — `fire-rules` (529 sites) + `fire-rules-explain`. NEXT.** Still `Session -> Session`,
+  still raising. **Everything it needs already exists** — the enum, the derives, the
+  `builtin_enum_variant_names` arms, and a proven idempotent codemod. **Read
+  `DESIGN-STONE-the-session-is-the-boundary.md` § S2 before touching a call site.**
+- ⛔ **S2c — `insert`/`insert-all` (640)** with `InsertOutcome`. ⛔ **S2d — the lint wall.**
+
+**⚠ THE ORDER FOR S2b, LEARNED THE HARD WAY ON S2a — do NOT rediscover it:**
+1. **Hand-face the STDLIB sites FIRST.** `wat/rete/oracle/` calls these verbs itself, so reshaping
+   turns the stdlib red — and **the codemod is a wat program, so it then cannot load to fix
+   anything.** `fire-rules` has MORE such sites than `fire-once` did.
+2. **`cargo build` after any `.wat` edit** — the stdlib is `include_str!`'d (`stdlib.rs:41`), so a
+   wat change is invisible until you rebuild. Two of my "still broken" readings were a stale binary.
+3. **Then sweep** with a copy of `wat-scripts/fixes/wrap-fire-once-in-fireoutcome.wat` (two head
+   keywords changed). Dry-run on a `/tmp` copy and `diff` before touching the corpus.
+4. **Grep `.rs` for embedded rete verbs.** wat inside a Rust `format!` is invisible to any `.wat`
+   tree-walk — `benches/perf_arc278_fire_baseline.rs` was one, found only by the compiler.
+
+**★★ ITEM 11'S CLASS IS DEAD — killed by its own FIFTH occurrence, on this very work.** 36 lines of
+derives moved `runtime.rs`'s `rust_caller_span!` sentinel and reddened five goldens at once. Four
+prior occurrences were all patched at the STEM (bump the integer); a fifth was guaranteed because
+S2b/S2c add more derives to that file. `wat::blank_rust_source_lines` now blanks a `src/**.rs`
+span's `:line` in both golden macros **and on capture**, so the file reads `:line 0` instead of a
+real-looking number nothing compares. **Its second gate is the load-bearing one: a `.wat` span MUST
+KEEP its line** — without it, blanking every `:line` would pass the first test and gut every golden
+in the repo.
 
 **WHAT S1 ACTUALLY CHANGED, in one line each:**
 - **The zero point is `arm-session`** (`alloc_counter::mark_session_origin`), which `compile-all`
