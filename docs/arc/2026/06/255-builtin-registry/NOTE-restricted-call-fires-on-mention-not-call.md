@@ -85,7 +85,80 @@ The diagnostic is excellent — it names the callee, the enclosing fn, the white
 semantics, and two concrete remedies. The only residue is that the internal fn is called
 `walk_for_restricted_call` and the error variant is `DefRestrictedCallerNotAllowed`, while what is
 enforced is *mention*. That is a naming nit on an internal symbol, **not a capability gap**, and it
-does not justify a stone on its own.
+does not justify a stone on its own. The real question is the design fork below.
+
+
+## ⛔ THE DESIGN FORK — and why the obvious answer is ALREADY DEAD
+
+The builder's frame: *"reflection should be able to SEE, but not RUN."* Right frame. The current
+rule conflates two questions into one syntactic test — *may you HOLD this name?* and *may you CALL
+this verb?* — and holding is restricted only because holding currently implies calling.
+
+### ⛔ OPTION C — "move the wall from the mention to the call door" — REFUTED, AND NOT FOR THE FIRST TIME
+
+Stop restricting who may hold the keyword; restrict who may CALL it, at `apply`/dispatch. It reads
+like the extirpare answer — *don't forbid holding the key, make holding it confer nothing.*
+
+**IT WAS TRIED AND DEFEATED BEFORE. THE MENTION RULE IS WHAT REPLACED IT.** The attack, in the
+builder's own words (2026-08-28), and re-measured against the live tree the same day:
+
+```wat
+(:wat::core::defn :user::launder [] -> :wat::core::nil
+  (:wat::core::let [f :wat::kernel::spawn-thread] nil))   ;; bind the restricted name to a local
+;; → DefRestrictedCallerNotAllowed at col 76 — the MENTION, in BINDING position, before any call.
+```
+
+Bind the restricted name to a local and the call head is no longer the restricted keyword — it is a
+local symbol. A door that asks *"which verb is being called"* sees `f`. To see through it you must
+trace where `f`'s value came from, and **value-flow tracing is undecidable in general.**
+
+★ **THE LOAD-BEARING PROPERTY IS DECIDABILITY, NOT POSITION.** The mention rule is not a coarse
+approximation of the real check that a smarter check could refine. It is *the only syntactically
+decidable form of the check*, and it is syntactic precisely because a value can be rebound. Any
+proposal that moves the wall off the syntax and onto the value is this option again in new clothes.
+`[[feedback_a_rejected_option_returns_in_new_clothes]]`
+
+⚠ **And note how it would have escaped a census.** The version of C proposed on 2026-08-28 asked for
+"a complete enumeration of every path that turns a keyword into a call" as its first stone. That
+census would have MISSED `let` — because `let` does not call anything. **The predicate named the
+wrong act; running it more carefully would not have saved it.**
+
+### ⛔ OPTION A — "let a `@Category Reflection` verb receive restricted keywords" — REFUTED
+
+The axis exists (closed enum in `wat/runtime-meta.wat`, mirrored to Rust; 16 verbs carry it), so it
+is tempting. **Honest = NO.** `Category` classifies *what the computation IS*, not *what it does with
+its arguments*, and `src/intrinsic/witness.rs:64` already records this exact error being made and
+corrected: *"'takes a fn' is a signature property, while `Category` classifies what the computation
+IS; mixing those axes is the error that produced `Ambient`."* Nothing about being Reflection-
+categorised stops a verb from calling its argument.
+
+### ✅ OPTION B — the ARGUMENT declares it: *this position is READ, never invoked* — the only survivor
+
+A per-`@arg` marker naming the position as reflective. The walker's rule becomes: a restricted
+keyword may appear in a **declared reflective argument position**, and nowhere else.
+
+**Why it survives the `let` attack that killed C:** B does not relax the syntactic rule — it keeps
+it and punches a **named, enumerable hole** in it. A declared argument position is as syntactically
+visible as a call head. `(:wat::core::let [f :wat::kernel::spawn-thread] …)` still fires, because
+`let`'s binding position is not a declared reflective position and never will be. **C relaxes the
+rule and rebuilds elsewhere; B keeps the rule and carves it. Same decidability class as today.**
+
+Obvious YES · Simple YES · Honest YES · Good UX YES.
+
+**Its one real requirement:** the marker must itself be kernel-only to declare, or a user marks
+`apply`'s argument reflective and launders everything. That is not a wrinkle — it is the same shape
+`#[restricted_to]` already has, and the reflective set is small and named (`render-doc`,
+`show-source`, `metadata-of`, `signature-of-defn`, `examples`).
+
+★ **And it is the SAME SHAPE as P5-b**, which is about giving `@arg` a per-argument subject for
+`@yields`. Whoever draws this should read P5-b first; they are one mechanism serving two rules.
+
+### Not drawn, and not mine to open
+
+This is a **capability-model** change, not a builtin-registry stone. It does not belong in arc 255
+and it is not on THE ROAD (step 1 is homing; totality is step 6). **Opening an arc is the builder's
+ruling.** Nothing is on fire: all nine restricted verbs reflect correctly at the REPL and the MCP
+today, and only a `.wat` *program* is blocked.
 
 ## ⚠ What the first version of this NOTE got wrong, and why it matters
 
