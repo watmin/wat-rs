@@ -424,20 +424,17 @@ pub(crate) fn fire_fixpoint_delta_armed(
     // deliberate and bounded: the cap fires only on rule sets that are already broken, the
     // differential fuzzers cannot generate one (the case would hang the suite rather than fail
     // it), and `$oracle` is the slow-but-correct reference an embedder never runs.
-    // The session's OWN thread reading, snapshotted before any work. A session is thread-affine
-    // by contract (`arm.rs`, the ZERO-MUTEX rune), so this is a per-session figure and not the
-    // process's — with 512 sessions on 512 threads each gets its own, which the global counter
-    // could never give. Snapshotting rather than reading an absolute is what makes it a measure of
-    // THIS FIRE: whatever the thread was already holding is not charged to it.
-    let bytes_at_entry = crate::alloc_counter::thread_bytes();
+    // ⛔ NO PER-FIRE SNAPSHOT. This used to snapshot `thread_bytes()` at fire entry and measure
+    // growth from there, which bounded ONE FIRE — a FIRE ceiling wearing a SESSION ceiling's name.
+    // The builder's ruling is that the SESSION is the boundary (*"it may not consume more than the
+    // configured amount of memory, 1G by default"*), and a per-fire zero cannot express that: it
+    // forgets everything `insert` staged before it, which is how 2.5M staged facts reached 4.0 GB
+    // against a 1 GiB contract with no diagnostic. The origin is now marked once, at `arm-session`
+    // (`alloc_counter::mark_session_origin`), and BOTH doors measure from it.
     let max_fire_rounds: usize = sym
         .encoding_ctx()
         .map(|c| c.config.max_fire_rounds)
         .unwrap_or(crate::config::DEFAULT_MAX_FIRE_ROUNDS);
-    let max_session_bytes: usize = sym
-        .encoding_ctx()
-        .map(|c| c.config.max_session_bytes)
-        .unwrap_or(crate::config::DEFAULT_MAX_SESSION_BYTES);
     let mut rounds_run: usize = 0;
 
     phase_end("SETUP: indexes", __setup);
@@ -674,15 +671,15 @@ pub(crate) fn fire_fixpoint_delta_armed(
         // it was cheap. Found 2026-08-29 when the builder asked whether `insert` could exceed the
         // limit; the answer sent me back to my own check, which had the same hole one level in.
         //
-        // `saturating_sub`: a retraction-heavy fire legitimately ends below its entry reading, and
-        // that is 0 growth, not an underflow.
-        let grown = crate::alloc_counter::thread_bytes().saturating_sub(bytes_at_entry);
-        if grown > max_session_bytes {
+        // The DECISION is `session::session_ceiling_breach` — shared with the insert door so the
+        // two cannot drift on what "over the ceiling" means. Only the diagnostic is local: rounds
+        // completed is what THIS door can honestly say about how far the session had got.
+        if let Some(breach) = crate::rete::kernel::session::session_ceiling_breach(sym) {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
                 RuntimeErrorKind::SessionMemoryCeilingExceeded {
-                    limit: max_session_bytes,
-                    used: grown,
+                    limit: breach.limit,
+                    used: breach.used,
                     rounds: rounds_run,
                 },
             )

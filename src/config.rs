@@ -105,22 +105,32 @@ pub const DEFAULT_DIM_COUNT: usize = 10000;
 /// never the fix for a rule set that diverges.
 pub const DEFAULT_MAX_FIRE_ROUNDS: usize = 10_000;
 
-/// Default per-session memory ceiling for one `fire-rules`, when
+/// Default per-session memory ceiling, when
 /// `(:wat::config::rete::set-max-session-bytes!)` is omitted. **1 GiB.**
 ///
 /// ── WHAT IT BOUNDS, EXACTLY ──────────────────────────────────────────────────────────────────
 ///
-/// The bytes a SINGLE FIRE may add, measured on the session's own thread
-/// ([`crate::alloc_counter::thread_bytes`]). Not the process, and not the session's whole history:
+/// The bytes a SESSION may take, measured on its own thread from `compile-all` onward
+/// ([`crate::alloc_counter::session_bytes`]), and enforced at BOTH doors a session grows through:
+/// `insert`/`insert-all` and the fixpoint's round boundary.
 ///
-/// - **Not the process.** `alloc_counter`'s global figure is the sum over every thread, so with
-///   512 sessions on 512 threads it would refuse the innocent and answer differently depending on
+/// - **Not the process.** A process-global figure is the sum over every thread, so with 512
+///   sessions on 512 threads it would refuse the innocent and answer differently depending on
 ///   scheduling. A rete session is thread-affine by contract (`arm.rs`, the ZERO-MUTEX rune), so
-///   the thread reading IS the session reading while a fire runs.
-/// - **Not cumulative across fires.** `insert … fire … insert … fire` grows a session by the
-///   user's own hand, one call at a time, and each is a decision they made. Bounding that would
-///   refuse legitimate incremental use. **Divergence happens INSIDE one fire** — that is the
-///   quantity worth a ceiling, and it is the one measured.
+///   the thread reading IS the session reading.
+/// - **⛔ NOT per fire — and this doc asserted the opposite until 2026-08-29.** It read *"Not
+///   cumulative across fires… `insert … fire … insert` grows a session by the user's own hand, one
+///   call at a time… Bounding that would refuse legitimate incremental use."* **That was my ruling
+///   and the builder overturned it:** *"insert affects memory just as much… we can exhaust memory
+///   before fire-rules begins?"* Yes — measured, **2.5M facts staged with no fire reached 4.0 GB
+///   against this 1 GiB contract, with no diagnostic.** A fold is ONE user decision making a
+///   million calls, so "one call at a time" was never a bound. The ceiling now counts from the
+///   session's birth.
+/// - **Not a walk of the session's own structures.** `Arc` sharing makes "how big is this session"
+///   ambiguous (charged once, or once per holder?) and a size-walk would be O(n) per insert. The
+///   consequence is stated in the diagnostics: whatever else the program allocates on this thread
+///   after `compile-all` is charged too — the SAFE direction, since the ceiling exists to produce
+///   a diagnostic before the allocator aborts.
 ///
 /// **Why 1 GiB.** Measured 2026-08-29 at ~600 B/fact for the narrowest record and ~1_266 B for a
 /// wider one, so this is roughly 0.8–1.7 million derived facts — comfortably past the largest

@@ -188,28 +188,23 @@ fn a_mint_hidden_inside_a_rete_fn_body_is_refused() {
     assert_eq!(field_str(&e, "fact-type"), "fm::N");
 }
 
-/// ★ THE PER-SESSION MEMORY CEILING — the axis the round cap cannot see.
+/// ★ THE PER-SESSION MEMORY CEILING, AT THE **INSERT** DOOR — staging, with no fire at all.
 ///
-/// The round cap counts ROUNDS. A fanout divergence multiplies WITHIN a round, so it reaches the
-/// allocator while `rounds_run` is in single digits — measured 2026-08-29 as `memory allocation of
-/// 56 bytes failed` at 6.2s, with no wat error and no rule named. `DEFAULT_MAX_FIRE_ROUNDS`'s own
-/// doc had claimed a runaway fires "far short of the memory wall"; that is true of a LINEAR
-/// runaway and false of a branching one.
+/// ⛔ THIS IS THE HOLE THE BUILDER FOUND. The ceiling was checked only inside the fixpoint, so a
+/// session could grow without bound before `fire-rules` was ever called — measured 2026-08-29:
+/// **2_500_000 facts staged, no fire, peak RSS 4.0 GB against a 1 GiB contract, no diagnostic.**
+/// The ruling: *"the session is the boundary — it may not consume more than the configured amount
+/// of memory… insert affects memory just as much."* One contract, two doors.
 ///
-/// ⛔ THIS IS DRIVEN AT THE CEILING'S FLOOR (4096) ON A LEGITIMATE WORKLOAD, deliberately. The
-/// shape that actually needs it — a fanout cycle — is refused at COMPILE by the cyclicity check,
-/// so it cannot reach the fixpoint to be measured. Rather than disarm a wall to test another, the
-/// ceiling is lowered until an honest workload crosses it. What is proven is the MECHANISM: the
-/// bytes are counted, the boundary is checked, and the failure is a located diagnostic rather than
-/// an abort.
-///
-/// The second row is why this is not vacuous: the SAME workload at the default ceiling must
-/// succeed. Without it, a ceiling of zero would pass just as well.
+/// The fixture NEVER calls `fire-rules`, which is what makes this a proof about `insert` alone.
 #[test]
-fn a_session_that_outgrows_its_memory_ceiling_says_so_instead_of_aborting() {
-    let (ok, _out, err) = run("tests/rete/probe_arc278_session_memory_ceiling.wat");
-    assert!(!ok, "a fire past `max-session-bytes` must be refused\n{err}");
-    let e = rete_error(&err, "SessionMemoryCeilingExceeded");
+fn a_session_that_outgrows_its_ceiling_while_staging_is_refused_at_the_insert_door() {
+    let (ok, _out, err) = run("tests/rete/probe_arc278_session_memory_ceiling_insert.wat");
+    assert!(
+        !ok,
+        "staging past `max-session-bytes` must be refused even though nothing fires\n{err}"
+    );
+    let e = rete_error(&err, "SessionMemoryCeilingExceededOnInsert");
     assert_eq!(
         field_i64(&e, "limit"),
         4096,
@@ -221,6 +216,66 @@ fn a_session_that_outgrows_its_memory_ceiling_says_so_instead_of_aborting() {
         "the reported usage must exceed the limit it tripped; got {}",
         field_i64(&e, "used")
     );
+    // ⛔ THE DOOR IS PART OF THE ASSERTION, not decoration. `SessionMemoryCeilingExceeded` (no
+    // suffix) is the FIRE door's variant and reports ROUNDS COMPLETED — a number with no meaning
+    // where no rounds run. If this gate accepted either tag it would pass just as happily with
+    // the insert check deleted, because the old fixture's fire would have refused instead.
+    // `staged` is a field the FIRE variant does not have at all, so pinning it proves the door
+    // STRUCTURALLY rather than by matching prose. 1, because the breach is detected on the very
+    // first `insert`: the fold's own `(range 0 200000)` is already megabytes against a 4096-byte
+    // ceiling. That pairing — a large `used` beside `staged: 1` — is the diagnostic working as
+    // designed: it says the memory is NOT the facts, which is the honest reading of a counter that
+    // measures the thread rather than walking the session.
+    assert_eq!(
+        field_i64(&e, "staged"),
+        1,
+        "the insert door must report how far STAGING had got, and this fixture breaches on its \
+         first `insert` — a different value means the ceiling is no longer checked per insert"
+    );
+
+    // NON-VACUITY: the same insert-only shape under the DEFAULT ceiling completes. Without this,
+    // a ceiling of zero — or a check that refuses unconditionally — satisfies everything above.
+    let (ok_ok, out_ok, err_ok) = run("tests/rete/probe_arc278_session_memory_ceiling_fire_default.wat");
+    assert!(
+        ok_ok,
+        "the insert door must not refuse a workload that fits — 400 staged facts at the 1 GiB \
+         default is nowhere near the ceiling\n{out_ok}{err_ok}"
+    );
+}
+
+/// ★ THE PER-SESSION MEMORY CEILING, AT THE **FIRE** DOOR — the axis the round cap cannot see.
+///
+/// The round cap counts ROUNDS. A fanout divergence multiplies WITHIN a round, so it reaches the
+/// allocator while `rounds_run` is in single digits — measured 2026-08-29 as `memory allocation of
+/// 56 bytes failed` at 6.2s, with no wat error and no rule named. `DEFAULT_MAX_FIRE_ROUNDS`'s own
+/// doc had claimed a runaway fires "far short of the memory wall"; that is true of a LINEAR
+/// runaway and false of a branching one.
+///
+/// ⛔ THE FIXTURE'S WORKLOAD CHANGED WHEN `insert` GAINED THE SAME CEILING, and that is the lesson
+/// worth keeping: the old one seeded 500 facts at a 4096-byte ceiling, so once staging was
+/// enforced the FIRST INSERT refused and this gate silently began proving the other door. It still
+/// went green. A control can lose its power without ever failing. The workload is now one the
+/// insert door cannot catch — **400 staged, 40_000 derived** — so a green here is evidence about
+/// the fixpoint's check and nothing else.
+///
+/// ⚠ THE CEILING IS BISECTED, NOT PICKED: 1/4/16 MiB refuse, 64/256 MiB complete. 16 MiB sits
+/// inside the refusing band with staging orders of magnitude below it.
+#[test]
+fn a_session_that_outgrows_its_ceiling_while_deriving_is_refused_at_the_fire_door() {
+    let (ok, _out, err) = run("tests/rete/probe_arc278_session_memory_ceiling.wat");
+    assert!(!ok, "a fire past `max-session-bytes` must be refused\n{err}");
+    let e = rete_error(&err, "SessionMemoryCeilingExceeded");
+    assert_eq!(
+        field_i64(&e, "limit"),
+        16_777_216,
+        "the ceiling reported must be the CONFIGURED one — a hardcoded default here would mean \
+         the wat directive is decorative"
+    );
+    assert!(
+        field_i64(&e, "used") > 16_777_216,
+        "the reported usage must exceed the limit it tripped; got {}",
+        field_i64(&e, "used")
+    );
     // `rounds` is rounds COMPLETED, so 0 means "tripped during the first round" — which is the
     // most informative value it can take, not a missing one. A low count is the SIGNAL: it
     // distinguishes fanout (multiplies within a round) from depth (which the round cap handles).
@@ -228,17 +283,33 @@ fn a_session_that_outgrows_its_memory_ceiling_says_so_instead_of_aborting() {
     assert_eq!(
         field_i64(&e, "rounds"),
         0,
-        "this fixture breaches inside its FIRST round, so 0 rounds completed is the honest report \
-         — a non-zero value here would mean the check no longer runs before the round counter"
+        "a cross-product fans out inside the FIRST round, so 0 rounds completed is the honest \
+         report — a non-zero value here would mean the check no longer runs before the counter"
     );
 
-    // NON-VACUITY: the identical workload at the DEFAULT ceiling completes. Without this row a
-    // ceiling of zero — or one checked before any work — would satisfy everything above.
-    let (ok_ok, out_ok, err_ok) = run("tests/rete/probe_arc278_fixpoint_round_cap_deep.wat");
+    // NON-VACUITY, and it is doing more work than usual here: the byte-for-byte identical rule set
+    // and fact population at the DEFAULT ceiling must COMPLETE, deriving all 40_000. Without it a
+    // ceiling of zero, or a check placed before any work, would satisfy every row above.
+    let (ok_ok, out_ok, err_ok) = run("tests/rete/probe_arc278_session_memory_ceiling_fire_default.wat");
     assert!(
         ok_ok,
+        "a 40_000-fact cross product is a legitimate workload and must not trip the memory \
+         ceiling at its default\n{out_ok}{err_ok}"
+    );
+    assert_eq!(
+        out_ok.trim(),
+        "40000",
+        "the non-vacuity twin must actually DERIVE its 40_000 facts — a run that completes \
+         without doing the work proves nothing about the ceiling's headroom"
+    );
+
+    // The 500-round DEEP closure must also stay under the default — depth is the round cap's axis,
+    // and the ceiling must not start refusing legitimate depth.
+    let (ok_deep, out_deep, err_deep) = run("tests/rete/probe_arc278_fixpoint_round_cap_deep.wat");
+    assert!(
+        ok_deep,
         "a 500-round range-restricted closure is a legitimate workload and must not trip the \
-         memory ceiling at its default\n{out_ok}{err_ok}"
+         memory ceiling at its default\n{out_deep}{err_deep}"
     );
 }
 

@@ -1450,40 +1450,27 @@ field. Reachable, but not constructible inside a fence.
    **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
    with our own green floor). That is exactly when this class is cheapest to widen.
 
-9. **⛔ `insert` IS UNBOUNDED — THE SESSION CEILING IS NOT YET A SESSION CEILING. NEXT UP.**
+9. ~~**`insert` IS UNBOUNDED**~~ · ✅ **CLOSED 2026-08-29 — ONE CONTRACT, TWO DOORS.**
    Builder's ruling: *"the session is the boundary — it may not consume more than the configured
-   amount of memory, 1G by default… insert affects memory just as much as insert via derivation in
-   fire-rules… we can exhaust memory before fire-rules begins?"* **Yes. Measured:**
+   amount of memory, 1G by default… insert affects memory just as much."* It was measured
+   (`2_500_000` staged, no fire → **4.0 GB** against a 1 GiB contract, no diagnostic), and it is
+   now enforced at both doors. Full record: **`DESIGN-STONE-the-session-is-the-boundary.md` § S1.**
 
-   ```
-   2_500_000 facts inserted, NO fire   ->  peak RSS 4_153_324 KB ~= 4.0 GB
-                                           against a 1 GiB contract, no diagnostic
-   ```
+   - **The session's zero point** is `alloc_counter::mark_session_origin()` at `arm-session` —
+     which `compile-all` calls for every session, the same door the termination verifier uses.
+   - **The fixpoint's per-fire snapshot is DELETED.** A per-fire zero cannot express a per-session
+     contract: it forgets everything `insert` staged before it.
+   - **ONE decision** (`session::session_ceiling_breach`), read at both doors; only the diagnostic
+     differs, because `rounds` is meaningless where no rounds run. Two variants, each honest.
 
-   **A ceiling that only watches derivation is a FIRE ceiling wearing a SESSION ceiling's name.**
-   Two boundaries are meant to be expressed and enforced — `max-session-memory` and
-   `max-fire-rounds` — and today the first is enforced in one of the two places a session grows.
-
-   **THE DESIGN, worked out and then REVERTED rather than left unwired across a compaction** (half
-   of it compiled; `check_session_ceiling` existed and nothing called it, which is exactly the
-   dead-code trap this arc keeps pulling out):
-
-   1. **A per-session ORIGIN.** The ceiling is a per-session contract so it needs a per-session
-      zero — and `:wat::rete::Session` is an immutable 8-field record with nowhere to hang one. The
-      THREAD is the anchor, licensed by the affinity contract: one session armed per thread at a
-      time, so "bytes since this thread's last `compile-all`" IS "bytes this session has taken".
-      `alloc_counter::mark_session_origin()` at `compile-all`, `session_bytes()` to read.
-      ⚠ **State the assumption:** a thread building a SECOND session re-bases, so the first stops
-      being charged. Sequential-per-thread holds in every shape this substrate supports; if it ever
-      stops, this is the line that moves to a Session field.
-   2. **ONE shared check called from BOTH doors** — `insert`/`insert-all` and the fixpoint — so the
-      two cannot drift. Two places holding one truth is the defect this arc pulls out most.
-   3. `sym` is already in scope at both `insert` entry points (`kernel/insert.rs:47,81`), so nothing
-      needs threading.
-
-   ⚠ **AND THE FIXPOINT'S OWN CHECK HAD THE SAME HOLE ONE LEVEL IN** — fixed in `f006f77d5`. The
-   `break` sat ABOVE it, so it never ran for a converged fire or any `fire-once`. **The builder's
-   question about `insert` is what surfaced it**; I would not have looked at my own check otherwise.
+   ⛔ **AND IT DISARMED A GATE WITHOUT FAILING IT — the finding worth carrying.** The fire-door
+   fixture seeded 500 facts at a 4096-byte ceiling; the moment `insert` enforced the same ceiling,
+   the FIRST INSERT refused and the gate began proving the insert door while its name, prose and
+   `rounds` assertion all still said "fire". **A one-word tag change would have made it green
+   again, certifying the wrong thing.** The fire door now has a workload the insert door cannot
+   catch — a cross-product, **400 staged / 40_000 derived** — and the ceiling is BISECTED, not
+   picked (1/4/16 MiB refuse; 64/256 MiB complete). Both gates are mutation-proven and INDEPENDENT:
+   disarming either door reddens exactly its own gate and leaves the other green.
 
 10. **`fire-rules` IS PARTIAL AND ITS SIGNATURE DOES NOT SAY SO — the outcome wall, not yet applied
    to rete.** Builder: *"when do these 'raise'?… can we make them total?… the user must deal with
@@ -1520,13 +1507,25 @@ field. Reachable, but not constructible inside a fence.
    own: it always answers `Fired`, and the existing accepted asymmetry (*"the `$oracle` is the
    reference an embedder never runs"*) covers why.
 
-   ⚠ **`insert` IS NOT PART OF THIS, and the reason should be stated rather than assumed.** Grepped:
-   the ceiling is checked ONLY in the fixpoint loop, so `insert` bounds nothing. That is the same
-   ruling as "not cumulative across fires" — **a session grows by insertion one user decision at a
-   time, and by derivation without one.** The ceiling is about the growth the user did not ask
-   for. If that ruling is wrong, `insert` becomes matchable too and the migration doubles.
+   ⛔ **`insert` IS PART OF THIS — the ruling above was MINE and the builder overturned it.** It
+   read: *"a session grows by insertion one user decision at a time, and by derivation without one;
+   the ceiling is about the growth the user did not ask for."* **A fold is ONE user decision making
+   a million calls**, which item 9 then measured at 4.0 GB. So the migration DOES double, and that
+   cost is accepted — the same acceptance `DESIGN-recv-outcome-wall.md` records for its own 160
+   sites: *"i do not care about how wide the blast radius is — the cost of never seeing a fucking
+   masked error is worth it."*
 
-   **NOT STARTED. The ruling is the builder's** — it changes the type of the engine's main verb.
+   ✅ **DESIGNED AND PINNED 2026-08-29 — `DESIGN-STONE-the-session-is-the-boundary.md` § S2.**
+   Builder: *"let's impose session's strict limits via totality."* The contract decision, the two
+   enum shapes, why NOT one shared enum and NOT `Result`, the verified construction mechanism
+   (`wat_enum_from!` + `builtin_enum_variant_names`'s wat-declared arm), and the MEASURED sweep
+   size are all there. **`fire-once` and `fire-rules-explain` are in scope** — both route through
+   `fire/delta.rs`, so both can breach today, and a wall with one unmatched door is not a wall.
+
+   **Sweep size, counted 2026-08-29 (not inherited):** `fire-rules` 529 · `insert` 530 ·
+   `insert-all` 110 · `fire-once` 31. wat-fix codemod, never hand edits (R21).
+
+   **NOT STARTED — this is the next work.**
 
 11. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
     behaviour.** `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs`'s five goldens
@@ -1548,11 +1547,31 @@ field. Reachable, but not constructible inside a fence.
     goldens pin a `src/*.rs` line is now part of the work**, not an afterthought: the three known
     sites were found by breaking them, which is the worst way to enumerate a class.
 
+    ✅ **THE SURVEY IS DONE — 2026-08-29. EIGHT goldens, THREE source files, and it found a file
+    nobody had named.** The class was previously enumerated by BREAKING it (three sites, found as
+    four false reds); this is the same question asked of the disk instead:
+
+    ```
+    grep -rn ':file "src/[a-z_/]*\.rs"' tests/ --include=*.edn
+    ```
+
+    | golden | pins | line |
+    |---|---|---|
+    | `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors__*.edn` (5 files) | `src/runtime.rs` | 25802 |
+    | `tests/process/probe_supervisor_select_lost__process_panics.edn` | `src/freeze.rs` | 1522 |
+    | `tests/types/probe_arc293_W2b_enum_purity__*.edn` | **`src/check.rs`** | 13987 |
+    | `tests/types/probe_arc293_W_containment__*.edn` | **`src/check.rs`** | 13969 |
+
+    ⛔ **`src/check.rs` WAS NOT ONE OF THE THREE KNOWN SITES.** Two goldens in `tests/types/` pin
+    lines in the type checker — the single most-edited file in the arc — and nobody had hit them
+    yet. Left alone, they were the next two false reds. **That is the whole argument for surveying
+    a class instead of enumerating it by collision.**
+
     **The likely cure** is in `assert_edn_matches_file!` — normalise a `src/*.rs` span's `:line` on
-    both sides — but that macro backs every golden in the repo, so it is its own strike and needs
-    its own measurement of what else pins such a line. Not started. The three data points and the
-    reasoning are in the probe file's own staleness trail, which is where someone hitting the red
-    will actually be standing.
+    both sides. That macro backs every golden in the repo, so it is still its own strike, but the
+    "what else pins such a line" measurement it was waiting on is now DONE: eight goldens, all
+    listed above, all pinning `rust_caller_span!()` sentinels where the FILE is the assertion worth
+    keeping and the LINE is the accident. Nothing outside this table pins one.
 
 ~~1.1 interleaved retract~~ · ~~1.2 generated rules~~ · ~~1.3 query params~~ ·
 ~~1.4 nested combinators~~ · ~~3.1 fixpoint cap~~ · ~~3.2 CI parity~~ · ~~4.2 termination

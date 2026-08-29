@@ -1,38 +1,43 @@
-;; The per-session memory ceiling, driven at its floor. A legitimate 500-round transitive closure
-;; — the same workload `..._round_cap_deep.wat` proves the ROUND cap tolerates — is refused here
-;; only because the ceiling is set to one page.
+;; THE FIRE DOOR of the per-session memory ceiling — derivation, with staging kept far below it.
 ;;
-;; ⛔ THE POINT IS THE AXIS THE ROUND CAP CANNOT SEE. A fanout divergence multiplies WITHIN a round,
-;; so it reaches the allocator while `rounds_run` is still in single digits: measured 2026-08-29 as
-;; an allocator abort at 6.2s, no wat error and no rule named. This ceiling is checked BEFORE the
-;; round cap for exactly that reason, and the `:rounds 1` in the error is the tell — a low round
-;; count says the growth was fanout, not depth.
-(:wat::config::rete::set-max-session-bytes! 4096)
+;; ⛔ THE WORKLOAD CHANGED 2026-08-29 AND THE REASON IS THE POINT. This fixture used to seed 500
+;; facts through `insert` at a 4096-byte ceiling. Once `insert` began enforcing the SAME ceiling —
+;; the session is the boundary, so both doors hold one contract — the very first `insert` refused,
+;; and this gate started proving the INSERT door while its name and prose still claimed the fire
+;; one. A control that quietly changes what it certifies has lost its power without ever failing.
+;; So the workload is now one the insert door cannot catch: **400 staged facts, 40_000 derived.**
+;;
+;; A cross-product join — 200 `A` x 200 `B` -> 40_000 `C` — is non-cyclic, range-restricted and
+;; terminating, so the verifier admits it, and it multiplies WITHIN ONE ROUND. That is exactly the
+;; axis the ROUND cap cannot see: a fanout reaches the allocator while `rounds_run` is still 0
+;; (measured before this ceiling existed: an abort at 6.2s, no wat error, no rule named).
+;;
+;; ⚠ THE CEILING IS MEASURED, NOT PICKED. Bisected 2026-08-29 on this exact workload:
+;;   1 MiB · 4 MiB · 16 MiB -> refused at the FIRE door;  64 MiB · 256 MiB -> completes.
+;; 16 MiB sits inside the refusing band with the 400 inserts nowhere near it, and the non-vacuity
+;; row below runs the same workload at the DEFAULT ceiling, where it must complete.
+(:wat::config::rete::set-max-session-bytes! 16777216)
 
-(:wat::core::defrecord :sm::N    [k <- :wat::core::i64])
-(:wat::core::defrecord :sm::Edge [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :fd::A [a <- :wat::core::i64])
+(:wat::core::defrecord :fd::B [b <- :wat::core::i64])
+(:wat::core::defrecord :fd::C [a <- :wat::core::i64  b <- :wat::core::i64])
 
-(:wat::rete::defrule :sm::step
-  :when
-  [(:sm::N (?k <- :k))
-   (:sm::Edge (?a <- :a) (?b <- :b))
-   (:wat::rete::where (:wat::rete::core::i64::= ?k ?a))]
-  :then [(:sm::N :k ?b)])
+(:wat::rete::defrule :fd::cross
+  :when [(:fd::A (?x <- :a)) (:fd::B (?y <- :b))]
+  :then [(:fd::C :a ?x :b ?y)])
 
-(:wat::rete::defquery :sm::q :params [] :when [(?fact <- :sm::N)])
+(:wat::rete::defquery :fd::q :params [] :when [(?fact <- :fd::C)])
 
-(:wat::core::defn :sm::seed [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :fd::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert acc (:sm::Edge :a i :b (:wat::core::i64::+ i 1))))
-    s (:wat::core::range 0 n)))
+      (:wat::rete::insert (:wat::rete::insert acc (:fd::A :a i)) (:fd::B :b i)))
+    s (:wat::core::range 0 200)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:wat::core::length
-    (:wat::core::let
-      [rules (:wat::rete::collect-rules :sm)
-       s (:wat::rete::compile-all rules (:wat::core::PersistentVector (:sm::q)))
-       s (:sm::seed s 500)
-       s (:wat::rete::insert s (:sm::N :k 0))
-       f (:wat::rete::fire-rules s)]
-      (:wat::rete::query f (:sm::q))))))
+  (:wat::core::let
+    [rules (:wat::rete::collect-rules :fd)
+     s     (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fd::q)))
+     s     (:fd::seed s)
+     f     (:wat::rete::fire-rules s)]
+    (:wat::kernel::println (:wat::core::length (:wat::rete::query f (:fd::q))))))

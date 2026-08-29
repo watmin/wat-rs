@@ -62,7 +62,7 @@ pub(crate) fn eval_session_insert(
     // Evaluate both arguments (mirrors eval_fire_rules_native's session eval).
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let fact = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-    insert_one_on_session(session, fact, list_span)
+    insert_one_on_session(session, fact, list_span, sym)
 }
 
 /// Public `:wat::rete::insert` (`DESIGN-STONE-insert-prime-split`).
@@ -100,6 +100,7 @@ pub(crate) fn eval_insert_public(
                 session,
                 Value::wat__core__PersistentVector(pv),
                 list_span,
+                sym,
             )
         }
     }
@@ -148,6 +149,7 @@ fn insert_one_on_session(
     session: Value,
     fact: Value,
     list_span: &Span,
+    sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::insert";
     require_record_fact(&fact, OP, list_span)?;
@@ -155,13 +157,27 @@ fn insert_one_on_session(
 
     let facts_val = require_session_facts(&session, agg, list_span)?;
     let new_facts = crate::collection::eval::persistentvector_conj_inner(facts_val, &fact)?;
-    Ok(session_with_facts(&session, new_facts))
+    let staged = value_len(&new_facts);
+    let staged_session = session_with_facts(&session, new_facts);
+    // THE SESSION CEILING, at the second of its two doors. AFTER the staging, so `used` and
+    // `staged` describe the same session state the caller would have received.
+    super::session::check_insert_ceiling(sym, list_span, staged)?;
+    Ok(staged_session)
+}
+
+/// Length of a staged `facts` vector, for the ceiling diagnostic only.
+fn value_len(facts: &Value) -> usize {
+    match facts {
+        Value::wat__core__PersistentVector(pv) => pv.len(),
+        _ => 0,
+    }
 }
 
 fn insert_facts_on_session(
     session: Value,
     new_facts_vec: Value,
     list_span: &Span,
+    sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::insert-all";
     let agg = require_session_agg(&session, OP, list_span)?;
@@ -173,7 +189,12 @@ fn insert_facts_on_session(
 
     let facts_val = require_session_facts(&session, agg, list_span)?;
     let new_facts = crate::collection::eval::vector_concat_inner(facts_val, &new_facts_vec)?;
-    Ok(session_with_facts(&session, new_facts))
+    let staged = value_len(&new_facts);
+    let staged_session = session_with_facts(&session, new_facts);
+    // The same door, batch arity. One shared check (`session::check_insert_ceiling`) so the two
+    // arities and the fixpoint cannot drift apart on what "over the ceiling" means.
+    super::session::check_insert_ceiling(sym, list_span, staged)?;
+    Ok(staged_session)
 }
 
 // ── Public entry: native insert-all ────────────────────────────────────────────
@@ -215,5 +236,5 @@ pub(crate) fn eval_insert_all_native(
     // Evaluate both arguments (mirrors eval_session_insert's session/fact eval).
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let new_facts_vec = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-    insert_facts_on_session(session, new_facts_vec, list_span)
+    insert_facts_on_session(session, new_facts_vec, list_span, sym)
 }

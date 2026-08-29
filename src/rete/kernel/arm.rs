@@ -1064,6 +1064,11 @@ pub(crate) fn eval_arm_session(
     // this) never see that wall. See `stratify::refuse_non_terminating`.
     crate::rete::kernel::stratify::refuse_non_terminating(rules, sym)?;
     rete_arm_lease_or_build(network, rules, sym)?;
+    // THE SESSION'S ZERO POINT. `compile-all` calls `arm-session` for every session it builds, so
+    // this is the one door a session is born through — the same reason the termination verifier
+    // runs here. Everything the session allocates from now on is charged to it, at BOTH doors it
+    // can grow through (`insert` and the fixpoint), against `max-session-bytes`.
+    crate::alloc_counter::mark_session_origin();
     Ok(session)
 }
 

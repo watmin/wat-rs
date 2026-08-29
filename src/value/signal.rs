@@ -334,7 +334,11 @@ pub enum RuntimeErrorKind {
     /// so no rule can mint a value that was not already there. A `:then` that COMPUTES breaks that
     /// RANGE RESTRICTION, and inside a derivation cycle it means a structurally novel fact every
     /// round, forever. Outside a cycle a computed head is fine and stays legal.
-    /// One `fire-rules` grew its session past `max-session-bytes`.
+    /// A `fire-rules` round boundary found the session past `max-session-bytes`.
+    ///
+    /// The ceiling counts from `compile-all`, not from fire entry, so a breach here can be
+    /// growth this fire derived, memory `insert` staged beforehand, or both — `rounds` and the
+    /// session's staged fact count are what separate them.
     ///
     /// Distinct from [`RuntimeErrorKind::FixpointRoundCapExceeded`] on purpose: the round cap
     /// counts ROUNDS and a fanout diverges WITHIN one, so a branching derivation reaches the
@@ -350,6 +354,25 @@ pub enum RuntimeErrorKind {
         /// per-round FANOUT rather than depth. A large value means depth, which the round cap
         /// would also have caught.
         rounds: usize,
+    },
+    /// `insert` / `insert-all` grew its session past `max-session-bytes`.
+    ///
+    /// Distinct from [`RuntimeErrorKind::SessionMemoryCeilingExceeded`] on purpose, and the
+    /// distinction is not cosmetic: that one reports ROUNDS COMPLETED, which is meaningless at a
+    /// door that runs no rounds. One variant serving both would force every insert-site reader to
+    /// interpret a `rounds` that is always zero — a value carrying two facts, which is the exact
+    /// shape this arc has pulled out repeatedly. A session grows through two doors; each reports
+    /// how far IT had got.
+    SessionMemoryCeilingExceededOnInsert {
+        /// The configured ceiling, in bytes.
+        limit: usize,
+        /// Bytes this session's thread had live when the fact was staged.
+        used: usize,
+        /// Facts already staged in the session when the ceiling was reached — the insert door's
+        /// answer to "how far had this got", and the tell for whether the cost is the fact COUNT
+        /// or the fact SIZE. A low `staged` against a large `used` means wide or string-heavy
+        /// records, not a runaway loop.
+        staged: usize,
     },
     RuleSetMayNotTerminate {
         rule: String,
@@ -724,11 +747,13 @@ impl RuntimeErrorKind {
             }
             RuntimeErrorKind::SessionMemoryCeilingExceeded { limit, used, rounds } => write!(
                 f,
-                "{}rete fire-rules: this session used {} bytes in a single fire, past the \
-                 {}-byte `max-session-bytes` ceiling, after {} completed round(s) — 0 means it \
-                 breached inside the FIRST round. The ceiling is PER \
-                 SESSION and measured on this session's own thread, so a sibling session on \
-                 another thread cannot have caused it. A LOW round count means the growth was \
+                "{}rete fire-rules: this session's thread has taken {} bytes since the session \
+                 was compiled, past the {}-byte `max-session-bytes` ceiling, after {} completed \
+                 round(s) — 0 means it breached inside the FIRST round. The ceiling is PER \
+                 SESSION, not per fire: it counts from `compile-all`, so facts STAGED by `insert` \
+                 before this fire are included (they are the session's memory too). It is measured \
+                 on this session's own thread, so a sibling session on another thread cannot have \
+                 caused it. A LOW round count means the growth was \
                  FANOUT — a `:then` deriving several novel facts per fact, which multiplies within \
                  one round and never reaches the round cap. Either bound the derivation (a \
                  `:then` that copies rather than computes, or a fact type with finitely many \
@@ -737,6 +762,25 @@ impl RuntimeErrorKind {
                  the memory — raising it is a claim about YOUR rule set, never a fix for one that \
                  diverges.",
                 prefix, used, limit, rounds
+            ),
+            RuntimeErrorKind::SessionMemoryCeilingExceededOnInsert { limit, used, staged } => write!(
+                f,
+                "{}rete insert: this session's thread has taken {} bytes since the session was \
+                 compiled, past the {}-byte `max-session-bytes` ceiling, with {} fact(s) staged \
+                 and no `fire-rules` yet. STAGING IS NOT FREE: `insert` holds every fact until a \
+                 fire consumes it, so a fold that inserts without firing grows the session exactly \
+                 as derivation does. ⚠ WHAT IS MEASURED is bytes live on this session's OWN thread \
+                 since `compile-all` — not a walk of the session's own structures, which `Arc` \
+                 sharing makes ambiguous. So anything else your program allocates on this thread \
+                 alongside the session is charged too. That is deliberate and it is the SAFE \
+                 direction: this ceiling exists to raise a diagnostic before the allocator aborts, \
+                 and the allocator does not care whose bytes they are. **READ THE TWO NUMBERS \
+                 TOGETHER** — a large byte count against a SMALL `staged` says the memory is not \
+                 the facts, so look at what else the thread built after `compile-all`. Either fire \
+                 in batches (insert, fire, insert, fire — each fire consumes what is staged), or \
+                 raise the ceiling with `(:wat::config::rete::set-max-session-bytes! n)` if the \
+                 workload genuinely needs the memory.",
+                prefix, used, limit, staged
             ),
             RuntimeErrorKind::RuleSetMayNotTerminate { rule, fact_type } => write!(
                 f,
