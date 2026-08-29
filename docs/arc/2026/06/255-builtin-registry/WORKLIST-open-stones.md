@@ -1,4 +1,8 @@
-# WORKLIST — arc 255's open stones, ordered. As of 2026-08-28, HEAD `ab753e4f5` (P5-a struck).
+# WORKLIST — arc 255's open stones, ordered. As of 2026-08-28, HEAD `2502bf09b` (P5-b struck).
+
+> ⛔ **ONE ROW LEFT: P6-c.** And one finding OUTSIDE the arc that outranks it —
+> a top-level `def` launders a restricted verb past its capability wall. See
+> `NOTE-restricted-call-fires-on-mention-not-call.md`. **Builder's call, not drawn.**
 
 > Builder: *"it sounds like we've got a build list... get them on disk and we begin working on them"*
 >
@@ -25,7 +29,9 @@ P7      sniff_kind cannot see a NULLARY   ✅ STRUCK — 11 of 11; 25 runes reti
         ALGEBRA handler                          now ENTIRELY PERMANENT
 P5-a  ONE spelling for a fn type          ✅ STRUCK — 3 corrected, a wall built FIRST and shown
                                              RED, and the wall is the strings' FIRST EVER READER
-P5-b  @yields gains a SUBJECT             ← NEXT: repeatable, mandatory at expand time
+P5-b  @yields gains a SUBJECT             ✅ STRUCK — repeatable, TYPE DROPPED, mandate at
+                                             expand time, and the redundant gate DELETED
+P6-c  the two matches -> registry lookups ← NEXT: the megafile boss
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
 ```
@@ -53,7 +59,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~O-iv-d~~ | ~~the remainder~~ | | | ✅ **STRUCK** — 1 of 14 (`core::List`, variadic) |
 | ~~P7~~ | ~~`sniff_kind` cannot classify a NULLARY ALGEBRA handler~~ | | | ✅ **STRUCK** — 11 of 11 |
 | ~~P5-a~~ | ~~one spelling for a fn type in an `@arg`~~ | | | ✅ **STRUCK** — 3 sites + the wall |
-| **P5-b** | `@yields` gains a SUBJECT (`@yields <argname> <type> <desc>`), repeatable, mandatory at expand time | doc grammar + macro + the gate + 5 entries / 7 args | *not drawn* | P5-a ✅ — **READY to draw** |
+| ~~P5-b~~ | ~~`@yields` gains a SUBJECT, repeatable, mandatory~~ | | | ✅ **STRUCK** — and the TYPE dropped |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |
 | **P6-c** | the eval and tail matches collapse into registry lookups | 111 eval arms + 8 tail arms | *not drawn* | P6-a's mechanism + its row-0 census |
 
@@ -104,4 +110,6 @@ proven by planting a real duplicate and watching the floor run 5065/5065 GREEN p
 `P7` (the nullary door — 11 of 11, both shapes exercised, 25 lint exemptions retired, and the
 disposition axis left with NO fixable entry: every remaining refusal is a property of the verb) ·
 `P5-a` (one spelling for a fn type — and the discovery that an `@arg`'s type string had NO READER
-AT ALL: render-doc drops the field, and its only gate skips every entry on P4's debt ledger).
+AT ALL: render-doc drops the field, and its only gate skips every entry on P4's debt ledger) ·
+`P5-b` (`@yields` gains a subject and LOSES ITS TYPE — the type was redundant, and the proof was a
+test whose whole job was asserting two declarations of one fact agree; that test is now deleted).
