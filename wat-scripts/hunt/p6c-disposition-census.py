@@ -20,12 +20,17 @@ WHAT IT MEASURES
      ten `:wat::eval-*!` forms share one outer arm).
   3. For each FQDN, extracts the single leading delegate call in the arm body (if there is
      one) and its raw argument list, and classifies a CANDIDATE disposition by comparing that
-     argument list against the `#[wat_intrinsic]` BINDING shim's unconditional call shape —
-     `#fn_name(args, env, sym, list_span)` for variadic, `#fn_name(arg0, .., env, sym,
-     list_span)` for exact arity (`crates/wat-macros/src/wat_intrinsic.rs:787,793`), where
-     `list_span` is passed BY REFERENCE, un-cloned. A `.clone()` on the trailing span, a
-     reordering, a wrong arity, or a body that is not one delegating call, are all reported as
-     the REASON the candidate is NEEDS-SHAPE rather than silently marked ready.
+     argument list against the `#[wat_intrinsic]` BINDING shim's call shape. **UPDATED arc 255
+     Stone P6-c-1**: the shim no longer forwards a fixed `(env, sym, list_span)` triple — it
+     forwards exactly the context params the CALLEE'S OWN signature declares, in the order the
+     callee declares them (`sniff_args` sniffs an ORDERED sequence now, not a
+     `seen_context: bool`; `crates/wat-macros/src/wat_intrinsic.rs`'s BINDING call sites are
+     `#fn_name(args, #(#tail_tokens),*)` / `#fn_name(#(#arg_forwards,)* #(#tail_tokens),*)`).
+     So a candidate's trailing call args need only be A CONTIGUOUS SUFFIX drawn from
+     `{env, sym, list_span}` (each at most once, any order, any subset — 0 to 3 of them) — no
+     longer all three, no longer that one fixed order. `.clone()`-hiding an OWNED tail param
+     (`eval_apply`'s owned `Span`), an extra non-context arg, or a body that is not one
+     delegating call, are still reported as the REASON the candidate is NEEDS-SHAPE.
   4. Flags a `SPECIAL FORM` comment near an arm (case-insensitive) as SPECIAL-FORM-CANDIDATE.
   5. Flags a `starts_with(":...")` guard pattern (the `:rust::` namespace arm) as its own
      PREFIX-GUARD class, and the final bare `other`/`_` arm as CATCH-ALL — neither is one of
@@ -462,29 +467,66 @@ def find_fn_signature(fn_name):
 
 
 def classify_call(name, args):
-    """Compare a call's raw argument list against the BINDING shim's unconditional trailing
-    `env, sym, list_span` (by reference, un-cloned). Returns (label, reason)."""
-    if len(args) < 3:
-        return "NEEDS-SHAPE", f"arity {len(args)} < 3 (env/sym/list_span not all present)"
-    tail = args[-3:]
-    expected = ["env", "sym", "list_span"]
-    if tail != expected:
-        return "NEEDS-SHAPE", f"trailing args are {tail!r}, not {expected!r} (order/name mismatch)"
-    # Order/name matches the call-site shape. Now check the CALLEE's own declared signature
-    # for reference-vs-owned on the tail three (the .clone()-hiding case: `eval_apply`).
+    """Compare a call's raw argument list against the BINDING shim's rule — arc 255 Stone
+    P6-c-1, POST-STONE: the macro forwards exactly the context params the CALLEE declares, in
+    the order the callee declares them (`sniff_args` now records an ORDERED sequence, not a
+    `seen_context: bool`) — any subset of `env`/`sym`/`list_span`, not a fixed all-three
+    `(env, sym, list_span)` triple. `crates/wat-macros/src/wat_intrinsic.rs`'s BINDING call
+    sites (`#fn_name(args, #(#tail_tokens),*)` / `#fn_name(#(#arg_forwards,)*
+    #(#tail_tokens),*)`) forward whatever `ContextParam` sequence `sniff_args` sniffed off the
+    callee's OWN signature — the call-site's PRE-EXISTING trailing order (this text) is
+    therefore no longer the thing to match against a fixed literal; it only needs to be A
+    CONTIGUOUS SUFFIX drawn from `{env, sym, list_span}`, each at most once, in WHATEVER order
+    already appears (that order is exactly what the callee's own declaration already commits
+    to, since real Rust code passing the wrong positional type wouldn't compile today).
+    Returns (label, reason)."""
+    context_names = {"env", "sym", "list_span"}
+    # Walk from the end while each token is a context name (P6-c-1: order-agnostic, subset
+    # allowed — 0, 1, 2, or 3 of the three, no longer "all three or NEEDS-SHAPE").
+    i = len(args)
+    while i > 0 and args[i - 1] in context_names:
+        i -= 1
+    tail = args[i:]
+    leading = args[:i]
+
+    if len(set(tail)) != len(tail):
+        return "NEEDS-SHAPE", f"trailing context args repeat a name: {tail!r}"
+    if not tail:
+        return (
+            "NEEDS-SHAPE",
+            "no env/sym/list_span in the trailing position at all — not a context tail this "
+            "census recognizes (arity-0 delegate, or the context names sit somewhere other "
+            "than a trailing run)",
+        )
+    if any(a in context_names for a in leading):
+        return (
+            "NEEDS-SHAPE",
+            f"a context name appears before the end of the leading wat-args: {args!r} — "
+            "`sniff_args` requires every `&WatAST`/`&[WatAST]` param before ANY context param",
+        )
+    # Order/subset now matches the call-site shape UNCONDITIONALLY (arc 255 Stone P6-c-1 — no
+    # fixed triple to fail against). Still check the CALLEE's own declared signature for
+    # reference-vs-owned on however many trailing params there are (the `.clone()`-hiding
+    # case: `eval_apply` takes an OWNED `Span`, which the shim's borrowed local can never
+    # satisfy — this stone changed WHICH params get forwarded and in what order, not their
+    # by-ref-ness, so this half of the check is unchanged in substance).
     sig = find_fn_signature(name)
     if sig is None:
         return (
             "NEEDS-SHAPE?",
-            f"call-site order matches BINDING but `{name}`'s own `fn` declaration "
-            "could not be uniquely located to verify by-ref vs owned — read it by hand",
+            f"call-site tail {tail!r} is a subset of env/sym/list_span but `{name}`'s own `fn` "
+            "declaration could not be uniquely located to verify by-ref vs owned — read it by hand",
         )
     path, lineno, params = sig
-    if len(params) < 3:
-        return "NEEDS-SHAPE", f"`{name}` at {path}:{lineno} declares only {len(params)} params"
-    last3 = params[-3:]
+    if len(params) < len(tail):
+        return (
+            "NEEDS-SHAPE",
+            f"`{name}` at {path}:{lineno} declares only {len(params)} params, fewer than the "
+            f"call's {len(tail)}-long tail",
+        )
+    last_n = params[-len(tail):]
     bad = []
-    for p, want_ref_type in zip(last3, ["&", "&", "&"]):
+    for p in last_n:
         # param text looks like "env: &Environment" — flag if it's NOT a reference type
         ty = p.split(":", 1)[1].strip() if ":" in p else p
         if not ty.startswith("&"):
@@ -492,10 +534,14 @@ def classify_call(name, args):
     if bad:
         return (
             "NEEDS-SHAPE",
-            f"`{name}` at {path}:{lineno} takes {bad} BY VALUE, not by reference — "
-            "the BINDING shim passes env/sym/list_span by reference, un-cloned",
+            f"`{name}` at {path}:{lineno} takes {bad} BY VALUE, not by reference — the shim's "
+            "env/sym/list_span locals are borrows and can never satisfy an owned param",
         )
-    return "INTRINSIC-READY", f"`{name}` at {path}:{lineno} matches BINDING's call shape exactly"
+    return (
+        "INTRINSIC-READY",
+        f"`{name}` at {path}:{lineno} declares context tail {tail!r} — the macro now honours "
+        "it directly (arc 255 Stone P6-c-1: order/subset, no longer a fixed triple)",
+    )
 
 
 def classify_arm(pattern, body, leading=""):

@@ -2327,7 +2327,10 @@ mod completeness_gate {
     ":wat::core::type",
     ":wat::core::use!",
     ":wat::core::variant",
-    ":wat::form::matches?",
+    // `:wat::form::matches?` DELETED from this ledger 2026-08-28 (arc 255 Stone P6-c-1):
+    // homing it into the intrinsic registry gave it `intrinsic_meta` purity, so it is no longer
+    // unreviewed. This gate went RED demanding the deletion — the ratchet shrinking as the debt
+    // is paid, exactly as designed. Every verb the P6-c campaign homes will do the same.
     ":wat::holon::Atom",
     ":wat::holon::Bind",
     ":wat::holon::Bind/left",

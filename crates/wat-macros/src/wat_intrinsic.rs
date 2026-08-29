@@ -2,13 +2,16 @@
 //!
 //! Applied to a handler fn written with either a **fixed-arg signature** (each
 //! wat arg as a `&WatAST` param) or a **variadic signature** (single `&[WatAST]`
-//! slice param). The context tail (`env: &Environment, sym: &SymbolTable,
-//! span: &Span`) follows in both cases.  The attribute:
+//! slice param). A **context tail** — any subset of `&Environment`, `&SymbolTable`,
+//! `&Span`, in ANY order the handler declares — follows in both cases.  The attribute:
 //!
 //!   1. **Sniffs args** — collects the leading `&WatAST` param idents (those
 //!      BEFORE the context tail). N such params ⇒ `Exact(N)`. A single
 //!      `&[WatAST]` leading param ⇒ `Variadic` (the slice is passed through
-//!      directly; no arity check in the shim).
+//!      directly; no arity check in the shim). Also sniffs the context tail
+//!      itself as an ORDERED sequence of `Env`/`Sym`/`Span` (arc 255 Stone
+//!      P6-c-1) — a param here that is none of those three types is rejected
+//!      at macro-expand time, not left for rustc to catch downstream.
 //!
 //!   2. **Parses the `///` block** via `wat_doc::parse`, enforcing the full
 //!      doc contract at expand time (`compile_error!` on any `DocError`).
@@ -21,7 +24,10 @@
 //!      (returning the SAME `RuntimeErrorKind::ArityMismatch` shape the
 //!      hand-written handlers used — `op` = the fqdn, `expected` = N,
 //!      `got` = args.len(), span = the list_span), then calls the fixed-arg
-//!      fn with `&args[0], …, env, sym, span`.
+//!      fn with `&args[0], …` followed by exactly the context params the
+//!      handler declared, in the order it declared them (arc 255 Stone
+//!      P6-c-1 — the macro no longer permutes to a fixed `env, sym, span`
+//!      order; it honours the declared tail).
 //!
 //!   4. **Registers** the (fqdn → shim) into the `IntrinsicRegistry` via
 //!      `inventory::submit!` of an `IntrinsicSubmission`, carrying the full
@@ -96,14 +102,39 @@ enum SniffedArgs {
     Variadic(String),
 }
 
+/// A context-tail parameter's declared identity, in DECLARATION ORDER (arc 255 Stone P6-c-1).
+/// Before this stone the macro recorded only a `seen_context: bool` and then unconditionally
+/// called the handler with a fixed `env, sym, list_span` tail — a permutation nothing derived.
+/// Now `sniff_args` records exactly which of the three appeared, and in which order, and
+/// `emit`'s BINDING call site forwards exactly that sequence.
+#[derive(Clone, Copy)]
+enum ContextParam {
+    Env,
+    Sym,
+    Span,
+}
+
+impl ContextParam {
+    /// The shim-local variable this slot forwards. The shim's own param names
+    /// (`env`, `sym`, `list_span`) are fixed by the canonical `NativeHandler` signature above;
+    /// only the ORDER the handler receives them in varies per handler.
+    fn forward_token(self) -> TokenStream2 {
+        match self {
+            ContextParam::Env => quote! { env },
+            ContextParam::Sym => quote! { sym },
+            ContextParam::Span => quote! { list_span },
+        }
+    }
+}
+
 /// Parse the leading wat-side params from a handler signature.
 /// Returns `SniffedArgs::Exact(names)` for fixed-arity handlers
 /// (`&WatAST` params leading) or `SniffedArgs::Variadic(name)` for
-/// a single `&[WatAST]` param.
-/// The context tail (`&Environment`, `&SymbolTable`, `&Span`) follows.
-fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
+/// a single `&[WatAST]` param, together with the context tail — any subset of
+/// `&Environment`/`&SymbolTable`/`&Span` the handler declared, in the order it declared them.
+fn sniff_args(item: &ItemFn) -> syn::Result<(SniffedArgs, Vec<ContextParam>)> {
     let mut wat_args: Vec<String> = Vec::new();
-    let mut seen_context = false;
+    let mut context_tail: Vec<ContextParam> = Vec::new();
     let mut variadic_param: Option<String> = None;
 
     for input in item.sig.inputs.iter() {
@@ -115,7 +146,7 @@ fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
         };
         if is_ref_watast_slice(&pt.ty) {
             // Variadic shape: a single `&[WatAST]` param.
-            if seen_context || !wat_args.is_empty() || variadic_param.is_some() {
+            if !context_tail.is_empty() || !wat_args.is_empty() || variadic_param.is_some() {
                 return Err(Error::new_spanned(
                     &pt.ty,
                     "wat_intrinsic: `&[WatAST]` variadic param must be the SOLE \
@@ -133,7 +164,7 @@ fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
             };
             variadic_param = Some(ident);
         } else if is_ref_watast(&pt.ty) {
-            if seen_context || variadic_param.is_some() {
+            if !context_tail.is_empty() || variadic_param.is_some() {
                 // A `&WatAST` after a context param or variadic param — violated.
                 return Err(Error::new_spanned(
                     &pt.ty,
@@ -163,17 +194,33 @@ fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
                  params in one signature — a BINDING handler's leading params are \
                  `&WatAST`/`&[WatAST]` only (an ALGEBRA handler's are `&Value`/`&[Value]` only)",
             ));
+        } else if is_ref_environment(&pt.ty) {
+            context_tail.push(ContextParam::Env);
+        } else if is_ref_symbol_table(&pt.ty) {
+            context_tail.push(ContextParam::Sym);
+        } else if is_ref_span(&pt.ty) {
+            context_tail.push(ContextParam::Span);
         } else {
-            // First non-`&WatAST`/`&[WatAST]` param marks the start of the context tail.
-            seen_context = true;
+            // arc 255 Stone P6-c-1, acceptance row 3 / STOP-3: a context-tail slot that is
+            // none of `&Environment`/`&SymbolTable`/`&Span` used to be waved through silently
+            // (a bare `seen_context = true`) and left for rustc to reject downstream, at the
+            // generated call site, with an unreadable type error. Reject it HERE, with a real
+            // message, at the param that is actually wrong.
+            return Err(Error::new_spanned(
+                &pt.ty,
+                "wat_intrinsic: a BINDING handler's context tail may contain only \
+                 `&Environment`, `&SymbolTable`, or `&Span` (any subset, any order) — \
+                 this param's type is none of those",
+            ));
         }
     }
 
-    if let Some(name) = variadic_param {
-        Ok(SniffedArgs::Variadic(name))
+    let sniffed = if let Some(name) = variadic_param {
+        SniffedArgs::Variadic(name)
     } else {
-        Ok(SniffedArgs::Exact(wat_args))
-    }
+        SniffedArgs::Exact(wat_args)
+    };
+    Ok((sniffed, context_tail))
 }
 
 /// The handler's KIND (arc 255 Stone O-iii) — the third sniff on the same mechanism as
@@ -182,8 +229,10 @@ fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
 /// (today's shape, parsed by `sniff_args`, untouched); `&Value`/`&[Value]` ⇒ ALGEBRA (the macro
 /// generates BOTH the value door — the fn itself — and the AST door, behind one arity check).
 enum IntrinsicKind {
-    /// Leading `&WatAST`/`&[WatAST]` params. AST door only; unchanged in every respect.
-    Binding(SniffedArgs),
+    /// Leading `&WatAST`/`&[WatAST]` params, then a context tail — any subset of
+    /// `&Environment`/`&SymbolTable`/`&Span`, in the order the handler declared it (arc 255
+    /// Stone P6-c-1). AST door only.
+    Binding(SniffedArgs, Vec<ContextParam>),
     /// Leading `&Value`/`&[Value]` params, then NOTHING or a single trailing `&Span`
     /// (arc 255 Stone Q). Both doors generated. The `bool` is `true` when the handler
     /// itself declared the trailing `&Span` and wants it forwarded.
@@ -213,7 +262,8 @@ fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
         Some(FnArg::Receiver(_)) => false,
     };
     if !is_algebra {
-        return Ok(IntrinsicKind::Binding(sniff_args(item)?));
+        let (sniffed, context_tail) = sniff_args(item)?;
+        return Ok(IntrinsicKind::Binding(sniffed, context_tail));
     }
 
     let mut wat_args: Vec<String> = Vec::new();
@@ -436,6 +486,24 @@ fn is_ref_span(ty: &Type) -> bool {
     false
 }
 
+/// Is the type `&Environment`? Arc 255 Stone P6-c-1 — one of the three legal BINDING
+/// context-tail slots (the others are `&SymbolTable`/`is_ref_symbol_table` and
+/// `&Span`/`is_ref_span`).
+fn is_ref_environment(ty: &Type) -> bool {
+    if let Type::Reference(r) = ty {
+        return type_path_ends_with(&r.elem, "Environment");
+    }
+    false
+}
+
+/// Is the type `&SymbolTable`? Arc 255 Stone P6-c-1 — see `is_ref_environment`.
+fn is_ref_symbol_table(ty: &Type) -> bool {
+    if let Type::Reference(r) = ty {
+        return type_path_ends_with(&r.elem, "SymbolTable");
+    }
+    false
+}
+
 /// Does the type's final path segment equal `name`? (Tolerates
 /// `WatAST`, `ast::WatAST`, `crate::ast::WatAST`, etc.)
 fn type_path_ends_with(ty: &Type, name: &str) -> bool {
@@ -566,7 +634,7 @@ pub(crate) fn emit(
     }
 
     let sniffed: &SniffedArgs = match &kind {
-        IntrinsicKind::Binding(s) | IntrinsicKind::Algebra(s, _) => s,
+        IntrinsicKind::Binding(s, _) | IntrinsicKind::Algebra(s, _) => s,
     };
 
     // Require a doc comment; parse it through wat_doc.
@@ -780,17 +848,21 @@ pub(crate) fn emit(
     // (`value_door_tokens`) and points `value_handler_field` at it instead of at `value_fn`.
     let value_door_ident = format_ident!("__wat_intrinsic_value_{}", fn_name);
     let (shim_body, value_door_tokens, value_handler_field) = match &kind {
-        IntrinsicKind::Binding(_) => {
+        IntrinsicKind::Binding(_, context_tail) => {
+            // arc 255 Stone P6-c-1 — forward exactly the context params the handler declared,
+            // in the order it declared them. No longer a fixed `env, sym, list_span`.
+            let tail_tokens: Vec<TokenStream2> =
+                context_tail.iter().map(|c| c.forward_token()).collect();
             let body = if is_variadic {
                 // Variadic: pass the whole slice to the handler.
                 wrap_call(quote! {
-                    #fn_name(args, env, sym, list_span)
+                    #fn_name(args, #(#tail_tokens),*)
                 })
             } else {
                 let n = arg_names.len();
                 let arg_forwards: Vec<TokenStream2> = (0..n).map(|i| quote! { &args[#i] }).collect();
                 let call = wrap_call(quote! {
-                    #fn_name(#(#arg_forwards,)* env, sym, list_span)
+                    #fn_name(#(#arg_forwards,)* #(#tail_tokens),*)
                 });
                 quote! {
                     if args.len() != #n {

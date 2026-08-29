@@ -633,7 +633,7 @@ mod tests {
     ///
     /// Measured 2026-08-28 against `check_env.get(entry.name)` over `registry().all_entries()`
     /// — the SAME construction and SAME method both gates use, so this measurement cannot
-    /// disagree with what the gates actually skip. 49 of 382 registered entries, by namespace:
+    /// disagree with what the gates actually skip. 50 of 384 registered entries, by namespace:
     /// - `:wat::kernel::` 23 of 46 — accept, address-wire?, after, allow, close, connect, deny,
     ///   fn-forms, listener, peer-pid, peer-process, peer-wire?, poll, recv,
     ///   require-wire-address, retag-op, select, send, serve-dispatch-op, signal,
@@ -646,6 +646,10 @@ mod tests {
     /// - `:wat::string::` 2 of 20 — declare-acronyms, interpolate
     /// - `:wat::time::` 2 of 41 — +, -
     /// - `:wat::edn::` 1 of 13 — validate
+    /// - `:wat::form::` 1 of 1 — WHOLLY ABSENT: matches? (arc 255 Stone P6-c-1 — homed to
+    ///   `#[wat_intrinsic]`; `check.rs::infer_form_matches` type-checks it via its own
+    ///   FQDN-keyed special-case grammar, never via a generic `TypeScheme`, so `CheckEnv`
+    ///   was never going to have it — this gate's job is only to notice and freeze that fact)
     const FROZEN_CHECKER_DEBT_LEDGER: &[&str] = &[
         ":wat::core::List",
         ":wat::core::fresh-symbol",
@@ -654,6 +658,7 @@ mod tests {
         ":wat::core::type-equal?",
         ":wat::core::type-params-used-in",
         ":wat::edn::validate",
+        ":wat::form::matches?",
         ":wat::holon::coincident-explain",
         ":wat::holon::coincident?",
         ":wat::holon::cosine",

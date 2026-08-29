@@ -52,6 +52,7 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use wat_macros::restricted_to;
+use wat_macros::wat_intrinsic;
 use wat_macros::wat_special_form_impl;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
@@ -5585,18 +5586,15 @@ fn dispatch_keyword_head_value(
         // Root → clean MalformedForm error (no owner-link). Two checker-only
         // type-keyword args (:S :R) validated but not evaluated.
         ":wat::program::self-peer" => eval_program_self_peer(args, list_span),
-        // Arc 259 S3.2b-i — live host parallelism verb.
-        // Answers std::thread::available_parallelism() directly, no program env needed.
-        ":wat::program::cpu-count" => eval_program_cpu_count(args, list_span),
         // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
         // pass 7 (drop stdio params from `:user::main`; argv +
         // current-thread move to ambient).
         ":wat::runtime::argv" => eval_runtime_argv(args, list_span),
         ":wat::runtime::current-thread" => eval_runtime_current_thread(args, list_span),
-        // Arc 098 — Clara-style single-item pattern matcher.
-        // Both type checker and runtime walk the same pattern grammar
-        // via the shared classifier in `crate::form_match`.
-        ":wat::form::matches?" => eval_form_matches(args, list_span, env, sym),
+        // arc 255 Stone P6-c-1 — `:wat::program::cpu-count` and `:wat::form::matches?`
+        // homed to `#[wat_intrinsic]` (both above this match, still in this file); no
+        // arm needed here anymore. Type-checking (`check.rs::infer_form_matches` for
+        // `matches?`; the hand-registered `TypeScheme` for `cpu-count`) is unaffected.
         // Arc 278 Stone 2a — rete single-fact alpha matcher.
         // Pure data-in/data-out: cond (WatAST from quote) × fact (Record) →
         // (Option :- [(PersistentMap :- [String Value])]). No Environment, no eval_inner.
@@ -14444,6 +14442,22 @@ fn resolve_aggregate_def_for_reflection<'a>(
 /// pattern grammar at expansion. The runtime trusts that input —
 /// grammar errors at this layer are bugs in the type checker, not
 /// user errors.
+///
+/// Homed to `#[wat_intrinsic]` arc 255 Stone P6-c-1 (one of the two proof verbs — the
+/// ORDER shape: this handler declares its context tail `(list_span, env, sym)`, NOT the
+/// 100-arm `(env, sym, span)` order the macro used to hardcode). `check.rs`'s own
+/// `:wat::form::matches?` grammar check (line ~3933, `infer_form_matches`) matches on the
+/// literal FQDN string ahead of any generic-apply/TypeScheme lookup and is untouched by
+/// this move — the registry gains a dispatch entry, nothing about type-checking changes.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Probe
+/// @arg     args… :wat::core::Value SUBJECT (evaluated) followed by the pattern `(:TYPE-NAME clause ...)` (never evaluated — walked structurally)
+/// @ret     :wat::core::bool whether SUBJECT structurally matches the pattern (Clara semantics: a non-matching class, non-Struct value, or `:None` subject is `false`, never an error)
+/// @example (:wat::core::do (:wat::core::defstruct :probe::FormMatchSubject [amount <- :wat::core::i64]) (:wat::form::matches? (:probe::FormMatchSubject :amount 3) (:probe::FormMatchSubject (= ?a :amount)))) #=> true
+#[wat_intrinsic(":wat::form::matches?")]
 fn eval_form_matches(
     args: &[WatAST],
     list_span: &Span,
@@ -19969,6 +19983,25 @@ fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// `std::thread::available_parallelism()` directly — no installed program env
 /// required. Mirrors `(:wat::time::now)`: a live host fact available in ANY eval
 /// context. Used by the brackets pool to size its default runner count.
+///
+/// Homed to `#[wat_intrinsic]` arc 255 Stone P6-c-1 (the second proof verb — the SUBSET
+/// shape: this handler declares ONLY `list_span` in its context tail, no `env`/`sym`).
+/// The leading `args: &[WatAST]` param predates the later true-nullary convention
+/// (contrast `:wat::time::now`'s zero-param shape) — kept exactly as declared (this
+/// stone's whole claim is that homing a verb never edits its parameter list), so the
+/// shim still forwards the whole slice and this fn keeps its own arity check below.
+/// `check.rs` already carries a hand-registered generic `TypeScheme` for this FQDN
+/// (`(:wat::program::cpu-count) -> :wat::core::i64`, near line 18703) — untouched by
+/// this move, same as every other pre-existing intrinsic.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Category      Ambient
+/// @arg     args… :wat::core::Value must be empty — this verb takes no wat-level arguments
+/// @ret     :wat::core::i64 the host's available parallelism (`std::thread::available_parallelism()`), sampled at call time
+/// @example-norun (:wat::program::cpu-count) #=> 8
+#[wat_intrinsic(":wat::program::cpu-count")]
 fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::program::cpu-count";
     if !args.is_empty() {
