@@ -65,10 +65,53 @@ compliant syntax*. A parametric literal with three spellings is three things to 
 migration will be written from **one** of these authorities — whichever the author happens to read.
 1,308 sites ride on the one that only the error message documents.
 
-## What is NOT claimed here
+## ⛔⛔ RULED, 2026-08-29 — `:- [...]` IS THE ONE FORM. THE OTHER TWO DIE.
 
-That the bare form should be removed. It is the second-most-used spelling and may be the right one
-to keep — `(Vector :i64 1 2 3)` is arguably the most readable of the three, and `:-` costs two extra
-tokens on every literal. **The finding is the disagreement, not the verdict.** Whoever rules this
-should decide the spelling first and then make all three authorities say it — the design doc, the
-unwrapper's comment, and the diagnostic — because today a reader can consult any one and be wrong.
+> Builder: *"we spent weeks imposing param-spec… param-spec is `:- [...]`. we have heresy in our
+> code. this is unacceptable. there is exactly one way to confer a parametric type. it is
+> `:- [...]`. all others must die."*
+
+The section that stood here declined to pick a spelling and said "the finding is the disagreement,
+not the verdict." **The verdict is now in and it is `:- [...]`.** The design doc's `(Head [type…])`
+is retired by the same ruling — one form, no exceptions, in every position and every file.
+
+### ★ THE ROOT CAUSE — and the weeks were not wasted, they answered a different question
+
+Two recorded migrations imposed the param-spec, and **both were sourced from the ANGLE spelling**:
+
+```
+wat-scripts/fixes/parametrics-take-a-type-vector.wat  (Stone ②-ii)  Head<args> -> (Head [args])
+wat-scripts/fixes/angle-brackets-to-binder.wat        (Stone ③)     Head<args> -> (Head :- [args])
+```
+
+Each rewrote `Head<args>`. **A site already written `(Vector :wat::core::i64 1 2 3)` has no angle
+brackets, so no codemod ever looked at it.** The work was complete for the question it asked —
+*where are the angle brackets* — and that question could not see a second spelling of the same
+concept sitting beside it. The 22 surviving unmarked brackets are ②-ii's own output, left behind
+when ③ moved the target to `:-`.
+`[[feedback_a_census_of_a_name_must_ask_every_rendering]]`
+
+### The population, measured 2026-08-29 at `27923cb2c`
+
+```
+.wat corpus     1474 bare keyword  +   23 unmarked bracket   = 1497
+.rs doc/@example 211 bare keyword  +    7 unmarked bracket   =  218
+                                                        TOTAL ~1715 sites
+```
+⚠ `:wat::core::fn`'s `[...]` is its PARAMETER LIST, not a param-spec — 1053 sites excluded from the
+unmarked count. A census that misses that exclusion overstates the work by 40×.
+
+### The shape this wants — three stones, in this order
+
+1. **The `.wat` corpus codemod.** R21: wat rewriting wat, `wat-scripts/fixes/`, dry-run on a `/tmp`
+   copy + `diff`, then apply. Its two siblings above are the shape to copy — and note that
+   `positional-to-kwargs.wat` *itself* contains the bare form, so **the fix corpus is in the
+   population it fixes.**
+2. **The `.rs` doc-comment and `@example` sites.** Not reachable by a `.wat` codemod, and now
+   user-facing (P6-a: a fn named by `#[wat_intrinsic]` has published documentation).
+3. **The wall, LAST.** `unwrap_type_param_bracket`'s unmarked arm (its own comment already says
+   "③ deletes it"), whatever accepts the bare keyword, and — the part that matters most — **the
+   diagnostic, which today recommends the bare form to every user who gets it wrong.**
+
+⛔ **Order is load-bearing.** The wall before the sweep turns the whole corpus red; the sweep before
+the wall leaves nothing stopping the third spelling from coming back.
