@@ -1086,6 +1086,49 @@ field. Reachable, but not constructible inside a fence.
    legitimate (a `:then` may simply not admit `match`) or may be the same class as the
    map-destructure gap just closed.** Drive it before believing either.
 
+   ★★★★ **THE REAL DISANALOGY WITH eBPF, and it names the missing mechanism.** Builder:
+   *"the problem here is basically an instruction set one? … we produced too many instructions and
+   crashed ourselves … the kernel imposes like a million or something?"* Close, and the correction
+   is the whole design:
+
+   | eBPF bounds | what it limits | rete's counterpart |
+   |---|---|---|
+   | ~1M verification paths | the VERIFIER's own work at load | n/a — our analysis is a graph walk, it never explodes |
+   | 33 tail calls | STEPS at runtime | ✅ `max_fire_rounds = 10_000` |
+   | 512-byte stack, and **every map declares `with_max_entries`** | **STATE** | ❌ **nothing** |
+
+   **It is not an instruction-count problem — it is an ALLOCATION problem, and eBPF structurally
+   cannot have one.** A BPF program never allocates: every byte of its state is a preallocated map
+   with a ceiling declared at load and enforced by the kernel. Our own scrubber declares them —
+   `TREE_NODES: Array::with_max_entries(5_000_000, 0)`, `TREE_EDGES: HashMap::with_max_entries(
+   5_000_000, 0)` (`filter-ebpf/src/main.rs:172,177`). Rete's fact memories are ordinary growable
+   maps, and **`max_fire_rounds` is the ONLY ceiling in `config.rs`** — grepped: no fact cap, no
+   memory cap, nothing.
+
+   That is exactly why the fanout OOMs and the counter does not. We copied eBPF's STEP ceiling and
+   not its STATE ceiling, and the shape that diverges within a single step walks straight past the
+   one we took.
+
+   **THE MECHANISM THIS POINTS AT IS `max_entries`, AND IT IS NOT AN ESCAPE HATCH.** A declared
+   ceiling on derived facts — load-time, runtime-enforced, surfacing as a located diagnostic — is a
+   CAPACITY the runtime imposes, not a promise about termination the author makes. Nothing is
+   trusted; the two refused proposals both asked the verifier to believe something, and this asks
+   it to believe nothing.
+
+   ⚠ **AND THE LANGUAGE ALREADY HAS THIS SHAPE ONE DOMAIN OVER.** Holon capacity is exactly it:
+   `set-capacity-mode!` is a LOAD-TIME directive (driven — `unknown function` inside `:user::main`),
+   and under the default `:error` the overflow returns a `Result` the type system forces the caller
+   to handle. Same posture as a BPF map: declared before the program runs, enforced while it runs,
+   surfaced as a value. **That is also item 7 step 5's subject**, which is a reason to look at the
+   two together rather than invent a second capacity vocabulary.
+
+   **So this item now has TWO separable strikes, and neither is the annotation it used to name:**
+   1. **A state ceiling** (`max_entries` for derived facts) — closes the OOM the round cap misses.
+      Bounds the DANGER.
+   2. **Type-based finiteness admission** — stops refusing `bool`/enum cycles the engine already
+      converges on. Narrows the REFUSAL.
+   They are independent: (1) makes divergence safe, (2) makes provable convergence legal.
+
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
    their reason for themselves?"*). An author's string is not a proof. The direction the design
