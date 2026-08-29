@@ -337,6 +337,47 @@ def find_prefix_guard(pattern_text):
     return m.group(1) if m else None
 
 
+def strip_comments(s):
+    """Remove `//...` and `/* ... */` comments from `s`, string/char-literal-aware (a comment
+    marker inside a string or char literal is left alone). Found while building this census:
+    `eval_and`/`eval_or` (src/runtime.rs:11409) declare an inline `// rune:lint(unused-span)`
+    comment on the trailing `_list_span` param whose OWN prose contains a comma
+    ("... `arg.span()`, more precise ...") — `top_level_split` has no comment awareness, so
+    that comma reads as a top-level parameter separator and tears the comment itself into two
+    bogus "parameters", corrupting the by-ref/by-value check for every param after it. Applied
+    to a parameter-list string ONLY (not general source text) before splitting."""
+    sc = Scanner(s)
+    out = []
+    n = sc.n
+    while sc.i < n:
+        c = sc.s[sc.i]
+        if c == '"':
+            start = sc.i
+            sc.consume_string()
+            out.append(sc.s[start : sc.i])
+            continue
+        if c == "'":
+            if sc.maybe_char_lit():
+                start = sc.i
+                sc.consume_char_lit()
+                out.append(sc.s[start : sc.i])
+            else:
+                out.append(c)
+                sc.i += 1
+            continue
+        if c == "/" and sc.i + 1 < n and sc.s[sc.i + 1] == "/":
+            nl = sc.s.find("\n", sc.i)
+            sc.i = nl if nl != -1 else n
+            continue
+        if c == "/" and sc.i + 1 < n and sc.s[sc.i + 1] == "*":
+            end = sc.s.find("*/", sc.i + 2)
+            sc.i = end + 2 if end != -1 else n
+            continue
+        out.append(c)
+        sc.i += 1
+    return "".join(out)
+
+
 def top_level_split(s, sep=","):
     parts = []
     depth = 0
@@ -461,7 +502,7 @@ def find_fn_signature(fn_name):
     sc = Scanner(text)
     sc.i = m.end() - 1
     params_text = sc.consume_balanced("(", ")")[1:-1]
-    params = top_level_split(params_text)
+    params = top_level_split(strip_comments(params_text))
     _SIG_CACHE[bare] = (path, lineno, params)
     return _SIG_CACHE[bare]
 
@@ -544,29 +585,127 @@ def classify_call(name, args):
     )
 
 
-def classify_arm(pattern, body, leading=""):
-    guard = find_prefix_guard(pattern)
-    if guard is not None:
-        return "PREFIX-GUARD", f"namespace guard on prefix {guard!r}, not enumerable FQDNs"
-    fq = extract_fqdns(pattern)
-    if not fq:
-        return "CATCH-ALL", "bare wildcard/bound-name arm with no literal FQDN in its pattern"
-    # arc P6-c-0 hand-read-control finding: the "SPECIAL FORM" marker for `:wat::stream::lazy`
-    # sits in a comment ABOVE the arm (between the previous arm's body and this arm's pattern),
-    # not inside the pattern or body text itself — a naive pattern/body-only check missed it
-    # and disagreed with the hand-read control. Check the leading comment span too.
-    if (
+# ─── SHAPE vs DESTINATION (arc 255 Stone P6-c-2) ──────────────────────────────────────────────
+# P6-c-1 widened the shape rule and the instrument started reading SHAPE=fits (INTRINSIC-READY)
+# as if it were a verdict — it isn't. SHAPE ("does this signature fit #[wat_intrinsic]?") and
+# DESTINATION ("should this verb BE an intrinsic at all?") are independent questions; only a
+# human rules the second one. `classify_arm` below therefore reports SHAPE ONLY. The comment
+# heuristic that used to let a "SPECIAL FORM" comment silently DECIDE the disposition is demoted
+# to `comment_hint` — a boolean carried alongside the SHAPE label that can only flag a row for
+# human review (main() prints it as a suggestion), never assign a disposition. `:wat::stream::lazy`
+# kept its correct ruling by that comment's accident, not by design; see DESTINATION_LEDGER below,
+# which is what actually carries that ruling now.
+def detect_special_form_hint(pattern, body, leading):
+    """Non-deciding SUGGESTION only (arc 255 Stone P6-c-2) — a 'special form' comment near an
+    arm no longer assigns a disposition by itself. It can only ADD a candidate for human review;
+    main() prints it as a note next to whatever SHAPE/DESTINATION this row already carries."""
+    return bool(
         re.search(r"special form", body, re.IGNORECASE)
         or re.search(r"special form", pattern, re.IGNORECASE)
         or re.search(r"special form", leading, re.IGNORECASE)
-    ):
-        return "SPECIAL-FORM", "arm body/pattern/leading-comment says 'special form' explicitly"
+    )
+
+
+# THE FROZEN DESTINATION LEDGER. Names, never a count (`[[feedback_a_gate_freezes_names_never_a_count]]`
+# — same discipline as FROZEN_CHECKER_DEBT_LEDGER / KNOWN_UNREVIEWED). Seeded from the rulings
+# P6-c-0 made by hand-reading the arms, and the six/thirteen this NOTE records:
+#   SPECIAL-FORM           — quote, quasiquote, fn (P6-c-0 hand ruling); stream::lazy (its own
+#                            in-place comment, now carried HERE instead of re-derived from it).
+#   DECLARATION-GUARD      — core::def, core::defclause: unconditional
+#                            Err(DeclarationInExpressionPosition) arms; the real processing is
+#                            freeze-time (register_runtime_defs_form). No shape to fix; likely
+#                            disposition is delete, once that cut is confirmed exhaustive.
+#   UNKNOWN-RULED-PENDING  — if, do, match, and the CONTROL-FLOW-MULTI-MODE set (let, and, or,
+#                            ann-form): each has 3+ simultaneously-live implementations (the
+#                            giant-match arm, a TCO trampoline, a stepper model, ...). Homing the
+#                            eval arm alone strands the siblings. A real disposition (the
+#                            serve-dispatch-op precedent at runtime.rs:4415) exists but must be
+#                            CHOSEN, not stumbled into by this census.
+# ★ This ledger MUST go red the moment a name here stops matching a real FQDN in the giant match
+# — see `check_ledger_freshness()` in main(). Do not silently drop a stale name.
+DESTINATION_LEDGER = {
+    '":wat::core::quote"': (
+        "SPECIAL-FORM",
+        "P6-c-0 hand ruling: capture-don't-eval, mirrors lazy-seq",
+    ),
+    '":wat::core::quasiquote"': ("SPECIAL-FORM", "P6-c-0 hand ruling"),
+    '":wat::core::fn"': ("SPECIAL-FORM", "P6-c-0 hand ruling"),
+    '":wat::stream::lazy"': (
+        "SPECIAL-FORM",
+        "in-place comment: capture-don't-eval, mirrors quote (P6-c NOTE) — ruling now lives "
+        "HERE, not derived from that comment",
+    ),
+    '":wat::core::def"': (
+        "DECLARATION-GUARD",
+        "unconditional Err(DeclarationInExpressionPosition); real processing is freeze-time "
+        "register_runtime_defs_form (P6-c NOTE)",
+    ),
+    '":wat::core::defclause"': (
+        "DECLARATION-GUARD",
+        "unconditional Err(DeclarationInExpressionPosition) (P6-c NOTE)",
+    ),
+    '":wat::core::if"': (
+        "UNKNOWN-RULED-PENDING",
+        "CONTROL-FLOW-MULTI-MODE: giant-match arm + eval_if_tail (TCO trampoline) + step_if "
+        "(stepper model) are simultaneously live (P6-c NOTE)",
+    ),
+    '":wat::core::do"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
+    '":wat::core::match"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
+    '":wat::core::let"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
+    '":wat::core::and"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
+    '":wat::core::or"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
+    '":wat::core::ann-form"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
+}
+
+DESTINATION_DEFAULT = "INTRINSIC"
+DESTINATION_DEFAULT_REASON = (
+    "not in the frozen ledger — no exception has been ruled here; default destination is the "
+    "registry (HOME-11/HOME-12 precedent) until a human rules an exception into the ledger above"
+)
+
+
+def destination_for(fqdn_literal):
+    """READ the frozen ledger; never derive from SHAPE. A row not in the ledger gets the
+    constant default above — a fixed prior, not a computation over this row's own shape data."""
+    return DESTINATION_LEDGER.get(fqdn_literal, (DESTINATION_DEFAULT, DESTINATION_DEFAULT_REASON))
+
+
+def check_ledger_freshness(all_fqdns):
+    """STOP trigger #1 (BRIEF-STONE-P6-c-2): a name in the frozen ledger that no longer appears
+    in the match must fail LOUDLY, naming it — never silently skip it. Call with the FULL FQDN
+    population (pre `--control` filtering)."""
+    stale = sorted(k for k in DESTINATION_LEDGER if k not in all_fqdns)
+    if stale:
+        print("\n## ⛔ FATAL — DESTINATION LEDGER IS STALE", file=sys.stderr)
+        for s in stale:
+            print(
+                f"    ledgered FQDN {s} no longer appears in the giant match's FQDN set — "
+                "update the ledger or re-verify this FQDN's fate before trusting this report",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+
+
+def classify_arm(pattern, body, leading=""):
+    """SHAPE ONLY. Returns (shape_label, shape_reason, comment_hint) — DESTINATION is looked up
+    separately, per-FQDN, from DESTINATION_LEDGER (see destination_for()), never computed here."""
+    guard = find_prefix_guard(pattern)
+    if guard is not None:
+        return "PREFIX-GUARD", f"namespace guard on prefix {guard!r}, not enumerable FQDNs", False
+    fq = extract_fqdns(pattern)
+    if not fq:
+        return "CATCH-ALL", "bare wildcard/bound-name arm with no literal FQDN in its pattern", False
+    hint = detect_special_form_hint(pattern, body, leading)
     call = find_primary_call(body)
     if call is None:
-        return "COMPLEX", "arm body is not one delegating call (multi-statement / inline control flow) — read by hand"
+        return (
+            "COMPLEX",
+            "arm body is not one delegating call (multi-statement / inline control flow) — read by hand",
+            hint,
+        )
     name, args, _rest = call
     label, reason = classify_call(name, args)
-    return label, reason
+    return label, reason, hint
 
 
 def load_giant_match():
@@ -707,7 +846,7 @@ def main():
     rows = []
     total_fqdns = 0
     for arm in arms:
-        label, reason = classify_arm(arm["pattern"], arm["body"], arm.get("leading", ""))
+        label, reason, hint = classify_arm(arm["pattern"], arm["body"], arm.get("leading", ""))
         fq = extract_fqdns(arm["pattern"])
         line_desc = f"{arm['pattern_start_line']}-{arm['arrow_line']}"
         if label in ("PREFIX-GUARD", "CATCH-ALL"):
@@ -715,8 +854,9 @@ def main():
                 {
                     "fqdn": None,
                     "lines": line_desc,
-                    "label": label,
+                    "shape": label,
                     "reason": reason,
+                    "hint": hint,
                     "pattern": arm["pattern"].strip()[:80],
                 }
             )
@@ -727,30 +867,82 @@ def main():
             for inner_arms in nested_clusters:
                 for ia in inner_arms:
                     ifq = extract_fqdns(ia["pattern"])
-                    ilabel, ireason = classify_arm(ia["pattern"], ia["body"], ia.get("leading", ""))
+                    ilabel, ireason, ihint = classify_arm(
+                        ia["pattern"], ia["body"], ia.get("leading", "")
+                    )
                     for f in ifq:
                         rows.append(
                             {
                                 "fqdn": f,
                                 "lines": line_desc + " (nested cluster)",
-                                "label": ilabel,
+                                "shape": ilabel,
                                 "reason": ireason,
+                                "hint": ihint,
                                 "pattern": arm["pattern"].strip()[:80],
                             }
                         )
             continue
         for f in fq:
             rows.append(
-                {"fqdn": f, "lines": line_desc, "label": label, "reason": reason, "pattern": None}
+                {
+                    "fqdn": f,
+                    "lines": line_desc,
+                    "shape": label,
+                    "reason": reason,
+                    "hint": hint,
+                    "pattern": None,
+                }
             )
+
+    # ★ STOP trigger #1 — the ledger must go red BEFORE anything else is printed or counted,
+    # and it must be checked against the FULL FQDN population, not a `--control`-filtered one.
+    all_fqdn_set = {r["fqdn"] for r in rows if r["fqdn"] is not None}
+    check_ledger_freshness(all_fqdn_set)
+
+    # DESTINATION is read per-FQDN from the frozen ledger — never derived from SHAPE.
+    homeable_count = 0
+    for r in rows:
+        if r["fqdn"] is None:
+            r["dest"], r["dest_reason"] = None, None
+            r["homeable"] = False
+            continue
+        r["dest"], r["dest_reason"] = destination_for(r["fqdn"])
+        r["homeable"] = r["shape"] == "INTRINSIC-READY" and r["dest"] == DESTINATION_DEFAULT
+        if r["homeable"]:
+            homeable_count += 1
 
     if control_set:
         rows = [r for r in rows if r["fqdn"] in control_set]
 
     print(f"## per-FQDN candidate disposition ({len(rows)} rows)")
     for r in rows:
-        fqdn_disp = r["fqdn"] if r["fqdn"] else f"<{r['label']} arm: {r['pattern']}>"
-        print(f"  {fqdn_disp:55s} [{r['lines']:>14s}]  {r['label']:16s}  {r['reason']}")
+        fqdn_disp = r["fqdn"] if r["fqdn"] else f"<{r['shape']} arm: {r['pattern']}>"
+        if r["dest"] is None:
+            print(f"  {fqdn_disp:55s} [{r['lines']:>14s}]  SHAPE={r['shape']:16s}  {r['reason']}")
+            continue
+        homeable_tag = "HOMEABLE" if r["homeable"] else "--------"
+        print(
+            f"  {fqdn_disp:55s} [{r['lines']:>14s}]  {homeable_tag}  "
+            f"SHAPE={r['shape']:16s} DESTINATION={r['dest']:22s}  shape:{r['reason']}"
+        )
+        print(f"      destination: {r['dest_reason']}")
+        if r["hint"] and r["dest"] != "SPECIAL-FORM":
+            print(
+                "      ⚠ comment-hint: a 'special form' comment appears near this arm but it is "
+                "NOT in the frozen ledger as SPECIAL-FORM — SUGGESTION ONLY, add to human review, "
+                "does not change SHAPE or DESTINATION above"
+            )
+
+    print(f"\n## HOMEABLE SET: {homeable_count} of {len(all_fqdn_set)} FQDNs "
+          f"(SHAPE=fits AND DESTINATION={DESTINATION_DEFAULT}, the frozen ledger's default)")
+    shape_fits_count = sum(1 for r in rows if r.get("shape") == "INTRINSIC-READY" and r["fqdn"] is not None)
+    if not control_set:
+        ruled_out_and_fits = shape_fits_count - homeable_count
+        print(
+            f"      SHAPE=fits total: {shape_fits_count}  minus ruled-out-and-fits "
+            f"(ledgered, SHAPE=fits but DESTINATION != {DESTINATION_DEFAULT}): {ruled_out_and_fits}  "
+            f"= {homeable_count}"
+        )
 
     if not args.no_multisite:
         print("\n## multi-site grep (candidate — every hit needs a human read)")
