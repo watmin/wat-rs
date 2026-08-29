@@ -492,14 +492,50 @@ fn then_form_computes(form: &WatAST) -> bool {
 /// The largest fact population this analysis will certify as finite.
 ///
 /// A finite domain still has to FIT. Twenty `bool` fields is 2^20 facts — provably terminating and
-/// an allocator abort all the same, which is the exact failure this whole item exists to stop. So
-/// the product of cardinalities is capped, and over the cap the rule is refused with "too large to
+/// an allocator abort all the same, which is the exact failure this item exists to stop. So the
+/// product of cardinalities is capped, and over the cap the rule is refused as "too large to
 /// prove" rather than admitted on a technicality.
 ///
-/// **10_000 matches `DEFAULT_MAX_FIRE_ROUNDS` deliberately.** Both answer the same question — how
-/// much derivation is this engine willing to stand behind — and two different numbers for one
-/// question is a second place for a number to rot (FM 30). If one moves, both should be argued.
-const MAX_PROVABLE_FACT_POPULATION: u128 = 10_000;
+/// ── WHY 1_000_000, MEASURED ────────────────────────────────────────────────────────────────────
+///
+/// ⚠ **This was 10_000 for one commit, chosen to "match `DEFAULT_MAX_FIRE_ROUNDS`". That was
+/// symmetry, not evidence, and the two answer different questions** — a round cap bounds WORK per
+/// fire, this bounds STATE. Conflating them is the same mistake the eBPF comparison exists to
+/// avoid: the kernel bounds a program's per-invocation work tightly (33 tail calls, a 512-byte
+/// stack) while the maps it reads are enormous (`with_max_entries(5_000_000)` in our own XDP
+/// scrubber). Small step budget, large state budget. 10_000 borrowed the wrong one.
+///
+/// **And it was below a workload we run on every push.** The grid's `fanout` axis derives
+/// **40_000** facts at its top rung (`run-all.sh`, ladder `10000|20000|40000`) and is now a CI job.
+/// Refusing to CERTIFY a population four times smaller than something the suite materialises
+/// unbounded is incoherent — it withholds a proof from the safe case while permitting the larger
+/// one unproven.
+///
+/// **Measured 2026-08-29** — insert N facts, derive N, read peak child RSS:
+///
+/// ```text
+///   N=0        50_460 KB   (bare runtime)
+///   N=20_000   68_968 KB
+///   N=100_000 171_864 KB
+///   N=400_000 548_704 KB      -> 498 MB over baseline for 800_000 facts
+/// ```
+///
+/// **~600 bytes per fact**, stable across three sizes (474 / 622 / 623 B). That covers the fact,
+/// its alpha memory, the token and the index entries — not a bare struct.
+///
+/// So 1_000_000 facts is **~600 MB worst case**, 25x the largest legitimate population in our own
+/// corpus. It is a real commitment and it is stated rather than implied: the cap only bites on a
+/// cycle whose finite fields MULTIPLY to something large (five `defenum`s of 16 variants is ~1M),
+/// which is a genuine multi-dimensional state machine and not an accident.
+///
+/// **What would change it.** Raise it once a runtime STATE ceiling exists (item 8's other strike) —
+/// exhaustion becomes catchable, so certifying more costs less. Lower it if 600 MB is too generous
+/// a default — **but never below the corpus's own 40_000**, or this constant is again refusing to
+/// prove what the suite already runs. A knob is deliberately NOT added: `dim_count` and
+/// `max_fire_rounds` are tunable because they trade DEEP against DIVERGENT with no single right
+/// answer, and this one has a measured floor and a measured cost. If it ever bites a real program,
+/// that is the evidence for making it configurable — not before.
+const MAX_PROVABLE_FACT_POPULATION: u128 = 1_000_000;
 
 /// How many values can inhabit `ty`? `None` = not finite, or not finitely KNOWABLE here.
 ///

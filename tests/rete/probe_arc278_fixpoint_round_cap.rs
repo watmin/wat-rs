@@ -217,6 +217,18 @@ fn a_finite_typed_computed_head_is_admitted_and_the_i64_axis_is_not() {
          something other than the bound it claims.\n{stderr}"
     );
 
+    // ⛔ THE CAP IS NOT DECORATIVE. 20 computed `bool` fields is 2^20 = 1_048_576 facts — provably
+    // FINITE and, at the measured ~600 B/fact, ~630 MB. "Provably finite" is not "safe to admit",
+    // and this row is where those two claims part company. Without it the constant could be set to
+    // anything, or deleted, and every other row here would still pass.
+    let (ok_big, _o, e_big) = run("tests/rete/probe_arc278_termination_finite_domain_too_large.wat");
+    assert!(
+        !ok_big,
+        "a population past MAX_PROVABLE_FACT_POPULATION must be refused as too large to prove, \
+         not admitted because the arithmetic happens to be finite\n{e_big}"
+    );
+    let _ = rete_error(&e_big, "RuleSetMayNotTerminate");
+
     // THE AXIS THAT MUST NOT MOVE. Each of these has a computed `i64` head; each is refused today
     // and must stay refused. `_guarded` terminates (at 501) and is refused anyway — that is the
     // KNOWN narrowing, item 8, and it is deliberately still here: this admission reads the TYPE,
