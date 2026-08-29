@@ -8,6 +8,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
+use wat_macros::wat_intrinsic;
+
 use crate::ast::WatAST;
 use crate::rete::matcher::{compare_values, Bindings, FieldNames};
 use crate::rete::vocabulary::{resolve_core_name, OpClass, RETE_OPS};
@@ -1671,30 +1673,45 @@ fn ord(
     }
 }
 
-/// Rule-compile refuse: `(:wat::rete::lower <quoted-expr>) -> nil` or raise.
+/// `(:wat::rete::lower expr) -> :wat::core::nil`
+///
+/// Rule-compile refuse: eval `expr` to a quoted `WatAST`, then run it through the compile pass
+/// `lower()` (above) for validation only — the built `Program` is discarded (`Ok(Value::Unit)`)
+/// and nothing about it outlives this call. Raises (via `LowerError::into_eval`) iff `lower`
+/// refuses the form (an unsupported head, a non-lexical HOF callee, or an unbound symbol);
+/// returns `nil` on success. `#49 — rule-compile refuse: lower the where expr or raise.`
+///
+/// Arc 255 Stone P6-c-W5c — moved verbatim into `#[wat_intrinsic]` with its real (1) arity
+/// declared; the hand-rolled `args.len() != 1` guard this wave retires lived right here.
+///
+/// **Purity ground:** `eval_inner` on `expr` is ordinary call-by-value argument evaluation (not
+/// itself an effect — the same shape `alpha-match`'s wrapper is Pure for). `lower()` is a pure
+/// static compile pass: it reads `sym: &SymbolTable` (never mutates it) and `lower_expr`/
+/// `lower_rete_defn`/`lower_named_rete_fn` never call `eval_inner` or `apply_function` — no user
+/// code is EXECUTED, only walked and translated to `Expr`/`Program` IR. The `LowerCx` (slot
+/// table, next-slot counter) and the resulting `Program` are both freshly allocated per call and
+/// dropped when `eval_lower` returns (the `Ok(Value::Unit)` discards the `Program` outright) —
+/// nothing is cached, interned, or otherwise retained past the call.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      ControlFlow
+/// @arg     expr :wat::WatAST the quoted expression to validate-and-lower (from `:wat::core::quote`)
+/// @ret     :wat::core::nil `nil` on a successful lower; raises if `lower` refuses the form
+/// @example (:wat::rete::lower (:wat::core::quote (:wat::rete::i64::> ?c 5))) #=> nil
+#[wat_intrinsic(":wat::rete::lower")]
 pub(crate) fn eval_lower(
-    args: &[WatAST],
-    list_span: &Span,
+    expr: &WatAST,
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::rete::lower".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let v = crate::runtime::eval_inner(expr, env, sym)?.value_owned();
     let ast = match v {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                expr.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::rete::lower".into(),
                     expected: ":wat::WatAST",

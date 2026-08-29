@@ -60,6 +60,8 @@
 //! consults `total?`** as the third conjunct of the four-axis fence (pure ∧ det ∧ total ∧ rete).
 //! Partial core ops enter rete only as `OpClass::Fallback` + a mandatory `:undefined`.
 
+use wat_macros::wat_intrinsic;
+
 use crate::ast::WatAST;
 use crate::runtime::{
     EvalBreak, Environment, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
@@ -2065,8 +2067,7 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
     N.get_or_init(|| crate::value::value::names_arc_from_static(AXIS_VIOLATION_FIELDS)).clone()
 }
 
-/// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
-/// (:wat::core::Option :- [wat::rete::AxisViolation])`
+/// `(:wat::rete::axis-violation expr axis) -> (:wat::core::Option :- [wat::rete::AxisViolation])`
 ///
 /// The SAME walk `pure?`/`deterministic?`/`total?`/`primitive?` run, surfacing the
 /// violation instead of discarding it: `:wat::core::None` ⟺ `(pure? e)` / `(deterministic? e)` would
@@ -2078,27 +2079,44 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
 /// `:wat::rete::Axis` enum (a `defenum` in `wat/rete/compile.wat`), decoded/encoded here directly as a
 /// `Value::Enum` — no keyword string map. `pure?`/`deterministic?` are UNCHANGED by this addition
 /// (STOP-1) — this is purely additive.
+///
+/// Arc 255 Stone P6-c-W5c — moved verbatim into `#[wat_intrinsic]` with its real (2) arity
+/// declared; the hand-rolled `args.len() != 2` guard this wave retires lived right here.
+///
+/// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an effect).
+/// `find_axis_violation` → `classify_expr` is the exact same read-only structural walk that
+/// `is_pure_expr`/`is_deterministic_expr`/`is_total_expr`/`is_rete_primitive_expr` run (W5a,
+/// `Pure`/`Deterministic`) — no `eval_inner`/`apply_function` on `expr`, only a transitive AST
+/// walk with a per-call `gray`/`black` `HashSet` (local, dropped on return) for cycle detection.
+/// The one `OnceLock` here (`axis_violation_names`) caches a fixed, compile-time-constant
+/// field-name table process-wide, the same boilerplate every record constructor in this file uses
+/// — infrastructure, not a per-call effect. The `Option<AxisViolation>` returned is freshly built
+/// and handed to the caller; nothing outlives the call beyond that one constant cache.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Probe
+/// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
+/// @arg     axis :wat::rete::Axis which of the four fence axes to check (`Pure`/`Deterministic`/`Total`/`RetePrimitive`)
+/// @ret     (:wat::core::Option :- [:wat::rete::AxisViolation]) `None` if `expr` satisfies `axis`; `Some(v)` naming the offending head, the axis, and its span otherwise
+/// @example (:wat::rete::axis-violation (:wat::core::quote (:wat::rete::i64::> ?c 5)) :wat::rete::Axis::Pure) #=> :None
+#[wat_intrinsic(":wat::rete::axis-violation")]
 pub(crate) fn eval_axis_violation(
-    args: &[WatAST],
-    list_span: &Span,
+    expr: &WatAST,
+    axis: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::axis-violation";
     const AXIS_TYPE: &str = ":wat::rete::Axis";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-        })
-        .into());
-    }
-    let val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let expr_span = expr.span().clone();
+    let axis_span = axis.span().clone();
+    let val = crate::runtime::eval_inner(expr, env, sym)?.value_owned();
     let ast = match val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(expr_span, RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
                 got: Box::new(ValueSnapshot::of(&other)),
@@ -2106,7 +2124,7 @@ pub(crate) fn eval_axis_violation(
             .into());
         }
     };
-    let axis_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let axis_val = crate::runtime::eval_inner(axis, env, sym)?.value_owned();
     // ONE DOOR (`Axis::from_variant_name`) — never a second, hand-spelled variant list here.
     // See `Axis::variant_name`'s doc for the 39-test failure the old duplicate decode caused.
     let axis = match &axis_val {
@@ -2114,7 +2132,7 @@ pub(crate) fn eval_axis_violation(
         _ => None,
     };
     let Some(axis) = axis else {
-        return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError::new(axis_span, RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             // Leaked deliberately: the accepted set is DERIVED from `Axis::ALL`, so this message
             // cannot again name fewer variants than the decode accepts.
@@ -2476,12 +2494,20 @@ mod completeness_gate {
     // arm.rs`), `export`/`import` (`src/rete/export.rs`), and `eval-insert`/`eval-test`
     // (`src/rete/eval_insert.rs`/`src/rete/eval_test.rs`) are HOMED (`#[wat_intrinsic]`, in
     // place — not relocated to `src/intrinsic/`) and CLASSIFIED `@Purity Effectful` — deleted
-    // from this ledger, not carried forward. The remaining `:wat::rete::` verbs (the firing
-    // family — fire-*, insert-*, the $native twins — plus `lower`/`collect-rules`/
-    // `step-payload`/`axis-violation`, still unverified as read-only) are unaffected and
-    // remain on this ledger under `RULES`'s `:wat::rete::` Unreviewed disposition.
-    ":wat::rete::axis-violation",
-    ":wat::rete::collect-rules",
+    // from this ledger, not carried forward.
+    // Arc 255 Stone P6-c-W5c — the four remaining readers are HOMED (`#[wat_intrinsic]`, in
+    // place) and CLASSIFIED — deleted from this ledger, not carried forward: `lower`
+    // (`src/rete/expr_ir.rs`, `Pure`/`Deterministic` — a static compile pass, no `eval_inner` on
+    // user code), `step-payload` (`src/rete/step_payload.rs`, `Pure`/`Deterministic` — reads an
+    // already-compiled network structurally), `axis-violation` (`src/rete/purity.rs`, same file,
+    // `Pure`/`Deterministic` — the same walk `pure?`/`deterministic?`/`total?`/`primitive?` run),
+    // and `collect-rules` (`src/rete/collect.rs`, `Effectful`/`Nondeterministic` — its reflection
+    // filter is shape-only (zero-arg + ret-type `Rule`) and does not verify the discovered fn's
+    // body came from `defrule`'s always-quoted expansion, so it invokes arbitrary already-defined
+    // code via `eval_inner`, unbounded, the same shape `eval-test`/`eval-insert` were ruled
+    // `Effectful` for in W5b). The remaining `:wat::rete::` verbs (the firing family — fire-*,
+    // insert-*, the $native twins) are unaffected and remain on this ledger under `RULES`'s
+    // `:wat::rete::` Unreviewed disposition.
     ":wat::rete::fire-once",
     ":wat::rete::fire-once$native",
     ":wat::rete::fire-rules",
@@ -2492,8 +2518,6 @@ mod completeness_gate {
     ":wat::rete::insert$native",
     ":wat::rete::insert-all",
     ":wat::rete::insert-all$native",
-    ":wat::rete::lower",
-    ":wat::rete::step-payload",
     // Arc 255 Stone HOME-9 — `:wat::std::list::{zip,window,remove-at}` moved to
     // `:wat::seq::*` (and became Seqable-generic in the same motion — a runtime/check
     // concern, not a purity ruling; they carry forward the SAME open ruling under the new

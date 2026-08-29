@@ -5643,12 +5643,10 @@ fn dispatch_keyword_head_value(
         // Arc 278 Stone P12c — per-edge explain payload builder.
         // (:wat::rete::step-payload session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
-        ":wat::rete::step-payload" => {
-            crate::rete::step_payload::eval_step_payload(args, list_span, env, sym)
-        }
-        ":wat::rete::collect-rules" => {
-            crate::rete::collect::eval_collect_rules(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::step-payload` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/step_payload.rs`, in place) with its real (5) arity declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here.
         // Arc 255 Stone P6-c-W5b — `:wat::rete::export`/`import` moved into `#[wat_intrinsic]`
         // handlers (`src/rete/export.rs`, in place) with their real (1) arity declared each;
         // the pre-match registry check above (arc 255.1c-guard) intercepts both names before
@@ -5663,20 +5661,27 @@ fn dispatch_keyword_head_value(
         // and the admission test `vocabulary-admitted?` all moved into `#[wat_intrinsic]`
         // handlers (`src/intrinsic/rete.rs`) with their real (1) arity declared; the pre-match
         // registry check above (arc 255.1c-guard) intercepts all five names before reaching
-        // here. `axis-violation` below runs the SAME walk and is NOT this wave.
+        // here. `axis-violation` below runs the SAME walk and IS part of Stone P6-c-W5c.
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it.
         // (:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) -> (:wat::core::Option :- [wat::rete::AxisViolation])
-        ":wat::rete::axis-violation" => {
-            crate::rete::purity::eval_axis_violation(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::axis-violation` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/purity.rs`, in place) with its real (2) arity declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here.
         // Arc 278 Stone 6b-i — the runtime evaluator for where/:test predicates.
         // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
         // Arc 255 Stone P6-c-W5b — moved into a `#[wat_intrinsic]` handler
         // (`src/rete/eval_test.rs`, in place) with its real (2) arity declared; the pre-match
         // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // #49 — rule-compile refuse: lower the where expr or raise. Returns nil on success.
-        ":wat::rete::lower" => crate::rete::expr_ir::eval_lower(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::lower` moved into a `#[wat_intrinsic]` handler
+        // (`src/rete/expr_ir.rs`, in place) with its real (1) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::collect-rules` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/collect.rs`, in place) with its real (1) arity declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here.
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
