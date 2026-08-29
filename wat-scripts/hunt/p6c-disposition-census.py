@@ -623,51 +623,152 @@ def detect_special_form_hint(pattern, body, leading):
 #                            CHOSEN, not stumbled into by this census.
 # ★ This ledger MUST go red the moment a name here stops matching a real FQDN in the giant match
 # — see `check_ledger_freshness()` in main(). Do not silently drop a stale name.
+# arc 255 Stone P6-c-3 — every reason below is BACKFILLED from what P6-c-0's rider and the P6-c
+# NOTE actually recorded, plus this stone's own re-read of the cited source lines (re-read only to
+# CONFIRM the existing ruling, never to invent a new one — STOP trigger #1). Nothing here is a new
+# ruling; all 13 FQDNs were already in this ledger before this stone touched it.
 DESTINATION_LEDGER = {
     '":wat::core::quote"': (
         "SPECIAL-FORM",
-        "P6-c-0 hand ruling: capture-don't-eval, mirrors lazy-seq",
+        "P6-c-0 hand ruling: capture-don't-eval, mirrors lazy-seq. Confirmed at "
+        "src/runtime.rs:11978-11986, eval_quote's own doc comment: \"the inner form is NOT "
+        "evaluated at quote time — no side effects fire, no functions are called.\"",
     ),
-    '":wat::core::quasiquote"': ("SPECIAL-FORM", "P6-c-0 hand ruling"),
-    '":wat::core::fn"': ("SPECIAL-FORM", "P6-c-0 hand ruling"),
+    '":wat::core::quasiquote"': (
+        "SPECIAL-FORM",
+        "P6-c-0 hand ruling. Confirmed at src/runtime.rs:12219-12246, eval_quasiquote's own doc "
+        "comment: walks the template and evaluates/substitutes only at explicit unquote sites, "
+        "returning the assembled form as a Value::wat__WatAST — not a fully-evaluated call.",
+    ),
+    '":wat::core::fn"': (
+        "SPECIAL-FORM",
+        "P6-c-0 hand ruling. Confirmed at src/runtime.rs:5514-5517 (arm comment: \"the canonical "
+        "operator for function values\") and src/function/eval.rs:20-30 (eval_fn's doc comment: "
+        "it produces a Function closure value — the body is captured, not evaluated, until the "
+        "function is later called).",
+    ),
     '":wat::stream::lazy"': (
         "SPECIAL-FORM",
         "in-place comment: capture-don't-eval, mirrors quote (P6-c NOTE) — ruling now lives "
-        "HERE, not derived from that comment",
+        "HERE, not derived from that comment. Confirmed at src/runtime.rs:5534-5536 (arm "
+        "comment: \"lazy-seq is a SPECIAL FORM (capture-don't-eval)... Mirrors quote.\") and "
+        "src/runtime.rs:12064 (eval_lazy_seq's own doc: \"SPECIAL FORM (capture-don't-eval)\").",
     ),
     '":wat::core::def"': (
         "DECLARATION-GUARD",
         "unconditional Err(DeclarationInExpressionPosition); real processing is freeze-time "
-        "register_runtime_defs_form (P6-c NOTE)",
+        "register_runtime_defs_form (P6-c NOTE). Confirmed at src/runtime.rs:5486-5497 (arm "
+        "comment + the Err construction) and src/runtime.rs:2627 (register_runtime_defs_form, "
+        "the freeze-time function that actually processes top-level defs).",
     ),
     '":wat::core::defclause"': (
         "DECLARATION-GUARD",
-        "unconditional Err(DeclarationInExpressionPosition) (P6-c NOTE)",
+        "unconditional Err(DeclarationInExpressionPosition) (P6-c NOTE). Confirmed at "
+        "src/runtime.rs:5501-5508 (\"Stone 237.2 — :wat::core::defclause at expression position "
+        "is a position violation\" + the Err construction) and src/runtime.rs:2627 "
+        "(register_runtime_defs_form, same freeze-time processor as core::def).",
     ),
     '":wat::core::if"': (
         "UNKNOWN-RULED-PENDING",
         "CONTROL-FLOW-MULTI-MODE: giant-match arm + eval_if_tail (TCO trampoline) + step_if "
-        "(stepper model) are simultaneously live (P6-c NOTE)",
+        "(stepper model) are simultaneously live (P6-c NOTE, \"The census came back\" section, "
+        "the CONTROL-FLOW-MULTI-MODE bullet — this is the one member of the set the NOTE named "
+        "all three sites for by name; re-found at src/runtime.rs, fn eval_if_tail and fn "
+        "step_if, both present, confirming the class still holds, though at drifted line "
+        "numbers from the NOTE's own 4411/23501).",
     ),
-    '":wat::core::do"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
-    '":wat::core::match"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
-    '":wat::core::let"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
-    '":wat::core::and"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
-    '":wat::core::or"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
-    '":wat::core::ann-form"': ("UNKNOWN-RULED-PENDING", "CONTROL-FLOW-MULTI-MODE (P6-c NOTE)"),
+    '":wat::core::do"': (
+        "UNKNOWN-RULED-PENDING",
+        "CONTROL-FLOW-MULTI-MODE (P6-c NOTE, same bullet as core::if) — grouped with if/let/"
+        "match/and/or/ann-form as having 3+ simultaneously-live implementations; the NOTE gives "
+        "the concrete site enumeration for if only, not per-verb for this one.",
+    ),
+    '":wat::core::match"': (
+        "UNKNOWN-RULED-PENDING",
+        "CONTROL-FLOW-MULTI-MODE (P6-c NOTE, same bullet as core::if) — grouped classification, "
+        "not individually site-enumerated in the NOTE.",
+    ),
+    '":wat::core::let"': (
+        "UNKNOWN-RULED-PENDING",
+        "CONTROL-FLOW-MULTI-MODE (P6-c NOTE, same bullet as core::if) — grouped classification, "
+        "not individually site-enumerated in the NOTE.",
+    ),
+    '":wat::core::and"': (
+        "UNKNOWN-RULED-PENDING",
+        "CONTROL-FLOW-MULTI-MODE (P6-c NOTE, same bullet as core::if) — grouped classification, "
+        "not individually site-enumerated in the NOTE.",
+    ),
+    '":wat::core::or"': (
+        "UNKNOWN-RULED-PENDING",
+        "CONTROL-FLOW-MULTI-MODE (P6-c NOTE, same bullet as core::if) — grouped classification, "
+        "not individually site-enumerated in the NOTE.",
+    ),
+    '":wat::core::ann-form"': (
+        "UNKNOWN-RULED-PENDING",
+        "CONTROL-FLOW-MULTI-MODE (P6-c NOTE, same bullet as core::if) — grouped classification, "
+        "not individually site-enumerated in the NOTE.",
+    ),
 }
 
-DESTINATION_DEFAULT = "INTRINSIC"
+# arc 255 Stone P6-c-3 — DEFAULT-DENY. `DESTINATION_DEFAULT` used to be `"INTRINSIC"`: a verb
+# nobody had ruled on read as homeable by SILENCE — the exact shape of
+# `if is_reserved_prefix(head) { return true }` (src/resolve/walk.rs:268) this whole arc exists to
+# kill. It is now `"UNRULED"`, and `UNRULED` is NEVER homeable — see `HOMEABLE_DESTINATION` below,
+# which is the only destination value that ever enters the homeable set, and which nothing is
+# EVER given by default. A verb becomes homeable only by an explicit `(fqdn, "INTRINSIC", reason)`
+# ruling added to DESTINATION_LEDGER by a human who read it — this stone adds none.
+DESTINATION_DEFAULT = "UNRULED"
 DESTINATION_DEFAULT_REASON = (
-    "not in the frozen ledger — no exception has been ruled here; default destination is the "
-    "registry (HOME-11/HOME-12 precedent) until a human rules an exception into the ledger above"
+    "not in the frozen ledger — UNRULED, and UNRULED is never homeable (arc 255 Stone P6-c-3: "
+    "default-deny). A human must read this verb and add a (fqdn, destination, reason) ruling to "
+    "DESTINATION_LEDGER above before it can enter the homeable set — silence is no longer a ruling"
 )
+# The one destination value the homeable set actually keys on. Kept as a separate name from
+# DESTINATION_DEFAULT (which is UNRULED) so the two can never accidentally collapse back into each
+# other the way `"INTRINSIC"` used to double as both "the default" and "the homeable value".
+HOMEABLE_DESTINATION = "INTRINSIC"
+
+# Reasons that are present but carry no actual content — a name in the reason slot instead of a
+# sentence. STOP trigger #2 (BRIEF-STONE-P6-c-3): "a reason you would have to invent" is a STOP;
+# this list is the mechanical half of that check (empty/whitespace-only/boilerplate), not a
+# substitute for reading each of the 13 reasons by eye (done separately, in the stone's report).
+_PLACEHOLDER_REASONS = {
+    "", "todo", "tbd", "fixme", "wip", "n/a", "na", "none", "unknown", "...", "tk", "xxx",
+}
 
 
 def destination_for(fqdn_literal):
     """READ the frozen ledger; never derive from SHAPE. A row not in the ledger gets the
     constant default above — a fixed prior, not a computation over this row's own shape data."""
     return DESTINATION_LEDGER.get(fqdn_literal, (DESTINATION_DEFAULT, DESTINATION_DEFAULT_REASON))
+
+
+def validate_ledger():
+    """arc 255 Stone P6-c-3: a ledger row is a (destination, reason) PAIR and the reason is
+    load-bearing — a name alone is a name on a list, which is what this stone exists to stop.
+    FATAL, naming the exact row, on: a malformed entry, a missing/blank destination, or a
+    missing/empty/placeholder reason. Runs before anything else in main() so a corrupted ledger
+    can never silently produce a report."""
+    for fqdn, entry in DESTINATION_LEDGER.items():
+        if not (isinstance(entry, tuple) and len(entry) == 2):
+            print("\n## ⛔ FATAL — DESTINATION LEDGER ROW IS MALFORMED", file=sys.stderr)
+            print(
+                f"    {fqdn} : {entry!r} is not a (destination, reason) pair", file=sys.stderr
+            )
+            sys.exit(1)
+        dest, reason = entry
+        if not isinstance(dest, str) or not dest.strip():
+            print("\n## ⛔ FATAL — DESTINATION LEDGER ROW HAS NO DESTINATION", file=sys.stderr)
+            print(f"    {fqdn} : destination is {dest!r}", file=sys.stderr)
+            sys.exit(1)
+        if not isinstance(reason, str) or reason.strip().lower() in _PLACEHOLDER_REASONS:
+            print("\n## ⛔ FATAL — DESTINATION LEDGER ROW HAS NO REASON", file=sys.stderr)
+            print(
+                f"    {fqdn} : destination={dest!r} but reason={reason!r} — a ruling is a "
+                "(destination, reason) PAIR (arc 255 Stone P6-c-3); a name alone is not a ruling",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
 
 def check_ledger_freshness(all_fqdns):
@@ -827,6 +928,10 @@ def main():
     ap.add_argument("--no-multisite", action="store_true", help="skip the (slower) multi-site grep pass")
     args = ap.parse_args()
 
+    # arc 255 Stone P6-c-3 — a corrupted ledger (missing/empty/placeholder reason, or a malformed
+    # row) FATALs before a single line of the report is printed.
+    validate_ledger()
+
     preamble_text, match_start_line, match_end_line, arms = load_giant_match()
 
     print(f"# giant match: src/runtime.rs:{match_start_line}-{match_end_line}")
@@ -900,16 +1005,35 @@ def main():
     check_ledger_freshness(all_fqdn_set)
 
     # DESTINATION is read per-FQDN from the frozen ledger — never derived from SHAPE.
+    # arc 255 Stone P6-c-3 — DEFAULT-DENY: three DISJOINT-BY-CONSTRUCTION buckets, each keyed off
+    # DESTINATION, not SHAPE alone:
+    #   HOMEABLE          shape fits  AND a human RULED this fqdn INTRINSIC (never the default —
+    #                     DESTINATION_DEFAULT is UNRULED, so this can only ever come from an
+    #                     explicit DESTINATION_LEDGER entry).
+    #   AWAITING A RULING shape fits  AND nobody has ruled on it at all (dest == UNRULED) — the
+    #                     worklist; this is the number that used to be silently "homeable".
+    #   RULED OUT         a human ruled this fqdn to something OTHER than INTRINSIC — counted
+    #                     regardless of SHAPE, because the ruling (not the shape) is what took it
+    #                     out of contention (three of the 13 — def, defclause, let — don't even
+    #                     have SHAPE=fits, so they were invisible to the old
+    #                     shape_fits_total-minus-homeable arithmetic; they are still rulings).
     homeable_count = 0
+    awaiting_count = 0
+    ruled_out_count = 0
     for r in rows:
         if r["fqdn"] is None:
             r["dest"], r["dest_reason"] = None, None
             r["homeable"] = False
             continue
         r["dest"], r["dest_reason"] = destination_for(r["fqdn"])
-        r["homeable"] = r["shape"] == "INTRINSIC-READY" and r["dest"] == DESTINATION_DEFAULT
+        r["homeable"] = r["shape"] == "INTRINSIC-READY" and r["dest"] == HOMEABLE_DESTINATION
         if r["homeable"]:
             homeable_count += 1
+        elif r["dest"] == DESTINATION_DEFAULT:
+            if r["shape"] == "INTRINSIC-READY":
+                awaiting_count += 1
+        else:
+            ruled_out_count += 1
 
     if control_set:
         rows = [r for r in rows if r["fqdn"] in control_set]
@@ -933,15 +1057,21 @@ def main():
                 "does not change SHAPE or DESTINATION above"
             )
 
-    print(f"\n## HOMEABLE SET: {homeable_count} of {len(all_fqdn_set)} FQDNs "
-          f"(SHAPE=fits AND DESTINATION={DESTINATION_DEFAULT}, the frozen ledger's default)")
+    # arc 255 Stone P6-c-3 — three counts, unmistakably. HOMEABLE is the only one anyone may act
+    # on; AWAITING A RULING is the worklist every later wave draws from; RULED OUT is a human
+    # decision already made and carried forward, not recomputed here.
+    print(f"\n## HOMEABLE:          {homeable_count} of {len(all_fqdn_set)} FQDNs "
+          f"(ruled {HOMEABLE_DESTINATION} AND SHAPE=INTRINSIC-READY — NEVER the default)")
+    print(f"## AWAITING A RULING: {awaiting_count} of {len(all_fqdn_set)} FQDNs "
+          f"(SHAPE=INTRINSIC-READY AND DESTINATION={DESTINATION_DEFAULT} — the worklist)")
+    print(f"## RULED OUT:         {ruled_out_count} of {len(all_fqdn_set)} FQDNs "
+          f"(DESTINATION ruled to something other than {HOMEABLE_DESTINATION}, any SHAPE)")
     shape_fits_count = sum(1 for r in rows if r.get("shape") == "INTRINSIC-READY" and r["fqdn"] is not None)
     if not control_set:
-        ruled_out_and_fits = shape_fits_count - homeable_count
         print(
-            f"      SHAPE=fits total: {shape_fits_count}  minus ruled-out-and-fits "
-            f"(ledgered, SHAPE=fits but DESTINATION != {DESTINATION_DEFAULT}): {ruled_out_and_fits}  "
-            f"= {homeable_count}"
+            f"      SHAPE=fits total: {shape_fits_count}  =  HOMEABLE {homeable_count}  +  "
+            f"AWAITING-A-RULING {awaiting_count}  +  (ruled-out rows that also happen to fit: "
+            f"{shape_fits_count - homeable_count - awaiting_count})"
         )
 
     if not args.no_multisite:
