@@ -6,7 +6,7 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `5696835f1`; the commit carrying this stamp
+earlier 2026-08-28 ones. Written against HEAD `59feffad3`; the commit carrying this stamp
 lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
 touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
 That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
@@ -107,6 +107,23 @@ fixed by the source text), not a `RETE_OPS` row.
 `Cell` an optional SECOND field, because one field cannot discriminate `coincident?(h,h)`. Correct
 reasoning, wrong problem: with a literal rhs the holon rows need exactly what every scalar row
 needs. **When a measurement says a tool needs widening, check the substrate first.**
+
+**✅ ITEM 6 CLOSED 2026-08-29 — the grid's SPEED half runs, as its own `grid-speed` CI job.** Both
+stated reasons for its absence were dead, and **the second had never been measured**: "a shared
+runner is noisy so a wall-clock gate would flap" — but the tightest cell in the recorded 33-cell
+grid is **8.50x** (median 22x, widest 59x). Nowhere near parity. ⛔ **That same margin is why the
+gate does NOT test `:winner`** — the obvious choice, and a nearly vacuous one: at 8.5x it fires only
+on catastrophe and **would have missed the real 4x regression this arc already fixed.** It gates
+per-axis RATIO FLOORS at ~50% of each axis's recorded minimum, plus `:accuracy :MISMATCH`. 2m24s,
+mutation-proven on three arms including the failure path's EXIT CODE.
+
+**⛔⛔ TWO INBOUND REPORTS SAT UNREAD FOR FIVE DAYS AND ONE WAS A SILENT WRONG ANSWER.**
+`~/work/NOTE-*.md` is where other agents file findings for this one, and NOTHING pointed at that
+directory — both 2026-08-24 rete notes were found only because the builder asked "what items
+remain" and answering required an `ls`. Both verified FIXED on re-driving, and **neither was fixed
+by anyone reading them** — collateral from this arc's own work. **A finding that gets fixed by
+accident is not a process that works.** `RETE-OPEN-WORK.md` now opens with an "Inbound notes"
+index; add the row when you file or receive one.
 
 **WHERE THE WORK IS, as pointers — this file is a MAP, do not re-narrate it:**
 - ✅ **ITEM 4 (`partire` x7) IS RESOLVED 2026-08-28**, and WHY it lingered a week is the lesson:
