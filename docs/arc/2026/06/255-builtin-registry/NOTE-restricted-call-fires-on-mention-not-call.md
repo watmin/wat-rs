@@ -145,10 +145,46 @@ rule and rebuilds elsewhere; B keeps the rule and carves it. Same decidability c
 
 Obvious YES · Simple YES · Honest YES · Good UX YES.
 
-**Its one real requirement:** the marker must itself be kernel-only to declare, or a user marks
-`apply`'s argument reflective and launders everything. That is not a wrinkle — it is the same shape
-`#[restricted_to]` already has, and the reflective set is small and named (`render-doc`,
-`show-source`, `metadata-of`, `signature-of-defn`, `examples`).
+### ⛔ B DOES NOT TOUCH USER `{:restricted-to […]}` — IT IS WHAT MAKES USER RESTRICTIONS REFLECTABLE
+
+Builder's question, 2026-08-28: *"does this mean user defs with restricted-to can or cannot be
+allowed? … you called it kernel only."* Two different things were run together. Separated:
+
+- **Declaring `{:restricted-to […]}` on your own def** — UNCHANGED, and unrestricted. Any user
+  writes `(def :my::secret {:restricted-to [:my::app::]} …)` today and under B. **And under B their
+  doc tooling starts working**: `(render-doc :my::secret)` from inside a program passes, because the
+  hole is in `render-doc`'s ARGUMENT POSITION, not in the restriction. **The reflective declaration
+  lives on the RECEIVING verb, never on the restricted def.** User restrictions get strictly more
+  usable; that IS option B, not an exception to it.
+- **Declaring an argument position REFLECTIVE** — the only thing "kernel-only" was ever about, and
+  it was the wrong rung. See below.
+
+### The laundering vector, and the rung above "kernel-only"
+
+`src/runtime.rs:10650` — *"Both are valid apply heads"*: `apply` accepts a `Value::wat__core__keyword`
+as well as a `Value::wat__core__fn`. So if a user could mark their own passthrough reflective:
+
+```wat
+(:wat::core::defn :my::launder [f {reflective}] …  (:wat::core::apply f []))
+;; (:my::launder :wat::kernel::spawn-thread) passes the mention check at the CALL SITE, and inside
+;; `my::launder` the body mentions only the parameter `f` — nothing fires. Applied anyway.
+```
+
+**"Only the kernel may declare it" is the CONVENTION rung.** The no-form rung is available and
+cheaper: **a reflective position delivers an OPAQUE VERB HANDLE, not the keyword** — a value that is
+not a valid apply head. The substrate already has this shape (`:wat::kernel::Thread`, `Peer`, the IO
+handles). Then holding it confers nothing, no value-flow tracing is needed, and **the marker is
+safely USER-declarable** — which it must be, or user doc tooling is second-class again.
+
+★ **THIS IS WHERE OPTION C's INSTINCT WAS RIGHT AND ITS SUBJECT WAS WRONG.** C tried to make *a
+user-written keyword* harmless, which requires tracing where the value came from — which is why
+`let` killed it. This mints *an inert thing* at the boundary instead. **The value that crosses was
+never a keyword, so there is nothing to trace.** Same instinct — make holding it confer nothing —
+applied to a value the system CONSTRUCTS rather than a name the user WROTE. Record this distinction:
+it is the difference between the dead option and the live one, and they read alike.
+
+The reflective set on the kernel side stays small and named (`render-doc`, `show-source`,
+`metadata-of`, `signature-of-defn`, `examples`).
 
 ★ **And it is the SAME SHAPE as P5-b**, which is about giving `@arg` a per-argument subject for
 `@yields`. Whoever draws this should read P5-b first; they are one mechanism serving two rules.
