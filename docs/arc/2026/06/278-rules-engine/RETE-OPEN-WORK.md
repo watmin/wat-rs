@@ -983,6 +983,44 @@ field. Reachable, but not constructible inside a fence.
    block, beside the two holes that were already stated there — which is the model the report itself
    named.
 
+   ★★ **THE eBPF PRIOR ART WAS READ 2026-08-29, AND IT ARGUES AGAINST THE ANNOTATION.** The
+   direction recorded here — *"a FORM the verifier can CHECK, eBPF's `bpf_loop()` move, the bound
+   as a verified argument"* — was written from the IDEA of eBPF. We have actually shipped a rete
+   engine on eBPF (`holon-lab-ddos/veth-lab/filter-ebpf/src/main.rs`, the 1.3M-pps XDP scrubber),
+   and it does not work that way.
+
+   **It uses no `bpf_loop`, and nothing declares a bound. Every bound is STRUCTURAL:**
+   - **The state is fixed-size.** `DfsState { stack: [u32; 16], fields: [u32; 32], … }` (`:227`).
+     A push is guarded `if state.top < 16` and the index is MASKED — `state.stack[(state.top & 0xF)]`
+     — and the comment says why: *"Walker masks with `& 0x1F` to PROVE index bounds for the
+     verifier."* The mask is not defensive; it is how the bound is proven.
+   - **The step ceiling belongs to the HOST, not the program.** *"The kernel enforces a max of 33
+     tail calls, giving us up to 32 DFS steps"* (`:842`). The program never states a budget.
+   - **There is no loop to bound.** *"The BPF verifier sees this as a ~100-instruction
+     straight-line program with 2-3 map lookups and NO LOOPS"* — one DFS step per tail-called
+     program, each verified independently.
+   - **Branches were HOISTED OUT of the walk** so the remaining step is a bounded lookup: all nine
+     packet fields are pre-extracted before the tail call, turning a 9-way dispatch × 20 iterations
+     (9^20 paths, past the verifier's 1M limit) into `fields[node.dimension]`.
+
+   ⛔ **AND THE LAB'S RETE HAS NO FIXPOINT AT ALL** — rules are condition→action over packet data,
+   no consequent feeds back, one forward pass per packet. So it is prior art for BOUNDED TRAVERSAL,
+   and explicitly not for bounded *derivation*. Saying so matters: it is the difference between
+   citing it and actually reading it.
+
+   **WHAT THAT IMPLIES HERE, and it reframes this item's own open question.** Rete already has the
+   eBPF-shaped mechanism: **`max_fire_rounds` IS the 33-tail-call ceiling** — a host-enforced
+   ceiling the program does not declare. This item's open question *"does a bound interact with or
+   subsume `max_fire_rounds`?"* answers itself against the prior art: in eBPF the ceiling is the
+   ONLY budget, and a `:bound` on the rule would be a SECOND mechanism doing the first one's job —
+   the two-places-per-row defect this arc keeps pulling out (FM 30).
+
+   What rete lacks is the OTHER half: eBPF's state is fixed-size, and a fixpoint's fact memories
+   are not. **So the honest next question is not "how does the author declare a bound" but "can a
+   derivation's state be made structurally finite the way `[u32; 16]` is"** — and if it cannot, the
+   round cap is already the answer and the refusal is already correct. That is a real design
+   question with a real precedent behind it, and it is NOT the annotation this entry used to name.
+
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
    their reason for themselves?"*). An author's string is not a proof. The direction the design
