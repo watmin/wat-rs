@@ -74,8 +74,27 @@ pub const DEFAULT_DIM_COUNT: usize = 10000;
 ///
 /// **10_000 is chosen against measurement, not taste:** the deepest axis in the grid is
 /// `deep-cascade` at depth 50, `strat-neg` runs 6 strata, `leading-exists` forces 6 — so this is
-/// 200x the deepest thing the suite runs, while a runaway rule reaches it in ~0.3s and a few MB,
-/// far short of the memory wall.
+/// 200x the deepest thing the suite runs, while a runaway rule reaches it in ~0.3s and a few MB.
+///
+/// ⚠ **"~0.3s AND A FEW MB" IS TRUE OF ONE DIVERGENCE SHAPE, AND THIS PARAGRAPH USED TO GENERALISE
+/// PAST IT** — it said "far short of the memory wall", full stop. Measured 2026-08-29:
+///
+/// ```text
+///   LINEAR      :then derives ONE novel fact per fact   -> cap fires, 0.35s, located diagnostic
+///   EXPONENTIAL :then derives TWO novel facts per fact  -> allocator abort at 6.2s, cap NEVER fires
+/// ```
+///
+/// A branching derivation reaches the memory wall around round 25; the cap sits at 10_000. So the
+/// number is well chosen for the shape it was measured against and simply does not participate in
+/// the other one. `probe_arc278_fixpoint_round_cap.rs` § "What is deliberately NOT claimed" states
+/// this correctly — *"the cap bounds NON-TERMINATION, not memory"* — but that is a test file's
+/// prose, and THIS is the doc a person setting the knob reads. The honest statement belongs where
+/// the knob is.
+///
+/// ⛔ **RAISING THIS DOES NOT BUY MEMORY SAFETY, AND NEITHER WOULD SIZING IT TO YOUR RAM.** The
+/// missing bound is on STATE, not on rounds — see `RETE-OPEN-WORK.md` § "The order" item 8, where
+/// the eBPF comparison lands: every BPF map declares `with_max_entries` and a BPF program cannot
+/// allocate at all, which is the ceiling rete does not have.
 ///
 /// **Why it is TUNABLE and `dim-count`-shaped rather than a hard constant.** A round count cannot
 /// distinguish DEEP from DIVERGENT. Transitive closure over a 50_000-node path is legitimate
