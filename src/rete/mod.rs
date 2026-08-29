@@ -8,21 +8,27 @@
 //! The wat files are compile + `$oracle` reference, not the production fire path.
 //!
 //! ## Stone map
-//! - **Stone 2a** (`matcher.rs`) — `eval_alpha_match` is the oracle / differential
-//!   matcher. Native fire uses compiled exec (`exec_compiled_with_key_ids`).
-//! - Stone 2b — alpha-memory (`insert`); consumes `eval_alpha_match`.
+//! - **Stone 2a** (`matcher.rs`) — `alpha_match_inner` is the oracle / differential matcher's
+//!   pure core (no `Environment`, no `eval_inner`). Native fire uses compiled exec
+//!   (`exec_compiled_with_key_ids`). The wat entry points (`alpha-match`/`alpha-match-local`/
+//!   `alpha-match-under`) are `#[wat_intrinsic]`-homed in `src/intrinsic/rete.rs` (arc 255
+//!   Stone P6-c-W5a) — `matcher.rs` no longer carries a hand-rolled dispatch fn for them.
+//! - Stone 2b — alpha-memory (`insert`); consumes `alpha_match_inner`.
 //! - Stone 3 — cross-fact join (beta network); builds on alpha-memory.
 //! - **Stone 4a** (`eval_insert.rs`) — `eval_insert`: given a fact form (DATA, a quoted
 //!   `(:RecordType arg…)` — arc 278 Stone A dropped the `insert` RHS-marker wrapper) and a
 //!   token's bindings map, resolve each fact-arg via `resolve_rhs_value` (`?var`, literal, or
 //!   fenced List; fn-headed items are `CompiledRhs::Call` / `build_insert_fact_call`) and return the
-//!   derived `:wat::core::Record`. The RHS dual of `eval_alpha_match`. Raises on malformed form /
+//!   derived `:wat::core::Record`. The RHS dual of `alpha_match_inner`. Raises on malformed form /
 //!   unresolved operand (never silently drops).
 //!
 //! ## Declaration sites
 //!
-//! - **Runtime dispatch:** `":wat::rete::alpha-match"` arm and `":wat::rete::eval-insert"` arm
-//!   in `dispatch_keyword_head_value` (`src/runtime.rs`) route here.
+//! - **Runtime dispatch:** `":wat::rete::alpha-match"` (and `alpha-match-local`/
+//!   `alpha-match-under`) are registered via `#[wat_intrinsic]` in `src/intrinsic/rete.rs` —
+//!   the registry-first door in `dispatch_keyword_head`/`dispatch_keyword_head_value`
+//!   (`src/runtime.rs`) finds them before the giant match is ever reached. `":wat::rete::
+//!   eval-insert"` is still a hand-rolled arm there and routes here.
 //! - **Check scheme:** registered in `register_builtins` (`src/check.rs`) —
 //!   `alpha-match`: `[:wat::WatAST, :wat::core::Record] -> Option<PersistentMap<String, Value>>`.
 //!   `eval-insert`: `[:wat::WatAST, :wat::core::PersistentMap] -> :wat::core::Record`.
@@ -50,7 +56,9 @@ pub(crate) mod collect;
 // Sealed Rust. Fire kernel (P2–P5) mutates `FireSession`.
 pub(crate) mod kernel;
 // Stone 6a (purity.rs) — default-deny purity classifier: is_pure_expr / is_pure_fn (transitive,
-// cycle-safe) + eval_pure_predicate (the :wat::rete::pure? primitive entry point).
+// cycle-safe). The `:wat::rete::pure?`/`deterministic?`/`total?`/`primitive?` wat entry points
+// are `#[wat_intrinsic]`-homed in `src/intrinsic/rete.rs` (arc 255 Stone P6-c-W5a), not a
+// hand-rolled dispatch fn here any more.
 pub(crate) mod purity;
 // DESIGN-STONE-alpha-discrimination-tree.md — AlphaTree: prune-only candidate set.
 // Native authority is compiled exec; `alpha_match_inner` is the oracle / differential.

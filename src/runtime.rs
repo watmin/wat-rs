@@ -5589,22 +5589,15 @@ fn dispatch_keyword_head_value(
         // homed to `#[wat_intrinsic]` (both above this match, still in this file); no
         // arm needed here anymore. Type-checking (`check.rs::infer_form_matches` for
         // `matches?`; the hand-registered `TypeScheme` for `cpu-count`) is unaffected.
-        // Arc 278 Stone 2a — rete single-fact alpha matcher.
-        // Pure data-in/data-out: cond (WatAST from quote) × fact (Record) →
-        // (Option :- [(PersistentMap :- [String Value])]). No Environment, no eval_inner.
+        // Arc 278 Stone 2a — rete single-fact alpha matcher. Pure data-in/data-out: cond
+        // (WatAST from quote) × fact (Record) → (Option :- [(PersistentMap :- [String Value])]).
         // Bindings keyed by logic-var name string ("?t" → bound value).
-        ":wat::rete::alpha-match" => {
-            crate::rete::matcher::eval_alpha_match(args, list_span, env, sym)
-        }
-        ":wat::rete::alpha-match-local" => {
-            crate::rete::matcher::eval_alpha_match_local(args, list_span, env, sym)
-        }
-        ":wat::rete::cond-has-deferred-constraint?" => {
-            crate::rete::matcher::eval_cond_has_deferred_constraint(args, list_span, env, sym)
-        }
-        ":wat::rete::alpha-match-under" => {
-            crate::rete::matcher::eval_alpha_match_under(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5a — `:wat::rete::alpha-match`/`alpha-match-local`/
+        // `alpha-match-under`/`cond-has-deferred-constraint?` moved into `#[wat_intrinsic]`
+        // handlers (`src/intrinsic/rete.rs`) with their real (2/2/3/1) arities declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts all four names before
+        // reaching here. The pure inner matcher (`alpha_match_inner`/`*_local`/`*_seeded`,
+        // `src/rete/matcher.rs`) is unchanged.
         // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
         // Pure data-in/data-out: insert-form (WatAST) × bindings (PersistentMap) → Record.
         // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).
@@ -5662,30 +5655,11 @@ fn dispatch_keyword_head_value(
         //   pure?          = effect-free (no IO/mutation). Uuid/v4 IS pure (does no IO).
         //   deterministic? = same inputs → same output. Uuid/v4 is NOT (random); Uuid/v5 IS.
         //   total?         = defined on all inputs. ARMED: `compile-condition` consults it.
-        // (:wat::rete::pure? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
-        // (:wat::rete::deterministic? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
-        ":wat::rete::pure?" => crate::rete::purity::eval_pure_predicate(args, list_span, env, sym),
-        ":wat::rete::deterministic?" => {
-            crate::rete::purity::eval_deterministic_predicate(args, list_span, env, sym)
-        }
-        // The THIRD fence axis: domain-total (defined on all inputs)?
-        // ARMED: `compile-condition` consults it as the third conjunct.
-        // (:wat::rete::total? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
-        ":wat::rete::total?" => {
-            crate::rete::purity::eval_total_predicate(args, list_span, env, sym)
-        }
-        // (:wat::rete::primitive? <quoted-expr: :wat::WatAST>) -> :wat::core::bool — LAW A.
-        ":wat::rete::primitive?" => {
-            crate::rete::purity::eval_rete_primitive_predicate(args, list_span, env, sym)
-        }
-        // Arc 278 #55 slice one — THE ADMISSION TEST's wat surface: classifies a HEAD NAME
-        // against the rete-vocabulary module-set boundary alone (decoupled from pure/
-        // deterministic/total, which classify an EXPRESSION). Not the fence — Law A is
-        // `primitive?`.
-        // (:wat::rete::vocabulary-admitted? <head: :wat::WatAST, a QUOTED keyword>) -> :wat::core::bool
-        ":wat::rete::vocabulary-admitted?" => {
-            crate::rete::vocabulary::eval_vocabulary_admitted_predicate(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5a — `:wat::rete::pure?`/`deterministic?`/`total?`/`primitive?`
+        // and the admission test `vocabulary-admitted?` all moved into `#[wat_intrinsic]`
+        // handlers (`src/intrinsic/rete.rs`) with their real (1) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts all five names before reaching
+        // here. `axis-violation` below runs the SAME walk and is NOT this wave.
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it.
         // (:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) -> (:wat::core::Option :- [wat::rete::AxisViolation])

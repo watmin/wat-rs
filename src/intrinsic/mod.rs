@@ -570,6 +570,11 @@ mod program;
 mod rational;
 mod reflect;
 mod regex;
+// Arc 255 Stone P6-c-W5a — the P6-c campaign's fifth wave (5a): the nine READ-ONLY
+// `:wat::rete::` verbs (the six `?` predicates + the three alpha-matchers), moved verbatim out
+// of `runtime.rs`'s giant match with their real arities declared. The other 19 `:wat::rete::`
+// verbs (session-mutating) stay in `src/rete/` and the giant match — not this wave.
+mod rete;
 mod seq;
 mod stat;
 // Arc 255 Stone P6-c-W2 — the campaign's second wave. `:wat::stream::{empty,cons,next}`,

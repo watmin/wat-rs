@@ -233,7 +233,7 @@ pub(crate) fn resolve_rhs_value(
 /// `(:wat::rete::eval-insert <fact-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
 /// -> :wat::core::Record`
 ///
-/// The RHS dual of `eval_alpha_match`: where alpha-match is `(cond, fact) → Option<bindings>`,
+/// The RHS dual of `:wat::rete::alpha-match`: where alpha-match is `(cond, fact) → Option<bindings>`,
 /// eval-insert is `(fact-form, bindings) → fact`. Both sides reuse `resolve_operand`. Arc 278
 /// Stone A: `fact-form` is a bare `(:Type arg…)` — the `insert` RHS-marker wrapper is gone.
 ///
