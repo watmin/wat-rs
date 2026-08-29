@@ -155,16 +155,20 @@ pub struct DocComment {
     pub determinism: Determinism,
     /// `@Category <Variant>` — closed-enum category (e.g. `Transform`, `Reflection`).
     pub category: Category,
-    /// `@yields <type> <desc>` — optional; the type handed into the fn-arg callback.
-    /// `None` when the intrinsic does not yield to a callback.
-    pub yields: Option<DocYields>,
+    /// `@yields <argname> <desc>` — repeatable, one per value-carrying fn-shaped `@arg`.
+    /// (Arc 255 Stone P5-b: the TYPE is no longer carried here — it is mechanically
+    /// derivable from the named `@arg`'s own canonical bracket-form type, per P5-a. This
+    /// is what lets `spawn-thread` carry two: one subject per callback.) Empty when the
+    /// intrinsic yields to no callback.
+    pub yields: Vec<DocYields>,
 }
 
-/// One parsed `@yields` directive — the type the intrinsic hands into its fn-arg callback.
+/// One parsed `@yields` directive — names which fn-shaped `@arg` receives a value, and
+/// what that value is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocYields {
-    /// The type token (must start with `:`).
-    pub ty: String,
+    /// The `@arg` name this directive documents (must match a declared `@arg`).
+    pub arg: String,
     /// The remainder description, trimmed.
     pub desc: String,
 }
@@ -221,6 +225,11 @@ pub enum DocError {
     InvalidDeterminismVariant { got: String },
     /// `@Category` value is not a known variant.
     InvalidCategoryVariant { got: String },
+    /// A second `@yields` names the same `@arg` subject as an earlier one — `@yields` is
+    /// repeatable ACROSS subjects, never twice for the same one.
+    DuplicateYieldsSubject { arg: String },
+    /// An `@yields` names an `@arg` that was never declared — a directive with no subject.
+    UnknownYieldsSubject { arg: String },
 }
 
 /// A fully-parsed special-form doc comment.
@@ -353,7 +362,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
     let mut category_val: Option<Category> = None;
-    let mut yields_val: Option<DocYields> = None;
+    let mut yields_vals: Vec<DocYields> = Vec::new();
 
     let directive_lines = match first_directive {
         Some(i) => &lines[i..],
@@ -599,49 +608,33 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 }
             }
             "@yields" => {
-                // Optional singleton: @yields <type> <desc>
-                // type = first token (must start with `:`), desc = rest.
-                if yields_val.is_some() {
-                    return Err(DocError::DuplicateSingleton { tag: "@yields".into() });
-                }
-                let (ty_token, desc_raw) = take_type_token(payload);
-                let ty_token = ty_token.trim();
-                if ty_token.is_empty() {
+                // Repeatable, once per subject: @yields <argname> <desc>. `argname` is a
+                // bare token (the `@arg` name it documents) — no type token here any more
+                // (arc 255 Stone P5-b: the type is mechanically derivable from the named
+                // `@arg`'s own canonical bracket-form type, per P5-a, so a second spelling
+                // of the same fact is no longer carried).
+                let mut yields_split = payload.splitn(2, char::is_whitespace);
+                let arg_name = yields_split.next().unwrap_or("");
+                if arg_name.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@yields".into(),
-                        why: "type is missing; grammar is `@yields <type> <desc>`",
+                        why: "argument name is missing; grammar is `@yields <argname> <desc>`",
                     });
                 }
-                // Type token must start with `:` — or be one of the two
-                // surviving STRUCTURAL type spellings, which can never start
-                // with `:` by construction: a parametric type REFERENCE
-                // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
-                // still gated by the reader check just below; this clause
-                // only rules out a BARE non-keyword symbol like `Bytes`.
-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
-                    return Err(DocError::MalformedDirective {
-                        tag: "@yields".into(),
-                        why: "type token must start with `:` (e.g. `:wat::core::i64`); grammar is `@yields <type> <desc>`",
-                    });
-                }
-                // Type token must be a spelling wat's own reader accepts as a
-                // single, complete form — rules out `Option<T>`, the retired
-                // `fn(…)->…` vocabulary, and any other inexpressible spelling.
-                if !type_token_is_expressible(ty_token) {
-                    return Err(DocError::MalformedDirective {
-                        tag: "@yields".into(),
-                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
-                    });
-                }
-                let ty = ty_token.to_string();
-                let desc = desc_raw.trim().to_string();
+                let desc = yields_split.next().unwrap_or("").trim().to_string();
                 if desc.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@yields".into(),
-                        why: "description is empty; grammar is `@yields <type> <desc>`",
+                        why: "description is empty; grammar is `@yields <argname> <desc>`",
                     });
                 }
-                yields_val = Some(DocYields { ty, desc });
+                // Repeatable ACROSS subjects, never twice for the same one — this is what
+                // makes `@yields` a SUBJECT-keyed directive rather than the old parsed
+                // singleton it replaces.
+                if yields_vals.iter().any(|y: &DocYields| y.arg == arg_name) {
+                    return Err(DocError::DuplicateYieldsSubject { arg: arg_name.to_string() });
+                }
+                yields_vals.push(DocYields { arg: arg_name.to_string(), desc });
             }
             _ => unreachable!("recognized set is exhaustive"),
         }
@@ -658,7 +651,16 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, category, yields: yields_val })
+    // Every `@yields` subject must name a declared `@arg` — a directive with no referent
+    // is a doc error, not a silent no-op. Checked here (not by the caller) because `parse`
+    // already has the full `@arg` list gathered by this point; no signature is needed.
+    for y in &yields_vals {
+        if !args.iter().any(|a| a.name == y.arg) {
+            return Err(DocError::UnknownYieldsSubject { arg: y.arg.clone() });
+        }
+    }
+
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, category, yields: yields_vals })
 }
 
 /// Parse a special-form doc block.

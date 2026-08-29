@@ -9,8 +9,10 @@
 //!
 //! * `:wat::intrinsic::yields-witness` — a minimal HOF that receives a
 //!   `Fn(i64)->i64` callback and hands it the value `42`. Proves Part B:
-//!   `@yields` grammar, the singleton directive, and the cross-check that
-//!   `@yields` type == the fn-arg's Fn param type.
+//!   `@yields` grammar. (Arc 255 Stone P5-b: `@yields` is now `@yields
+//!   <argname> <desc>` — repeatable, subject-keyed, no type token — and its
+//!   witness `f` is the one entry in the "MUST carry @yields" population
+//!   that already had one under the old grammar; migrated, not added.)
 
 use wat_macros::wat_intrinsic;
 
@@ -57,7 +59,7 @@ pub(crate) fn eval_variadic_args_measurement(
 /// @Determinism   Deterministic
 /// @Category      ControlFlow
 /// @arg f [:wat::core::i64 :-> :wat::core::i64] the fn applied to the yielded value
-/// @yields :wat::core::i64 the value handed to f (always 42 for this witness)
+/// @yields f the value handed to f (always 42 for this witness)
 /// @ret :wat::core::i64 the result of applying f to 42
 /// @example (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))) #=> 43
 // `@Category ControlFlow` (corrected 2026-08-15; was `Reflection`). This body

@@ -49,6 +49,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value, ValueSnapshot, Ru
 /// @Determinism   Deterministic
 /// @Category      Resource
 /// @arg     filter [:wat::core::f64 :-> :wat::core::bool] a therm-routing filter function
+/// @yields  filter a candidate key's cosine-similarity score against the probe, computed during `Hologram/get`'s filtered-argmax readout; filter returns whether that candidate counts as a match
 /// @ret     :wat::holon::Hologram a fresh, empty coordinate-cell store
 /// @example-norun (:wat::holon::Hologram/make (fn (x) true)) #=> #wat.holon/Hologram{}
 #[wat_intrinsic(":wat::holon::Hologram/make")]

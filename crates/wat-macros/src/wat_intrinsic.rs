@@ -522,6 +522,12 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::InvalidCategoryVariant { got } => {
             format!("unknown @Category variant `{}`; known: {}", got, wat_doc::Category::variants().join(", "))
         }
+        wat_doc::DocError::DuplicateYieldsSubject { arg } => {
+            format!("duplicate `@yields {}`; each `@arg` subject may appear at most once", arg)
+        }
+        wat_doc::DocError::UnknownYieldsSubject { arg } => {
+            format!("`@yields {}` names no declared `@arg`; the subject must match an `@arg` name", arg)
+        }
     }
 }
 
@@ -602,6 +608,51 @@ pub(crate) fn emit(
             item,
             format!("#[wat_intrinsic] {}: {}", fqdn.value(), render_doc_error(&e)),
         ));
+    }
+
+    // arc 255 Stone P5-b — THE MANDATE, enforced HERE at expand time (no test, no runtime
+    // check): every canonical fn-shaped `@arg` (P5-a's wall predicate: bracket-delimited,
+    // containing the arrow `:->`) that HANDS A VALUE IN (non-nullary — the bracket does not
+    // open `[:->`) must carry a matching `@yields <argname>`; one that hands nothing in
+    // (nullary, `[:-> RET]`) must carry none — a `@yields` there would document a value
+    // that is never handed in. Deliberately does NOT fire on `ANON_FN_SYMBOL`
+    // (`:wat::core::Fn`, unbracketed) — P5-a's single ledgered site (`fn-forms`'s `f`) is a
+    // fn VALUE's rendering standing in a type position, not a `TypeExpr::Fn` this mandate
+    // can reason about; `is_canonical_fn_shaped` excludes it by construction (no `[`).
+    fn is_canonical_fn_shaped(ty: &str) -> bool {
+        ty.starts_with('[') && ty.ends_with(']') && ty.contains(":->")
+    }
+    fn is_nullary_fn_shaped(ty: &str) -> bool {
+        ty.starts_with("[:->")
+    }
+    for arg in &doc.args {
+        if !is_canonical_fn_shaped(&arg.ty) {
+            continue;
+        }
+        let has_yields = doc.yields.iter().any(|y| y.arg == arg.name);
+        let nullary = is_nullary_fn_shaped(&arg.ty);
+        if nullary && has_yields {
+            return Err(Error::new_spanned(
+                item,
+                format!(
+                    "#[wat_intrinsic] {}: `@arg {} {}` is a NULLARY fn-shaped arg (hands \
+                     nothing in) but carries a `@yields {}` — a `@yields` on a nullary \
+                     callback documents a value that is never handed in; remove it",
+                    fqdn.value(), arg.name, arg.ty, arg.name
+                ),
+            ));
+        }
+        if !nullary && !has_yields {
+            return Err(Error::new_spanned(
+                item,
+                format!(
+                    "#[wat_intrinsic] {}: `@arg {} {}` is a fn-shaped arg that hands a value \
+                     in but carries no matching `@yields {}` — every value-carrying \
+                     fn-shaped `@arg` must be documented with a `@yields` naming it",
+                    fqdn.value(), arg.name, arg.ty, arg.name
+                ),
+            ));
+        }
     }
 
     let fn_name = &item.sig.ident;
@@ -687,13 +738,19 @@ pub(crate) fn emit(
         wat_doc::Category::CheckGate => quote! { ::wat_doc::Category::CheckGate },
     };
 
-    let yields_type_lit = match &doc.yields {
-        Some(y) => {
-            let ty = &y.ty;
-            quote! { ::std::option::Option::Some(#ty) }
-        }
-        None => quote! { ::std::option::Option::None },
-    };
+    // arc 255 Stone P5-b — one (argname, desc) pair per subject, not a single `Option<type>`
+    // literal: `@yields` is now repeatable (one per value-carrying fn-shaped `@arg`), and the
+    // type is no longer carried — it is derived from the named `@arg`'s own canonical
+    // bracket-form type at render time (`src/intrinsic/reflect.rs`).
+    let yields_lit: Vec<TokenStream2> = doc
+        .yields
+        .iter()
+        .map(|y| {
+            let arg = &y.arg;
+            let desc = &y.desc;
+            quote! { (#arg, #desc) }
+        })
+        .collect();
 
     // Emit the arity value: `Arity::Exact(N)` or `Arity::Variadic`.
     let arity_lit = if is_variadic {
@@ -893,7 +950,7 @@ pub(crate) fn emit(
                 purity: #purity_token,
                 determinism: #determinism_token,
                 category: #category_token,
-                yields_type: #yields_type_lit,
+                yields: &[#(#yields_lit),*],
             }
         }
     };
