@@ -678,9 +678,23 @@ it is a finding, not a lack of time:
      None, `from-holon` RAISES, and `#holon [1 2 3]` does not coincide with `to-holon [1 2 3]`.
      A shape predicate over an unreadable classifier is meaningless.
 
-     ⛔ **THAT IS CORE, NOT RETE, and changing it moves every existing `#holon` value's identity.**
-     Reported out: `~/work/NOTE-holon-classifier-contract-is-unenforced-and-the-holon-tag-breaks-it.md`.
+     ⛔ **THAT IS CORE, NOT RETE, and it is DEFERRED by builder ruling** — *"i think we should just
+     defer this … until we get back into actually using holon."* Reported out:
+     `~/work/NOTE-holon-classifier-contract-is-unenforced-and-the-holon-tag-breaks-it.md`.
      **Do not unpark item 7 step 3 before that note is ruled on.**
+
+     ★ **THE DOCTRINE, from the builder, and it is why this is not cosmetic:** *"bundle implements
+     map, vector, list, set — **a type needs to wrap it to declare which kind of bundle this is**."*
+     `Bundle` is the SHARED substrate for all four container kinds, so the classifier is not
+     decoration — it is the only thing that makes a Bundle a TYPE. A bare Bundle is not an untyped
+     vector; it is an untyped *nothing*, and no reader can recover which of the four it meant.
+
+     **And the typing is partial at the LEAVES too, which explains the predicate family's shape.**
+     `symbol`/`keyword`/`tag` are `classified(...)`; `i64`/`String`/`bool` are bare native variants
+     carrying no classifier. That is exactly why the nine named predicates are
+     Map/Set/Vector/List/Tuple/Symbol/Keyword/Tag/Nil and there is **no `is-Int?`, `is-String?` or
+     `is-Bool?`** — those leaves have nothing to read. **The family's membership is a consequence of
+     which parts of the encoding happen to be typed, not a decision anyone made.**
 
 4. **Accessors** — `Bind/left`/`Bind/right` (total via `Option` → `Fallback`) and
    `Bundle/first`/`Bundle/children` (RAISE on the wrong variant). Two accessors, one family, two

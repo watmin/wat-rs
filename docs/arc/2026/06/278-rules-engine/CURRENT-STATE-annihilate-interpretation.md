@@ -6,7 +6,7 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `39534d73f`; the commit carrying this stamp
+earlier 2026-08-28 ones. Written against HEAD `PENDING3`; the commit carrying this stamp
 lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
 touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
 That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
@@ -73,9 +73,18 @@ Three driven reasons, in `RETE-OPEN-WORK` item 7:
   false, `from-holon` RAISES, and `#holon [1 2 3]` does NOT coincide with `to-holon [1 2 3]`.
   **One datum, two holons, path-dependent.**
 
-⛔ **That last one is CORE and is reported OUT, not owned here** —
+⛔ **That last one is CORE, reported OUT, and DEFERRED by builder ruling** — *"we should just defer
+this until we get back into actually using holon."*
 `~/work/NOTE-holon-classifier-contract-is-unenforced-and-the-holon-tag-breaks-it.md`. Changing it
 moves every existing `#holon` value's identity. **Do not unpark step 3 before it is ruled.**
+
+★ **THE DOCTRINE THE BUILDER STATED, and it is the key to the whole area:** *"bundle implements map,
+vector, list, set — a type needs to wrap it to declare which kind of bundle this is… the point is
+that it's a fully typed hyper vector."* So a bare `Bundle` is not an untyped vector, it is an
+untyped NOTHING. **And the typing is partial at the leaves too** — `symbol`/`keyword`/`tag` are
+classified; `i64`/`String`/`bool` are bare variants. That is why there is no `is-Int?`/`is-String?`/
+`is-Bool?`: **the predicate family's membership is a consequence of which parts of the encoding
+happen to be typed, not a decision anyone made.**
 
 ★ **AND THE BUILDER'S CHALLENGE IS WHAT FOUND ALL OF IT.** I had the ten rows written and building.
 The question *"are these is-*? words worth keeping?… doing this via non-VSA paths feels wrong"* sent
