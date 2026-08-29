@@ -5,51 +5,61 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-29 (LATE) — supersedes every dated block below it. Written against HEAD
-`f006f77d5`; the commit carrying this stamp lands on top, so a ONE-COMMIT gap at your wake is
-expected. That commit touches `docs/` ONLY — a gap containing `src/` or `tests/` IS staleness,
-whatever its size.**
+**CURRENT STAMP 2026-08-29 (LATEST — supersedes the earlier 2026-08-29 stamp and every dated block
+below it). Written against HEAD `52213d3b0`; the commit carrying this stamp lands on top, so a
+ONE-COMMIT gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/`
+or `tests/` IS staleness, whatever its size.**
 
-**⛔⛔ START HERE: `insert` IS UNBOUNDED AND THE SESSION CEILING IS NOT YET A SESSION CEILING.**
-`RETE-OPEN-WORK.md` § "The order" item 9, and it is the next work. Measured: **2.5M facts inserted
-with NO fire reached 4.0 GB against a 1 GiB contract, with no diagnostic.** The builder's ruling is
-that the SESSION is the boundary — two limits expressed and enforced, `max-session-memory` and
-`max-fire-rounds` — and today the first is enforced in only one of the two places a session grows.
-**The design is fully worked out in item 9 and was deliberately REVERTED rather than left unwired**
-(`check_session_ceiling` compiled with no caller, which is the dead-code trap this arc keeps
-pulling out). Pick it up from the item; nothing needs re-deriving.
+**⛔⛔ START HERE: TOTALITY IS THE WORK, AND ONLY ITS PREREQUISITE IS DONE.**
+Builder: *"let's impose session's strict limits via totality."* Two halves:
 
-**WHAT LANDED TODAY, in one line each — the item is the detail, this is the map:**
-- **The termination verifier's blind spot is the TYPE, not the `where` fence.** A fact domain of
-  TWO was refused. Finite-typed computed heads (`bool`, unit `defenum`) are now ADMITTED.
-- **`bpf_loop` was MY paraphrase, not prior art.** The eBPF rete we shipped declares NO bound —
-  fixed-size state, a HOST step ceiling, no loop — and has no fixpoint at all.
-- **It is an ALLOCATION problem.** We copied eBPF's STEP ceiling and not its STATE ceiling. So
-  there is now a per-session memory ceiling + a counting allocator (thread-local only).
-- **The guarded counter is provably TERMINATING, not provably BOUNDED** — its size is the SEED,
-  which is runtime data. That closed the fence half and killed the analysis it was going to need.
-- **Every vigilia row is closed and audited.** `complectens` 1 was the last, CUT affirmatively.
+- ✅ **S1 — ENFORCEMENT. LANDED.** The session ceiling is now a SESSION ceiling: enforced at BOTH
+  doors, measured from `compile-all`, not from fire entry. `RETE-OPEN-WORK.md` item 9 is CLOSED.
+- ⛔ **S2 — TOTALITY. DESIGNED, PINNED, NOT STARTED.** `fire-rules` and `insert` still RAISE, and
+  their signatures still say `Session -> Session`. **The full design, with the contract decision
+  pinned, is `DESIGN-STONE-the-session-is-the-boundary.md` § S2 — read it before touching a call
+  site.** Item 10 carries the summary. **Start with `fire-once` (31 sites), NOT `fire-rules` (529)**
+  — the small verb settles every unknown in the pattern before the corpus rides on the answer.
 
-**★★ THE BUILDER CAUGHT FOUR THINGS I HAD WRONG, AND THEY SHARE ONE SHAPE — a claim I had not
-measured, stated with confidence:**
-1. *"why is 10k our preferred limit?"* — a cap set by symmetry with a ROUNDS cap, sitting BELOW the
-   grid's own 40_000 workload.
-2. *"if i had 512 threads… no conflict?"* — a process-global counter behind a per-session check.
-3. *"we've been at the physics boundary… it's all just noise"* — I quoted "~5–8%" as a measurement;
-   it was three-sample deltas across different HEADs, spread −1.3% to +18.1%.
-4. *"insert affects memory just as much…"* — and chasing it found the SAME hole in my own check.
-**Every one was settled by a measurement I could have taken first. `[[six-samples-or-no-number]]`
-and `[[a-reading-cannot-see-an-execution-defect]]` are memories I wrote and then broke.**
+**WHAT S1 ACTUALLY CHANGED, in one line each:**
+- **The zero point is `arm-session`** (`alloc_counter::mark_session_origin`), which `compile-all`
+  calls for every session — the same one-door the termination verifier uses.
+- **The fixpoint's per-fire snapshot is DELETED.** A per-fire zero cannot express a per-session
+  contract; it forgets everything `insert` staged before it.
+- **ONE decision, two dresses** — `session::session_ceiling_breach` is shared; `rounds` and `staged`
+  differ because a field that is always zero is a value carrying two facts.
+- **What it measures is the THREAD since `compile-all`**, not a walk of the session (`Arc` sharing
+  makes that ambiguous, and it would be O(n) per insert). Driven: a probe's own `range` showed as
+  `used=11_196_940` against `staged=1`. The diagnostics now SAY this, and the two numbers read
+  together are the tell: **large `used` + small `staged` = the memory is not the facts.**
 
-⚠ **THE FLOOR WENT RED ONCE AND DID NOT REPRODUCE — read this before you re-run anything.**
-`probe_arc278_partial_frame_residue::probe_sender_send_leaves_headless_partial_frame_on_shutdown`,
-a 20s `recv_timeout` missing by 79ms. Captured whole and surfaced BEFORE any re-run, per the floor
-rules. **NOT a flake — that word is banned here and it is not what this is.**
-`BRIEF-278-a-liveness-bound-only-catches-a-hang.md` already owns this exact test and message: a
-wall-clock bound on another OS process's scheduling cannot distinguish its subject from CPU
-contention, and the panic message says so itself. **Its bound was widened 3s → 20s once and has now
-gone red at 20s — new evidence FOR that brief.** If you see it again, that is a third data point,
-not a nuisance.
+**★★ THE FINDING WORTH CARRYING — ENFORCING AT `insert` SILENTLY DISARMED THE FIRE-DOOR GATE.**
+Its fixture seeded 500 facts at a 4096-byte ceiling, so the first `insert` refused and the gate
+began proving the INSERT door while its name, its prose and its `rounds` assertion all still said
+"fire". **A one-word tag change would have made it green again, certifying the wrong thing.** The
+fire door now has a workload insert cannot catch — a cross-product, **400 staged / 40_000 derived**
+— and its ceiling is BISECTED, not picked (1/4/16 MiB refuse; 64/256 MiB complete). Both gates are
+mutation-proven and INDEPENDENT: disarming either door reddens exactly its own gate.
+**Recovery-file FM 34. A control can lose its power without ever failing.**
+
+**★ THREE DOCS WERE LYING, AND ONE WAS A RULING THE BUILDER HAD OVERTURNED.** `config.rs` still
+read *"Not cumulative across fires… bounding that would refuse legitimate incremental use"* — mine,
+struck. `alloc_counter.rs` still said *"NOTHING READS THESE COUNTERS YET"* (the fixpoint had read
+them since `3c5ac7bd1`) and still headed a section *"IT IS PROCESS-GLOBAL"* after `8c10ee490`
+deleted the globals. **A source comment lies with the authority of the code it sits in.**
+
+**★ ITEM 11's SURVEY IS DONE, as a by-product of checking whether my own edits would trip it —
+and it found a source file nobody had named.** Eight goldens pin a `src/*.rs` LINE: 5 →
+`src/runtime.rs`, 1 → `src/freeze.rs`, and **2 → `src/check.rs`**, which was NOT one of the three
+known sites. Two goldens in `tests/types/` pin lines in the most-edited file in the arc; they were
+the next two false reds. The class had only ever been enumerated by COLLISION. Table in item 11.
+
+⚠ **THE FLOOR WENT RED ONCE AND IT WAS MINE — not a flake, and the word stays banned.**
+`no_loose_string_assert` caught two assertions I had just written (`err.contains(...)`,
+`out_ok.contains("40000")`). **I did not exempt them with a rune** — neither was legitimately
+loose, and both had an exact form available that made the gate STRONGER: `staged` is a field the
+FIRE variant does not have, so pinning it proves the door structurally rather than by prose.
+Floor before the fix: `5157 tests run: 5156 passed, 1 failed`.
 
 **✅ ITEM 6 CLOSED 2026-08-29 — the grid's SPEED half runs, as its own `grid-speed` CI job.** Both
 stated reasons for its absence were dead, and **the second had never been measured**: "a shared
