@@ -410,6 +410,35 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head == ":wat::core::type-equal?" {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
+    // Arc 255 Stone P6-c-W2 — `:wat::stream::empty`/`cons` are pure constructors
+    // (`src/intrinsic/stream.rs`): `empty` allocates the fixed `Stream::Empty` terminator from
+    // nothing; `cons` stores exactly what it is handed as a new `Stream::Cons` cell and never
+    // enters `tail` to look inside (forcing is `next`'s job, not this one's). Neither can raise
+    // on a well-typed call (`cons`'s only error path is a checker-impossible non-Stream `tail`,
+    // per `:wat::stream::empty`/`cons`'s own `///` doc), so both are also `total`. RULED here,
+    // same shape as `type-params-used-in`/`type-equal?` immediately above, rather than parked in
+    // `KNOWN_UNREVIEWED` — the gate's own remedy names that "the LAST resort", and these two
+    // rulings are not open.
+    if matches!(head, ":wat::stream::empty" | ":wat::stream::cons") {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
+    }
+    // Arc 255 Stone P6-c-W2 — `:wat::stream::next` (`src/intrinsic/stream.rs`) FORCES a thunk:
+    // `crate::stream::realize` calls `apply_function` on a captured wat closure (a `Thunk`, the
+    // body of `(:wat::stream::lazy <body>)`) or runs a Rust closure (a `NativeThunk`, backing
+    // the lazy `map`/`filter`/`take`/`drop` family) — either can run ARBITRARY code this verb has
+    // no way to bound: I/O, a clock read, randomness, a raise, another `next` on an unrelated
+    // stream. Declaring it `pure`/`deterministic` here would be exactly the lie `apply`/`eval`
+    // are deliberately left UNCLASSIFIED to avoid (see this fn's own doc, "purity is the form's,
+    // like apply") — so this is a RULING of `false`/`false`/`false`, not a placeholder: someone
+    // read the body and the answer is "no, on all three axes", which is why it is CLASSIFIED
+    // (removed from `KNOWN_UNREVIEWED`) rather than left unreviewed. Independent corroboration:
+    // `src/macros/eval.rs`'s `is_pure_total` expand-time-safe allowlist already listed
+    // `cons`/`empty`/`lazy` and already did NOT list `next`, before this stone touched either
+    // file — the same conclusion, reached by an unrelated mechanism built for an unrelated
+    // reason.
+    if head == ":wat::stream::next" {
+        return Some(OpMeta { pure: false, deterministic: false, total: false });
+    }
     // Pure ∧ deterministic explicit `:wat::core::` ops.
     let pure_det = matches!(
         head,
@@ -2490,16 +2519,17 @@ mod completeness_gate {
     ":wat::stat::mean",
     ":wat::stat::stddev",
     ":wat::stat::variance",
+    // `:wat::stdlib::sources` STAYS — arc 255 Stone P6-c-W2 (STOP-A) dropped it from that
+    // wave's homing: its handler (`crate::io::eval_stdlib_sources`) returns `Result<Value,
+    // RuntimeError>`, and `#[wat_intrinsic]` rejects any return type other than
+    // `Result<Value, EvalBreak>` — homing it as-written would not compile. Untouched, still
+    // dispatched from the giant match, still genuinely unreviewed.
     ":wat::stdlib::sources",
-    ":wat::stream::cons",
-    ":wat::stream::empty",
+    // `:wat::stream::cons`/`empty`/`next` RULED and CLASSIFIED — arc 255 Stone P6-c-W2
+    // (`intrinsic_meta`, above: `cons`/`empty` pure∧det∧total; `next` false on all three —
+    // forcing a thunk runs arbitrary user code). `:wat::stream::lazy` is unaffected (SPECIAL
+    // FORM, stays in the giant match, stays unreviewed — no ruling made here).
     ":wat::stream::lazy",
-    // Arc 118.11a — mint next/NextOutcome. Same open question as its three siblings just
-    // above (RULES: ":wat::stream::" is Disp::Unreviewed, "laziness — a Stream's purity is
-    // its producer's") — `next` forces the SAME cell `first`/`rest` already force, so it
-    // inherits exactly their unreviewed status, not a fresh one. Ruling purity is out of
-    // scope for this stone (additive: mint the verb, change nothing else).
-    ":wat::stream::next",
 
         // ── ADDED 2026-08-27 (HOME-12, the AST registry home). These ten were ALWAYS
         // dispatched and ALWAYS unreviewed; the gate simply could not SEE them. Its scan

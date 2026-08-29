@@ -5528,15 +5528,12 @@ fn dispatch_keyword_head_value(
         ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
         ":wat::core::quote" => eval_quote(args, list_span),
         // Arc 118 — lazy-seq foundation primitives.
-        // `seq-empty`/`cons` are NORMAL intrinsics (args evaluated).
-        ":wat::stream::empty" => eval_seq_empty(args, list_span),
-        ":wat::stream::cons" => eval_cons(args, list_span, env, sym),
+        // `seq-empty`/`cons`/`next` (arc 255 Stone P6-c-W2) moved into `#[wat_intrinsic]`
+        // handlers (`src/intrinsic/stream.rs`); the pre-match registry check above
+        // (arc 255.1c-guard) intercepts all three names before reaching here.
         // `lazy-seq` is a SPECIAL FORM (capture-don't-eval): wrap the body in a
         // 0-arg closure over the current env → Stream::Thunk. Mirrors `quote`.
         ":wat::stream::lazy" => eval_lazy_seq(args, list_span, env),
-        // Arc 118.11a — `next` is a NORMAL intrinsic (arg evaluated). Forces
-        // exactly one cell via `realize` and destructures — no second forcing loop.
-        ":wat::stream::next" => eval_stream_next(args, list_span, env, sym),
         // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
@@ -5577,9 +5574,9 @@ fn dispatch_keyword_head_value(
         // positional (structural fact); extract-classifier is semantic
         // (classifier-wrap convention). Per intueri cast 2026-05-23 night.
         // Arc 259 — The Forced Hand: ambient program environment.
-        // Reads the calling thread's PROGRAM_ENV slot (installed via
-        // install_program_env at the post-bootstrap / pre-:user::main seam).
-        ":wat::program::env" => eval_program_env(args, list_span),
+        // `:wat::program::env` (arc 255 Stone P6-c-W2) moved into a `#[wat_intrinsic]`
+        // handler (`src/intrinsic/program.rs`); the pre-match registry check above
+        // (arc 255.1c-guard) intercepts the name before reaching here.
         // Arc 209 C0b.3a-0 — process child owner-link.
         // Reads the calling thread's SELF_PEER slot (installed at the
         // child-only seam run_forms_as_server_child, before :user::main).
@@ -11991,67 +11988,11 @@ pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
 
-/// Arc 118 — `(:wat::stream::empty) -> (Stream :- [T])`. The Empty terminator.
-///
-/// Zero-arg constructor producing `Value::wat__stream__Stream(Arc::new(Stream::Empty))`.
-fn eval_seq_empty(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::stream::empty".into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    Ok(Value::wat__stream__Stream(Arc::new(
-        crate::stream::Stream::Empty,
-    )))
-}
-
-/// Arc 118 — `(:wat::stream::cons head tail) -> (Stream :- [T])`. Strict-head Cons cell.
-///
-/// `head` is evaluated (strict); `tail` is evaluated and must be a `Stream` (it may
-/// itself be a Thunk — O(1), no forcing). Returns a `Stream::Cons{head, tail}`.
-fn eval_cons(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::stream::cons".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let head = eval_inner(&args[0], env, sym)?.value_owned();
-    let tail_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let tail = match tail_val {
-        Value::wat__stream__Stream(s) => s,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::stream::cons".into(),
-                    expected: "wat::stream::Stream",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    Ok(Value::wat__stream__Stream(Arc::new(
-        crate::stream::Stream::Cons { head, tail },
-    )))
-}
+// `eval_seq_empty`/`eval_cons` that used to live here (`:wat::stream::empty`/`cons`) moved to
+// `src/intrinsic/stream.rs` — arc 255 Stone P6-c-W2, the P6-c campaign's second wave. Both
+// were declaring a variadic `&[WatAST]` they used only to reject (a hand-rolled length
+// check); homing them meant declaring the real arity (0 and 2) so `#[wat_intrinsic]`'s
+// generated shim owns the check and `metadata-of` reports the true arity instead of a lie.
 
 /// Arc 118 — `(:wat::stream::lazy <body>) -> (Stream :- [T])`. SPECIAL FORM (capture-don't-eval).
 ///
@@ -12101,88 +12042,11 @@ fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result
     )))
 }
 
-/// Arc 118.11a — the type path of `next`'s matchable outcome enum
-/// (`(:wat::stream::NextOutcome :- [T])`, registered in `types.rs`).
-const NEXT_OUTCOME_TYPE: &str = ":wat::stream::NextOutcome";
-
-/// `NextOutcome::Item [value <- T, rest <- (Stream :- [T])]` — the forced head plus the
-/// undrained tail, both from the SAME single force. Mirrors `recv_outcome_message`.
-fn next_outcome_item(value: Value, rest: Value) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: NEXT_OUTCOME_TYPE.into(),
-        variant_name: "Item".into(),
-        names: builtin_enum_variant_names(NEXT_OUTCOME_TYPE, "Item"),
-        fields: vec![value, rest],
-    }))
-}
-
-/// `NextOutcome::Exhausted []` — the named end; no more elements. Mirrors
-/// `recv_outcome_closed`.
-fn next_outcome_exhausted() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: NEXT_OUTCOME_TYPE.into(),
-        variant_name: "Exhausted".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
-}
-
-/// Arc 118.11a — `(:wat::stream::next s) -> (NextOutcome :- [T])`. The pull primitive:
-/// forces `s` to WHNF via `realize` (reusing the existing `forced` memo — this
-/// stone does not touch it) and destructures the result. `Empty` → `Exhausted`;
-/// `Cons{head, tail}` → `Item[value <- head, rest <- (Stream :- [T]) wrapping tail]`.
-///
-/// **Exactly one force per call** — `realize`'s own loop already stops at the
-/// first `Empty`/`Cons`; this function does not add a second forcing loop or
-/// consult/build any cache of its own. That is the entire reason this verb
-/// exists (DESIGN-STONE-118.11a): the three-call `empty?`/`first`/`rest` walk
-/// forces the SAME cell three times.
-fn eval_stream_next(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::stream::next".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let seq_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let seq = match seq_val {
-        Value::wat__stream__Stream(s) => s,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::stream::next".into(),
-                    expected: "wat::stream::Stream",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    let whnf = crate::stream::realize(&seq, sym, list_span)?;
-    match whnf.as_ref() {
-        crate::stream::Stream::Empty => Ok(next_outcome_exhausted()),
-        crate::stream::Stream::Cons { head, tail } => Ok(next_outcome_item(
-            head.clone(),
-            Value::wat__stream__Stream(Arc::clone(tail)),
-        )),
-        // INVARIANT (src/stream/mod.rs `realize` doc): realize always terminates
-        // with Empty or Cons; Thunk/NativeThunk is the only transitional state.
-        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
-            unreachable!("realize returns only Empty|Cons (WHNF invariant, src/stream/mod.rs)")
-        }
-    }
-}
+// `NEXT_OUTCOME_TYPE`/`next_outcome_item`/`next_outcome_exhausted`/`eval_stream_next` that
+// used to live here (`:wat::stream::next`) moved to `src/intrinsic/stream.rs` — arc 255
+// Stone P6-c-W2. Declared a variadic `&[WatAST]` used only to reject (a hand-rolled length
+// check); homing it meant declaring the real arity (1) so `#[wat_intrinsic]`'s generated
+// shim owns the check.
 
 /// `(:wat::core::ann-form <expr> <type>) -> T` — arc 251 Stone 251.4b.
 ///
@@ -19879,40 +19743,11 @@ pub(crate) fn host_cpu_count() -> i64 {
         .unwrap_or(1)
 }
 
-/// `(:wat::program::env)` — nullary; returns the calling thread's ambient
-/// `:wat::program::Env` record (or subtype).
-///
-/// Arc 259 — The Forced Hand. The env is installed into the `PROGRAM_ENV`
-/// thread-local by `install_program_env` at the post-bootstrap /
-/// pre-`:user::main` seam. Returns a clone of the current value, or a
-/// clean `MalformedForm` error if no env has been installed (e.g. a test
-/// that calls `eval_in_frozen` without calling `install_program_env`).
-fn eval_program_env(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::program::env";
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    crate::services::current_program_env().ok_or_else(|| {
-        RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: "no program env installed on this thread — call install_program_env \
-                         before invoking (:wat::program::env)"
-                    .into(),
-            },
-        )
-        .into()
-    })
-}
+// `eval_program_env` that used to live here (`:wat::program::env`) moved to
+// `src/intrinsic/program.rs` — arc 255 Stone P6-c-W2, the P6-c campaign's second wave. It
+// was declaring a variadic `&[WatAST]` used only to reject (a hand-rolled length check);
+// homing it meant declaring the real arity (0) so `#[wat_intrinsic]`'s generated shim owns
+// the check.
 
 /// `(:wat::program::self-peer :S :R)` — returns the calling thread's self-peer
 /// (the spawned process child's owner-link as a unified `(Peer' :- [S R])`).
@@ -23567,6 +23402,16 @@ fn step_list(
 /// `string.rs`'s `declare-acronyms` (Stone HOME-4), which had the honest
 /// escape hatch of a genuinely side-effect-free body at eval time, these
 /// verbs do not: reclassifying them `Pure` would be the dishonest fix.
+///
+/// `:wat::stream::` joined this list at arc 255 Stone P6-c-W2, for the identical reason:
+/// `:wat::stream::next` (`src/intrinsic/stream.rs`) is honestly `@Purity Effectful` — forcing
+/// a thunk calls `apply_function` on a captured wat closure (or runs a native closure for the
+/// lazy `map`/`filter`/`take`/`drop` family), which can run arbitrary code. No escape hatch:
+/// `next`'s body genuinely can have a side effect, so `Pure` would be the dishonest fix, the
+/// same non-choice `:wat::holon::`'s effectful members faced. `:wat::stream::empty`/`cons`
+/// (same wave, same file) stay `Pure` and simply add two more entries to this census's
+/// tolerated Pure-declared-under-an-effectful-prefix inventory — the same shape
+/// `:wat::config::*` (four rows) already established below.
 pub(crate) fn effectful_by_prefix(head: &str) -> bool {
     head.starts_with(":wat::kernel::")
         || head.starts_with(":wat::io::")
@@ -23574,6 +23419,7 @@ pub(crate) fn effectful_by_prefix(head: &str) -> bool {
         || head.starts_with(":wat::eval-")
         || head.starts_with(":wat::load")
         || head.starts_with(":wat::config::")
+        || head.starts_with(":wat::stream::")
 }
 
 /// Effectful-op classifier — the registry is the authority (arc 255.1c). A

@@ -563,11 +563,19 @@ mod map;
 // (HOME-9 already renamed these off `:wat::std::`); shim-only, three files, no
 // `src/math/`/`src/stat/`/`src/seq/` directory (STOP-1 — no algebra worth naming).
 mod math;
+// Arc 255 Stone P6-c-W2 — the campaign's second wave. One nullary `:wat::program::env`
+// reader, moved verbatim out of `runtime.rs`'s giant match with its real (0) arity
+// declared. `:wat::program::self-peer`/`cpu-count` are neighbours, not this wave's verbs.
+mod program;
 mod rational;
 mod reflect;
 mod regex;
 mod seq;
 mod stat;
+// Arc 255 Stone P6-c-W2 — the campaign's second wave. `:wat::stream::{empty,cons,next}`,
+// moved verbatim out of `runtime.rs`'s giant match with their real (0/2/1) arities
+// declared. `:wat::stream::lazy` is a SPECIAL FORM and stays in the giant match.
+mod stream;
 // Arc 255 Stone F — reverted to the default-private shape of its siblings. The
 // `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) that needed
 // `pub(crate)` to call four of these handlers directly (bypassing the registry) are retired;

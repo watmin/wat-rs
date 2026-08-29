@@ -762,6 +762,58 @@ DESTINATION_LEDGER = {
 #     was runtime.rs:6293; TypeScheme at src/check.rs:18631-18639 (`params: vec![]`,
 #     `ret: f64_ty()`).
 
+# arc 255 Stone P6-c-W2 — the campaign's second wave: five candidates named
+# (`:wat::stream::{empty,cons,next}`, `:wat::program::env`, `:wat::stdlib::sources`), FOUR
+# ruled and homed. `:wat::stdlib::sources` is NOT one of them — STOP-A fired: its handler
+# (`crate::io::eval_stdlib_sources`) returns `Result<Value, RuntimeError>`, and
+# `crates/wat-macros/src/wat_intrinsic.rs::validate_return_type` (~line 371) rejects any
+# handler return type other than `Result<Value, EvalBreak>` / `Result<TrackedValue,
+# EvalBreak>` with a `compile_error!` — homing it AS WRITTEN would not compile, and coercing
+# its return type is exactly the "cleanly" trapdoor the brief named in advance. Dropped from
+# the wave; the pre-image dispatch arm and handler at src/io.rs:1837 are UNTOUCHED. Its
+# `KNOWN_UNREVIEWED` line (`src/rete/purity.rs`) is therefore also untouched — the ledger
+# shrinks by 3 this wave (the three stream verbs), not 4; `:wat::program::env` was never on
+# that ledger (namespace-disposed `Impure` by `RULES` regardless of homing), so it contributes
+# 0 either way. A different number than the brief's prediction (4) is a FINDING, not an error:
+#   :wat::stream::empty — INTRINSIC. Zero-arg constructor, `Value::wat__stream__Stream(Arc::new
+#     (Stream::Empty))`. No side effect, no multi-site implementation. Confirmed at (pre-image)
+#     src/runtime.rs:11994-11999 (`eval_seq_empty`'s own doc: "Zero-arg constructor... Empty
+#     terminator"); single dispatch site was runtime.rs:5532; TypeScheme at src/check.rs:20977-
+#     20985 (`params: vec![]`, `ret: seq_t()` — checker already agreed arity is 0).
+#   :wat::stream::cons — INTRINSIC. Pure reshape: evaluates `head`/`tail`, stores exactly what
+#     it is handed as a new `Stream::Cons` cell; never enters `tail` to look inside (forcing is
+#     `next`'s job). Confirmed at (pre-image) src/runtime.rs:12013-12019 (`eval_cons`'s own
+#     doc: "Strict-head Cons cell... Returns a Stream::Cons{head,tail}"); single dispatch site
+#     was runtime.rs:5533; TypeScheme at src/check.rs:20986-20994 (`params: vec![t_var(),
+#     seq_t()]`, `ret: seq_t()`).
+#   :wat::stream::next — INTRINSIC, but NOT `Pure`/`Deterministic` — a genuine judgement, not a
+#     copy of cons/empty's. Forces a thunk via `crate::stream::realize`, which calls
+#     `apply_function` on a captured wat closure (a `Thunk`) or runs a Rust closure (a
+#     `NativeThunk`, backing lazy `map`/`filter`/`take`/`drop`) — either can run ARBITRARY code
+#     this verb has no way to bound, exactly the shape `:wat::core::apply`/`:wat::eval` are
+#     deliberately left unclassified for below ("purity is the form's, like apply"). Homed
+#     `@Purity Effectful @Determinism Nondeterministic` (`src/intrinsic/stream.rs`).
+#     Independent corroboration: `src/macros/eval.rs`'s `is_pure_total` expand-time-safe
+#     allowlist already listed `cons`/`empty`/`lazy` and already did NOT list `next`, before
+#     this stone touched either file. Confirmed at (pre-image) src/runtime.rs:12130-12142
+#     (`eval_stream_next`'s own doc + body: forces via `realize`, destructures); single
+#     dispatch site was runtime.rs:5539; TypeScheme at src/check.rs:20996-21009 (`params:
+#     vec![seq_t()]`).
+#   :wat::program::env — INTRINSIC. Nullary ambient read: `current_program_env()` reads a
+#     `RefCell` thread-local installed ONCE per thread at a fixed pre-`:user::main` seam
+#     (`install_program_env`) and never mutated afterward — the identical "committed-once,
+#     read-many" shape `sym.encoding_ctx()` has for `:wat::config::dim-count` (W1, above). No
+#     side effect. Confirmed at (pre-image) src/runtime.rs:19882-19890 (`eval_program_env`'s
+#     own doc: "returns a clone of the current value, or a clean MalformedForm error");
+#     single dispatch site was runtime.rs:5582; TypeScheme at src/check.rs:18689-18696
+#     (`params: vec![]`, `ret: TypeExpr::Path(":wat::program::Env")`).
+# Instrument, run against the pre-image (all five arms still present) with these four rows
+# temporarily added to DESTINATION_LEDGER: HOMEABLE 0 -> 4 of 142, AWAITING 107 -> 103 of 142
+# (RULED OUT unchanged at 13). Post-home, the ledger carries none of the four (same reasoning
+# as W1: `check_ledger_freshness` FATALs the instant a ruled FQDN leaves the match, which is
+# exactly what a successful home does) — HOMEABLE returns to 0; the population shrinking
+# (142 -> 138) is the real meter, per W1's own correction.
+
 # arc 255 Stone P6-c-3 — DEFAULT-DENY. `DESTINATION_DEFAULT` used to be `"INTRINSIC"`: a verb
 # nobody had ruled on read as homeable by SILENCE — the exact shape of
 # `if is_reserved_prefix(head) { return true }` (src/resolve/walk.rs:268) this whole arc exists to
