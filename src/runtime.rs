@@ -5598,10 +5598,14 @@ fn dispatch_keyword_head_value(
         // pre-match registry check above (arc 255.1c-guard) intercepts all four names before
         // reaching here. The pure inner matcher (`alpha_match_inner`/`*_local`/`*_seeded`,
         // `src/rete/matcher.rs`) is unchanged.
-        // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
-        // Pure data-in/data-out: insert-form (WatAST) × bindings (PersistentMap) → Record.
-        // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).
-        ":wat::rete::eval-insert" => crate::rete::eval_insert::eval_insert(args, list_span, env, sym),
+        // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match): insert-form
+        // (WatAST) × bindings (PersistentMap) → Record, resolving ?var/literal fact-args via
+        // resolve_operand, OR (Stone B widening) falling through to a fenced fn-call eval —
+        // no longer pure data-in/data-out, see `eval_insert`'s own doc.
+        // Arc 255 Stone P6-c-W5b — `:wat::rete::eval-insert` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/eval_insert.rs`, in place — not relocated to `src/intrinsic/`)
+        // with its real (2) arity declared; the pre-match registry check above (arc
+        // 255.1c-guard) intercepts the name before reaching here.
         // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
         // (:wat::rete::fire-once <session>) → :wat::rete::Session
         // Equivalent to fire-once$oracle on AST Sessions; Export is native-only
@@ -5619,14 +5623,12 @@ fn dispatch_keyword_head_value(
         // rune:circumspicere(accepted-by-design) — intern hangup mouths are keyword
         // primitives (TypeScheme + runtime dispatch), not dual-impl wat Fns; bound in
         // DESIGN-STONE-intern-eviction.md (keyword primitives; oracle has no intern).
-        ":wat::rete::arm-session" => {
-            crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
-        }
         // Arc 278 — drop one intern lease (`DESIGN-STONE-intern-eviction`).
         // Value unchanged. Last lease removes the intern entry.
-        ":wat::rete::release-session" => {
-            crate::rete::kernel::eval_release_session(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5b — `:wat::rete::arm-session`/`release-session` moved into
+        // `#[wat_intrinsic]` handlers (`src/rete/kernel/arm.rs`, in place) with their real (1)
+        // arity declared each; the pre-match registry check above (arc 255.1c-guard)
+        // intercepts both names before reaching here.
         // Arc 278 — native `insert-all` (oracle is `insert-all$oracle`).
         // 2-ary `insert` is handled above (`eval_insert_public`).
         ":wat::rete::insert-all$native" | ":wat::rete::insert-all" => {
@@ -5647,8 +5649,10 @@ fn dispatch_keyword_head_value(
         ":wat::rete::collect-rules" => {
             crate::rete::collect::eval_collect_rules(args, list_span, env, sym)
         }
-        ":wat::rete::export" => crate::rete::export::eval_export(args, list_span, env, sym),
-        ":wat::rete::import" => crate::rete::export::eval_import(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W5b — `:wat::rete::export`/`import` moved into `#[wat_intrinsic]`
+        // handlers (`src/rete/export.rs`, in place) with their real (1) arity declared each;
+        // the pre-match registry check above (arc 255.1c-guard) intercepts both names before
+        // reaching here.
         // Arc 278 Stone 6a — the rete condition fence: four orthogonal classifiers, each
         // default-deny + transitive over user-fn bodies. A rete condition must be
         // (pure AND deterministic AND total AND a rete primitive).
@@ -5668,7 +5672,9 @@ fn dispatch_keyword_head_value(
         }
         // Arc 278 Stone 6b-i — the runtime evaluator for where/:test predicates.
         // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
-        ":wat::rete::eval-test" => crate::rete::eval_test::eval_test(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W5b — moved into a `#[wat_intrinsic]` handler
+        // (`src/rete/eval_test.rs`, in place) with its real (2) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // #49 — rule-compile refuse: lower the where expr or raise. Returns nil on success.
         ":wat::rete::lower" => crate::rete::expr_ir::eval_lower(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
@@ -23424,6 +23430,23 @@ fn step_list(
 /// (same wave, same file) stay `Pure` and simply add two more entries to this census's
 /// tolerated Pure-declared-under-an-effectful-prefix inventory — the same shape
 /// `:wat::config::*` (four rows) already established below.
+///
+/// `:wat::rete::` joined this list at arc 255 Stone P6-c-W5b, for six verbs that mutate a
+/// rete session: `arm-session`/`release-session` (`src/rete/kernel/arm.rs`) take/drop a lease
+/// on the thread-local `ARM_TABLE` intern cache; `export`/`import` (`src/rete/export.rs`)
+/// touch the same table on a build-and-intern MISS; `eval-insert`/`eval-test`
+/// (`src/rete/eval_insert.rs`, `src/rete/eval_test.rs`) can run a caller-supplied expression
+/// via `eval_inner`/`apply_function` — arbitrary code this verb has no way to bound, the same
+/// shape `:wat::stream::next` is effectful for. All six are honestly `@Purity Effectful`; no
+/// escape hatch, `Pure` would be the dishonest fix. ⚠ Unlike `:wat::stream::`'s two tolerated
+/// Pure rows, this widening also puts W5a's NINE already-homed PURE `:wat::rete::` verbs
+/// (`pure?`/`deterministic?`/`total?`/`primitive?`/`vocabulary-admitted?`/
+/// `cond-has-deferred-constraint?`/`alpha-match`/`alpha-match-local`/`alpha-match-under`)
+/// under this prefix — legal (the census's surviving assertion is one-directional, `Effectful
+/// ⇒ effectful_by_prefix`; `prefix ⇒ Effectful` is a counted census, not a rule), but it is
+/// the reason `declared_purity_vs_effectful_by_prefix_census`'s disagreement count rises by
+/// about nine at this stone: those nine now disagree (declared Pure, prefix says effectful)
+/// the same way `:wat::config::`'s four Pure rows already did.
 pub(crate) fn effectful_by_prefix(head: &str) -> bool {
     head.starts_with(":wat::kernel::")
         || head.starts_with(":wat::io::")
@@ -23432,6 +23455,7 @@ pub(crate) fn effectful_by_prefix(head: &str) -> bool {
         || head.starts_with(":wat::load")
         || head.starts_with(":wat::config::")
         || head.starts_with(":wat::stream::")
+        || head.starts_with(":wat::rete::")
 }
 
 /// Effectful-op classifier — the registry is the authority (arc 255.1c). A

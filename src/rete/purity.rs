@@ -2472,18 +2472,16 @@ mod completeness_gate {
     // Arc 255 Stone P6-c-W5a — the nine read-only rete predicates/matchers (the six `?`
     // predicates + the three alpha-matchers) are HOMED (`src/intrinsic/rete.rs`) and
     // CLASSIFIED (`intrinsic_meta`, below) — deleted from this ledger, not carried forward.
-    // The other 19 `:wat::rete::` verbs (the session-mutating half: fire-*, insert-*,
-    // arm-session, release-session, import, export, the $native twins, plus
-    // lower/collect-rules/step-payload/axis-violation/eval-test/eval-insert) are unaffected
-    // and remain on this ledger under `RULES`'s `:wat::rete::` Unreviewed disposition.
-    ":wat::rete::arm-session",
-    ":wat::rete::release-session",
+    // Arc 255 Stone P6-c-W5b — six more: `arm-session`/`release-session` (`src/rete/kernel/
+    // arm.rs`), `export`/`import` (`src/rete/export.rs`), and `eval-insert`/`eval-test`
+    // (`src/rete/eval_insert.rs`/`src/rete/eval_test.rs`) are HOMED (`#[wat_intrinsic]`, in
+    // place — not relocated to `src/intrinsic/`) and CLASSIFIED `@Purity Effectful` — deleted
+    // from this ledger, not carried forward. The remaining `:wat::rete::` verbs (the firing
+    // family — fire-*, insert-*, the $native twins — plus `lower`/`collect-rules`/
+    // `step-payload`/`axis-violation`, still unverified as read-only) are unaffected and
+    // remain on this ledger under `RULES`'s `:wat::rete::` Unreviewed disposition.
     ":wat::rete::axis-violation",
     ":wat::rete::collect-rules",
-    ":wat::rete::export",
-    ":wat::rete::import",
-    ":wat::rete::eval-insert",
-    ":wat::rete::eval-test",
     ":wat::rete::fire-once",
     ":wat::rete::fire-once$native",
     ":wat::rete::fire-rules",

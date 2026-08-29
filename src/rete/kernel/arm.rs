@@ -4,6 +4,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use wat_macros::wat_intrinsic;
+
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
@@ -984,31 +986,33 @@ pub(crate) fn subset_rete_arm(
 
 // ── Public entry: intern the arm at compile-all ──────────────────────────────
 
-/// `(:wat::rete::arm-session <session>) -> :wat::rete::Session`
+/// `(:wat::rete::arm-session session) -> :wat::rete::Session`
 ///
-/// Item 12's contract: compile puts the arm next to the network. WAT
-/// `compile-all` builds the Session and did not intern the rust `InternedNetwork`;
-/// first `fire-rules` paid the build (`DESIGN-STONE-arm-at-compile`).
-/// Value unchanged. Takes one intern lease (`DESIGN-STONE-intern-eviction`).
+/// Item 12's contract: compile puts the arm next to the network. WAT `compile-all` builds
+/// the Session and does not intern the rust `InternedNetwork`; first `fire-rules` used to pay
+/// the build cost (`DESIGN-STONE-arm-at-compile`). `arm-session` pays it eagerly instead,
+/// taking one intern lease on the session's network identity (`DESIGN-STONE-intern-eviction`):
+/// a HIT increments the existing lease count, a MISS builds and interns with `leases = 1`.
+///
+/// Arc 255 Stone P6-c-W5b — moved verbatim into `#[wat_intrinsic]` with its real (1) arity
+/// declared; the hand-rolled `args.len() != 1` guard this wave retired lived right here.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Deterministic
+/// @Category      Resource
+/// @arg     session :wat::rete::Session the compiled session to arm; its network identity keys the lease
+/// @ret     :wat::rete::Session the same session, value-unchanged — the only effect is on the thread-local intern table (`ARM_TABLE`)
+/// @example-norun (:wat::rete::arm-session (:wat::rete::compile (:dc::build-rules 2)))
+#[wat_intrinsic(":wat::rete::arm-session")]
 pub(crate) fn eval_arm_session(
-    args: &[WatAST],
+    session: &WatAST,
     list_span: &Span,
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::arm-session";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(session, env, sym)?.value_owned();
     let (network, rules) = match (
         session_network(&session),
         session_named_field(&session, "rules"),
@@ -1041,13 +1045,25 @@ pub(crate) fn eval_arm_session(
     Ok(session)
 }
 
-/// `(:wat::rete::release-session <session>) -> :wat::rete::Session`
+/// `(:wat::rete::release-session session) -> :wat::rete::Session`
 ///
 /// Drop one intern lease for this Session's network identity
 /// (`DESIGN-STONE-intern-eviction`). Value unchanged. Missing intern
 /// is a no-op. At zero the intern entry is gone.
+///
+/// Arc 255 Stone P6-c-W5b — moved verbatim into `#[wat_intrinsic]` with its real (1) arity
+/// declared; the hand-rolled `args.len() != 1` guard this wave retired lived right here.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Deterministic
+/// @Category      Resource
+/// @arg     session :wat::rete::Session the session whose network identity's lease is dropped by one
+/// @ret     :wat::rete::Session the same session, value-unchanged — the only effect is on the thread-local intern table (`ARM_TABLE`)
+/// @example-norun (:wat::rete::release-session (:wat::rete::compile (:dc::build-rules 2)))
+#[wat_intrinsic(":wat::rete::release-session")]
 pub(crate) fn eval_release_session(
-    args: &[WatAST],
+    session: &WatAST,
     list_span: &Span,
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
@@ -1055,18 +1071,7 @@ pub(crate) fn eval_release_session(
     // Keyword primitive (TypeScheme + runtime dispatch), not a dual-impl wat Fn.
     // Bound in DESIGN-STONE-intern-eviction.md.
     const OP: &str = ":wat::rete::release-session";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(session, env, sym)?.value_owned();
     let network = match session_network(&session) {
         Some(network) => network,
         None => {
