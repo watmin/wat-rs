@@ -33,18 +33,18 @@
 ;; BINDING / UNEVALUATED-ARGS control rows still report the same diagnostic, unchanged.
 
 (:wat::core::defn :probe::show
-  [tag <- :wat::core::String r <- (:wat::core::Result :wat::core::Value :wat::core::EvalError)]
+  [tag <- :wat::core::String r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::nil
   (:wat::kernel::println (:wat::string::concat tag ": " (:wat::edn::write r))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [mapv    (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST
+    [mapv    (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST]
                (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))
-     setv    (:wat::holon::Set (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
-     vecv    (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
-     listv   (:wat::holon::List (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
-     tuplev  (:wat::holon::Tuple (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
+     setv    (:wat::holon::Set (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
+     vecv    (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
+     listv   (:wat::holon::List (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
+     tuplev  (:wat::holon::Tuple (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
      symv    (:wat::holon::from-wat (:wat::core::quote x))
      kwv     (:wat::holon::from-wat (:wat::core::quote :k))
      leafv   (:wat::holon::leaf "role")
@@ -58,40 +58,40 @@
       ;; ── MIGRATABLE, 15 — must answer through apply ──
       (:probe::show "is-Map? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Map? (:wat::core::Vector :wat::core::Any mapv)))))
+          (:wat::core::apply :wat::holon::is-Map? (:wat::core::Vector :- [:wat::core::Any] mapv)))))
       (:probe::show "is-Map? (false)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Map? (:wat::core::Vector :wat::core::Any setv)))))
+          (:wat::core::apply :wat::holon::is-Map? (:wat::core::Vector :- [:wat::core::Any] setv)))))
       (:probe::show "is-Set? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Set? (:wat::core::Vector :wat::core::Any setv)))))
+          (:wat::core::apply :wat::holon::is-Set? (:wat::core::Vector :- [:wat::core::Any] setv)))))
       (:probe::show "is-Vector? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Vector? (:wat::core::Vector :wat::core::Any vecv)))))
+          (:wat::core::apply :wat::holon::is-Vector? (:wat::core::Vector :- [:wat::core::Any] vecv)))))
       (:probe::show "is-List? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-List? (:wat::core::Vector :wat::core::Any listv)))))
+          (:wat::core::apply :wat::holon::is-List? (:wat::core::Vector :- [:wat::core::Any] listv)))))
       (:probe::show "is-Tuple? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Tuple? (:wat::core::Vector :wat::core::Any tuplev)))))
+          (:wat::core::apply :wat::holon::is-Tuple? (:wat::core::Vector :- [:wat::core::Any] tuplev)))))
       (:probe::show "is-Symbol? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Symbol? (:wat::core::Vector :wat::core::Any symv)))))
+          (:wat::core::apply :wat::holon::is-Symbol? (:wat::core::Vector :- [:wat::core::Any] symv)))))
       (:probe::show "is-Keyword? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Keyword? (:wat::core::Vector :wat::core::Any kwv)))))
+          (:wat::core::apply :wat::holon::is-Keyword? (:wat::core::Vector :- [:wat::core::Any] kwv)))))
       (:probe::show "is-Tag? (false)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Tag? (:wat::core::Vector :wat::core::Any leafv)))))
+          (:wat::core::apply :wat::holon::is-Tag? (:wat::core::Vector :- [:wat::core::Any] leafv)))))
       (:probe::show "is-Nil? (true)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Nil? (:wat::core::Vector :wat::core::Any nilv)))))
+          (:wat::core::apply :wat::holon::is-Nil? (:wat::core::Vector :- [:wat::core::Any] nilv)))))
       (:probe::show "is-Nil? (false)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is-Nil? (:wat::core::Vector :wat::core::Any leafv)))))
+          (:wat::core::apply :wat::holon::is-Nil? (:wat::core::Vector :- [:wat::core::Any] leafv)))))
       (:probe::show "Thermometer"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::Thermometer (:wat::core::Vector :wat::core::Any 5.0 0.0 10.0)))))
+          (:wat::core::apply :wat::holon::Thermometer (:wat::core::Vector :- [:wat::core::Any] 5.0 0.0 10.0)))))
       ;; Blend's Ok value is a raw composite HolonAST, which `:wat::edn::write`
       ;; refuses to cross the wire (DESIGN-STONE-294.j — only DATA and the two
       ;; directives, Thermometer/SlotMarker, do). Prove dispatch by chaining a
@@ -99,62 +99,62 @@
       (:probe::show "Blend (statement-length 2 proves the Ok value is a real Blend)"
         (:wat::core::match
           (:wat::eval-ast! (:wat::core::quote
-            (:wat::core::apply :wat::holon::Blend (:wat::core::Vector :wat::core::Any rolev fillerv 0.7 0.3))))
+            (:wat::core::apply :wat::holon::Blend (:wat::core::Vector :- [:wat::core::Any] rolev fillerv 0.7 0.3))))
           ((:wat::core::Ok v) (:wat::core::Ok (:wat::holon::statement-length v)))
           ((:wat::core::Err e) (:wat::core::Err e))))
       (:probe::show "vector-bytes"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::vector-bytes (:wat::core::Vector :wat::core::Any enc1)))))
+          (:wat::core::apply :wat::holon::vector-bytes (:wat::core::Vector :- [:wat::core::Any] enc1)))))
       (:probe::show "vector-bind"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::vector-bind (:wat::core::Vector :wat::core::Any enc1 enc2)))))
+          (:wat::core::apply :wat::holon::vector-bind (:wat::core::Vector :- [:wat::core::Any] enc1 enc2)))))
       (:probe::show "vector-blend"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::vector-blend (:wat::core::Vector :wat::core::Any enc1 enc2 0.6 0.4)))))
+          (:wat::core::apply :wat::holon::vector-blend (:wat::core::Vector :- [:wat::core::Any] enc1 enc2 0.6 0.4)))))
       (:probe::show "statement-length"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::statement-length (:wat::core::Vector :wat::core::Any bindv)))))
+          (:wat::core::apply :wat::holon::statement-length (:wat::core::Vector :- [:wat::core::Any] bindv)))))
 
       ;; ── controls: refused verbs still report the O-iv-a diagnostic, unchanged ──
       (:probe::show "STILL-ARG-SPAN Atom"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::Atom (:wat::core::Vector :wat::core::Any leafv)))))
+          (:wat::core::apply :wat::holon::Atom (:wat::core::Vector :- [:wat::core::Any] leafv)))))
       (:probe::show "STILL-ARG-SPAN leaf"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::leaf (:wat::core::Vector :wat::core::Any "role")))))
+          (:wat::core::apply :wat::holon::leaf (:wat::core::Vector :- [:wat::core::Any] "role")))))
       (:probe::show "STILL-ARG-SPAN Bind"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::Bind (:wat::core::Vector :wat::core::Any rolev fillerv)))))
+          (:wat::core::apply :wat::holon::Bind (:wat::core::Vector :- [:wat::core::Any] rolev fillerv)))))
       (:probe::show "STILL-ARG-SPAN is?"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::is? (:wat::core::Vector :wat::core::Any leafv "Vector")))))
+          (:wat::core::apply :wat::holon::is? (:wat::core::Vector :- [:wat::core::Any] leafv "Vector")))))
       (:probe::show "STILL-ARG-SPAN vector-permute"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::vector-permute (:wat::core::Vector :wat::core::Any enc1 1)))))
+          (:wat::core::apply :wat::holon::vector-permute (:wat::core::Vector :- [:wat::core::Any] enc1 1)))))
       (:probe::show "STILL-ARG-SPAN vector-bundle"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::vector-bundle (:wat::core::Vector :wat::core::Any (:wat::core::Vector :wat::holon::Vector enc1 enc2))))))
+          (:wat::core::apply :wat::holon::vector-bundle (:wat::core::Vector :- [:wat::core::Any] (:wat::core::Vector :- [:wat::holon::Vector] enc1 enc2))))))
       (:probe::show "STILL-BINDING cosine"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::cosine (:wat::core::Vector :wat::core::Any rolev rolev)))))
+          (:wat::core::apply :wat::holon::cosine (:wat::core::Vector :- [:wat::core::Any] rolev rolev)))))
       (:probe::show "STILL-BINDING encode"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::encode (:wat::core::Vector :wat::core::Any rolev)))))
+          (:wat::core::apply :wat::holon::encode (:wat::core::Vector :- [:wat::core::Any] rolev)))))
       (:probe::show "STILL-BINDING Bundle"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::Bundle (:wat::core::Vector :wat::core::Any (:wat::core::Vector :wat::holon::HolonAST rolev fillerv))))))
+          (:wat::core::apply :wat::holon::Bundle (:wat::core::Vector :- [:wat::core::Any] (:wat::core::Vector :- [:wat::holon::HolonAST] rolev fillerv))))))
       (:probe::show "STILL-BINDING presence-floor"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::presence-floor (:wat::core::Vector :wat::core::Any 4096)))))
+          (:wat::core::apply :wat::holon::presence-floor (:wat::core::Vector :- [:wat::core::Any] 4096)))))
       (:probe::show "STILL-BINDING eval-coincident?"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::eval-coincident? (:wat::core::Vector :wat::core::Any 1 2)))))
+          (:wat::core::apply :wat::holon::eval-coincident? (:wat::core::Vector :- [:wat::core::Any] 1 2)))))
       (:probe::show "STILL-BINDING+ARG-SPAN term::matches?"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::term::matches? (:wat::core::Vector :wat::core::Any rolev fillerv)))))
+          (:wat::core::apply :wat::holon::term::matches? (:wat::core::Vector :- [:wat::core::Any] rolev fillerv)))))
       (:probe::show "STILL-UNEVALUATED-ARGS literal"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::literal (:wat::core::Vector :wat::core::Any 1)))))
+          (:wat::core::apply :wat::holon::literal (:wat::core::Vector :- [:wat::core::Any] 1)))))
       (:probe::show "STILL-OUT-OF-SCOPE from-holon (STOP-1)"
         (:wat::eval-ast! (:wat::core::quote
-          (:wat::core::apply :wat::holon::from-holon (:wat::core::Vector :wat::core::Any bindv))))))))
+          (:wat::core::apply :wat::holon::from-holon (:wat::core::Vector :- [:wat::core::Any] bindv))))))))

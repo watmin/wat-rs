@@ -113,7 +113,7 @@
 
 (:wat::core::defn :wat::sqlite::execute
   [conn <- :wat::sqlite::Connection sql <- :wat::core::String
-   params <- (:wat::core::Vector :wat::sqlite::Param)]
+   params <- (:wat::core::Vector :- [:wat::sqlite::Param])]
   -> (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::Connection::execute conn sql params)
     
@@ -153,14 +153,14 @@
 ;; parameter annotations resolve fine through the static-checker's alias unification.
 (:wat::core::defclause :wat::sqlite::select
   ([conn <- :rust::sqlite::Connection sql <- :wat::core::String
-    params <- (:wat::core::Vector :wat::sqlite::Param)]
+    params <- (:wat::core::Vector :- [:wat::sqlite::Param])]
     -> (:wat::core::Result :- [(:wat::core::Vector :- [(:wat::core::Vector :- [:wat::sqlite::Cell])]) :wat::sqlite::Error])
     (:wat::core::match (:rust::sqlite::Connection::select conn sql params)
       
       ((:wat::core::Ok rows) (:wat::core::Ok rows))
       ((:wat::core::Err raw) (:wat::core::Err (:wat::sqlite::classify :select raw)))))
   ([conn <- :rust::sqlite::ReadConnection sql <- :wat::core::String
-    params <- (:wat::core::Vector :wat::sqlite::Param)]
+    params <- (:wat::core::Vector :- [:wat::sqlite::Param])]
     -> (:wat::core::Result :- [(:wat::core::Vector :- [(:wat::core::Vector :- [:wat::sqlite::Cell])]) :wat::sqlite::Error])
     (:wat::core::match (:rust::sqlite::ReadConnection::select conn sql params)
       

@@ -36,9 +36,9 @@
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      journal (:wat::core::match (:wat::kernel::connect jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      idxs  (:wat::core::range 0 10)
-     logs  (:wat::core::into (:wat::core::Vector :wat::telemetry::Log)
+     logs  (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
              (:wat::core::map
                (:wat::core::fn [i <- :wat::core::i64] -> :wat::telemetry::Log
                  (:wat::core::let
@@ -59,7 +59,7 @@
                       (:wat::core::fn [ok <- :wat::core::bool log <- :wat::telemetry::Log] -> :wat::core::bool
                         (:wat::core::if ok
                           (:wat::vec::contains?
-                            (:wat::core::Vector :wat::core::String "usr::Temp" "usr::Hot" "usr::Warn")
+                            (:wat::core::Vector :- [:wat::core::String] "usr::Temp" "usr::Hot" "usr::Warn")
                             (:wat::core::match
                               (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
                               ((:wat::edn::ReadForeignOutcome::Value payload)

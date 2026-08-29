@@ -57,7 +57,7 @@
 (:wat::core::defn :probe::mk-rm-parametric []
     -> (:probe::PCtor::GetResponse :- [:wat::core::i64])
   (:probe::PCtor::GetResponse::RequestMalformed
-    (:wat::core::Vector :wat::core::String "limit") "i64" "String"))
+    (:wat::core::Vector :- [:wat::core::String] "limit") "i64" "String"))
 
 ;; ── NON-VACUITY CONTROL: the MONOMORPHIC case, which the pre-#72 concatenation
 ;;    already built literally for the whole corpus. If the parametric arms above

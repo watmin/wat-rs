@@ -85,7 +85,7 @@
      h0   (:user::start-off head lines)]
     ;; old-text = (ast-name head) — already verified by recv-arm-eprintln? to equal
     ;; ":wat::kernel::eprintln"; NEVER span text (a rename of a keyword leaf, STOP-1).
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::kernel::assertion-failed!")
       (:wat::core::Tuple (:user::end-off arg lines) "" " :wat::core::None :wat::core::None"))))
 
@@ -96,7 +96,7 @@
   (:wat::core::let
     [this (:wat::core::if (:user::recv-arm-eprintln? node)
             (:user::eprintln-edits (:wat::core::ast->children node) lines)
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
       this)))
@@ -108,7 +108,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

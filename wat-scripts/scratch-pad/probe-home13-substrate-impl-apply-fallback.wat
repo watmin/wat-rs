@@ -10,7 +10,7 @@
 ;; deleted, `(apply :wat::hashmap::length ...)` would fall through to UnknownFunction.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [hm (:wat::hashmap::assoc (:wat::core::HashMap :wat::core::keyword :wat::core::i64) :a 1)]
+    [hm (:wat::hashmap::assoc (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) :a 1)]
     (:wat::core::do
       (:wat::kernel::println (:wat::i64::to-string (:wat::hashmap::length hm)))
       (:wat::kernel::println (:wat::i64::to-string

@@ -24,7 +24,7 @@
      ;; n=5 > len([a b c])=3 → window returns [] → Bundle([]) → Ok(empty bundle).
      result
        (:wat::core::match
-         (:wat::holon::Ngram 5 (:wat::core::Vector :wat::holon::HolonAST a b c))
+         (:wat::holon::Ngram 5 (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
          
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) a))
@@ -42,7 +42,7 @@
      b (:wat::holon::to-holon "b")
      c (:wat::holon::to-holon "c")
      d (:wat::holon::to-holon "d")
-     xs (:wat::core::Vector :wat::holon::HolonAST a b c d)
+     xs (:wat::core::Vector :- [:wat::holon::HolonAST] a b c d)
      ;; Ngram 2 [a b c d] = Bundle([Seq(a,b), Seq(b,c), Seq(c,d)]) — three 2-windows.
      ;; Ngram 3 [a b c d] = Bundle([Seq(a,b,c), Seq(b,c,d)])       — two 3-windows.
      ;; Different window sizes → structurally distinct bundles → not coincident.

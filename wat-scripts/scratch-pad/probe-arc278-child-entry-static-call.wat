@@ -64,7 +64,7 @@
     ;; the selectables slot: `(Vector :- [(Tuple :- [i64 (Peer :- [Reply Op])])])` — the id travels WITH its peer
     ;; (arc 278 the call context). The element type is ONE tuple type-keyword, exactly as
     ;; `selectable-entry-ty` builds it (service.wat:979).
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])])])
     0
     state)))
 
@@ -90,7 +90,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [forms (:wat::kernel::fn-forms :probe::ce::child-entry-shape :user::root-entry)
-     names (:user::declared-names forms 0 (:wat::core::Vector :wat::core::String))
+     names (:user::declared-names forms 0 (:wat::core::Vector :- [:wat::core::String]))
      _n    (:wat::kernel::println
              (:wat::string::concat "closure forms="
                (:wat::i64::to-string (:wat::core::length forms))))

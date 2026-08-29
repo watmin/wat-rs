@@ -14,7 +14,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      ;; the whole caller surface: a sink addr + a fresh span; no open/close by hand.
      _ws   (:wat::telemetry::with-span span jaddr "probe-ns" tags
              (:wat::core::do

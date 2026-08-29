@@ -196,4 +196,4 @@
       handles
       :probe::enrich::grant-worker
       :probe::enrich::revoke-worker
-      (:wat::core::Vector :probe::enrich::Coords coords))))
+      (:wat::core::Vector :- [:probe::enrich::Coords] coords))))

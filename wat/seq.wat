@@ -585,7 +585,7 @@
 
 (:wat::core::defn :wat::core::distinct :- [T]
   [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
-  (:wat::core::distinct-walk (:wat::core::HashSet :T) (:wat::core::Seqable/seq coll)))
+  (:wat::core::distinct-walk (:wat::core::HashSet :- [:T]) (:wat::core::Seqable/seq coll)))
 
 ;; ─── reductions — emit `init`, then each successive accumulation ───────────────────────────────
 ;; 118.B2b — the three-call walk is GONE: every arm now delegates to ONE private `(Stream :- [T])` walker

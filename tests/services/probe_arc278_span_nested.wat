@@ -16,7 +16,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      _ws   (:wat::telemetry::with-span outer jaddr "outer-ns" tags
              (:wat::core::do
                (:wat::core::match (:wat::telemetry::Span/incr outer (:wat::telemetry::Span::IncrRequest :name :o))

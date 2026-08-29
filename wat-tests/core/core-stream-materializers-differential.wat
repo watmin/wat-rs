@@ -44,45 +44,45 @@
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::vec-agree-empty
   (:wat::test::assert-eq
-    (:wat::core::stream->vec (:wat::core::Vector :wat::core::i64)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64)))
-    (:wat::core::stream->vec-spec (:wat::core::Vector :wat::core::i64)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64)))))
+    (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64])))
+    (:wat::core::stream->vec-spec (:wat::core::Vector :- [:wat::core::i64])
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64])))))
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::vec-agree-one
   (:wat::test::assert-eq
-    (:wat::core::stream->vec (:wat::core::Vector :wat::core::i64)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64 42)))
-    (:wat::core::stream->vec-spec (:wat::core::Vector :wat::core::i64)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64 42)))))
+    (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64] 42)))
+    (:wat::core::stream->vec-spec (:wat::core::Vector :- [:wat::core::i64])
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64] 42)))))
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::vec-agree-many
   (:wat::test::assert-eq
-    (:wat::core::stream->vec (:wat::core::Vector :wat::core::i64)
+    (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6 7 8 9 10)))
-    (:wat::core::stream->vec-spec (:wat::core::Vector :wat::core::i64)
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6 7 8 9 10)))
+    (:wat::core::stream->vec-spec (:wat::core::Vector :- [:wat::core::i64])
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6 7 8 9 10)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6 7 8 9 10)))))
 
 ;; ─── seeded accumulator — `into`'s actual contract: `to` is not always fresh-empty ─────────────
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::vec-agree-seeded
   (:wat::test::assert-eq
-    (:wat::core::stream->vec (:wat::core::Vector :wat::core::i64 100 200)
+    (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64] 100 200)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3)))
-    (:wat::core::stream->vec-spec (:wat::core::Vector :wat::core::i64 100 200)
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+    (:wat::core::stream->vec-spec (:wat::core::Vector :- [:wat::core::i64] 100 200)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))))
 
 ;; ─── the genuinely lazy producer, not a re-wrapped Vector ──────────────────────────────────────
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::vec-agree-lazy-producer
   (:wat::test::assert-eq
-    (:wat::core::stream->vec (:wat::core::Vector :wat::core::i64)
+    (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
       (:wat-tests::core::core-stream-materializers-differential::counter 0 25))
-    (:wat::core::stream->vec-spec (:wat::core::Vector :wat::core::i64)
+    (:wat::core::stream->vec-spec (:wat::core::Vector :- [:wat::core::i64])
       (:wat-tests::core::core-stream-materializers-differential::counter 0 25))))
 
 ;; ═══ stream->pvec — (PersistentVector :- [T]) receiver, fresh-empty seed ═════════════════════════════
@@ -90,34 +90,34 @@
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::pvec-agree-empty
   (:wat::test::assert-eq
     (:wat::core::stream->pvec (:wat::core::PersistentVector)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64)))
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64])))
     (:wat::core::stream->pvec-spec (:wat::core::PersistentVector)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64)))))
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64])))))
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::pvec-agree-one
   (:wat::test::assert-eq
     (:wat::core::stream->pvec (:wat::core::PersistentVector)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64 42)))
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64] 42)))
     (:wat::core::stream->pvec-spec (:wat::core::PersistentVector)
-      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :wat::core::i64 42)))))
+      (:wat-tests::core::core-stream-materializers-differential::stream-of (:wat::core::Vector :- [:wat::core::i64] 42)))))
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::pvec-agree-many
   (:wat::test::assert-eq
     (:wat::core::stream->pvec (:wat::core::PersistentVector)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6 7 8 9 10)))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6 7 8 9 10)))
     (:wat::core::stream->pvec-spec (:wat::core::PersistentVector)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6 7 8 9 10)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6 7 8 9 10)))))
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::pvec-agree-seeded
   (:wat::test::assert-eq
     (:wat::core::stream->pvec (:wat::core::PersistentVector 9 8)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3)))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
     (:wat::core::stream->pvec-spec (:wat::core::PersistentVector 9 8)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))))
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::pvec-agree-lazy-producer
   (:wat::test::assert-eq
@@ -130,18 +130,18 @@
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::into-vec-matches-spec
   (:wat::test::assert-eq
-    (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5)))
-    (:wat::core::stream->vec-spec (:wat::core::Vector :wat::core::i64)
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)))
+    (:wat::core::stream->vec-spec (:wat::core::Vector :- [:wat::core::i64])
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)))))
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::into-pvec-matches-spec
   (:wat::test::assert-eq
     (:wat::core::into (:wat::core::PersistentVector)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5)))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)))
     (:wat::core::stream->pvec-spec (:wat::core::PersistentVector)
       (:wat-tests::core::core-stream-materializers-differential::stream-of
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)))))

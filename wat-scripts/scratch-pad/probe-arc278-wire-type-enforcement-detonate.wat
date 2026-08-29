@@ -87,7 +87,7 @@
          ((:wat::kernel::ConnectOutcome::Failed f)
            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)))
      good (:probe-det::Bag::PutRequest
-            :items (:wat::core::Vector :wat::core::String "abcd"))
+            :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
      _ (:probe-det::round-trip c "[process] control " good)
      bad (:wat::edn::read "#probe-det.Bag/PutRequest {:items [1 2 3]}")
      _ (:probe-det::round-trip c "[process] MISTYPED" bad)]

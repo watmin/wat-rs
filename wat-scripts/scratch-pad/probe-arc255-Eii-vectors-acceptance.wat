@@ -28,10 +28,10 @@
 
       ;; ── Vector, 7 verbs: concat, conj, contains?, empty?, extend, get, length ──────────
       (:wat::core::let
-        [v0    (:wat::core::Vector :wat::core::i64 1 2 3)
-         v-e   (:wat::core::Vector :wat::core::i64)
+        [v0    (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+         v-e   (:wat::core::Vector :- [:wat::core::i64])
          v1    (:wat::vec::conj v0 4)
-         v2    (:wat::vec::concat v0 (:wat::core::Vector :wat::core::i64 4 5))
+         v2    (:wat::vec::concat v0 (:wat::core::Vector :- [:wat::core::i64] 4 5))
          v3    (:wat::vec::extend v0 pv0)]
         (:wat::core::do
           (:user::check "vec::length"    (:wat::core::= (:wat::vec::length v0) 3))

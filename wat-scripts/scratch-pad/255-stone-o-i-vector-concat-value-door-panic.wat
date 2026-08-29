@@ -14,7 +14,7 @@
 ;; AFTER Stone O-i: row 3 must PRINT and its outcome must be an ArityMismatch error,
 ;; identical in kind to row 1's (the AST-door control, same verb, same wrong arity).
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :wat::core::Value :wat::core::EvalError)]
+(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::core::Ok v)  (:wat::string::concat "ok:" (:wat::edn::write v)))
@@ -41,6 +41,6 @@
            (:wat::string::concat "value-door wrong arity: "
              (:probe::outcome (:wat::eval-ast! (:wat::core::quote
                (:wat::core::apply :wat::vector::concat
-                 (:wat::core::Vector (:wat::core::PersistentVector :- [:wat::core::i64])
+                 (:wat::core::Vector :- [(:wat::core::PersistentVector :- [:wat::core::i64])]
                    (:wat::core::PersistentVector 1 2 3))))))))]
     nil))

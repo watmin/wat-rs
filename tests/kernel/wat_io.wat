@@ -67,7 +67,7 @@
 (:wat::core::defn :my::compute-write-bytes [] -> :wat::core::i64
   (:wat::core::let
     [w (:wat::io::IOWriter/new)
-     bytes (:wat::core::Vector :wat::core::u8
+     bytes (:wat::core::Vector :- [:wat::core::u8]
              (:wat::core::u8 72)
              (:wat::core::u8 105)
              (:wat::core::u8 33))]
@@ -76,7 +76,7 @@
 (:wat::core::defn :my::compute-write-all-to-bytes [] -> (:wat::core::Vector :- [:wat::core::u8])
   (:wat::core::let
     [w (:wat::io::IOWriter/new)
-     bytes (:wat::core::Vector :wat::core::u8
+     bytes (:wat::core::Vector :- [:wat::core::u8]
              (:wat::core::u8 65)
              (:wat::core::u8 66)
              (:wat::core::u8 67))

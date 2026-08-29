@@ -98,7 +98,7 @@
     (:wat::core::let [ch (:wat::core::ast->children node)
                       n  (:wat::core::length ch)]
       (:user::when-edits-scan ch 0 n lines))
-    (:wat::core::Vector :wat::fix::Edit)))
+    (:wat::core::Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::when-edits-scan
   [ch    <- (:wat::core::Vector :- [:wat::WatAST])
@@ -107,7 +107,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::i64::>= i n)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::let [kid (:wat::core::Option/expect
                             (:wat::core::get ch i)
                             "when-edits-scan")]
@@ -121,7 +121,7 @@
               (:wat::core::get ch (:wat::i64::+ i 1))
               "when-edits-scan: vec")
             lines)
-          (:wat::core::Vector :wat::fix::Edit))
+          (:wat::core::Vector :- [:wat::fix::Edit]))
         (:user::when-edits-scan ch (:wat::i64::+ i 1) n lines)))))
 
 (:wat::core::defn :user::when-vec-edits
@@ -131,7 +131,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind vec) "vector")
     (:user::when-vec-scan (:wat::core::ast->children vec) 0
       (:wat::core::length (:wat::core::ast->children vec)) lines)
-    (:wat::core::Vector :wat::fix::Edit)))
+    (:wat::core::Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::when-vec-scan
   [items <- (:wat::core::Vector :- [:wat::WatAST])
@@ -140,22 +140,22 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::i64::>= i n)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::let [c (:wat::core::Option/expect (:wat::core::get items i) "when-vec-scan")]
       (:wat::core::concat
         (:wat::core::if (:user::plain-type-cond? c)
-          (:wat::core::Vector :wat::fix::Edit (:user::insert-fact-bind c lines))
+          (:wat::core::Vector :- [:wat::fix::Edit] (:user::insert-fact-bind c lines))
           (:wat::core::if (:user::overwrapped? c)
             ;; old-text = the literal "?fact <- " (9 chars) — overwrapped? already verified
             ;; c's shape is `(?fact <- :Type …)`, so this is exactly what the rule believes
             ;; immediately follows the opening paren; NEVER span text (this claims a SPECIFIC
             ;; literal, not "whatever's there").
-            (:wat::core::Vector :wat::fix::Edit
+            (:wat::core::Vector :- [:wat::fix::Edit]
               (:wat::core::Tuple
                 (:wat::i64::+ (:wat::fix::node-start-offset c lines) 1)
                 "?fact <- "
                 ""))
-            (:wat::core::Vector :wat::fix::Edit)))
+            (:wat::core::Vector :- [:wat::fix::Edit])))
         (:user::when-vec-scan items (:wat::i64::+ i 1) n lines)))))
 
 (:wat::core::defn :user::record-item-name
@@ -234,7 +234,7 @@
         (:wat::fix::calls-to? node ":wat::core::foldl")))
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::i64::< (:wat::core::length ch) 2)
-        (:wat::core::Vector :wat::fix::Edit)
+        (:wat::core::Vector :- [:wat::fix::Edit])
         (:wat::core::let [fn-node (:wat::core::Option/expect
                                     (:wat::core::get ch 1)
                                     "hof-fn-edits: fn")]
@@ -244,13 +244,13 @@
                                        "hof-fn-edits: params")]
               (:wat::core::match (:user::record-item-name params)
                 ((:wat::core::Some nm)
-                 (:wat::core::Vector :wat::fix::Edit
+                 (:wat::core::Vector :- [:wat::fix::Edit]
                    (:user::span-edit fn-node
                      (:user::rewrite-fn-text fn-node src lines nm)
                      src lines)))
-                (:wat::core::None (:wat::core::Vector :wat::fix::Edit))))
-            (:wat::core::Vector :wat::fix::Edit)))))
-    (:wat::core::Vector :wat::fix::Edit)))
+                (:wat::core::None (:wat::core::Vector :- [:wat::fix::Edit]))))
+            (:wat::core::Vector :- [:wat::fix::Edit])))))
+    (:wat::core::Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
@@ -258,7 +258,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::quoted? node)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::let [this (:wat::core::concat
                              (:user::when-edits node lines)
                              (:user::hof-fn-edits node src lines))]
@@ -273,7 +273,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::walk-edits (:wat::core::first items) src lines)
       (:user::walk-seq (:wat::core::into [] (:wat::core::rest items)) src lines))))

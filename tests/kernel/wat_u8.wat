@@ -24,7 +24,7 @@
   (:wat::core::= (:wat::core::u8 10) (:wat::core::u8 11)))
 
 (:wat::core::defn :my::compute-vec-u8 [] -> (:wat::core::Vector :- [:wat::core::u8])
-  (:wat::core::Vector :wat::core::u8
+  (:wat::core::Vector :- [:wat::core::u8]
     (:wat::core::u8 0)
     (:wat::core::u8 65)
     (:wat::core::u8 127)

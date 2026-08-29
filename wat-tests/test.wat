@@ -30,8 +30,8 @@
 (:wat::test::deftest :wat-tests::test::test-assert-eq-on-vec
   
   (:wat::core::let
-    [a (:wat::core::Vector :wat::core::String "x" "y")
-     b (:wat::core::Vector :wat::core::String "x" "y")]
+    [a (:wat::core::Vector :- [:wat::core::String] "x" "y")
+     b (:wat::core::Vector :- [:wat::core::String] "x" "y")]
     (:wat::test::assert-eq a b)))
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────

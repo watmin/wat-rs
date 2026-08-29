@@ -24,6 +24,6 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [out (:wat::bracket::map (:wat::spawn::process) (:wat::core::Vector :wat::core::i64 1 2)
+    [out (:wat::bracket::map (:wat::spawn::process) (:wat::core::Vector :- [:wat::core::i64] 1 2)
            :probe::own-cmdline)] ;; <<map-call>>
     (:wat::kernel::println out)))

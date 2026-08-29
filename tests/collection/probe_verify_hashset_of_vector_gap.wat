@@ -4,7 +4,7 @@
 
 (:wat::core::defn :user::verify [] -> :wat::core::i64
   (:wat::core::let
-    [v1     (:wat::core::Vector :wat::core::i64 1 2)
-     v2     (:wat::core::Vector :wat::core::i64 3 4)
-     outer  (:wat::core::HashSet :wat::type::Infer v1 v2)]
+    [v1     (:wat::core::Vector :- [:wat::core::i64] 1 2)
+     v2     (:wat::core::Vector :- [:wat::core::i64] 3 4)
+     outer  (:wat::core::HashSet :- [:wat::type::Infer] v1 v2)]
     (:wat::hashset::length outer)))

@@ -65,14 +65,14 @@
 ;; p5b: (Vec :- [String]) round-trip length 3
 (:wat::core::defn :t::p5b-str-rt-len [] -> :wat::core::i64
   (:wat::core::let
-    [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::String "a" "b" "c"))
+    [h (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::String] "a" "b" "c"))
      v (:wat::holon::from-holon h)]
     (:wat::vec::length v)))
 
 ;; p5c: (Vec :- [bool]) round-trip length 3
 (:wat::core::defn :t::p5c-bool-rt-len [] -> :wat::core::i64
   (:wat::core::let
-    [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::bool true false true))
+    [h (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::bool] true false true))
      v (:wat::holon::from-holon h)]
     (:wat::vec::length v)))
 
@@ -101,9 +101,9 @@
 ;; p7a: nested vector outer length 2
 (:wat::core::defn :t::p7a-nested-outer-len [] -> :wat::core::i64
   (:wat::core::let
-    [inner1 (:wat::core::Vector :wat::core::i64 1 2 3)
-     inner2 (:wat::core::Vector :wat::core::i64 4 5)
-     outer  (:wat::core::Vector :wat::type::Infer inner1 inner2)
+    [inner1 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+     inner2 (:wat::core::Vector :- [:wat::core::i64] 4 5)
+     outer  (:wat::core::Vector :- [:wat::type::Infer] inner1 inner2)
      h      (:wat::holon::to-holon outer)
      v      (:wat::holon::from-holon h)]
     (:wat::vec::length v)))
@@ -111,9 +111,9 @@
 ;; p7b: nested vector arc 228 re-verify outer length 2
 (:wat::core::defn :t::p7b-nested-arc228 [] -> :wat::core::i64
   (:wat::core::let
-    [inner1 (:wat::core::Vector :wat::core::i64 1 2 3)
-     inner2 (:wat::core::Vector :wat::core::i64 4 5)
-     outer  (:wat::core::Vector :wat::type::Infer inner1 inner2)
+    [inner1 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+     inner2 (:wat::core::Vector :- [:wat::core::i64] 4 5)
+     outer  (:wat::core::Vector :- [:wat::type::Infer] inner1 inner2)
      h      (:wat::holon::to-holon outer)
      v      (:wat::holon::from-holon h)]
     (:wat::vec::length v)))
@@ -121,9 +121,9 @@
 ;; p7c: nested vector inner element at [1][0] = 4
 (:wat::core::defn :t::p7c-nested-inner-elem [] -> :wat::core::i64
   (:wat::core::let
-    [inner1 (:wat::core::Vector :wat::core::i64 1 2 3)
-     inner2 (:wat::core::Vector :wat::core::i64 4 5)
-     outer  (:wat::core::Vector :wat::type::Infer inner1 inner2)
+    [inner1 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+     inner2 (:wat::core::Vector :- [:wat::core::i64] 4 5)
+     outer  (:wat::core::Vector :- [:wat::type::Infer] inner1 inner2)
      h      (:wat::holon::to-holon outer)
      v      (:wat::holon::from-holon h)]
     (:wat::core::match
@@ -140,9 +140,9 @@
 ;; p8a: (Vec :- [(HashSet :- [i64])]) outer length 2
 (:wat::core::defn :t::p8a-mixed-outer-len [] -> :wat::core::i64
   (:wat::core::let
-    [s1 (:wat::core::HashSet :wat::core::i64 1 2 3)
-     s2 (:wat::core::HashSet :wat::core::i64 4 5)
-     v  (:wat::core::Vector :wat::type::Infer s1 s2)
+    [s1 (:wat::core::HashSet :- [:wat::core::i64] 1 2 3)
+     s2 (:wat::core::HashSet :- [:wat::core::i64] 4 5)
+     v  (:wat::core::Vector :- [:wat::type::Infer] s1 s2)
      h  (:wat::holon::to-holon v)
      rv (:wat::holon::from-holon h)]
     (:wat::vec::length rv)))
@@ -150,9 +150,9 @@
 ;; p8b: (Vec :- [(HashSet :- [i64])]) arc 228 outer length 2
 (:wat::core::defn :t::p8b-mixed-arc228 [] -> :wat::core::i64
   (:wat::core::let
-    [s1 (:wat::core::HashSet :wat::core::i64 1 2 3)
-     s2 (:wat::core::HashSet :wat::core::i64 4 5)
-     v  (:wat::core::Vector :wat::type::Infer s1 s2)
+    [s1 (:wat::core::HashSet :- [:wat::core::i64] 1 2 3)
+     s2 (:wat::core::HashSet :- [:wat::core::i64] 4 5)
+     v  (:wat::core::Vector :- [:wat::type::Infer] s1 s2)
      h  (:wat::holon::to-holon v)
      rv (:wat::holon::from-holon h)]
     (:wat::vec::length rv)))
@@ -166,7 +166,7 @@
 ;; p9b: nested atomizable passes — returns 1
 (:wat::core::defn :t::p9b-nested-atomizable [] -> :wat::core::i64
   (:wat::core::let
-    [inner (:wat::core::Vector :wat::core::i64 1 2)
-     outer (:wat::core::Vector :wat::type::Infer inner)
+    [inner (:wat::core::Vector :- [:wat::core::i64] 1 2)
+     outer (:wat::core::Vector :- [:wat::type::Infer] inner)
      h     (:wat::holon::to-holon outer)]
     1))

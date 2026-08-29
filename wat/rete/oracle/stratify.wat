@@ -319,7 +319,7 @@
 (:wat::core::defn :wat::rete::stratify
   [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
   -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
-  (:wat::core::let [init-ts (:wat::core::HashMap :wat::core::String :wat::core::i64)
+  (:wat::core::let [init-ts (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
                     ;; length(rules)+1 sweeps is always enough for a stratifiable set
                     bound   (:wat::i64::+ (:wat::core::length rules) 1)]
     (:wat::rete::stratify-fix rules init-ts bound)))

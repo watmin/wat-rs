@@ -111,7 +111,7 @@
 ;; their own seed types from the derived witness).
 (:wat::core::defn :dc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
           (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::enc 0 (:cascade::Node/level f) (:cascade::Node/id f))))
             (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Node/level f) 0)))
               (:wat::rete::query fired (:cascade::q-Node)))))

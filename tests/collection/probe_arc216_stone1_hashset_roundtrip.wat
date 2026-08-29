@@ -53,14 +53,14 @@
 ;; p5b: (HashSet :- [String]) round-trip length 3
 (:wat::core::defn :t::p5b-str-rt-len [] -> :wat::core::i64
   (:wat::core::let
-    [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::String "a" "b" "c"))
+    [h (:wat::holon::to-holon (:wat::core::HashSet :- [:wat::core::String] "a" "b" "c"))
      s (:wat::holon::from-holon h)]
     (:wat::hashset::length s)))
 
 ;; p5c: (HashSet :- [bool]) round-trip length 2
 (:wat::core::defn :t::p5c-bool-rt-len [] -> :wat::core::i64
   (:wat::core::let
-    [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::bool true false))
+    [h (:wat::holon::to-holon (:wat::core::HashSet :- [:wat::core::bool] true false))
      s (:wat::holon::from-holon h)]
     (:wat::hashset::length s)))
 
@@ -74,9 +74,9 @@
 ;; p7a: nested set round-trip outer length 2
 (:wat::core::defn :t::p7a-nested-rt-outer-len [] -> :wat::core::i64
   (:wat::core::let
-    [inner1 (:wat::core::HashSet :wat::core::i64 1 2)
-     inner2 (:wat::core::HashSet :wat::core::i64 3)
-     outer  (:wat::core::HashSet :wat::type::Infer inner1 inner2)
+    [inner1 (:wat::core::HashSet :- [:wat::core::i64] 1 2)
+     inner2 (:wat::core::HashSet :- [:wat::core::i64] 3)
+     outer  (:wat::core::HashSet :- [:wat::type::Infer] inner1 inner2)
      h      (:wat::holon::to-holon outer)
      s      (:wat::holon::from-holon h)]
     (:wat::hashset::length s)))
@@ -84,9 +84,9 @@
 ;; p7b: nested set arc 228 re-verify outer length 2
 (:wat::core::defn :t::p7b-nested-rt-arc228 [] -> :wat::core::i64
   (:wat::core::let
-    [inner1 (:wat::core::HashSet :wat::core::i64 1 2)
-     inner2 (:wat::core::HashSet :wat::core::i64 3)
-     outer  (:wat::core::HashSet :wat::type::Infer inner1 inner2)
+    [inner1 (:wat::core::HashSet :- [:wat::core::i64] 1 2)
+     inner2 (:wat::core::HashSet :- [:wat::core::i64] 3)
+     outer  (:wat::core::HashSet :- [:wat::type::Infer] inner1 inner2)
      h      (:wat::holon::to-holon outer)
      s      (:wat::holon::from-holon h)]
     (:wat::hashset::length s)))
@@ -100,7 +100,7 @@
 ;; p8b: nested atomizable passes — returns 1
 (:wat::core::defn :t::p8b-nested-atomizable [] -> :wat::core::i64
   (:wat::core::let
-    [inner (:wat::core::HashSet :wat::core::i64 1 2)
-     outer (:wat::core::HashSet :wat::type::Infer inner)
+    [inner (:wat::core::HashSet :- [:wat::core::i64] 1 2)
+     outer (:wat::core::HashSet :- [:wat::type::Infer] inner)
      h     (:wat::holon::to-holon outer)]
     1))

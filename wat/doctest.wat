@@ -52,7 +52,7 @@
                                                      (:wat::intrinsic::Example/pure ex)
                                                      (:wat::intrinsic::Example/deterministic ex)))
                                   (:wat::core::concat acc
-                                    (:wat::core::Vector :wat::doctest::Failure
+                                    (:wat::core::Vector :- [:wat::doctest::Failure]
                                       (:wat::doctest::Failure
                                         :fqdn (:wat::intrinsic::Example/fqdn ex)
                                         :reason "doctested @example on a non-pure∧deterministic intrinsic")))
@@ -66,14 +66,14 @@
                     ((:wat::core::Ok want)
                       (:wat::core::if (:wat::core::not (:wat::core::= got want))
                         (:wat::core::concat acc1
-                          (:wat::core::Vector :wat::doctest::Failure
+                          (:wat::core::Vector :- [:wat::doctest::Failure]
                             (:wat::doctest::Failure
                               :fqdn fqdn
                               :reason "@example result did not match #=>")))
                         acc1))
                     ((:wat::core::Err err)
                       (:wat::core::concat acc1
-                        (:wat::core::Vector :wat::doctest::Failure
+                        (:wat::core::Vector :- [:wat::doctest::Failure]
                           (:wat::doctest::Failure
                             :fqdn fqdn
                             :reason (:wat::string::concat
@@ -81,7 +81,7 @@
                                       (:wat::core::EvalError/message err))))))))
                 ((:wat::core::Err err)
                   (:wat::core::concat acc1
-                    (:wat::core::Vector :wat::doctest::Failure
+                    (:wat::core::Vector :- [:wat::doctest::Failure]
                       (:wat::doctest::Failure
                         :fqdn fqdn
                         :reason (:wat::string::concat
@@ -89,11 +89,11 @@
                                   (:wat::core::EvalError/message err))))))))
             (:wat::core::None
               (:wat::core::concat acc1
-                (:wat::core::Vector :wat::doctest::Failure
+                (:wat::core::Vector :- [:wat::doctest::Failure]
                   (:wat::doctest::Failure
                     :fqdn fqdn
                     :reason "run=true example missing expected"))))))
         ;; run=false: skip
         acc))
-    (:wat::core::Vector :wat::doctest::Failure)
+    (:wat::core::Vector :- [:wat::doctest::Failure])
     (:wat::intrinsic::examples)))

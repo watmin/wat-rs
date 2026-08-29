@@ -37,5 +37,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println (:user::lookup (:wat::core::HashMap :wat::core::String :wat::core::i64 "a" 1)))
+    (:wat::kernel::println (:user::lookup (:wat::core::HashMap :- [:wat::core::String :wat::core::i64] "a" 1)))
     (:wat::kernel::println (:user::lookup (:wat::core::PersistentMap "a" 2)))))

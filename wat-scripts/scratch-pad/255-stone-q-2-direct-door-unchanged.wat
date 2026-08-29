@@ -16,7 +16,7 @@
 ;; transcript. Re-run it as the acceptance instrument; do not rewrite it.
 
 (:wat::core::defn :probe::show
-  [tag <- :wat::core::String r <- (:wat::core::Result :wat::core::Value :wat::core::EvalError)]
+  [tag <- :wat::core::String r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::nil
   (:wat::kernel::println (:wat::string::concat tag ": " (:wat::edn::write r))))
 

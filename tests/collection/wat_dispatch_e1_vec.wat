@@ -4,16 +4,16 @@
 (:wat::core::use! :rust::test::VecUtils)
 
 (:wat::core::defn :my::compute-sum [] -> :wat::core::i64
-  (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64 10 20 30)))
+  (:rust::test::VecUtils::sum (:wat::core::Vector :- [:wat::core::i64] 10 20 30)))
 
 (:wat::core::defn :my::compute-reverse [] -> :wat::core::i64
   (:wat::core::first
-    (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3))))
+    (:rust::test::VecUtils::reverse (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))
 
 (:wat::core::defn :my::compute-sort [] -> :wat::core::i64
   (:wat::core::first
-    (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1))))
+    (:rust::test::VecUtils::sort (:wat::core::Vector :- [:wat::core::i64] 5 2 8 1))))
 
 (:wat::core::defn :my::compute-empty [] -> :wat::core::i64
-  (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64)))
+  (:rust::test::VecUtils::sum (:wat::core::Vector :- [:wat::core::i64])))
 

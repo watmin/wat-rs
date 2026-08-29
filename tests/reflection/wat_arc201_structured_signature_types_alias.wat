@@ -9,7 +9,7 @@
                 [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::+ acc x))
               0
-              (:wat::core::Vector :wat::core::i64 1 2 3 4)))
+              (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

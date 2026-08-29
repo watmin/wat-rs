@@ -28,7 +28,7 @@
 
 (:wat::core::defn :t::p2-a-val [] -> :wat::core::i64
   (:wat::core::let
-    [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
+    [tally   (:wat::core::HashMap :- [:wat::core::char :wat::core::i64])
      tally2  (:wat::hashmap::assoc tally \a 3)
      tally3  (:wat::hashmap::assoc tally2 \b 7)]
     (:wat::core::match (:wat::hashmap::get tally3 \a) 
@@ -37,7 +37,7 @@
 
 (:wat::core::defn :t::p2-b-val [] -> :wat::core::i64
   (:wat::core::let
-    [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
+    [tally   (:wat::core::HashMap :- [:wat::core::char :wat::core::i64])
      tally2  (:wat::hashmap::assoc tally \a 3)
      tally3  (:wat::hashmap::assoc tally2 \b 7)]
     (:wat::core::match (:wat::hashmap::get tally3 \b) 
@@ -46,7 +46,7 @@
 
 (:wat::core::defn :t::p2-len [] -> :wat::core::i64
   (:wat::core::let
-    [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
+    [tally   (:wat::core::HashMap :- [:wat::core::char :wat::core::i64])
      tally2  (:wat::hashmap::assoc tally \a 3)
      tally3  (:wat::hashmap::assoc tally2 \b 7)]
     (:wat::hashmap::length tally3)))
@@ -55,21 +55,21 @@
 
 (:wat::core::defn :t::p3-has-a [] -> :wat::core::bool
   (:wat::core::let
-    [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
+    [vowels (:wat::core::HashSet :- [:wat::core::char] \a \e \i \o \u)]
     (:wat::core::contains? vowels \a)))
 
 (:wat::core::defn :t::p3-has-e [] -> :wat::core::bool
   (:wat::core::let
-    [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
+    [vowels (:wat::core::HashSet :- [:wat::core::char] \a \e \i \o \u)]
     (:wat::core::contains? vowels \e)))
 
 (:wat::core::defn :t::p3-no-z [] -> :wat::core::bool
   (:wat::core::let
-    [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)
+    [vowels (:wat::core::HashSet :- [:wat::core::char] \a \e \i \o \u)
      found  (:wat::core::contains? vowels \z)]
     (:wat::core::not found)))
 
 (:wat::core::defn :t::p3-len [] -> :wat::core::i64
   (:wat::core::let
-    [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
+    [vowels (:wat::core::HashSet :- [:wat::core::char] \a \e \i \o \u)]
     (:wat::hashset::length vowels)))

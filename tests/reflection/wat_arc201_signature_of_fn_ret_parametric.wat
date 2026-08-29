@@ -4,7 +4,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
               [f   (:wat::core::fn [] -> (:wat::core::Vector :- [:wat::core::i64])
-                     (:wat::core::Vector :wat::core::i64))
+                     (:wat::core::Vector :- [:wat::core::i64]))
                sig (:wat::runtime::signature-of-fn f)
                rendered sig]
               (:wat::kernel::println rendered)))

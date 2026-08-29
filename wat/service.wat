@@ -280,7 +280,7 @@
                             -> (:wat::core::Vector :- [:wat::WatAST])
                             (:wat::core::conj acc
                               (:wat::core::symbol-node (:wat::string::trim nm))))
-                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::Vector :- [:wat::WatAST])
                           (:wat::string::split
                             ;; The names lie between the brackets. `fqdn-base` is the name up to
                             ;; "<", so its LENGTH is the "<" index — no `string::index-of`, which
@@ -291,7 +291,7 @@
                               (:wat::i64::+ (:wat::string::length fqdn-base) 1)
                               (:wat::i64::- (:wat::string::length fqdn-str) 1))
                             ","))
-                        (:wat::core::Vector :wat::WatAST)))
+                        (:wat::core::Vector :- [:wat::WatAST])))
      ;; DERIVED — "has params", not "a binder was written". An empty binder (`:- []`) is the
      ;; same first-class empty rung as `(Tuple :- [])` and lands where a bare name lands.
      ;; Measured when this branched on binder-present? and answered plain `true`: `:- []`
@@ -322,7 +322,7 @@
                                   (:wat::hashmap::assoc
                                     (:wat::hashmap::assoc
                                       (:wat::hashmap::assoc
-                                        (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                                        (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
                                         "durable" true)
                                       "ephemeral" true)
                                     "ops" true)
@@ -376,7 +376,7 @@
                               (:wat::string::concat "defservice: unknown clause :"
                                 (:wat::string::concat key
                                   " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers :max-frame-bytes"))))))
-                      (:wat::core::HashMap :wat::core::String :wat::WatAST)
+                      (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                       (:wat::core::range 0 n-clause-pairs))
      ;; ── Arc 293 S2: :ops vs :satisfies mode ────────────────────────────────────
      ;; A service EITHER mints its own protocol (:ops) OR wears a surface's (:satisfies +
@@ -473,7 +473,7 @@
 
                       (:wat::core::ast->children
                         (:wat::core::nth (:wat::core::ast->children surface-form) 2))
-                      (:wat::core::Vector :wat::WatAST))
+                      (:wat::core::Vector :- [:wat::WatAST]))
      ;; A type ARG may be a concrete FQDN (renders as a Keyword — `keyword/to-string` strips its
      ;; leading colon) or a bare type-VARIABLE (`K`/`V`/`T` — renders as a Symbol, never
      ;; colon-spelled at all; `ast-name` reads it as-is). `(Cache :- [K V])` exercises exactly this:
@@ -490,7 +490,7 @@
      ;; :durable [fields] — optional, default empty vector node []
      ;; The empty vector node is built by using with-children on a fresh Vector.
      ;; We need a Vector WatAST node; use the ops node as a shape carrier with empty children.
-     empty-vec      (:wat::core::with-children ops (:wat::core::Vector :wat::WatAST))
+     empty-vec      (:wat::core::with-children ops (:wat::core::Vector :- [:wat::WatAST]))
      durable-fields (:wat::core::if (:wat::hashmap::contains-key? clause-map "durable")
                       
                       (:wat::core::Option/expect
@@ -655,7 +655,7 @@
                           (:wat::core::Option/expect
                             (:wat::core::get init-param (:wat::i64::* i 3))
                             "defservice: init param name out of bounds")))
-                      (:wat::core::Vector :wat::WatAST)
+                      (:wat::core::Vector :- [:wat::WatAST])
                       (:wat::core::range 0 (:wat::i64::/ (:wat::core::length init-param) 3)))
      ;; init-name: :<fqdn>::init — the emitted defn's name keyword
      init-name-str  (:wat::string::interpolate "{b}::init" :b fqdn-base)
@@ -766,7 +766,7 @@
                                             item <- :wat::WatAST]
                              -> (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::conj acc item))
-                           (:wat::core::Vector :wat::WatAST)
+                           (:wat::core::Vector :- [:wat::WatAST])
                            durable-prefix-children)
                          ephemeral-children)
      ;; Build the state field vector as a WatAST::Vector using with-children on empty-vec
@@ -808,7 +808,7 @@
                                        pk  <- :wat::WatAST]
                         -> (:wat::core::Vector :- [:wat::core::String])
                         (:wat::core::conj acc (:wat::keyword::to-string pk)))
-                      (:wat::core::Vector :wat::core::String)
+                      (:wat::core::Vector :- [:wat::core::String])
                       peers-children)
      ;; ephemeral-peer-surfaces: (Vector :- [String]) — the surface of each ROOT ephemeral peer field.
      ;; ephemeral-children is the flat token vec [name <- :Type name <- :Type …]; the type node
@@ -852,7 +852,7 @@
                                     acc))
                                 acc))
                             acc)))
-                      (:wat::core::Vector :wat::core::String)
+                      (:wat::core::Vector :- [:wat::core::String])
                       (:wat::core::range 0 (:wat::i64::/ ephemeral-len 3)))
      ;; BIJECTION check 1 (missing): every :peers surface must have a matching ephemeral peer field.
      _peers-missing (:wat::core::foldl
@@ -908,7 +908,7 @@
                               [sf-kw (:wat::keyword::from-string
                                        (:wat::string::interpolate "{s-str}::surface-forms" :s-str s-str))]
                               (:wat::core::conj acc `(~sf-kw)))))
-                        (:wat::core::Vector :wat::WatAST)
+                        (:wat::core::Vector :- [:wat::WatAST])
                         peers-surfaces)
 
      ;; Arc 293 S2 — Op/Reply live under the PROTOCOL namespace (proto-str): the surface's
@@ -1155,15 +1155,15 @@
                          :Stop
                          :Hibernate
                          :Resume   ~init-params-vec
-                         :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)]
-                         :DenyPeer [pids <- (:wat::core::Vector :wat::core::i64)])
+                         :AllowPeer [pids <- (:wat::core::Vector :- [:wat::core::i64])]
+                         :DenyPeer [pids <- (:wat::core::Vector :- [:wat::core::i64])])
                       `(:wat::core::defenum ~admin-ty-decl :- [~@admin-tp-syms] :wat::enum::Pure
                          :Init     ~init-params-vec
                          :Stop
                          :Hibernate
                          :Resume   ~init-params-vec
-                         :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)]
-                         :DenyPeer [pids <- (:wat::core::Vector :wat::core::i64)]))
+                         :AllowPeer [pids <- (:wat::core::Vector :- [:wat::core::i64])]
+                         :DenyPeer [pids <- (:wat::core::Vector :- [:wat::core::i64])]))
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
      ;; arc 278: Status::PeersAllowed (unit) — the AllowPeer request/reply ack.
      ;; arc 293: Status::PeersDenied (unit) — the DenyPeer request/reply ack.
@@ -1232,7 +1232,7 @@
      impl-clauses  (:wat::core::if satisfies?
                      
                      clauses
-                     (:wat::core::Vector :wat::WatAST))
+                     (:wat::core::Vector :- [:wat::WatAST]))
 
      ;; ── Arc 278 Stone 2-A (self-scheduling): the <service>::Op SUPERSET (Option A) ──────
      ;; The serve loop dispatches over :<fqdn>::Op = the surface's <proto>::Op variants
@@ -1354,7 +1354,7 @@
                                req-ty `(~req-base-kw :- [~@proto-args])]
                               `[req <- ~req-ty]))]
              (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
-         (:wat::core::Vector :wat::WatAST)
+         (:wat::core::Vector :- [:wat::WatAST])
          impl-clauses)
      ;; Arc 109 ③ — `service-op-decl-kw-decl` is now the BARE name; splice `:- [~@fqdn-tp-syms]`
      ;; as declaration siblings when the service is genuinely parametric.
@@ -1378,8 +1378,8 @@
      service-op-derive-items
        (:wat::core::if (:wat::core::= proto-base fqdn-base)
 
-         (:wat::core::Vector :wat::WatAST)
-         (:wat::core::conj (:wat::core::Vector :wat::WatAST)
+         (:wat::core::Vector :- [:wat::WatAST])
+         (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST])
            `(:wat::core::derive ~enum-name ~service-op-kw)))
      ;; keyword-:op resolution data: for each INTERNAL op, the body keyword string (`:-tick`) and
      ;; the SOURCE TEXT of its <service>::Op variant constructor (`(:<fqdn>::Op::-Tick)`). A
@@ -1396,7 +1396,7 @@
                
                (:wat::core::conj acc (:wat::string::interpolate ":{op-str}" :op-str op-str))
                acc)))
-         (:wat::core::Vector :wat::core::String)
+         (:wat::core::Vector :- [:wat::core::String])
          impl-clauses)
      internal-op-repl-strs
        (:wat::core::foldl
@@ -1416,7 +1416,7 @@
                        (:wat::string::concat "::"
                          (:wat::string::concat variant-pascal ")"))))))
                acc)))
-         (:wat::core::Vector :wat::core::String)
+         (:wat::core::Vector :- [:wat::core::String])
          impl-clauses)
      has-internal-ops? (:wat::i64::> (:wat::core::length internal-op-kw-strs) 0)
 
@@ -1533,7 +1533,7 @@
                           binding-items (:wat::core::conj
                                           (:wat::core::conj
                                             (:wat::core::conj
-                                              (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
+                                              (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) s-binder)
                                               state-sym)
                                             ctx-binder)
                                           self-ctx-ctor-expr)
@@ -1623,7 +1623,7 @@
                                                   (:wat::core::conj
                                                     (:wat::core::conj
                                                       (:wat::core::conj
-                                                        (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
+                                                        (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) s-binder)
                                                         state-sym)
                                                       ctx-binder)
                                                     pub-ctx-ctor-expr))
@@ -1788,7 +1788,7 @@
                                                  ~shape-guarded))]
                              (:wat::core::conj acc
                                `((~op-variant-kw ~req-binder) ~guarded-arm))))))
-                     (:wat::core::Vector :wat::WatAST)
+                     (:wat::core::Vector :- [:wat::WatAST])
                      impl-clauses)
 
      ;; ── serve params argvec ───────────────────────────────────────────────────────
@@ -2142,7 +2142,7 @@
                              (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
                                `(:wat::core::defn ~method-name ~method-params -> ~recv-ret-ty ~method-body)
                                `(:wat::core::defn ~method-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~method-body))))))
-                     (:wat::core::Vector :wat::WatAST)
+                     (:wat::core::Vector :- [:wat::WatAST])
                      impl-clauses)
 
      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
@@ -2247,7 +2247,7 @@
      ;; with the receiver's own T already bound, so they name the bare fn (no turbofish).
      grant-call-name   (:wat::keyword::from-string
                          (:wat::string::interpolate "{b}/grant" :b fqdn-base))
-     grant-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :wat::core::i64)]
+     grant-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :- [:wat::core::i64])]
      ;; Grant is the process-tier accept-gate. Hinge is the existing
      ;; `peer-process` on the lineage handle (same un-erase stop/signal use).
      ;; Thread is shared memory: the handle IS the grant — no Admin::AllowPeer.
@@ -2298,7 +2298,7 @@
                           (:wat::string::interpolate "{b}/revoke" :b fqdn-base))
      revoke-call-name   (:wat::keyword::from-string
                           (:wat::string::interpolate "{b}/revoke" :b fqdn-base))
-     revoke-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :wat::core::i64)]
+     revoke-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :- [:wat::core::i64])]
      ;; Twin of grant: process-only via `peer-process`. Shared-memory lineage
      ;; has no pid set to revoke.
      revoke-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
@@ -2584,7 +2584,7 @@
                                           n   <- :wat::WatAST]
                            -> (:wat::core::Vector :- [:wat::WatAST])
                            (:wat::core::conj acc n))
-                         (:wat::core::conj (:wat::core::Vector :wat::WatAST) locus-sym)
+                         (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) locus-sym)
                          init-arg-names)
      start-fnames-ast (:wat::core::with-children init-params-vec start-fname-nodes)
      start-impl-params `[~locus-sym <- :wat::spawn::Locus ~@init-param]
@@ -2682,7 +2682,7 @@
                                    (:wat::core::if (:wat::core::= (:wat::core::ast-name k) ":locus")
                                      (:wat::core::conj acc v)
                                      acc))))
-                             (:wat::core::Vector :wat::WatAST)
+                             (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::range 0 (:wat::i64::/ (:wat::core::length flat) 2)))
                            ~(:wat::core::symbol-node "locus-ast")
                            (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))
@@ -2806,7 +2806,7 @@
                                     (:wat::core::if (:wat::core::= (:wat::core::ast-name k) ":locus")
                                       (:wat::core::conj acc v)
                                       acc))))
-                              (:wat::core::Vector :wat::WatAST)
+                              (:wat::core::Vector :- [:wat::WatAST])
                               (:wat::core::range 0 (:wat::i64::/ (:wat::core::length flat) 2)))
                             ~(:wat::core::symbol-node "locus-ast")
                             (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))

@@ -102,7 +102,7 @@
        after-hangup
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
          ((:wat-tests::SignalObserver::ObserveResponse::Ok reqs hup u1 u2)
-           (:wat::core::Vector :wat::core::bool
+           (:wat::core::Vector :- [:wat::core::bool]
              (:wat::core::= reqs 1) hup (:wat::core::not u1) (:wat::core::not u2)))
          ((:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge bytes cap)
            (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after sighup" :wat::core::None :wat::core::None))
@@ -117,7 +117,7 @@
        after-user1
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
          ((:wat-tests::SignalObserver::ObserveResponse::Ok reqs hup u1 u2)
-           (:wat::core::Vector :wat::core::bool
+           (:wat::core::Vector :- [:wat::core::bool]
              (:wat::core::= reqs 2) hup u1 (:wat::core::not u2)))
          ((:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge bytes cap)
            (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after user1" :wat::core::None :wat::core::None))
@@ -132,7 +132,7 @@
        after-user2
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
          ((:wat-tests::SignalObserver::ObserveResponse::Ok reqs hup u1 u2)
-           (:wat::core::Vector :wat::core::bool
+           (:wat::core::Vector :- [:wat::core::bool]
              (:wat::core::= reqs 3) hup u1 u2))
          ((:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge bytes cap)
            (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after user2" :wat::core::None :wat::core::None))
@@ -146,9 +146,9 @@
          ((:wat::kernel::SignalOutcome::Failed cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))]
 
       (:wat::core::concat
-        (:wat::core::Vector :wat::core::bool sighup-delivered user1-delivered user2-delivered terminate-delivered)
+        (:wat::core::Vector :- [:wat::core::bool] sighup-delivered user1-delivered user2-delivered terminate-delivered)
         (:wat::core::concat after-hangup (:wat::core::concat after-user1 after-user2))))
-    (:wat::core::Vector :wat::core::bool
+    (:wat::core::Vector :- [:wat::core::bool]
       true true true true     ;; the four SignalOutcome::Delivered (sighup/user1/user2/terminate)
       true true true true     ;; after sighup:  requests=1, sighup,  !user1, !user2
       true true true true     ;; after user1:   requests=2, sighup,  user1,  !user2

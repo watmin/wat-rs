@@ -19,7 +19,7 @@
 (:wat::core::defn :probe::structural? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
     (:wat::hashset::contains?
-      (:wat::core::HashSet :wat::type::Infer "list" "vector" "map" "set") k)))
+      (:wat::core::HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
 ;; walk — call ast-span AND ast-end-span on EVERY node. Both are unguarded on purpose: this probe
 ;; exists to find the node that raises, not to survive it.

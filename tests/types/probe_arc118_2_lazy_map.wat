@@ -17,7 +17,7 @@
 
               (:wat::i64::/ x 0)
               x))
-     mapped (:wat::core::map boom (:wat::core::Vector :wat::core::i64 1 2 99))]
+     mapped (:wat::core::map boom (:wat::core::Vector :- [:wat::core::i64] 1 2 99))]
     (:wat::core::match (:wat::stream::next mapped)
       ((:wat::stream::NextOutcome::Item value _rest) value)
       (:wat::stream::NextOutcome::Exhausted

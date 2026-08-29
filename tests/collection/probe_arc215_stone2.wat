@@ -31,15 +31,15 @@
 
 ;; probe 6: (:wat::core::Vector :wat::type::Infer 1 2 3) length 3
 (:wat::core::defn :t::p6-explicit-infer-vec-len [] -> :wat::core::i64
-  (:wat::core::length (:wat::core::Vector :wat::type::Infer 1 2 3)))
+  (:wat::core::length (:wat::core::Vector :- [:wat::type::Infer] 1 2 3)))
 
 ;; probe 7: (:wat::core::Vector :wat::type::Infer) empty length 0
 (:wat::core::defn :t::p7-empty-infer-vec-len [] -> :wat::core::i64
-  (:wat::core::length (:wat::core::Vector :wat::type::Infer)))
+  (:wat::core::length (:wat::core::Vector :- [:wat::type::Infer])))
 
 ;; probe 9: explicit type form unchanged
 (:wat::core::defn :t::p9-explicit-type-vec-len [] -> :wat::core::i64
-  (:wat::core::length (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:wat::core::length (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 
 ;; probe 10: let binder [x 1 y 2] preserved
 (:wat::core::defn :t::p10-let-binder-preserved [] -> :wat::core::i64

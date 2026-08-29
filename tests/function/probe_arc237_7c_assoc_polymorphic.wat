@@ -8,4 +8,4 @@
 (:wat::core::defn :user::assoc-hashmap [] -> :wat::core::i64
   (:wat::core::length
     (:wat::hashmap::keys
-      (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) "k" 1))))
+      (:wat::core::assoc (:wat::core::HashMap :- [:wat::core::String :wat::core::i64]) "k" 1))))

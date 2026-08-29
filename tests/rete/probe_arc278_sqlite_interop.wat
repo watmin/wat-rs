@@ -17,16 +17,16 @@
             "execute-ddl failed")
      n    (:wat::core::Result/expect
             (:wat::sqlite::execute conn "INSERT INTO t (id, v) VALUES (?, ?)"
-              (:wat::core::Vector :wat::sqlite::Param
+              (:wat::core::Vector :- [:wat::sqlite::Param]
                 (:wat::sqlite::Param::I64 1) (:wat::sqlite::Param::Str "hello")))
             "insert failed")
      rows (:wat::core::Result/expect
             (:wat::sqlite::select conn "SELECT id, v FROM t ORDER BY id"
-              (:wat::core::Vector :wat::sqlite::Param))
+              (:wat::core::Vector :- [:wat::sqlite::Param]))
             "select failed")
      row1 (:wat::core::first rows)
      dup  (:wat::sqlite::execute conn "INSERT INTO t (id, v) VALUES (?, ?)"
-            (:wat::core::Vector :wat::sqlite::Param
+            (:wat::core::Vector :- [:wat::sqlite::Param]
               (:wat::sqlite::Param::I64 1) (:wat::sqlite::Param::Str "dup")))
      bad  (:wat::sqlite::open "/nonexistent-dir-arc278/x.db")]
 

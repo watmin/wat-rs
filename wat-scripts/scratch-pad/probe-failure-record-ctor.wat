@@ -22,7 +22,7 @@
   (:wat::core::let
     [f (:wat::kernel::Failure
          :error (:wat::core::Fault/of "hello")
-         :frames (:wat::core::Vector :wat::kernel::Frame)
+         :frames (:wat::core::Vector :- [:wat::kernel::Frame])
          :actual :wat::core::None
          :expected :wat::core::None)]
     (:wat::kernel::println (:wat::kernel::Failure/message f))))

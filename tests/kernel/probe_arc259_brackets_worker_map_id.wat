@@ -12,5 +12,5 @@
      nil
      (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
      (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
-     (:wat::core::Vector :wat::core::nil)))
+     (:wat::core::Vector :- [:wat::core::nil])))
 

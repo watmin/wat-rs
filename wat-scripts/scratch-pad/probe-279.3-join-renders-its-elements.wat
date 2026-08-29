@@ -31,6 +31,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     ;; the row that does not work today through the public verb — numbers
-    (:wat::kernel::println (:user::join-ish "," (:wat::core::Vector :wat::core::i64 1 2 3)))
+    (:wat::kernel::println (:user::join-ish "," (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
     ;; the NON-VACUITY control: strings still work, and come back BARE (not re-quoted)
-    (:wat::kernel::println (:user::join-ish "-" (:wat::core::Vector :wat::core::String "a" "b")))))
+    (:wat::kernel::println (:user::join-ish "-" (:wat::core::Vector :- [:wat::core::String] "a" "b")))))

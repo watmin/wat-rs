@@ -66,7 +66,7 @@
   (:wat::core::let
     [ch     (:wat::core::into [] (:wat::core::ast->children arm))
      binder (:wat::core::if (:wat::core::empty? ch)
-              (:wat::core::Vector :wat::core::String)
+              (:wat::core::Vector :- [:wat::core::String])
               (:wat::core::into []
                 (:wat::core::map (:wat::core::fn [t <- :wat::WatAST] -> :wat::core::String
                                    (:wat::core::ast->source t))

@@ -45,14 +45,14 @@
 
 ;; ─── small pure helpers — filter/sort predicates shared by scan + scan-index ────────────────
 (:wat::core::defn :wat::query::sk-after-cursor?
-  [sk <- :wat::core::String cursor <- (:wat::core::Option :wat::core::String)] -> :wat::core::bool
+  [sk <- :wat::core::String cursor <- (:wat::core::Option :- [:wat::core::String])] -> :wat::core::bool
   (:wat::core::match cursor 
     (:wat::core::None true)
     ((:wat::core::Some c) (:wat::core::> sk c))))
 
 (:wat::core::defn :wat::query::row-in-range?
   [row <- :wat::query::StoredRow pk <- :wat::core::String lo <- :wat::core::String
-   hi <- :wat::core::String cursor <- (:wat::core::Option :wat::core::String)] -> :wat::core::bool
+   hi <- :wat::core::String cursor <- (:wat::core::Option :- [:wat::core::String])] -> :wat::core::bool
   (:wat::core::and
     (:wat::core::= (:wat::query::StoredRow/pk row) pk)
     (:wat::core::>= (:wat::query::StoredRow/sk row) lo)
@@ -65,12 +65,12 @@
 ;; row's projected (ipk,isk) for a named index, if it declared one — None if the row never
 ;; projected into this GSI.
 (:wat::core::defn :wat::query::row-index-key
-  [row <- :wat::query::StoredRow index <- :wat::core::String] -> (:wat::core::Option :wat::query::IndexKey)
+  [row <- :wat::query::StoredRow index <- :wat::core::String] -> (:wat::core::Option :- [:wat::query::IndexKey])
   (:wat::hashmap::get (:wat::query::StoredRow/index-keys row) index))
 
 (:wat::core::defn :wat::query::index-key-in-range?
   [ik <- :wat::query::IndexKey ipk <- :wat::core::String lo <- :wat::core::String
-   hi <- :wat::core::String cursor <- (:wat::core::Option :wat::core::String)] -> :wat::core::bool
+   hi <- :wat::core::String cursor <- (:wat::core::Option :- [:wat::core::String])] -> :wat::core::bool
   (:wat::core::and
     (:wat::core::= (:wat::query::IndexKey/ipk ik) ipk)
     (:wat::core::>= (:wat::query::IndexKey/isk ik) lo)
@@ -108,9 +108,9 @@
      (:wat::core::let
        [new-rows (:wat::query::Store::PutRequest/rows req)
         merged (:wat::core::foldl
-                 (:wat::core::fn [acc <- (:wat::core::PersistentVector :wat::query::StoredRow)
+                 (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
                                   r   <- :wat::query::StoredRow]
-                   -> (:wat::core::PersistentVector :wat::query::StoredRow)
+                   -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
                    (:wat::vector::conj acc r))
                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s))
                  new-rows)]
@@ -126,12 +126,12 @@
         lim (:wat::query::Store::ScanRequest/limit req)
         cur (:wat::query::Store::ScanRequest/cursor req)
         matches (:wat::core::foldl
-                  (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::Row) r <- :wat::query::StoredRow]
-                    -> (:wat::core::Vector :wat::query::Row)
+                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::Row]) r <- :wat::query::StoredRow]
+                    -> (:wat::core::Vector :- [:wat::query::Row])
                     (:wat::core::if (:wat::query::row-in-range? r pk lo hi cur)
                       (:wat::core::conj acc (:wat::query::StoredRow->Row r))
                       acc))
-                  (:wat::core::Vector :wat::query::Row)
+                  (:wat::core::Vector :- [:wat::query::Row])
                   (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s)))
         sorted   (:wat::core::sort-by :wat::query::Row/sk matches)
         limited  (:wat::core::into [] (:wat::core::take sorted lim))
@@ -150,15 +150,15 @@
         lim   (:wat::query::Store::ScanIndexRequest/limit req)
         cur   (:wat::query::Store::ScanIndexRequest/cursor req)
         matches (:wat::core::foldl
-                  (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::IndexRow) r <- :wat::query::StoredRow]
-                    -> (:wat::core::Vector :wat::query::IndexRow)
+                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::IndexRow]) r <- :wat::query::StoredRow]
+                    -> (:wat::core::Vector :- [:wat::query::IndexRow])
                     (:wat::core::match (:wat::query::row-index-key r index) 
                       (:wat::core::None acc)
                       ((:wat::core::Some ik)
                         (:wat::core::if (:wat::query::index-key-in-range? ik ipk lo hi cur)
                           (:wat::core::conj acc (:wat::query::StoredRow->IndexRow r ik))
                           acc))))
-                  (:wat::core::Vector :wat::query::IndexRow)
+                  (:wat::core::Vector :- [:wat::query::IndexRow])
                   (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s)))
         sorted   (:wat::core::sort-by :wat::query::IndexRow/isk matches)
         limited  (:wat::core::into [] (:wat::core::take sorted lim))

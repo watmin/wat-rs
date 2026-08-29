@@ -3,6 +3,6 @@
 (:wat::core::defmacro :my::bogus
   [& & items <- (:AST :- [:wat::holon::Holons])]
   -> (:AST :- [:wat::holon::HolonAST])
-  `(:wat::core::Vector :wat::core::i64 ~@items))
+  `(:wat::core::Vector :- [:wat::core::i64] ~@items))
 
 (:wat::core::defn :user::main [] -> :wat::core::i64 0)

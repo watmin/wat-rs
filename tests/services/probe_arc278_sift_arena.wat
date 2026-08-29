@@ -53,9 +53,9 @@
      (:wat::core::let
        [count    (:prod::Producer::FloodRequest/count req)
         ns       (:prod::Producer::FloodRequest/namespace req)
-        tags     (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+        tags     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
         idxs     (:wat::core::range 0 count)
-        logs     (:wat::core::into (:wat::core::Vector :wat::telemetry::Log)
+        logs     (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
                    (:wat::core::map
                      (:wat::core::fn [i <- :wat::core::i64] -> :wat::telemetry::Log
                        (:wat::core::let
@@ -100,7 +100,7 @@
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :cons::Consumer::PageState
      [done <- :wat::core::bool
-      cur  <- (:wat::core::Option :wat::core::String)
+      cur  <- (:wat::core::Option :- [:wat::core::String])
       acc  <- :wat::core::i64])]
   :features
   [(sift [self <- :cons::Consumer  req <- :cons::Consumer::SiftRequest] -> :cons::Consumer::SiftResponse :max-request-bytes 524288)])
@@ -180,20 +180,20 @@
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      ph    (:prod::producer/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:prod::producer::Record) :journal-addr jaddr)
      ch    (:cons::consumer/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:cons::consumer::Record) :journal-addr jaddr)
      producer (:wat::core::match (:wat::kernel::connect (:prod::producer::Handle/addr ph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      consumer (:wat::core::match (:wat::kernel::connect (:cons::consumer::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

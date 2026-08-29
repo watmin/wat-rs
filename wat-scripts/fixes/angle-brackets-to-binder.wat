@@ -124,7 +124,7 @@
       (:wat::core::if (:wat::string::starts-with? stripped "(")
         (:wat::core::let [close         (:user::scan-for-close stripped 1 1)
                           inner         (:wat::string::subs stripped 1 close)
-                          args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))
+                          args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :- [:wat::core::String]))
                           rendered-args (:user::render-args args)]
           (:wat::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args))
         (:wat::core::let [lt (:user::find-first-lt stripped 0)]
@@ -133,7 +133,7 @@
             (:wat::core::let [base          (:wat::string::subs stripped 0 lt)
                               close         (:user::scan-for-close stripped (:wat::i64::+ lt 1) 1)
                               inner         (:wat::string::subs stripped (:wat::i64::+ lt 1) close)
-                              args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))
+                              args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :- [:wat::core::String]))
                               rendered-args (:user::render-args args)]
               (:wat::string::interpolate "(:{b} :- [{a}])" :b base :a rendered-args))))))))
 
@@ -150,7 +150,7 @@
       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) a <- :wat::core::String]
         -> (:wat::core::Vector :- [:wat::core::String])
         (:wat::core::conj acc (:user::render-one-arg a)))
-      (:wat::core::Vector :wat::core::String)
+      (:wat::core::Vector :- [:wat::core::String])
       args)))
 
 ;; render-decl — DECL-NAME-role rendering: the same reference text minus its outer parens
@@ -186,7 +186,7 @@
   [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::contains?
-      (:wat::core::HashSet :wat::type::Infer
+      (:wat::core::HashSet :- [:wat::type::Infer]
         ":wat::core::defn"
         ":wat::core::defenum"
         ":wat::core::defsurface"
@@ -235,9 +235,9 @@
                          span    (:wat::core::ast-span node)
                          off     (:wat::fix::fix-text-offset-of span lines)
                          old-len nm]
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
           (:wat::core::Tuple off old-len text))))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
 
 (:wat::core::defn :user::node-edits
   [node  <- :wat::WatAST
@@ -259,7 +259,7 @@
    parent-kind     <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     (:wat::core::let [h               (:wat::core::first items)
                        this-decl-head? (:wat::core::if is-first? (:user::declarator-head-keyword? h) false)]
       (:wat::core::concat

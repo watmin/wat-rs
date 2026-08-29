@@ -12,7 +12,7 @@
 ;;
 ;; Run against the pre-migration tree and the post-migration tree; diff the two transcripts.
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :wat::core::Value :wat::core::EvalError)]
+(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::core::Ok v)  (:wat::string::concat "ok:" (:wat::edn::write v)))
@@ -39,7 +39,7 @@
      _13 (:wat::kernel::println (:wat::string::concat "map::length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::map::length _m1 _m1))))))
 
      ;; ── hashmap (8) success paths ────────────────────────────────────────
-     _h0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
+     _h0 (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      _h1 (:wat::hashmap::assoc _h0 "a" 1)
      _14 (:wat::kernel::println (:wat::string::concat "hashmap::length        " (:wat::edn::write (:wat::hashmap::length _h1))))
      _15 (:wat::kernel::println (:wat::string::concat "hashmap::empty? true   " (:wat::edn::write (:wat::hashmap::empty? _h0))))
@@ -56,8 +56,8 @@
      _26 (:wat::kernel::println (:wat::string::concat "hashmap::length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::hashmap::length _h1 _h1))))))
 
      ;; ── vec (7) success paths ────────────────────────────────────────────
-     _v0 (:wat::core::Vector :wat::core::i64)
-     _v1 (:wat::core::Vector :wat::core::i64 1 2 3)
+     _v0 (:wat::core::Vector :- [:wat::core::i64])
+     _v1 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      _27 (:wat::kernel::println (:wat::string::concat "vec::length      " (:wat::edn::write (:wat::vec::length _v1))))
      _28 (:wat::kernel::println (:wat::string::concat "vec::empty? true " (:wat::edn::write (:wat::vec::empty? _v0))))
      _29 (:wat::kernel::println (:wat::string::concat "vec::empty? false" (:wat::edn::write (:wat::vec::empty? _v1))))
@@ -66,8 +66,8 @@
      _32 (:wat::kernel::println (:wat::string::concat "vec::get in-range" (:wat::edn::write (:wat::vec::get _v1 0))))
      _33 (:wat::kernel::println (:wat::string::concat "vec::get oob     " (:wat::edn::write (:wat::vec::get _v1 9))))
      _34 (:wat::kernel::println (:wat::string::concat "vec::conj        " (:wat::edn::write (:wat::vec::conj _v0 1))))
-     _35 (:wat::kernel::println (:wat::string::concat "vec::concat      " (:wat::edn::write (:wat::vec::concat (:wat::core::Vector :wat::core::i64 1) (:wat::core::Vector :wat::core::i64 2)))))
-     _36 (:wat::kernel::println (:wat::string::concat "vec::extend      " (:wat::edn::write (:wat::vec::extend (:wat::core::Vector :wat::core::i64 1) (:wat::core::Vector :wat::core::i64 2 3)))))
+     _35 (:wat::kernel::println (:wat::string::concat "vec::concat      " (:wat::edn::write (:wat::vec::concat (:wat::core::Vector :- [:wat::core::i64] 1) (:wat::core::Vector :- [:wat::core::i64] 2)))))
+     _36 (:wat::kernel::println (:wat::string::concat "vec::extend      " (:wat::edn::write (:wat::vec::extend (:wat::core::Vector :- [:wat::core::i64] 1) (:wat::core::Vector :- [:wat::core::i64] 2 3)))))
      _37 (:wat::kernel::println (:wat::string::concat "vec::length type-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vec::length 5))))))
      _38 (:wat::kernel::println (:wat::string::concat "vec::length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vec::length _v1 _v1))))))
 
@@ -86,8 +86,8 @@
      _48 (:wat::kernel::println (:wat::string::concat "linkedlist::length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::linkedlist::length _l1 _l1))))))
 
      ;; ── hashset (4) success paths ────────────────────────────────────────
-     _s0 (:wat::core::HashSet :wat::core::i64)
-     _s1 (:wat::core::HashSet :wat::core::i64 1 2 3)
+     _s0 (:wat::core::HashSet :- [:wat::core::i64])
+     _s1 (:wat::core::HashSet :- [:wat::core::i64] 1 2 3)
      _49 (:wat::kernel::println (:wat::string::concat "hashset::length      " (:wat::edn::write (:wat::hashset::length _s1))))
      _50 (:wat::kernel::println (:wat::string::concat "hashset::empty? true " (:wat::edn::write (:wat::hashset::empty? _s0))))
      _51 (:wat::kernel::println (:wat::string::concat "hashset::empty? false" (:wat::edn::write (:wat::hashset::empty? _s1))))

@@ -84,7 +84,7 @@
      ;; form is unneeded — same subs-of-src semantics).
      gap1   (:wat::string::subs src s-end ia1-s)
      gap2   (:wat::string::subs src ian-e (:wat::i64::- node-e 1))]
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple s-end gap1 " ")
       (:wat::core::Tuple ian-e gap2 ""))))
 
@@ -94,7 +94,7 @@
   (:wat::core::let
     [this (:wat::core::if (:user::codemod-wrapped? node)
             (:user::unwrap-edits (:wat::core::ast->children node) node src lines)
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) src lines))
       this)))
@@ -106,7 +106,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it src lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     items))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String

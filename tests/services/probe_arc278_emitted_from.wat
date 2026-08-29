@@ -23,7 +23,7 @@
 
 (:wat::test::deftest :user::emitted-from-round-trips 
   (:wat::core::let
-    [tags   (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+    [tags   (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      log    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
               :time-ns 1000000000 :emitted-from (:wat::kernel::call-site)
               :level :wat::telemetry::Level::Info

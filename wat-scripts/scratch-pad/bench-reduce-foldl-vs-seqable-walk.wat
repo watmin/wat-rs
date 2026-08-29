@@ -37,7 +37,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [n  200000
-     v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 n))
+     v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 n))
      ;; ORDER A: walk first, then foldl
      a0 (:wat::time::now) ra (:bench::via-walk v)  a1 (:wat::time::now)
      b0 (:wat::time::now) rb (:bench::via-foldl v) b1 (:wat::time::now)

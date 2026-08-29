@@ -31,4 +31,4 @@
                  (:wat::core::let
                    [_n (:wat::test::flood-own-stdout)]
                    nil))))]
-    (:wat::kernel::select (:wat::core::Vector (:wat::kernel::Process :- [:wat::core::nil :wat::core::nil]) child))))
+    (:wat::kernel::select (:wat::core::Vector :- [(:wat::kernel::Process :- [:wat::core::nil :wat::core::nil])] child))))

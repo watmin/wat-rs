@@ -15,22 +15,22 @@
    (query-metrics [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::QueryMetricsResponse::Success
-         (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None)))
+         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
    (query-logs [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::QueryLogsResponse::Success
-         (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))
+         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None)))
    ;; arc 278 Stone 2 — sift-logs/sift-metrics widened the Journal surface; the toy must
    ;; implement every feature to satisfy it (mirrors the query-* stubs above; the sieve is
    ;; unused by this throwaway toy).
    (sift-metrics [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::SiftMetricsResponse::Success
-         (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None)))
+         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
    (sift-logs [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::SiftLogsResponse::Success
-         (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))])
+         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None)))])
 
 ;; `:probe::run` — start the toy on a thread, dial it, call `write-metrics` with a 1-element
 ;; `Metric` batch, and return the raw response (the .rs asserts it is `WriteMetricsResponse::Success`).
@@ -38,7 +38,7 @@
   (:wat::core::let
     [h       (:probe::toy-journal/start :locus (:wat::spawn::thread) :record (:probe::toy-journal::Record))
      journal (:wat::core::match (:wat::kernel::connect (:probe::toy-journal::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
      m       (:wat::telemetry::Metric
                :namespace     "probe-ns"                      ;; spliced from Scope
@@ -49,7 +49,7 @@
                :name          :requests                       ;; own
                :value         (:wat::telemetry::Numeric::I64 7) ;; own
                :unit          :wat::telemetry::Unit::Count)    ;; own
-     batch   (:wat::core::Vector :wat::telemetry::Metric m)]
+     batch   (:wat::core::Vector :- [:wat::telemetry::Metric] m)]
     ;; arc 278 recv'-wall: the client-method returns a matchable RecvOutcome — unwrap the ::Message
     ;; to the inner WriteMetricsResponse (the .rs asserts the raw Success response, not a RecvOutcome).
     (:wat::core::match

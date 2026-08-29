@@ -7,5 +7,5 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
     (:wat::bracket::map (:wat::spawn::process)
-      (:wat::core::Vector :wat::core::i64 1 2 3)
+      (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
       :probe::boom)))

@@ -73,9 +73,9 @@
   (:wat::core::let [ch  (:wat::core::ast->children form)
                     idx (:user::index-after-keyword ch ":impls" 0)]
     (:wat::core::if (:wat::i64::< idx 0)
-      (:wat::core::Vector :wat::WatAST)
+      (:wat::core::Vector :- [:wat::WatAST])
       (:wat::core::if (:wat::i64::>= idx (:wat::core::length ch))
-        (:wat::core::Vector :wat::WatAST)
+        (:wat::core::Vector :- [:wat::WatAST])
         (:wat::core::ast->children (:wat::core::nth ch idx))))))
 
 ;; ── report one arm as a line: "<file> <op> <arity> <internal?>" ────────────────────────

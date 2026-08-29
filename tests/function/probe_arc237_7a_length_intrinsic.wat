@@ -16,7 +16,7 @@
   (:wat::core::length {:a 1 :b 2}))
 
 (:wat::core::defn :user::length-hashset [] -> :wat::core::i64
-  (:wat::core::length (:wat::core::HashSet :wat::core::i64 1 2 3)))
+  (:wat::core::length (:wat::core::HashSet :- [:wat::core::i64] 1 2 3)))
 
 ;; Runtime-error case: ∀T accepts i64 at check time; fails at eval (not a collection).
 (:wat::core::defn :user::length-noncollection [] -> :wat::core::i64

@@ -128,7 +128,7 @@
                nil))))]
     (:wat::core::match (:wat::kernel::recv-all p)
       ((:wat::core::Ok outputs)
-        (:wat::test::assert-eq outputs (:wat::core::Vector :wat::core::String "first" "second")))
+        (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "first" "second")))
       ((:wat::core::Err cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))))
 
@@ -157,6 +157,6 @@
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
     (:wat::core::match (:wat::kernel::recv-all p)
       ((:wat::core::Ok outputs)
-        (:wat::test::assert-eq outputs (:wat::core::Vector :wat::core::String "echo me")))
+        (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "echo me")))
       ((:wat::core::Err cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))))

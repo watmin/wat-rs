@@ -33,10 +33,10 @@
 
 (:wat::core::defn :probe::run-ops [store <- :wat::query::Store] -> :probe::RunResult
   (:wat::core::let
-    [empty-ik (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
-     ik-a     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
-     ik-c     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))
-     rows     (:wat::core::Vector :wat::query::StoredRow
+    [empty-ik (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])
+     ik-a     (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
+     ik-c     (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))
+     rows     (:wat::core::Vector :- [:wat::query::StoredRow]
                 (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
                 (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik)
                 (:wat::query::StoredRow :pk "u#1" :sk "c" :data "{:v 3}" :index-keys ik-c)
@@ -46,7 +46,7 @@
                 (:wat::query::Store/ensure-schema store
                   (:wat::query::Store::EnsureSchemaRequest
                     :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-                    :indexes (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk")))) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
+                    :indexes (:wat::core::Vector :- [:wat::query::IndexSchema] (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk")))) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
                 
                 ((:wat::query::Store::EnsureSchemaResponse::Success) nil)
                 (_ (:wat::kernel::assertion-failed! "ensure-schema failed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
@@ -92,7 +92,7 @@
      sh           (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
                     :record (:wat::query::sqlite-store::Record
                               :path        ":memory:"
-                              :index-names (:wat::core::Vector :wat::core::String "by-v")))
+                              :index-names (:wat::core::Vector :- [:wat::core::String] "by-v")))
      sqlite-store (:wat::core::match (:wat::kernel::connect (:wat::query::sqlite-store::Handle/addr sh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
 
      mem-result    (:probe::run-ops mem-store)

@@ -37,8 +37,8 @@
     ;; rows 2-5 — order-preserving drain through the surface, one line per container.
     (:wat::kernel::println
       (:wat::string::join " | "
-        (:wat::core::Vector :wat::core::String
-          (:probe::elems-of (:wat::core::Vector :wat::core::i64 1 2 3))
+        (:wat::core::Vector :- [:wat::core::String]
+          (:probe::elems-of (:wat::core::Vector :- [:wat::core::i64] 1 2 3))
           (:probe::elems-of (:wat::core::PersistentVector 1 2 3 4))
           (:probe::elems-of (:wat::core::List 1 2 3 4 5))
           (:probe::elems-of (:wat::stream::cons 7
@@ -48,8 +48,8 @@
     ;; ★ row 6 — the generic fn CALLED with all four. Expect 3,4,5,2.
     (:wat::kernel::println
       (:wat::string::join ","
-        (:wat::core::Vector :wat::core::i64
-          (:probe::count-via-seq (:wat::core::Vector :wat::core::i64 1 2 3))
+        (:wat::core::Vector :- [:wat::core::i64]
+          (:probe::count-via-seq (:wat::core::Vector :- [:wat::core::i64] 1 2 3))
           (:probe::count-via-seq (:wat::core::PersistentVector 1 2 3 4))
           (:probe::count-via-seq (:wat::core::List 1 2 3 4 5))
           (:probe::count-via-seq (:wat::stream::cons 1

@@ -24,7 +24,7 @@
 ;; between the two calls IS the differential.
 
 (:wat::test::deftest :wat-tests::core::core-nth-differential::agree-on-vector
-  (:wat::core::let [v (:wat::core::Vector :wat::core::i64 10 20 30 40 50)]
+  (:wat::core::let [v (:wat::core::Vector :- [:wat::core::i64] 10 20 30 40 50)]
     (:wat::core::do
       (:wat::test::assert-eq (:wat::core::nth v 0) (:wat::core::nth-spec v 0))
       (:wat::test::assert-eq (:wat::core::nth v 2) (:wat::core::nth-spec v 2))
@@ -58,7 +58,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println
-               (:wat::core::nth-spec (:wat::core::Vector :wat::core::i64 10 20 30) 99)))))
+               (:wat::core::nth-spec (:wat::core::Vector :- [:wat::core::i64] 10 20 30) 99)))))
      msg (:wat::core::match (:wat::kernel::recv p)
            ((:wat::kernel::RecvOutcome::Message _m)
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Message" :wat::core::None :wat::core::None))

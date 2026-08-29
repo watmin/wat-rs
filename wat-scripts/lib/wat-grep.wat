@@ -49,7 +49,7 @@
                                                    (:wat::core::+ end-off 1)) "\n")
                                   false)
                     old-text   (:wat::core::if next-is-nl (:wat::string::concat span-text "\n") span-text)]
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple off old-text ""))))
 
 ;; ── Internal: map a vector of matched forms to deletion edits ─────────────────────────
@@ -59,7 +59,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     (:wat::core::concat
       (:user::wat-grep-form-edit (:wat::core::first forms) src lines)
       (:user::wat-grep-strip-edits (:wat::core::rest forms) src lines))))

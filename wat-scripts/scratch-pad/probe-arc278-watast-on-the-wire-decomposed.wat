@@ -136,7 +136,7 @@
 
 ;; three quoted declarations — a payload with a known length of 3
 (:wat::core::defn :probe::three-forms [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :wat::WatAST
+  (:wat::core::Vector :- [:wat::WatAST]
     (:wat::core::quote (:wat::core::defrecord :usr::A [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::B [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::C [c <- :wat::core::i64]))))

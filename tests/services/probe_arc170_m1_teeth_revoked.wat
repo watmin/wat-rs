@@ -97,7 +97,7 @@
      r2  (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
              (:wat::core::let
-               [_  (:probe::echo/grant  eh (:wat::core::Vector :wat::core::i64 p)) ;; ack'd PeersAllowed
+               [_  (:probe::echo/grant  eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; ack'd PeersAllowed
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))                                   ;; arc 278 #73 — the recv' below already faces the stop ;; give addr → dial #1
                 r1 (:wat::core::match (:wat::kernel::recv prober)                    ;; "echo:hi" (dial #1 admitted); ::Message passes m through so the DISCRIMINATE assert holds
                      ((:wat::kernel::RecvOutcome::Message m) m)
@@ -107,7 +107,7 @@
                        (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None))
                      (:wat::kernel::RecvOutcome::Closed
                        (:wat::kernel::assertion-failed! "recv': prober closed" :wat::core::None :wat::core::None)))
-                _  (:probe::echo/revoke eh (:wat::core::Vector :wat::core::i64 p)) ;; ack'd PeersDenied — pid GONE
+                _  (:probe::echo/revoke eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; ack'd PeersDenied — pid GONE
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))                                   ;; arc 278 #73 — the recv' below already faces the stop ;; re-dial signal (AFTER revoke ack)
                 r2 (:wat::core::match (:wat::kernel::recv prober)                    ;; owner FACES the outcome as a VALUE, returns the enum
                      ((:wat::kernel::RecvOutcome::Message m) (:probe::Outcome::Served m))  ;; dial #2 admitted (the regression) — carries the reply

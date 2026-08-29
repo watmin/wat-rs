@@ -182,7 +182,7 @@
 
 (:wat::core::defn :acp::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
           (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 0 (:acp::CountF/g f) (:acp::CountF/n f))))
             (:wat::rete::query fired (:acp::q-CountF))))
      c1 (:wat::core::into c0

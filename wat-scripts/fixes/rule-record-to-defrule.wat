@@ -127,7 +127,7 @@
 (:wat::core::defn :user::find-helper
   [forms  <- (:wat::core::Vector :- [:wat::WatAST])
    suffix <- :wat::core::String]
-  -> (:wat::core::Option :wat::WatAST)
+  -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? forms)
     :wat::core::None
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
@@ -142,7 +142,7 @@
    lines  <- (:wat::core::Vector :- [:wat::core::String])
    src    <- :wat::core::String
    suffix <- :wat::core::String]
-  -> (:wat::core::Option :wat::core::String)
+  -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::match (:user::find-helper forms suffix)
     ((:wat::core::Some h)
       (:wat::core::let [ch   (:wat::core::ast->children h)
@@ -173,8 +173,8 @@
   [f              <- :wat::WatAST
    lines          <- (:wat::core::Vector :- [:wat::core::String])
    src            <- :wat::core::String
-   conds-text-opt <- (:wat::core::Option :wat::core::String)
-   ins-text-opt   <- (:wat::core::Option :wat::core::String)]
+   conds-text-opt <- (:wat::core::Option :- [:wat::core::String])
+   ins-text-opt   <- (:wat::core::Option :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::rule-defn? f)
     (:wat::core::let
@@ -203,7 +203,7 @@
                         (:user::quasi-text conds-val lines src)
                         (:user::quasi-text wherec-val lines src)
                         (:user::quasi-text ins-val lines src))]
-          (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple off old-text new-text)))
+          (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple off old-text new-text)))
         (:wat::core::if (:wat::core::= n 2)
           ;; Shape B — only where-c is local; conds/ins come from the file-level helpers.
           (:wat::core::let
@@ -218,24 +218,24 @@
                               " needs a file-level `::ins` helper but none was found")))
              new-text   (:user::build-defrule-text name-str cond-text
                           (:user::quasi-text wherec-val lines src) ins-text)]
-            (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple off old-text new-text)))
+            (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple off old-text new-text)))
           ;; Neither shape — STOP. Never a silent skip, never a hand-fix.
           (:wat::kernel::assertion-failed!
             (:wat::string::concat "rule-record-to-defrule: unrecognized let-bindings arity "
               (:wat::string::concat (:wat::i64::to-string n)
                 (:wat::string::concat " in rule " name-str)))
             :wat::core::None :wat::core::None))))
-    (:wat::core::Vector :wat::fix::Edit)))
+    (:wat::core::Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::collect-edits
   [forms          <- (:wat::core::Vector :- [:wat::WatAST])
    lines          <- (:wat::core::Vector :- [:wat::core::String])
    src            <- :wat::core::String
-   conds-text-opt <- (:wat::core::Option :wat::core::String)
-   ins-text-opt   <- (:wat::core::Option :wat::core::String)]
+   conds-text-opt <- (:wat::core::Option :- [:wat::core::String])
+   ins-text-opt   <- (:wat::core::Option :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::rule-edit (:wat::core::first forms) lines src conds-text-opt ins-text-opt)
       (:user::collect-edits (:wat::core::rest forms) lines src conds-text-opt ins-text-opt))))
@@ -255,14 +255,14 @@
        rcch      (:wat::core::ast->children rule-call)
        name-node (:wat::core::Option/expect (:wat::core::get rcch 2) "rule-rename: name-node")
        new       (:wat::string::concat ":" (:wat::core::ast-name name-node))]
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))))
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (:wat::core::Tuple old new)))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])))
 
 (:wat::core::defn :user::collect-renames
   [forms <- (:wat::core::Vector :- [:wat::WatAST])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
     (:wat::core::concat
       (:user::rule-rename (:wat::core::first forms))
       (:user::collect-renames (:wat::core::rest forms)))))

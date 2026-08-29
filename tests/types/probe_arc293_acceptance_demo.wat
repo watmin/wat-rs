@@ -48,4 +48,4 @@
     "  |  "
     (:geo::describe (:geo::Square :color "blue" :side 3.0))
     "  |  "
-    (:geo::describe (:wat::core::Vector :wat::core::i64 10 20 30))))
+    (:geo::describe (:wat::core::Vector :- [:wat::core::i64] 10 20 30))))

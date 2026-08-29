@@ -27,12 +27,12 @@
 
 (:wat::core::defn :migrate::fix-types [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :wat::WatAST)
+    (:wat::core::Vector :- [:wat::WatAST])
     (:wat::core::let [h   (:wat::core::first items)
                       out (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
                             (:wat::keyword::to-type-form h)
                             (:wat::fix::fix-source h))]
-      (:wat::core::concat (:wat::core::Vector :wat::WatAST out)
+      (:wat::core::concat (:wat::core::Vector :- [:wat::WatAST] out)
                           (:migrate::fix-types (:wat::core::rest items))))))
 
 (:wat::core::defn :migrate::fix-type-vector [vec <- :wat::WatAST] -> :wat::WatAST
@@ -53,28 +53,28 @@
                           fixed-name (:migrate::name-fix ch1)
                           fixed-rest (:wat::core::if (:migrate::type-slot-2? (:wat::core::ast-name head))
                                        (:wat::core::if (:wat::core::empty? rest2)
-                                         (:wat::core::Vector :wat::WatAST)
+                                         (:wat::core::Vector :- [:wat::WatAST])
                                          (:wat::core::let [ch2   (:wat::core::first rest2)
                                                            rest3  (:wat::core::rest rest2)]
                                            (:wat::core::concat
-                                             (:wat::core::Vector :wat::WatAST
+                                             (:wat::core::Vector :- [:wat::WatAST]
                                                (:wat::keyword::to-type-form ch2))
                                              (:wat::fix::fix-seq rest3 false))))
                                      (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::typeunion")
                                        (:wat::core::if (:wat::core::empty? rest2)
-                                         (:wat::core::Vector :wat::WatAST)
+                                         (:wat::core::Vector :- [:wat::WatAST])
                                          (:wat::core::let [uch2  (:wat::core::first rest2)
                                                            urest (:wat::core::rest rest2)]
                                            (:wat::core::concat
-                                             (:wat::core::Vector :wat::WatAST
+                                             (:wat::core::Vector :- [:wat::WatAST]
                                                (:migrate::fix-type-vector uch2))
                                              (:wat::fix::fix-seq urest false))))
                                        (:wat::fix::fix-seq rest2 false)))]
           (:wat::core::with-children node
             (:wat::core::concat
-              (:wat::core::Vector :wat::WatAST fixed-head)
+              (:wat::core::Vector :- [:wat::WatAST] fixed-head)
               (:wat::core::concat
-                (:wat::core::Vector :wat::WatAST fixed-name)
+                (:wat::core::Vector :- [:wat::WatAST] fixed-name)
                 fixed-rest))))
         (:wat::fix::fix-source node)))
     (:wat::fix::fix-source node)))

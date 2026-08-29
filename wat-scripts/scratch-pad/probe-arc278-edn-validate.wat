@@ -25,7 +25,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [good (:vprobe::PutRequest :items (:wat::core::Vector :wat::core::String "abcd"))
+    [good (:vprobe::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
      ;; the attacker's frame: correct TAG, wrong-typed BODY
      bad  (:wat::edn::read "#vprobe/PutRequest {:items [1 2 3]}")
      _ (:wat::kernel::println

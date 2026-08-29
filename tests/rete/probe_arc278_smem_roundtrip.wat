@@ -10,12 +10,12 @@
 ;; start+connect stay inlined in each deftest (spawn scope law: a helper that returns the peer
 ;; leaves the service thread dead). Op helpers take the live Store.
 
-(:wat::core::defn :test::five-rows [] -> (:wat::core::Vector :wat::query::StoredRow)
+(:wat::core::defn :test::five-rows [] -> (:wat::core::Vector :- [:wat::query::StoredRow])
   (:wat::core::let
-    [empty-ik (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
-     ik-a     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
-     ik-c     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))]
-    (:wat::core::Vector :wat::query::StoredRow
+    [empty-ik (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])
+     ik-a     (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
+     ik-c     (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))]
+    (:wat::core::Vector :- [:wat::query::StoredRow]
       (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
       (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik)
       (:wat::query::StoredRow :pk "u#1" :sk "c" :data "{:v 3}" :index-keys ik-c)
@@ -41,7 +41,7 @@
     (:wat::query::Store/ensure-schema store
       (:wat::query::Store::EnsureSchemaRequest
         :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-        :indexes (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
+        :indexes (:wat::core::Vector :- [:wat::query::IndexSchema] (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
     ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
       ((:wat::query::Store::EnsureSchemaResponse::Success) nil)
       (_ (:wat::kernel::assertion-failed! "ensure-schema failed" :wat::core::None :wat::core::None))))

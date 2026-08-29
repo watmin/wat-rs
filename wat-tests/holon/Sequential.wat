@@ -15,7 +15,7 @@
      b (:wat::holon::to-holon "b")
      c (:wat::holon::to-holon "c")
      abc
-      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c))]
+      (:wat::holon::Sequential (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))]
     (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
 
 (:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity
@@ -25,7 +25,7 @@
      b (:wat::holon::to-holon "b")
      c (:wat::holon::to-holon "c")
      abc
-      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c))
+      (:wat::holon::Sequential (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
      acb
-      (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a c b))]
+      (:wat::holon::Sequential (:wat::core::Vector :- [:wat::holon::HolonAST] a c b))]
     (:wat::test::assert-eq (:wat::holon::presence? abc acb) false)))

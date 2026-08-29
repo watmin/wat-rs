@@ -85,7 +85,7 @@
 ;; ── deriving the file's namespace from its OWN first namespaced top-level defn/defrecord ───────
 ;; (never a hand-kept path -> namespace table)
 
-(:wat::core::defn :user::namespaced-defn-name [f <- :wat::WatAST] -> (:wat::core::Option :wat::core::String)
+(:wat::core::defn :user::namespaced-defn-name [f <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let [head (:wat::fix::head-name f)]
     (:wat::core::if (:wat::core::if (:wat::core::= head ":wat::core::defn") true (:wat::core::= head ":wat::core::defrecord"))
       (:wat::core::let [namekw (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "namespaced-defn-name: name")]
@@ -115,7 +115,7 @@
   [forms <- (:wat::core::Vector :- [:wat::WatAST])  ns <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
       (:wat::core::if (:user::bare-defrule? f)
         (:wat::core::let [old  (:wat::core::ast-name (:user::defrule-name-node f))
@@ -124,7 +124,7 @@
                                  (:wat::string::concat ns
                                    (:wat::string::concat "::" bare)))]
           (:wat::core::concat
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new))
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (:wat::core::Tuple old new))
             (:user::rule-renames tl ns)))
         (:user::rule-renames tl ns)))))
 
@@ -163,7 +163,7 @@
       (:wat::core::if (:user::run-row-defn? f) f (:user::find-run-row (:wat::core::rest forms))))))
 
 ;; find-call — deep search for the (unique, per the survey) node calling exactly `head`.
-(:wat::core::defn :user::find-call [node <- :wat::WatAST  head <- :wat::core::String] -> (:wat::core::Option :wat::WatAST)
+(:wat::core::defn :user::find-call [node <- :wat::WatAST  head <- :wat::core::String] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::fix::calls-to? node head)
     (:wat::core::Some node)
     (:wat::core::if (:wat::fix::structural? node)
@@ -171,7 +171,7 @@
       :wat::core::None)))
 
 (:wat::core::defn :user::find-call-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST])  head <- :wat::core::String] -> (:wat::core::Option :wat::WatAST)
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  head <- :wat::core::String] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
     :wat::core::None
     (:wat::core::let [h (:wat::core::first items) tl (:wat::core::rest items)]
@@ -192,7 +192,7 @@
 
 (:wat::core::defn :user::helper-defn-text [ns <- :wat::core::String] -> :wat::core::String
   (:user::concat-all
-    (:wat::core::Vector :wat::core::String
+    (:wat::core::Vector :- [:wat::core::String]
       ";; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may\n"
       ";; now carry this file's namespace prefix (e.g. \"NS::arith\") after the namespacing wall.\n"
       ";; `string::split` on \"::\" always returns >= 1 segment (the whole string, unsplit, when\n"
@@ -228,7 +228,7 @@
                     ")"
                     lines1)
          ins-off  (:wat::fix::node-start-offset run-row lines1)
-         ins-edit (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple ins-off "" (:user::helper-defn-text ns)))
+         ins-edit (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple ins-off "" (:user::helper-defn-text ns)))
          all-eds  (:wat::core::concat wrap-eds ins-edit)
          text2    (:wat::fix::fix-text-apply text1 (:wat::core::reverse (:wat::core::sort all-eds)))]
         text2))))

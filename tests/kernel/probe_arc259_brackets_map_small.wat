@@ -3,6 +3,6 @@
 
 (:wat::core::defn :user::compute [] -> (:wat::core::Vector :- [:wat::core::i64])
    (:wat::bracket::map (:wat::spawn::thread)
-     (:wat::core::Vector :wat::core::i64 10 20 30)
+     (:wat::core::Vector :- [:wat::core::i64] 10 20 30)
      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x 1))))
 

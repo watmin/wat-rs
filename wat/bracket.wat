@@ -114,7 +114,7 @@
 (:wat::core::defn :wat::bracket::process-dial-runner :- [S R I O]
   [self    <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [(:wat::kernel::Address :- [S R]) I])])
    work-fn <- [(:wat::kernel::Peer :- [S R]) I :-> O]
-   ctx     <- (:wat::core::Option (:wat::kernel::Peer :- [S R]))]
+   ctx     <- (:wat::core::Option :- [(:wat::kernel::Peer :- [S R])])]
   -> :wat::core::nil
   ;; arc 278 the recv'-outcome wall — (RecvOutcome :- [PoolMsg]). ::Message → dispatch;
   ;; ::Lost → eprintln (terminal); ::Closed → exit the runner.
@@ -190,7 +190,7 @@
 (:wat::core::defn :wat::bracket::thread-kwargs-runner :- [D K I O]
   [self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
    work-fn <- :wat::core::keyword
-   ctx     <- (:wat::core::Option :K)]
+   ctx     <- (:wat::core::Option :- [:K])]
   -> :wat::core::nil
   (:wat::core::let
     [base-str     (:wat::keyword::to-string work-fn)
@@ -204,13 +204,13 @@
           ((:wat::bracket::PoolMsg::Setup deps)
             (:wat::bracket::thread-kwargs-runner self work-fn
               (:wat::core::Some
-                (:wat::core::apply assemble-kw deps (:wat::core::Vector :wat::core::nil)))))
+                (:wat::core::apply assemble-kw deps (:wat::core::Vector :- [:wat::core::nil])))))
           ((:wat::bracket::PoolMsg::Work pair)
             (:wat::core::let
               [k   (:wat::core::Option/expect ctx "bracket thread-kwargs-runner: Work before Setup")
                out (:wat::core::Tuple (:wat::core::first pair)
                      (:wat::core::apply impl-kw (:wat::core::second pair)
-                       (:wat::core::Vector :K k)))]
+                       (:wat::core::Vector :- [:K] k)))]
               (:wat::core::match (:wat::kernel::send self out)
                 (:wat::kernel::SendOutcome::Sent   (:wat::bracket::thread-kwargs-runner self work-fn ctx))
                 (:wat::kernel::SendOutcome::Stopped nil)
@@ -355,7 +355,7 @@
                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::WatAST]
                     -> (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::conj acc x))
-                  (:wat::core::conj (:wat::core::Vector :wat::WatAST) swapped-kw)
+                  (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) swapped-kw)
                   tail)]
         (:wat::core::with-children node new-ch))
       swapped-kw)))
@@ -468,7 +468,7 @@
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                             `(~accessor-kw deps))]
              (:wat::core::conj acc form)))
-         (:wat::core::Vector :wat::WatAST)
+         (:wat::core::Vector :- [:wat::WatAST])
          (:wat::core::range 0 n))
        ;; N-DIAL RUNNER — emitted as source. recv (PoolMsg :- [::Coords I]); Setup deps (a ::Coords record)
        ;; → reconcile-by-name into the ::Kwargs bundle (connect' the Peer fields, copy the data
@@ -511,7 +511,7 @@
           (:user::bracket::dial-runner
             (:wat::program::self-peer ~sp-out ~sp-in)
             :wat::core::None))]
-      (:wat::core::concat forms (:wat::core::Vector :wat::WatAST runner-def main-def))))
+      (:wat::core::concat forms (:wat::core::Vector :- [:wat::WatAST] runner-def main-def))))
   ;; ── existing Fn branch (arc 170 M1-pool, arity 3/6 dispatch) — UNCHANGED logic,
   ;; only the tail (spawn-program' call -> plain forms-vector return) is refactored so
   ;; both clauses share the one call site above.
@@ -558,7 +558,7 @@
               (:wat::bracket::process-runner
                 (:wat::program::self-peer ~sp-out ~sp-in)
                 :user::bracket::work-fn))))]
-      (:wat::core::concat forms (:wat::core::Vector :wat::WatAST main-def)))))
+      (:wat::core::concat forms (:wat::core::Vector :- [:wat::WatAST] main-def)))))
 
 ;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
 ;;
@@ -766,7 +766,7 @@
                  p))
              (:wat::core::range 0 n))
      pairs  (:wat::bracket::collect-loop peers items
-              (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 O])) n 0 m)
+              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])]) n 0 m)
      ;; REVOKE-SHUTDOWN: the drain is complete but the peers are still alive (still in scope,
      ;; still hold their Pidfd → peer-pid still Some). For each process peer, revoke its pid
      ;; (a no-op for a plain pool) — the grant a worker held cannot outlive its reaping. A
@@ -883,7 +883,7 @@
          nil
          (:wat::core::fn [~g1-sym <- :wat::core::nil ~pid1-sym <- :wat::core::i64] -> :wat::core::nil nil)
          (:wat::core::fn [~g2-sym <- :wat::core::nil ~pid2-sym <- :wat::core::i64] -> :wat::core::nil nil)
-         (:wat::core::Vector :wat::core::nil)))
+         (:wat::core::Vector :- [:wat::core::nil])))
     (:wat::core::let
       [work-fn-name  (:wat::core::ast-name work-fn)
        base-str      (:wat::string::subs work-fn-name 1 (:wat::string::length work-fn-name))
@@ -926,7 +926,7 @@
                               (:wat::core::if (:wat::core::= (:wat::i64::mod i 2) 1)
                                 (:wat::core::conj acc `(:wat::kernel::require-wire-address ~item))
                                 (:wat::core::conj acc item))))
-                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::Vector :- [:wat::WatAST])
                           (:wat::core::range 0 (:wat::core::length kwpairs)))
                         kwpairs)
        checker-call  `(~checker-kw ~@wire-pairs)
@@ -967,7 +967,7 @@
          nil
          (:wat::core::fn [~g1-sym <- :wat::core::nil ~pid1-sym <- :wat::core::i64] -> :wat::core::nil nil)
          (:wat::core::fn [~g2-sym <- :wat::core::nil ~pid2-sym <- :wat::core::i64] -> :wat::core::nil nil)
-         (:wat::core::Vector :wat::core::nil)))
+         (:wat::core::Vector :- [:wat::core::nil])))
     (:wat::core::let
       [work-fn-name  (:wat::core::ast-name work-fn)
        base-str      (:wat::string::subs work-fn-name 1 (:wat::string::length work-fn-name))
@@ -1009,7 +1009,7 @@
                               (:wat::core::if (:wat::core::= (:wat::i64::mod i 2) 1)
                                 (:wat::core::conj acc `(:wat::kernel::require-wire-address ~item))
                                 (:wat::core::conj acc item))))
-                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::Vector :- [:wat::WatAST])
                           (:wat::core::range 0 (:wat::core::length kwpairs)))
                         kwpairs)
        checker-call  `(~checker-kw ~@wire-pairs)

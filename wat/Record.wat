@@ -155,7 +155,7 @@
            (:wat::core::if is-splice
              acc
              (:wat::core::conj acc item))))
-       (:wat::core::Vector :wat::WatAST)
+       (:wat::core::Vector :- [:wat::WatAST])
        (:wat::core::range 0 (:wat::core::length field-ch)))
      field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::i64::/ field-len 3)
@@ -165,7 +165,7 @@
                         (:wat::core::Option/expect
                           (:wat::core::get clean-field-ch (:wat::i64::* i 3))
                           "defrecord kwargs companion: fname index")))
-                    (:wat::core::Vector :wat::WatAST)
+                    (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::keyword::to-string fqdn)
@@ -184,7 +184,7 @@
                      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "defrecord kwargs companion: ns-part index")))
-                     (:wat::core::Vector :wat::core::String)
+                     (:wat::core::Vector :- [:wat::core::String])
                      (:wat::core::range 0 (:wat::i64::- n-ns-parts 1)))
      ns-joined     (:wat::string::join "::" ns-lead)
      ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))
@@ -251,7 +251,7 @@
            (:wat::core::if is-splice
              acc
              (:wat::core::conj acc item))))
-       (:wat::core::Vector :wat::WatAST)
+       (:wat::core::Vector :- [:wat::WatAST])
        (:wat::core::range 0 (:wat::core::length field-ch)))
      field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::i64::/ field-len 3)
@@ -261,7 +261,7 @@
                         (:wat::core::Option/expect
                           (:wat::core::get clean-field-ch (:wat::i64::* i 3))
                           "holon defrecord kwargs companion: fname index")))
-                    (:wat::core::Vector :wat::WatAST)
+                    (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::keyword::to-string fqdn)
@@ -279,7 +279,7 @@
                      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "holon defrecord kwargs companion: ns-part index")))
-                     (:wat::core::Vector :wat::core::String)
+                     (:wat::core::Vector :- [:wat::core::String])
                      (:wat::core::range 0 (:wat::i64::- n-ns-parts 1)))
      ns-joined     (:wat::string::join "::" ns-lead)
      ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))

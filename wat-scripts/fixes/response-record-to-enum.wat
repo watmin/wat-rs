@@ -127,20 +127,20 @@
             (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]) f <- :wat::WatAST]
               -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
               (:user::collect-records f m))
-            (:wat::core::HashMap :wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
+            (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
             forms)
      rets (:wat::core::foldl
             (:wat::core::fn [a <- (:wat::core::HashSet :- [:wat::core::String]) n <- :wat::WatAST]
               -> (:wat::core::HashSet :- [:wat::core::String])
               (:user::collect-returns n a))
-            (:wat::core::HashSet :wat::core::String) forms)]
+            (:wat::core::HashSet :- [:wat::core::String]) forms)]
     (:wat::core::foldl
       (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]) k <- :wat::core::String]
         -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
         (:wat::core::if (:wat::hashset::contains? rets k)
           (:wat::hashmap::assoc m k (:wat::core::Option/expect (:wat::hashmap::get recs k) "resp"))
           m))
-      (:wat::core::HashMap :wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
+      (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
       (:wat::hashmap::keys recs))))
 
 ;; ── EDITS ──────────────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@
      fv   (:wat::core::Option/expect (:wat::core::get ch 2) "dr fv")
      h0   (:user::start-off head lines)]
     ;; old-text = (ast-name head) — the rule's own belief; NEVER span text (a rename).
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::core::defenum")
       (:wat::core::Tuple (:user::end-off ty lines) "" " :wat::enum::Pure :Ok")
       (:wat::core::Tuple (:user::end-off fv lines) ""
@@ -177,10 +177,10 @@
          ;; field keyword plus its trailing whitespace), not a rename; there is no
          ;; separate name-based claim about that whitespace to diverge from it.
          gap-text (:wat::fix::fix-text-span-text (:wat::core::ast-span fkw) (:wat::core::ast-span val) lines src)]
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
           (:wat::core::Tuple (:user::end-off head lines) "" "::Ok")
           (:wat::core::Tuple fs gap-text "")))
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
         (:wat::core::Tuple (:user::end-off head lines) "" "::Ok")))))
 
 (:wat::core::defn :user::field-edits
@@ -199,7 +199,7 @@
                     (:wat::string::concat "::RequestTooLarge bytes cap)\n    (:wat::kernel::assertion-failed! \"unexpected RequestTooLarge\" :wat::core::None :wat::core::None))"
                       ""))))))]
     ;; old-text = (ast-name head) — the rule's own belief; NEVER span text (a rename).
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::core::match")
       (:wat::core::Tuple (:user::end-off expr lines) "" arms))))
 
@@ -213,7 +213,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
         (:wat::core::let
           [hname (:user::kw-name (:wat::core::first ch))
            tyname (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
@@ -231,11 +231,11 @@
                    (:wat::hashmap::contains-key? rm prefix) false)
                  (:wat::core::let [ft (:wat::core::Option/expect (:wat::hashmap::get rm prefix) "ft")]
                    (:user::field-edits ch prefix (:wat::core::first ft) (:wat::core::second ft) lines))
-                 (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))))]
+                 (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))]
           (:wat::core::concat this (:user::seq-edits ch rm src lines)))))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::seq-edits (:wat::core::ast->children node) rm src lines)
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))))
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])
@@ -247,7 +247,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it rm src lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

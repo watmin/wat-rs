@@ -6,8 +6,8 @@
 (:wat::core::defmacro :probe::mk-vec
   [] -> :wat::WatAST
   (:wat::core::let
-    [strs (:wat::core::Vector :wat::core::String "usr::Temp" "usr::Hot")]
-    `(:wat::core::Vector :wat::core::String ~@strs)))
+    [strs (:wat::core::Vector :- [:wat::core::String] "usr::Temp" "usr::Hot")]
+    `(:wat::core::Vector :- [:wat::core::String] ~@strs)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

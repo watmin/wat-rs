@@ -6,7 +6,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [hm0 (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+    [hm0 (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
      hm1 (:wat::hashmap::assoc hm0 :a 1)
      pm0 (:wat::core::PersistentMap :b 2)
      pm1 (:wat::map::assoc pm0 :a 1)]

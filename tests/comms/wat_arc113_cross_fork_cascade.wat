@@ -29,13 +29,13 @@
             (:wat::test::assert-eq 1 2))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
-        (:wat::core::Vector :wat::core::String "UNEXPECTED-MESSAGE"))
+        (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-MESSAGE"))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::match cause
           ((:wat::kernel::LociDiedError::Panic _message failure)
             (:wat::core::match failure
               ((:wat::core::Some f)
-               (:wat::core::Vector :wat::core::String
+               (:wat::core::Vector :- [:wat::core::String]
                  (:wat::kernel::Failure/message f)
                  (:wat::core::match (:wat::kernel::Failure/actual f)
                    ((:wat::core::Some a) a)
@@ -44,9 +44,9 @@
                    ((:wat::core::Some e) e)
                    (:wat::core::None ":None"))))
               (:wat::core::None
-               (:wat::core::Vector :wat::core::String "NO-FAILURE-PAYLOAD"))))
-          (_ (:wat::core::Vector :wat::core::String "LOST-NON-PANIC"))))
+               (:wat::core::Vector :- [:wat::core::String] "NO-FAILURE-PAYLOAD"))))
+          (_ (:wat::core::Vector :- [:wat::core::String] "LOST-NON-PANIC"))))
       (:wat::kernel::RecvOutcome::Stopped
-        (:wat::core::Vector :wat::core::String "UNEXPECTED-STOPPED"))
+        (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-STOPPED"))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::core::Vector :wat::core::String "UNEXPECTED-CLOSED")))))
+        (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-CLOSED")))))

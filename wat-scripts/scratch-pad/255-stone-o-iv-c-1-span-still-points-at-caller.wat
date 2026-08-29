@@ -22,11 +22,11 @@
     (:wat::core::cond
       ((:wat::core::= case "span-a")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::holon::OnlineSubspace/dim (:wat::core::Vector :wat::core::Value 42)))))
+         (:wat::core::apply :wat::holon::OnlineSubspace/dim (:wat::core::Vector :- [:wat::core::Value] 42)))))
 
       ((:wat::core::= case "span-b")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::holon::OnlineSubspace/dim (:wat::core::Vector :wat::core::Value 42)))))
+         (:wat::core::apply :wat::holon::OnlineSubspace/dim (:wat::core::Vector :- [:wat::core::Value] 42)))))
 
       (:else
        (:wat::kernel::println (:wat::string::concat "unknown case: " case))))))

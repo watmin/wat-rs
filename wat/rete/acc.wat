@@ -172,6 +172,6 @@
         (:wat::core::Option/expect  
           (:wat::map::get (:wat::rete::Element/bindings e) var)
           "acc: var unbound")))
-    (:wat::core::Vector :wat::core::i64)
+    (:wat::core::Vector :- [:wat::core::i64])
     els))
 

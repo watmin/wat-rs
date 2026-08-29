@@ -156,7 +156,7 @@
    lines  <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:fix::Node])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :fix::Node)
+    (:wat::core::Vector :- [:fix::Node])
     (:wat::core::concat
       (:fix::walk-node (:wat::core::first items) parent idx lines)
       (:fix::walk-seq (:wat::core::rest items) parent (:wat::core::+ idx 1) lines))))
@@ -186,9 +186,9 @@
                                  (:wat::core::ast-span node)
                                  (:wat::core::ast-end-span node)
                                  lines)]
-          (:wat::core::Vector :fix::Node
+          (:wat::core::Vector :- [:fix::Node]
             (:fix::Node :kind kind :name name :offset off :len len :span-len slen :parent parent :child-idx child-idx)))
-        (:wat::core::Vector :fix::Node)))))
+        (:wat::core::Vector :- [:fix::Node])))))
 
 ;; stage the facts: fold insert over the Node vector
 (:wat::core::defn :fix::insert-nodes
@@ -215,7 +215,7 @@
         ;; independent information from the SAME source that built new-text below, not a
         ;; slice of the span computed at apply-time).
         (:wat::core::concat a
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
             (:wat::core::Tuple
               (:wat::core::Option/expect (:wat::map::get hc "?offset") "q-HeadConv: ?offset")
               old-name
@@ -233,7 +233,7 @@
       ;; old-text = ?name — the arrow's own text ("<-" or "->"), captured in :fix::Node and
       ;; threaded through Arrow -> ArrowConv (arc 282); NEVER ?len.
       (:wat::core::concat a
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
           (:wat::core::Tuple
             (:wat::core::Option/expect (:wat::map::get ac "?offset") "q-ArrowConv: ?offset")
             (:wat::core::Option/expect (:wat::map::get ac "?name") "q-ArrowConv: ?name")
@@ -251,7 +251,7 @@
       (:wat::core::let [old-name (:wat::core::Option/expect (:wat::map::get tc "?name") "q-TypeConv: ?name")]
         ;; old-text = ?name directly — see head-edits' comment above (arc 282).
         (:wat::core::concat a
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
             (:wat::core::Tuple
               (:wat::core::Option/expect (:wat::map::get tc "?offset") "q-TypeConv: ?offset")
               old-name
@@ -271,7 +271,7 @@
                     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
                     staged  (:fix::insert-nodes session nodes)
                     fired   (:wat::rete::fire-fixpoint staged)
-                    empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+                    empty-e (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                     e1      (:fix::head-edits  (:wat::rete::query fired (:fix::q-HeadConv))  empty-e)
                     e2      (:fix::arrow-edits (:wat::rete::query fired (:fix::q-ArrowConv)) e1)
                     e3      (:fix::type-edits  (:wat::rete::query fired (:fix::q-TypeConv))  e2)

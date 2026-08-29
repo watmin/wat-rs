@@ -23,7 +23,7 @@
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))]
     (:wat::core::match
-      (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector va))
+      (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] va))
       ((:wat::holon::CombineOutcome::Combined bundled)
         (:wat::core::match (:wat::holon::cosine va bundled)
           ((:wat::holon::CosineOutcome::Similarity s)

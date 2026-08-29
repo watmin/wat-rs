@@ -195,7 +195,7 @@
                                       (:wat::string::concat "zz" (:wat::i64::to-string i)))
                           tags-len (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 4) 4))
                           tags     (:wat::core::into (:wat::core::PersistentVector)
-                                     (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 tags-len)))
+                                     (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 tags-len)))
                           lim      (:wat::i64::* (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 7) 7)) 20)]
           (:wat::vector::conj acc
             (:wsh::Req :k i :client (:wsh::Client :rep rep) :name nm :tags tags :limit lim))))
@@ -206,7 +206,7 @@
 (:wat::core::defn :wsh::derived-ints
   [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
       (:wat::core::map
         (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wsh::Hit/k f)))
         (:wat::rete::query fired (:wsh::q-Hit))))))

@@ -12,7 +12,7 @@
   [f <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
   -> :wat::holon::HolonAST
   (:wat::holon::to-holon
-    (:wat::core::Vector :wat::core::bool (f true) (f false))))
+    (:wat::core::Vector :- [:wat::core::bool] (f true) (f false))))
 
 (:wat::rete::defrule :j2::classify
   :when

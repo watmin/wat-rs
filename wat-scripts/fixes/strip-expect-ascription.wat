@@ -21,7 +21,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::fix::strip-arrow-ascription src
-    (:wat::core::Vector :wat::core::String
+    (:wat::core::Vector :- [:wat::core::String]
       ":wat::core::Option/expect"
       ":wat::core::Result/expect")))
 

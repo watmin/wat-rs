@@ -23,7 +23,7 @@
 ;; ═══ row 1 — nth answers on all three eager containers, at 0 / middle / last ═══════════════
 
 (:wat::test::deftest :wat-tests::core::core-nth::nth-vector-positions
-  (:wat::core::let [v (:wat::core::Vector :wat::core::i64 10 20 30)]
+  (:wat::core::let [v (:wat::core::Vector :- [:wat::core::i64] 10 20 30)]
     (:wat::core::do
       (:wat::test::assert-eq (:wat::core::nth v 0) 10)
       (:wat::test::assert-eq (:wat::core::nth v 1) 20)
@@ -56,7 +56,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println
-               (:wat::core::nth (:wat::core::Vector :wat::core::i64 10 20 30) 99)))))
+               (:wat::core::nth (:wat::core::Vector :- [:wat::core::i64] 10 20 30) 99)))))
      msg (:wat::core::match (:wat::kernel::recv p)
            ((:wat::kernel::RecvOutcome::Message _m)
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Message" :wat::core::None :wat::core::None))

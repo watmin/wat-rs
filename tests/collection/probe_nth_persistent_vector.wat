@@ -8,4 +8,4 @@
     0))
 
 (:wat::core::defn :test::vec-nth [] -> :wat::core::i64
-  (:wat::core::nth (:wat::core::Vector :wat::core::i64 10 20 30) 1))
+  (:wat::core::nth (:wat::core::Vector :- [:wat::core::i64] 10 20 30) 1))

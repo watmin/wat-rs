@@ -14,11 +14,11 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      span-rec (:wat::telemetry::span::Record
                 :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :start-time-ns 0
-                :counters (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-                :durations (:wat::core::HashMap :wat::core::keyword :wat::telemetry::Samples))
+                :counters (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+                :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples]))
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

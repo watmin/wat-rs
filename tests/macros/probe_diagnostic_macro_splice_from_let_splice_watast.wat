@@ -2,7 +2,7 @@
   [xs <- :wat::WatAST]
   -> :wat::WatAST
   (:wat::core::quasiquote
-    (:wat::core::Vector :wat::core::i64
+    (:wat::core::Vector :- [:wat::core::i64]
       (:wat::core::unquote-splicing
         ;; Arc 118.2a — `map` flipped LAZY; `forms` is unquote-spliced (computed unquote-
         ;; splicing runs through the restricted macro-eval evaluator — wat-defined `mapv` is
@@ -13,7 +13,7 @@
                      (:wat::core::conj acc
                        (:wat::core::quasiquote
                          (:wat::core::unquote (:wat::i64::* x 10)))))
-                   (:wat::core::Vector :wat::WatAST)
+                   (:wat::core::Vector :- [:wat::WatAST])
                    xs)]
           forms)))))
 

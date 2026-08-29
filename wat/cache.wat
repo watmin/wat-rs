@@ -220,7 +220,7 @@
                (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s) k)
                  ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
-           (:wat::core::Vector (:wat::cache::Cache::GetResult :- [V]))
+           (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
            (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s ctx req]
      (:wat::service::Outcome::Reply s
@@ -413,7 +413,7 @@
                (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s) probe)
                  ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
-           (:wat::core::Vector (:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST]))
+           (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
            (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s ctx req]
      (:wat::service::Outcome::Reply s

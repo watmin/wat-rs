@@ -31,7 +31,7 @@
 ;; (the 2026-07-24 class-4 lesson); the floor is what surfaces the second.
 
 (:wat::core::defn :user::targets [] -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::Vector :wat::core::String
+  (:wat::core::Vector :- [:wat::core::String]
     ":cg::make-rate"
     ":fix::head-keyword-str?"
     ":fix::type-shaped-keyword-str?"

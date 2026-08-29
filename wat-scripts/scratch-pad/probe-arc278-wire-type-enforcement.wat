@@ -104,7 +104,7 @@
            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)))
      ;; CONTROL — a well-typed request, built by the normal ctor.
      good (:probe-wire::Bag::PutRequest
-            :items (:wat::core::Vector :wat::core::String "a" "b"))
+            :items (:wat::core::Vector :- [:wat::core::String] "a" "b"))
      ;; Show the exact wire form the ctor produces, so the hand-written EDN below
      ;; is provably the SAME tag with a wrong-typed body.
      _ (:wat::kernel::println

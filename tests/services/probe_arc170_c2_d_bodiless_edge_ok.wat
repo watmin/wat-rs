@@ -25,8 +25,8 @@
 (:wat::core::defsurface :probe::TypedCapability :- [S R] :nature :wat::core::Struct
   :features
   [(coord  [self <- (:probe::TypedCapability :- [S R])] -> (:wat::kernel::Address :- [S R]))
-   (grant  [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
-   (revoke [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])
+   (grant  [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
+   (revoke [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)])
 
 ;; *** BODILESS extend-type — edge only, no method bodies ***
 (:wat::core::extend-type :probe::echo::Handle (:probe::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply]))
@@ -36,7 +36,7 @@
   [h <- (:probe::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply])]
   -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
   (:wat::core::let
-    [_ (:probe::TypedCapability/grant h (:wat::core::Vector :wat::core::i64 42))]
+    [_ (:probe::TypedCapability/grant h (:wat::core::Vector :- [:wat::core::i64] 42))]
     (:probe::TypedCapability/coord h)))
 
 ;; a raw echo'::Handle must be assignable to the combined-surface param.

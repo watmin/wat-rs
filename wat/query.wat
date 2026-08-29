@@ -31,7 +31,7 @@
   [pk         <- :wat::core::String                          ;; EDN-form key string; consumer serializes <-> hydrates
    sk         <- :wat::core::String
    data       <- :wat::core::String                          ;; the record's tagged EDN, opaque to the backend
-   index-keys <- (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)]) ;; index-name -> (ipk,isk)
+   index-keys <- (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])]) ;; index-name -> (ipk,isk)
 
 ;; ─── the read results — what scan / scan-index hand back ───────────────────────────────────
 (:wat::core::defrecord :wat::query::Row
@@ -50,12 +50,12 @@
 ;; `Store::ScanResponse::Success`/`ScanIndexResponse::Success` carry rows+cursor directly rather
 ;; than nesting one of these — kept as the shared shape for consumers that want to box a page) ────
 (:wat::core::defrecord :wat::query::Page
-  [rows        <- (:wat::core::Vector :wat::query::Row)
-   next-cursor <- (:wat::core::Option :wat::core::String)])
+  [rows        <- (:wat::core::Vector :- [:wat::query::Row])
+   next-cursor <- (:wat::core::Option :- [:wat::core::String])])
 
 (:wat::core::defrecord :wat::query::IndexPage
-  [rows        <- (:wat::core::Vector :wat::query::IndexRow)
-   next-cursor <- (:wat::core::Option :wat::core::String)])
+  [rows        <- (:wat::core::Vector :- [:wat::query::IndexRow])
+   next-cursor <- (:wat::core::Option :- [:wat::core::String])])
 
 ;; ─── schema declarations (ensure-schema input) ──────────────────────────────────────────────
 (:wat::core::defrecord :wat::query::TableSchema
@@ -189,7 +189,7 @@
               then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "sift-rules-defsvc: rule missing :then")
               rule-lit   `(:wat::rete::make-rule ~rname-str (:wat::core::quote ~when-vec) (:wat::core::quote ~then-vec))]
              (:wat::core::conj acc rule-lit)))
-         (:wat::core::Vector :wat::WatAST)
+         (:wat::core::Vector :- [:wat::WatAST])
          rules-children)
 
      ;; ── (2) derived-type-strs: UNIQUE type names across every rule's `:then` fact-forms — the
@@ -219,7 +219,7 @@
                    (:wat::core::if (:wat::vec::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                acc
                then-forms)))
-         (:wat::core::Vector :wat::core::String)
+         (:wat::core::Vector :- [:wat::core::String])
          rules-children)
 
      ;; ── (2b) fired-upon-type-strs: UNIQUE type names appearing as the HEAD of any rule's
@@ -249,7 +249,7 @@
                    (:wat::core::if (:wat::vec::contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
                acc
                conds)))
-         (:wat::core::Vector :wat::core::String)
+         (:wat::core::Vector :- [:wat::core::String])
          rules-children)
 
      ;; ── (2c) deduction-type-strs: derived − fired-upon — the TERMINAL types (derived and no
@@ -262,7 +262,7 @@
            (:wat::core::if (:wat::vec::contains? fired-upon-type-strs tstr)
              acc
              (:wat::core::conj acc tstr)))
-         (:wat::core::Vector :wat::core::String)
+         (:wat::core::Vector :- [:wat::core::String])
          derived-type-strs)
 
      fired-sym (:wat::core::symbol-node "fired")
@@ -284,7 +284,7 @@
                `(:wat::rete::make-query ~tstr
                   (:wat::core::quote [])
                   (:wat::core::quote [~cond])))))
-         (:wat::core::Vector :wat::WatAST)
+         (:wat::core::Vector :- [:wat::WatAST])
          deduction-type-strs)
      query-calls
        (:wat::core::foldl
@@ -298,7 +298,7 @@
                       (:wat::map::get ~pmap-sym "?fact")
                       "sift-rules: ?fact"))
                   (:wat::rete::query ~fired-sym ~lit)))))
-         (:wat::core::Vector :wat::WatAST)
+         (:wat::core::Vector :- [:wat::WatAST])
          query-lits)
 
      ;; concat-chain: `:wat::core::concat` is BINARY (Vector/concat's arity, not variadic) —
@@ -330,7 +330,7 @@
                      (:wat::string::subs draw 1 (:wat::string::length draw))
                      draw)]
              (:wat::core::conj acc dstr)))
-         (:wat::core::Vector :wat::core::String)
+         (:wat::core::Vector :- [:wat::core::String])
          defs-children)
 
      ;; synthetic binder symbols — every literal `let`/`fn` inside the templates below must use
@@ -355,10 +355,10 @@
              time-lo   <- :wat::core::i64
              time-hi   <- :wat::core::i64
              limit     <- :wat::core::i64
-             cursor    <- (:wat::core::Option :wat::core::String)])
+             cursor    <- (:wat::core::Option :- [:wat::core::String])])
           (:wat::core::defenum ~resp-kw :wat::enum::Pure
             :Deductions [items  <- (:wat::core::PersistentVector :- [:wat::core::Value])
-                         cursor <- (:wat::core::Option :wat::core::String)]
+                         cursor <- (:wat::core::Option :- [:wat::core::String])]
             :Fatal      [err   <- :wat::query::Fault]
             :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
             :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
@@ -431,7 +431,7 @@
                                 (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))
                                 ((:wat::edn::ReadForeignOutcome::Value ~payload-sym)
                                   (:wat::vec::contains?
-                                    (:wat::core::Vector :wat::core::String ~@def-type-strs)
+                                    (:wat::core::Vector :- [:wat::core::String] ~@def-type-strs)
                                     (:wat::core::type ~payload-sym)))
                                 ((:wat::edn::ReadForeignOutcome::Malformed ~cause-sym)
                                   false))
@@ -498,7 +498,7 @@
   :messages
   [(:wat::core::defrecord :wat::query::Store::EnsureSchemaRequest
      [table   <- :wat::query::TableSchema
-      indexes <- (:wat::core::Vector :wat::query::IndexSchema)])
+      indexes <- (:wat::core::Vector :- [:wat::query::IndexSchema])])
 
    (:wat::core::defenum :wat::query::Store::EnsureSchemaResponse :wat::enum::Pure
      :Success        []
@@ -508,7 +508,7 @@
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::query::Store::PutRequest
-     [rows <- (:wat::core::Vector :wat::query::StoredRow)])
+     [rows <- (:wat::core::Vector :- [:wat::query::StoredRow])])
 
    (:wat::core::defenum :wat::query::Store::PutResponse :wat::enum::Pure
      :Success        []
@@ -523,11 +523,11 @@
       sk-lo  <- :wat::core::String
       sk-hi  <- :wat::core::String
       limit  <- :wat::core::i64
-      cursor <- (:wat::core::Option :wat::core::String)])        ;; None = first page; Some sk = resume after (keyset)
+      cursor <- (:wat::core::Option :- [:wat::core::String])])        ;; None = first page; Some sk = resume after (keyset)
 
    (:wat::core::defenum :wat::query::Store::ScanResponse :wat::enum::Pure
-     :Success   [rows   <- (:wat::core::Vector :wat::query::Row)
-                 cursor <- (:wat::core::Option :wat::core::String)]
+     :Success   [rows   <- (:wat::core::Vector :- [:wat::query::Row])
+                 cursor <- (:wat::core::Option :- [:wat::core::String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -539,11 +539,11 @@
       isk-lo <- :wat::core::String
       isk-hi <- :wat::core::String
       limit  <- :wat::core::i64
-      cursor <- (:wat::core::Option :wat::core::String)])
+      cursor <- (:wat::core::Option :- [:wat::core::String])])
 
    (:wat::core::defenum :wat::query::Store::ScanIndexResponse :wat::enum::Pure
-     :Success   [rows   <- (:wat::core::Vector :wat::query::IndexRow)
-                 cursor <- (:wat::core::Option :wat::core::String)]
+     :Success   [rows   <- (:wat::core::Vector :- [:wat::query::IndexRow])
+                 cursor <- (:wat::core::Option :- [:wat::core::String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]

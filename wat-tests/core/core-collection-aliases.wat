@@ -28,7 +28,7 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::dissoc-removes-key
   
   (:wat::core::let
-    [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m0 (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m1 (:wat::core::assoc m0 "a" 1)
      m2 (:wat::core::assoc m1 "b" 2)
      ;; short-name alias under test
@@ -43,7 +43,7 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::dissoc-to-empty
   
   (:wat::core::let
-    [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m0 (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m1 (:wat::core::assoc m0 "only" 42)
      m2 (:wat::core::dissoc m1 "only")
      ks (:wat::hashmap::keys m2)]
@@ -58,7 +58,7 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::keys-single-entry
   
   (:wat::core::let
-    [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m0 (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m1 (:wat::core::assoc m0 "x" 99)
      ;; short-name alias under test
      ks (:wat::core::keys m1)]
@@ -69,7 +69,7 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::keys-two-entries
   
   (:wat::core::let
-    [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m0 (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m1 (:wat::core::assoc m0 "p" 10)
      m2 (:wat::core::assoc m1 "q" 20)
      ks (:wat::core::keys m2)]
@@ -84,7 +84,7 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::values-single-entry
   
   (:wat::core::let
-    [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m0 (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m1 (:wat::core::assoc m0 "k" 7)
      ;; short-name alias under test
      vs (:wat::core::values m1)]
@@ -99,10 +99,10 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::values-content-one-key
   
   (:wat::core::let
-    [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m0 (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m1 (:wat::core::assoc m0 "k" 7)
      vs (:wat::core::values m1)
-     expected (:wat::core::Vector :wat::core::i64 7)]
+     expected (:wat::core::Vector :- [:wat::core::i64] 7)]
     (:wat::test::assert-eq vs expected)))
 
 ;; ─── concat: concatenates two vectors ────────────────────────────────────
@@ -113,11 +113,11 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::concat-two-vectors
   
   (:wat::core::let
-    [left     (:wat::core::Vector :wat::core::i64 1 2)
-     right    (:wat::core::Vector :wat::core::i64 3 4)
+    [left     (:wat::core::Vector :- [:wat::core::i64] 1 2)
+     right    (:wat::core::Vector :- [:wat::core::i64] 3 4)
      ;; short-name alias under test
      combined (:wat::core::concat left right)
-     expected (:wat::core::Vector :wat::core::i64 1 2 3 4)]
+     expected (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)]
     (:wat::test::assert-eq combined expected)))
 
 ;; ─── concat: empty ++ non-empty = non-empty ───────────────────────────────
@@ -125,10 +125,10 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::concat-empty-left
   
   (:wat::core::let
-    [empty    (:wat::core::Vector :wat::core::i64)
-     right    (:wat::core::Vector :wat::core::i64 5 6 7)
+    [empty    (:wat::core::Vector :- [:wat::core::i64])
+     right    (:wat::core::Vector :- [:wat::core::i64] 5 6 7)
      combined (:wat::core::concat empty right)
-     expected (:wat::core::Vector :wat::core::i64 5 6 7)]
+     expected (:wat::core::Vector :- [:wat::core::i64] 5 6 7)]
     (:wat::test::assert-eq combined expected)))
 
 ;; ─── concat: length of concatenated result ────────────────────────────────
@@ -136,7 +136,7 @@
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::concat-length
   
   (:wat::core::let
-    [left     (:wat::core::Vector :wat::core::i64 1 2 3)
-     right    (:wat::core::Vector :wat::core::i64 4 5)
+    [left     (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+     right    (:wat::core::Vector :- [:wat::core::i64] 4 5)
      combined (:wat::core::concat left right)]
     (:wat::test::assert-eq (:wat::core::length combined) 5)))

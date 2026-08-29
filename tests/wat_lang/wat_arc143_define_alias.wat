@@ -11,7 +11,7 @@
       [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
       (:wat::core::+ acc x))
     0
-    (:wat::core::Vector :wat::core::i64 1 2 3 4)))
+    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))
 
 ;; Test 2: alias :wat::core::length — verifies native form for multiple targets.
 ;; Call (:t::my-size vec) → i64 3.
@@ -19,4 +19,4 @@
 
 (:wat::core::defn :t::test2-length-alias [] -> :wat::core::i64
   (:t::my-size
-    (:wat::core::Vector :wat::core::i64 10 20 30)))
+    (:wat::core::Vector :- [:wat::core::i64] 10 20 30)))

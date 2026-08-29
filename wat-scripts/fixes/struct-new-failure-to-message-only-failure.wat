@@ -71,7 +71,7 @@
      n0       (:user::start-off node lines)
      old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)
      msg-txt  (:wat::string::subs src (:user::start-off msg lines) (:user::end-off msg lines))]
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple n0 old-text
         (:wat::string::concat "(:wat::kernel::message-only-failure " msg-txt ")")))))
 
@@ -85,7 +85,7 @@
     (:user::struct-new-failure-edit node (:wat::core::ast->children node) src lines)
     (:wat::core::if (:wat::fix::structural? node)
       (:user::seq-edits (:wat::core::ast->children node) src lines)
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))))
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])  src <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
@@ -94,7 +94,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it src lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

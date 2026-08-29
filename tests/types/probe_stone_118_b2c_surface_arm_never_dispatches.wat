@@ -25,7 +25,7 @@
 
 ;; ─── the four containers, through the CLAUSE (all four must fail today) ────────────────────────
 (:wat::core::defn :my::clause-vector [] -> :wat::core::i64
-  (:my::count-via-clause (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:my::count-via-clause (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 
 (:wat::core::defn :my::clause-list [] -> :wat::core::i64
   (:my::count-via-clause (:wat::core::List 1 2 3)))
@@ -42,7 +42,7 @@
 
 ;; ─── the same four through the CONTROL (all four must succeed today) ───────────────────────────
 (:wat::core::defn :my::defn-vector [] -> :wat::core::i64
-  (:my::count-via-defn (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:my::count-via-defn (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 
 (:wat::core::defn :my::defn-list [] -> :wat::core::i64
   (:my::count-via-defn (:wat::core::List 1 2 3)))

@@ -37,30 +37,30 @@
      _05 (:probe::check "math/cos" (:wat::core::quote (:wat::math::cos 0.0)) (:wat::core::quote 1.0))
      _06 (:probe::check "math/pi" (:wat::core::quote (:wat::math::pi)) (:wat::core::quote 3.141592653589793))
 
-     _07 (:probe::check "stat/mean" (:wat::core::quote (:wat::stat::mean (:wat::core::Vector :wat::core::f64 2.0 4.0))) (:wat::core::quote (:wat::core::Some 3.0)))
-     _08 (:probe::check "stat/variance" (:wat::core::quote (:wat::stat::variance (:wat::core::Vector :wat::core::f64 2.0 4.0))) (:wat::core::quote (:wat::core::Some 1.0)))
-     _09 (:probe::check "stat/stddev" (:wat::core::quote (:wat::stat::stddev (:wat::core::Vector :wat::core::f64 2.0 4.0))) (:wat::core::quote (:wat::core::Some 1.0)))
+     _07 (:probe::check "stat/mean" (:wat::core::quote (:wat::stat::mean (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Some 3.0)))
+     _08 (:probe::check "stat/variance" (:wat::core::quote (:wat::stat::variance (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Some 1.0)))
+     _09 (:probe::check "stat/stddev" (:wat::core::quote (:wat::stat::stddev (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Some 1.0)))
 
      ;; seq — Vector input (the doc examples)
      _10 (:probe::check "seq/zip vector"
-           (:wat::core::quote (:wat::seq::zip (:wat::core::Vector :wat::core::i64 1 2 3) (:wat::core::Vector :wat::core::i64 4 5 6)))
-           (:wat::core::quote (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple 1 4) (:wat::core::Tuple 2 5) (:wat::core::Tuple 3 6))))
+           (:wat::core::quote (:wat::seq::zip (:wat::core::Vector :- [:wat::core::i64] 1 2 3) (:wat::core::Vector :- [:wat::core::i64] 4 5 6)))
+           (:wat::core::quote (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] (:wat::core::Tuple 1 4) (:wat::core::Tuple 2 5) (:wat::core::Tuple 3 6))))
      _11 (:probe::check "seq/window vector"
-           (:wat::core::quote (:wat::seq::window (:wat::core::Vector :wat::core::i64 1 2 3 4) 2))
-           (:wat::core::quote (:wat::core::Vector (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::Vector :wat::core::i64 1 2) (:wat::core::Vector :wat::core::i64 2 3) (:wat::core::Vector :wat::core::i64 3 4))))
+           (:wat::core::quote (:wat::seq::window (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4) 2))
+           (:wat::core::quote (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::core::i64])] (:wat::core::Vector :- [:wat::core::i64] 1 2) (:wat::core::Vector :- [:wat::core::i64] 2 3) (:wat::core::Vector :- [:wat::core::i64] 3 4))))
      _12 (:probe::check "seq/remove-at vector"
-           (:wat::core::quote (:wat::seq::remove-at (:wat::core::Vector :wat::core::i64 1 2 3) 1))
-           (:wat::core::quote (:wat::core::Vector :wat::core::i64 1 3)))
+           (:wat::core::quote (:wat::seq::remove-at (:wat::core::Vector :- [:wat::core::i64] 1 2 3) 1))
+           (:wat::core::quote (:wat::core::Vector :- [:wat::core::i64] 1 3)))
 
      ;; seq — List input (row 2: Seqable survives the carve)
      _13 (:probe::check "seq/zip list"
            (:wat::core::quote (:wat::seq::zip (:wat::core::List 1 2 3) (:wat::core::List 4 5 6)))
-           (:wat::core::quote (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple 1 4) (:wat::core::Tuple 2 5) (:wat::core::Tuple 3 6))))
+           (:wat::core::quote (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] (:wat::core::Tuple 1 4) (:wat::core::Tuple 2 5) (:wat::core::Tuple 3 6))))
      _14 (:probe::check "seq/window list"
            (:wat::core::quote (:wat::seq::window (:wat::core::List 1 2 3 4) 2))
-           (:wat::core::quote (:wat::core::Vector (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::Vector :wat::core::i64 1 2) (:wat::core::Vector :wat::core::i64 2 3) (:wat::core::Vector :wat::core::i64 3 4))))
+           (:wat::core::quote (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::core::i64])] (:wat::core::Vector :- [:wat::core::i64] 1 2) (:wat::core::Vector :- [:wat::core::i64] 2 3) (:wat::core::Vector :- [:wat::core::i64] 3 4))))
      _15 (:probe::check "seq/remove-at list"
            (:wat::core::quote (:wat::seq::remove-at (:wat::core::List 1 2 3) 1))
-           (:wat::core::quote (:wat::core::Vector :wat::core::i64 1 3)))
+           (:wat::core::quote (:wat::core::Vector :- [:wat::core::i64] 1 3)))
     ]
     nil))

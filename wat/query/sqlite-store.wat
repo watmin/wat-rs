@@ -117,14 +117,14 @@
     ((:wat::sqlite::Cell::Nil) "")))
 
 (:wat::core::defn :wat::query::row-from-cells
-  [cells <- (:wat::core::Vector :wat::sqlite::Cell)] -> :wat::query::Row
+  [cells <- (:wat::core::Vector :- [:wat::sqlite::Cell])] -> :wat::query::Row
   (:wat::query::Row
     :pk (:wat::query::cell->string (:wat::core::nth cells 0))    ;; pk
     :sk (:wat::query::cell->string (:wat::core::nth cells 1))    ;; sk
     :data (:wat::query::cell->string (:wat::core::nth cells 2))))  ;; data
 
 (:wat::core::defn :wat::query::index-row-from-cells
-  [cells <- (:wat::core::Vector :wat::sqlite::Cell)] -> :wat::query::IndexRow
+  [cells <- (:wat::core::Vector :- [:wat::sqlite::Cell])] -> :wat::query::IndexRow
   ;; select order is (ipk,isk,pk,sk,data); IndexRow's own field order is (pk,sk,ipk,isk,data).
   (:wat::query::IndexRow
     :pk (:wat::query::cell->string (:wat::core::nth cells 2))    ;; pk
@@ -135,7 +135,7 @@
 
 ;; ─── ensure-schema — main + one complete table per named GSI ────────────────────────────────────
 (:wat::core::defn :wat::query::ensure-index-tables
-  [conn <- :wat::sqlite::Connection indexes <- (:wat::core::Vector :wat::query::IndexSchema)]
+  [conn <- :wat::sqlite::Connection indexes <- (:wat::core::Vector :- [:wat::query::IndexSchema])]
   -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? indexes)
     (:wat::core::Ok nil)
@@ -153,7 +153,7 @@
 
 ;; ─── put — clear-then-insert, one row at a time inside the caller's BEGIN/COMMIT ────────────────
 (:wat::core::defn :wat::query::clear-index-projections
-  [conn <- :wat::sqlite::Connection names <- (:wat::core::Vector :wat::core::String)
+  [conn <- :wat::sqlite::Connection names <- (:wat::core::Vector :- [:wat::core::String])
    pk <- :wat::core::String sk <- :wat::core::String]
   -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? names)
@@ -164,15 +164,15 @@
        sql (:wat::core::format "DELETE FROM [index_{name}] WHERE pk=? AND sk=?" :name nm)]
       (:wat::core::match
         (:wat::sqlite::execute conn sql
-          (:wat::core::Vector :wat::sqlite::Param (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk)))
+          (:wat::core::Vector :- [:wat::sqlite::Param] (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk)))
         
         ((:wat::core::Err e) (:wat::core::Err e))
         ((:wat::core::Ok _) (:wat::query::clear-index-projections conn tl pk sk))))))
 
 (:wat::core::defn :wat::query::insert-index-projections
-  [conn <- :wat::sqlite::Connection names <- (:wat::core::Vector :wat::core::String)
+  [conn <- :wat::sqlite::Connection names <- (:wat::core::Vector :- [:wat::core::String])
    pk <- :wat::core::String sk <- :wat::core::String data <- :wat::core::String
-   index-keys <- (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)]
+   index-keys <- (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])]
   -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? names)
     (:wat::core::Ok nil)
@@ -185,7 +185,7 @@
         ((:wat::core::Some ik)
           (:wat::core::let
             [sql (:wat::core::format "INSERT INTO [index_{name}] (ipk,isk,pk,sk,data) VALUES (?,?,?,?,?)" :name nm)
-             params (:wat::core::Vector :wat::sqlite::Param
+             params (:wat::core::Vector :- [:wat::sqlite::Param]
                       (:wat::sqlite::Param::Str (:wat::query::IndexKey/ipk ik))
                       (:wat::sqlite::Param::Str (:wat::query::IndexKey/isk ik))
                       (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk) (:wat::sqlite::Param::Str data))]
@@ -195,7 +195,7 @@
               ((:wat::core::Ok _) (:wat::query::insert-index-projections conn tl pk sk data index-keys)))))))))
 
 (:wat::core::defn :wat::query::put-one-row
-  [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :wat::core::String)
+  [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :- [:wat::core::String])
    row <- :wat::query::StoredRow]
   -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::let
@@ -203,7 +203,7 @@
      sk         (:wat::query::StoredRow/sk row)
      data       (:wat::query::StoredRow/data row)
      index-keys (:wat::query::StoredRow/index-keys row)
-     key-params (:wat::core::Vector :wat::sqlite::Param (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk))]
+     key-params (:wat::core::Vector :- [:wat::sqlite::Param] (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk))]
     (:wat::core::match (:wat::sqlite::execute conn "DELETE FROM main WHERE pk=? AND sk=?" key-params)
       
       ((:wat::core::Err e) (:wat::core::Err e))
@@ -214,7 +214,7 @@
           ((:wat::core::Ok _)
             (:wat::core::match
               (:wat::sqlite::execute conn "INSERT INTO main (pk,sk,data) VALUES (?,?,?)"
-                (:wat::core::Vector :wat::sqlite::Param
+                (:wat::core::Vector :- [:wat::sqlite::Param]
                   (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk) (:wat::sqlite::Param::Str data)))
               
               ((:wat::core::Err e) (:wat::core::Err e))
@@ -222,8 +222,8 @@
                 (:wat::query::insert-index-projections conn index-names pk sk data index-keys)))))))))
 
 (:wat::core::defn :wat::query::put-rows
-  [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :wat::core::String)
-   rows <- (:wat::core::Vector :wat::query::StoredRow)]
+  [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :- [:wat::core::String])
+   rows <- (:wat::core::Vector :- [:wat::query::StoredRow])]
   -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? rows)
     (:wat::core::Ok nil)
@@ -243,7 +243,7 @@
 (:wat::service::defservice :wat::query::sqlite-store
   :satisfies :wat::query::Store
   :durable   [path        <- :wat::core::String
-              index-names  <- (:wat::core::Vector :wat::core::String)]
+              index-names  <- (:wat::core::Vector :- [:wat::core::String])]
   :ephemeral [conn <- :wat::sqlite::Connection]
   :init (:wat::core::fn [record <- :wat::query::sqlite-store::Record]
           -> :wat::query::sqlite-store::State
@@ -300,7 +300,7 @@
         cur-param (:wat::core::match cur 
                     (:wat::core::None (:wat::sqlite::Param::Nil))
                     ((:wat::core::Some c) (:wat::sqlite::Param::Str c)))
-        params (:wat::core::Vector :wat::sqlite::Param
+        params (:wat::core::Vector :- [:wat::sqlite::Param]
                  (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str lo) (:wat::sqlite::Param::Str hi)
                  cur-param (:wat::sqlite::Param::I64 lim))
         res (:wat::sqlite::select conn
@@ -326,7 +326,7 @@
         sql (:wat::core::format
               "SELECT ipk, isk, pk, sk, data FROM [index_{name}] WHERE ipk=?1 AND isk>=?2 AND isk<=?3 AND (?4 IS NULL OR isk>?4) ORDER BY isk ASC LIMIT ?5"
               :name name)
-        params (:wat::core::Vector :wat::sqlite::Param
+        params (:wat::core::Vector :- [:wat::sqlite::Param]
                  (:wat::sqlite::Param::Str ipk) (:wat::sqlite::Param::Str lo) (:wat::sqlite::Param::Str hi)
                  cur-param (:wat::sqlite::Param::I64 lim))
         res (:wat::sqlite::select conn sql params)

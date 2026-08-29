@@ -68,9 +68,9 @@
       ;; ONE definition, FOUR container kinds at the call site — the payoff. Expect 2,4 / 2,4 / 2,4 / 2,4
       (:wat::kernel::println
         (:wat::string::join " | "
-          (:wat::core::Vector :wat::core::String
+          (:wat::core::Vector :- [:wat::core::String]
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::Vector :wat::core::i64 1 2 3 4 5))))
+              (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5))))
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::PersistentVector 1 2 3 4 5))))
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
@@ -84,7 +84,7 @@
             ;; the #95 instance is recorded in MEASURED-118.B1a, not silently dropped.
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
-                (:wat::core::Vector :wat::core::i64 1 2 3 4 5))))))))
+                (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5))))))))
       ;; state-carrying, over a List. Expect 0,1,2,3,4
       (:wat::kernel::println
         (:wat::string::join ","

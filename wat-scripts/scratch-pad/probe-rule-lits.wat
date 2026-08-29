@@ -32,7 +32,7 @@
                       then-vec  (:wat::core::Option/expect (:wat::core::get rch 5) "mk-deduce: rule missing :then")
                       rule-lit  `(:wat::rete::make-rule ~name-str (:wat::core::quote ~when-vec) (:wat::core::quote ~then-vec))]
                      (:wat::core::conj acc rule-lit)))
-                 (:wat::core::Vector :wat::WatAST)
+                 (:wat::core::Vector :- [:wat::WatAST])
                  rules-children)
      ;; derived-type-strs: unique type names across every rule's :then fact-forms (arc 278 Stone
      ;; A: bare facts, no more `(:wat::rete::insert (:Type …))` wrapper).
@@ -57,7 +57,7 @@
                            (:wat::core::if (:wat::vec::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                        acc
                        then-forms)))
-                 (:wat::core::Vector :wat::core::String)
+                 (:wat::core::Vector :- [:wat::core::String])
                  rules-children)
      fired-sym  (:wat::core::symbol-node "fired")
      query-lits
@@ -71,14 +71,14 @@
                        `(:wat::rete::make-query ~tstr
                           (:wat::core::quote [])
                           (:wat::core::quote [~cond])))))
-                 (:wat::core::Vector :wat::WatAST)
+                 (:wat::core::Vector :- [:wat::WatAST])
                  derived-type-strs)
      query-calls
                (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) lit <- :wat::WatAST]
                    -> (:wat::core::Vector :- [:wat::WatAST])
                    (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~lit)))
-                 (:wat::core::Vector :wat::WatAST)
+                 (:wat::core::Vector :- [:wat::WatAST])
                  query-lits)]
     `(:wat::core::do
        (:wat::core::defn :usr::rules-template [] -> :wat::rete::Session

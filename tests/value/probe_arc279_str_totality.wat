@@ -41,7 +41,7 @@
 
 ;; A Vector. `show` renders `[1, 2, 3]` (comma-space: Rust Debug); EDN says `[1 2 3]`.
 (:wat::core::defn :t::probe-vector [] -> :wat::core::String
-  (:wat::core::str (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:wat::core::str (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 
 ;; A map. `show` renders `{:a: 1}` — a DOUBLED colon, which is nobody's syntax.
 ;; Key ORDER is deliberately not asserted: maps are unordered, and pinning order
@@ -54,7 +54,7 @@
 ;; the Clojure rule (`str` uses the readable form inside collections) and it is
 ;; the row that proves `str` is not merely "show with the quotes stripped".
 (:wat::core::defn :t::probe-nested-string-stays-quoted [] -> :wat::core::String
-  (:wat::core::str (:wat::core::Vector :wat::core::String "a")))
+  (:wat::core::str (:wat::core::Vector :- [:wat::core::String] "a")))
 
 ;; ── THE ROW THIS PROBE SHOULD HAVE HAD ON DAY ONE ───────────────────────────
 ;; `str` on a RECORD. The original probe sampled a map, a float, a keyword, nil and a

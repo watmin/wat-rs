@@ -49,7 +49,7 @@
         (:wat::core::let [head (:wat::core::first ch)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
             (:wat::fix::str-in? (:wat::core::ast-name head)
-              (:wat::core::Vector :wat::core::String
+              (:wat::core::Vector :- [:wat::core::String]
                 ":wat::test::make-deftest"
                 ":wat::test::make-deftest-hermetic"))
             false))))
@@ -72,9 +72,9 @@
                                  (:wat::core::ast-span node)
                                  (:wat::core::ast-end-span node)
                                  lines src)]
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
         (:wat::core::Tuple off old-text "")))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
 
 ;; scan — collect drop edits across every top-level form (ascending offset).
 (:wat::core::defn :user::scan
@@ -83,7 +83,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     (:wat::core::concat
       (:user::form-edits (:wat::core::first forms) src lines)
       (:user::scan (:wat::core::rest forms) src lines))))

@@ -177,7 +177,7 @@
   -> :wat::core::bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
     (:wat::core::contains?
-      (:wat::core::HashSet :wat::type::Infer "list" "vector" "map" "set") k)))
+      (:wat::core::HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
 ;; walk — assign this node an id, emit its facts, then descend. Pre-order, so `parent` is always
 ;; already numbered when a child is reached.

@@ -11,7 +11,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [tags (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+    [tags (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      m    (:wat::telemetry::Metric
             :namespace     "probe-ns"
             :uuid          (:wat::uuid::nil)

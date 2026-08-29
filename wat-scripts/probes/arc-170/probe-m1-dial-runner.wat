@@ -51,7 +51,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p))
+                [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Setup eab)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 0 "a"))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r1 (:wat::core::ann-form

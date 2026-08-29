@@ -549,12 +549,12 @@
      pos        (:wat::core::foldl
                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: pos index OOB")))
-                  (:wat::core::Vector :wat::WatAST)
+                  (:wat::core::Vector :- [:wat::WatAST])
                   (:wat::core::range 0 n-pos-int))
      tail       (:wat::core::foldl
                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: tail index OOB")))
-                  (:wat::core::Vector :wat::WatAST)
+                  (:wat::core::Vector :- [:wat::WatAST])
                   (:wat::core::range n-pos-int call-args-len))
      tlen       (:wat::core::length tail)
      ;; is-map: tail has exactly 1 element and it is a map literal
@@ -623,7 +623,7 @@
                           (:wat::core::conj iacc vn)
                           iacc)
                         iacc)))
-                  (:wat::core::Vector :wat::WatAST)
+                  (:wat::core::Vector :- [:wat::WatAST])
                   (:wat::core::range 0 nkv))
                 ;; If no key matched → macro-error; otherwise take found[0]
                 v
@@ -635,7 +635,7 @@
                     (:wat::core::get found 0)
                     "kwargs-lower: found[0]"))]
                (:wat::core::conj acc v)))
-           (:wat::core::Vector :wat::WatAST)
+           (:wat::core::Vector :- [:wat::WatAST])
            (:wat::core::range 0 nf))]
         ;; Arc 294 item 9a — aggregate ctor kwargs mode: when kwargs-ty is the sentinel
         ;; `:wat::core::agg-positional`, emit PURE POSITIONAL to the (prime) ctor `(~impl-kw ~@ovals)`
@@ -729,7 +729,7 @@
                     (:wat::core::ast->children
                       (:wat::core::Option/expect (:wat::core::get rest 1)
                         "defn binder: `:-` must be followed by a `[...]` vector"))
-                    (:wat::core::Vector :wat::WatAST))
+                    (:wat::core::Vector :- [:wat::WatAST]))
      ;; STONE-the-dormant-minter — `binder-tp` (the bracketed `<T,U>` STRING mint that
      ;; used to feed `{b}::Kwargs{p}` / `{b}$impl{p}`) is RETIRED, mirroring `proto-tp`'s
      ;; and `fqdn-tp`'s deaths in `wat/service.wat` (commits c6c614fe2, 0811c3009): every
@@ -915,7 +915,7 @@
                            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::conj acc
                                (:wat::core::Option/expect (:wat::core::get params-ch i) "defn kwargs: base-ch index")))
-                           (:wat::core::Vector :wat::WatAST)
+                           (:wat::core::Vector :- [:wat::WatAST])
                            (:wat::core::range 0 (:wat::i64::- params-len 2)))
          arrow-sym       (:wat::core::symbol-node "<-")
          ;; STONE-the-dormant-minter — kw-sym's param type is `kwargs-ty-ann` (the
@@ -978,7 +978,7 @@
                                 (:wat::core::conj
                                   (:wat::core::conj acc binder-sym)
                                   accessor-call)))
-                            (:wat::core::Vector :wat::WatAST)
+                            (:wat::core::Vector :- [:wat::WatAST])
                             (:wat::core::range 0 n-kw-fields))
          ;; Wrap let-binder-items as a WatAST::Vector (kw-argvec is the shape template)
          let-binders-vec (:wat::core::with-children kw-argvec let-binder-items)
@@ -1001,7 +1001,7 @@
                                    (:wat::core::Option/expect
                                      (:wat::core::get kw-ch (:wat::i64::* i 3))
                                      "defn kwargs fname-nodes: index")))
-                               (:wat::core::Vector :wat::WatAST)
+                               (:wat::core::Vector :- [:wat::WatAST])
                                (:wat::core::range 0 n-kw-fields))
          ;; field-names-ast-vec: WatAST Vector node of fname symbol nodes
          ;; (baked into the companion macro via (:wat::core::quote ~field-names-ast-vec))
@@ -1068,7 +1068,7 @@
                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::WatAST]
                                -> (:wat::core::Vector :- [:wat::WatAST])
                                (:wat::core::conj acc x))
-                             (:wat::core::conj (:wat::core::Vector :wat::WatAST) swapped-kw)
+                             (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) swapped-kw)
                              tail)]
                    (:wat::core::with-children node new-ch))
                  swapped-kw)))
@@ -1087,7 +1087,7 @@
                                      (kwargs-type-slot-swap-head child "Peer" "Address")
                                      child)]
                           (:wat::core::conj acc swapped)))
-                      (:wat::core::Vector :wat::WatAST)
+                      (:wat::core::Vector :- [:wat::WatAST])
                       (:wat::core::range 0 kw-len))
          swapped-argvec (:wat::core::with-children kw-argvec swapped-ch)
          ;; ── arc 170 W2 Strike 1a (record redirect): mint <fqdn>::Coords + checker returns it ──
@@ -1155,7 +1155,7 @@
                                          (kwargs-type-slot-swap-head child "wat::kernel::Peer" "wat::capability::TypedCapability")
                                          child)]
                               (:wat::core::conj acc swapped)))
-                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::Vector :- [:wat::WatAST])
                           (:wat::core::range 0 kw-len))
          capswapped-argvec (:wat::core::with-children kw-argvec capswapped-ch)
          ;; ── ::GrantHandles — the impure, is-peer-FILTERED parent-local carrier ──────────────
@@ -1181,7 +1181,7 @@
                                  (:wat::core::if is-peer
                                    (:wat::core::conj (:wat::core::conj (:wat::core::conj acc fname-node) arrow-sym) cap-ty)
                                    acc)))
-                             (:wat::core::Vector :wat::WatAST)
+                             (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::range 0 n-kw-fields))
          grant-handles-field-vec (:wat::core::with-children kw-argvec gh-field-triples)
          grant-handles-def (:wat::core::if mint-coords?
@@ -1216,7 +1216,7 @@
                                                `(:wat::capability::TypedCapability/coord ~fname-node)
                                                fname-node)]
                                  (:wat::core::conj acc arg-form)))
-                             (:wat::core::Vector :wat::WatAST)
+                             (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::range 0 n-kw-fields))
          gh-ctor-args (:wat::core::foldl
                         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -1227,7 +1227,7 @@
                                           "w2d gh-ctor-args: type index")
                              is-peer    (:wat::string::contains? (kwargs-type-slot-name orig-ty) "Peer")]
                             (:wat::core::if is-peer (:wat::core::conj acc fname-node) acc)))
-                        (:wat::core::Vector :wat::WatAST)
+                        (:wat::core::Vector :- [:wat::WatAST])
                         (:wat::core::range 0 n-kw-fields))
          pair-ty-str  (:wat::string::concat "("
                         (:wat::string::concat coords-ty-str
@@ -1260,9 +1260,9 @@
                                          (:wat::string::concat ":"
                                            (:wat::string::concat grant-handles-ty-str
                                              (:wat::string::concat "/" fname-str))))
-                            call-form  `(:wat::capability::TypedCapability/grant (~acc-kw ~gw-handles-sym) (:wat::core::Vector :wat::core::i64 ~gw-pid-sym))]
+                            call-form  `(:wat::capability::TypedCapability/grant (~acc-kw ~gw-handles-sym) (:wat::core::Vector :- [:wat::core::i64] ~gw-pid-sym))]
                            (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
-                       (:wat::core::Vector :wat::WatAST)
+                       (:wat::core::Vector :- [:wat::WatAST])
                        (:wat::core::range 0 n-kw-fields))
          revoke-calls (:wat::core::foldl
                         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -1277,9 +1277,9 @@
                                           (:wat::string::concat ":"
                                             (:wat::string::concat grant-handles-ty-str
                                               (:wat::string::concat "/" fname-str))))
-                             call-form  `(:wat::capability::TypedCapability/revoke (~acc-kw ~gw-handles-sym) (:wat::core::Vector :wat::core::i64 ~gw-pid-sym))]
+                             call-form  `(:wat::capability::TypedCapability/revoke (~acc-kw ~gw-handles-sym) (:wat::core::Vector :- [:wat::core::i64] ~gw-pid-sym))]
                             (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
-                        (:wat::core::Vector :wat::WatAST)
+                        (:wat::core::Vector :- [:wat::WatAST])
                         (:wat::core::range 0 n-kw-fields))
          grant-worker-def (:wat::core::if mint-coords?
                             `(:wat::core::defn ~grant-worker-kw [~gw-handles-sym <- ~grant-handles-kw ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
@@ -1331,7 +1331,7 @@
                                   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)))
                              read-form)]
                (:wat::core::conj acc form)))
-           (:wat::core::Vector :wat::WatAST)
+           (:wat::core::Vector :- [:wat::WatAST])
            (:wat::core::range 0 n-kw-fields))
          assemble-def (:wat::core::if mint-coords?
                         `(:wat::core::defn ~assemble-kw
@@ -1687,7 +1687,7 @@
                                  (:wat::core::get opts (:wat::i64::+ k 1))
                                  "format: kwargs pair value missing")]
                        (:wat::hashmap::assoc m key val)))
-                   (:wat::core::HashMap :wat::core::String :wat::WatAST)
+                   (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                    (:wat::core::range 0 n-pairs))
 
      ;; ── 3. Pass 1 — tokenize chars → segment list ───────────────────
@@ -1702,7 +1702,7 @@
      chars       (:wat::core::foldl
                    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                      (:wat::core::conj acc (:wat::string::subs tmpl-str i (:wat::i64::+ i 1))))
-                   (:wat::core::Vector :wat::core::String)
+                   (:wat::core::Vector :- [:wat::core::String])
                    (:wat::core::range 0 tmpl-len))
 
      ;; Accumulator: Tuple(mode, pending, buf, segments)
@@ -1831,7 +1831,7 @@
                                (:wat::core::Tuple (:wat::string::concat buf c) segs)))))))
                    (:wat::core::Tuple
                      (:wat::core::Tuple "text" "none")
-                     (:wat::core::Tuple "" (:wat::core::Vector :wat::core::Tuple)))
+                     (:wat::core::Tuple "" (:wat::core::Vector :- [:wat::core::Tuple])))
                    chars)
 
      ;; ── Finalization: inspect tok-state, error on bad endings ────────
@@ -1928,8 +1928,8 @@
                               (:wat::core::conj ps2 `(:wat::core::str ~val-ast))
                               (:wat::hashmap::assoc used2 pay true))))))
                     (:wat::core::Tuple
-                      (:wat::core::Vector :wat::WatAST)
-                      (:wat::core::HashMap :wat::core::String :wat::core::bool))
+                      (:wat::core::Vector :- [:wat::WatAST])
+                      (:wat::core::HashMap :- [:wat::core::String :wat::core::bool]))
                     segments)
 
      pieces      (:wat::core::first pass2-result)
@@ -2000,7 +2000,7 @@
                         (:wat::core::Option/expect
                           (:wat::core::get field-ch (:wat::i64::* i 3))
                           "defstruct kwargs companion: fname index")))
-                    (:wat::core::Vector :wat::WatAST)
+                    (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::keyword::to-string fqdn)
@@ -2020,7 +2020,7 @@
                      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "defstruct kwargs companion: ns-part index")))
-                     (:wat::core::Vector :wat::core::String)
+                     (:wat::core::Vector :- [:wat::core::String])
                      (:wat::core::range 0 (:wat::i64::- n-ns-parts 1)))
      ns-joined     (:wat::string::join "::" ns-lead)
      ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))
@@ -2119,7 +2119,7 @@
 (:wat::core::defmacro :wat::core::Fault/of
   [msg <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) :causes (:wat::core::Vector :wat::core::Error)))
+  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) :causes (:wat::core::Vector :- [:wat::core::Error])))
 
 ;; ─── Arc 296: :wat::core::EvalError — moving the source of truth to wat ───
 ;;

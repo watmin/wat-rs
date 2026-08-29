@@ -106,7 +106,7 @@
   [locus <- :wat::spawn::Locus] -> :wat::core::String
   (:wat::core::let
     [h    (:wat-tests::mal-bag/start :locus locus :record (:wat-tests::mal-bag::Record :n 0))
-     good (:wat-tests::MalBag::PutRequest :items (:wat::core::Vector :wat::core::String "abcd"))
+     good (:wat-tests::MalBag::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
      ;; the attacker's frame: correct TAG, wrong-typed BODY
      bad  (:wat::edn::read "#wat-tests.MalBag/PutRequest {:items [1 2 3]}")
      a    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))

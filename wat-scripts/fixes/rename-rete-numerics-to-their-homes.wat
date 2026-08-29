@@ -148,7 +148,7 @@
          start    {:line line     :col col}
          offset   (:wat::fix::fix-text-offset-of start lines)]
         (:wat::core::concat a
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
             (:wat::core::Tuple offset old-text new-text)))))
     acc rows))
 
@@ -165,7 +165,7 @@
      records (:wat::grep::facts-as-records facts)
      fired   (overlay records)
      rows    (:wat::rete::query fired (:rn::q-match))
-     empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+     empty-e (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
      edits   (:rn::edits-of rows lines empty-e)
      ;; ★ SORT DESCENDING BY OFFSET — fix-text-apply splices right-to-left; rete returns query
      ;; results in NETWORK order, not source order (to-faithful-clojure-net.wat:275's comparator).

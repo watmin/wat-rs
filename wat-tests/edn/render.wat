@@ -40,14 +40,14 @@
 (:wat::test::deftest :wat-tests::edn::test-write-vec-i64
   
   (:wat::core::let
-    [v (:wat::core::Vector :wat::core::i64 1 2 3)
+    [v (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      s (:wat::edn::write v)]
     (:wat::test::assert-eq s "[1 2 3]")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-vec-string
   
   (:wat::core::let
-    [v (:wat::core::Vector :wat::core::String "a" "b")
+    [v (:wat::core::Vector :- [:wat::core::String] "a" "b")
      s (:wat::edn::write v)]
     (:wat::test::assert-eq s "[\"a\" \"b\"]")))
 
@@ -65,7 +65,7 @@
 (:wat::test::deftest :wat-tests::edn::test-write-json-vec
   
   (:wat::core::let
-    [v (:wat::core::Vector :wat::core::i64 1 2 3)
+    [v (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      s (:wat::edn::write-json v)]
     (:wat::test::assert-eq s "[1,2,3]")))
 
@@ -84,6 +84,6 @@
 (:wat::test::deftest :wat-tests::edn::test-write-pretty-flat
   
   (:wat::core::let
-    [v (:wat::core::Vector :wat::core::i64 1 2 3)
+    [v (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      s (:wat::edn::write-pretty v)]
     (:wat::test::assert-eq s "[1 2 3]")))

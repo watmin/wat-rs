@@ -16,9 +16,9 @@
   
   (:wat::test::assert-eq
     (:wat::bracket::map (:wat::spawn::thread)
-      (:wat::core::Vector :wat::core::i64 1 2 3 4 5)
+      (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))
-    (:wat::core::Vector :wat::core::i64 2 4 6 8 10)))
+    (:wat::core::Vector :- [:wat::core::i64] 2 4 6 8 10)))
 
 ;; ── map: 50 items, input order preserved despite dynamic balance ─────────────
 (:wat::test::deftest :wat-tests::bracket::map-preserves-order-50
@@ -50,14 +50,14 @@
   
   (:wat::test::assert-eq
     (:wat::bracket::map-worker (:wat::spawn::thread)
-      (:wat::core::Vector :wat::core::i64 1 2 3)
+      (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
       (:wat::core::fn [_wid <- :wat::core::i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))
       nil
       (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
       (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
-      (:wat::core::Vector :wat::core::nil))
-    (:wat::core::Vector :wat::core::i64 2 4 6)))
+      (:wat::core::Vector :- [:wat::core::nil]))
+    (:wat::core::Vector :- [:wat::core::i64] 2 4 6)))
 
 ;; ── each-worker: per-runner side-effect pool, returns nil ─────────────────────
 (:wat::test::deftest :wat-tests::bracket::each-worker-returns-nil
@@ -70,5 +70,5 @@
       nil
       (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
       (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
-      (:wat::core::Vector :wat::core::nil))
+      (:wat::core::Vector :- [:wat::core::nil]))
     nil))

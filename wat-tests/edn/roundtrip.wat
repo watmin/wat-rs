@@ -49,7 +49,7 @@
 
 (:wat::test::deftest :wat-tests::edn::roundtrip-vec
   (:wat::core::let
-    [v (:wat::core::Vector :wat::core::i64 1 2 3)
+    [v (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      s (:wat::edn::write v)
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back v)))

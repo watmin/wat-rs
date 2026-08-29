@@ -57,7 +57,7 @@
 
     (:wat::core::let
       [labels
-        (:wat::core::Vector :wat::holon::HolonAST
+        (:wat::core::Vector :- [:wat::holon::HolonAST]
           (:wat::holon::to-holon "up")
           (:wat::holon::to-holon "down"))
        r (:wat::holon::Reckoner/new-discrete "test-rec" 10000 1 labels)

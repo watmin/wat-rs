@@ -21,12 +21,12 @@
 
 ;; ─── Tags — the dimension map every scope carries (keyword → string). ────────────
 (:wat::core::typealias :wat::telemetry::Tags
-  (:wat::core::HashMap :wat::core::keyword :wat::core::String))
+  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String]))
 
 ;; ─── Samples — a span's duration samples (nanos) under one name. A bare keyword alias so it
 ;; can name a HashMap value type + a `match ->` annotation (compound types can't sit there). ─
 (:wat::core::typealias :wat::telemetry::Samples
-  (:wat::core::Vector :wat::core::i64))
+  (:wat::core::Vector :- [:wat::core::i64]))
 
 ;; ─── Numeric — a metric's value: an i64 count or an f64 gauge (fielded variants). ─
 ;; Variant names are :I64/:F64 (capitalized, per the sqlite Cell/Param exemplar): the
@@ -115,7 +115,7 @@
 (:wat::core::defsurface :wat::telemetry::Journal :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::telemetry::Journal::WriteMetricsRequest
-     [batch <- (:wat::core::Vector :wat::telemetry::Metric)])
+     [batch <- (:wat::core::Vector :- [:wat::telemetry::Metric])])
    (:wat::core::defenum :wat::telemetry::Journal::WriteMetricsResponse :wat::enum::Pure
      :Success        []
      :Constraint     [err <- :wat::query::Constraint]
@@ -125,7 +125,7 @@
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::telemetry::Journal::WriteLogsRequest
-     [batch <- (:wat::core::Vector :wat::telemetry::Log)])
+     [batch <- (:wat::core::Vector :- [:wat::telemetry::Log])])
    (:wat::core::defenum :wat::telemetry::Journal::WriteLogsResponse :wat::enum::Pure
      :Success        []
      :Constraint     [err <- :wat::query::Constraint]
@@ -140,11 +140,11 @@
       time-lo   <- :wat::core::i64
       time-hi   <- :wat::core::i64
       limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :wat::core::String)])
+      cursor    <- (:wat::core::Option :- [:wat::core::String])])
    ;; scan yields Success/Transient/Fatal only (a read can't constraint-fail) — mirror that.
    (:wat::core::defenum :wat::telemetry::Journal::QueryMetricsResponse :wat::enum::Pure
-     :Success   [metrics <- (:wat::core::Vector :wat::telemetry::Metric)
-                 cursor  <- (:wat::core::Option :wat::core::String)]
+     :Success   [metrics <- (:wat::core::Vector :- [:wat::telemetry::Metric])
+                 cursor  <- (:wat::core::Option :- [:wat::core::String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -155,10 +155,10 @@
       time-lo   <- :wat::core::i64
       time-hi   <- :wat::core::i64
       limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :wat::core::String)])
+      cursor    <- (:wat::core::Option :- [:wat::core::String])])
    (:wat::core::defenum :wat::telemetry::Journal::QueryLogsResponse :wat::enum::Pure
-     :Success   [logs   <- (:wat::core::Vector :wat::telemetry::Log)
-                 cursor <- (:wat::core::Option :wat::core::String)]
+     :Success   [logs   <- (:wat::core::Vector :- [:wat::telemetry::Log])
+                 cursor <- (:wat::core::Option :- [:wat::core::String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -174,11 +174,11 @@
       time-lo   <- :wat::core::i64
       time-hi   <- :wat::core::i64
       limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :wat::core::String)
+      cursor    <- (:wat::core::Option :- [:wat::core::String])
       sieve     <- :wat::query::Sieve])
    (:wat::core::defenum :wat::telemetry::Journal::SiftLogsResponse :wat::enum::Pure
-     :Success   [logs   <- (:wat::core::Vector :wat::telemetry::Log)
-                 cursor <- (:wat::core::Option :wat::core::String)]
+     :Success   [logs   <- (:wat::core::Vector :- [:wat::telemetry::Log])
+                 cursor <- (:wat::core::Option :- [:wat::core::String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -189,11 +189,11 @@
       time-lo   <- :wat::core::i64
       time-hi   <- :wat::core::i64
       limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :wat::core::String)
+      cursor    <- (:wat::core::Option :- [:wat::core::String])
       sieve     <- :wat::query::Sieve])
    (:wat::core::defenum :wat::telemetry::Journal::SiftMetricsResponse :wat::enum::Pure
-     :Success   [metrics <- (:wat::core::Vector :wat::telemetry::Metric)
-                 cursor  <- (:wat::core::Option :wat::core::String)]
+     :Success   [metrics <- (:wat::core::Vector :- [:wat::telemetry::Metric])
+                 cursor  <- (:wat::core::Option :- [:wat::core::String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]

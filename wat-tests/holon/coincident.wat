@@ -54,7 +54,7 @@
   (:wat::core::let
     [bundled
       (:wat::holon::Bundle
-        (:wat::core::Vector :wat::holon::HolonAST
+        (:wat::core::Vector :- [:wat::holon::HolonAST]
           (:wat::holon::to-holon "a")
           (:wat::holon::to-holon "b")
           (:wat::holon::to-holon "c")))

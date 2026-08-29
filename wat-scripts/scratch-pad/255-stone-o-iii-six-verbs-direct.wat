@@ -9,7 +9,7 @@
 ;;
 ;; Run against the pre-migration tree and the post-migration tree; diff the two transcripts.
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :wat::core::Value :wat::core::EvalError)]
+(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::core::Ok v)  (:wat::string::concat "ok:" (:wat::edn::write v)))

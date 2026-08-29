@@ -117,9 +117,9 @@
      l3          (:wr::L3 :l4 l4 :w w3)
      l2          (:wr::L2 :l3 l3 :u u2)
      tags        (:wat::core::into (:wat::core::PersistentVector)
-                   (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 tagslen)))
+                   (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 tagslen)))
      bagitems    (:wat::core::into (:wat::core::PersistentVector)
-                   (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 bagitemslen)))
+                   (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 bagitemslen)))
      bag         (:wr::Bag :items bagitems :label (:wat::string::concat "b" (:wat::i64::to-string i)))]
     (:wr::Client :l2 l2 :rep rep :tags tags :bag bag)))
 
@@ -340,7 +340,7 @@
 (:wat::core::defn :wr::derived-ints
   [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
       (:wat::core::map
         (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wr::Hit/k f)))
         (:wat::rete::query fired (:wr::q-Hit))))))

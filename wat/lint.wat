@@ -64,7 +64,7 @@
   [node <- :wat::WatAST]
   -> :wat::core::bool
   (:wat::core::let [k     (:wat::core::ast-kind node)
-                    kinds (:wat::core::HashSet :wat::core::String
+                    kinds (:wat::core::HashSet :- [:wat::core::String]
                              "list" "vector" "map" "set")]
     (:wat::core::contains? kinds k)))
 
@@ -179,7 +179,7 @@
   (:wat::core::if (:wat::lint::if-head? form)
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::i64::< (:wat::core::length ch) 4)
-        (:wat::core::Vector :wat::core::String)
+        (:wat::core::Vector :- [:wat::core::String])
         (:wat::core::let [cond (:wat::core::nth ch 1)
                           then (:wat::core::nth ch 2)
                           else-node (:wat::core::nth ch 3)]
@@ -187,7 +187,7 @@
           (:wat::core::let [this-var (:wat::lint::eq-sym-name cond)]
             (:wat::core::if (:wat::core::= this-var "")
               ;; cond is not (= SYM LIT) — chain broken
-              (:wat::core::Vector :wat::core::String)
+              (:wat::core::Vector :- [:wat::core::String])
               ;; var must match (or be the first step)
               (:wat::core::if (:wat::core::if (:wat::core::= var-name "")
                                  true
@@ -198,23 +198,23 @@
                     ;; collect this LIT; check the else branch
                     (:wat::core::if (:wat::lint::bool-false? else-node)
                       ;; chain ends with false — a proper terminator
-                      (:wat::core::Vector :wat::core::String lit)
+                      (:wat::core::Vector :- [:wat::core::String] lit)
                       ;; else is another node — try to recurse
                       (:wat::core::let [rest-lits (:wat::lint::collect-ladder-lits else-node this-var)]
                         (:wat::core::if (:wat::core::empty? rest-lits)
                           ;; recursion found no more ladder steps but else isn't false —
                           ;; if else is a non-false non-ladder, the chain breaks
-                          (:wat::core::Vector :wat::core::String)
+                          (:wat::core::Vector :- [:wat::core::String])
                           ;; prepend this LIT
                           (:wat::core::concat
-                            (:wat::core::Vector :wat::core::String lit)
+                            (:wat::core::Vector :- [:wat::core::String] lit)
                             rest-lits)))))
                   ;; then is not `true` — chain broken
-                  (:wat::core::Vector :wat::core::String))
+                  (:wat::core::Vector :- [:wat::core::String]))
                 ;; var mismatch — chain broken
-                (:wat::core::Vector :wat::core::String)))))))
+                (:wat::core::Vector :- [:wat::core::String])))))))
     ;; not an if form — no lits
-    (:wat::core::Vector :wat::core::String)))
+    (:wat::core::Vector :- [:wat::core::String])))
 
 ;; ladder-var-name — get the VAR name from a chain (the symbol in child[1] of cond).
 (:wat::core::defn :wat::lint::ladder-var-name
@@ -280,7 +280,7 @@
   (:wat::core::let [lits (:wat::lint::collect-ladder-lits form "")]
     (:wat::core::if (:wat::i64::>= (:wat::core::length lits) 3)
       ;; This form IS a ladder — report it (don't recurse into it)
-      (:wat::core::Vector :wat::lint::Finding
+      (:wat::core::Vector :- [:wat::lint::Finding]
         (:wat::lint::make-ladder-finding form file
           (:wat::lint::ladder-var-name form) lits))
       ;; Not a top-level ladder — recurse into children (if structural)
@@ -291,9 +291,9 @@
             -> (:wat::core::Vector :- [:wat::lint::Finding])
             (:wat::core::concat acc
               (:wat::lint::rule-nested-if-=-ladder-form child file)))
-          (:wat::core::Vector :wat::lint::Finding)
+          (:wat::core::Vector :- [:wat::lint::Finding])
           (:wat::core::ast->children form))
-        (:wat::core::Vector :wat::lint::Finding)))))
+        (:wat::core::Vector :- [:wat::lint::Finding])))))
 
 ;; ─── concat-abuse detection ──────────────────────────────────────────
 ;;
@@ -444,7 +444,7 @@
                                      (:wat::core::if (:wat::core::contains? names nm)
                                        names
                                        (:wat::core::conj names nm)))))))
-                           (:wat::core::Tuple "" (:wat::core::Vector :wat::core::String))
+                           (:wat::core::Tuple "" (:wat::core::Vector :- [:wat::core::String]))
                            args)
                         template   (:wat::core::first build-result)
                         kwarg-names (:wat::core::second build-result)
@@ -537,7 +537,7 @@
     (:wat::core::let [counts (:wat::lint::concat-arg-counts form)
                       n-lits (:wat::core::first counts)
                       n-vals (:wat::core::second counts)]
-      (:wat::core::Vector :wat::lint::Finding
+      (:wat::core::Vector :- [:wat::lint::Finding]
         (:wat::lint::make-concat-finding form file n-lits n-vals in-defmacro?)))
     ;; Not a concat-abuse — recurse into children (if structural)
     ;; child's in-defmacro? = current in-defmacro? OR (is this form a defmacro?)
@@ -549,9 +549,9 @@
             -> (:wat::core::Vector :- [:wat::lint::Finding])
             (:wat::core::concat acc
               (:wat::lint::rule-concat-abuse-form child file child-in-defmacro?)))
-          (:wat::core::Vector :wat::lint::Finding)
+          (:wat::core::Vector :- [:wat::lint::Finding])
           (:wat::core::ast->children form)))
-      (:wat::core::Vector :wat::lint::Finding))))
+      (:wat::core::Vector :- [:wat::lint::Finding]))))
 
 ;; ─── lint-source: run all rules over a (Vector :- [SourceFile]) ────────────
 
@@ -571,7 +571,7 @@
           (:wat::core::concat
             (:wat::lint::rule-nested-if-=-ladder-form form path)
             (:wat::lint::rule-concat-abuse-form form path false))))
-      (:wat::core::Vector :wat::lint::Finding)
+      (:wat::core::Vector :- [:wat::lint::Finding])
       forms)))
 
 ;; lint-source — run form-level rules over every file in (Vector :- [SourceFile]).
@@ -584,7 +584,7 @@
                      sf  <- :wat::source::File]
       -> (:wat::core::Vector :- [:wat::lint::Finding])
       (:wat::core::concat acc (:wat::lint::lint-file sf)))
-    (:wat::core::Vector :wat::lint::Finding)
+    (:wat::core::Vector :- [:wat::lint::Finding])
     files))
 
 ;; ─── rule-zero: deporder load-order as Findings ──────────────────────
@@ -623,9 +623,9 @@
                      v   <- :wat::deporder::Violation]
       -> (:wat::core::Vector :- [:wat::lint::Finding])
       (:wat::core::concat acc
-        (:wat::core::Vector :wat::lint::Finding
+        (:wat::core::Vector :- [:wat::lint::Finding]
           (:wat::lint::violation->finding v))))
-    (:wat::core::Vector :wat::lint::Finding)
+    (:wat::core::Vector :- [:wat::lint::Finding])
     viols))
 
 ;; ─── lint-stdlib: the surface ─────────────────────────────────────────
@@ -670,19 +670,19 @@
                               (:wat::core::match (:wat::lint::Finding/fix f)  
                                 (:wat::core::None acc)
                                 ((:wat::core::Some fe)
-                                 (:wat::core::let [start-map (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+                                 (:wat::core::let [start-map (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]
                                                                :line (:wat::lint::FixEdit/start-line fe)
                                                                :col  (:wat::lint::FixEdit/start-col fe))
-                                                   end-map   (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+                                                   end-map   (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]
                                                                :line (:wat::lint::FixEdit/end-line fe)
                                                                :col  (:wat::lint::FixEdit/end-col fe))
                                                    off       (:wat::fix::fix-text-offset-of start-map lines)
                                                    old-text  (:wat::fix::fix-text-span-text start-map end-map lines src)
                                                    new-text  (:wat::lint::FixEdit/new-text fe)]
                                    (:wat::core::concat acc
-                                     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+                                     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
                                        (:wat::core::Tuple off old-text new-text)))))))
-                            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+                            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                             findings)
                     rev-edits (:wat::core::reverse edits)]
     (:wat::fix::fix-text-apply src rev-edits)))

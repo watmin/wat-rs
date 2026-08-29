@@ -118,7 +118,7 @@
 ;; THE ACCURACY WITNESS. Sorted distinct ?loc from the leading-:exists query.
 ;; Under the defect this vector was `rounds` times too long — length fails first.
 (:wat::core::defn :lx::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [locs (:wat::core::into (:wat::core::Vector :wat::core::i64)
+  (:wat::core::let [locs (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
                            (:wat::core::map
                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
                                (:wat::core::Option/expect (:wat::map::get p "?loc") "query: ?loc"))

@@ -180,15 +180,15 @@
     [serve-forms (:wat::kernel::fn-forms :probe::ffx::serve :user::root-serve)
      init-forms  (:wat::core::if with-init?
                    (:wat::kernel::fn-forms :probe::ffx::init :user::root-init)
-                   (:wat::core::Vector :wat::WatAST))
+                   (:wat::core::Vector :- [:wat::WatAST]))
      joined      (:wat::core::concat serve-forms init-forms)]
     (:wat::core::conj joined (:user::child-main-form))))
 
 (:wat::core::defn :user::union-forms [with-init? <- :wat::core::bool]
   -> (:wat::core::Vector :- [:wat::WatAST])
   (:user::dedup-forms (:user::raw-union with-init?) 0
-    (:wat::core::Vector :wat::core::String)
-    (:wat::core::Vector :wat::WatAST)))
+    (:wat::core::Vector :- [:wat::core::String])
+    (:wat::core::Vector :- [:wat::WatAST])))
 
 ;; THE SETTLING MEASUREMENT — every `:probe::ffx::Record` form, pre-dedup then post-dedup.
 (:wat::core::defn :user::settle-record-ctor [] -> :wat::core::nil
@@ -218,7 +218,7 @@
      ;; What did the union actually DECLARE? The child's "unresolved reference" names a
      ;; symbol; this names what was shipped. Without both, the gap is a guess.
      _dl   (:wat::kernel::println (:wat::string::concat label " declares:"))
-     _d    (:wat::kernel::println (:user::decl-names forms 0 (:wat::core::Vector :wat::core::String)))
+     _d    (:wat::kernel::println (:user::decl-names forms 0 (:wat::core::Vector :- [:wat::core::String])))
      p     (:wat::test::spawn-peer (:wat::spawn::process) forms)]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
