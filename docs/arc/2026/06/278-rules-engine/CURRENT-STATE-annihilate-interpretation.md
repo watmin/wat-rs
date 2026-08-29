@@ -5,108 +5,49 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `142f24b05`; the commit carrying this stamp
-lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
-touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
-That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
+**CURRENT STAMP 2026-08-29 — supersedes every dated block below it. Written against HEAD
+`8c10ee490`; the commit carrying this stamp lands on top, so a ONE-COMMIT gap at your wake is
+expected. That commit touches `docs/` only — a gap containing `src/` or `tests/` IS staleness,
+whatever its size.**
 
-**TWO TERMINATION-DIAGNOSTIC DEFECTS ARE FIXED AND GATED** (`85c87314d`). The message no longer
-claims "the fixpoint can never converge" (false for a guarded counter, which converges at k=500)
-and a fn-headed `:then` no longer names the FUNCTION as the offending fact type. Both mutation-
-proven. The class finally has a home that can go RED —
-`tests/rete/probe_arc278_termination_guarded_counter.wat` — instead of prose in a fixture header.
-Also struck: `stratify.rs`'s doctrine block CONTRADICTED `rete_fn_body_mints` twenty lines below
-it, and two of its three evidence rows were false. **The lesson worth carrying: a refusal is
-evidence about the door you knocked on, not about the room behind it** — three probes failing for
-an unrelated reason read as safety for a full day.
+**⛔⛔ THE TERMINATION VERIFIER WAS THE DAY'S WORK, AND THE FRAMING IT INHERITED WAS WRONG TWICE.**
+Item 8. Read the item before touching any of it; the short version:
 
-**⛔ SIX-FOR-SIX: every inherited row audited in this arc has been stale.** Item 2 (`reduce`'s
-2-arity totality) was closed by `97eac5a38` the day BEFORE the row claiming it open was written —
-gated, with two fixtures. Check every unstruck row against the tree before working it.
+- **Its blind spot is the TYPE, not the `where` fence.** Both this file and the inbound report said
+  "the cyclicity test does not read the fence". Too narrow: a fact domain of **TWO** (`bool`), with
+  no fence at all, was refused. Range restriction is SYNTACTIC; finiteness is a TYPE property.
+- **So a finite-typed computed head is now ADMITTED** (`bool`, unit `defenum`) and converges. The
+  `i64` axis is untouched and the gate pins that as its second half — that axis is where the danger
+  measured.
+- **`bpf_loop` was MY paraphrase, not prior art.** We shipped a rete engine on eBPF
+  (`holon-lab-ddos/veth-lab/filter-ebpf`) and it declares NO bound: fixed-size state, a
+  HOST-enforced step ceiling, no loop, branches hoisted out. And its rete has **no fixpoint at
+  all**. Prior art for bounded TRAVERSAL, not bounded DERIVATION.
+- **It is an ALLOCATION problem, not an instruction-count one.** We copied eBPF's STEP ceiling
+  (`max_fire_rounds`) and not its STATE ceiling (`with_max_entries`). Measured: linear divergence
+  hits the round cap in 0.35s; **fanout divergence OOMs in 6.2s and the cap never fires**, because
+  it counts ROUNDS and a fanout diverges WITHIN one.
+- **✅ So there is now a PER-SESSION MEMORY CEILING** — `(:wat::config::rete::set-max-session-bytes! n)`,
+  1 GiB default, checked BEFORE the round cap, raised as `SessionMemoryCeilingExceeded`. Backed by
+  a counting global allocator (`src/alloc_counter.rs`) that is **THREAD-LOCAL ONLY**.
 
-**A BUG REPORT CAME IN AFTER THE CURARE AND IS ANSWERED** —
-`~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`, from claude-compute
-on the main x grok-rete integration branch. Weighed against THIS tree rather than taken on report:
-every citation re-checked, and the claim DRIVEN — `N(k+1) :- N(k), (where (< ?k 500))` is refused
-and does terminate. The refusal is correct by the verifier's own claim; what was missing was a
-HOME for the class, and it now has one in `stratify.rs`'s "WHAT IT CANNOT SEE" block plus
-`RETE-OPEN-WORK` item 9. ⛔ Two escape hatches were already refused by builder ruling — do not
-propose a third. Driving it also turned up TWO diagnostic defects, recorded in item 9 and NOT
-fixed: the message claims "the fixpoint can never converge" (false for the guarded counter), and
-with a fn-headed `:then` it names the FUNCTION as the offending fact type (detection is right;
-only `computed` carries the raw head).
+**★ THE BUILDER CAUGHT TWO DESIGN ERRORS BEFORE THEY SHIPPED, AND BOTH ARE THE SAME SHAPE — a
+number chosen by symmetry instead of measurement.**
+- *"why is 10k our preferred limit?"* — `MAX_PROVABLE_FACT_POPULATION` was set to match
+  `DEFAULT_MAX_FIRE_ROUNDS`. A round cap bounds WORK, that bounds STATE. And 10_000 was **below**
+  the grid's own `fanout` at 40_000, which CI runs on every push. Re-derived from measured
+  ~600 B/fact to 1_000_000.
+- *"if i had 512 threads… each with their own session… there's no conflict?"* — the counter was
+  process-global, so a per-session check on it would **refuse the innocent and answer
+  non-deterministically**. Caught before a line was wired.
 
-**THE INLINE CONSTRAINT POSITION IS CLOSED. Every generable row fires in BOTH positions.**
-The column went **16 → 68 → 71 → 75 of 79** across one day; the last four are the holon rows, driven
-by hand and NOT yet reflected in the ledger. Four commits: `1a97cf12b` `4c19b9029` `ad2286133`
-`b7f54a17f`. Floor 5147/5147. Clara 38 pairs / 315 rows.
-
-**✅ `coincident?` INLINE IS FIXED — THE FIFTH INSTANCE OF THE PATTERN IS CLOSED.** `ret` is now
-`Ret::Is(ParamType) | Ret::NoScheme` (`vocabulary.rs`), so a row that has no return type to state
-CANNOT SPELL ONE, and `Ret::Is(Bool)` is a fact from any class. 79 rows migrated (57 `Is`, 5
-`Is(Bool)`, 17 `NoScheme`); **the compiler then named SEVEN readers, not the three I predicted** —
-four reach `ret` through a shared helper and were invisible to grep, which is itself the argument
-for the type over the convention. `clause.rs` and `validate.rs` lost their `class` test entirely;
-`check.rs` KEEPS its, and that is correct — it builds a whole rank-1 scheme, so it guards on
-PARAMS. Two gates, both mutation-proven, including the soundness twin that keeps `Tuple/first`
-refused (mutate it and the failure prints `Got: Ok(0)` — the F-class signature). Floor 5150/5150.
-
-⚠ **`params: &[]` STILL HOLDS THE SAME TWO FACTS — an affirmative cut, not an oversight.** No rete
-row takes zero operands, so it is unambiguous today; `Ret`'s doc carries the notice for whoever
-mints a zero-arity row.
-
-**⏸ ITEM 7 IS PARKED BY BUILDER RULING, AND THE SIMILARITY TOOLING — THE ACTUAL GOAL — IS
-DELIVERED.** *"the similarity tooling is supported which I wanted."* A rule can compare holons
-(`cosine`/`dot`/`coincident?`/`presence?`, all four generated and firing in both positions), hold a
-holonic record as a fact, and compare a field against a `#holon` literal.
-
-**⛔ THE 10 SHAPE PREDICATES ARE PARKED, NOT MISSING — I MINTED ALL TEN ROWS AND REVERTED THEM.**
-Three driven reasons, in `RETE-OPEN-WORK` item 7:
-- Arc `226-type-predicates-vsa-similarity` says *"Type checking emerges from VSA similarity …
-  **Continuous answer**"*. What shipped is a STRING COMPARE. Its own SCORE calls it v1 and defers
-  the real thing to stones **226.2/226.3 that were never written**; the arc has **no INSCRIPTION**.
-- The VSA route works TODAY: `cosine(Bind/left(h), Atom("Map"))` → **1.0 vs 0.0013**. So ten rows
-  hard-coding one string each collapse into ONE accessor (`Bind/left`) plus rows rete already has.
-- **The classifier they read is BROKEN at the `#holon` door** — `Bind(String("Map"), …)` where the
-  reader needs `Bind(Atom(String("Map")), …)`, which the code's own comment specifies. `is-Map?`
-  false, `from-holon` RAISES, and `#holon [1 2 3]` does NOT coincide with `to-holon [1 2 3]`.
-  **One datum, two holons, path-dependent.**
-
-⛔ **That last one is CORE, reported OUT, and DEFERRED by builder ruling** — *"we should just defer
-this until we get back into actually using holon."*
-`~/work/NOTE-holon-classifier-contract-is-unenforced-and-the-holon-tag-breaks-it.md`. Changing it
-moves every existing `#holon` value's identity. **Do not unpark step 3 before it is ruled.**
-
-★ **THE DOCTRINE THE BUILDER STATED, and it is the key to the whole area:** *"bundle implements map,
-vector, list, set — a type needs to wrap it to declare which kind of bundle this is… the point is
-that it's a fully typed hyper vector."* So a bare `Bundle` is not an untyped vector, it is an
-untyped NOTHING. **And the typing is partial at the leaves too** — `symbol`/`keyword`/`tag` are
-classified; `i64`/`String`/`bool` are bare variants. That is why there is no `is-Int?`/`is-String?`/
-`is-Bool?`: **the predicate family's membership is a consequence of which parts of the encoding
-happen to be typed, not a decision anyone made.**
-
-★ **AND THE BUILDER'S CHALLENGE IS WHAT FOUND ALL OF IT.** I had the ten rows written and building.
-The question *"are these is-*? words worth keeping?… doing this via non-VSA paths feels wrong"* sent
-me to the arc, where the mission was VSA similarity and the shipped code was `==`. **A row that
-builds green is not a row that should exist.**
-
-**✅ THE LEDGER NO LONGER LIES — `NOT_YET_GENERABLE` IS EMPTY AND ALL FOUR HOLON ROWS FIRE, 79/79,
-GENERATED BY THE INSTRUMENT.** Its exclusion said *"a holon has no literal spelling"*. **False.**
-`#holon [1 2 3]` / `#holon {:a 1}` is the literal — a holon holds the same data EDN does, so it
-spells the same way. Builder: *"wut… holon is just another holder for data like edn is."*
-
-What the exclusion had measured was a MISSING LOWERING ARM — the reader desugars `#holon X` to
-`(:wat::holon::literal X)`, which fell through to *"cannot lower head `:wat::holon::literal`"*, and
-someone read that refusal as a property of holons. **A refusal is evidence about the door you
-knocked on, not the room behind it** — the SECOND time that exact lesson landed in one day, in two
-unrelated files. The fix is a CONSTANT FOLD in `expr_ir` (nothing to dispatch; the form is data
-fixed by the source text), not a `RETE_OPS` row.
-
-⛔ **AND I HAD DESIGNED AN EXTENSION TO THE INSTRUMENT TO WORK AROUND IT.** The plan was to give
-`Cell` an optional SECOND field, because one field cannot discriminate `coincident?(h,h)`. Correct
-reasoning, wrong problem: with a literal rhs the holon rows need exactly what every scalar row
-needs. **When a measurement says a tool needs widening, check the substrate first.**
+**⛔ AND I QUOTED A PERFORMANCE NUMBER THAT WAS NOT A MEASUREMENT.** "~5–8% on fire" was
+three-sample deltas against a reference from another day at another HEAD; the cell spread was
+−1.3% to +18.1%, several times the effect. Builder: *"we've been at the physics boundary for
+awhile… i think its all just noise here."* **`[[six-samples-or-no-number]]` is a memory I wrote and
+then broke.** The allocator's cost is NOT RESOLVABLE by the grid; removing the global atomics is
+justified STRUCTURALLY (512 threads on one cache line), and the grid is single-threaded so it
+cannot see contention at all.
 
 **✅ ITEM 6 CLOSED 2026-08-29 — the grid's SPEED half runs, as its own `grid-speed` CI job.** Both
 stated reasons for its absence were dead, and **the second had never been measured**: "a shared
