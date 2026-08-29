@@ -6278,19 +6278,11 @@ fn dispatch_keyword_head_value(
         // but not illegal).
         ":wat::core::use!" => Ok(Value::Unit),
 
-        // Config accessors — read committed config fields at runtime.
-        // Arc 037 slice 6: :wat::config::dims and :wat::config::noise-floor
-        // became compatibility shims that return the smallest-tier
-        // default values (DEFAULT_TIERS[0]). Under multi-d these
-        // single-value accessors are semantically stale; callers that
-        // need honest per-AST measurement should use presence? /
-        // coincident? / (statement-length ast) primitives instead.
-        // Shimmed here so existing lab code compiles; deprecation
-        // arc will sweep callers later.
-        ":wat::config::dim-count" => eval_config_dim_count(args, sym, list_span),
-        ":wat::config::dim-capacity" => eval_config_dim_capacity(args, sym, list_span),
-        ":wat::config::global-seed" => eval_config_global_seed(args, sym, list_span),
-        ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym, list_span),
+        // Config accessors (:wat::config::dim-count/dim-capacity/global-seed/noise-floor) —
+        // arc 255 Stone P6-c-W1 moved their dispatch arms into `#[wat_intrinsic]` handlers
+        // (`src/intrinsic/config.rs`); the pre-match registry check above (arc 255.1c-guard)
+        // intercepts all four names before reaching here, same shape as `:wat::math::*` a
+        // few dozen lines down.
 
         // Stdlib math (:wat::math::ln/exp/sqrt/sin/cos/pi) and stat
         // (:wat::stat::mean/variance/stddev) — arc 255 Stone HOME-9 moved these off the dead
@@ -20150,86 +20142,13 @@ pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span)
     Ok(ctx.dim_count)
 }
 
-fn check_nullary(op: &'static str, args: &[WatAST], list_span: &Span) -> Result<(), EvalBreak> {
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    Ok(())
-}
-
-/// `(:wat::config::dim-count)` -> `:i64`. The program's encoding dim,
-/// set once at startup via `(:wat::config::set-dim-count! n)`;
-/// defaults to [`crate::config::DEFAULT_DIMS`] (10000) when no
-/// encoding ctx is attached (test harnesses bypassing the freeze
-/// pipeline).
-fn eval_config_dim_count(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::dim-count", args, list_span)?;
-    match sym.encoding_ctx() {
-        Some(ctx) => Ok(Value::i64(ctx.dim_count as i64)),
-        None => Ok(Value::i64(crate::config::DEFAULT_DIM_COUNT as i64)),
-    }
-}
-
-/// `(:wat::config::dim-capacity)` -> `:i64`. Hologram-slot count for
-/// this program: `floor(sqrt(dim-count))`. Cached at freeze; reads
-/// from `EncodingCtx`. Falls back to the default-derived value when
-/// no encoding ctx is attached.
-fn eval_config_dim_capacity(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::dim-capacity", args, list_span)?;
-    match sym.encoding_ctx() {
-        Some(ctx) => Ok(Value::i64(ctx.capacity as i64)),
-        None => {
-            let d = crate::config::DEFAULT_DIM_COUNT;
-            // Arc 294.c.2a — the ONE capacity formula (no recompute).
-            let cap = crate::holon::hologram::kanerva_capacity(d);
-            Ok(Value::i64(cap as i64))
-        }
-    }
-}
-
-/// `(:wat::config::noise-floor)` — `1/sqrt(dim-count)` at the
-/// program's d. Held for legacy callers; per-d noise-floor is also
-/// computed internally by presence? / coincident? against the same
-/// program-d.
-fn eval_config_noise_floor_default_shim(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::noise-floor", args, list_span)?;
-    let d = match sym.encoding_ctx() {
-        Some(ctx) => ctx.dim_count,
-        None => crate::config::DEFAULT_DIM_COUNT,
-    };
-    Ok(Value::f64(1.0 / (d as f64).sqrt()))
-}
-
-/// `(:wat::config::global-seed)` — committed atom-seeding seed as `:i64`.
-fn eval_config_global_seed(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::global-seed", args, list_span)?;
-    let ctx = require_encoding_ctx(":wat::config::global-seed", sym, list_span)?;
-    Ok(Value::i64(ctx.config.global_seed as i64))
-}
+// `check_nullary` and the four `eval_config_*` handlers that used to live here
+// (`:wat::config::dim-count`/`dim-capacity`/`global-seed`/`noise-floor`) moved to
+// `src/intrinsic/config.rs` — arc 255 Stone P6-c-W1, the P6-c campaign's first wave.
+// All four were declaring a variadic `&[WatAST]` they used only to reject (a
+// hand-rolled `check_nullary` arity guard); homing them meant DELETING that
+// fiction and declaring the real arity (0) so `#[wat_intrinsic]`'s generated shim
+// owns the check and `metadata-of` reports the true arity instead of a lie.
 
 /// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a
 /// `(:wat::kernel::listener host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.

@@ -710,6 +710,58 @@ DESTINATION_LEDGER = {
     ),
 }
 
+# arc 255 Stone P6-c-W1 — the campaign's first wave, and the first four rulings this ledger ever
+# ADDED (as opposed to carried forward from P6-c-0/the NOTE), then the first four to be HOMED
+# (registered + arm deleted) in the SAME stone that ruled them. Ruled `INTRINSIC` first —
+# confirmed SHAPE=INTRINSIC-READY, checker-known (`check.rs:18604-18639`, `params: vec![]` for
+# all four — so homing added no `FROZEN_CHECKER_DEBT_LEDGER` debt), absent from
+# `KNOWN_UNREVIEWED` (`src/rete/purity.rs`), single-dispatch-site (the only other grep hits per
+# FQDN were the handler's own `check_nullary` call, one `require_encoding_ctx` call (global-seed
+# only), a `resolve/mod.rs` `is_reserved_prefix` test assertion (dim-count only), and the
+# TypeScheme registration itself) — then homed to `src/intrinsic/config.rs`, arm deleted
+# (`runtime.rs:6290-6293` retired to a comment, per the NOTE's "retiring an arm means registering
+# the verb and deleting the arm").
+#
+# ★ THEY ARE DELIBERATELY NOT LEFT AS `DESTINATION_LEDGER` ROWS. `check_ledger_freshness` (below)
+# FATALs the instant a ledgered FQDN stops matching a literal pattern in the giant match — by
+# design, to catch silent DRIFT. But an arm that is GONE because it was successfully, intentionally
+# homed is not drift; it is the ledger's row completing its purpose. Every OTHER already-homed
+# family (`:wat::math::*`, `:wat::stat::*`, the seven `:wat::kernel::` ambient verbs, …) was never
+# entered here at all, for the identical reason: `DESTINATION_LEDGER`'s population is implicitly
+# "verbs still dispatched from the giant match", not "every verb this campaign has ever ruled on".
+# These four are simply the FIRST case where a rule-then-home round-trip happened inside one wave
+# instead of across two — carrying their rows forward once the arm is gone would only ever trip
+# this stale-name FATAL for a reason that is not a defect. The four rulings themselves (frozen
+# here for citation, since the ledger dict above can no longer anchor them once their arm is
+# gone; superseding code: `src/intrinsic/config.rs`):
+#
+#   :wat::config::dim-count — INTRINSIC. Nullary read of committed startup config:
+#     `sym.encoding_ctx()` -> `ctx.dim_count`, falling back to `crate::config::DEFAULT_DIM_COUNT`
+#     when no ctx is attached. No side effect, no multi-site implementation, no special-form
+#     semantics. Confirmed at (pre-image) src/runtime.rs:20167-20182 (`eval_config_dim_count`'s
+#     own doc: "Config accessors — read committed config fields at runtime"; body is
+#     arity-check -> match -> return, nothing else); single dispatch site was runtime.rs:6290;
+#     TypeScheme at src/check.rs:18604-18612 (`params: vec![]`, `ret: i64_ty()` — checker already
+#     agreed arity is 0).
+#   :wat::config::dim-capacity — INTRINSIC. Nullary read of committed startup config:
+#     `sym.encoding_ctx()` -> `ctx.capacity`, falling back to `kanerva_capacity(DEFAULT_DIM_COUNT)`
+#     when no ctx is attached. No side effect. Confirmed at (pre-image) src/runtime.rs:20183-20200
+#     (`eval_config_dim_capacity`'s own doc: "Hologram-slot count for this program... Cached at
+#     freeze; reads from `EncodingCtx`"); single dispatch site was runtime.rs:6291; TypeScheme at
+#     src/check.rs:18613-18621 (`params: vec![]`, `ret: i64_ty()`).
+#   :wat::config::global-seed — INTRINSIC. Nullary read of the committed atom-seeding seed:
+#     `require_encoding_ctx` -> `ctx.config.global_seed`. No side effect (a required-ctx read,
+#     not a mutation). Confirmed at (pre-image) src/runtime.rs:20223-20231
+#     (`eval_config_global_seed`'s own doc: "committed atom-seeding seed as `:i64`"); single
+#     dispatch site was runtime.rs:6292; TypeScheme at src/check.rs:18622-18630 (`params: vec![]`,
+#     `ret: i64_ty()`).
+#   :wat::config::noise-floor — INTRINSIC. Nullary read: `1/sqrt(dim-count)` at the program's
+#     committed `d` (`sym.encoding_ctx()` or `DEFAULT_DIM_COUNT`). No side effect. Confirmed at
+#     (pre-image) src/runtime.rs:20204-20219 (`eval_config_noise_floor_default_shim`'s own doc:
+#     "`1/sqrt(dim-count)` at the program's `d`. Held for legacy callers"); single dispatch site
+#     was runtime.rs:6293; TypeScheme at src/check.rs:18631-18639 (`params: vec![]`,
+#     `ret: f64_ty()`).
+
 # arc 255 Stone P6-c-3 — DEFAULT-DENY. `DESTINATION_DEFAULT` used to be `"INTRINSIC"`: a verb
 # nobody had ruled on read as homeable by SILENCE — the exact shape of
 # `if is_reserved_prefix(head) { return true }` (src/resolve/walk.rs:268) this whole arc exists to

@@ -542,6 +542,9 @@ mod ast;
 mod bigint;
 mod bytes;
 mod char;
+// Arc 255 Stone P6-c-W1 — the campaign's first wave. Four nullary `:wat::config::` readers,
+// moved verbatim out of `runtime.rs`'s giant match with their real (0) arity declared.
+mod config;
 // Arc 255 Stone HOME-11 — the EDN registry home. Pure re-registration (HOME-5 already carved
 // the file home, `src/edn/`); nothing renamed, no `.wat` corpus touch.
 mod edn;
