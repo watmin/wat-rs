@@ -1,0 +1,731 @@
+#!/usr/bin/env python3
+"""p6c-disposition-census — per-FQDN disposition table for the P6-c campaign.
+
+WHY THIS EXISTS (arc 255, STONE P6-c-0). `dispatch_keyword_head_value`'s giant match
+(`src/runtime.rs:5365-6884`) needs a per-FQDN disposition before any arm is homed to the
+`#[wat_intrinsic]` registry: INTRINSIC-READY / NEEDS-SHAPE / SPECIAL-FORM / MULTI-SITE. The unit
+is the FQDN, not the arm — one arm can carry several FQDNs (`|` alternation, or a nested `match
+head {}` cluster), and one FQDN can be served by more than one dispatch site (only one of which
+may be live). See `docs/arc/2026/06/255-builtin-registry/NOTE-p6c-is-a-campaign-not-a-stone.md`
+and `BRIEF-STONE-P6-c-0-the-disposition-census.md`.
+
+WHAT IT MEASURES
+  1. Parses the giant match with a small brace/paren/string-aware scanner (NOT a fixed-indent
+     regex — the prior attempt at this census tried "12-space indent" and got 0 arms, then a
+     bare `"lit" =>` regex and silently ate the guard/wildcard arms; both are recorded in the
+     NOTE as wrong for a documented reason). Reports the raw top-level arm count.
+  2. Extracts every FQDN string literal in each arm's PATTERN (handles `|` alternation and
+     `name @ (alt1 | alt2 | ...)` bind-patterns), and recurses into any `match head {` found
+     INSIDE an arm's body (a cluster arm dispatches further FQDNs one level down — e.g. the
+     ten `:wat::eval-*!` forms share one outer arm).
+  3. For each FQDN, extracts the single leading delegate call in the arm body (if there is
+     one) and its raw argument list, and classifies a CANDIDATE disposition by comparing that
+     argument list against the `#[wat_intrinsic]` BINDING shim's unconditional call shape —
+     `#fn_name(args, env, sym, list_span)` for variadic, `#fn_name(arg0, .., env, sym,
+     list_span)` for exact arity (`crates/wat-macros/src/wat_intrinsic.rs:787,793`), where
+     `list_span` is passed BY REFERENCE, un-cloned. A `.clone()` on the trailing span, a
+     reordering, a wrong arity, or a body that is not one delegating call, are all reported as
+     the REASON the candidate is NEEDS-SHAPE rather than silently marked ready.
+  4. Flags a `SPECIAL FORM` comment near an arm (case-insensitive) as SPECIAL-FORM-CANDIDATE.
+  5. Flags a `starts_with(":...")` guard pattern (the `:rust::` namespace arm) as its own
+     PREFIX-GUARD class, and the final bare `other`/`_` arm as CATCH-ALL — neither is one of
+     the four dispositions and neither should be force-fit into one (BRIEF STOP-1).
+  6. For every FQDN found, greps the WHOLE repo tree for the same literal appearing in another
+     dispatch-shaped context (`"<fqdn>" =>`, `== "<fqdn>"`, `.starts_with("<fqdn>")`, or as a
+     bare list entry) OUTSIDE its home line in the giant match, and reports every hit as a
+     MULTI-SITE CANDIDATE — a hit here is not proof of a second live dispatch site (a doc
+     comment, an error-message literal, or a `RUNTIME_DECLARATION_HEADS`-style table entry
+     reads identically to a grep) and always needs a human to open the file and read it.
+
+★ THE CANDIDATE LABEL IS NOT THE DISPOSITION. Every "-CANDIDATE" label in this tool's output is
+a mechanical proxy from argument-list SHAPE, not a verdict — the brief's own stop-trigger #3
+governs it: a hand-read control disagreeing with this tool wins, always. Known instance found
+while building this tool: `:wat::core::apply`'s call site is `eval_apply(args, env, sym,
+list_span.clone())` — env/sym/list_span in the exact BINDING order — which a naive order-only
+check would pass as INTRINSIC-READY; reading `eval_apply`'s OWN declaration
+(`src/runtime.rs:10621`) shows its 4th parameter is owned `Span`, not `&Span`, which the shim
+never clones for the delegate call — so it is NEEDS-SHAPE. This tool's classifier therefore
+does NOT trust the call-site order alone: it also greps the callee's own `fn` declaration (by
+name, across `src/`) for its parameter list and cross-checks reference-vs-owned on the tail
+three parameters. Even so, treat every non-obvious verdict as a lead to go read, not an answer.
+
+WHAT THIS TOOL CANNOT SEE
+  - It classifies from TEXT SHAPE, never from type-checking `cargo build` against the real
+    macro shape. It cannot see const-generic bound mismatches, lifetime issues, or a handler
+    that would compile under BINDING but must not be homed for a different reason (behavior,
+    not shape) — e.g. `:wat::config::set-redef!`'s eval-time arm, which is INTRINSIC-SHAPED
+    (`Ok(Value::Unit)`, trivially bindable) but is a DELIBERATE NO-OP; its correct behavior
+    lives at freeze time, a different function, and homing the eval arm naively would move the
+    no-op into the registry and strand the mutation behind. Only a human, reading the multi-site
+    grep this tool prints, catches that; this tool prints the sites, not the verdict.
+  - The callee-signature grep matches by BARE FUNCTION NAME across `src/`; an overloaded/shadowed
+    name (rare in this codebase, unchecked) could pick the wrong declaration.
+  - A multi-line pattern's own continuation line (e.g. the ten-way `head @ (... )` alternation)
+    is walked by the same string/paren-aware scanner used for the whole match, not a per-line
+    indent guess — but the scanner assumes head patterns are plain string literals or bound
+    alternations; it does not understand tuple/struct patterns, so it would silently miss a
+    dispatch that matched on anything other than the bare `&str` head.
+  - It does not run inside a wat program and does not touch `wat-scripts/scratch-pad`'s
+    `every_wat_scripts_file_loads` gate — this is a plain Rust-source census tool, kept as a
+    `.py` alongside `fn-census.py` and the `.awk` census tools already in this directory, not a
+    `.wat` codemod (no `.wat` file is read or written).
+  - It moves nothing. It is read-only over `src/` and prints a report; `cargo build` is
+    unaffected by running it.
+
+USAGE
+  wat-scripts/hunt/p6c-disposition-census.py                # full report to stdout
+  wat-scripts/hunt/p6c-disposition-census.py --control "H1,H2,H3,H4,H5"
+                                                              # only these FQDNs (for a
+                                                              # hand-read control comparison)
+  wat-scripts/hunt/p6c-disposition-census.py --json out.json # also dump the full structured
+                                                              # table as JSON
+No dependencies; plain python3, no venv needed.
+"""
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_RS = REPO_ROOT / "src" / "runtime.rs"
+
+FQDN_RE = re.compile(r'"(:[^"]*)"')
+CALL_RE = re.compile(r'([A-Za-z_][A-Za-z0-9_:]*)\s*\(')
+
+
+# ─── string/paren/comment-aware scanner (shared by pattern and arm parsing) ──────────────────
+class Scanner:
+    def __init__(self, s):
+        self.s = s
+        self.n = len(s)
+        self.i = 0
+
+    def skip_ws_and_comments(self):
+        while self.i < self.n:
+            c = self.s[self.i]
+            if c in " \t\n\r":
+                self.i += 1
+                continue
+            if c == "/" and self.i + 1 < self.n and self.s[self.i + 1] == "/":
+                nl = self.s.find("\n", self.i)
+                self.i = nl + 1 if nl != -1 else self.n
+                continue
+            if c == "/" and self.i + 1 < self.n and self.s[self.i + 1] == "*":
+                end = self.s.find("*/", self.i + 2)
+                self.i = end + 2 if end != -1 else self.n
+                continue
+            break
+
+    def consume_string(self):
+        assert self.s[self.i] == '"'
+        start = self.i
+        self.i += 1
+        while self.i < self.n:
+            c = self.s[self.i]
+            if c == "\\":
+                self.i += 2
+                continue
+            if c == '"':
+                self.i += 1
+                break
+            self.i += 1
+        return self.s[start : self.i]
+
+    def maybe_char_lit(self):
+        # heuristic: a char literal closes within 4 chars; a lifetime ('a) does not.
+        j = self.i + 1
+        k = j
+        while k < min(self.n, j + 4):
+            if self.s[k] == "'":
+                return True
+            if self.s[k] == "\\":
+                k += 2
+                continue
+            k += 1
+        return False
+
+    def consume_char_lit(self):
+        start = self.i
+        self.i += 1
+        while self.i < self.n:
+            c = self.s[self.i]
+            if c == "\\":
+                self.i += 2
+                continue
+            if c == "'":
+                self.i += 1
+                break
+            self.i += 1
+        return self.s[start : self.i]
+
+    def consume_balanced(self, open_ch, close_ch):
+        assert self.s[self.i] == open_ch
+        start = self.i
+        self.i += 1
+        depth = 1
+        while self.i < self.n and depth > 0:
+            c = self.s[self.i]
+            if c == '"':
+                self.consume_string()
+                continue
+            if c == "'":
+                if self.maybe_char_lit():
+                    self.consume_char_lit()
+                else:
+                    self.i += 1
+                continue
+            if c == "/" and self.i + 1 < self.n and self.s[self.i + 1] == "/":
+                nl = self.s.find("\n", self.i)
+                self.i = nl + 1 if nl != -1 else self.n
+                continue
+            if c == "/" and self.i + 1 < self.n and self.s[self.i + 1] == "*":
+                end = self.s.find("*/", self.i + 2)
+                self.i = end + 2 if end != -1 else self.n
+                continue
+            if c == open_ch:
+                depth += 1
+                self.i += 1
+                continue
+            if c == close_ch:
+                depth -= 1
+                self.i += 1
+                continue
+            self.i += 1
+        return self.s[start : self.i]
+
+
+def build_offset_to_line(s, base_line):
+    offsets = [0] * len(s)
+    line = base_line
+    for idx, ch in enumerate(s):
+        offsets[idx] = line
+        if ch == "\n":
+            line += 1
+    return offsets
+
+
+def parse_arms(body_text, offset_to_line=None):
+    """Parse a sequence of match arms out of the text strictly inside `match X { ... }`.
+    Returns a list of dicts: pattern, body, pattern_start_line, arrow_line (None if no
+    line map supplied — used for recursive/nested parses where line numbers aren't tracked)."""
+    sc = Scanner(body_text)
+    arms = []
+    n = len(body_text)
+
+    def line_of(pos):
+        if offset_to_line is None:
+            return None
+        pos = max(0, min(pos, len(offset_to_line) - 1))
+        return offset_to_line[pos]
+
+    while True:
+        pre_skip_pos = sc.i
+        sc.skip_ws_and_comments()
+        if sc.i >= n:
+            break
+        leading_text = body_text[pre_skip_pos : sc.i]
+        pat_start = sc.i
+        depth = 0
+        arrow_pos = None
+        while sc.i < n:
+            c = sc.s[sc.i]
+            if c == '"':
+                sc.consume_string()
+                continue
+            if c == "'":
+                if sc.maybe_char_lit():
+                    sc.consume_char_lit()
+                else:
+                    sc.i += 1
+                continue
+            if c == "/" and sc.i + 1 < n and sc.s[sc.i + 1] == "/":
+                nl = sc.s.find("\n", sc.i)
+                sc.i = nl + 1 if nl != -1 else n
+                continue
+            if c == "/" and sc.i + 1 < n and sc.s[sc.i + 1] == "*":
+                end = sc.s.find("*/", sc.i + 2)
+                sc.i = end + 2 if end != -1 else n
+                continue
+            if c in "([{":
+                depth += 1
+                sc.i += 1
+                continue
+            if c in ")]}":
+                depth -= 1
+                sc.i += 1
+                continue
+            if depth == 0 and c == "=" and sc.i + 1 < n and sc.s[sc.i + 1] == ">":
+                arrow_pos = sc.i
+                sc.i += 2
+                break
+            sc.i += 1
+        if arrow_pos is None:
+            break
+        pattern_text = body_text[pat_start:arrow_pos]
+        sc.skip_ws_and_comments()
+        body_start = sc.i
+        if sc.i < n and sc.s[sc.i] == "{":
+            sc.consume_balanced("{", "}")
+            body_end = sc.i
+            save = sc.i
+            sc.skip_ws_and_comments()
+            if sc.i < n and sc.s[sc.i] == ",":
+                sc.i += 1
+            else:
+                sc.i = save
+        else:
+            depth2 = 0
+            while sc.i < n:
+                c = sc.s[sc.i]
+                if c == '"':
+                    sc.consume_string()
+                    continue
+                if c == "'":
+                    if sc.maybe_char_lit():
+                        sc.consume_char_lit()
+                    else:
+                        sc.i += 1
+                    continue
+                if c == "/" and sc.i + 1 < n and sc.s[sc.i + 1] == "/":
+                    nl = sc.s.find("\n", sc.i)
+                    sc.i = nl + 1 if nl != -1 else n
+                    continue
+                if c == "/" and sc.i + 1 < n and sc.s[sc.i + 1] == "*":
+                    end = sc.s.find("*/", sc.i + 2)
+                    sc.i = end + 2 if end != -1 else n
+                    continue
+                if c in "([{":
+                    depth2 += 1
+                    sc.i += 1
+                    continue
+                if c in ")]}":
+                    if depth2 == 0:
+                        break
+                    depth2 -= 1
+                    sc.i += 1
+                    continue
+                if depth2 == 0 and c == ",":
+                    sc.i += 1
+                    break
+                sc.i += 1
+            body_end = sc.i
+        arms.append(
+            {
+                "pattern": pattern_text,
+                "body": body_text[body_start:body_end],
+                "leading": leading_text,
+                "pattern_start_line": line_of(pat_start),
+                "arrow_line": line_of(arrow_pos),
+            }
+        )
+    return arms
+
+
+def extract_fqdns(pattern_text):
+    return [f'"{m}"' for m in FQDN_RE.findall(pattern_text)]
+
+
+def find_prefix_guard(pattern_text):
+    m = re.search(r'starts_with\(\s*"(:[^"]*)"\s*\)', pattern_text)
+    return m.group(1) if m else None
+
+
+def top_level_split(s, sep=","):
+    parts = []
+    depth = 0
+    cur = []
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+        if c == '"':
+            j = i + 1
+            while j < n and s[j] != '"':
+                if s[j] == "\\":
+                    j += 1
+                j += 1
+            cur.append(s[i : j + 1])
+            i = j + 1
+            continue
+        if c in "([{":
+            depth += 1
+        if c in ")]}":
+            depth -= 1
+        if c == sep and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(c)
+        i += 1
+    if cur:
+        parts.append("".join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def unwrap_single_stmt_block(b):
+    """If `b` is exactly a `{ ... }` block whose content is ONE top-level statement/expression
+    (no other top-level `;`-separated statement beside an optional trailing one), return that
+    inner text; otherwise return `b` unchanged. Found while building this census: the giant
+    match's overwhelmingly common arm shape is `"fqdn" => { delegate(args...) }` — a
+    brace-wrapped single call — and without this unwrap step EVERY such arm (the majority of
+    the match) was misclassified COMPLEX for the sole reason that its body starts with `{`,
+    not an identifier. Caught by spot-checking the COMPLEX bucket by hand.
+    """
+    b2 = b.strip()
+    if not (b2.startswith("{") and b2.endswith("}")):
+        return b
+    sc = Scanner(b2)
+    sc.i = 0
+    block = sc.consume_balanced("{", "}")
+    if sc.i != len(b2):
+        return b  # trailing content after the closing brace — not a bare block
+    inner = block[1:-1]
+    stmts = top_level_split(inner, sep=";")
+    if len(stmts) != 1:
+        return b  # multiple top-level statements — genuinely COMPLEX
+    return stmts[0].strip()
+
+
+def find_primary_call(body):
+    """Find the single leading `name(...)` call in an arm body, if the body IS one
+    (optionally `return`-prefixed) delegating call. Returns (name, [arg strings], trailing)
+    or None if the body doesn't look like a single call (multi-statement, inline match, etc)."""
+    b = unwrap_single_stmt_block(body.strip())
+    b = b.strip()
+    # A leading `//` comment inside the block (e.g. `{ // note\n delegate(...) }`) survives
+    # unwrap_single_stmt_block (it has no top-level `;` to split on) but breaks a match at
+    # position 0 — strip leading comments/whitespace before matching the call.
+    _sc = Scanner(b)
+    _sc.skip_ws_and_comments()
+    b = b[_sc.i :]
+    b = re.sub(r"^return\s+", "", b)
+    m = CALL_RE.match(b)
+    if not m:
+        return None
+    name = m.group(1)
+    start = m.end() - 1
+    sc = Scanner(b)
+    sc.i = start
+    call_text = sc.consume_balanced("(", ")")
+    args_text = call_text[1:-1]
+    rest = b[sc.i :].strip()
+    # Body must be (near enough) JUST this call: allow a trailing `.map(...)`, `.into()`,
+    # or a bare `,`/`;` — anything else (another statement, an `if`, a second call at top
+    # level) means this arm is not a single delegating call and we report it as COMPLEX.
+    if rest and not re.match(r"^(\.\w+\([^)]*\)|\.into\(\)|;|,)*$", rest):
+        return None
+    return name, top_level_split(args_text), rest
+
+
+# ─── delegate-signature lookup (grep the callee's own `fn` declaration) ──────────────────────
+_SIG_CACHE = {}
+
+
+def find_fn_signature(fn_name):
+    """Grep src/ for `fn <name>(` (bare name after the last `::`), return its raw parameter
+    list text, or None if zero or >1 declarations are found (ambiguous — reported, not guessed)."""
+    bare = fn_name.rsplit("::", 1)[-1]
+    if bare in _SIG_CACHE:
+        return _SIG_CACHE[bare]
+    try:
+        out = subprocess.run(
+            ["grep", "-rn", "-E", rf"\bfn {re.escape(bare)}\s*\(", str(REPO_ROOT / "src")],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout
+    except Exception:
+        out = ""
+    lines = [l for l in out.splitlines() if l.strip()]
+    if len(lines) != 1:
+        _SIG_CACHE[bare] = None
+        return None
+    path, lineno, _ = lines[0].split(":", 2)
+    with open(path) as f:
+        src_lines = f.readlines()
+    # collect from the fn line until the matching ')' of the parameter list
+    start_idx = int(lineno) - 1
+    text = "".join(src_lines[start_idx : start_idx + 40])
+    m = re.search(r"fn\s+" + re.escape(bare) + r"\s*\(", text)
+    if not m:
+        _SIG_CACHE[bare] = None
+        return None
+    sc = Scanner(text)
+    sc.i = m.end() - 1
+    params_text = sc.consume_balanced("(", ")")[1:-1]
+    params = top_level_split(params_text)
+    _SIG_CACHE[bare] = (path, lineno, params)
+    return _SIG_CACHE[bare]
+
+
+def classify_call(name, args):
+    """Compare a call's raw argument list against the BINDING shim's unconditional trailing
+    `env, sym, list_span` (by reference, un-cloned). Returns (label, reason)."""
+    if len(args) < 3:
+        return "NEEDS-SHAPE", f"arity {len(args)} < 3 (env/sym/list_span not all present)"
+    tail = args[-3:]
+    expected = ["env", "sym", "list_span"]
+    if tail != expected:
+        return "NEEDS-SHAPE", f"trailing args are {tail!r}, not {expected!r} (order/name mismatch)"
+    # Order/name matches the call-site shape. Now check the CALLEE's own declared signature
+    # for reference-vs-owned on the tail three (the .clone()-hiding case: `eval_apply`).
+    sig = find_fn_signature(name)
+    if sig is None:
+        return (
+            "NEEDS-SHAPE?",
+            f"call-site order matches BINDING but `{name}`'s own `fn` declaration "
+            "could not be uniquely located to verify by-ref vs owned — read it by hand",
+        )
+    path, lineno, params = sig
+    if len(params) < 3:
+        return "NEEDS-SHAPE", f"`{name}` at {path}:{lineno} declares only {len(params)} params"
+    last3 = params[-3:]
+    bad = []
+    for p, want_ref_type in zip(last3, ["&", "&", "&"]):
+        # param text looks like "env: &Environment" — flag if it's NOT a reference type
+        ty = p.split(":", 1)[1].strip() if ":" in p else p
+        if not ty.startswith("&"):
+            bad.append(p)
+    if bad:
+        return (
+            "NEEDS-SHAPE",
+            f"`{name}` at {path}:{lineno} takes {bad} BY VALUE, not by reference — "
+            "the BINDING shim passes env/sym/list_span by reference, un-cloned",
+        )
+    return "INTRINSIC-READY", f"`{name}` at {path}:{lineno} matches BINDING's call shape exactly"
+
+
+def classify_arm(pattern, body, leading=""):
+    guard = find_prefix_guard(pattern)
+    if guard is not None:
+        return "PREFIX-GUARD", f"namespace guard on prefix {guard!r}, not enumerable FQDNs"
+    fq = extract_fqdns(pattern)
+    if not fq:
+        return "CATCH-ALL", "bare wildcard/bound-name arm with no literal FQDN in its pattern"
+    # arc P6-c-0 hand-read-control finding: the "SPECIAL FORM" marker for `:wat::stream::lazy`
+    # sits in a comment ABOVE the arm (between the previous arm's body and this arm's pattern),
+    # not inside the pattern or body text itself — a naive pattern/body-only check missed it
+    # and disagreed with the hand-read control. Check the leading comment span too.
+    if (
+        re.search(r"special form", body, re.IGNORECASE)
+        or re.search(r"special form", pattern, re.IGNORECASE)
+        or re.search(r"special form", leading, re.IGNORECASE)
+    ):
+        return "SPECIAL-FORM", "arm body/pattern/leading-comment says 'special form' explicitly"
+    call = find_primary_call(body)
+    if call is None:
+        return "COMPLEX", "arm body is not one delegating call (multi-statement / inline control flow) — read by hand"
+    name, args, _rest = call
+    label, reason = classify_call(name, args)
+    return label, reason
+
+
+def load_giant_match():
+    with open(RUNTIME_RS) as f:
+        lines = f.readlines()
+    # Locate the function and its `match head {` deterministically instead of hardcoding
+    # line numbers (line numbers drift; text anchors don't).
+    fn_start = None
+    for i, l in enumerate(lines):
+        if re.match(r"fn dispatch_keyword_head_value\s*\(", l):
+            fn_start = i
+            break
+    if fn_start is None:
+        sys.exit("FATAL: could not find `fn dispatch_keyword_head_value(` in src/runtime.rs")
+    # preamble text: from fn_start to the `match head {` that starts the giant match
+    match_start = None
+    for i in range(fn_start, len(lines)):
+        if re.match(r"\s*match head \{", lines[i]):
+            match_start = i
+            break
+    if match_start is None:
+        sys.exit("FATAL: could not find the giant `match head {` after dispatch_keyword_head_value")
+    preamble_text = "".join(lines[fn_start:match_start])
+
+    # find the matching close of `match head { ... }` by brace-balance from match_start
+    text_from_match = "".join(lines[match_start:])
+    sc = Scanner(text_from_match)
+    sc.i = text_from_match.index("{")
+    sc.consume_balanced("{", "}")
+    match_close_offset_in_segment = sc.i  # position right after the closing '}'
+    match_block_text = text_from_match[: match_close_offset_in_segment]
+    body_inner = match_block_text[match_block_text.index("{") + 1 : match_block_text.rindex("}")]
+
+    base_line = match_start + 1  # 1-indexed line of `match head {`
+    offset_to_line = build_offset_to_line(body_inner, base_line)
+    arms = parse_arms(body_inner, offset_to_line)
+
+    end_line = base_line + body_inner.count("\n")
+    return preamble_text, match_start + 1, end_line, arms
+
+
+def find_nested_dispatch(body):
+    """Return list of (inner_arms) for every `match head {` found inside an arm's body."""
+    out = []
+    for m in re.finditer(r"match\s+head\s*\{", body):
+        sc = Scanner(body)
+        sc.i = m.end() - 1
+        block = sc.consume_balanced("{", "}")
+        inner = parse_arms(block[1:-1], None)
+        out.append(inner)
+    return out
+
+
+PREAMBLE_SITES = [
+    (
+        r'if head == ":wat::rete::insert" \{',
+        ':wat::rete::insert',
+        "pre-match short-circuit: 2-ary routes to eval_insert_public; 3+-ary handled by the "
+        "':wat::rete::insert-all' arm inside the match. A line-anchored grep over the match "
+        "body cannot see this — it fires BEFORE the match even starts.",
+    ),
+    (
+        r"if head\.starts_with\(crate::rete::vocabulary::RETE_PREFIX\)",
+        None,
+        "prefix gate + RETE_OPS table lookup (rete_op_for) — routes `where`-clause VOCABULARY "
+        "operators (':wat::rete::i64::>'-shaped), a DIFFERENT population from the 28 engine-verb "
+        "arms in the match body (fire-rules, insert-all, export, lower, ...). Verified: zero "
+        "string overlap between RETE_OPS's rete_name column and the match's own FQDN set.",
+    ),
+    (
+        r"if let Some\(handler\) = crate::intrinsic::registry\(\)\.lookup\(head\)",
+        None,
+        "the registry-first door, consulted a second time here (dispatch_keyword_head already "
+        "consults it before ever calling this function) — any FQDN already homed here wins "
+        "before the match is reached at all, silently making its own match arm (if not yet "
+        "retired) dead code.",
+    ),
+]
+
+
+def scan_preamble(preamble_text):
+    hits = []
+    for regex, fqdn, note in PREAMBLE_SITES:
+        m = re.search(regex, preamble_text)
+        hits.append({"found": bool(m), "fqdn": fqdn, "note": note, "pattern": regex})
+    return hits
+
+
+def multi_site_grep(fqdn_literal, home_line):
+    """Grep the whole src/ tree for this FQDN literal appearing in a dispatch-shaped context
+    OUTSIDE its home line in runtime.rs. Returns list of "path:line: text" hits."""
+    try:
+        out = subprocess.run(
+            ["grep", "-rn", "-F", fqdn_literal, str(REPO_ROOT / "src")],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout
+    except Exception:
+        out = ""
+    hits = []
+    dispatch_shape = re.compile(r"=>|==|starts_with|matches!")
+    for line in out.splitlines():
+        try:
+            path, lineno, rest = line.split(":", 2)
+        except ValueError:
+            continue
+        if path.endswith("runtime.rs") and int(lineno) == home_line:
+            continue
+        if dispatch_shape.search(rest):
+            hits.append(line)
+    return hits
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--control", help="comma-separated FQDN literals to restrict the report to")
+    ap.add_argument("--json", help="also dump the full structured table to this path")
+    ap.add_argument("--no-multisite", action="store_true", help="skip the (slower) multi-site grep pass")
+    args = ap.parse_args()
+
+    preamble_text, match_start_line, match_end_line, arms = load_giant_match()
+
+    print(f"# giant match: src/runtime.rs:{match_start_line}-{match_end_line}")
+    print(f"# top-level arms parsed: {len(arms)}\n")
+
+    print("## preamble dispatch sites (before the match even starts)")
+    for hit in scan_preamble(preamble_text):
+        status = "FOUND" if hit["found"] else "NOT FOUND (drifted? read by hand)"
+        print(f"  [{status}] {hit['pattern']}")
+        print(f"      {hit['note']}")
+    print()
+
+    control_set = None
+    if args.control:
+        control_set = {f.strip() for f in args.control.split(",")}
+
+    rows = []
+    total_fqdns = 0
+    for arm in arms:
+        label, reason = classify_arm(arm["pattern"], arm["body"], arm.get("leading", ""))
+        fq = extract_fqdns(arm["pattern"])
+        line_desc = f"{arm['pattern_start_line']}-{arm['arrow_line']}"
+        if label in ("PREFIX-GUARD", "CATCH-ALL"):
+            rows.append(
+                {
+                    "fqdn": None,
+                    "lines": line_desc,
+                    "label": label,
+                    "reason": reason,
+                    "pattern": arm["pattern"].strip()[:80],
+                }
+            )
+            continue
+        total_fqdns += len(fq)
+        nested_clusters = find_nested_dispatch(arm["body"])
+        if nested_clusters:
+            for inner_arms in nested_clusters:
+                for ia in inner_arms:
+                    ifq = extract_fqdns(ia["pattern"])
+                    ilabel, ireason = classify_arm(ia["pattern"], ia["body"], ia.get("leading", ""))
+                    for f in ifq:
+                        rows.append(
+                            {
+                                "fqdn": f,
+                                "lines": line_desc + " (nested cluster)",
+                                "label": ilabel,
+                                "reason": ireason,
+                                "pattern": arm["pattern"].strip()[:80],
+                            }
+                        )
+            continue
+        for f in fq:
+            rows.append(
+                {"fqdn": f, "lines": line_desc, "label": label, "reason": reason, "pattern": None}
+            )
+
+    if control_set:
+        rows = [r for r in rows if r["fqdn"] in control_set]
+
+    print(f"## per-FQDN candidate disposition ({len(rows)} rows)")
+    for r in rows:
+        fqdn_disp = r["fqdn"] if r["fqdn"] else f"<{r['label']} arm: {r['pattern']}>"
+        print(f"  {fqdn_disp:55s} [{r['lines']:>14s}]  {r['label']:16s}  {r['reason']}")
+
+    if not args.no_multisite:
+        print("\n## multi-site grep (candidate — every hit needs a human read)")
+        home_line_map = {}
+        for arm in arms:
+            for f in extract_fqdns(arm["pattern"]):
+                home_line_map.setdefault(f, arm["arrow_line"])
+        for f, home_line in home_line_map.items():
+            if control_set and f not in control_set:
+                continue
+            hits = multi_site_grep(f, home_line)
+            if hits:
+                print(f"  {f} (home: runtime.rs:{home_line}) — {len(hits)} other candidate site(s):")
+                for h in hits:
+                    print(f"      {h}")
+
+    if args.json:
+        with open(args.json, "w") as fh:
+            json.dump(rows, fh, indent=2)
+        print(f"\n(structured table written to {args.json})")
+
+
+if __name__ == "__main__":
+    main()

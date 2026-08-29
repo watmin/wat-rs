@@ -10,10 +10,23 @@
 `dispatch_keyword_head_value` (`src/runtime.rs:5321-6885`), whose giant match spans `5365-6884`:
 
 ```
-real arms ......... 136        distinct FQDNs ... 142
+real arms ......... 136        distinct FQDNs ... 148
   :wat::core   82     :wat::rete    28     :wat::runtime  13     :wat::config   6
-  :wat::stream  4     :wat::program  3     misc            6
+  :wat::stream  4     :wat::program  3     misc/other      12
 ```
+
+> ⚠ **CORRECTED 2026-08-28 — this said 142, and 142 WAS WRONG.** P6-c-0's rider measured 148 with an
+> independent structural tokenizer and reconstructed my error exactly: the arm at `runtime.rs:6168`
+> is a `head @ (alt | alt | …)` bind-pattern spanning **three lines with TEN FQDNs**, and my
+> instrument read only the line carrying the `=>`, capturing three. 142 + the 7 it never saw = 149
+> literal occurrences, minus `:rust::` (a prefix guard, not a dispatched head) = **148.**
+> Re-derived by my own second route and confirmed. **Fourth wrong count of this one population.**
+>
+> ★ **And the sharp part: I NAMED that hazard in this very file** — the paragraph below calls out
+> "a multi-line pattern's continuation" as one of the two lines to discount. I saw it, wrote it
+> down, and then still read only the one line. **Naming a hazard is not handling it; it can even
+> substitute for handling it, because the write-up feels like the work.**
+> `[[feedback_naming_a_hazard_is_not_handling_it]]`
 
 **The instrument, and why it took three tries** — the number is only as good as this:
 
@@ -75,6 +88,47 @@ signature change first. Its output is the wave plan; its instrument must outlive
 
 Then waves by namespace, smallest and most heterogeneous first — a mixed wave surfaces the
 disposition axis early, which is what O-iv's nineteen correct refusals were worth.
+
+## The census came back: SIX dispositions, not four — and one number reframes the whole campaign
+
+The brief named four. The rider held STOP-1 twice and returned two more, both real:
+
+- **DECLARATION-GUARD** — `:wat::core::def` and `:wat::core::defclause` are unconditional
+  `Err(DeclarationInExpressionPosition)` arms. The real processing is freeze-time
+  (`register_runtime_defs_form`); these exist only to give a clean diagnostic if a declaration
+  reaches expression position. **There is no shape to fix** — homing one would register a function
+  that always errors, duplicating the checker's own hard cut. The likely disposition is *delete*,
+  once that cut is confirmed exhaustive.
+- **CONTROL-FLOW-MULTI-MODE** — `if` · `let` · `do` · `match` · `and` · `or` · `ann-form` each have
+  **three or more simultaneously-live implementations**, one per execution context. Verified:
+  `:wat::core::if` is the giant-match arm, `eval_if_tail` (`runtime.rs:4411`, the TCO trampoline),
+  and `step_if` (`:23501`, the stepper model). **Homing the eval arm alone leaves two siblings
+  behind indefinitely.** ★ The precedent exists and is written down at `:4415`:
+  `serve-dispatch-op` moved to the registry and the tail fallthrough reaches it *via registry
+  lookup, calling the same delegate*. So the shape is proven — but it must be chosen, not stumbled
+  into.
+
+### ★★ 129 of 148 are NEEDS-SHAPE — and they may not need shaping at all
+
+The rider's headline: **~87% of the arms fail `#[wat_intrinsic]` for ONE reason** — this file's
+overwhelming convention is `eval_x(args, list_span, env, sym)` while BINDING's emit passes
+`(args, env, sym, list_span)`. **The tail is the same three params in a different ORDER.**
+
+Read as a sweep, that is a parameter reorder across ~120 callees, each needing its other call sites
+re-verified — the campaign's dominant cost, and a reorder that compiles is not proof nothing called
+it positionally.
+
+**Read as a generator question, it may be one macro change.** `sniff_args` already walks the params
+and marks `seen_context` at the first non-`&WatAST` one — it simply does not RECORD which context
+params appeared or in what order, and `emit` then hardcodes `env, sym, list_span`
+(`wat_intrinsic.rs:726`). Teaching the sniff to record the declared tail order and the emit to
+honour it would retire the reason 87% of this population is blocked.
+
+⛔ **Not drawn, and NOT to be assumed.** It is the same shape as Stone P7 (a classifier too narrow
+for a legal declaration) and the same shape as P5-a→P5-b (the prerequisite that SHRANK its
+dependent) — which is exactly why it must be *measured* rather than pattern-matched. If it holds,
+the campaign is far smaller than eight to twelve stones. **That measurement is the next thing to
+draw, before any wave.**
 
 ⛔ **This NOTE does not open those waves.** It sizes the row so the builder can decide whether arc
 255 closes here with the campaign named, or carries it.
