@@ -1,58 +1,98 @@
-# NOTE — `walk_for_restricted_call` fires on a MENTION, not a call
+# NOTE — `walk_for_restricted_call` fires on a MENTION, and that is CORRECT
 
-> Surfaced by P5-a's rider while trying to measure render-doc output for `:wat::kernel::spawn-thread`.
-> Verified on disk 2026-08-28 at `ab753e4f5`. **No row: this is a finding, not a drawn stone.**
+> ⛔⛔⛔ **RETRACTED AND REWRITTEN THE SAME DAY, 2026-08-28.** The first version of this NOTE claimed
+> *"the entire reflection surface is unreachable for restricted verbs from ordinary `.wat`"* and
+> framed the walker as a name/behaviour gap wanting a fix. **That claim was FALSE and the framing
+> was backwards.** The builder pushed on it — *"or… is this actually honest as no one is allowed to
+> call these but the kernel?"* — and two MCP calls settled it. What follows is the measured truth.
+> The original is not preserved because it was never inscribed; what it got wrong is recorded below,
+> which is the part worth keeping.
 
-## What it does
+## The measured behaviour
 
-`src/check.rs:1430`:
+`src/check.rs:1430` raises on any `WatAST::Keyword` naming a restricted verb, in **any** position,
+recursing through every child. There is no head-position test. **That part of the original NOTE was
+right, and it is not the interesting part.**
 
-```rust
-fn walk_for_restricted_call(node: &WatAST, enclosing_fn: &str, …) {
-    if let WatAST::Keyword(name, name_span) = node {          // ← ANY keyword node
-        …  errors.push(DefRestrictedCallerNotAllowed { … })
-    }
-    for child in node.children().iter() { walk_for_restricted_call(child, …) }  // ← everywhere
-}
+The restriction is a **caller-prefix** check — it compares `enclosing_fn` against the whitelist. So
+what actually gates is *whether there is an enclosing fn at all*:
+
+```
+;; TOP LEVEL — no enclosing fn, nothing fires. ANSWERS IN FULL.
+(:wat::core::render-doc :wat::kernel::spawn-thread)
+  → ":wat::kernel::spawn-thread\n\n`(… prog init-fn post-spawn-fn)` → `:wat::kernel::Thread<R,S>` …"
+
+;; INSIDE A fn — enclosing_fn is `:user::probe`, which is not `:wat::kernel::`. BLOCKED.
+(:wat::core::defn :user::probe [] -> :wat::core::String
+  (:wat::core::render-doc :wat::kernel::spawn-thread))
+  → DefRestrictedCallerNotAllowed { :enclosing-fn ":user::probe" :prefixes [":wat::kernel::"] }
 ```
 
-There is no head-position test. The walker recurses through every child and raises on **any**
-`WatAST::Keyword` naming a `:restricted-to` verb, wherever it appears.
+Both measured through the MCP, 2026-08-28. The check pass runs in **both** cases — the difference is
+`enclosing_fn`, not whether checking happened.
 
-## What that costs
+**⇒ The REPL and the MCP are NOT incomplete.** Interactive reflection over every restricted verb
+works today. What is blocked is a *program* reflecting on one, because a `.wat` program body always
+lives inside a `defn`. P5-a's rider hit exactly that and reasonably read it as a wall.
 
-Reflection over a restricted verb is **unreachable from ordinary `.wat`**:
+## Why the mention rule is LOAD-BEARING — and more so now than when it was written
+
+A keyword in hand can be handed to `:wat::core::apply`:
 
 ```wat
-(:wat::core::render-doc :wat::kernel::spawn-thread)
-;; DefRestrictedCallerNotAllowed — because the verb appears as an ARGUMENT,
-;; not because anything called it.
+(:wat::core::apply :wat::kernel::spawn-thread […])   ;; the verb is in ARGUMENT position
 ```
 
-`render-doc`, `show-source`, `metadata-of`, `signature-of` — the whole reflection surface arc 255
-has spent the arc making honest — cannot be pointed at any restricted verb from a `.wat` program.
-P5-a's rider had to reach past the check pass entirely (`wat::freeze::eval_in_frozen` in a throwaway
-Rust harness) to take a before/after reading.
+Only the mention rule stops this. Restrict the check to head position and `apply` becomes a
+laundering path around every capability wall in the table below.
 
-## Why it is not obviously a bug
-
-Restricting the *mention* is defensible: a keyword in hand can be passed to `:wat::core::apply` and
-called, so "you may not name it" and "you may not call it" collapse if `apply` is reachable. That
-argument is real and may be the reason the walker is written this way.
-
-**What is NOT defensible is the gap between the name and the behaviour.** The function is
-`walk_for_restricted_call`; the error is `DefRestrictedCallerNotAllowed`; both say *call*. Nothing
-in either says a reflection verb reading the name as data is refused. A reader who trusts the name
-will be wrong, and the P5-a rider was — it cost a detour into a Rust harness to get one measurement.
-
-## What would close it
-
-Either the name and diagnostic say **mention** (cheap; makes the shipped behaviour honest), or the
-walker distinguishes a call head from a data position and the reflection verbs are let through
-(larger; needs the `apply` argument above answered first, and `apply` NOW REACHES more verbs than it
-did when this was written — arc 255's whole O-iv sweep changed that premise).
-
-⚠ **That second clause is the reason this is a NOTE and not a one-line rename.** The restriction's
-premise — "a named verb can be applied" — was TRUE-but-narrow when written and is broader now.
-Whoever draws this must re-derive the premise, not inherit it.
+★ **And the premise has STRENGTHENED, not expired.** When this walker was written, `apply` reached a
+small minority of the registry. Arc 255's own O-iv sweep is what widened it — 81+ ALGEBRA doors and
+counting. The `apply`-laundering argument is more true today than the day the rule shipped. This is
+the rare case where a ruling's premise grew INTO the ruling rather than out of it.
 `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+
+## The population — NINE verbs, TWO mechanisms
+
+Rust-side `#[restricted_to(<fqdn>, <prefix>)]`, all to `:wat::kernel::`:
+
+```
+:wat::kernel::spawn-thread          src/kernel/spawn.rs:452
+:wat::kernel::spawn-process         src/kernel/spawn.rs:538
+:wat::io::IOWriter/from-fd          src/io.rs:1278
+:wat::io::IOReader/from-fd          src/io.rs:1318
+:wat::kernel::close                 src/runtime.rs:25584
+```
+
+wat-side `{:restricted-to […]}` metadata-map on `def`/`defn`:
+
+```
+:wat::kernel::write-fd-raw          wat/kernel/services/stdio.wat:362   [:wat::kernel:: :wat::test::]
+:wat::kernel::flood-stdout-raw      wat/kernel/services/stdio.wat:376   [:wat::kernel:: :wat::test::]
+:wat::kernel::str-double            wat/kernel/services/stdio.wat:384   [:wat::kernel:: :wat::test::]
+(one more)                          wat/spawn.wat:338                   [:wat::spawn:: :wat::test::]
+```
+
+⚠ **Two mechanisms, one enforcement point.** The Rust attribute drains through an inventory channel
+into the same `binding_metadata[":restricted-to"]` the wat-side form writes (`src/restriction_entry.rs`,
+`src/freeze/env.rs:268`). Anyone auditing the restricted set must ask BOTH — a census of one is half
+a census. Note also that the Rust-side five do **not** whitelist `:wat::test::` while the wat-side
+four do; that asymmetry is unexamined and is the one live question this NOTE leaves open.
+
+## What is actually left, and it is small
+
+The diagnostic is excellent — it names the callee, the enclosing fn, the whitelist, the prefix-vs-exact
+semantics, and two concrete remedies. The only residue is that the internal fn is called
+`walk_for_restricted_call` and the error variant is `DefRestrictedCallerNotAllowed`, while what is
+enforced is *mention*. That is a naming nit on an internal symbol, **not a capability gap**, and it
+does not justify a stone on its own.
+
+## ⚠ What the first version of this NOTE got wrong, and why it matters
+
+I verified the **mechanism** (the walker has no head-position test — true, and I read the source) and
+then published the **conclusion** (the reflection surface is unreachable) without testing it. The
+conclusion was one MCP call away and I never made the call. A confirmed mechanism is not a confirmed
+claim: the walker really does fire on mentions, and "therefore reflection is unreachable" simply does
+not follow from it. I also inherited the rider's framing — they hit the error inside a `defn`, which
+is the only place a `.wat` program can be — and generalised their true observation into a false one.
+`[[feedback_verifying_the_mechanism_is_not_verifying_the_claim]]`
