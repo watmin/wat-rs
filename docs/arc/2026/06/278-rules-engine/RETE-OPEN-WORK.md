@@ -708,6 +708,17 @@ admission path — a population of one, which is why no count would ever have su
      disagreed on the `else`. (`b7f54a17f`)
 
 
+3.5 ~~**`complectens` 1**~~ — **CUT AFFIRMATIVELY 2026-08-29. The last vigilia row.** `filter_pass`
+   genuinely has no base-layer unit test — one caller, zero test references — and is genuinely not
+   untested: its three node kinds each have attributable coverage at the CALLER's vantage (Test →
+   the where-family CI job; Negation → grid `negation`/`neg-consumer`; Exists → `leading-exists`,
+   the axis that caught the 2026-08-24 defect), and the two empty-`pids` arms mid-chain fixtures
+   cannot reach are covered too — leading `:exists` by its own axis, leading `:not` by
+   `differential-fuzz-tms.wat` (driven: **1** in the empty world, **0** with a match present).
+   A unit test would have to fabricate a seven-parameter compiled arm by hand — the implementer
+   vantage `vocare` bans — so it would be WORSE than what exists. Full verdict in
+   `NEXT-STRIKES-theater-hunt.md`. **With this, every vigilia row is closed and audited.**
+
 4. ~~**`partire` x7**~~ — **RESOLVED 2026-08-28 by re-audit. The item dissolves into two closures
    and two named cuts.** It lingered a week for a reason worth naming: **it was a TALLY, not a
    finding.** All that was ever recorded is *"Split proposals for `fire/mod.rs` (3), `validate.rs`
