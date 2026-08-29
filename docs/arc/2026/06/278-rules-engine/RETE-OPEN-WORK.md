@@ -924,19 +924,20 @@ it is a finding, not a lack of time:
    note that `Bind/left` is now the highest-value row on this list, since it is the one that makes
    the VSA route expressible in a rule.
 
-⚠ **`is-Tag?` HAS A REACHABILITY WRINKLE worth keeping** if this is ever unparked: a Tag holon only
-ever occurs as `Bind/left` of a uuid holon, so a rule can only hold one if HOST wat put it in a
-field. Reachable, but not constructible inside a fence.
+5. **`Bundle` and the `:panic` capacity mode — FOLDED IN FROM ITEM 8, 2026-08-29** (builder:
+   *"i think we put #8 into #7 … more holon stuff we need to address now that we've matured
+   wat"*). It was tracked as its own item because the RULING is runtime-wide; it belongs here
+   because the SUBJECT is the holon surface, and splitting them meant the holon queue read as
+   shorter than it is.
 
-8. **`Bundle` and the `:panic` capacity mode — A BUILDER RULING, runtime-wide, not a rete change.**
    `Bundle` is the ONLY holon op that cannot get a `total: true` row. Under the default `:error`
-   mode it returns `(Result :- [HolonAST CapacityExceeded])` and **the type system forces handling**
-   — proven: `is-Map?: parameter #1 expects HolonAST; got (Result :- [...])`. Under `:panic` it
-   aborts instead.
+   mode it returns `(Result :- [HolonAST CapacityExceeded])` and **the type system forces
+   handling** — proven: `is-Map?: parameter #1 expects HolonAST; got (Result :- [...])`. Under
+   `:panic` it aborts instead.
 
    ⚠ **A CLAIM I MADE AND THE BUILDER CORRECTED — do not repeat it.** I said
-   `set-capacity-mode!` is callable at runtime, so the mode was non-deterministic. **False.** Driven:
-   inside `:user::main` it is `unknown function` — it is a LOAD-TIME DIRECTIVE collected by the
+   `set-capacity-mode!` is callable at runtime, so the mode was non-deterministic. **False.**
+   Driven: inside `:user::main` it is `unknown function` — a LOAD-TIME DIRECTIVE collected by the
    entry-file pass, exactly as the builder said. The determinism objection is void.
 
    **What the correction buys:** because the mode is fixed BEFORE `compile-all` runs, the rete
@@ -945,14 +946,25 @@ field. Reachable, but not constructible inside a fence.
    varying by config.
 
    **The surviving argument for killing `:panic`**, and it stands without rete: `:error` already
-   forces handling at COMPILE time; `:panic` trades that wall for a runtime crash. Blast radius ~6
-   files (`src/config.rs`, `src/process/boot/mod.rs`, `src/runtime.rs`,
+   forces handling at COMPILE time; `:panic` trades that wall for a runtime crash. Blast radius
+   ~6 files (`src/config.rs`, `src/process/boot/mod.rs`, `src/runtime.rs`,
    `tests/collection/bundle_capacity.rs` + 2 fixtures, and
    `probe_plain_panic_produces_structured_edn.wat`, which uses the panic as a VEHICLE to test
-   structured-EDN panic rendering and would need another trigger). **Not started. Not mine to
-   rule.**
+   structured-EDN panic rendering and would need another trigger). **Not started. The RULING is
+   the builder's; the rete-side consequence is ours.**
 
-9. **THE TERMINATION VERIFIER REFUSES A CLASS OF PROVABLY BOUNDED RECURSION.** Reported by
+   ⚠ **AND `:panic` IS NOW THE SECOND PANIC-VS-ERROR ROW IN A WEEK.** The cache LRU
+   (`docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`)
+   and `edn::write` (fixed 2026-08-29 — the failure channel existed one frame up) were both this
+   shape. The pattern each time: an abort where the substrate could already carry an error, and
+   in both cases the stated blocker had quietly stopped being true. Worth ruling `:panic` with
+   those two on the table rather than alone.
+
+⚠ **`is-Tag?` HAS A REACHABILITY WRINKLE worth keeping** if this is ever unparked: a Tag holon only
+ever occurs as `Bind/left` of a uuid holon, so a rule can only hold one if HOST wat put it in a
+field. Reachable, but not constructible inside a fence.
+
+8. **THE TERMINATION VERIFIER REFUSES A CLASS OF PROVABLY BOUNDED RECURSION.** Reported by
    claude-compute (the main x grok-rete integration branch) 2026-08-28 as
    `~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`. **Weighed against
    this tree and CONFIRMED** — every citation checked, and the refusal reproduced by driving:
@@ -1024,7 +1036,7 @@ field. Reachable, but not constructible inside a fence.
    **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
    with our own green floor). That is exactly when this class is cheapest to widen.
 
-10. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
+9. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
     behaviour.** `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs`'s five goldens
     pin `:location #wat.core/Span {:file "src/runtime.rs" :line N}`. On 2026-08-28 that `N` moved
     **three times** — 25722→25793→25799→25802 — and **every move was a COMMENT**

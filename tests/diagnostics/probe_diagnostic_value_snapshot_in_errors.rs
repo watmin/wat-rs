@@ -94,7 +94,7 @@ fn probe_1_not_callable_renders_offending_keyword() {
             // ⚠ DELIBERATELY NOT FIXED HERE, and this is a scope boundary rather than a deferral:
             // the cure lives in `assert_edn_matches_file!` and would touch every golden in the
             // repo, which is not a change to smuggle into a rete strike. Tracked as its own item —
-            // `RETE-OPEN-WORK.md` § "The order" item 10 — with these three data points, so
+            // `RETE-OPEN-WORK.md` § "The order" item 9 — with these data points, so
             // whoever takes it starts from evidence instead of a hunch.
             //
             // ⚠ THIS TRAIL HAD ITSELF GONE STALE: it ended at 25429 while the golden

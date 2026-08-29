@@ -159,7 +159,8 @@ index; add the row when you file or receive one.
   input before deciding rete's** — agreement is the contract, and "it didn't match" is the easiest
   wrong answer to ship.
 - `RETE-OPEN-WORK.md` § "The order, and why" — item 6 is the last inherited ruling (
-  TRACKED ① ②, `circumspicere` 1); **items 7–8 are new**: the holon surface (rete has 4 of ~40 ops,
+  TRACKED ① ②, `circumspicere` 1) — **ALL NOW CLOSED**. **Item 7 is THE HOLON ITEM** and it
+  absorbed the old item 8 on 2026-08-29 (builder: *"we put #8 into #7"*): the surface (rete has 4 of ~40 ops,
   all from one group) and the `Bundle`/`:panic` builder ruling.
 - ⛔ **Clara cannot arbitrate holon** — builder: *"this is a wat only capability"*. `$native` vs
   `$oracle` alone is the configuration that failed twice this session. Use known-answer algebraic law.
