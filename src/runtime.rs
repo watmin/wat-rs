@@ -5547,12 +5547,15 @@ fn dispatch_keyword_head_value(
         // registry check above (arc 255.1c-guard) intercepts all eight names before reaching
         // here. Real arity declared for each (1/1/1/1/1/3/1/1) — no hand-rolled arity guard
         // survives.
-        // Stone 241.7 — metadata-map reflection verb.
-        ":wat::runtime::metadata-of" => eval_metadata_of(args, list_span, env, sym),
-        // Arc 170 Strike B — struct-field reflection: extract-arg-names/-types'
-        // sibling pair for a TYPE's fields rather than a callable's argspec.
-        ":wat::runtime::field-names-of" => eval_field_names_of(args, list_span, env, sym),
-        ":wat::runtime::field-types-of" => eval_field_types_of(args, list_span, env, sym),
+        // Stone 241.7 / Arc 170 Strike B — `metadata-of`, `field-names-of`, `field-types-of`
+        // (arc 255 Stone P6-c-W4) moved into `#[wat_intrinsic]` handlers (above this match,
+        // still in this file); the pre-match registry check above (arc 255.1c-guard)
+        // intercepts all three names before reaching here. Real arity declared for each
+        // (1/1/1) — no hand-rolled arity guard survives. Unlike W3's eight, these three carry
+        // NO checker `TypeScheme` (`FROZEN_CHECKER_DEBT_LEDGER`, `src/intrinsic/mod.rs`) —
+        // homing them grows that ledger by three, not zero; `src/check.rs` itself is
+        // untouched (`field-names-of`/`field-types-of` keep their `infer_list` special-case;
+        // `metadata-of` keeps having no check-side treatment at all).
         // Arc 201 slice 2 — general-purpose Bundle accessors. The
         // leaf-unwrap counterpart (`:wat::core::atom-value`) was already
         // minted by arc 057; SCORE-SLICE-2 § Sibling check documents the
@@ -13505,10 +13508,13 @@ fn eval_body_of(
     }
 }
 
-/// `(:wat::runtime::metadata-of <name :keyword>) -> (:Option :- [(HashMap :- [Keyword HolonAST])])`
+/// `(:wat::runtime::metadata-of <name :keyword>) -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])])`
 ///
 /// Stone 241.7. Returns the binding's metadata-map as Option:
 /// - Some({:k1 v1 ...}) when metadata was attached at def time (Stone 241.6 storage)
+/// - Some(baseline-map) when `name` is a registered Rust intrinsic (arc 255.1b-iii): the
+///   auto-derived `:name`/`:kind`/`:defined-in`/`:layer`/`:arity`/`:purity`/`:determinism`/
+///   `:doc`/`:added`/`:ret`/`:category` fields
 /// - None when binding exists but no metadata
 /// - None when binding doesn't exist
 ///
@@ -13518,38 +13524,54 @@ fn eval_body_of(
 /// would resolve a `def :my::x 42` to `42`, losing the name). If the arg
 /// evaluates to a named fn value, `name_from_keyword_or_fn` recovers the
 /// name from the fn (supporting `(metadata-of my-fn-var)` call style).
+///
+/// ★ Doc correction (arc 255 Stone P6-c-W4): the prior header claimed a uniform
+/// `(:Option :- [(HashMap :- [Keyword HolonAST])])` — false on two counts, checked against the
+/// body below. First, the map's VALUES are never `HolonAST`: the intrinsic-baseline branch
+/// inserts plain scalar/enum `Value`s (`Value::String`, `Value::i64`, `Value::Enum` for
+/// `:kind`/`:defined-in`/`:layer`/`:purity`/`:determinism`/`:category` — see the `put` calls
+/// below, whose own comment already said "PLAIN wat Values (no HolonAST wrapping)"), while the
+/// user-metadata branch (`sym.binding_metadata`) wraps each value as `Value::wat__WatAST` —
+/// WatAST, not HolonAST (arc 201/251/294.f retired the HolonAST carrier on this whole
+/// reflection surface — the same finding W3 made for `lookup-define`/`body-of`). Second, the
+/// two branches are themselves heterogeneous with each other (plain values vs. WatAST-wrapped),
+/// so no single element type describes both; `:wat::core::Value` (this surface's existing
+/// convention for "any wat value", e.g. `edn::get-field`'s `@ret`) is what actually fits.
+/// `metadata-of` carries NO checker `TypeScheme` (absent from `register_builtins` — see the
+/// `FROZEN_CHECKER_DEBT_LEDGER` entry below), so this claim was never verified by anything; it
+/// is corrected here, not newly enforced.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     name_ast :wat::core::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
+/// @ret     (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])]) the metadata map, or `:None` when the binding is unregistered or carries no metadata
+/// @example (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::lookup-define) ((:wat::core::Some _) true) (:wat::core::None false)) #=> true
+/// @example (:wat::core::match (:wat::runtime::metadata-of :probe::totally-unknown-xyz) ((:wat::core::Some _) true) (:wat::core::None false)) #=> false
+/// @see     :wat::runtime::lookup-define
+/// @see     :wat::runtime::field-names-of
+#[wat_intrinsic(":wat::runtime::metadata-of")]
 #[allow(clippy::mutable_key_type)]
 fn eval_metadata_of(
-    args: &[WatAST],
-    list_span: &Span,
+    name_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::metadata-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Extract the binding name. Prefer the keyword string directly from
     // the WatAST (avoids runtime_def_values resolution that would lose the
     // name for non-fn defs). Fall back to eval + name_from_keyword_or_fn
     // for the fn-value case (e.g. a fn passed via a symbol binding).
-    let name: String = match &args[0] {
+    let name: String = match name_ast {
         WatAST::Keyword(k, _) => k.clone(),
         _ => {
-            let v = eval_inner(&args[0], env, sym)?.value_owned();
+            let v = eval_inner(name_ast, env, sym)?.value_owned();
             match name_from_keyword_or_fn(&v) {
                 Some(n) => n,
                 None => {
                     return Err(RuntimeError::new(
-                        args[0].span().clone(),
+                        name_ast.span().clone(),
                         RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: ":wat::core::keyword or named function",
@@ -14062,7 +14084,7 @@ fn eval_extract_arg_types(
     Ok(Value::Vec(Arc::new(types)))
 }
 
-/// `(:wat::runtime::field-names-of type-kw) -> (:wat::core::Vector :- [wat::core::Keyword])`
+/// `(:wat::runtime::field-names-of type-kw) -> (:wat::core::Vector :- [:wat::core::keyword])`
 ///
 /// Arc 170 Strike B — struct-field reflection, the type-direction sibling
 /// of `extract-arg-names` (which reflects a *callable's* argspec; this
@@ -14095,26 +14117,30 @@ fn eval_extract_arg_types(
 /// `eval_inner` would make every struct/record type keyword fail this
 /// primitive. The eval fallback remains for non-literal callers (a var
 /// holding a keyword).
+///
+/// ★ Doc read against body (arc 255 Stone P6-c-W4): the prior informal return-type shorthand
+/// (`wat::core::Keyword`, capitalized, colonless) named the right element type — matched, only
+/// reformatted to the canonical `:wat::core::keyword` spelling this stone's structured `@ret`
+/// requires; not a lie.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field names are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @ret     (:wat::core::Vector :- [:wat::core::keyword]) each field name as a keyword, in declaration order
+/// @example (:wat::runtime::field-names-of :wat::program::Env) #=> [:started-at :peer-started-at :process-id :os-thread-id :peer-kind :cpu-count :user-data]
+/// @see     :wat::runtime::field-types-of
+/// @see     :wat::runtime::extract-arg-names
+#[wat_intrinsic(":wat::runtime::field-names-of")]
 fn eval_field_names_of(
-    args: &[WatAST],
-    list_span: &Span,
+    type_kw_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::field-names-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let type_kw = resolve_type_keyword_arg(OP, &args[0], env, sym)?;
-    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, args[0].span(), sym)?;
+    let type_kw = resolve_type_keyword_arg(OP, type_kw_ast, env, sym)?;
+    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, type_kw_ast.span(), sym)?;
 
     let names: Vec<Value> = agg
         .fields
@@ -14124,7 +14150,7 @@ fn eval_field_names_of(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::field-types-of type-kw) -> (:wat::core::Vector :- [wat::WatAST])`
+/// `(:wat::runtime::field-types-of type-kw) -> (:wat::core::Vector :- [:wat::WatAST])`
 ///
 /// Arc 170 Strike B — direct sibling of `eval_field_names_of` above (same
 /// resolution: `type-kw` → runtime type registry → `AggregateDef`).
@@ -14142,26 +14168,30 @@ fn eval_field_names_of(
 /// is plain-EDN and decomposable: an atomic type renders to
 /// `WatAST::Symbol("wat.type/i64")`; a parametric type renders to a
 /// `WatAST::List`, e.g. `(wat.kernel/Peer' probe.Kv/Op probe.Kv/Reply)`.
+///
+/// ★ Doc read against body (arc 255 Stone P6-c-W4): the prior informal return-type shorthand
+/// (`wat::WatAST`, colonless) named the right element type — matched, only reformatted to the
+/// canonical `:wat::WatAST` spelling this stone's structured `@ret` requires; not a lie.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field types are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @ret     (:wat::core::Vector :- [:wat::WatAST]) each field's type, rendered as a canonical `wat.type/` WatAST node, in declaration order (positionally aligned with `field-names-of`)
+/// @example (:wat::core::ast->source (:wat::core::first (:wat::runtime::field-types-of :wat::program::Env))) #=> "wat.time/Instant"
+/// @see     :wat::runtime::field-names-of
+/// @see     :wat::runtime::extract-arg-types
+#[wat_intrinsic(":wat::runtime::field-types-of")]
 fn eval_field_types_of(
-    args: &[WatAST],
-    list_span: &Span,
+    type_kw_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::field-types-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let type_kw = resolve_type_keyword_arg(OP, &args[0], env, sym)?;
-    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, args[0].span(), sym)?;
+    let type_kw = resolve_type_keyword_arg(OP, type_kw_ast, env, sym)?;
+    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, type_kw_ast.span(), sym)?;
 
     let mut types: Vec<Value> = Vec::with_capacity(agg.fields.len());
     for (_, ty) in agg.fields.iter() {

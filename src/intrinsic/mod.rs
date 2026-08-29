@@ -642,9 +642,22 @@ mod tests {
     /// `register_builtins`) is a separate, larger stone; this test only measures and freezes
     /// the population so it cannot grow silently.
     ///
-    /// Measured 2026-08-28 against `check_env.get(entry.name)` over `registry().all_entries()`
-    /// — the SAME construction and SAME method both gates use, so this measurement cannot
-    /// disagree with what the gates actually skip. 50 of 384 registered entries, by namespace:
+    /// Measured 2026-08-28, re-measured 2026-08-29 (arc 255 Stone P6-c-W4 adds the
+    /// `:wat::runtime::` row below) against `check_env.get(entry.name)` over
+    /// `registry().all_entries()` — the SAME construction and SAME method both gates use, so
+    /// this measurement cannot disagree with what the gates actually skip. 53 of 405
+    /// registered entries (2026-08-29 count, post-W4; the prior "384" total had already
+    /// drifted stale before this stone from unrelated homing — not re-audited here beyond
+    /// this stone's own +3).
+    ///
+    /// ★ `registry().all_entries().count()` (405) is NOT the same instrument as the anchored
+    /// `#[wat_intrinsic]`-attribute grep (403 post-W4) — the +2 gap is not noise, it is a fixed
+    /// identity: `:wat::core::if` (`src/intrinsic/special/control_flow.rs:20`) and
+    /// `:wat::core::let` (`src/intrinsic/special/binding.rs:15`) register into this SAME
+    /// registry via the DIFFERENT `#[wat_special_form(...)]` attribute, which an
+    /// `#[wat_intrinsic` grep cannot see. So `all_entries().count()` == the anchored intrinsic
+    /// grep + 2, always — recorded here after three separate riders each independently
+    /// rediscovered this gap and reported it as unexplained drift.
     /// - `:wat::kernel::` 23 of 46 — accept, address-wire?, after, allow, close, connect, deny,
     ///   fn-forms, listener, peer-pid, peer-process, peer-wire?, poll, recv,
     ///   require-wire-address, retag-op, select, send, serve-dispatch-op, signal,
@@ -653,6 +666,13 @@ mod tests {
     ///   simhash, to-record
     /// - `:wat::core::` 6 of 18 — List, fresh-symbol, if, let, type-equal?, type-params-used-in
     /// - `:wat::linkedlist::` 5 of 5 — WHOLLY ABSENT: conj, contains?, empty?, get, length
+    /// - `:wat::runtime::` 3 of 13 (arc 255 Stone P6-c-W4) — field-names-of, field-types-of,
+    ///   metadata-of. NOT UNIFORM: field-names-of/field-types-of ARE type-checked, by
+    ///   hand-written special-case inference inside `infer_list` (`src/check.rs:2543`;
+    ///   `field-names-of` at `:3570`, `field-types-of` at `:3596`) — they lack a `TypeScheme`
+    ///   but are not unverified in the sense the other rows on this ledger are. `metadata-of`
+    ///   has neither a scheme nor inference — 0 mentions in `check.rs` outside comments — and
+    ///   is the only one of the three genuinely unchecked.
     /// - `:wat::seq::` 3 of 3 — WHOLLY ABSENT: remove-at, window, zip
     /// - `:wat::string::` 2 of 20 — declare-acronyms, interpolate
     /// - `:wat::time::` 2 of 41 — +, -
@@ -705,6 +725,13 @@ mod tests {
         ":wat::linkedlist::empty?",
         ":wat::linkedlist::get",
         ":wat::linkedlist::length",
+        // arc 255 Stone P6-c-W4 — field-names-of/field-types-of ARE typed (infer_list
+        // special-case, check.rs:3570/3596); metadata-of has neither scheme nor inference.
+        // All three are absent from `CheckEnv` (this ledger's actual criterion), so all three
+        // belong here — but they are NOT identically "unchecked"; see the header note above.
+        ":wat::runtime::field-names-of",
+        ":wat::runtime::field-types-of",
+        ":wat::runtime::metadata-of",
         ":wat::seq::remove-at",
         ":wat::seq::window",
         ":wat::seq::zip",
