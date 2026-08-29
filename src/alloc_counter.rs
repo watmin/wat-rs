@@ -9,7 +9,7 @@
 //! (measured 2026-08-29: `memory allocation of 56 bytes failed`, 6.2s, no wat diagnostic, no rule
 //! named). Replacing one abort with a tidier abort is not the job.
 //!
-//! So the allocator COUNTS and the engine READS. The fixpoint checks [`current_bytes`] at each
+//! So the allocator COUNTS and the engine READS. The fixpoint checks [`thread_bytes`] at each
 //! round boundary and raises a located `RuntimeError` naming the ceiling — a value a caller can
 //! match, at a span, in the substrate's own idiom.
 //!
@@ -34,13 +34,16 @@
 //!
 //! ── WHAT IT COSTS ────────────────────────────────────────────────────────────────────────────
 //!
-//! Two `Relaxed` atomic adds per allocation and one per free. `Relaxed` is correct here and is not
-//! a shortcut: the counter orders nothing — no other memory's visibility depends on it — and it is
-//! read at a round boundary as a magnitude, never as a lock or a flag. A stronger ordering would
-//! buy a guarantee nothing consumes.
+//! **One thread-local `Cell` write per allocation and one per free. No atomics, no shared state.**
 //!
-//! The peak is tracked with a CAS loop rather than a second add, so it is a true high-water mark
-//! rather than a sampled one.
+//! An earlier cut also kept two process-global `AtomicUsize` counters. They were removed, and the
+//! reason is structural rather than measured: a shared pair of cache lines read-modify-written by
+//! EVERY allocation on EVERY thread is a serialisation point on the hottest path in the process,
+//! and the shape this ceiling exists for is 512 sessions on 512 threads.
+//!
+//! ⚠ **THE GRID CANNOT SEE THIS, AND THAT IS THE POINT.** It is single-threaded, so removing the
+//! globals changed nothing it could measure (mean +5.5% → +5.8% — the same, i.e. noise). Do not
+//! read a green single-threaded grid as licence to reintroduce a hot global.
 //!
 //! ── ⛔⛔ IT IS PROCESS-GLOBAL, AND THAT IS NOT WHAT A SESSION CEILING NEEDS ────────────────────
 //!
@@ -72,10 +75,6 @@
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-static LIVE: AtomicUsize = AtomicUsize::new(0);
-static PEAK: AtomicUsize = AtomicUsize::new(0);
 
 thread_local! {
     /// Bytes live on THIS thread. `const { }` init is load-bearing, not style: a lazily
@@ -91,7 +90,14 @@ thread_local! {
 /// A rete session is THREAD-AFFINE by contract (`arm.rs`: *"Connection-thread affinity is the
 /// ZERO-MUTEX contract"*), so "this thread" and "this session" name the same thing while a fire
 /// is running. 512 threads with 512 sessions get 512 independent readings — which is exactly what
-/// [`current_bytes`] cannot give, since it reports their sum.
+/// a PROCESS-GLOBAL counter could never give, since it reports their sum.
+///
+/// ⚠ **THERE IS DELIBERATELY NO PROCESS-WIDE FIGURE, and its absence is a performance decision as
+/// much as a correctness one.** This module briefly carried `current_bytes()`/`peak_bytes()` over
+/// two `AtomicUsize`s. Nothing read them — and every allocation on every thread was touching the
+/// same two cache lines, which at the 512-session shape this ceiling exists for is not a ~6%
+/// overhead but a contention cliff. A thread-local `Cell` shares nothing. If a process figure is
+/// ever genuinely needed, sum the threads at a safepoint; do not reintroduce a hot global.
 ///
 /// ⚠ **IT OVER-COUNTS IN ONE DIRECTION, AND THAT IS THE SAFE ONE.** An `Arc` allocated here and
 /// dropped on another thread decrements the FREEING thread, so this thread's figure stays high.
@@ -99,21 +105,6 @@ thread_local! {
 /// dangerous direction and cannot happen: nothing charges this thread for another's allocation.
 pub fn thread_bytes() -> usize {
     THREAD_LIVE.try_with(|c| c.get()).unwrap_or(0)
-}
-
-/// Bytes currently allocated and not yet freed.
-///
-/// This is the substrate's own accounting, not the OS's RSS: it counts what Rust asked for, so it
-/// excludes allocator slack and page-table overhead and is not affected by whether pages have been
-/// returned. That makes it STABLE — the same program answers the same number twice — which an RSS
-/// reading is not.
-pub fn current_bytes() -> usize {
-    LIVE.load(Ordering::Relaxed)
-}
-
-/// The high-water mark of [`current_bytes`] since process start.
-pub fn peak_bytes() -> usize {
-    PEAK.load(Ordering::Relaxed)
 }
 
 /// `System`, plus two counters.
@@ -129,7 +120,6 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        LIVE.fetch_sub(layout.size(), Ordering::Relaxed);
         // `saturating_sub`, because a cross-thread free legitimately arrives on a thread that
         // never allocated it. Wrapping would turn that into a colossal figure and a false refusal.
         let _ = THREAD_LIVE.try_with(|c| c.set(c.get().saturating_sub(layout.size())));
@@ -148,7 +138,6 @@ unsafe impl GlobalAlloc for CountingAllocator {
                 bump(new_size - layout.size());
             } else {
                 let shrink = layout.size() - new_size;
-                LIVE.fetch_sub(shrink, Ordering::Relaxed);
                 let _ = THREAD_LIVE.try_with(|c| c.set(c.get().saturating_sub(shrink)));
             }
         }
@@ -164,21 +153,11 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 }
 
-/// Add to LIVE and raise PEAK if this is a new high-water mark.
+/// Add to this thread's live total.
 #[inline]
 fn bump(n: usize) {
     // `try_with`: during TLS teardown the slot is gone, and an allocation there must not panic.
     let _ = THREAD_LIVE.try_with(|c| c.set(c.get() + n));
-    let now = LIVE.fetch_add(n, Ordering::Relaxed) + n;
-    // A plain `if now > PEAK { store }` would race two threads into a LOWER peak. The CAS keeps
-    // the maximum monotone; `Relaxed` is fine because nothing is ordered against it.
-    let mut seen = PEAK.load(Ordering::Relaxed);
-    while now > seen {
-        match PEAK.compare_exchange_weak(seen, now, Ordering::Relaxed, Ordering::Relaxed) {
-            Ok(_) => break,
-            Err(actual) => seen = actual,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -187,26 +166,21 @@ mod tests {
 
     /// The counter MOVES with a real allocation and comes back down.
     ///
-    /// Not an equality assertion on the delta: this test does not own the process, and other
-    /// threads (nextest runs tests concurrently) allocate while it runs. What is deterministic is
-    /// the DIRECTION and the ORDER OF MAGNITUDE — a 4 MB allocation cannot hide inside the noise
-    /// of a test harness, and if it did the counter would be measuring nothing.
+    /// Reads are THREAD-LOCAL, so a sibling test allocating concurrently cannot perturb this one —
+    /// which is the property the ceiling depends on, and is therefore worth having a test rely on
+    /// rather than merely assert.
     #[test]
     fn the_counter_tracks_a_real_allocation_and_releases_it() {
         const BIG: usize = 4 * 1024 * 1024;
-        let before = current_bytes();
+        let before = thread_bytes();
         let v: Vec<u8> = vec![7u8; BIG];
-        let during = current_bytes();
+        let during = thread_bytes();
         assert!(
             during >= before + BIG,
             "a {BIG}-byte allocation must be visible in the counter: before={before} during={during}"
         );
-        assert!(
-            peak_bytes() >= during,
-            "the peak is a high-water mark and can never be below a live reading"
-        );
         drop(v);
-        let after = current_bytes();
+        let after = thread_bytes();
         assert!(
             after + BIG <= during,
             "freeing must decrement — a counter that only grows reports the wrong thing at every \
@@ -223,9 +197,9 @@ mod tests {
     fn a_grow_counts_only_the_difference() {
         let mut v: Vec<u8> = Vec::with_capacity(1024 * 1024);
         v.resize(1024 * 1024, 1);
-        let before = current_bytes();
+        let before = thread_bytes();
         v.reserve_exact(7 * 1024 * 1024);
-        let after = current_bytes();
+        let after = thread_bytes();
         let delta = after.saturating_sub(before);
         assert!(
             delta < 8 * 1024 * 1024,

@@ -1319,11 +1319,33 @@ field. Reachable, but not constructible inside a fence.
    instead of reading the config, each fail the row. Plus a non-vacuity row: the same workload at
    the default ceiling must still complete, or a ceiling of zero would pass everything.
 
-   ⚠ **AND IT COSTS ~5–8% ON FIRE**, measured against the 2026-08-27 grid (`fanout [10000]` +8.9%,
-   `accum [200 200]` +9.8%, `negation [1000]` +5.6%, `accum [50 200]` +0.2%; noise floor ~3%). Two
-   `Relaxed` atomics per allocation on a path this arc has spent weeks shaving. **That price is
-   now paid for a live guarantee rather than an unread counter**, but it is real and it is the
-   first thing to re-measure if the grid regresses.
+   ⛔⛔ **I QUOTED "~5–8% ON FIRE" AS A MEASUREMENT AND IT WAS NOT ONE. Struck 2026-08-29.**
+   Builder: *"we've been at the physics boundary for awhile… i think its all just noise here."*
+   Correct, and my own comparison said so before I stopped:
+
+   | cell | Δ |
+   |---|---|
+   | `negation [250]` | **+18.1%** |
+   | `accum [50 200]` | **+11.8%** |
+   | `fanout [20000]` | +1.7% |
+   | `negation [500]` | **−1.3%** |
+
+   A spread of −1.3% to +18.1% is several times the ~5% effect I was claiming to resolve. **Those
+   were three-sample deltas against a reference taken on a different day at a different HEAD** —
+   that measures the INSTRUMENT, not the allocator. `[[six-samples-or-no-number]]` is a memory I
+   wrote and then broke: three samples cannot resolve ten percent, and I quoted five.
+
+   **The honest statement: the allocator's cost is NOT RESOLVABLE by the grid at this scale.** It
+   may be a few percent, it may be nothing. Anyone who needs the number must A/B the same HEAD with
+   6+ runs on one cell — and should first ask whether a number that small is worth the day.
+
+   **AND REMOVING THE GLOBAL ATOMICS CHANGED NOTHING MEASURABLE EITHER** (mean +5.5% → +5.8%, i.e.
+   the same, i.e. noise). **It is still right, and the justification is structural, not empirical:**
+   two `AtomicUsize` on one shared pair of cache lines, read-modify-written by EVERY allocation on
+   EVERY thread, is a serialisation point on the hottest path in the process. **The grid is
+   single-threaded and therefore cannot see contention at all** — the shape this ceiling exists for
+   is 512 sessions on 512 threads, which no cell in the suite resembles. A thread-local `Cell`
+   shares nothing. Do not reintroduce a hot global on the strength of a green single-threaded grid.
 
    ⚠ **`MAX_PROVABLE_FACT_POPULATION` DID NOT GO AWAY, and the reason is worth keeping.** With a
    runtime ceiling it was supposed to become redundant — but it refuses at COMPILE, and the ceiling
