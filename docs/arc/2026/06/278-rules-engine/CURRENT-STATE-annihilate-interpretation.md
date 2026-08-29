@@ -6,7 +6,7 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `03a1b9335`; the commit carrying this stamp
+earlier 2026-08-28 ones. Written against HEAD `PENDING5`; the commit carrying this stamp
 lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
 touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
 That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
@@ -109,7 +109,17 @@ reasoning, wrong problem: with a literal rhs the holon rows need exactly what ev
 needs. **When a measurement says a tool needs widening, check the substrate first.**
 
 **WHERE THE WORK IS, as pointers — this file is a MAP, do not re-narrate it:**
-- `RETE-OPEN-WORK.md` § "The order, and why" — items 4–6 are the inherited rulings (`partire` x7,
+- ✅ **ITEM 4 (`partire` x7) IS RESOLVED 2026-08-28**, and WHY it lingered a week is the lesson:
+  **it was a TALLY, not a finding.** Only counts were recorded — "fire/mod.rs (3), validate.rs (2),
+  expr_ir.rs (1), arm.rs (2)" — never the proposals, so there was nothing to act on. **And the
+  counts measured TEST LINES as file size.** On production lines `arm.rs` is 593, not 1124 → it was
+  never a candidate. Two closures (`arm.rs`, `fire/mod.rs`) and two NAMED cuts (`expr_ir.rs` at its
+  own `// ── exec` seam; `validate.rs` into :when / :then / operand-typer). ⚠ I mis-measured twice
+  before getting it right — `#[cfg(test)]` here gates INDIVIDUAL fns, not a trailing module, so
+  "everything after the first cfg(test)" reported 1842 test lines where brace-matching says 316.
+  **A file-size number is worthless without knowing which half it measures** — exactly how the
+  original tally went wrong.
+- `RETE-OPEN-WORK.md` § "The order, and why" — items 5–6 are the remaining inherited rulings (
   TRACKED ① ②, `circumspicere` 1); **items 7–8 are new**: the holon surface (rete has 4 of ~40 ops,
   all from one group) and the `Bundle`/`:panic` builder ruling.
 - ⛔ **Clara cannot arbitrate holon** — builder: *"this is a wat only capability"*. `$native` vs

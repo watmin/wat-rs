@@ -686,8 +686,65 @@ admission path — a population of one, which is why no count would ever have su
      disagreed on the `else`. (`b7f54a17f`)
 
 
-4. **`partire` x7** — needs an owner or an affirmative CUT. It has been tracked in no list at all;
-   another silent pass is the one outcome that is not allowed.
+4. ~~**`partire` x7**~~ — **RESOLVED 2026-08-28 by re-audit. The item dissolves into two closures
+   and two named cuts.** It lingered a week for a reason worth naming: **it was a TALLY, not a
+   finding.** All that was ever recorded is *"Split proposals for `fire/mod.rs` (3), `validate.rs`
+   (2), `expr_ir.rs` (1), `arm.rs` (2)"*. The proposals themselves — WHAT to cut — were never
+   written down; they died with the vigilia's context. **You cannot act on `fire/mod.rs (3)`.**
+   That is why nobody did.
+
+   ⛔ **AND THE TALLY'S NUMBERS WERE WRONG — THEY COUNTED TEST LINES AS FILE SIZE.** Re-grounded on
+   PRODUCTION lines (everything before the first `#[cfg(test)]`, or brace-matched for per-item
+   gates):
+
+   | file | tally read | production | verdict |
+   |---|---|---|---|
+   | `src/rete/kernel/arm.rs` | 1124 | **593** | **LEAVE — never was a candidate** |
+   | `src/rete/kernel/fire/mod.rs` | 1893 | **1593** (316 test-only) | **LEAVE on the 3; ONE real seam, see below** |
+   | `src/rete/expr_ir.rs` | 1719 | **2041** | **CUT — the author already drew the seam** |
+   | `src/rete/validate.rs` | 2169 | **1990** | **CUT — three concerns, no seam drawn** |
+
+   ⚠ **I mis-measured this twice before getting it right, and the corrections are the method.**
+   First pass counted "everything after the first `#[cfg(test)]`" and reported `fire/mod.rs` as
+   1842 test lines — **false**: those are `#[cfg(test)]` on INDIVIDUAL production fns, not one
+   trailing test module. Brace-matched, it is 316. A file-size number is worthless without knowing
+   which half it measures, which is exactly how the original tally went wrong.
+
+   **THE TWO CLOSURES, affirmative:**
+   - **`arm.rs` — LEAVE.** 593 production lines, 2 author seams, one coherent job (intern the arm at
+     compile-all and persist it beside the network). It was only ever on the list because 531 lines
+     of tests were counted as file size.
+   - **`fire/mod.rs` — LEAVE on the three proposed splits.** But the re-audit found **one seam the
+     tally never named, and it is machine-checkable**: 316 lines across 8 `#[cfg(test)]` regions —
+     including all four `// ── Pass N` reference passes (`alpha_pass`, `root_join_pass`,
+     `keyed_join`, `production_pass`) — sit in the same file as the 1593 lines of production helpers
+     the ARMED path uses (`extend_token`, `rematch_compiled`, `driver_of`, `fact_holds_under`, …).
+     **Two reasons to change**: the reference passes move when the oracle does, the helpers when the
+     fused loop does. Real, but small and zero-risk — logged, not scheduled.
+
+   **THE TWO CUTS, named so they are actionable — this is what the tally should have said:**
+   - **`expr_ir.rs` → split at `// ── exec` (line 890).** The author drew this seam themselves. Above
+     it: building the `Expr` DAG (`lower_in_frame`, `lower_list`, `lower_expr`, the `#holon` fold).
+     Below it: evaluating one (`exec`, the opcode jump table). **Lowering and execution are two
+     reasons to change**, and 2041 lines is the largest production file in `src/rete/`.
+   - **`validate.rs` → three concerns, and NO seam is drawn anywhere in 1990 lines.** Reading its 38
+     fns they group cleanly: the **`:when` validator** (`validate_query_when`, `validate_when_entry`,
+     `validate_plain_condition`, `validate_typed_clauses`, `validate_clause`), the **`:then`
+     validator** (`check_rhs_operands`, `walk_nested_constructors`, `validate_then_form`,
+     `reorder_then_kwargs`, `rhs_operand_can_never_resolve`), and the **operand typer**
+     (`resolve_operand_type`, `check_operand_field_ref`, `rete_type_segment_of`,
+     `keyword_constant_segment`, `is_non_field_keyword`, `describe_operand`). The typer is the
+     self-contained one and the one this session edited.
+
+   ⚠ **NEITHER CUT CAN COMPUTE A WRONG ANSWER.** Both are hygiene against live defect work, which is
+   the honest reason to rank them low — not a reason to leave them untracked, which is what produced
+   this item.
+
+   ✅ **AND ONE PARTIRE FINDING WAS ALREADY DONE, uncounted by this item:** `delta.rs`'s 1774-line
+   `fire_fixpoint_delta_armed` (9 passes, 12 nesting levels, 16 top-level mutable locals) was cut
+   along its own author-drawn seams — `DESIGN-STONE-partire-fire-loop.md`. `delta.rs` is now 822
+   lines beside `acc.rs`, `rules.rs` and `pass/`. **The concrete partire finding shipped; only the
+   tally lingered.**
 5. **TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap** — three builder rulings. All
    three are blocked on a judgment call, not on work. ① is RULED on the merits as of 2026-08-27
    (convert: `Lru::new`'s capacity is read from a `:durable` EDN spec at rehydration, so a stored
