@@ -521,11 +521,32 @@ doctrine. It gets the floor discipline only if it independently opens
 `wat-rs/CLAUDE.md`. A rider will not.
 
 The assertion is self-certifying — it states its own delivery and dates it — so
-nobody re-checks. Stem-patch: paste the subset into `holon/CLAUDE.md`.
-Root-pull (`extirpare`): the `@wat-rs/CLAUDE.md` import that file already names
-as a follow-up, which makes the two copies structurally one and the drift
-unrepresentable. **Holon root git is FROZEN (`tmp/VIGILIA-LOOP.md`) — not
-touched. Awaiting the builder's call.**
+nobody re-checks.
+
+✅ **RULED AND WRITTEN 2026-08-28** (builder: *"we just do the claude file changes
+you keep asking for"*). Re-verified first: `holon/CLAUDE.md` scored **0 of 6** on
+`wat-fix` · `codemod` · `floor.sh` · `known flake` · `scratch-pad` · `wat-rs`. It
+never mentions `wat-rs` at all.
+
+**Neither of the two proposals on the table was taken, and the reason is the
+finding.** Stem-patch (paste the subset) and root-pull (`@wat-rs/CLAUDE.md`) BOTH
+create a second copy of the doctrine — the first by hand, the second by resolution
+— and this row exists because a second copy went stale. Worse, no import syntax is
+in use anywhere in the holon tree, so **an `@` that silently fails to resolve would
+leave the gap PLUS a claim it was fixed** — the exact rot being cured.
+
+**What was written is a POINTER, which asserts nothing about wat-rs's content and
+therefore cannot drift**: a block naming the four doctrine areas by TITLE only,
+stating that none of them are in that file, and requiring `wat-rs/CLAUDE.md` be read
+in full before any work under it. The `@wat-rs/CLAUDE.md` import sits beneath it, so
+the content arrives when the mechanism works — and the pointer still carries the
+rider when it does not. Belt and braces, with only the belt able to rot.
+
+⚠ **THE EDIT IS UNCOMMITTED. Holon root git is FROZEN** — the change is on disk at
+`~/work/holon/CLAUDE.md` (+14 lines, one block before `## Architecture`) for the
+builder to commit. Nothing in this repo asserts that it landed, deliberately: a
+claim here about a file over there is unverifiable from here, which is how this row
+was born.
 
 ---
 

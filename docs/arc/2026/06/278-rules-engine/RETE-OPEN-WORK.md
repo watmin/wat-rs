@@ -745,11 +745,32 @@ admission path — a population of one, which is why no count would ever have su
    along its own author-drawn seams — `DESIGN-STONE-partire-fire-loop.md`. `delta.rs` is now 822
    lines beside `acc.rs`, `rules.rs` and `pass/`. **The concrete partire finding shipped; only the
    tally lingered.**
-5. **TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap** — three builder rulings. All
-   three are blocked on a judgment call, not on work. ① is RULED on the merits as of 2026-08-27
-   (convert: `Lru::new`'s capacity is read from a `:durable` EDN spec at rehydration, so a stored
-   `0` panics the process — that is a fallible runtime input, not a caller bug) and now waits only
-   on MANDATE, since the LRU is not rete.
+5. **TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap** — **all three AUDITED against
+   the tree 2026-08-28 and all three LIVE AND ACCURATE.** First inherited row this session that was
+   not stale; the streak was 6-for-6, so that is worth recording too.
+
+   - **① the cache LRU's panics — MOVED OUT of 278 by builder ruling** (*"this is unrelated to
+     rete/278"*). Now
+     `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`.
+     The merits ruling is re-verified and **SHARPENED: the three panics do not answer the same
+     way.** `Lru::new`'s capacity crosses a serialization boundary (`wat/cache.wat:132` —
+     `:durable [capacity <- i64]` is the SPEC the resource is rebuilt from), so a stored `0` panics
+     at REHYDRATION with no caller in the frame — fallible input. `put`/`get`'s non-hashable key is
+     supplied at the call site and the checker rejects it at most of them — a genuine caller bug.
+     **Recommendation: convert `new` only, leave `put`/`get`** — a third of the original surface
+     churn. Awaiting mandate.
+   - **② `match` map-destructure field index — STILL OPEN, and RE-RANKED UP.** It is refused today
+     (`expr_ir.rs:670` and `:680`, *"match map-destructure is not lowered in v1"*), and those two
+     lines are **the LAST `v1` refusal left in the rete expression core** — grepped, nothing else.
+     Same shape and same words as the denials this arc spent 2026-08-28 removing (`cond`/`let`/
+     `match` inline, keyword operands, `#holon`), every one of which fell to a single probe.
+     *"Not a v1 blocker"* is a priority, not an answer. **This is the live one.**
+   - **the `CLAUDE.md` delivery gap — CLOSED 2026-08-28**, and written as a POINTER rather than
+     either proposal on the table. Both proposals (paste the subset / `@` import) create a second
+     copy of the doctrine, and this row exists BECAUSE a second copy went stale; a pointer asserts
+     nothing about wat-rs's content and so cannot rot. Full reasoning in
+     `NEXT-STRIKES-theater-hunt.md` § "Not perf — a guardrail hole".
+     ⚠ **The edit is UNCOMMITTED — holon root git is FROZEN.**
 6. **`circumspicere` 1 (grid SPEED half in CI)** — re-decide on the live constraint (runner noise),
    not the dead one (no JDK). A Clara ratio is the noise-tolerant form.
 

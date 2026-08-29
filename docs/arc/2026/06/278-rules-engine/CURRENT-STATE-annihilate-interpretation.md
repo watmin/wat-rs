@@ -6,7 +6,7 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `f1e112562`; the commit carrying this stamp
+earlier 2026-08-28 ones. Written against HEAD `PENDING6`; the commit carrying this stamp
 lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
 touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
 That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
@@ -119,7 +119,20 @@ needs. **When a measurement says a tool needs widening, check the substrate firs
   "everything after the first cfg(test)" reported 1842 test lines where brace-matching says 316.
   **A file-size number is worthless without knowing which half it measures** — exactly how the
   original tally went wrong.
-- `RETE-OPEN-WORK.md` § "The order, and why" — items 5–6 are the remaining inherited rulings (
+- ✅ **ITEM 5 IS DOWN TO ONE ROW, and all three of its parts audited LIVE (not stale — first time
+  this session, streak was 6-for-6).** ① the cache LRU **moved out of 278** to arc 109 as a NOTE
+  (builder: *"this is unrelated to rete/278"*), with the merits SHARPENED — the three panics do not
+  answer the same way, so the recommendation is **convert `Lru::new` only**, since its capacity
+  arrives from a `:durable` EDN spec at rehydration while `put`/`get`'s key is a call-site bug.
+  The **`CLAUDE.md` gap is CLOSED** as a POINTER, not a copy — both proposals on the table made a
+  second copy, which is what rotted in the first place; ⚠ the edit is **UNCOMMITTED, holon root is
+  FROZEN**.
+- ⚠⚠ **ITEM 5② IS THE LIVE ONE, AND IT IS TODAY'S PATTERN.** `match` map-destructure is refused at
+  `expr_ir.rs:670`/`:680` with *"not lowered in v1"* — and those two lines are **the LAST `v1`
+  refusal in the rete expression core**. Same shape and same words as every denial this arc removed
+  on 2026-08-28, each of which fell to ONE probe. Its settled sibling `(:Type/field ?var)` compiles
+  its index at rule-compile. **Check the premise before running the four questions on it.**
+- `RETE-OPEN-WORK.md` § "The order, and why" — item 6 is the last inherited ruling (
   TRACKED ① ②, `circumspicere` 1); **items 7–8 are new**: the holon surface (rete has 4 of ~40 ops,
   all from one group) and the `Bundle`/`:panic` builder ruling.
 - ⛔ **Clara cannot arbitrate holon** — builder: *"this is a wat only capability"*. `$native` vs
