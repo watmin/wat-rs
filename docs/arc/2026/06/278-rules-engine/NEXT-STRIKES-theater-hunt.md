@@ -1292,7 +1292,7 @@ below** — the same two-places-per-row defect this section's L1 header now bans
   DELIBERATELY not taken: `filter_pass` is unreachable from an integration test, and
   going in-crate means the empty-`:rhs` implementer vantage just marked as a runed
   exception.
-- `circumspicere` 1 L2 — the grid's SPEED half runs in no CI job. **⚠ ITS STATED REASON EXPIRED
+- ~~`circumspicere` 1 L2 — the grid's SPEED half runs in no CI job.~~ **CLOSED 2026-08-29 — it runs as its own `grid-speed` job on per-axis ratio floors; the full verdict is `RETE-OPEN-WORK.md` § "The order" item 6, and BOTH stated reasons were dead (the second one was never measured: the tightest cell is 8.5x, nowhere near the parity a noise argument needs).** ⚠ ITS STATED REASON EXPIRED
   ON 2026-08-27 AND NOTHING NOTICED — same shape as TRACKED DECISIONS ①.** The row read
   "correctly scoped: it needs Clara and a JDK the runner lacks." The runner no longer lacks
   either: the `parity` job added that day installs Temurin 21 and a version-pinned Clojure CLI
