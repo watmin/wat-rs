@@ -16,6 +16,30 @@ mem-store    → 3      ← what the test asserts
 sqlite-store → 1      ← two metrics gone
 ```
 
+## ⛔ CORRECTED 2026-08-30 — the table above is HALF A MEASUREMENT, and it understates the bug
+
+**I ran the sqlite side and filled the mem side in from the test's assertion.** Stone 2c was
+already built when I measured, so `mem-store` was **already returning 1**. Measured directly
+while grading the JOURNAL-CENSUS stone:
+
+```
+the UNMODIFIED fixture, mem-store, post-2c  →  "1"
+```
+
+So the honest statement is **not** "journal loses metrics on sqlite". It is:
+
+> **`journal` loses metrics on EVERY backend that implements `PutItem` correctly.**
+
+Before stone 2c, `mem-store`'s `put` appended, so the collision was invisible there and the
+fixture passed. 2c made mem a replace — which is right, DynamoDB is the referent — and the
+collision became visible on both. **The key defect was never backend-specific.** It only
+looked that way because the oracle was broken in a direction that hid it.
+
+That makes this a **`journal` bug**, not a store bug, and it removes the last reason to think
+the fix is optional: there is no conforming backend on which the current key works.
+
+The heading of this NOTE says "on sqlite". Left as-is so the correction is legible against it.
+
 ## The mechanism
 
 `wat/telemetry/journal.wat`, `metric->row`:
