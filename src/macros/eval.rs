@@ -334,7 +334,7 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
     }
 }
 
-// ─── Blessed allow-list — DEFAULT-DENY ───────────────────────────────────────
+// ─── Expand-time legality — DERIVED from the registry, a residue left ────────
 //
 // Decides EXPAND-TIME LEGALITY: which `dispatch_keyword_head` /
 // `dispatch_keyword_head_value` heads (runtime.rs) may be CALLED from inside a
@@ -342,39 +342,62 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 // subset" — arc 255 Stone expand-1 audited all 202 entries against their own
 // registered `@Purity`/`@Determinism`/`@Total` and found expand-time-legality
 // is an independent property that purity and totality each bear on but
-// neither one settles alone:
+// neither one settles alone.
+//
+// Arc 255 Stone expand-T4b: this predicate now DERIVES its answer from each verb's
+// OWN `@ExpandTime <Variant>` at its registration site (`registry().lookup_entry`) —
+// the same shape `total-T4b` (`rete/purity.rs`'s `intrinsic_meta`) built one stone
+// earlier for the totality axis. A `matches!` here duplicating a fact the registry
+// already holds is exactly the shape 255.1c retired as "a gate reading a copy of the
+// truth" (`intrinsic/mod.rs:988`, `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`):
+//
+//   Legal | Preserving   -> true.  `Preserving` means "I contribute no illegality of
+//                           my own; my sub-forms carry theirs" — the same reading
+//                           `pure`/`deterministic` already give it
+//                           (`intrinsic/mod.rs:1038`'s `matches!(purity, Pure | Preserving)`).
+//   RuntimeOnly           -> false. Denied by declaration. No verb has been ruled
+//                           `RuntimeOnly` yet — this stone's DESIGN names ruling one
+//                           as out of scope; that verdict needs a maker.
+//   Unreviewed | None     -> the residue `matches!` below: a name that is either
+//                           registered but not yet reviewed on this axis, or has no
+//                           registration site at all — either way, unhomed.
+//
+// The historical findings that shaped which verbs are expand-time legal still apply.
+// They are now facts the REGISTRY carries at each verb's own site, not a second copy
+// kept here:
 //
 //   - Effectful heads (`:wat::kernel::*`, IO, spawning, time `now`, random
 //     UUIDs, signal queries, `:wat::core::apply`, `:wat::core::eval-ast!`,
-//     etc.) are NOT present here — DENIED by default. The audit found zero
-//     exceptions: default-deny has held perfectly across all 202 entries.
-//   - `:wat::i64::/` (and `mod`/`rem`/`quot`) IS present despite being
+//     etc.) are denied by default — arc 255 Stone expand-1's audit found zero
+//     exceptions across all 202 entries that were legal.
+//   - `:wat::i64::/` (and `mod`/`rem`/`quot`) is legal despite being
 //     `@Total Partial` (undefined at a zero divisor). A partial verb can
 //     still be expand-time-legal: dividing by zero during expansion raises a
 //     deterministic, located MacroError — a compile-time failure instead of
 //     a runtime one, which is strictly better. Totality and expand-time
-//     legality are different axes; this list decides the second one only.
-//     (The two claims never conflicted — only the function's old name,
-//     `is_pure_total`, made them look like they did.)
-//   - `:wat::core::fresh-symbol` and `:wat::kernel::macro-call-site` ARE
-//     present despite being Nondeterministic, and correctly so.
-//     `fresh-symbol` mints a different capture-proof gensym on every call —
-//     that nondeterminism IS what makes hygienic expansion possible.
-//     `macro-call-site` reads the current invocation's own source span,
-//     which is stable for the duration of that expansion. Neither one makes
-//     a given macro SOURCE expand to different code across runs.
-//   - `:wat::hashmap::keys` / `:wat::hashmap::values` ARE present, also
-//     Nondeterministic, and also correctly. ⛔ THIS STONE FIRST REMOVED THEM AND
-//     THAT WAS WRONG — the retraction is the finding, so it is recorded here.
+//     legality are different axes.
+//   - `:wat::core::fresh-symbol` and `:wat::kernel::macro-call-site` are legal
+//     despite being Nondeterministic, and correctly so. `fresh-symbol` mints
+//     a different capture-proof gensym on every call — that nondeterminism
+//     IS what makes hygienic expansion possible. `macro-call-site` reads the
+//     current invocation's own source span, stable for the duration of that
+//     expansion. Neither makes a given macro SOURCE expand to different code
+//     across runs.
+//   - `:wat::hashmap::keys` / `:wat::hashmap::values` are legal, also
+//     Nondeterministic, and also correctly — now annotated `@ExpandTime Legal`
+//     at their registration site (`src/intrinsic/hashmap.rs`), not carried in
+//     this file's residue. ⛔ arc 255 Stone expand-1 FIRST REMOVED THEM and
+//     that was wrong; a stale copy of this very bullet then went on claiming
+//     the removal had happened for a full stone afterward, until expand-T4a's
+//     rider refused to transcribe a blessing this file's CODE gave while this
+//     COMMENT denied it
+//     (`[[feedback_a_walls_paperwork_can_claim_a_door_it_did_not_close]]`).
 //     A `HashMap` is a pure data collection and `keys` is a pure PROJECTION of
 //     it: the same map yields the same SET of keys every time, and only their
 //     ORDER is unspecified ("deliberately NOT part of the contract" —
 //     src/value/pmap.rs). The hazard people reach for this gate to prevent is a
 //     macro whose EXPANSION varies between runs — but that is a property of a
 //     USE, not of a verb, and a verb-level gate cannot tell the two apart.
-//     Blocking `keys` refuses every order-INDEPENDENT use along with the
-//     dangerous ones, which is precisely the false-refusal drift the paragraph
-//     below warns about.
 //     ★ Measured: removing them made `:wat::core::format` (wat/core.wat:1639)
 //     undefinable and took 247 of 415 targeted tests RED. And `format`'s use is
 //     order-independent — the fold at wat/core.wat:1939 carries a `nil`
@@ -388,450 +411,111 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 //     property where it actually lives, for every verb, without a curated list.
 //     A determinism gate on the verb cannot see it and refuses the innocent.
 //
-// The suite teaches completeness: a false-refusal (a legal head missing from
-// this list) makes a stdlib test RED. Add it here. A missing effectful head is
-// harmless (stays denied).
+// The suite still teaches completeness: a false-refusal (a legal head whose
+// registration reads anything but `Legal`/`Preserving`, that ALSO has no arm in the
+// residue below) makes a stdlib test RED — add it to the residue, or better, home it
+// and annotate it `@ExpandTime Legal`/`Preserving` at its registration site. A missing
+// effectful head is harmless: it defaults `Unreviewed`/`None` and is denied unless the
+// residue explicitly admits it, which it never does for an effectful verb.
 //
-// ★ THAT CLAIM HAD NEVER BEEN PUT THROUGH A RED/GREEN CYCLE, and arc 255 Stone
-// expand-1 tested it directly by removing `:wat::hashmap::keys`. It is TRUE,
-// and it fires hard: `:wat::core::format` (wat/core.wat:1639) calls `keys` on
-// its own kwargs-map at expand time, so `format` — foundational across the
-// corpus — could no longer be DEFINED, and 247 of 415 targeted tests went red,
-// every one a MalformedDefmacro naming the refused head. The mechanism works.
-// What the experiment actually demonstrated was that the REMOVAL was wrong, not
-// that `format` was: see the keys/values bullet above.
-//
-// rune:struere(invariant-coupling) — this allow-list mirrors the expand-time-legal
-// arm of fn dispatch_keyword_head / fn dispatch_keyword_head_value (runtime.rs);
-// the suite enforces completeness (default-deny makes over-restriction the only
-// drift direction — and over-restriction is what this stone caught itself doing).
+// rune:struere(invariant-coupling) — this predicate mirrors the expand-time-legal arm
+// of fn dispatch_keyword_head / fn dispatch_keyword_head_value (runtime.rs); the suite
+// enforces completeness (default-deny makes over-restriction the only drift direction).
 fn is_expand_time_legal(head: &str) -> bool {
+    if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
+        return matches!(e.expand_time, wat_doc::ExpandTime::Legal | wat_doc::ExpandTime::Preserving);
+    }
+    // ★ THE RESIDUE — arc 255 Stone expand-T4b. NOT a hand-list of "which verbs are
+    // expand-time legal": every name below is one for which `registry().lookup_entry`
+    // returns `None` — no registration site exists yet to carry an `@ExpandTime`
+    // ruling — so the verdict for exactly these 59 stays HERE until one exists. This
+    // is a HOMING BACKLOG, not the 202-name hand-list it replaced: each row retires
+    // the moment its verb gets a registration site — move the reasoning there (the
+    // same motion `:wat::hashmap::keys` / `:wat::hashmap::values` just made above)
+    // and delete the arm. A REGISTERED verb does not belong here — if one is ever
+    // added below alongside a real registration, the derivation above is being
+    // shadowed by a copy, which is the exact defect this stone exists to remove.
+    // Measured at 59 (arc 255 Stone expand-T4a's count, reconfirmed by this stone via
+    // `lookup_entry` on every one, not re-guessed).
+    //
+    // Grouped only for a reader's sake — the residue's DEFINITION is `lookup_entry ==
+    // None`, nothing about these groupings:
+    //   value/control-flow ops with no per-verb home yet — `=`, `not=`, `and`, `or`,
+    //     `not`, `do`, `fn`, `match`, `bool::to-string`, `i64/to-f64` (dual spelling
+    //     of the homed `i64::to-f64`), `i64/to-string`, `str`, `show`, `type`,
+    //     `subtype?`, `conforms?`, `record?`, `List?`, `macro-error`
+    //   collection constructors — `Vector`, `Tuple`, `HashMap`, `HashSet`
+    //   collection / sequence ops still on the pre-registry dispatch path —
+    //     `assoc`, `conj`, `contains?`, `count`, `first`, `second`, `third`, `get`,
+    //     `into`, `drop`, `take`, `filter`, `filterv`, `map`, `mapv`, `foldl`,
+    //     `reduce`, `reduce-stream`, `doall`, `dorun`, `find-last-index`, `sort'`,
+    //     `stream::lazy`, `stream->vec`, `stream->pvec`
+    //   homoiconic AST helpers not yet homed — `forms`, `with-children`,
+    //     `write-forms`, `struct->form`
+    //   Option/Result unwrappers — `Option/expect`, `Option/try`, `Result/expect`,
+    //     `Result/try`
+    //   ReadOutcome / Error field access — `ReadOutcome::Forms`,
+    //     `ReadOutcome::Malformed`, `Error/message`
     matches!(
         head,
-        // ── Integer arithmetic (pure, total, wrapping) ─────────────────
-        // mod/rem/quot route through the same eval_i64_arith dispatch as
-        // `/` (runtime.rs) — div-by-zero is a deterministic located abort
-        // (RuntimeErrorKind::DivisionByZero), never a panic, same as `/`.
-        | ":wat::i64::+"
-        | ":wat::i64::-"
-        | ":wat::i64::*"
-        | ":wat::i64::/"
-        | ":wat::i64::mod"
-        | ":wat::i64::rem"
-        | ":wat::i64::quot"
-
-        // ── Integer comparison ─────────────────────────────────────────
-        | ":wat::i64::>"
-        | ":wat::i64::<"
-        | ":wat::i64::>="
-        | ":wat::i64::<="
-
-        // ── Float arithmetic (pure, IEEE 754) ─────────────────────────
-        | ":wat::f64::+"
-        | ":wat::f64::-"
-        | ":wat::f64::*"
-        | ":wat::f64::/"
-        | ":wat::f64::abs"
-        | ":wat::f64::max"
-        | ":wat::f64::min"
-        | ":wat::f64::round"
-        | ":wat::f64::clamp"
-        | ":wat::f64::max-of"
-        | ":wat::f64::min-of"
-
-        // ── Float comparison ───────────────────────────────────────────
-        | ":wat::f64::>"
-        | ":wat::f64::<"
-        | ":wat::f64::>="
-        | ":wat::f64::<="
-
-        // ── Polymorphic equality / relational ─────────────────────────
         | ":wat::core::="
         | ":wat::core::not="
-
-        // ── Boolean logic ─────────────────────────────────────────────
         | ":wat::core::and"
         | ":wat::core::or"
         | ":wat::core::not"
-
-        // ── Scalar conversions (pure) ──────────────────────────────────
-        // Dual-spelled pairs (e.g. i64::to-f64 / i64/to-f64; string::concat /
-        // String/concat): both surface spellings route to the same dispatch arm;
-        // both are listed here intentionally so either spelling in a macro
-        // program-body is allowed.
-        | ":wat::i64::to-string"
-        | ":wat::i64::to-f64"
-        | ":wat::core::i64/to-f64"
-        | ":wat::core::i64/to-string"
-        | ":wat::f64::to-string"
-        | ":wat::f64::to-i64"
-        | ":wat::core::bool::to-string"
-        | ":wat::string::to-i64"
-        | ":wat::string::to-f64"
-        | ":wat::string::to-bool"
-
-        // ── Keyword / symbol ops (pure) ────────────────────────────────
-        // Arc 255 Stone E-iv — `keyword` gets its home. `:wat::core::keyword/{to-string,
-        // from-string}` RETIRED this stone; `:wat::keyword::*` (below) is their replacement.
-        | ":wat::keyword::to-string"
-        | ":wat::keyword::from-string"  // pure constructor (routed via the intrinsic registry)
-
-        // ── Macro diagnostics (pure: deterministic abort, no IO) ────────
-        // Arc 258 Stone 258.2b — first-class macro-abort. Aborts expansion
-        // with a user diagnostic. Pure: no IO, deterministic (same message
-        // → same MacroError); the deliberate abort is safe at expand time.
-        | ":wat::core::macro-error"
-
-        // Arc 278 §4 — `:wat::kernel::macro-call-site`: reads the expand-time
-        // `MACRO_CALL_SITE` thread-local (the CURRENT macro invocation's own
-        // source span, pushed by `expand_macro_call`) and returns a
-        // spliceable Frame-constructor FORM. Pure + deterministic PER
-        // EXPANSION (same invocation → same span, every time it's read
-        // during that invocation's expansion) and does no IO — it is the
-        // `log`-macro's per-log-line `emitted-from` primitive, so it must be
-        // permitted in a macro body for that macro to ever exist.
-        | ":wat::kernel::macro-call-site"
-
-        // ── String ops (pure) ─────────────────────────────────────────
-        // Arc 255 Stone F — the dual-spelled `:wat::core::String/*` entries that lived beside
-        // each of these (concat/contains?/starts-with?/ends-with?/empty? below) are RETIRED and
-        // deleted, not carried forward: the uppercase spelling can no longer be produced by any
-        // corpus program, so listing it here would be dead weight.
-        | ":wat::string::concat"
-        // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
-        // the format macro, but interpolates at call time → expand-time-legal in macro bodies.
-        | ":wat::string::interpolate"
-        | ":wat::string::contains?"
-        | ":wat::string::starts-with?"
-        | ":wat::string::ends-with?"
-        | ":wat::string::length"
-        // Arc 279.1 — subs is on is_pure_total: the `format` macro walks the template
-        // character-by-character at expand time (length + subs i (i+1)) to collapse the
-        // `{{`/`}}` literal-brace escape. Char-indexed + total-deterministic (out-of-range
-        // is a deterministic abort, like split's empty-sep refusal). "Does a macro need it?" — yes.
-        | ":wat::string::subs"
-        | ":wat::string::trim"
-        | ":wat::string::to-lowercase"
-        | ":wat::string::to-uppercase"
-        // Arc 209 naming-conversion — pascal->kebab is on is_pure_total (the defservice macro
-        // calls it at expand time to derive fn names). Arc 278 #16.2 — to-uppercase joins it:
-        // serve-op-arms calls it at expand time to derive the `<OP>-MAX-REQUEST-BYTES` const
-        // keyword from the kebab op name.
-        // Arc 265 — pascal->kebab-in (namespace-scoped) is also on is_pure_total: the defservice
-        // macro calls it at expand time to derive fn names using the namespace's declared acronyms.
-        // Arc 293 S2 — kebab->pascal-in joins it: `defservice … :satisfies` derives the surface's
-        // PascalCase Op/Reply variant names from the kebab :impls op names at expand time.
-        | ":wat::string::pascal->kebab"
-        | ":wat::string::pascal->kebab-in"
-        | ":wat::string::kebab->pascal-in"
-        | ":wat::string::split"
-        | ":wat::string::join"
-        // Arc 255 Stone F — `:wat::string::empty?` is the home's missing twin
-        // (`intrinsic/string.rs::eval_string_empty`); `wat/core.wat`'s `format` macro calls it
-        // in its OWN body (two sites, migrated by the corpus codemod). The dual-listed
-        // `:wat::core::String/empty?` this replaced is retired and deleted, not carried forward.
-        | ":wat::string::empty?"
-
-        // ── Type inspection (pure) ─────────────────────────────────────
-        | ":wat::core::type"
-        | ":wat::core::conforms?"
-        | ":wat::core::subtype?"
-        | ":wat::core::record?"
-
-        // ── Control flow ──────────────────────────────────────────────
-        | ":wat::core::if"
-        | ":wat::core::match"
-        | ":wat::core::let"
         | ":wat::core::do"
         | ":wat::core::fn"
-
-        // ── ReadOutcome constructors (arc 170) ─────────────────────────
-        // `read-string` became TOTAL, so every call site — including the handful INSIDE
-        // program-body defmacros that parse at expand time (`wat/core.wat`'s interpolate
-        // family) — now names these two heads. Constructing a variant of a `Purity::Pure`
-        // enum is pure and total by construction: it allocates, it cannot diverge, and it
-        // touches nothing outside its own fields. Their ABSENCE was the false-refusal this
-        // list's own comment predicts ("a pure head missing from this list makes a stdlib
-        // test RED. Add it here") — it fired as 2530 reds off one MalformedDefmacro root.
-        | ":wat::core::ReadOutcome::Forms"
-        | ":wat::core::ReadOutcome::Malformed"
-        // …and reading the headline off the cause an expand-time Malformed arm caught.
-        // `:wat::core::Error` is a Record-natured SURFACE (`wat/core.wat`), so this is a
-        // plain field read on pure data — total, allocation-only, no effect.
-        | ":wat::core::Error/message"
-
-        // ── Collections — constructors ─────────────────────────────────
+        | ":wat::core::match"
+        | ":wat::core::bool::to-string"
+        | ":wat::core::i64/to-f64"
+        | ":wat::core::i64/to-string"
+        | ":wat::core::str"
+        | ":wat::core::show"
+        | ":wat::core::type"
+        | ":wat::core::subtype?"
+        | ":wat::core::conforms?"
+        | ":wat::core::record?"
+        | ":wat::core::List?"
+        | ":wat::core::macro-error"
         | ":wat::core::Vector"
         | ":wat::core::Tuple"
         | ":wat::core::HashMap"
         | ":wat::core::HashSet"
-
-        // ── Collections — polymorphic intrinsics ─────────────────────
-        | ":wat::core::length"
-        | ":wat::core::empty?"
-        | ":wat::core::contains?"
-        | ":wat::core::conj"
-        | ":wat::core::get"
         | ":wat::core::assoc"
+        | ":wat::core::conj"
+        | ":wat::core::contains?"
+        | ":wat::core::count"
         | ":wat::core::first"
         | ":wat::core::second"
         | ":wat::core::third"
-        // Stone 118.B4-0 — `nth` is now a Rust intrinsic (was a wat `defclause`, never a
-        // candidate for this list). Legitimate now, for the same reason as its siblings above:
-        // it reads no state, performs no effect, and its out-of-range raise is a deterministic
-        // located abort — not disqualifying (see `i64::/`, admitted above for div-by-zero).
-        | ":wat::core::nth"
-        | ":wat::core::last"
-        | ":wat::core::rest"
-
-        // ── Collections — per-type ops ────────────────────────────────
-        // Arc 255 Stone E-ii — the vectors get their homes. `:wat::core::Vector/*` retired this
-        // stone; `:wat::vec::*` is its replacement (PersistentVector was never on this list —
-        // that asymmetry predates this stone and is not this stone's to fix; `:wat::vector::*`
-        // is therefore deliberately absent here too, same shape as E-i's map/hashmap note below).
-        | ":wat::vec::length"
-        | ":wat::vec::empty?"
-        | ":wat::vec::contains?"
-        | ":wat::vec::get"
-        | ":wat::vec::conj"
-        | ":wat::vec::concat"
-        // Arc 255 Stone E-i — the maps get their homes. `:wat::core::HashMap/*` retired this
-        // stone; `:wat::hashmap::*` is its replacement (PersistentMap was never on this list —
-        // that asymmetry predates this stone and is not this stone's to fix; `:wat::map::*` is
-        // therefore deliberately absent here too).
-        | ":wat::hashmap::length"
-        | ":wat::hashmap::empty?"
-        | ":wat::hashmap::contains-key?"
-        | ":wat::hashmap::keys"
-        | ":wat::hashmap::values"
-        | ":wat::hashmap::get"
-        | ":wat::hashmap::assoc"
-        | ":wat::hashmap::dissoc"
-        // ⛔ Arc 255 Stone expand-1 — `:wat::hashmap::keys` / `:wat::hashmap::values` STAY,
-        // and this comment used to claim they had been REMOVED. That claim was written when
-        // the stone removed them, the removal was RETRACTED before it shipped, and the
-        // header's bullet was corrected while THIS comment was missed — a second copy of the
-        // same paperwork, left asserting an act that never happened. Found by expand-T4a's
-        // rider, which refused to transcribe a blessing the code gave and a comment denied.
-        // `[[feedback_a_walls_paperwork_can_claim_a_door_it_did_not_close]]`
-        //
-        // Why they belong: a `HashMap` is pure data and `keys` is a pure PROJECTION of it —
-        // the same map yields the same SET every time, and only the ORDER is unspecified.
-        // They are `@Determinism Nondeterministic` (`afc9f776b`) and that label is honest,
-        // but this list decides expand-time legality, not determinism. The hazard people
-        // reach for here is a macro whose EXPANSION varies — a property of a USE, not of a
-        // verb, which a verb-level gate cannot see. Removing them refused every
-        // order-INDEPENDENT use too: `:wat::core::format` (wat/core.wat:1939) folds over
-        // `keys` with a discarded `nil` accumulator and emits code that never references
-        // them, and the removal still took 247 tests red by making `format` undefinable.
-        // The honest instrument for order-dependence is EXPANDING A MACRO TWICE AND
-        // COMPARING THE OUTPUT, not a determinism gate on the verb.
-        // Arc 255 Stone E-iii — `:wat::core::HashSet/*` retired this stone;
-        // `:wat::hashset::*` is its replacement (List was never on this list — that
-        // asymmetry predates this stone and is not this stone's to fix; `:wat::linkedlist::*`
-        // is therefore deliberately absent here too, same shape as E-i/E-ii's notes above).
-        | ":wat::hashset::length"
-        | ":wat::hashset::empty?"
-        | ":wat::hashset::contains?"
-        | ":wat::hashset::conj"
-
-        // ── Collections — HOFs (bounded iteration over finite lists) ──
-        | ":wat::core::map"
-        | ":wat::core::filter"
-        | ":wat::core::foldl"
-        | ":wat::core::range"
-        | ":wat::core::take"
-        | ":wat::core::drop"
-        | ":wat::core::reverse"
-        | ":wat::core::sort'"  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
-        | ":wat::core::find-last-index"
-
-        // ── Arc 118.2a — the clojure-named lazy/eager HOF surface (wat/seq.wat).
-        // `map`/`filter`/`take`/`drop` above now return Stream; these are the pure
-        // eager materializers + reduce built over them. All pure/total (no IO, no
-        // randomness, no channels) — safe at macro-expansion time. Needed by
-        // `:wat::rete::defrule` (arc 278.5) and other program-body macros that
-        // consume the now-lazy HOFs.
-        | ":wat::core::mapv"
-        | ":wat::core::filterv"
+        | ":wat::core::get"
         | ":wat::core::into"
+        | ":wat::core::drop"
+        | ":wat::core::take"
+        | ":wat::core::filter"
+        | ":wat::core::filterv"
+        | ":wat::core::map"
+        | ":wat::core::mapv"
+        | ":wat::core::foldl"
+        | ":wat::core::reduce"
+        | ":wat::core::reduce-stream"
         | ":wat::core::doall"
         | ":wat::core::dorun"
-        | ":wat::core::reduce"
-        | ":wat::core::count"
+        | ":wat::core::find-last-index"
+        | ":wat::core::sort'"  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+        | ":wat::stream::lazy"
         | ":wat::core::stream->vec"
         | ":wat::core::stream->pvec"
-        | ":wat::core::reduce-stream"
-
-        // ── Arc 118.2a — `:wat::stream::*` primitives (type + cons/lazy/empty).
-        // The `filter` defclause + the new materializers above are built on these;
-        // a program-body macro composing a lazy pipeline directly needs them too.
-        | ":wat::stream::cons"
-        | ":wat::stream::lazy"
-        | ":wat::stream::empty"
-
-        // ── Option / Result (pure unwrappers, no effects) ────────────
+        | ":wat::core::forms"
+        | ":wat::core::with-children"
+        | ":wat::core::write-forms"
+        | ":wat::core::struct->form"
         | ":wat::core::Option/expect"
         | ":wat::core::Option/try"
         | ":wat::core::Result/expect"
         | ":wat::core::Result/try"
-
-        // ── Math (pure functions, deterministic) ─────────────────────
-        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::math::*`.
-        // `log` is DELETED, not moved (was wired to the SAME `f64::ln` as `ln`; zero call sites).
-        | ":wat::math::ln"
-        | ":wat::math::exp"
-        | ":wat::math::sqrt"
-        | ":wat::math::sin"
-        | ":wat::math::cos"
-        | ":wat::math::pi"
-
-        // ── Statistics (pure over closed data) ───────────────────────
-        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::stat::*`.
-        | ":wat::stat::mean"
-        | ":wat::stat::variance"
-        | ":wat::stat::stddev"
-
-        // ── Holon AST / form construction (pure; no IO) ──────────────
-        | ":wat::holon::Atom"
-        | ":wat::holon::Bind"
-        | ":wat::holon::Bundle"
-        | ":wat::holon::Permute"
-        | ":wat::holon::Thermometer"
-        | ":wat::holon::Blend"
-        | ":wat::holon::to-wat"
-        | ":wat::holon::from-wat"
-        | ":wat::holon::to-holon"
-        | ":wat::holon::from-holon"
-        | ":wat::holon::statement-length"
-        | ":wat::holon::Bundle/children"
-        | ":wat::holon::Bundle/first"
-        | ":wat::holon::Bind/left"
-        | ":wat::holon::Bind/right"
-        | ":wat::holon::extract-classifier"
-        | ":wat::holon::leaf"
-        | ":wat::holon::is?"
-        | ":wat::holon::is-Map?"
-        | ":wat::holon::is-Set?"
-        | ":wat::holon::is-Vector?"
-        | ":wat::holon::is-List?"
-        | ":wat::holon::is-Tuple?"
-        | ":wat::holon::is-Symbol?"
-        | ":wat::holon::is-Keyword?"
-        | ":wat::holon::is-Tag?"
-        | ":wat::holon::is-Nil?"
-
-        | ":wat::core::struct->form"
-        | ":wat::core::forms"
-        | ":wat::core::show"
-        // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits.
-        // The format macro emits (:wat::core::str <val>) per placeholder at
-        // runtime. It is NOT called at expand time, but listed here so any
-        // future macro that needs unquoted display in its own program-body
-        // can use it. Pure: deterministic, no IO.
-        | ":wat::core::str"
-
-        // ── Homoiconic WatAST bridge (arc 251.5a; pure-total node walk/build) ──
-        // The read→walk→rebuild→write spine: parse, decompose, kind-preserving
-        // rebuild, serialize — all deterministic, errors-as-values, no IO. The fence
-        // is default-DENY; these pure-total ops were minted (arc 251.5a) AFTER the
-        // arc-249 whitelist was written, so they were simply never added — not because
-        // they are impure (they are not; same category as the holon AST ops above),
-        // but because no defmacro needed to walk a binder Vector node until now (arc
-        // 209 Stone C.1's defservice is the first). Admitting them unblocks every
-        // node-walking defmacro, the homoiconic point of having the tooling at all.
-        | ":wat::core::read-string"
-        | ":wat::core::write-forms"
-        // Arc 278 Stone 2 — the sift Predicate's `sieve-pred` capture macro calls
-        // `ast->source` at expand time (captures the user's `(fn …)` form, prints it
-        // verbatim into the `Sieve::Predicate` String field). Pure ∧ deterministic —
-        // same category as its siblings (write-forms/ast-name/ast->children) above;
-        // simply never added when Stone 1 minted it (grounded gap, brief-flagged).
-        | ":wat::core::ast->source"
-        | ":wat::core::ast->children"
-        | ":wat::core::with-children"
-        | ":wat::core::ast-kind"
-        | ":wat::core::ast-name"
-        | ":wat::core::ast-span"
-        | ":wat::core::ast-end-span"
-        // Arc 109 β-ii-c — same category as its ast-* siblings just above (pure,
-        // total, structural node walk; no IO): "which of these type-param name
-        // nodes appear anywhere in this AST?" `defservice` calls it at expand
-        // time to compute each generated companion type's OWN param subset
-        // instead of stamping the service's full param list onto every one.
-        | ":wat::core::type-params-used-in"
-        // Arc 109 stone (`BRIEF-STONE-type-equal-the-missing-door.md`) — the missing door:
-        // `defservice` and its siblings live entirely in macro bodies and had no way to ask
-        // "are these two DECLARED type spellings the same type?" — `TypeExpr` derives `Eq` in
-        // Rust, at check time, but a macro body could not reach it and fell back to rendering
-        // both sides to strings and comparing text (the defect that blocked ②-iii's `:peers`
-        // migration). Pure ∧ deterministic ∧ total structural comparison via `parse_type_node`
-        // (raises on a non-type node rather than returning a silently-wrong `false`); same
-        // category as `type-params-used-in` immediately above. F5 is default-deny, so an
-        // intrinsic minted FOR a macro body but missing here is refused at DEFINITION.
-        | ":wat::core::type-equal?"
-        | ":wat::core::symbol-node"
-        // Arc 274.1 — capture-proof binder for program-body macros. A macro needs it to create
-        // scoped symbols that cannot collide with caller variables. "Does a macro need it?" → YES.
-        | ":wat::core::fresh-symbol"
-        | ":wat::core::keyword-node"
-        // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,
-        // to-type-form-colon}` RETIRED this stone; `:wat::keyword::*` (below) is their
-        // replacement.
-        | ":wat::keyword::to-symbol"
-        | ":wat::keyword::to-type-form"
-        | ":wat::keyword::to-type-form-colon"
-
-        // ── Form-shape predicates (pure over WatAST form-values) ──────
-        // core form-shape predicate over WatAST::List; distinct from
-        // :wat::holon::is-List? (a classifier over HolonAST). The name
-        // diverges on purpose — the form-vs-holon distinction is the
-        // reason this exists. Do not "harmonize" the two names.
-        | ":wat::core::List?"
-
-        // ── Runtime reflection (pure read-only; no IO, no side effects) ─
-        // Shared infra for type-driven macros to reflect on fn signatures
-        // at macro expand time (arc 249 stone 249.2b-i; originating
-        // consumer was arc 170 D2's `run-threads` macro, since retired —
-        // this allow-list entry is NOT run-threads-specific).
-        // signature-of-fn: fn → HolonAST (pure; reads from fn value, no IO)
-        // extract-arg-names: HolonAST → Vector<Keyword> (pure; structural walk)
-        // extract-arg-types: HolonAST → Vector<Keyword> (pure; structural walk)
-        | ":wat::runtime::signature-of-fn"
-        | ":wat::runtime::extract-arg-names"
-        | ":wat::runtime::extract-arg-types"
-
-        // Arc 170 Strike B — field-names-of / field-types-of: type-kw → the
-        // frozen runtime type registry (`sym.types`, an `Option<Arc<TypeEnv>>`
-        // populated once at freeze time) → AggregateDef.fields. Same category
-        // as signature-of-fn immediately above (read-only reflection off
-        // already-frozen registry state, no IO, no mutation, deterministic —
-        // see eval_field_names_of / eval_field_types_of, runtime.rs:11593-11662).
-        // Arg resolution mirrors the arc-166 eval_lookup_define pattern (a
-        // literal Keyword is read directly, not through eval_inner) — no
-        // fn-literal special-casing needed (the sole arg is a type keyword,
-        // never a `fn` form), unlike signature-of-fn above.
-        | ":wat::runtime::field-names-of"
-        | ":wat::runtime::field-types-of"
-
-        // ── Arc 255 — GAP CLOSURE, not a rename (builder ruling 2026-08-26:
-        // "if we're missing logical stuff, we add it - we are cleaning up months
-        // of hacking"). These six per-type verbs were absent under BOTH spellings.
-        // Surfaced by the numerics rehome: mirroring the old list exactly would have
-        // preserved the hole, so the hole is closed instead.
-        //
-        // Every one is pure and TOTAL by the standard this list already applies —
-        // their only `Err` arms are argument type/arity checks, which every listed
-        // op performs. They are at least as total as `/`, whose division-by-zero is
-        // explicitly blessed above as "a deterministic located abort, never a panic".
-        //   =, not=      comparison over two same-category scalars
-        //   to-bigint    i64 -> BigInt, a widening; no domain failure
-        //   to-rational  i64 -> Rational (n/1); no domain failure
-        | ":wat::i64::="
-        | ":wat::i64::not="
-        | ":wat::i64::to-bigint"
-        | ":wat::i64::to-rational"
-        | ":wat::f64::="
-        | ":wat::f64::not="
+        | ":wat::core::ReadOutcome::Forms"
+        | ":wat::core::ReadOutcome::Malformed"
+        | ":wat::core::Error/message"
     )
 }

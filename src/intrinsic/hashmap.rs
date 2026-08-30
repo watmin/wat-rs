@@ -179,11 +179,25 @@ pub(crate) fn hashmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// NOT part of the contract (`Arc<std::HashMap>`'s default hasher is seeded
 /// per process) — pure ∧ total, NOT deterministic.
 ///
+/// **ExpandTime ground —** a `HashMap` is pure data and `keys` is a pure PROJECTION of
+/// it: the same map yields the same SET of keys every time, and only their ORDER is
+/// unspecified. `Nondeterministic` above is honest, but expand-time legality is a
+/// different axis — the hazard a gate here would guard against is a macro whose
+/// EXPANSION varies between runs, which is a property of a USE (folding over the
+/// unordered result into emitted code), not of this verb, and a verb-level gate cannot
+/// tell the two apart. `:wat::core::format` (`wat/core.wat:1939`) calls `keys` on its own
+/// kwargs-map at expand time in an order-INDEPENDENT way (the fold's accumulator is
+/// discarded, so the emitted code never references the keys); arc 255 Stone expand-1
+/// measured that refusing this verb makes `format` undefinable and takes 247 tests red.
+/// See `macros/eval.rs`'s `is_expand_time_legal`, the `:wat::hashmap::keys` /
+/// `:wat::hashmap::values` block, for the fuller retraction record (this stone's rider
+/// first removed the blessing, was wrong, and put it back).
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected
 /// @ret     (:wat::core::Vector :- [K]) `m`'s keys, order unspecified
@@ -197,11 +211,20 @@ pub(crate) fn hashmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// `(:wat::hashmap::values m)` → a `Vector` of `m`'s values. Iteration ORDER
 /// is NOT part of the contract, same as `:wat::hashmap::keys`.
 ///
+/// **ExpandTime ground —** same reasoning as `:wat::hashmap::keys` immediately above: a
+/// `HashMap` is pure data and `values` is a pure PROJECTION of it (same map → same
+/// multiset of values, only ORDER unspecified). `Nondeterministic` is honest on that
+/// axis; expand-time legality is a different one, and the hazard it would guard
+/// against — a macro whose EXPANSION varies between runs — is a property of a USE that
+/// folds the unordered result into emitted code, not of this verb. See
+/// `:wat::hashmap::keys`'s doc block and `macros/eval.rs`'s `is_expand_time_legal` for
+/// the full record.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected
 /// @ret     (:wat::core::Vector :- [V]) `m`'s values, order unspecified

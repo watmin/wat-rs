@@ -417,10 +417,16 @@ pub(crate) struct IntrinsicEntry {
     /// Declared expand-time legality from `@ExpandTime <Variant>` in the doc.
     /// `Unreviewed` when the directive is absent — arc 255 Stone expand-T2 minted
     /// this axis OPTIONAL (T3 will make it required, mirroring totality's own arc).
-    #[allow(dead_code)] // read by expand_time_is_carried_from_the_doc_into_the_registry_entry (cfg(test));
-    // production readers arrive with a later stone, when `is_expand_time_legal`'s
-    // hand-list (arc 255 Stone expand-1's allow-list) stops answering for itself and
-    // DERIVES from here — see the DESIGN's "Out of scope" section.
+    // ★ READ IN PRODUCTION since arc 255 Stone expand-T4b: `macros/eval.rs`'s
+    // `is_expand_time_legal` — the gate deciding what a `defmacro` body may call while
+    // expanding — now answers from THIS FIELD for every registered verb, falling back to a
+    // 59-name residue only for verbs with no registration site yet. No `#[allow(dead_code)]`
+    // is needed or wanted here any more; the field carries a live verdict.
+    //
+    // ⚠ This comment previously read "production readers arrive with a LATER STONE". That
+    // stone is expand-T4b, and it has landed — the promise outlived itself by one commit and
+    // was caught by the rider that wrote the derivation, not by the comment's own author.
+    // `[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`
     pub expand_time: wat_doc::ExpandTime,
     /// `@Category <Variant>` — functional category.
     /// Consumed by `metadata-of`'s intrinsic branch and `eval_render_doc`.
