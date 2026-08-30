@@ -53,6 +53,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
 /// @ret     :wat::core::String the engram's name
@@ -76,6 +77,7 @@ pub(crate) fn engram_name(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) the engram's frozen eigenvalue signature
@@ -100,6 +102,7 @@ pub(crate) fn engram_eigenvalue_signature(e: &Value, span: &Span) -> Result<Valu
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
 /// @ret     :wat::core::i64 the observation count at snapshot time
@@ -119,6 +122,7 @@ pub(crate) fn engram_n(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector to score
@@ -142,6 +146,7 @@ pub(crate) fn engram_residual(e: &Value, v: &Value, span: &Span) -> Result<Value
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     dim :wat::core::i64 the library's vector dimension
 /// @ret     :wat::holon::EngramLibrary a fresh, empty library
@@ -163,6 +168,7 @@ pub(crate) fn library_new(dim: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library mutated
 /// @arg     name :wat::core::String the new engram's name
@@ -198,6 +204,7 @@ pub(crate) fn library_add(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
 /// @arg     probe :wat::holon::Vector the probe vector
@@ -245,6 +252,7 @@ pub(crate) fn library_match_vec(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
 /// @ret     :wat::core::i64 the number of engrams currently held
@@ -263,6 +271,7 @@ pub(crate) fn library_len(lib: &Value, span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
 /// @arg     name :wat::core::String the name probed
@@ -285,6 +294,7 @@ pub(crate) fn library_contains(lib: &Value, name: &Value, span: &Span) -> Result
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
 /// @ret     (:wat::core::Vector :- [:wat::core::String]) the names of every engram `lib` holds

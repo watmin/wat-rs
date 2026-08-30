@@ -259,6 +259,7 @@ pub(crate) fn resolve_rhs_value(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      ControlFlow
 /// @arg     fact_form :wat::WatAST the quoted fact-form `(:Type arg…)` (from `:wat::core::quote`)
 /// @arg     bindings :wat::core::PersistentMap the token's bound `?var`s, resolved into the fact's args

@@ -75,6 +75,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Message
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to send across
 /// @arg     payload :I the payload; must unify with the peer's held I
@@ -111,6 +112,7 @@ pub(crate) fn eval_peer_send_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Message
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to send across
 /// @arg     payload :I the payload; must unify with the peer's held I
@@ -145,6 +147,7 @@ pub(crate) fn eval_peer_try_send_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Message
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to receive from
 /// @ret     (:wat::kernel::RecvOutcome :- [O]) Message(O) / Closed / Lost(Failure) / Shutdown
@@ -178,6 +181,7 @@ pub(crate) fn eval_peer_recv_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Message
 /// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) non-empty, same-tier peers to fan in over
 /// @ret     (:wat::spawn::ServiceEvent :- [I O A]) Message[idx,O] / Closed[idx] / Lost[idx,Failure] — `A` is a free, unconstrained tyvar (select' has no self-peer/admin channel, so :Admin can never fire from it)
@@ -217,6 +221,7 @@ pub(crate) fn eval_peer_select_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Message
 /// @arg     self_peer (:wat::kernel::Peer :- [S A]) the owner/supervisor link (self-peer); `A` (its receive type) becomes the Admin payload type
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the connection listener; inferred permissively, not further constrained

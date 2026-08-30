@@ -182,11 +182,11 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
 
 #[cfg(test)]
 mod totality_axis_tests {
-    //! arc 255 Stone total-T2 — the special-form sibling of `wat_intrinsic`'s
-    //! `totality_axis_tests`. Same Row 4 scope note applies: this proves `@Total`
-    //! reaches `totality_token` (the same fn [`emit`] calls for every real special
-    //! form), NOT `SpecialFormSubmission` (`src/intrinsic/mod.rs`, `pub(crate)`, no
-    //! `totality` field — a `src/` edit STOP-3 forbids in this stone).
+    //! arc 255 Stones total-T2 / total-T3 — the special-form sibling of
+    //! `wat_intrinsic`'s `totality_axis_tests`. T2's Row 4 proved `@Total` reaches
+    //! `totality_token` (the same fn [`emit`] calls for every real special form).
+    //! T3 adds this module's own Row 1: absence of `@Total` must make [`emit`]
+    //! refuse to expand, with `MissingTotality`.
     use super::*;
 
     fn fixture_item(total_line: &str) -> syn::ItemStruct {
@@ -227,18 +227,30 @@ mod totality_axis_tests {
         emit(&fqdn(), &item).expect("emit() must accept a fixture declaring @Total Partial");
     }
 
-    /// CONTROL — no `@Total` line defaults to `Unreviewed` (STOP-1), same pipeline.
+    /// ★ Arc 255 Stone total-T3, ROW 1 (special-form sibling) — a fixture with NO
+    /// `@Total` line must FAIL TO COMPILE with `MissingTotality`, through the same
+    /// `emit()` every real `#[wat_special_form]` call site expands through.
     #[test]
-    fn absent_total_defaults_to_unreviewed_in_the_same_pipeline() {
+    fn absent_total_fails_to_compile_with_missing_totality() {
         let item = fixture_item("");
         let raw_doc = sniff_doc_from_struct(&item).expect("fixture doc must be sniffed");
-        let doc = wat_doc::parse_special_form(&raw_doc).expect("fixture doc must parse without @Total");
-        assert_eq!(doc.totality, wat_doc::Totality::Unreviewed);
         assert_eq!(
-            totality_token(doc.totality).to_string(),
-            quote! { ::wat_doc::Totality::Unreviewed }.to_string()
+            wat_doc::parse_special_form(&raw_doc),
+            Err(wat_doc::DocError::MissingTotality),
+            "a doc block with no @Total must fail to parse with MissingTotality"
         );
-        emit(&fqdn(), &item).expect("emit() must accept a fixture with no @Total");
+
+        let err = emit(&fqdn(), &item)
+            .expect_err("emit() must refuse to expand a fixture with no @Total");
+        // Exact, not `contains` — this file's error path is `format!("{:?}", e)`, so the
+        // whole rendering IS the variant name and an exact compare costs nothing while
+        // catching drift. (tests/lint/no_loose_string_assert.rs went RED on the
+        // `contains` form this replaces.)
+        assert_eq!(
+            err.to_string(),
+            "#[wat_special_form] :probe::probe-form: MissingTotality",
+            "emit()'s refusal must name the form and MissingTotality"
+        );
     }
 
     /// `totality_token` is exhaustive, no wildcard.

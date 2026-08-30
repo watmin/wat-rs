@@ -58,6 +58,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     s (:wat::core::HashSet :- [T]) the set probed
 /// @ret     :wat::core::i64 the number of elements in `s`
@@ -74,6 +75,7 @@ pub(crate) fn hashset_length(s: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     s (:wat::core::HashSet :- [T]) the set probed
 /// @ret     :wat::core::bool true iff `s` has zero elements
@@ -92,6 +94,7 @@ pub(crate) fn hashset_empty_q(s: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     s (:wat::core::HashSet :- [T]) the set probed
 /// @arg     item :T the candidate element
@@ -111,6 +114,7 @@ pub(crate) fn hashset_contains_q(s: &Value, item: &Value) -> Result<Value, EvalB
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s (:wat::core::HashSet :- [T]) the set transformed
 /// @arg     item :T the element inserted

@@ -65,6 +65,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the wat source text parsed
 /// @ret     :wat::core::ReadOutcome `Forms[ast]` on success, `Malformed[cause]` otherwise
@@ -92,6 +93,7 @@ pub(crate) fn eval_read_string_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     ast :wat::WatAST the node serialized
 /// @ret     :wat::core::String the verbatim `::`-faithful source text
@@ -118,6 +120,7 @@ pub(crate) fn eval_ast_to_source_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     ast :wat::WatAST the node decomposed
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) `ast`'s children, in order (empty for a leaf)
@@ -144,6 +147,7 @@ pub(crate) fn eval_ast_children_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     ast :wat::WatAST the node probed
 /// @ret     :wat::core::String `ast`'s kind discriminant
@@ -167,6 +171,7 @@ pub(crate) fn eval_ast_kind_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     ast :wat::WatAST the Symbol, Keyword, or StringLit node probed
 /// @ret     :wat::core::String `ast`'s verbatim name/text
@@ -191,6 +196,7 @@ pub(crate) fn eval_ast_name_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     ast :wat::WatAST the node probed
 /// @ret     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) `{:line N :col N}`, `ast`'s start location
@@ -213,6 +219,7 @@ pub(crate) fn eval_ast_span_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     ast :wat::WatAST the node probed
 /// @ret     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) `{:line N :col N}`, `ast`'s end location
@@ -239,6 +246,7 @@ pub(crate) fn eval_ast_end_span_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the bare symbol text
 /// @ret     :wat::WatAST a Symbol node carrying `s`
@@ -262,6 +270,7 @@ pub(crate) fn eval_symbol_node_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the `:`-prefixed keyword text
 /// @ret     :wat::WatAST a Keyword node carrying `s`
@@ -295,6 +304,7 @@ pub(crate) fn eval_keyword_node_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     base :wat::core::String the base name the fresh symbol's text carries
 /// @ret     :wat::WatAST a Symbol node carrying `base`'s text and a fresh, unique scope

@@ -47,6 +47,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value, ValueSnapshot, Ru
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     filter [:wat::core::f64 :-> :wat::core::bool] a therm-routing filter function
 /// @yields  filter a candidate key's cosine-similarity score against the probe, computed during `Hologram/get`'s filtered-argmax readout; filter returns whether that candidate counts as a match
@@ -75,6 +76,7 @@ pub(crate) fn eval_hologram_make(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store mutated
 /// @arg     key :wat::holon::HolonAST the key HolonAST
@@ -132,6 +134,7 @@ pub(crate) fn eval_hologram_put(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
 /// @arg     probe :wat::holon::HolonAST the probe key
@@ -180,6 +183,7 @@ pub(crate) fn eval_hologram_get(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
 /// @arg     probe :wat::holon::HolonAST the probe key
@@ -235,6 +239,7 @@ pub(crate) fn eval_hologram_find(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store mutated
 /// @arg     key :wat::holon::HolonAST the key to remove
@@ -280,6 +285,7 @@ pub(crate) fn eval_hologram_remove(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
 /// @ret     :wat::core::i64 the number of entries currently stored
@@ -299,6 +305,7 @@ pub(crate) fn hologram_len(store: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
 /// @ret     :wat::core::i64 the store's Kanerva capacity

@@ -28,6 +28,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the value to take the natural log of
 /// @ret     :wat::core::f64 the natural logarithm of `x`
@@ -47,6 +48,7 @@ pub(crate) fn eval_math_ln_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the exponent
 /// @ret     :wat::core::f64 `e` raised to the power `x`
@@ -66,6 +68,7 @@ pub(crate) fn eval_math_exp_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the value to take the square root of
 /// @ret     :wat::core::f64 the non-negative square root of `x`
@@ -85,6 +88,7 @@ pub(crate) fn eval_math_sqrt_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the angle in radians
 /// @ret     :wat::core::f64 the sine of `x`
@@ -104,6 +108,7 @@ pub(crate) fn eval_math_sin_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the angle in radians
 /// @ret     :wat::core::f64 the cosine of `x`
@@ -124,6 +129,7 @@ pub(crate) fn eval_math_cos_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @ret     :wat::core::f64 the mathematical constant π
 /// @example (:wat::math::pi) #=> 3.141592653589793

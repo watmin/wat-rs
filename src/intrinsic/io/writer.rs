@@ -128,6 +128,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @ret     :wat::io::IOWriter a fresh, empty in-memory writer
 /// @example (:wat::io::IOWriter/to-bytes (:wat::io::IOWriter/new)) #=> []
@@ -166,6 +167,7 @@ pub(crate) fn eval_iowriter_new(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     path :wat::core::String the path to open (create+truncate) for writing
 /// @ret     :wat::io::IOWriter a fresh file-backed writer
@@ -204,6 +206,7 @@ pub(crate) fn eval_iowriter_open_file(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     fd :wat::core::i64 the raw fd to dup and wrap
 /// @ret     :wat::io::IOWriter a fresh writer owning a private dup of `fd`
@@ -237,6 +240,7 @@ pub(crate) fn eval_iowriter_from_fd(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
 /// @ret     (:wat::core::Vector :- [:wat::core::u8]) the bytes accumulated so far
@@ -281,6 +285,7 @@ pub(crate) fn eval_iowriter_to_bytes(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
 /// @ret     (:wat::core::Option :- [:wat::core::String]) the decoded text, or `None` if the buffer is not valid UTF-8
@@ -315,6 +320,7 @@ pub(crate) fn eval_iowriter_to_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
 /// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes to write
@@ -351,6 +357,7 @@ pub(crate) fn eval_iowriter_write(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
 /// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes to write, in full
@@ -386,6 +393,7 @@ pub(crate) fn eval_iowriter_write_all(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
 /// @arg     s :wat::core::String the string to write, UTF-8 encoded
@@ -420,6 +428,7 @@ pub(crate) fn eval_iowriter_write_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
 /// @arg     s :wat::core::String the string to write, UTF-8 encoded
@@ -453,6 +462,7 @@ pub(crate) fn eval_iowriter_print(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
 /// @arg     s :wat::core::String the string to write, UTF-8 encoded, before the trailing `\n`
@@ -485,6 +495,7 @@ pub(crate) fn eval_iowriter_println(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
 /// @arg     s :wat::core::String the string to write, UTF-8 encoded, before the trailing `\n`
@@ -522,6 +533,7 @@ pub(crate) fn eval_iowriter_writeln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     writer :wat::io::IOWriter the writer to flush
 /// @ret     :wat::core::nil always `:()` on success; an OS-level flush error raises
@@ -563,6 +575,7 @@ pub(crate) fn eval_iowriter_flush(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     writer :wat::io::IOWriter the writer to close
 /// @ret     :wat::core::nil always `:()`

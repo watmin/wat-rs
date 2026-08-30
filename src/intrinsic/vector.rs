@@ -63,6 +63,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @ret     :wat::core::i64 the number of elements in `v`
@@ -79,6 +80,7 @@ pub(crate) fn persistentvector_length(v: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @ret     :wat::core::bool true iff `v` has zero elements
@@ -96,6 +98,7 @@ pub(crate) fn persistentvector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @arg     item :T the candidate element
@@ -115,6 +118,7 @@ pub(crate) fn persistentvector_contains_q(v: &Value, item: &Value) -> Result<Val
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @arg     i :wat::core::i64 the index looked up
@@ -133,6 +137,7 @@ pub(crate) fn persistentvector_get(v: &Value, i: &Value) -> Result<Value, EvalBr
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector transformed
 /// @arg     item :T the element appended
@@ -155,6 +160,7 @@ pub(crate) fn persistentvector_conj(v: &Value, item: &Value) -> Result<Value, Ev
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     to (:wat::core::PersistentVector :- [T]) the receiver; its kind is preserved
 /// @arg     from (:wat::core::PersistentVector :- [T]) the elements appended (a plain `Vector<T>` is also accepted at check time)

@@ -9,6 +9,7 @@ use wat_macros::wat_special_form;
 /// @Category Binding
 /// @Purity Preserving
 /// @Determinism Preserving
+/// @Total       Unreviewed
 /// @syntax (let [<binder> <expr> ...] <body>+)
 /// @ret :T the value of the final body form
 /// @example (:wat::core::let [x 1 y 2] (:wat::i64::+ x y)) #=> 3

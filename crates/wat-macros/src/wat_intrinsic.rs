@@ -581,6 +581,9 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::MissingDeterminism => {
             "doc comment is missing a required `@Determinism <Variant>` directive (known: Deterministic, Nondeterministic, Preserving)".into()
         }
+        wat_doc::DocError::MissingTotality => {
+            "doc comment is missing a required `@Total <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)".into()
+        }
         wat_doc::DocError::InvalidPurityVariant { got } => {
             format!("unknown @Purity variant `{}`; known: Pure, Effectful, Preserving", got)
         }
@@ -1060,17 +1063,15 @@ pub(crate) fn emit(
 
 #[cfg(test)]
 mod totality_axis_tests {
-    //! arc 255 Stone total-T2 — Row 4 ("break the door"): proves `@Total <Variant>`
-    //! survives past PARSING (rows 1-3, `wat-doc`'s own tests) and reaches the SAME
-    //! token-generation step `emit()` runs for every real intrinsic (`totality_token`,
-    //! called at this file's `let totality_token = totality_token(doc.totality);`).
+    //! arc 255 Stones total-T2 / total-T3. T2's Row 4 ("break the door") proved
+    //! `@Total <Variant>` survives past PARSING (rows 1-3, `wat-doc`'s own tests)
+    //! and reaches the SAME token-generation step `emit()` runs for every real
+    //! intrinsic (`totality_token`, called at this file's
+    //! `let totality_token = totality_token(doc.totality);`).
     //!
-    //! ⛔ This does NOT reach `IntrinsicSubmission` — that struct lives in
-    //! `src/intrinsic/mod.rs`, is `pub(crate)`, and has no `totality` field. Adding one
-    //! is a `src/` edit (STOP-3) that this stone's blast radius (crates/wat-doc +
-    //! crates/wat-macros ONLY) forbids; wiring the token into the literal without it
-    //! would break every real `#[wat_intrinsic]` call site the moment `src/` recompiles
-    //! (E0559, unknown field). This is the honest limit of what T2 can prove.
+    //! T3 adds this module's own Row 1: absence of `@Total` must make `emit()`
+    //! itself refuse to expand, with `MissingTotality`, BEFORE the 437-site sweep
+    //! removes every real fixture that could demonstrate it.
     use super::*;
 
     /// A realistic BINDING-shaped fixture handler (leading `&WatAST` params, full
@@ -1121,19 +1122,37 @@ mod totality_axis_tests {
         emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring @Total Partial");
     }
 
-    /// CONTROL — the same fixture with NO `@Total` line defaults to `Unreviewed`
-    /// (STOP-1: absence is not an error), through the identical pipeline.
+    /// ★ Arc 255 Stone total-T3, ROW 1 — "break the door first": a fixture with NO
+    /// `@Total` line must FAIL TO COMPILE. `wat_doc::parse` returns `MissingTotality`
+    /// directly, and `emit()` — the exact fn every real `#[wat_intrinsic]` call site
+    /// expands through — refuses with that error rendered into its message. This is
+    /// the artifact kept from the sweep: the moment every real site declares, there
+    /// is nothing left in the tree to prove the requirement is real, so it is proven
+    /// HERE, against a fixture that is never swept.
     #[test]
-    fn absent_total_defaults_to_unreviewed_in_the_same_pipeline() {
+    fn absent_total_fails_to_compile_with_missing_totality() {
         let item = fixture_fn("");
         let raw_doc = sniff_doc(&item).expect("fixture doc must be sniffed");
-        let doc = wat_doc::parse(&raw_doc).expect("fixture doc must parse without @Total");
-        assert_eq!(doc.totality, wat_doc::Totality::Unreviewed);
         assert_eq!(
-            totality_token(doc.totality).to_string(),
-            quote! { ::wat_doc::Totality::Unreviewed }.to_string()
+            wat_doc::parse(&raw_doc),
+            Err(wat_doc::DocError::MissingTotality),
+            "a doc block with no @Total must fail to parse with MissingTotality"
         );
-        emit(&fqdn(), None, &item).expect("emit() must accept a fixture with no @Total");
+
+        let err = emit(&fqdn(), None, &item)
+            .expect_err("emit() must refuse to expand a fixture with no @Total");
+        // Exact, not `contains`: the message is deterministic, so an exact compare also
+        // catches wording drift a substring check would sail past (tests/lint/
+        // no_loose_string_assert.rs went RED on the `contains` form this replaced).
+        // ★ The exact form is better than the `contains` it replaces in a way worth pinning:
+        // the refusal names the OFFENDING VERB, not just the directive. Across a 431-site
+        // mandate that prefix is the difference between a diagnostic and a scavenger hunt.
+        assert_eq!(
+            err.to_string(),
+            "#[wat_intrinsic] :probe::add: doc comment is missing a required \
+             `@Total <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)",
+            "emit()'s refusal must name the verb, @Total, and all four legal values"
+        );
     }
 
     /// `totality_token` is exhaustive, no wildcard — each arm produces the matching

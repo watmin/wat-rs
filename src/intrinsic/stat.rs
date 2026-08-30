@@ -30,6 +30,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to average
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population mean of `xs`, or `None` on empty input
@@ -51,6 +52,7 @@ pub(crate) fn eval_stat_mean_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population variance of `xs`, or `None` on empty input
@@ -71,6 +73,7 @@ pub(crate) fn eval_stat_variance_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population standard deviation of `xs`, or `None` on empty input

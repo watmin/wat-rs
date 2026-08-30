@@ -1696,6 +1696,7 @@ fn ord(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      ControlFlow
 /// @arg     expr :wat::WatAST the quoted expression to validate-and-lower (from `:wat::core::quote`)
 /// @ret     :wat::core::nil `nil` on a successful lower; raises if `lower` refuses the form

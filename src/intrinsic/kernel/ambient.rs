@@ -85,6 +85,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool true once the kernel stop flag has been set
 /// @example-norun (:wat::kernel::stopped?) #=> false
@@ -100,6 +101,7 @@ pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool the current value of the SIGUSR1 flag
 /// @example-norun (:wat::kernel::sigusr1?) #=> false
@@ -116,6 +118,7 @@ pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool the current value of the SIGUSR2 flag
 /// @example-norun (:wat::kernel::sigusr2?) #=> false
@@ -132,6 +135,7 @@ pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool the current value of the SIGHUP flag
 /// @example-norun (:wat::kernel::sighup?) #=> false
@@ -150,6 +154,7 @@ pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::nil always nil
 /// @example-norun (:wat::kernel::reset-sigusr1!) #=> nil
@@ -166,6 +171,7 @@ pub(crate) fn eval_kernel_reset_sigusr1(list_span: &Span) -> Result<Value, EvalB
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::nil always nil
 /// @example-norun (:wat::kernel::reset-sigusr2!) #=> nil
@@ -182,6 +188,7 @@ pub(crate) fn eval_kernel_reset_sigusr2(list_span: &Span) -> Result<Value, EvalB
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::nil always nil
 /// @example-norun (:wat::kernel::reset-sighup!) #=> nil

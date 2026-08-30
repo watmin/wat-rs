@@ -38,13 +38,17 @@
 //! Neither is acted on here; both are filed in
 //! `docs/arc/2026/06/255-builtin-registry/NOTE-purity-is-definition-time-queryable-metadata.md`.
 //!
-//!   1. **The doc contract cannot carry a third axis.** `wat_doc::parse`'s recognized-tag list
-//!      (`crates/wat-doc/src/lib.rs:321-322`) is closed — `@added @arg @ret @example
-//!      @example-norun @deprecated @see @Purity @Determinism @Category @yields`. A `@Total` is
-//!      refused as `UnknownDirective` (verified by run, 2026-08-02). **Totality is the one axis a
-//!      namespace prefix cannot derive** — `:wat::core::i64::+` is pure ∧ deterministic ∧ NOT
-//!      total — which is why the rete fence carries its own `total` column (#52) and will keep
-//!      carrying it until 255 arrives. Nothing needs `@Total` today.
+//!   1. ⛔ **SUPERSEDED 2026-08-30 — 255 ARRIVED.** This fact used to read: *"The doc contract
+//!      cannot carry a third axis … a `@Total` is refused as `UnknownDirective` (verified by run,
+//!      2026-08-02) … the rete fence … will keep carrying it until 255 arrives. Nothing needs
+//!      `@Total` today."* Every clause of that is now false. Stone total-T1 minted
+//!      `:wat::runtime::Totality` in `wat/runtime-meta.wat`; T2 made `@Total` a recognized
+//!      directive; T2b carried it into `IntrinsicEntry`; **T3 made it REQUIRED** — and this
+//!      probe's own baseline went RED on `MissingTotality` the moment it did, which is how the
+//!      staleness surfaced. The observation the fact rested on remains exactly right and is why
+//!      the axis exists: **totality is the one axis a namespace prefix cannot derive** —
+//!      `:wat::i64::+` is pure ∧ deterministic ∧ NOT total. What changed is that it now has a
+//!      home. `[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`
 //!   2. **`wat_doc::Category` has no arithmetic variant** — the closed set is
 //!      `Transform | Reflection | ControlFlow | Binding | Clock | Arithmetic | Io | Probe | Combine`
 //!      (append-only; see `Category::variants()`). Whenever 255 enrols
@@ -78,6 +82,7 @@ fn doc_with(extra_tag_lines: &str) -> String {
          @added         1.0.0\n\
          @Purity        Pure\n\
          @Determinism   Deterministic\n\
+         @Total         Unreviewed\n\
          @Category      Transform\n\
          {extra_tag_lines}\
          @arg     a :wat::core::i64 the left operand\n\
@@ -96,7 +101,14 @@ fn control_baseline_doc_parses() {
     assert_eq!(doc.args.len(), 2, "both @arg directives survive the parse");
 }
 
-/// ★ THE CLAIM — both purity axes are read OFF THE DOC. Refutes the stale module header.
+/// ★ THE CLAIM — every purity axis is read OFF THE DOC. Refutes the stale module header.
+///
+/// ⚠ THREE axes now, not two. Arc 255 stone total-T3 minted `@Total` and made it REQUIRED, and
+/// this probe's own baseline went RED on `MissingTotality` when it did — the file that exists to
+/// assert "the axes are DECLARED" was itself not declaring the newest one. Extending the claim to
+/// cover it, rather than only adding the directive to the fixture, is the difference between
+/// fixing the probe and silencing it: a new axis that nothing here asserts is a new axis this
+/// file's thesis has quietly stopped covering.
 #[test]
 fn axes_are_declared_not_derived() {
     let doc = wat_doc::parse(&doc_with("")).expect("baseline doc must parse");
@@ -105,6 +117,11 @@ fn axes_are_declared_not_derived() {
         doc.determinism,
         Determinism::Deterministic,
         "@Determinism is parsed from the doc, not inferred"
+    );
+    assert_eq!(
+        doc.totality,
+        wat_doc::Totality::Unreviewed,
+        "@Total is parsed from the doc, not inferred"
     );
 }
 
