@@ -5,10 +5,10 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-30 — supersedes every earlier stamp and every dated block below it.
-Written against HEAD `adb420425`; the commit carrying this stamp lands on top, so a ONE-COMMIT gap
-at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/` or `tests/`
-IS staleness, whatever its size.**
+**CURRENT STAMP 2026-08-30 (second) — supersedes every earlier stamp and every dated block below
+it. Written against HEAD `b5db936e5`; the commit carrying this stamp lands on top, so a ONE-COMMIT
+gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/` or
+`tests/` IS staleness, whatever its size.**
 
 **⛔⛔ START HERE. THE INITIATIVE IS: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures
 against.** Correctness is done; the exemplar work is not.
@@ -23,20 +23,35 @@ total, no ceiling reaches wat as a raise, a lint keeps it so), the termination v
 | `validate.rs` 2_452 | → `mod.rs` 1_494 + `typing.rs` 549 + `error.rs` 448 |
 
 **⛔ AND HERE IS THE MEASUREMENT THAT SAYS WE ARE NOT THERE.** Normalised, `src/rete` is behind its
-siblings on every axis — this is the gap the initiative has to close:
+siblings — this is the gap the initiative has to close. **Re-derive it, do not quote it:**
+`scripts/doc-coverage.sh <dir>` (add `--list` for file:line). It is committed precisely because the
+previous version of this table was measured by a script that no longer existed:
 
 | | `src/rete` | `src/process` | `src/channel` |
 |---|---:|---:|---:|
 | lines | 30_256 | 2_928 | 475 |
 | comment | **27%** | 40% | 53% |
-| undocumented fns ≥15 ln | **102 (34%)** | 5 (21%) | 0 |
+| undocumented non-`#[test]` fns ≥15 ln | **87 (27%)** | 4 (12%) | 0 |
 | nesting ≥8 | **10** | **0** | 1 |
 
+⛔ **THE "102" IN THE PREVIOUS STAMP WAS WRONG, AND SO WAS THE FILE IT BLAMED.** That instrument
+read only the line directly above `fn`, so any doc sitting above an attribute — `#[allow(...)]`,
+`#[inline]`, `#[cfg(test)]` — counted as absent. It named `hash_join.rs` the worst file in rete;
+**all four of its functions are documented**, three of them behind
+`#[allow(clippy::too_many_arguments)]`. It also named `session.rs` as a top site (it has **3**) and
+missed that `export.rs` was the real head of the list (**24**). The instrument was never committed,
+so for days the figure could be quoted but not refuted. `scripts/doc-coverage.sh` is the cure and
+carries that incident in its header; it is anchored and mutation-proven, and it reports the
+`#[test]` split apart because a test whose name is a sentence already states its contract.
+
 **THE NEXT WORK, in the order I would take it:**
-1. **The 102 undocumented functions**, concentrated in files no pass has touched — `session.rs`
-   (holds `pm_to_query_memory` at **nesting 10**, the deepest in rete), `export.rs` (`import_export`
-   194 ln, `unpack_node` 121), `hash_join.rs` (`hash_join_delta` — 326 lines and **no doc**, and I
-   studied its DEPTH this week without ever checking whether it was documented).
+1. **The 87 undocumented functions.** ✅ `export.rs` is DONE (24 → 0, `b5db936e5`) — it is a codec,
+   so the fix was not 24 one-liners but the three laws its module header now carries. The current
+   head of the list is **`kernel/fire/mod.rs` (14)**, then **`kernel/arm.rs` (11)**,
+   **`compiled_cond.rs` (10)**, **`where_tree.rs` (8)**. ⛔ Do NOT start from the old list —
+   `hash_join.rs` is 0 and `session.rs` is 3. Run the script.
+   Separately still true and NOT a doc gap: `session.rs` holds `pm_to_query_memory` at **nesting
+   10**, the deepest in rete.
 2. **`kernel/tests.rs`** — two wards cast 2026-08-30, verdicts + corrections in
    `NOTE-tests-rs-two-casts.md`. **Builder ruled: a `mod` with many files, NOT NOW.** Do not
    re-cast; the note holds both verdicts, the refused cuts, and the one number `partire` got wrong.
