@@ -1,4 +1,13 @@
-# WORKLIST — arc 255's open stones, ordered. As of 2026-08-29. SEVEN waves struck; 49 verbs homed.
+# WORKLIST — arc 255's open stones, ordered. As of 2026-08-30. FOUR AXES NOW DERIVE FROM THE REGISTRY.
+
+> ★ **THE DAY'S RESULT, and it reframes every row below.** Purity, determinism, totality and
+> expand-time legality are all answered by the registry now; the hand-lists that held them are
+> **named backlogs of unhomed verbs** (11 and 59). Two axes — `Totality` and `ExpandTime` — were
+> minted from nothing, made mandatory, and derived, each proven by breaking its door.
+>
+> **Homing is now the only thing between here and those backlogs being empty.** The two live
+> worklists are `WORKLIST-the-44-unhomed.md` (which VERBS have no home) and
+> `WORKLIST-the-registry-properties.md` (which PROPERTIES have none). Read those first.
 
 > ⛔ **P6-c IS A CAMPAIGN, NOT A ROW** — 136 arms, 148 FQDNs, six dispositions. Sized in
 > `NOTE-p6c-is-a-campaign-not-a-stone.md`. The measurement (P6-c-1) answered YES — ONE macro change

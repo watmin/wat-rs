@@ -70,7 +70,7 @@ That was the orchestrator's, and it was wrong on the axis that matters: cost, no
 
 ---
 
-## ⬜ 2. `expand_time_legal` — and it has a MEASURED 174-verb gap
+## ✅ 2. `expand_time_legal` — GROWN 2026-08-30 (expand-T1 → T4b). Left below as the record.
 
 `src/macros/eval.rs`'s `is_pure_total` — **202 names, 411 lines** — is the last large hand-list
 holding a property, and **it is misnamed**: it does not measure `pure ∧ total`, it measures *"is
@@ -101,9 +101,17 @@ defect `NOTE-the-registry-asserts-properties-nothing-verifies.md` predicted as I
 
 It predicted six. It is **174**.
 
-**What it needs:** the path walked twice already for totality — mint `:wat::runtime::ExpandTimeLegal`
-in `wat/runtime-meta.wat`, parse `@ExpandTimeLegal`, carry it to the entry, make it required, then
-`is_pure_total` derives and is renamed to what it measures.
+**★ DONE.** `:wat::runtime::ExpandTime = Legal | RuntimeOnly | Preserving | Unreviewed`, minted in
+`wat/runtime-meta.wat` (T1, door broken with `E0599`), declarable and carried (T2), REQUIRED (T3 —
+431 sites answer), and `is_expand_time_legal` now DERIVES from it (T4b), leaving a 59-name homing
+backlog. The function was also renamed from `is_pure_total`, which is what retired the
+`:wat::i64::/` contradiction: it never measured totality.
+
+⚠ **The 174-verb gap did NOT close and was never going to here.** 288 registered verbs read
+`@ExpandTime Unreviewed`; ~174 are pure ∧ deterministic and probably legal. What changed is that
+the gap is now **visible in the source, at each verb** — before, a false refusal only surfaced when
+some macro body happened to call the verb. Closing it is a census with somewhere to write the
+answer, and that is the next work on this axis.
 
 ★ **Renaming it also retires the `:wat::i64::/` contradiction** (`is_pure_total` lists it;
 `intrinsic_meta` explicitly excludes it from `total`). They were never disagreeing about one
