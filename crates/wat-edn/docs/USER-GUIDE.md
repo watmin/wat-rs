@@ -333,8 +333,11 @@ match v {
 ### `#inst` rules
 
 - Body must be an EDN string in RFC 3339 form
-- Output via `write` uses `chrono::SecondsFormat::AutoSi` (preserves
-  fractional seconds when present)
+- Output via `write` uses `chrono::SecondsFormat::Nanos` (always 9
+  fractional digits). Constant width is a sort-key invariant:
+  lexicographic order of `#inst` strings matches chronological order.
+- JSON Inst rendering (`to_json_string`) defaults to 9 digits; pass
+  `WriteOpts { inst_digits }` via `to_json_string_with` to choose `[0, 9]`.
 
 ### `#uuid` rules
 

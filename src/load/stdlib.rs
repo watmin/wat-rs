@@ -67,6 +67,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/seq.wat",
         source: include_str!("../../wat/seq.wat"),
     },
+    // Excursus 001 WRITE-OPTS — :wat::edn::WriteOpts + opts / opts/inst-digits.
+    // User-minted JSON-render options (ProcessOpts shape). Verbs stay Rust
+    // intrinsics; this file is only the value + constructors. Defs on
+    // core.wat only (defstruct/defn/i64).
+    WatSource {
+        path: "wat/edn.wat",
+        source: include_str!("../../wat/edn.wat"),
+    },
     // Arc 255.1b-iv-c — closed-domain enum types for the metadata-of reflection
     // surface: Kind / DefinedIn / Layer. No eval-deps beyond :wat::core::defenum
     // (a builtin), so it may load immediately after core.wat.

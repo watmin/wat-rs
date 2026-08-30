@@ -28,7 +28,7 @@
 //! map (other keys)   object — non-string keys serialized as EDN
 //! set                {"#set": [...]}
 //! tagged             {"#tag": "ns/name", "body": ...}
-//! inst               {"#inst": "2026-04-28T16:00:00Z"}
+//! inst               {"#inst": "2026-04-28T16:00:00.000000000Z"}  (WriteOpts default: 9 digits)
 //! uuid               {"#uuid": "550e8400-..."}
 //! ```
 //!
@@ -38,7 +38,7 @@ use crate::vocab::{is_canonical_uuid, split_namespaced};
 use crate::value::{Keyword, Symbol, Tag, Value};
 use crate::OwnedValue;
 use bigdecimal::BigDecimal;
-use chrono::SecondsFormat;
+use chrono::{DateTime, SecondsFormat, Utc};
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use serde_json::{Map, Number, Value as JV};
@@ -99,10 +99,58 @@ pub enum JsonError {
 
 pub type JsonResult<T> = std::result::Result<T, JsonError>;
 
+/// Options for JSON rendering. A VALUE the caller passes — not a global,
+/// not a `digits` argument on the serializer. `inst_digits` is clamped
+/// to `[0, 9]` at construction (same bounds as `:wat::time::to-iso8601`).
+/// Default is 9: constant-width nanoseconds, the sane default a caller
+/// never needs to touch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WriteOpts {
+    /// Fractional-second digits on `#inst` / ISO-8601 Inst strings. Always in `0..=9`.
+    pub inst_digits: u32,
+}
+
+impl WriteOpts {
+    pub const DEFAULT: Self = Self { inst_digits: 9 };
+
+    /// Clamp `n` to `[0, 9]` — match `to-iso8601`, do not reject.
+    pub fn from_inst_digits(n: i64) -> Self {
+        Self {
+            inst_digits: n.clamp(0, 9) as u32,
+        }
+    }
+
+    /// RFC-3339 / ISO-8601 UTC, `Z`-suffixed, `inst_digits` fractional digits.
+    /// Digit counts other than 0/3/6/9 are hand-formatted: chrono's
+    /// `SecondsFormat` only offers those four.
+    pub fn format_inst(self, dt: &DateTime<Utc>) -> String {
+        let digits = self.inst_digits;
+        if digits == 0 {
+            dt.to_rfc3339_opts(SecondsFormat::Secs, true)
+        } else {
+            let secs_part = dt.format("%Y-%m-%dT%H:%M:%S");
+            let nanos = dt.timestamp_subsec_nanos();
+            let scaled = nanos / 10_u32.pow(9 - digits);
+            format!(
+                "{}.{:0>width$}Z",
+                secs_part,
+                scaled,
+                width = digits as usize
+            )
+        }
+    }
+}
+
+impl Default for WriteOpts {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 // ─── EDN → JSON ─────────────────────────────────────────────────
 
 /// Convert an EDN `Value` to a `serde_json::Value`.
-pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
+pub(crate) fn edn_to_json(v: &Value<'_>, opts: &WriteOpts) -> JV {
     match v {
         Value::Nil => JV::Null,
         Value::Bool(b) => JV::Bool(*b),
@@ -136,7 +184,7 @@ pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
         Value::Keyword(k) => JV::String(format!("{}", k)), // includes leading `:`
         Value::Symbol(s) => single_key_object("#symbol", JV::String(format!("{}", s))),
         Value::List(items) | Value::Vector(items) => {
-            JV::Array(items.iter().map(edn_to_json).collect())
+            JV::Array(items.iter().map(|x| edn_to_json(x, opts)).collect())
         }
         Value::Map(entries) => {
             let mut map = Map::with_capacity(entries.len());
@@ -148,13 +196,13 @@ pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
                     // because `json->edn` parses keys back as EDN.
                     other => crate::write(other),
                 };
-                map.insert(key_str, edn_to_json(v));
+                map.insert(key_str, edn_to_json(v, opts));
             }
             JV::Object(map)
         }
         Value::Set(items) => single_key_object(
             "#set",
-            JV::Array(items.iter().map(edn_to_json).collect()),
+            JV::Array(items.iter().map(|x| edn_to_json(x, opts)).collect()),
         ),
         Value::Tagged(tag, body) => {
             let mut map = Map::with_capacity(2);
@@ -162,13 +210,10 @@ pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
                 "#tag".to_string(),
                 JV::String(format!("{}/{}", tag.namespace(), tag.name())),
             );
-            map.insert("body".to_string(), edn_to_json(body));
+            map.insert("body".to_string(), edn_to_json(body, opts));
             JV::Object(map)
         }
-        Value::Inst(dt) => single_key_object(
-            "#inst",
-            JV::String(dt.to_rfc3339_opts(SecondsFormat::AutoSi, true)),
-        ),
+        Value::Inst(dt) => single_key_object("#inst", JV::String(opts.format_inst(dt))),
         Value::Uuid(u) => single_key_object("#uuid", JV::String(u.to_string())),
     }
 }
@@ -181,7 +226,12 @@ pub fn to_json_string(v: &Value<'_>) -> String {
     // custom serde::Serialize impl on Value (full visitor). No caller
     // has surfaced JSON-throughput pressure; the simpler shape wins
     // until measurement disagrees.
-    serde_json::to_string(&edn_to_json(v)).expect("serde_json::to_string on Value")
+    to_json_string_with(v, &WriteOpts::DEFAULT)
+}
+
+/// Convert an EDN `Value` to a JSON string with explicit [`WriteOpts`].
+pub fn to_json_string_with(v: &Value<'_>, opts: &WriteOpts) -> String {
+    serde_json::to_string(&edn_to_json(v, opts)).expect("serde_json::to_string on Value")
 }
 
 // rune:purgare(public-api) — symmetric pretty variant paired with
@@ -201,7 +251,7 @@ pub fn to_json_string_pretty(v: &Value<'_>) -> String {
     // custom serde::Serialize impl on Value (full visitor). No caller
     // has surfaced JSON-throughput pressure; the simpler shape wins
     // until measurement disagrees.
-    serde_json::to_string_pretty(&edn_to_json(v))
+    serde_json::to_string_pretty(&edn_to_json(v, &WriteOpts::DEFAULT))
         .expect("serde_json::to_string_pretty on Value")
 }
 
@@ -540,6 +590,35 @@ mod tests {
     fn inst_and_uuid() {
         round_trip(r#"#inst "2026-04-28T16:00:00Z""#);
         round_trip(r#"#uuid "550e8400-e29b-41d4-a716-446655440000""#);
+    }
+
+    #[test]
+    fn inst_default_is_nine_digits() {
+        let v = parse(r#"#inst "2026-04-28T16:00:00Z""#).unwrap();
+        assert_eq!(
+            to_json_string(&v),
+            r##"{"#inst":"2026-04-28T16:00:00.000000000Z"}"##
+        );
+    }
+
+    #[test]
+    fn inst_digits_zero_has_no_fraction() {
+        let v = parse(r#"#inst "2026-04-28T16:00:00Z""#).unwrap();
+        assert_eq!(
+            to_json_string_with(&v, &WriteOpts::from_inst_digits(0)),
+            r##"{"#inst":"2026-04-28T16:00:00Z"}"##
+        );
+    }
+
+    #[test]
+    fn inst_digits_clamps_to_0_9() {
+        assert_eq!(WriteOpts::from_inst_digits(-1).inst_digits, 0);
+        assert_eq!(WriteOpts::from_inst_digits(99).inst_digits, 9);
+        let v = parse(r#"#inst "2026-04-28T16:00:00.123456789Z""#).unwrap();
+        let lo = to_json_string_with(&v, &WriteOpts::from_inst_digits(-1));
+        let hi = to_json_string_with(&v, &WriteOpts::from_inst_digits(99));
+        assert_eq!(lo, to_json_string_with(&v, &WriteOpts::from_inst_digits(0)));
+        assert_eq!(hi, to_json_string_with(&v, &WriteOpts::from_inst_digits(9)));
     }
 
     #[test]

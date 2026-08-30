@@ -168,8 +168,8 @@ pub(crate) fn eval_edn_write_pretty_home(
     crate::edn::render::eval_edn_write_pretty(std::slice::from_ref(v), span, env, sym).map_err(Into::into)
 }
 
-/// `(:wat::edn::write-json v)` → `:wat::core::String`. JSON via wat-edn's round-trip-safe
-/// sentinel-tagged-object convention.
+/// `(:wat::edn::write-json v opts)` → `:wat::core::String`. JSON via wat-edn's round-trip-safe
+/// sentinel-tagged-object convention. `opts` is a `:wat::edn::WriteOpts` the caller mints.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -177,23 +177,25 @@ pub(crate) fn eval_edn_write_pretty_home(
 /// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
+/// @arg     opts :wat::edn::WriteOpts render options (`(:wat::edn::opts)` for the default)
 /// @ret     :wat::core::String the round-trip-safe JSON text
-/// @example (:wat::edn::write-json 42) #=> "42"
+/// @example (:wat::edn::write-json 42 (:wat::edn::opts)) #=> "42"
 /// @see     :wat::edn::write-json-natural
 #[wat_intrinsic(":wat::edn::write-json")]
 pub(crate) fn eval_edn_write_json_home(
     v: &WatAST,
+    opts: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::edn::render::eval_edn_write_json(std::slice::from_ref(v), span, env, sym).map_err(Into::into)
+    crate::edn::render::eval_edn_write_json(v, opts, span, env, sym).map_err(Into::into)
 }
 
-/// `(:wat::edn::write-json-natural v)` → `:wat::core::String`. Ingestion-tooling-friendly JSON:
+/// `(:wat::edn::write-json-natural v opts)` → `:wat::core::String`. Ingestion-tooling-friendly JSON:
 /// drops the `#tag`/`body` sentinel wrapping, drops the `:` prefix from keywords, renders
 /// Instants as bare ISO-8601 strings. Lossy — round-trip back to wat values is not preserved;
-/// use `write-json` for that.
+/// use `write-json` for that. `opts` is a `:wat::edn::WriteOpts` the caller mints.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -201,18 +203,19 @@ pub(crate) fn eval_edn_write_json_home(
 /// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
+/// @arg     opts :wat::edn::WriteOpts render options (`(:wat::edn::opts)` for the default)
 /// @ret     :wat::core::String the natural (lossy) JSON text
-/// @example (:wat::edn::write-json-natural 42) #=> "42"
+/// @example (:wat::edn::write-json-natural 42 (:wat::edn::opts)) #=> "42"
 /// @see     :wat::edn::write-json
 #[wat_intrinsic(":wat::edn::write-json-natural")]
 pub(crate) fn eval_edn_write_json_natural_home(
     v: &WatAST,
+    opts: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::edn::render::eval_edn_write_json_natural(std::slice::from_ref(v), span, env, sym)
-        .map_err(Into::into)
+    crate::edn::render::eval_edn_write_json_natural(v, opts, span, env, sym).map_err(Into::into)
 }
 
 // ─── validate — a CheckGate, algorithm stays in runtime.rs ─────────────────

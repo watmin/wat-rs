@@ -91,8 +91,8 @@ pub const CORE: &str = "wat.core";
 
 pub use error::{Error, ErrorKind, Result};
 pub use json::{
-    from_json_string, to_json_string, to_json_string_pretty,
-    JsonError, JsonResult,
+    from_json_string, to_json_string, to_json_string_pretty, to_json_string_with,
+    JsonError, JsonResult, WriteOpts,
 };
 pub use parser::Parser;
 pub use value::{Keyword, Symbol, Tag, Value};

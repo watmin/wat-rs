@@ -9,9 +9,9 @@
 //!   line-per-record logging).
 //! - `:wat::edn::write-pretty v` → multi-line indented EDN (debug /
 //!   diagnostic output).
-//! - `:wat::edn::write-json v` → JSON via wat-edn's sentinel-key
-//!   tagged-object convention. Round-trip-safe with
-//!   `:wat::edn::parse` (slice 2; not yet shipped).
+//! - `:wat::edn::write-json v opts` → JSON via wat-edn's sentinel-key
+//!   tagged-object convention. `opts` is a `:wat::edn::WriteOpts`.
+//!   Round-trip-safe with `:wat::edn::parse` (slice 2; not yet shipped).
 //!
 //! # The walker
 //!
@@ -86,18 +86,22 @@ pub fn eval_edn_write_pretty(
     Ok(Value::String(Arc::new(wat_edn::write_pretty(&edn))))
 }
 
-/// `(:wat::edn::write-json v)` → `:String`. JSON via wat-edn's
-/// round-trip-safe sentinel-tagged-object convention.
+/// `(:wat::edn::write-json v opts)` → `:String`. JSON via wat-edn's
+/// round-trip-safe sentinel-tagged-object convention. `opts` is a
+/// `:wat::edn::WriteOpts` the caller mints (`(:wat::edn::opts)` for the
+/// default; `(:wat::edn::opts/inst-digits n)` to choose).
 pub fn eval_edn_write_json(
-    args: &[WatAST],
+    v: &WatAST,
+    opts: &WatAST,
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json";
-    let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
-    Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
+    let value = eval(v, env, sym).map(|tv| tv.value_owned())?;
+    let write_opts = require_write_opts(OP, eval(opts, env, sym).map(|tv| tv.value_owned())?, list_span)?;
+    let edn = value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
+    Ok(Value::String(Arc::new(wat_edn::to_json_string_with(&edn, &write_opts))))
 }
 
 pub(crate) fn require_one_arg(
@@ -117,7 +121,7 @@ pub(crate) fn require_one_arg(
     eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
 
-/// `(:wat::edn::write-json-natural v)` → `:String`. Ingestion-tooling-
+/// `(:wat::edn::write-json-natural v opts)` → `:String`. Ingestion-tooling-
 /// friendly JSON. Drops the `#tag`/`body` sentinel wrapping (so
 /// struct fields land at the top level of the JSON object), drops
 /// the `:` prefix from keywords (so they read as plain JSON strings),
@@ -125,20 +129,69 @@ pub(crate) fn require_one_arg(
 /// wrapper). Encodes enum tagged variants with a `_type`
 /// discriminator + the variant's named fields at the top level.
 ///
+/// Instant width comes from `opts` — this walker does NOT share
+/// `json.rs`'s Inst arm (it has already turned the Instant into a
+/// String before `to_json_string` sees it).
+///
 /// Lossy. Suitable for pumping logs into ELK / DataDog / CloudWatch
 /// Logs / etc. — formats that expect a "natural" JSON shape.
 /// Round-trip back to wat values is not preserved; use `write-json`
 /// for round-trip-safe JSON encoding.
 pub fn eval_edn_write_json_natural(
-    args: &[WatAST],
+    v: &WatAST,
+    opts: &WatAST,
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json-natural";
-    let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = value_to_json_natural(&v, sym.types().map(|a| a.as_ref()));
+    let value = eval(v, env, sym).map(|tv| tv.value_owned())?;
+    let write_opts = require_write_opts(OP, eval(opts, env, sym).map(|tv| tv.value_owned())?, list_span)?;
+    let edn = value_to_json_natural_with(
+        &value,
+        sym.types().map(|a| a.as_ref()),
+        write_opts.inst_digits,
+    );
     Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
+}
+
+fn require_write_opts(
+    op: &str,
+    v: Value,
+    list_span: &crate::span::Span,
+) -> Result<wat_edn::WriteOpts, RuntimeError> {
+    match &v {
+        Value::Aggregate(a) if a.class.as_ref() == "wat::edn::WriteOpts" => {
+            let digits = a
+                .names
+                .iter()
+                .zip(a.fields.iter())
+                .find(|(n, _)| n.as_str() == "inst-digits")
+                .and_then(|(_, f)| match f {
+                    Value::i64(n) => Some(*n),
+                    _ => None,
+                });
+            match digits {
+                Some(n) => Ok(wat_edn::WriteOpts::from_inst_digits(n)),
+                None => Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: op.into(),
+                        expected: ":wat::edn::WriteOpts with i64 inst-digits",
+                        got: Box::new(crate::runtime::ValueSnapshot::of(&v)),
+                    },
+                )),
+            }
+        }
+        other => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::edn::WriteOpts",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            },
+        )),
+    }
 }
 
 /// `(:wat::edn::read s)` → `:T`. Parses an EDN string into a wat
@@ -2901,10 +2954,18 @@ pub fn value_to_json_natural(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
 ) -> OwnedValue {
+    value_to_json_natural_with(v, types, wat_edn::WriteOpts::DEFAULT.inst_digits)
+}
+
+fn value_to_json_natural_with(
+    v: &Value,
+    types: Option<&crate::types::TypeEnv>,
+    inst_digits: u32,
+) -> OwnedValue {
     use std::borrow::Cow;
     match v {
         Value::Instant(t) => OwnedValue::String(Cow::Owned(
-            t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            wat_edn::WriteOpts { inst_digits }.format_inst(t),
         )),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
         Value::wat__core__keyword(k) => {
@@ -2920,7 +2981,7 @@ pub fn value_to_json_natural(
                 .map(|(name, fv)| {
                     (
                         OwnedValue::String(Cow::Owned(name.clone())),
-                        value_to_json_natural(fv, types),
+                        value_to_json_natural_with(fv, types, inst_digits),
                     )
                 })
                 .collect();
@@ -2949,29 +3010,29 @@ pub fn value_to_json_natural(
                 for (name, fv) in ev.names.iter().zip(ev.fields.iter()) {
                     entries.push((
                         OwnedValue::String(Cow::Owned(name.clone())),
-                        value_to_json_natural(fv, types),
+                        value_to_json_natural_with(fv, types, inst_digits),
                     ));
                 }
                 OwnedValue::Map(entries)
             }
         }
         Value::Vec(xs) => OwnedValue::Vector(
-            xs.iter().map(|x| value_to_json_natural(x, types)).collect(),
+            xs.iter().map(|x| value_to_json_natural_with(x, types, inst_digits)).collect(),
         ),
         Value::Tuple(xs) => OwnedValue::Vector(
-            xs.iter().map(|x| value_to_json_natural(x, types)).collect(),
+            xs.iter().map(|x| value_to_json_natural_with(x, types, inst_digits)).collect(),
         ),
         // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
         Value::wat__std__HashMap(m) => OwnedValue::Map(
             m.iter()
                 .map(|(k, v)| {
-                    let key_v = value_to_json_natural(k, types);
+                    let key_v = value_to_json_natural_with(k, types, inst_digits);
                     // JSON keys must be strings; coerce keywords/ints/etc.
                     let key_s = match &key_v {
                         OwnedValue::String(_) => key_v,
                         other => OwnedValue::String(Cow::Owned(wat_edn::write(other))),
                     };
-                    (key_s, value_to_json_natural(v, types))
+                    (key_s, value_to_json_natural_with(v, types, inst_digits))
                 })
                 .collect(),
         ),
@@ -2983,7 +3044,7 @@ pub fn value_to_json_natural(
             ),
             Some(inner) => OwnedValue::Tagged(
                 Tag::ns("wat.core.Option", "Some"),
-                Box::new(OwnedValue::Vector(vec![value_to_json_natural(inner, types)])),
+                Box::new(OwnedValue::Vector(vec![value_to_json_natural_with(inner, types, inst_digits)])),
             ),
         },
         // Fallback: use the tagged walker. Result now falls through to

@@ -19094,23 +19094,29 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 079 — polymorphic value-to-EDN rendering. Three primitives
-    // wrap wat-edn's writer: `write` (compact single-line), `write-pretty`
-    // (multi-line indented), `write-json` (sentinel-tagged JSON).
-    // Each takes any wat value and returns a String; consumers compose
-    // them to render structured records on stdout (telemetry::Console)
-    // or for cross-process IPC.
-    for op in [
-        ":wat::edn::write",
-        ":wat::edn::write-pretty",
-        ":wat::edn::write-json",
-        ":wat::edn::write-json-natural",
-    ] {
+    // Arc 079 — polymorphic value-to-EDN rendering. `write` / `write-pretty`
+    // stay 1-arg (EDN sort-key path; width is a correctness invariant).
+    // JSON verbs take a WriteOpts the caller mints.
+    for op in [":wat::edn::write", ":wat::edn::write-pretty"] {
         env.register(
             op.into(),
             TypeScheme {
                 type_params: vec!["T".into()],
                 params: vec![t_var()],
+                ret: TypeExpr::Path(":wat::core::String".into()),
+                rest_param_type: None,
+            },
+        );
+    }
+    for op in [":wat::edn::write-json", ":wat::edn::write-json-natural"] {
+        env.register(
+            op.into(),
+            TypeScheme {
+                type_params: vec!["T".into()],
+                params: vec![
+                    t_var(),
+                    TypeExpr::Path(":wat::edn::WriteOpts".into()),
+                ],
                 ret: TypeExpr::Path(":wat::core::String".into()),
                 rest_param_type: None,
             },
