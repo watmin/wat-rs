@@ -572,6 +572,13 @@
    ;; write a batch ATOMICALLY (one transaction). Each row carries its opaque data + the
    ;; (ipk,isk) it projects to for each declared GSI (supplied by the consumer's write path —
    ;; the backend cannot read `data`).
+   ;;
+   ;; REPLACE-BY-(pk,sk) — DynamoDB PutItem. An incoming row whose (pk,sk) already
+   ;; exists completely replaces the old item; a table cannot hold two items with
+   ;; one primary key. The old item's GSI projections go with it; the new item's
+   ;; `index-keys` are what remain. Within a batch, later rows win. sqlite
+   ;; implements this as DELETE+clear-index-projections+INSERT; mem drops the
+   ;; matching StoredRow (projections are derived from surviving rows).
    (put [self <- :wat::query::Store  req <- :wat::query::Store::PutRequest]
      -> :wat::query::Store::PutResponse :max-request-bytes 10485760)
 

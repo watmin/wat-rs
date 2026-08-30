@@ -100,10 +100,11 @@
     keys))
 
 ;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
-;; durable = one flat (PersistentVector :- [StoredRow]); `put` conj's the batch on (rete-style pure
-;; threading: the `serve` loop rebinds `state` to the returned new State — see wat/service.wat's
-;; tail-recursive dispatch, `Outcome::Reply`); `scan`/`scan-index` are pure reads (state
-;; unchanged) that filter+sort+paginate a plain materialized copy. `:satisfies :wat::query::Store`
+;; durable = one flat (PersistentVector :- [StoredRow]); `put` is a replace-by-(pk,sk)
+;; (DynamoDB PutItem — drop any existing row the incoming key names, then conj; later
+;; rows in the batch win). The `serve` loop rebinds `state` to the returned new State
+;; (wat/service.wat's tail-recursive dispatch, `Outcome::Reply`); `scan`/`scan-index` are
+;; pure reads (state unchanged) that filter+sort+paginate a plain materialized copy. `:satisfies :wat::query::Store`
 ;; puts this on the operation model: each impl is `(<op> [s req] body)` — `req` is the
 ;; `Store::<Op>Request` record; the body returns the `Store::<Op>Response` outcome enum via
 ;; `Outcome::Reply`. MemStore never errors — always `:Success`.
@@ -122,13 +123,29 @@
      (:wat::service::Outcome::Reply s (:wat::query::Store::EnsureSchemaResponse::Success)))
 
    (put [s ctx req]
+     ;; PutItem: for each incoming row, drop any acc row with the same (pk,sk)
+     ;; (`key-hits-row?`, already the delete predicate) then conj. Later rows in
+     ;; the batch win — the same sequential replace sqlite's put-rows recursion
+     ;; produces. Existing matching keys go with the first incoming that names
+     ;; them; GSI projections follow because mem derives them from surviving rows.
      (:wat::core::let
        [new-rows (:wat::query::Store::PutRequest/rows req)
         merged (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
                                   r   <- :wat::query::StoredRow]
                    -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                   (:wat::vector::conj acc r))
+                   (:wat::core::let
+                     [k (:wat::query::Key :pk (:wat::query::StoredRow/pk r) :sk (:wat::query::StoredRow/sk r))
+                      kept (:wat::core::foldl
+                             (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+                                              x <- :wat::query::StoredRow]
+                               -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+                               (:wat::core::if (:wat::query::key-hits-row? k x)
+                                 a
+                                 (:wat::vector::conj a x)))
+                             (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+                             acc)]
+                     (:wat::vector::conj kept r)))
                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s))
                  new-rows)]
        (:wat::service::Outcome::Reply

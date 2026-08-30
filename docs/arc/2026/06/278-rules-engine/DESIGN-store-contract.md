@@ -147,7 +147,7 @@ The contract is *correct* iff independent backends satisfy it while sharing noth
 |---|---|---|---|
 | model | `main(pk,sk,data, +ipk-cols)` `PK(pk,sk)` | InnoDB `main(pk,sk,data, +ipk-cols)` `PK(pk,sk)` | collection `{pk,sk,data,uuid,…}`, `_id=(pk,sk)` |
 | GSI | native `CREATE INDEX(ipk_col, sk)` | native secondary `INDEX(ipk_col, sk)` | compound index `{uuid:1, sk:1}` |
-| `put` | prepared `INSERT` in `BEGIN`/`COMMIT` | `INSERT` in a txn | `insertMany(ordered:true)` |
+| `put` | replace-by-`(pk,sk)`: `DELETE`+`INSERT` in `BEGIN`/`COMMIT` (PutItem; a duplicate key is unrepresentable) | `REPLACE` / `INSERT … ON DUPLICATE KEY UPDATE` | `replaceOne({pk,sk}, doc, {upsert:true})` |
 | `scan` | `WHERE pk=? AND sk>?cur ORDER BY sk LIMIT n` | identical SQL | `find({pk, sk:{$gt:cur}}).sort({sk:1}).limit(n)` |
 | `scan-index` | `WHERE ipk_col=? AND sk … (idx)` | identical | `find({uuid, sk:{$gt}}).sort({sk:1}).limit(n)` |
 
