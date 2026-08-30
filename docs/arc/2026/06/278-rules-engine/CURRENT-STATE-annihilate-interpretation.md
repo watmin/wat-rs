@@ -10,8 +10,8 @@
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 99bf573df..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 99bf573df..HEAD        # what they touched
+git log --oneline c898713de..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat c898713de..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -70,64 +70,63 @@ disk finding by finding):
 - **`intueri` CONVICTED the self-description** — six false claims, ALL about the tree's own layout,
   all trivially checkable, none checked. Both gates below exist because of it.
 
-**⛔ SO THE ANSWER TO "IS IT AN EXEMPLAR" IS: NOT YET, AND THE GAP IS NAMED RATHER THAN HIDDEN.**
-What remains is in the next-work list — it is no longer a number nobody can reproduce.
+**⛔ SO THE ANSWER TO "IS IT AN EXEMPLAR" IS: ONE ITEM SHORT, AND THE GAP IS NAMED RATHER THAN
+HIDDEN.** Everything mechanically checkable is green or retired with reasons; both wards were cast
+and everything they found is fixed or gated; the instrument that measures this subsystem was
+root-caused and swept. **The single remaining item is #3 below** — one ordering, measured on the
+broken estimator, needing three runs on the fixed one.
+
+⚠ **AND AN EXEMPLAR CLAIM IS ITSELF A CLAIM ABOUT THE TREE.** This session is a long argument for
+not believing those without a check: SIX of my own instruments returned confident wrong numbers
+(a doc-detector that read an attribute as absent documentation; an `--exclude` flag that matched
+NOTHING once its target became a directory; a hollow-test classifier at 10 against `probare`'s 26;
+a `FireCtx` field count with which I nearly overruled a correct ward; `40_000` reasoned where
+`120_200` was measured; and a classifier blind to assertions inside a helper — rewarding the
+duplication it exists to detect). The two gates in `tests/lint/` are what make this table
+re-derivable rather than asserted. **Do not declare the exemplar from this file — run the
+script.**
 
 **THE NEXT WORK, in the order I would take it:**
 
-1. ⛔ **THE INSTRUMENT ITSELF IS BROKEN, AND THIS IS THE STRIKE THAT MATTERS.** Three independent
-   census tests report SUBTRACTIONS WITH IMPOSSIBLE SIGNS, measured 2026-08-30:
-   - `accum_alpha_leftover_split`: `A−M push = −87.28 ms`
-   - `accum_alpha_push_split`: `H−M HashMap entry = −98.42 ms`
-   - `alpha_match_cost_per_binding`: **2 binds measured FASTER than 1 bind** (−1.12 ms, −28 ns/fact)
+✅ **1 — THE INSTRUMENT IS FIXED (`89e8c3ed0`, `c898713de`).** It was a CLASS, not the three
+impossible signs I started from. Every cost split took the MEAN of 3 rounds and the FIRST arm of
+each round paid a one-time cost: 287.4 ms against 11.5 and 11.4 for identical work. `M` was never
+slow — `M` GOES FIRST. 106 accumulators swept to the MINIMUM across 8 files; `A−M` went
+−90.76 → +2.3 ms and every impossible sign resolved.
 
-   A negative delta means the ISOLATED micro-bench (`exec_compiled`, 103–110 ms) runs ~6x SLOWER
-   than the full operation it claims to decompose (`alpha_activate_fact`, 16 ms). The isolated
-   loop is not measuring the same work the in-fire path does, so every "X−Y" row built on it is
-   invalid in sign — and those rows are printed as findings. I did NOT encode these as
-   assertions: freezing an impossible result would make a broken instrument permanent. They are
-   recorded at their sites and belong here.
+⛔ **AND THE MECHANISM WAS PROVEN ONLY AFTER THE BUILDER ASKED "is this disingenuous?"** — a fair
+challenge, because discarding a round IS what a minimum does. Earned with two measurements: an
+untimed warm-up drops round 0 from 286.5 → 12.1 ms (so the cost is ONE-TIME, not per-round; and
+NOT capacity — pre-reserving 300k changed nothing), and the production path warms 20% where the
+isolated arm warms 2500% (so a real fire does not pay it). **The sweep was correct by luck until
+those ran.** What is still NOT known, and the instrument's own note says so: the exact
+first-execution cost (CPU ramp / page faults / lazy init) was never isolated.
 
-   This is `render_phase_table`'s own warning coming true — *"two copies is how one of them
-   silently stops subtracting"* — one level up, in the subtraction itself.
+★ Curing it exposed two things underneath, both recorded at the instrument:
+  - **A RESOLUTION FLOOR.** `H−M` now reads −0.48, +0.19, +0.24 across runs — it CHANGES SIGN. A
+    per-fact HashMap entry is below what a 12 ms arm at RUNS=3 can resolve. Sub-millisecond rows
+    in these tables are noise wearing a number.
+  - **A MISLABELLED SUBTRACTION, not a defect.** `H−V` was stable at −2.9 ms because the arms are
+    ALTERNATIVE ALGORITHMS, not superset/subset: `V` does 40k RRB pushes, `H` takes the bulk
+    `PVec::from_vec` path. The number was always right; the label claimed a decomposition that
+    does not exist. Relabelled.
 
-2. ⛔ **`IntegerOverflow` / `DivisionByZero` IS NOT A RETE GAP — STRUCK 2026-08-30, at the
-   builder's correction, and the disk agrees.** It was listed here as "the next totality
-   candidate". That was mis-filed, in three ways:
+⛔ **2 — `IntegerOverflow`/`DivisionByZero` IS NOT A RETE GAP. STRUCK** — see the block below; kept
+struck so nobody re-files it.
 
-   - **Rete's arithmetic is ALREADY TOTAL.** Every user-observable `i64` op is checked —
-     `checked_add`/`sub`/`mul`/`div`/`rem`, 11 sites across `expr_ir/eval.rs` and
-     `fire/acc.rs`. NOTHING WRAPS. Rete cannot produce a wrong arithmetic answer; it refuses.
-     (The `wrapping_`/`saturating_` hits in rete are FNV-1a's hash — where wrapping IS the
-     algorithm — lease refcounts, `reserve()` capacity hints, and slice-index clamps. None is a
-     user value.)
-   - **The residual is the FORM of refusal — a raise, not a matchable value — and core does the
-     same thing.** `runtime.rs` has 12 `IntegerOverflow` raises behind the identical
-     `checked_*` pattern. Rete is LEVEL with core here, not behind it.
-   - **The machinery does not exist in EITHER.** No `ArithOutcome` anywhere in `src/` or `wat/`.
-     The outcome wall was buildable for ceilings because rete owns those verbs and could mint
-     `FireOutcome`/`InsertOutcome`/`CompileOutcome` in `rete.wat`. Arithmetic totality needs
-     `:wat::core::i64::+` ITSELF to answer an outcome — a CORE surface change touching every
-     arithmetic call site in the substrate.
+⏭ **3 — THE LAST OPEN ITEM: the `linear Vec` 2.8x ordering** in `accum_alpha_class_lookup_split`.
+`linear Vec` beat `FxHashMap` 2.8x and `std::HashMap` 6x at 2 types — plausibly the structural
+finding that test exists to demonstrate, and NOT asserted because one sample is not a measurement.
+⚠ **It was measured on the BROKEN estimator.** Re-measure on the minimum: the ratio may hold,
+shrink, or invert. Three runs settles it. This is the whole remaining exemplar list.
 
-   **Builder, 2026-08-30:** *"this is core's tooling and core is not yet total… that cannot be
-   held against rete as rete is the first subsystem to demand totality."* Correct, and it
-   inverts the credit: rete built the outcome wall for the ceilings it OWNS, and checks the
-   arithmetic it does not. If this is picked up, it is a CORE arc, not a rete one.
-
-3. **`linear Vec` beats `FxHashMap` 2.8x at 2 types** in `accum_alpha_class_lookup_split` — looks
-   like the structural finding that test exists to demonstrate. NOT asserted: one sample is not a
-   measurement. Three runs before it becomes a claim.
-
-4. **`purity.rs` is now the largest file in `src/rete` at 2,598 lines and `partire` has NEVER
-   assessed it.** The earlier cast covered `expr_ir`, `validate`, `arm`, `fire/mod` — this one was
-   never in scope.
+📤 **`purity.rs` (2,598 lines, never assessed by `partire`) is being taken by MAIN** — builder,
+2026-08-30. Not this branch's work; do not duplicate it.
 
 ⚠ **A CAVEAT ON THE HOLLOW-TEST TOOL, so nobody rediscovers five phantom regressions:**
 `scratchpad/hollow2.py` measures "no assertion macro LEXICALLY INSIDE the test body". Five tests
-now assert through the shared `assert_phases_present` helper and therefore READ AS HOLLOW and are
-not. The tool rewards the duplication it exists to detect. `probare` had the same blind spot; its
-count of 26 was right only because none of those tests then called an asserting helper.
+assert through the shared `assert_phases_present` helper and therefore READ AS HOLLOW and are not.
+The tool rewards the duplication it exists to detect.
 
 ⏸ **PARKED ON A BUILDER RULING:** item 7 steps 3–5 (the holon surface); step 5 needs the `:panic`
 call.
