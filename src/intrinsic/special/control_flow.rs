@@ -8,17 +8,19 @@ use wat_macros::wat_special_form;
 /// preserved: `if` itself adds no effects; the branches carry the decision.
 /// Each branch is the conditional control flow for the expression.
 ///
-/// **Totality ground —** a value/control-flow op with no domain restriction: a well-typed
-/// call always returns; type mismatches are the type checker's concern, not this axis's,
-/// the same convention `pure`/`deterministic` already use. Grouped with `let` (and the
-/// generic `=`/`not=`/`<`/`and`/`or`/`not` outside this stone's 27) in `rete/purity.rs`'s
-/// `total` sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
-/// implementation.
+/// **Totality ground —** `if` has no totality of its own. Like `Purity`/`Determinism`
+/// immediately above, it PRESERVES: it is total exactly when its taken branch is, the same
+/// sentence `Totality::Preserving` was minted with (arc 255 total-T1). T4a transcribed this
+/// as `@Total Total`, inconsistent with its own two sibling axes; total-T4b corrects it to
+/// `Preserving` here. The fence's derived verdict is unchanged either way
+/// (`Preserving` satisfies the axis exactly as `Total` does — see `intrinsic/mod.rs:1038`'s
+/// `matches!(purity, Pure | Preserving)` convention), which is what makes the correction
+/// safe to land alongside the derivation rather than needing its own stone.
 /// @added 1.0.0
 /// @Category ControlFlow
 /// @Purity Preserving
 /// @Determinism Preserving
-/// @Total       Total
+/// @Total       Preserving
 /// @arg cond :wat::core::Bool the condition to branch on
 /// @arg then :T returned when cond is :true (the taken branch)
 /// @arg else :T returned when cond is :false (the taken branch)

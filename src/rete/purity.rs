@@ -772,42 +772,55 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::holon::coincident?" | ":wat::holon::presence?"
     );
 
-    // ── `total` — BRIEF-total-t1-the-axis-unarmed.md's measurement, NOT a mass-assert ──────────
+    // ── `total` — arc 255 total-T4b: DERIVED from the registry, an 11-name backlog left ────────
     //
     // DEFAULT-DENY over the WHOLE `pure_det` list above: every verb defaults to `total: false`
     // regardless of membership in `pure_det` (pure∧deterministic says nothing about totality —
-    // `i64::/` is both, and undefined at a zero divisor). This sub-list is exactly the verbs the
-    // 9-file / 98-row `where`-corpus (`wat-scripts/perf/grid/where-*.wat`) uses inside a `where`
-    // (directly or via a transitively-checked user fn), each verified total by READING its own
-    // implementation in `runtime.rs` (never inferred from the name):
+    // `i64::/` is both, and undefined at a zero divisor).
     //
-    //   generic `=`/`not=`/`<`/`and`/`or`/`not`/`if`/`let` — value/control-flow ops with no domain
-    //     restriction (a well-typed call always returns; type mismatches are the type checker's
-    //     concern, not this axis's, exactly the convention `pure`/`deterministic` already use).
-    //   `i64::>` `i64::<` `i64::>=` `i64::<=` — comparisons never overflow (only +/-/*// do).
-    //   `i64::to-f64` — a total, lossy-but-never-raising conversion (i64::MAX ≈ 9.2e18 is nowhere
-    //     near f64's overflow boundary ≈1.8e308, so the result is always finite, never ±Inf).
-    //   `i64::to-string` `f64::to-string` `bool::to-string` — scalar→String conversions with no
-    //     domain restriction (verified against each `eval_*_to_string` implementation).
-    //   `f64::>` — a comparison, not an arithmetic op: `eval_f64_compare` returns a `bool` for any
-    //     two f64 inputs including NaN/±Inf (IEEE says `NaN > x` is `false`, never a raise), so the
-    //     OUTPUT itself can never be the undefined thing this axis polices — same shape as the
-    //     `coincident?`/`presence?` predicates below.
-    //   `vector::length` `/contains?` (arc 255 Stone E-ii home for `PersistentVector`'s verbs)
-    //     — always defined.
-    //   `vector::get` — ALREADY total by design (returns `Option`, `None` on out-of-range —
-    //     verified `persistentvector_get_inner`, never raises for a valid index).
-    //   `String/concat` `/starts-with?` `/ends-with?` `/contains?` `/empty?` — verified
-    //     (`intrinsic/string.rs`) total for any two strings, no domain restriction.
-    //   `foldl` — CONDITIONALLY total exactly like its pure∧det entry above: the verb ITSELF never
-    //     raises (an empty seq returns the seed), so marking the head total and letting
-    //     `classify_expr`'s general-list arm recurse into the fn-literal argument (checking ITS
-    //     body against `Axis::Total` too) is the same mechanism already built for pure/det, not a
-    //     new one. `map`/`filter`/`reduce`/`foldr` are extremely likely total by the identical
-    //     argument but are NOT included — no `where` row in the corpus uses them, so nothing
-    //     measured the claim. Flagged, not classified.
-    //   `:wat::holon::presence?` — see the VSA-seam block below (BRIEF-total-column-honest.md
-    //     Direction 2); grouped with the string/holon verbs there, not repeated here.
+    // BRIEF-total-t1-the-axis-unarmed.md through total-T4a built and verified a 38-name hand-list
+    // here, each verdict earned by READING the verb's own implementation (never inferred from the
+    // name) against the 9-file / 98-row `where`-corpus (`wat-scripts/perf/grid/where-*.wat`).
+    // Total-T4a then moved 27 of those 38 verdicts to their own registration site (an `@Total`
+    // line in the verb's doc block) — the reasoning lives there now, not here. Total-T4b (this
+    // stone) makes the lookup below CONSULT those 27 sites instead of keeping a second copy of a
+    // fact the registry already holds, the exact shape 255.1c retired as "a gate reading a copy
+    // of the truth" (`intrinsic/mod.rs:988`, `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`).
+    // `Totality::Total` and `Totality::Preserving` BOTH satisfy the axis — `Preserving` means "I
+    // contribute no partiality of my own; my sub-forms carry theirs," the same reading
+    // `pure`/`deterministic` already give it (`intrinsic/mod.rs:1038`'s
+    // `matches!(purity, Pure | Preserving)`) — `Totality::Partial` fails it, and
+    // `Totality::Unreviewed`/no registration at all falls through to the `matches!` below.
+    //
+    // ★ THAT `matches!` IS A HOMING BACKLOG, NOT THE HAND-LIST IT REPLACED. Each of its 11 names
+    // is unhomed — no registration exists yet to carry its ruling — so the verdict for exactly
+    // these eleven stays HERE until one exists. Homing a name retires its row: move its reasoning
+    // to the registration site (the same motion `if`/`let` and their 25 siblings already made)
+    // and delete the arm. A verb that IS registered does not belong in this list (row 5's own
+    // gate) — if one shows up here alongside a registration, the derivation above is being
+    // shadowed by a copy, which is the exact defect this stone exists to remove.
+    //
+    //   `=`/`not=`/`and`/`or`/`not`/`bool::to-string` — the remaining P6-c dispatch population:
+    //     value ops with no domain restriction (a well-typed call always returns; type mismatches
+    //     are the type checker's concern, not this axis's, exactly the convention
+    //     `pure`/`deterministic` already use — `bool::to-string` verified against
+    //     `eval_bool_to_string`, `if b {"true"} else {"false"}`, no domain hole). Their typed
+    //     siblings (`i64::=`/`i64::not=`/`i64::to-string`/`f64::to-string`, …) are homed and
+    //     registered `@Total Total`; these generic/untyped forms are not yet.
+    //   `map`/`mapv`/`filter`/`foldl`/`reduce` — the W7 HOF family, parked on
+    //     `effectful_by_prefix` rather than dispatched as ordinary registered intrinsics. A
+    //     combinator's totality is CONDITIONAL on its fn-argument, and `classify_expr`'s
+    //     general-list arm already resolves that conditionality by recursing into the fn-literal
+    //     body and checking IT against `Axis::Total` too — so `total: true` on the HEAD means
+    //     exactly what `pure: true`/`deterministic: true` already mean for these five: "the
+    //     combinator itself adds no partiality of its own," proven by run on `foldl`:
+    //
+    //       (total? '(foldl (fn [a b] (rete i64::+ a b :undefined 0)) 0 xs))  -> TRUE
+    //       (total? '(foldl (fn [a b] (core i64::/ a b))              0 xs))  -> FALSE
+    //
+    //     `foldr` is retired (arc 118.B6b — it was `reverse`+`foldl` wearing a name borrowed from
+    //     Haskell, where the verb is distinct only because it is LAZY, a property strict wat
+    //     cannot have); its replacement `(reduce f init (reverse coll))` is covered via `reduce`.
     //
     // Explicitly and deliberately LEFT `false` (genuinely partial, confirmed by reading the
     // implementation, not assumed from the design stone's guess) even though every one appears
@@ -834,164 +847,21 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //     OUTPUT is a bool, never itself the undefined value. `f64::+`/`f64::-`/`f64::/` were never
     //     marked true (already correctly `false`, same overflow-to-Inf reasoning) — no action needed
     //     there, per STOP-3 (do not widen the audit past entries already `true`).
-    let total = matches!(
-        head,
-        ":wat::core::="
-            | ":wat::core::not="
-            // BRIEF-the-f64-surface-is-a-stub.md Part B (2026-08-05) — generic `:wat::core::<`
-            // REMOVED. It is a false-true: `eval_compare` (`runtime.rs:5191`) returns
-            // `RuntimeErrorKind::TypeMismatch` when `values_compare` yields `None` (the
-            // incomparable-operands domain hole `DESIGN-STONE-where-admits-only-rete-ops.md`
-            // names as the whole reason per-type comparison exists), and its three siblings
-            // `>`/`>=`/`<=` were never marked true — this was the odd one out.
-            | ":wat::core::and"
-            | ":wat::core::or"
-            | ":wat::core::not"
-            | ":wat::core::if"
-            | ":wat::core::let"
-            | ":wat::i64::>"
-            | ":wat::i64::<"
-            | ":wat::i64::>="
-            | ":wat::i64::<="
-            | ":wat::i64::to-f64"
-            // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `i64::to-string` /
-            // `f64::to-string` / `bool::to-string`: verified by reading `eval_i64_to_string`
-            // (`n.to_string()`) / `eval_f64_to_string` (`format!("{}", f)`, defined for NaN/±Inf/
-            // -0.0 too) / `eval_bool_to_string` (`if b {"true"} else {"false"}`) — each converts a
-            // well-typed scalar to a String with no domain restriction whatsoever, same reasoning
-            // as `i64::to-f64` immediately above. `bool::to-string` was previously listed only in
-            // the pure∧det block above, NOT here — the brief that asked for these rete rows named
-            // it "already in the total list", which this file's own text did not support; grounded
-            // and promoted here rather than trusted.
-            | ":wat::i64::to-string"
-            | ":wat::f64::to-string"
-            | ":wat::core::bool::to-string"
-            // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`: an
-            // equality compare over i64 never raises, same class as the ordering
-            // family immediately above.
-            | ":wat::i64::="
-            | ":wat::i64::not="
-            | ":wat::f64::>"
-            // BRIEF-the-f64-surface-is-a-stub.md Part A (2026-08-05) — `f64::<`/`f64::<=`/
-            // `f64::>=` ADDED beside `f64::>`. Same warrant: each is a comparison whose OUTPUT
-            // is a bool, never itself the undefined value, and `eval_f64_compare` is
-            // NaN-correct (`NaN > 1.0` is `false`, not a raise) — there is no input on which
-            // any of the four fails to produce an ordinary bool. #52's own STOP-3 ("do not
-            // widen the audit past entries already `true`") swept false-trues and never
-            // revisited entries already `false`; these three were the mirror image it missed.
-            | ":wat::f64::<"
-            | ":wat::f64::<="
-            | ":wat::f64::>="
-            // per-type-equality-restored (2026-08-05) — `f64::=`/`f64::not=`: a
-            // comparison, not arithmetic — `eval_f64_compare` returns a `bool` for any
-            // two f64 inputs including NaN/±Inf (never raises), the same reasoning
-            // `f64::>` (kept total) already uses immediately above.
-            | ":wat::f64::="
-            | ":wat::f64::not="
-            // Arc 255 Stone E-ii — moved to `:wat::vector::*` this stone (name-only; the
-            // totality argument above is unchanged).
-            | ":wat::vector::length"
-            | ":wat::vector::contains?"
-            | ":wat::vector::get"
-            // Arc 255 Stone P6-c-W6 — `last`/`reverse`/`range` (`src/intrinsic/collection.rs`):
-            // `last` returns `(Option :- [T])` unconditionally (`None` on an empty Vector,
-            // never a raise); `reverse` returns a same-kind collection for any receiver its
-            // `ordered()` gate admits; `range` returns a `Vector` (empty when `start >= end`)
-            // for any two i64s. None has a domain hole. `rest` is excluded — see the pure∧det
-            // entry above for why it is genuinely partial.
-            | ":wat::core::last"
-            | ":wat::core::reverse"
-            | ":wat::core::range"
-            // Arc 255 Stone F — the `:wat::core::String/*` five that lived here are DELETED,
-            // not migrated: their `:wat::string::*` replacement's totality is carried by the
-            // `:wat::string::` prefix block above, which this stone extended to cover them.
-            | ":wat::core::foldl"
-            // ★ THE FOUR HOF SIBLINGS, added 2026-08-05 (task #80) — `foldl` stood here ALONE for
-            // three days and its four siblings did not, which was an inconsistency inside ONE
-            // family, not a judgement. The old reason is on the record and it was the corpus
-            // fallacy: *"extremely likely total... but are NOT included — no `where` row in the
-            // corpus uses them... Flagged, not classified."* Absence of a caller is not evidence of
-            // partiality — `[[feedback_optimize_for_the_expressivity_surface_not_the_corpus]]`.
-            //
-            // GROUNDED, not assumed. A combinator's totality is CONDITIONAL on its fn-argument, and
-            // the walk resolves that conditionality itself — proven by run on `foldl`, which
-            // already carried `total: true`:
-            //
-            //   (total? '(foldl (fn [a b] (rete i64::+ a b :undefined 0)) 0 xs))  -> TRUE
-            //   (total? '(foldl (fn [a b] (core i64::/ a b))              0 xs))  -> FALSE
-            //
-            // `classify_expr` enters the typed fn body and finds the partial op. So `total: true`
-            // on the HEAD means exactly what `pure: true`/`deterministic: true` already mean for
-            // these four — "the combinator itself adds no partiality" — and those two columns took
-            // the conditional-TRUE reading from the start. One row, one convention.
-            //
-            // Arc 118.B6b: `foldr` retired from this arm (and from `pure_det` above) — it was
-            // `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct
-            // only because it is LAZY, a property strict wat cannot have. Its right-fold
-            // replacement, `(reduce f init (reverse coll))`, is still covered here via `reduce`.
-            | ":wat::core::map" | ":wat::core::mapv" | ":wat::core::filter" | ":wat::core::reduce"
-            // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
-            //
-            // `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)
-            //     takes both args through `require_holon` (HolonAST only — a raw `Vector` is
-            //     rejected as a `TypeMismatch`, the ordinary "type checker's concern" exclusion this
-            //     axis already uses elsewhere), then encodes BOTH at the same ambient `d`
-            //     (`program_dim` → one `enc`, `runtime.rs:18646-18649`) — so there is no code path by
-            //     which its two vectors can disagree in dimension; unlike its three siblings below it
-            //     never reaches `pair_values_to_vectors`. Its only float op is `cosine >
-            //     enc.presence_floor(sym)` — a comparison, total for the same reason `f64::>` is
-            //     (returns `bool`, never raises, never itself NaN/Inf) — so even the guarded `0.0`
-            //     `Similarity::cosine` can return does not threaten totality here: whatever `cosine`
-            //     returns, `>` against it is defined. `presence?` was ALREADY total before the strike
-            //     below and its path is UNCHANGED by it (STOP-3 — no diff in `eval_algebra_presence_q`).
-            //
-            // ── BRIEF-cosine-outcome-wall.md (2026-08-03) — cosine/dot/coincident? join presence? ──
-            //
-            // `:wat::holon::coincident?`, `:wat::holon::cosine`, `:wat::holon::dot` were each left
-            // `false` above (T1/Direction-2 audit) for the SAME reason: all three route through the
-            // shared `pair_values_to_vectors` guard (`runtime.rs`), which used to RAISE
-            // `RuntimeErrorKind::TypeMismatch` on a dimension-mismatched Vector pair — a raise is not
-            // total by this axis's own definition (an ordinary value on every input), full stop,
-            // regardless of what each verb's own arithmetic can or cannot do beyond that shared gate.
-            //
-            // The cosine outcome wall retired that raise: the guard now returns the mismatch as a
-            // `PairedVectors::DimensionMismatch` fact instead of unwinding, and each caller decides
-            // what to do with it — per the design stone's ruled law (`DESIGN-STONE-where-admits-only-
-            // rete-ops.md`, "RULED 2026-08-02 — THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT"):
-            //
-            //   `:wat::holon::coincident?` — now TRUE. A dimension mismatch answers `Value::bool(false)`
-            //     (a PREDICATE absorbs its own undefined case — a documented total contract, not an
-            //     IEEE accident); every other path returns an ordinary `bool` as before. No raise
-            //     remains on any input.
-            //
-            //   `:wat::holon::cosine` — now TRUE. It is a MEASUREMENT, so per the same ruling it may
-            //     NOT absorb its own undefined case into a value drawn from its own range — a dimension
-            //     mismatch and a zero-magnitude operand (the guarded `0.0` `Similarity::cosine` used to
-            //     return, which reads as "orthogonal, unrelated" in cosine's own codomain — a
-            //     fabrication, proven reachable and indistinguishable from genuine unrelatedness by
-            //     `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`) both become named
-            //     `:wat::holon::CosineOutcome` variants (`Similarity`/`Degenerate`/`DimensionMismatch`)
-            //     instead. An enum construction never raises and is always a well-typed value — total.
-            //
-            //   `:wat::holon::dot` — now TRUE. Its arithmetic still cannot overflow (`Vector.data:
-            //     Vec<i8>`, bounded by `d × 127²`, unreachable at real dimensions — the family's one
-            //     open question, now closed: `d ≈ 10³⁰⁴` to reach ±Inf) and it needs no `Degenerate`
-            //     case (a zero-magnitude operand dots to an HONEST `0.0` — no division happens). The
-            //     one thing that made it partial was the same shared-guard raise `coincident?` had;
-            //     with that retired, `dot` returns `:wat::holon::DotOutcome`
-            //     (`Computed`/`DimensionMismatch`) on every input.
-            //
-            // `:wat::holon::coincident-explain` and `:wat::holon::presence?` are UNCHANGED and
-            // deliberately NOT added here: `coincident-explain`'s fixed `CoincidentExplanation` struct
-            // return shape has no field able to carry a mismatch honestly, so it re-raises on that one
-            // hole exactly as the guard itself used to (STOP-5 — its return shape was not touched, so
-            // its totality claim is not touched either); `presence?` never reached the guard in the
-            // first place (see its own paragraph above).
-            | ":wat::holon::presence?"
-            | ":wat::holon::coincident?"
-            | ":wat::holon::cosine"
-            | ":wat::holon::dot"
-    );
+    let total = match crate::intrinsic::registry().lookup_entry(head).map(|e| e.totality) {
+        Some(wat_doc::Totality::Total) | Some(wat_doc::Totality::Preserving) => true,
+        Some(wat_doc::Totality::Partial) => false,
+        // No registration to consult: the verb is not homed yet. These eleven keep their ruling
+        // here until they have a registration site to carry it — see the comment block above
+        // this match for the per-verb reasoning (grouped: the remaining P6-c dispatch population,
+        // then the W7 HOF family).
+        Some(wat_doc::Totality::Unreviewed) | None => matches!(
+            head,
+            ":wat::core::map" | ":wat::core::mapv" | ":wat::core::filter"
+                | ":wat::core::foldl" | ":wat::core::reduce"
+                | ":wat::core::=" | ":wat::core::not=" | ":wat::core::and"
+                | ":wat::core::or" | ":wat::core::not" | ":wat::core::bool::to-string"
+        ),
+    };
 
     if pure_det {
         Some(OpMeta { pure: true, deterministic: true, total })
@@ -2837,3 +2707,4 @@ mod completeness_gate {
         );
     }
 }
+
