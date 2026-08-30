@@ -134,3 +134,63 @@ fn export_lossy_fields_are_still_the_four_the_header_names() {
     // that the comment still contains its own sentence is that same defect one level up. The two
     // assertions above pin the CODE that makes the claim true, which is the checkable half.
 }
+
+/// The engine's alpha class lookup is a LINEAR SCAN, and a benchmark label said otherwise.
+///
+/// `accum_alpha_class_lookup_split` times three structures and, until 2026-08-30, labelled the
+/// slowest of them — `std HashMap` — "(engine)". That was true the day
+/// `DESIGN-STONE-alpha-class-lookup` was drafted (2026-08-19) and false the moment the stone
+/// SHIPPED, because shipping it is what turned `roots` into a `Vec`. The label then described
+/// the structure the engine had just stopped using, and went on printing beneath a green test
+/// for eleven days.
+///
+/// **The class is the one this whole file exists for: a label that names a prior state.** Its
+/// two siblings this arc are the `H−V` row that claimed a decomposition its arms did not have,
+/// and `alloc_counter.rs`'s "NOTHING READS THESE COUNTERS YET" written after the fixpoint began
+/// reading them. A benchmark label is the worst host for it — nobody re-derives a table's row
+/// names, and the number beside it is right, which makes the row look checked.
+///
+/// So the claim moves here, where it is executable and OFF THE CLOCK: the ordering assertion in
+/// the test itself can only speak while the timings hold, and a structure swapped back to a map
+/// would be a compile-time fact, not a slow one.
+#[test]
+fn alpha_class_lookup_is_still_the_linear_scan_the_benchmark_calls_the_engine() {
+    let src = rete_source("src/rete/alpha_tree.rs");
+
+    // The type behind `roots`. A `Vec` of pairs is the stone's winner; a map of any flavour is
+    // the decision reversed, and `accum_alpha_class_lookup_split`'s `L` row stops being the
+    // production path the instant it changes.
+    // ⛔ EXACT, NOT `contains` — `no_loose_string_assert` bans the loose form where a
+    // deterministic value is available, and both values here are one rustfmt'd line. Its rubric
+    // offers a rune for the legitimately-loose; neither of these qualifies, and the exact form is
+    // the stronger gate anyway: a `Vec` swapped for a `SmallVec`, or a second field added to the
+    // pair, changes what the benchmark's `L` arm models just as surely as a `HashMap` would.
+    let alias = src
+        .lines()
+        .map(str::trim)
+        .find(|l| l.starts_with("type AlphaRoots"))
+        .unwrap_or_else(|| panic!("`type AlphaRoots` alias is gone from src/rete/alpha_tree.rs"));
+    assert_eq!(
+        alias, "type AlphaRoots = Vec<(String, Arc<AlphaDiscNode>)>;",
+        "`AlphaRoots` changed shape. The alpha class lookup was interned to a linear scan by \
+         `DESIGN-STONE-alpha-class-lookup`; if it is a map again the stone was reversed, and \
+         `accum_alpha_class_lookup_split` must stop calling its `L` row THE ENGINE."
+    );
+
+    // And the lookup itself must still WALK it. A `Vec` reached through a side index would
+    // satisfy the alias check while making the benchmark's `L` arm fiction again.
+    let body_start = src.find("fn root_for(").unwrap_or_else(|| {
+        panic!("`fn root_for(` is gone from src/rete/alpha_tree.rs — the class lookup was renamed")
+    });
+    let stmt = src[body_start..]
+        .lines()
+        .nth(1)
+        .map(str::trim)
+        .unwrap_or_else(|| panic!("`root_for` has no body line"));
+    assert_eq!(
+        stmt, "self.roots.iter().find(|(c, _)| c == class).map(|(_, n)| n)",
+        "`root_for` no longer linear-scans `self.roots`. The benchmark's `L` arm models exactly \
+         this `.iter().find()` over the class list — if the lookup changed shape, that arm is \
+         measuring something the engine does not do."
+    );
+}

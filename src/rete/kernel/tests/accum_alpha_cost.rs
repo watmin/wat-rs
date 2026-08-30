@@ -735,7 +735,14 @@ fn accum_alpha_tree_walk_split() {
 }
 
 /// Class lookup 3.26 ms: std HashMap vs FxHash vs linear
-/// (`DESIGN-STONE-alpha-class-lookup`).
+/// (`DESIGN-STONE-alpha-class-lookup`) — the measurement that CHOSE the engine's structure.
+///
+/// The stone shipped: `alpha_tree::AlphaRoots` is a `Vec<(String, Arc<AlphaDiscNode>)>` and
+/// `root_for` is a `.find()`, so **arm `L` below IS the production path** that
+/// `candidates_into` takes on every fact. `S` and `F` are the alternatives it beat. That the
+/// engine is still the linear scan is gated structurally, off the clock, by
+/// `tests/lint/rete_header_claims_are_asserted.rs`; this test gates the ORDERING that made it
+/// the right choice.
 #[test]
 fn accum_alpha_class_lookup_split() {
     use rustc_hash::FxHashMap;
@@ -831,9 +838,9 @@ fn accum_alpha_class_lookup_split() {
         "\naccum alpha class-lookup split — {} facts, {n_types} types, MINIMUM of {RUNS}\n\
              types: {unique:?}\n\
              \n\
-             S  std HashMap (engine)        {:>7.2} ms\n\
+             S  std HashMap                 {:>7.2} ms\n\
              F  FxHashMap                   {:>7.2} ms\n\
-             L  linear Vec                  {:>7.2} ms\n\
+             L  linear Vec (THE ENGINE)     {:>7.2} ms\n\
              \n\
              S−F                            {:>7.2} ms\n\
              S−L                            {:>7.2} ms\n\
@@ -847,11 +854,44 @@ fn accum_alpha_class_lookup_split() {
         ms(s - best),
     );
     println!("{table}");
+
+    // ⛔ THE ORDERING IS THE CLAIM, AND UNTIL 2026-08-30 NOTHING ASSERTED IT. This test built a
+    // 40,200-fact workload, timed three map implementations, printed the table that decided the
+    // engine's data structure — and asserted only that the clock had moved. An inversion here
+    // invalidates `DESIGN-STONE-alpha-class-lookup`, and it would have printed green.
+    //
+    // ⚠ THE PRIOR FIGURES WERE MEASURED ON THE BROKEN (MEAN) ESTIMATOR — recorded as 2.8x over
+    // FxHashMap and 6x over std. Re-measured on the minimum, the ordering HOLDS and the
+    // magnitudes SHRINK. Six independent process runs, this machine, 2026-08-30:
+    //   F/L  2.83 2.38 2.63 2.59 2.48 2.60  → tightest 2.38
+    //   S/L  5.43 4.88 5.29 4.96 5.12 5.44  → tightest 4.88
+    //
+    // THE FLOORS ARE DERIVED FROM THAT SPREAD, NOT PICKED FOR ROUNDNESS: each is ~60% of its own
+    // tightest observed sample (1.5/2.38 = 63%, 3.0/4.88 = 61%). A slower or noisier machine has
+    // that much room before it reddens, while a genuine inversion — the only outcome that
+    // unseats the stone — cannot hide inside it.
+    //
+    // ⛔ `S − F` IS NOT ASSERTED, AND THE OMISSION IS DELIBERATE. It compares two structures the
+    // engine does not use; a floor on it would gate rustc's SipHash against `rustc_hash`, which
+    // is not this repo's contract to hold. It is printed as context, not claimed.
     assert!(
-        s > 0.0,
-        "std HashMap lookup recorded 0 — the loop never ran:{table}"
+        f >= 1.5 * l,
+        "the linear scan is no longer clearly ahead of FxHashMap — at {n_types} types the stone \
+         chose `L` and `AlphaRoots` is a `Vec` because of it; re-run the stone before trusting \
+         either:{table}"
     );
-    assert!(n_types > 0, "zero types — split is vacuous:{table}");
+    assert!(
+        s >= 3.0 * l,
+        "the linear scan is no longer clearly ahead of std HashMap — this is the cut \
+         `DESIGN-STONE-alpha-class-lookup` was taken for; if it has closed, the intern no longer \
+         pays and the stone needs re-reading:{table}"
+    );
+    // ⛔ AND AN `assert_eq!(winner, "L")` STOOD HERE FOR ABOUT A MINUTE. It cannot fail: the first
+    // assertion gives `f >= 1.5 * l`, which for a positive `l` gives `f > l`, which IS
+    // `winner == "L"` by its own definition three lines up. It would have read as the headline
+    // claim of this test and tested nothing — the precise defect the 26-test R59 sweep removed
+    // from this file, re-minted while writing that sweep's last row. `winner` stays as a printed
+    // column, where it labels the table rather than pretending to gate it.
 }
 
 /// A−M 3.45 ms: HashMap entry vs Vec push vs d_alpha
