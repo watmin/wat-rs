@@ -333,10 +333,15 @@ fn eval_i64_rem_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 
 /// `(:wat::i64::< a b)` → whether `a` is less than `b`.
 ///
+/// **Totality ground —** comparisons never overflow (only `+`/`-`/`*`/`/` do), so the
+/// output is defined for every pair of i64 inputs. Grouped with `i64::>`/`i64::>=`/`i64::<=`
+/// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
+/// made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -358,10 +363,15 @@ pub(crate) fn eval_i64_lt(
 
 /// `(:wat::i64::<= a b)` → whether `a` is less than or equal to `b`.
 ///
+/// **Totality ground —** comparisons never overflow (only `+`/`-`/`*`/`/` do), so the
+/// output is defined for every pair of i64 inputs. Grouped with `i64::>`/`i64::<`/`i64::>=`
+/// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
+/// made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -383,10 +393,15 @@ pub(crate) fn eval_i64_lte(
 
 /// `(:wat::i64::> a b)` → whether `a` is greater than `b`.
 ///
+/// **Totality ground —** comparisons never overflow (only `+`/`-`/`*`/`/` do), so the
+/// output is defined for every pair of i64 inputs. Grouped with `i64::<`/`i64::>=`/`i64::<=`
+/// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
+/// made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -408,10 +423,15 @@ pub(crate) fn eval_i64_gt(
 
 /// `(:wat::i64::>= a b)` → whether `a` is greater than or equal to `b`.
 ///
+/// **Totality ground —** comparisons never overflow (only `+`/`-`/`*`/`/` do), so the
+/// output is defined for every pair of i64 inputs. Grouped with `i64::>`/`i64::<`/`i64::<=`
+/// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
+/// made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -433,10 +453,15 @@ pub(crate) fn eval_i64_gte(
 
 /// `(:wat::i64::= a b)` → whether `a` equals `b`.
 ///
+/// **Totality ground —** an equality compare over i64 never raises, same class as the
+/// ordering family above (per-type-equality-restored, 2026-08-05). Grouped with
+/// `i64::not=` in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is
+/// that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -458,10 +483,15 @@ pub(crate) fn eval_i64_eq(
 
 /// `(:wat::i64::not= a b)` → whether `a` does not equal `b`.
 ///
+/// **Totality ground —** an equality compare over i64 never raises, same class as the
+/// ordering family above (per-type-equality-restored, 2026-08-05). Grouped with `i64::=`
+/// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
+/// made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -512,10 +542,15 @@ pub(crate) fn eval_i64_to_bigint(
 /// f64's 53-bit mantissa; never fails (no NaN/Inf can result from a finite
 /// i64).
 ///
+/// **Totality ground —** a total, lossy-but-never-raising conversion: `i64::MAX` ≈
+/// 9.2e18 is nowhere near f64's overflow boundary ≈1.8e308, so the result is always
+/// finite, never ±Inf. From `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the
+/// verdict is that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to cast
 /// @ret     :wat::core::f64 `n`, cast to f64
@@ -553,10 +588,16 @@ pub(crate) fn eval_i64_to_rational(
 
 /// `(:wat::i64::to-string n)` → the base-10 rendering of `n`.
 ///
+/// **Totality ground —** verified by reading `eval_i64_to_string` (`n.to_string()`): a
+/// well-typed i64 converts to a String with no domain restriction whatsoever, same
+/// reasoning as `i64::to-f64` above. One of the `i64::to-string`/`f64::to-string`/
+/// `bool::to-string` trio in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the
+/// verdict is that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to render
 /// @ret     :wat::core::String the base-10 rendering of `n`

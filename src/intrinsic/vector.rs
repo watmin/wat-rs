@@ -60,10 +60,14 @@ use crate::value::{EvalBreak, Value};
 
 /// `(:wat::vector::length v)` → the number of elements in `v`.
 ///
+/// **Totality ground —** always defined (arc 255 Stone E-ii home for `PersistentVector`'s
+/// verbs); grouped with `vector::contains?` in `rete/purity.rs`'s `total` sub-list (arc 255
+/// total-T4a). The verdict is that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @ret     :wat::core::i64 the number of elements in `v`
@@ -95,10 +99,14 @@ pub(crate) fn persistentvector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// `(:wat::vector::contains? v item)` → whether `item` occurs as an element
 /// of `v`.
 ///
+/// **Totality ground —** always defined (arc 255 Stone E-ii home for `PersistentVector`'s
+/// verbs); grouped with `vector::length` in `rete/purity.rs`'s `total` sub-list (arc 255
+/// total-T4a). The verdict is that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @arg     item :T the candidate element
@@ -115,10 +123,15 @@ pub(crate) fn persistentvector_contains_q(v: &Value, item: &Value) -> Result<Val
 /// `None` on an out-of-range index. Safe: never raises on OOB (use
 /// `(:wat::vector::contains? v i)`-style bounds logic to guard first).
 ///
+/// **Totality ground —** already total by design (returns `Option`, `None` on
+/// out-of-range — verified `persistentvector_get_inner`, never raises for a valid index).
+/// From `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
+/// made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @arg     i :wat::core::i64 the index looked up

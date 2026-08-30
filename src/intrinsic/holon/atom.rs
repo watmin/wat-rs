@@ -2062,10 +2062,20 @@ pub(crate) fn eval_coincident_floor(
 /// sides and dimension mismatches are matchable outcome variants, not
 /// raises. FOUNDATION 1718: cosine is the retrieval primitive.
 ///
+/// **Totality ground —** BRIEF-cosine-outcome-wall.md: `cosine` is a MEASUREMENT, so per the
+/// where-corpus ruling it may NOT absorb its own undefined case into a value drawn from its
+/// own range — a dimension mismatch and a zero-magnitude operand (the guarded `0.0`
+/// `Similarity::cosine` used to return, which read as "orthogonal, unrelated" — a
+/// fabrication, proven reachable by `probe-zero-magnitude-reachable.wat`) both become named
+/// `:wat::holon::CosineOutcome` variants (`Similarity`/`Degenerate`/`DimensionMismatch`)
+/// instead. An enum construction never raises and is always a well-typed value — total. From
+/// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a), grouped with `dot`/`coincident?`/
+/// `presence?`; the verdict is that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
 /// @arg     b :wat::core::Value the two operands compared, in order
@@ -2090,10 +2100,20 @@ pub(crate) fn eval_algebra_cosine(
 /// looser of the two similarity thresholds (`coincident?` is the tighter
 /// one).
 ///
+/// **Totality ground —** BRIEF-total-column-honest.md Direction 2: `eval_algebra_presence_q`
+/// takes both args through `require_holon` (a raw `Vector` is rejected as a `TypeMismatch`,
+/// the ordinary "type checker's concern" exclusion this axis already uses elsewhere), then
+/// encodes BOTH at the same ambient `d` — so there is no code path by which its two vectors
+/// can disagree in dimension; unlike `cosine`/`dot`/`coincident?` it never reaches
+/// `pair_values_to_vectors`. Its only float op is `cosine > enc.presence_floor(sym)` — a
+/// comparison, total for the same reason `f64::>` is (returns `bool`, never raises). From
+/// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a), grouped with `cosine`/`dot`/
+/// `coincident?`; the verdict is that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     target :wat::holon::HolonAST the target and reference operands, in order
 /// @arg     reference :wat::holon::HolonAST the target and reference operands, in order
@@ -2118,10 +2138,20 @@ pub(crate) fn eval_algebra_presence_q(
 /// `b` clears the coincident floor — the tighter of the two similarity
 /// thresholds (`presence?` is the looser one).
 ///
+/// **Totality ground —** BRIEF-cosine-outcome-wall.md: `coincident?` routes through the
+/// shared `pair_values_to_vectors` guard, which used to RAISE `TypeMismatch` on a
+/// dimension-mismatched Vector pair — not total by this axis's definition. The cosine
+/// outcome wall retired that raise: a dimension mismatch now answers `Value::bool(false)`
+/// (a predicate absorbs its own undefined case — a documented total contract, not an IEEE
+/// accident); every other path returns an ordinary `bool` as before. No raise remains on any
+/// input. From `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a), grouped with
+/// `cosine`/`dot`/`presence?`; the verdict is that list's, made by reading the
+/// implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
 /// @arg     b :wat::core::Value the two operands compared, in order
@@ -2408,10 +2438,20 @@ pub(crate) fn eval_form_signed_string_coincident_q(
 /// unlike `cosine`, not normalized by magnitude. Dimension mismatches are
 /// a matchable outcome variant.
 ///
+/// **Totality ground —** BRIEF-cosine-outcome-wall.md: its arithmetic cannot overflow
+/// (`Vector.data: Vec<i8>`, bounded by `d × 127²`, unreachable at real dimensions — `d ≈
+/// 10³⁰⁴` would be needed to reach ±Inf) and it needs no `Degenerate` case (a zero-magnitude
+/// operand dots to an honest `0.0` — no division happens). The one thing that made it
+/// partial was the same shared-guard raise `coincident?` had; with that retired, `dot`
+/// returns `:wat::holon::DotOutcome` (`Computed`/`DimensionMismatch`) on every input. From
+/// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a), grouped with `cosine`/
+/// `coincident?`/`presence?`; the verdict is that list's, made by reading the
+/// implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
 /// @arg     b :wat::core::Value the two operands compared, in order

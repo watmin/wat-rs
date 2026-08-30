@@ -181,10 +181,17 @@ pub(crate) fn eval_nth(
 /// `StreamContainer` gate to name: `require_vec` never routes a `Stream` value through one, so
 /// no thunk is ever forced. Pure ∧ Deterministic.
 ///
+/// **Totality ground —** returns `(Option :- [T])` unconditionally (`None` on an empty
+/// Vector, never a raise) — no domain hole. Arc 255 Stone P6-c-W6, grouped with `reverse`/
+/// `range` in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that
+/// list's, made by reading the implementation. (`rest` is excluded from that ruling: it
+/// raises `MalformedForm` on an empty receiver — genuinely partial, per `purity.rs`'s
+/// pure∧det entry for this family.)
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the vector probed
 /// @ret     (:wat::core::Option :- [T]) the last element, or `None` if `xs` is empty
@@ -257,10 +264,15 @@ pub(crate) fn eval_rest(
 /// `StreamContainer::Stream` (and Tuple/WatAstList/HashSet), so a lazy `(Stream :- [T])` falls to
 /// the catch-all `TypeMismatch` below — no thunk is ever forced. Pure ∧ Deterministic.
 ///
+/// **Totality ground —** returns a same-kind collection for any receiver its `ordered()`
+/// gate admits — no domain hole. Arc 255 Stone P6-c-W6, grouped with `last`/`range` in
+/// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's, made
+/// by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Transform
 /// @arg     xs (:wat::core::Vector :- [T]) the sequence reversed; this call also accepts (PersistentVector :- [T]) or (List :- [T]), each returning the same container kind — a (Stream :- [T]), Tuple, HashSet, or WatAST form is refused (`ordered()` gate excludes them)
 /// @ret     (:wat::core::Vector :- [T]) `xs`'s elements in reverse order
@@ -291,10 +303,15 @@ pub(crate) fn eval_vec_reverse(
 /// to classify at all — `range` never touches `StreamContainer`/a `Stream`, so there is no
 /// gate to name and no thunk that could be forced. Pure ∧ Deterministic.
 ///
+/// **Totality ground —** returns a `Vector` (empty when `start >= end`) for any two i64s —
+/// no domain hole. Arc 255 Stone P6-c-W6, grouped with `last`/`reverse` in `rete/purity.rs`'s
+/// `total` sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
+/// implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Transform
 /// @arg     start :wat::core::i64 the inclusive lower bound
 /// @arg     end :wat::core::i64 the exclusive upper bound

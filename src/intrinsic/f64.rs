@@ -277,10 +277,17 @@ pub(crate) fn eval_f64_min(
 /// `(:wat::f64::< a b)` → whether `a` is less than `b` (NaN-correct: any
 /// comparison against NaN is `false`).
 ///
+/// **Totality ground —** a comparison, not an arithmetic op: `eval_f64_compare` returns a
+/// `bool` for any two f64 inputs including NaN/±Inf (IEEE says `NaN > x` is `false`, never
+/// a raise), so the output itself can never be the undefined thing this axis polices
+/// (BRIEF-the-f64-surface-is-a-stub.md Part A, added beside `f64::>`). Grouped with
+/// `f64::>`/`f64::<=`/`f64::>=` in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a);
+/// the verdict is that list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -300,10 +307,17 @@ pub(crate) fn eval_f64_lt(
 
 /// `(:wat::f64::<= a b)` → whether `a` is less than or equal to `b`.
 ///
+/// **Totality ground —** a comparison whose output is a bool, never itself the undefined
+/// value; `eval_f64_compare` is NaN-correct (`NaN > 1.0` is `false`, not a raise) — there is
+/// no input on which it fails to produce an ordinary bool (BRIEF-the-f64-surface-is-a-
+/// stub.md Part A). Grouped with `f64::>`/`f64::<`/`f64::>=` in `rete/purity.rs`'s `total`
+/// sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
+/// implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -323,10 +337,17 @@ pub(crate) fn eval_f64_lte(
 
 /// `(:wat::f64::> a b)` → whether `a` is greater than `b`.
 ///
+/// **Totality ground —** a comparison, not an arithmetic op: `eval_f64_compare` returns a
+/// `bool` for any two f64 inputs including NaN/±Inf (IEEE says `NaN > x` is `false`, never
+/// a raise), so the output itself can never be the undefined thing this axis polices — same
+/// shape as the `coincident?`/`presence?` predicates. Grouped with `f64::<`/`f64::<=`/
+/// `f64::>=` in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that
+/// list's, made by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -346,10 +367,17 @@ pub(crate) fn eval_f64_gt(
 
 /// `(:wat::f64::>= a b)` → whether `a` is greater than or equal to `b`.
 ///
+/// **Totality ground —** a comparison whose output is a bool, never itself the undefined
+/// value; `eval_f64_compare` is NaN-correct (`NaN > 1.0` is `false`, not a raise) — there is
+/// no input on which it fails to produce an ordinary bool (BRIEF-the-f64-surface-is-a-
+/// stub.md Part A). Grouped with `f64::>`/`f64::<`/`f64::<=` in `rete/purity.rs`'s `total`
+/// sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
+/// implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -370,10 +398,16 @@ pub(crate) fn eval_f64_gte(
 /// `(:wat::f64::= a b)` → whether `a` equals `b`. IEEE 754 equality: `NaN =
 /// NaN` is `false`, falls out for free — not special-cased.
 ///
+/// **Totality ground —** a comparison, not arithmetic — `eval_f64_compare` returns a `bool`
+/// for any two f64 inputs including NaN/±Inf (never raises), the same reasoning `f64::>`
+/// uses (per-type-equality-restored, 2026-08-05). Grouped with `f64::not=` in
+/// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's, made
+/// by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -393,10 +427,16 @@ pub(crate) fn eval_f64_eq(
 
 /// `(:wat::f64::not= a b)` → whether `a` does not equal `b`.
 ///
+/// **Totality ground —** a comparison, not arithmetic — `eval_f64_compare` returns a `bool`
+/// for any two f64 inputs including NaN/±Inf (never raises), the same reasoning `f64::>`
+/// uses (per-type-equality-restored, 2026-08-05). Grouped with `f64::=` in
+/// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's, made
+/// by reading the implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -488,10 +528,17 @@ pub(crate) fn eval_f64_to_i64(
 /// `(:wat::f64::to-string n)` → the rendering of `n`. Same shared op fn as
 /// `:wat::f64::to-string`.
 ///
+/// **Totality ground —** verified by reading `eval_f64_to_string` (`format!("{}", f)`,
+/// defined for NaN/±Inf/-0.0 too): a well-typed f64 converts to a String with no domain
+/// restriction whatsoever, same reasoning as `i64::to-f64`/`i64::to-string`. One of the
+/// `i64::to-string`/`f64::to-string`/`bool::to-string` trio in `rete/purity.rs`'s `total`
+/// sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
+/// implementation.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Total         Total
 /// @Category      Transform
 /// @arg     n :wat::core::f64 the f64 to render
 /// @ret     :wat::core::String the rendering of `n`
