@@ -2,6 +2,60 @@
 //!
 //! Not a Session. No facts, no memories, no source forms. Native fire only.
 //! One tag; interior is packed vectors (kind + integers + literals).
+//!
+//! ## The three laws of this codec
+//!
+//! Sixty-one functions sit below, and they are not sixty-one separate decisions — they are ten
+//! `pack_*`/`unpack_*` pairs plus the walls that guard the seam. Read these three laws and
+//! every function's signature tells you the rest.
+//!
+//! **1. `pack` is total; `unpack` is partial — and the return type says so, without exception.**
+//! Every `pack_*` returns a bare `Value`: it consumes a structure this process already built and
+//! type-checked, so there is nothing left to refuse. Every `unpack_*` returns
+//! `Result<_, EvalBreak>`: it consumes bytes some *other* process wrote, and every one of them
+//! can be a lie. The asymmetry holds across all ten pairs (`cmp`, `pat`, `expr`, `prog`,
+//! `cond_op`, `compiled_cond`, `driver`, `fold`, `rhs_op`, `rhs`) and is the fastest way to see
+//! which side of the trust boundary a function is standing on.
+//!
+//! Round-trip is therefore SEMANTIC, not literal, and exactly one field makes that distinction
+//! real: `RhsOp::Bind`'s `Debug`-rendered `WatAST` is dropped by `pack_rhs_op` and reconstructed
+//! from the key on the way back. It names a source form for a fire-time error message, and the
+//! source it names does not exist on the importing disk. Spans are restamped at the import site
+//! for the same reason. Nothing else is lossy — see `pack_rhs_op`.
+//!
+//! **2. The wire shape is a tagged vector — `[:tag operand …]` — and an unknown tag is a
+//! refusal, never a default.** The leading keyword is the discriminant, and every reader refuses
+//! one it does not know — in one of two shapes: a multi-tag reader ends its `match` in an
+//! `other =>` arm raising `malformed`, while a reader with exactly ONE legal tag
+//! (`unpack_prog`, `unpack_compiled_cond`) refuses with an explicit `!= ":prog"` / `!= ":cond"`
+//! check up front. Neither ever falls through to a default: a codec that defaults on an
+//! unrecognised tag imports a *different program* than the one exported and reports success.
+//!
+//! The two directions are guarded differently and it is worth knowing which is protecting you.
+//! Every `pack_*` is a bare `match` over a Rust enum with no catch-all, so a new `Pat`/`Expr`/
+//! `Op`/`RhsOp`/`NodeKind` variant is a COMPILE ERROR here — you cannot forget to pack it. The
+//! unpack side has no such help, because its input is a keyword rather than a type: a tag you
+//! forgot to read is a located raise at run time, not a build failure. So when you add a
+//! variant, the compiler will find the pack arm for you and nothing will find the unpack arm.
+//!
+//! **3. Unpacking a value is not trusting it. Three independent walls stand between the wire and
+//! the evaluator**, and each catches what the one before it cannot:
+//!
+//! - **Range refusal, at the read** — `expect_u16` / `expect_op` / `expect_idx` refuse
+//!   wrap-into-range rather than writing `n as u16`. A slot index that wraps does not fail; it
+//!   silently addresses the wrong slot. `expect_op` additionally refuses `>= RETE_OPS.len()`,
+//!   because a wrapped opcode dispatches a real-but-wrong `OpExec`.
+//! - **Slot bounds, as a post-pass** — `check_program_slots` / `check_cond_ops` /
+//!   `check_expr_slots` / `check_pat_slots` walk an already-unpacked structure and prove every
+//!   slot it references lies inside its own declared `frame_len` / `n_slots`. Structure-level,
+//!   not read-level: a slot can be a perfectly valid `u16` and still point past the frame it
+//!   will run in.
+//! - **Three compat gates, in `import_export`** — the format version (`v != FORMAT_V`), the ABI
+//!   fingerprint (`abi_of` recomputed and compared), and *then* the host `TypeEnv` field order.
+//!   The third is not redundant, and the reason is worth carrying: the fingerprint is computed
+//!   from the classes and fields the export *itself* declares, so **a packed ABI can agree with
+//!   itself and still disagree with this process's records.** Gate two proves the export is
+//!   internally consistent; only gate three proves it fits *here*.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -195,6 +249,8 @@ fn check_slot(slot: u16, frame_len: u16, span: &Span, what: &str) -> Result<(), 
     Ok(())
 }
 
+/// Wall 2 for patterns — every slot a `Pat` binds into must lie inside the frame it will run
+/// in. `Lit` and `Wild` bind nothing and are trivially in bounds; the rest recurse.
 fn check_pat_slots(pat: &Pat, frame_len: u16, span: &Span) -> Result<(), EvalBreak> {
     match pat {
         Pat::Lit(_) | Pat::Wild => Ok(()),
@@ -214,6 +270,13 @@ fn check_pat_slots(pat: &Pat, frame_len: u16, span: &Span) -> Result<(), EvalBre
     }
 }
 
+/// Wall 2 for expressions — the recursive half. Walks every `Expr` variant and proves each
+/// slot READ and each slot BOUND by a `let`/`match` arm lies inside `frame_len`.
+///
+/// This is the wall that has to be exhaustive rather than clever: an expression tree reaches
+/// slots through a dozen different variants, and a single unwalked arm is a hole that
+/// `expect_idx` cannot cover — a slot index can be a perfectly valid `u16` and still address
+/// past the end of the frame it executes in.
 fn check_expr_slots(e: &Expr, frame_len: u16, span: &Span) -> Result<(), EvalBreak> {
     match e {
         Expr::Lit(_) => Ok(()),
@@ -272,6 +335,8 @@ fn check_expr_slots(e: &Expr, frame_len: u16, span: &Span) -> Result<(), EvalBre
     }
 }
 
+/// Wall 2 for a whole `Program` — params, reads, then the root expression, all against the
+/// program's own declared `frame_len`.
 fn check_program_slots(p: &Program, span: &Span) -> Result<(), EvalBreak> {
     for s in p.params.iter() {
         check_slot(*s, p.frame_len, span, "param")?;
@@ -282,6 +347,14 @@ fn check_program_slots(p: &Program, span: &Span) -> Result<(), EvalBreak> {
     check_expr_slots(&p.root, p.frame_len, span)
 }
 
+/// Wall 2 for a compiled condition — every op that WRITES a slot (`Bind`, `BindCheck`, `Eval`)
+/// is bounds-checked against `n_slots`, and every op that READS through an expression hands that
+/// expression to `check_expr_slots`.
+///
+/// `Or` and `Not` recurse: a nested branch is checked against the SAME `n_slots`, because the
+/// frame is the condition's, not the branch's. An op that neither reads nor writes a slot
+/// (`Fail`) needs no check, and saying so in an explicit arm is what keeps this exhaustive —
+/// a catch-all here would silently admit the next slot-writing variant somebody adds.
 fn check_cond_ops(ops: &[Op], n_slots: usize, span: &Span) -> Result<(), EvalBreak> {
     let frame_len = n_slots as u16;
     for op in ops {
@@ -338,6 +411,10 @@ fn expect_str<'a>(v: &'a Value, op: &str, span: &Span) -> Result<&'a str, EvalBr
     }
 }
 
+/// Accepts BOTH vector representations, because the two sides of the wire produce different
+/// ones: this process packs with `pv` (`Value::Vec`), while a value that has been through an
+/// EDN read-back arrives as a `PersistentVector`. Refusing either would make the codec's own
+/// round-trip depend on which door the value came in by.
 fn expect_seq(v: &Value, op: &str, span: &Span) -> Result<Vec<Value>, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok((**xs).clone()),
@@ -364,6 +441,9 @@ fn record(class: &str, field_names: &'static [&'static str], fields: Vec<Value>)
 
 // ── ABI ──────────────────────────────────────────────────────────────────────
 
+/// FNV-1a, 64-bit. Not a security hash and not required to be one — its only job is to make
+/// `abi_of`'s fingerprint short enough to carry in the export and collide-resistant enough that
+/// two genuinely different ABIs do not agree by accident.
 fn fnv1a(s: &str) -> u64 {
     let mut h = 0xcbf29ce484222325;
     for b in s.as_bytes() {
@@ -373,6 +453,15 @@ fn fnv1a(s: &str) -> u64 {
     h
 }
 
+/// The compatibility fingerprint: format version, every packed class with its field names IN
+/// ORDER, and every `RETE_OPS` name IN ORDER, hashed to `v<N>:<16 hex>`.
+///
+/// Order is part of the identity on purpose — the wire addresses fields and ops BY INDEX, so two
+/// processes that declare the same names in a different order are not compatible, and a
+/// set-based fingerprint would call them equal. Note what this can and cannot see: `classes` and
+/// `fields` are supplied by the caller, so when `import_export` recomputes it from the *export's
+/// own* declaration, agreement proves the export is internally consistent — not that it fits
+/// this process. That is why a third gate follows it. (Module header, law 3.)
 fn abi_of(classes: &[String], fields: &[Vec<String>]) -> String {
     let mut s = format!("v{FORMAT_V}");
     for (c, fs) in classes.iter().zip(fields.iter()) {
@@ -417,6 +506,14 @@ fn unpack_cmp(v: &Value, span: &Span) -> Result<CmpKind, EvalBreak> {
     }
 }
 
+/// `Pat` → `[:plit v]` · `[:wild]` · `[:pbind slot]` · `[:pvar "Name" pat?]` ·
+/// `[:pfields "field" slot …]`.
+///
+/// Two of these carry an OPTIONAL tail, and the codec encodes optionality two different ways —
+/// know which you are looking at. Here it is ARITY: `:pvar` has three items when the variant
+/// carries a payload and two when it does not. Inside a fixed-arity vector (`pack_prog`,
+/// `pack_compiled_cond`) absence is instead `Value::Unit` in the slot. Both are read back
+/// faithfully; neither is inferable from the other.
 fn pack_pat(p: &Pat) -> Value {
     match p {
         Pat::Lit(v) => pv([kw(":plit"), v.clone()]),
@@ -442,6 +539,9 @@ fn pack_pat(p: &Pat) -> Value {
     }
 }
 
+/// Inverse of `pack_pat`. `:pfields` is the one arm with an arity law rather than a fixed
+/// shape — the tail is flat `"field" slot` pairs, so its check is one `% 2` (see `pack_pat`,
+/// which flattens them for exactly that reason) rather than a nested sequence per binding.
 fn unpack_pat(v: &Value, span: &Span) -> Result<Pat, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty pat"))?;
@@ -500,6 +600,13 @@ fn unpack_pat(v: &Value, span: &Span) -> Result<Pat, EvalBreak> {
     }
 }
 
+/// `Expr` → a tagged vector per variant: `:lit` `:slot` `:field` `:call` `:user` `:ctor`
+/// `:variant` `:if` `:let` `:and` `:or` `:match`.
+///
+/// The largest packer, and the one whose exhaustiveness the compiler enforces for you: it is a
+/// bare `match` over `Expr` with no catch-all, so a new variant fails to compile HERE rather
+/// than round-tripping into something else. Its inverse cannot get that guarantee — see
+/// `unpack_expr`.
 fn pack_expr(e: &Expr) -> Value {
     match e {
         Expr::Lit(v) => pv([kw(":lit"), v.clone()]),
@@ -854,6 +961,11 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
     }
 }
 
+/// `Program` → `[:prog frame_len [params…] [names…] [reads…] root]`.
+///
+/// `names` is the debug-name table and is positionally aligned with slots, so an unnamed slot
+/// must occupy its position: it packs as `Value::Unit`, not as an omission. Dropping unnamed
+/// entries would shift every later name onto the wrong slot.
 fn pack_prog(p: &Program) -> Value {
     let names = p.names.iter().map(|n| match n {
         Some(s) => Value::String(Arc::new(s.to_string())),
@@ -871,6 +983,9 @@ fn pack_prog(p: &Program) -> Value {
     ])
 }
 
+/// Inverse of `pack_prog`, and the caller of wall 2 for programs: the slot bounds cannot be
+/// checked until `frame_len` and the root expression have both been read, so
+/// `check_program_slots` runs at the end of this function rather than inside the reads.
 fn unpack_prog(v: &Value, span: &Span) -> Result<Program, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     if expect_kw(
@@ -952,6 +1067,11 @@ fn unpack_prog(v: &Value, span: &Span) -> Result<Program, EvalBreak> {
     Ok(program)
 }
 
+/// `Op` → `[:bind …]` `[:bchk …]` `[:eval …]` `[:cmp …]` `[:scmp …]` `[:fail]`.
+///
+/// `Or` and `Not` nest whole op-vectors as their operands, so a condition's shape survives as a
+/// tree rather than being flattened into a jump-encoded sequence — which is what lets
+/// `check_cond_ops` recurse into branches with the enclosing `n_slots` intact.
 fn pack_cond_op(op: &Op) -> Value {
     match op {
         Op::Bind { field_idx, slot } => pv([
@@ -987,6 +1107,9 @@ fn pack_cond_op(op: &Op) -> Value {
     }
 }
 
+/// Inverse of `pack_cond_op`. Every slot-bearing arm reads through `expect_idx` (wall 1,
+/// no wrap-into-range); the resulting op is bounds-checked as a set by `check_cond_ops`
+/// (wall 2) once `n_slots` is known — one read cannot see the frame it will run in.
 fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(
@@ -1042,6 +1165,11 @@ fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
     }
 }
 
+/// `CompiledCond` → `[:cond n_slots fact_bind [keys…] [out_slots…] [seed_reads…] [ops…]]`.
+///
+/// `fact_bind` is optional and sits at a FIXED position, so absence is `Value::Unit` rather than
+/// a shorter vector (contrast `pack_pat`'s `:pvar`, where absence is arity). Everything after it
+/// is a homogeneous sequence, which is why they can be read back without per-item tags.
 fn pack_compiled_cond(c: &CompiledCond) -> Value {
     let ops = c.ops().iter().map(pack_cond_op);
     let keys = c.slot_keys().iter().cloned();
@@ -1065,6 +1193,9 @@ fn pack_compiled_cond(c: &CompiledCond) -> Value {
     ])
 }
 
+/// Inverse of `pack_compiled_cond`. `n_slots` is read FIRST because it is the frame every
+/// later field is validated against — the ops cannot be bounds-checked before it is known, and
+/// reading it late would mean holding an unvalidated op list in hand.
 fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     if expect_kw(expect_at(&items, 0, span, ":cond tag")?, IMPORT_OP, span)? != ":cond" {
@@ -1143,6 +1274,12 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
     ))
 }
 
+/// `CondDriver` → `[:leaf id]` · `[:where prog]` · `[:not d]` · `[:exists d]` · `[:and d…]` ·
+/// `[:or d…]`.
+///
+/// Six arms and no accumulator among them — folds are a SEPARATE side table (`pack_fold`, also
+/// keyed by node id; see `eval_export`). `:leaf` carries a bare node id rather than the node, so
+/// a driver tree points INTO the network instead of embedding a second copy of it.
 fn pack_driver(d: &CondDriver) -> Value {
     match d {
         CondDriver::Leaf(id) => pv([kw(":leaf"), Value::i64(*id)]),
@@ -1162,6 +1299,9 @@ fn pack_driver(d: &CondDriver) -> Value {
     }
 }
 
+/// Inverse of `pack_driver`. The composite arms (`:and`, `:or`, `:not`, `:exists`) recurse,
+/// so a driver tree of any depth round-trips without a depth parameter — the wire's nesting IS
+/// the recursion.
 fn unpack_driver(v: &Value, span: &Span) -> Result<CondDriver, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(expect_at(&items, 0, span, "driver tag")?, IMPORT_OP, span)? {
@@ -1200,6 +1340,12 @@ fn unpack_driver(v: &Value, span: &Span) -> Result<CondDriver, EvalBreak> {
     }
 }
 
+/// `AccFold` → `[:count]` `[:sum …]` `[:min …]` `[:max …]` `[:mean …]` `[:all …]`
+/// `[:distinct …]` `[:group …]` `[:ufold …]`.
+///
+/// `:ufold` is the user-defined arm and carries a packed `Program`; the rest are built-ins whose
+/// operands are slots and keys. Splitting them this way is what keeps a user fold from needing a
+/// distinct top-level tag on the wire.
 fn pack_fold(f: &AccFold) -> Value {
     match f {
         AccFold::Count => pv([kw(":count")]),
@@ -1214,6 +1360,9 @@ fn pack_fold(f: &AccFold) -> Value {
     }
 }
 
+/// Inverse of `pack_fold`. An unknown fold tag is a refusal, not a fallback to `:count` — a
+/// silently-substituted fold would produce a plausible number from the wrong aggregation, which
+/// is the single worst outcome this codec can produce.
 fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(expect_at(&items, 0, span, "fold tag")?, IMPORT_OP, span)? {
@@ -1233,6 +1382,14 @@ fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
     }
 }
 
+/// `RhsOp` → `[:rbind key]` · `[:rlit v]` · `[:rexpr prog]`.
+///
+/// ⚠ **This is the one place the codec is deliberately lossy**, and it is not a defect: the
+/// second field of `RhsOp::Bind` is a `Debug` rendering of the original `WatAST`, kept only to
+/// name the form in a fire-time unbound-variable error. It is SOURCE, not residual — the
+/// imported program does not need it to run, and the source it renders does not exist on the
+/// importing disk. `unpack_rhs_op` reconstructs a usable stand-in from the key. Round-trip here
+/// is semantic, not literal.
 fn pack_rhs_op(op: &RhsOp) -> Value {
     match op {
         // Slot name only. The second Bind field is a Debug rendering of
@@ -1243,6 +1400,12 @@ fn pack_rhs_op(op: &RhsOp) -> Value {
     }
 }
 
+/// Inverse of `pack_rhs_op`, and the place the codec's one lossy field is made good.
+///
+/// `:rbind`'s dropped `Debug` rendering is reconstructed here: from a third element if some
+/// future writer supplies one, otherwise from the key itself. And the span is restamped from the
+/// IMPORT site rather than faked — an imported rule's original source is not on this disk, so
+/// pointing an error at where it was imported is the only location that is true.
 fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(expect_at(&items, 0, span, "rhs-op tag")?, IMPORT_OP, span)? {
@@ -1271,6 +1434,11 @@ fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
     }
 }
 
+/// `CompiledRhs` → `[:rec "Class" [names…] op…]` · `[:rcall prog]`.
+///
+/// The record arm splices its ops as a FLAT tail rather than nesting them in a sub-vector, so
+/// the class and its field names stay at fixed indices 1 and 2 and the ops are simply
+/// "everything from 3 on".
 fn pack_rhs(r: &CompiledRhs) -> Value {
     match r {
         CompiledRhs::Record { class, names, ops } => {
@@ -1286,6 +1454,9 @@ fn pack_rhs(r: &CompiledRhs) -> Value {
     }
 }
 
+/// Inverse of `pack_rhs`. The `:rec` arm reads its ops from index 3 to the end — the flat-tail
+/// shape `pack_rhs` chose — so a truncated vector yields a record with fewer ops rather than a
+/// read past the end; the arity that matters (class, names) is checked through `expect_at`.
 fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)? {
@@ -1348,10 +1519,26 @@ impl ClassIntern {
     }
 }
 
+/// Child ids as a flat tail. Every node tag that has children ends with them, so the reader can
+/// treat "everything past this kind's fixed fields" as the child list without a length prefix.
 fn pack_children(node: &Value) -> impl Iterator<Item = Value> {
     node_children(node).into_iter().map(Value::i64)
 }
 
+/// One network node → a tagged vector, one tag per `NodeKind`:
+/// `:a` alpha · `:j` root-join · `:h` hash-join · `:p` production · `:t` test · `:n` negation ·
+/// `:e` exists · `:acc` accumulate · `:q` query.
+///
+/// Tags are terse because this is the highest-cardinality thing on the wire — one per node, for
+/// every node in the network — and unlike the `Expr`/`Op` tags they are never read by a human
+/// composing a form by hand.
+///
+/// The alpha arm is the only one that does real work rather than field copying: it recovers the
+/// node's CLASS, first from the node's own condition (`alpha_pattern`) and, failing that, from
+/// the alpha tree's class index. Both can miss, and `-1` is the honest "unknown" — it is written
+/// deliberately rather than defaulted, and `unpack_node` reads it back as unknown rather than as
+/// class zero. Classes are interned through `ClassIntern` so a network with many alphas over the
+/// same type carries the field-name list once.
 fn pack_node(
     node: &Value,
     classes: &mut ClassIntern,
@@ -1440,6 +1627,8 @@ fn pack_node(
     }
 }
 
+/// Read a flat tail of ids, dropping the `skip` fixed fields ahead of it — the read half of the
+/// flat-tail shape `pack_children` writes.
 fn unpack_i64s(items: &[Value], skip: usize, span: &Span) -> Result<Vec<i64>, EvalBreak> {
     let mut out = Vec::new();
     for x in items.iter().skip(skip) {
@@ -1458,6 +1647,16 @@ fn i64_pv(ids: &[i64]) -> Value {
 
 type UnpackedNode = (i64, Value, Option<i64>);
 
+/// Inverse of `pack_node`, returning `UnpackedNode` — `(id, node-record, class-index?)`.
+///
+/// It does NOT return a live node: it rebuilds the node RECORD, and leaves wiring the network to
+/// `import_export`, which needs every id in hand before it can resolve any edge.
+///
+/// The third element is `Some` for exactly one tag, `:a` — it is the alpha's CLASS INDEX into
+/// the export's interned class table, and every other kind returns `None` because no other kind
+/// has one. This is where `pack_node`'s `-1`-means-unknown convention is converted back into an
+/// `Option`: the sentinel exists only on the wire (which has no null), and it is turned into a
+/// real absence at the first opportunity rather than being carried inward as a magic number.
 fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)?;
@@ -1582,6 +1781,12 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
 
 // ── Session field readers ────────────────────────────────────────────────────
 
+/// Pull `(network, rules)` off a Session, or raise `TypeMismatch` naming
+/// `:wat::rete::Session`.
+///
+/// Both fields are fetched in one match so a value missing EITHER is refused with the same
+/// message: from the caller's side "this is not a Session" is one fact, and reporting it as two
+/// different partial failures would leak which field happened to be probed first.
 fn session_network_rules<'a>(
     session: &'a Value,
     span: &Span,
@@ -1600,6 +1805,18 @@ fn session_network_rules<'a>(
     }
 }
 
+/// Pack a node-id-keyed side table as `[[id value] …]`, **keys sorted**.
+///
+/// The sort is not cosmetic. `HashMap` iteration order is not stable across runs, so packing in
+/// map order would make the same network export DIFFERENTLY each time. An export is a durable
+/// artifact — `tests/rete/datamancer.rete.edn` is one, checked into the tree and regenerated by
+/// a CLI invocation — and a map-ordered export would churn every line of it on every
+/// regeneration, leaving a diff that cannot distinguish a real change from reshuffled bytes.
+/// Sorting is what makes two exports of the same network comparable at all.
+///
+/// This shape is why the export is not one tree: the network is a flat node list, and conds,
+/// drivers, wheres and folds hang off it in four parallel tables joined by node id. A node stays
+/// small and the tables stay independently readable.
 fn map_i64<V>(m: &HashMap<i64, V>, mut f: impl FnMut(&V) -> Value) -> Value {
     let mut keys: Vec<i64> = m.keys().copied().collect();
     keys.sort_unstable();
@@ -1610,6 +1827,8 @@ fn map_i64<V>(m: &HashMap<i64, V>, mut f: impl FnMut(&V) -> Value) -> Value {
     pv(pairs)
 }
 
+/// `map_i64`'s twin for the one table keyed by RULE NAME rather than node id — the compiled RHS,
+/// which belongs to a rule, not to a network node. Sorted for the same determinism reason.
 fn map_str<V>(m: &HashMap<String, V>, mut f: impl FnMut(&V) -> Value) -> Value {
     let mut keys: Vec<&String> = m.keys().collect();
     keys.sort();
@@ -1689,6 +1908,13 @@ pub(crate) fn eval_export(
     ))))
 }
 
+/// The residual stratification schedule — packed from the INTERNED ARM, not from
+/// `Session.rules`.
+///
+/// The distinction is load-bearing and was a real defect: import drops source forms, so a
+/// re-export that recomputed deps from `rule_deps_from_rules(session.rules)` found nothing to
+/// read and wrote EMPTY deps. The schedule survives a round-trip only because it is taken from
+/// the arm, which import rebuilds. (`wat/rete.wat`, `Export`/`deps`.)
 fn pack_deps(deps: &[RuleDep]) -> Value {
     pv(deps.iter().map(|d| {
         pv([
@@ -1704,6 +1930,8 @@ fn pack_deps(deps: &[RuleDep]) -> Value {
     }))
 }
 
+/// A vector of strings, each element type-checked rather than stringified — an `i64` in a
+/// string list is a refusal, not a coercion.
 fn unpack_string_list(v: &Value, span: &Span) -> Result<Vec<String>, EvalBreak> {
     let xs = expect_seq(v, IMPORT_OP, span)?;
     let mut out = Vec::new();
@@ -1713,6 +1941,8 @@ fn unpack_string_list(v: &Value, span: &Span) -> Result<Vec<String>, EvalBreak> 
     Ok(out)
 }
 
+/// Inverse of `pack_deps`. See `pack_deps` for why this schedule travels on the wire at all
+/// rather than being recomputed on the importing side.
 fn unpack_deps(v: &Value, span: &Span) -> Result<Vec<RuleDep>, EvalBreak> {
     let mut out = Vec::new();
     for row in expect_seq(v, IMPORT_OP, span)? {
@@ -1763,6 +1993,31 @@ pub(crate) fn eval_import(
     import_export(&export, list_span, sym)
 }
 
+/// The whole import, in phases — the inverse of `eval_export` and the file's one place where
+/// untrusted bytes become a runnable network.
+///
+/// 1. **Type gate** — the value is a `wat::rete::Export` aggregate, or `TypeMismatch`.
+/// 2. **Three compat gates, in order** (module header, law 3): format version, then the ABI
+///    fingerprint recomputed from the export's own classes/fields, then the HOST `TypeEnv`
+///    field order. The third catches what the second structurally cannot — an export that is
+///    internally consistent but describes records this process declares differently.
+/// 3. **Nodes** — `unpack_node` per entry into a network `PMap`, with each alpha's class index
+///    resolved back to a class NAME through the export's interned table.
+/// 4. **The five side tables** — conds, drivers, progs, folds (node-id keyed) and rhs (rule-name
+///    keyed), each re-read into a `HashMap`.
+/// 5. **Derived structure is REBUILT, never transported** — `NetworkEdges`, `AlphaTree`,
+///    `WhereTree`, `kind_ids`, `joins_fed_by`, `compiled_max_slots` are all recomputed here from
+///    the data above. This is why the wire format carries none of them: an index is a function of
+///    the network, so shipping one would create a second thing that can disagree with the first,
+///    and an importer that trusted it could be handed a stale index over a valid network.
+/// 6. **Intern and return** — the assembled `InternedNetwork` is registered via
+///    `rete_arm_intern` so the imported program fires through the same arm path a locally
+///    compiled one does.
+///
+/// Its 194 lines are phase COUNT rather than depth — brace nesting peaks at 3 inside the body,
+/// and every level of it is a `for` over one table's pairs. Splitting it would put six one-caller
+/// helpers between a gate and the gate that must follow it, which is the ordering the phase list
+/// above exists to make legible.
 fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let agg = match export {
         Value::Aggregate(a) if a.nature != Nature::Struct && a.class.as_ref() == "wat::rete::Export" => a,
