@@ -16,7 +16,7 @@
 //! body, so it does not escape and is not returned.
 
 use super::super::*;
-use super::RoundScratch;
+use super::{record_token, RoundScratch};
 
 /// Dispatch the filter nodes — Test, Negation, Exists — over this round's delta.
 pub(crate) fn filter_pass(
@@ -143,11 +143,7 @@ for node_id in &kind_ids.filter {
                     matches: empty_span(),
                     binds,
                 };
-                if beta_readers.contains(node_id) {
-                    beta_written(*node_id, 1);
-                    wm.beta.entry(*node_id).or_default().push(tok);
-                }
-                d_beta.entry(*node_id).or_default().push(tok);
+                record_token(&mut wm.beta, d_beta, beta_readers, *node_id, tok);
             }
             continue;
         }
@@ -184,11 +180,7 @@ for node_id in &kind_ids.filter {
                 matches: empty_span(),
                 binds,
             };
-            if beta_readers.contains(node_id) {
-                beta_written(*node_id, 1);
-                wm.beta.entry(*node_id).or_default().push(tok);
-            }
-            d_beta.entry(*node_id).or_default().push(tok);
+            record_token(&mut wm.beta, d_beta, beta_readers, *node_id, tok);
         }
         continue;
     }
@@ -268,11 +260,7 @@ for node_id in &kind_ids.filter {
                 {
                     continue;
                 }
-                if beta_readers.contains(node_id) {
-                    beta_written(*node_id, 1);
-                    wm.beta.entry(*node_id).or_default().push(tok);
-                }
-                d_beta.entry(*node_id).or_default().push(tok);
+                record_token(&mut wm.beta, d_beta, beta_readers, *node_id, tok);
             }
         }
     }

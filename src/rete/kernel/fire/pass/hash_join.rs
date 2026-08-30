@@ -27,6 +27,7 @@
 //! within this body.
 
 use super::super::*;
+use super::record_tokens;
 use super::RoundScratch;
 use crate::rete::compiled_cond::CompiledCond;
 
@@ -267,20 +268,8 @@ for node_id in &kind_ids.join_parent {
             // `entry()` HOISTED out of the per-token loop: the key is constant, so the
             // old form paid two map lookups per token (80,000 on the fanout cell) where
             // two total will do. Correct regardless of the guard below.
-            if beta_readers.contains(child_id) {
-                beta_written(*child_id, new_tokens.len() as u64);
-                let beta = wm.beta.entry(*child_id).or_default();
-                beta.reserve(new_tokens.len());
-                for t in &new_tokens {
-                    beta.push(*t);
-                }
-            }
             let n_emit = new_tokens.len();
-            let delta = d_beta.entry(*child_id).or_default();
-            delta.reserve(n_emit);
-            for new_tok in new_tokens {
-                delta.push(new_tok);
-            }
+            record_tokens(&mut wm.beta, d_beta, beta_readers, *child_id, &new_tokens);
             if n_emit > 0 {
                 dirty_parents.insert(*child_id);
             }
@@ -366,20 +355,8 @@ for node_id in &kind_ids.join_parent {
         // Step 6: push new tokens to wm.beta[J] and d_beta[J].
         let __s6 = phase_start();
         // Same hoist + guard as the catch-up emit above.
-        if beta_readers.contains(child_id) {
-            beta_written(*child_id, new_tokens.len() as u64);
-            let beta = wm.beta.entry(*child_id).or_default();
-            beta.reserve(new_tokens.len());
-            for t in &new_tokens {
-                beta.push(*t);
-            }
-        }
         let n_emit = new_tokens.len();
-        let delta = d_beta.entry(*child_id).or_default();
-        delta.reserve(n_emit);
-        for new_tok in new_tokens {
-            delta.push(new_tok);
-        }
+        record_tokens(&mut wm.beta, d_beta, beta_readers, *child_id, &new_tokens);
         if n_emit > 0 {
             dirty_parents.insert(*child_id);
         }

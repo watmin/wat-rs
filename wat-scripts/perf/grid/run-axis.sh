@@ -121,7 +121,18 @@ WAT_SRC="$WAT_FILE"
 ORACLE_TMP=""
 if [ -n "${GRID_SKIP_ORACLE:-}" ]; then
   ORACLE_TMP="$(mktemp --suffix=.wat)"
-  perl -pe 's/\(:wat::rete::fire-rules\$oracle\s+staged\)/fired/g' "$WAT_FILE" > "$ORACLE_TMP"
+  # ⛔ SUBSTITUTES THE `Fired` ARM, NOT A BARE SESSION — arc 278, the fire-outcome wall.
+  # The axes now face `(:wat::rete::FireOutcome :- [Session])`, so this call is the SCRUTINEE of a
+  # `match`. Swapping in `fired` (a Session) left the match applied to a Session — a type error, and
+  # it broke this runner from the moment the wall landed. `(FireOutcome::Fired fired)` keeps the
+  # match well-typed and makes it take that arm at once, which is exactly what "skip the oracle
+  # fire, reuse the native result" means. It also stays independent of the arms' wording.
+  #
+  # ⚠ THIS REWRITE EXISTS TWICE. `tests/rete/wat_scripts_grid_axes_live.rs`'s `skip_oracle_fire`
+  # does the same substitution for the liveness gate, and ONLY THAT ONE IS ON THE FLOOR — which is
+  # why this side stayed broken silently. If you change one, change both; better, give them one
+  # home. Two places holding one truth is the defect this arc pulls out most often.
+  perl -pe 's/\(:wat::rete::fire-rules\$oracle\s+staged\)/(:wat::rete::FireOutcome::Fired fired)/g' "$WAT_FILE" > "$ORACLE_TMP"
   # Match the CALL form, not a comment that names `$oracle` (strat-neg's header does).
   if grep -F -q '(:wat::rete::fire-rules$oracle' "$ORACLE_TMP"; then
     echo "run-axis: GRID_SKIP_ORACLE rewrite left a fire-rules\$oracle token — skip is a no-op" >&2
