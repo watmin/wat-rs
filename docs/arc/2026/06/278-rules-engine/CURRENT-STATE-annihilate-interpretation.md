@@ -5,10 +5,18 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-30 (second) — supersedes every earlier stamp and every dated block below
-it. Written against HEAD `f98226353`; the commit carrying this stamp lands on top, so a ONE-COMMIT
-gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/` or
-`tests/` IS staleness, whatever its size.**
+**CURRENT STAMP 2026-08-30 (third) — supersedes every earlier stamp and every dated block below
+it. Written against HEAD `259c590f5`; the commit carrying this stamp lands on top, so a
+ONE-COMMIT gap at your wake is expected. Run `git diff --stat 259c590f5..HEAD` and check it
+against this rule: that commit is a `curare:` commit — `docs/` plus, at most, COMMENT-ONLY edits
+to files it describes. MORE than one commit, or any substantive `src/` change in the gap, IS
+staleness.**
+
+> Why the rule is worded that way: the previous stamp promised "`docs/` ONLY" and its own commit
+> then touched `src/rete/kernel/tests/mod.rs` — a comment, but the probe could not tell, so it
+> would have fired a false alarm. A probe that false-alarms teaches its reader to ignore it,
+> which is worse than no probe. It cannot name its own hash (that hash does not exist until the
+> commit does), so it names the PARENT and describes what the one commit is allowed to contain.
 
 **⛔⛔ START HERE. THE INITIATIVE IS: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures
 against.** Correctness is done; the exemplar work is not.
