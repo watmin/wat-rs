@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-28. Arc 255: `apply` grew four doors, and holon came home.
+# SEAM — the ONE live breadcrumb. As of 2026-08-30. `:- [...]` is the only param-spec, and P6-c homed 42 verbs.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -6,8 +6,7 @@
 > ground HEAD against the disk, and read this whole file before you touch anything.
 
 > `255/SEAM.md`, `251/SEAM.md`, `278/SEAM.md` are PARKED and point here.
-> ⛔ **PARKED IS NOT DEAD.** A parked seam still holds **its own arc's state**. If you are working an
-> arc, read ITS seam. (255's is a 2026-08-16 snapshot — stale on numbers, right on the THESIS.)
+> ⛔ **PARKED IS NOT DEAD.** A parked seam still holds **its own arc's state**.
 
 ## GROUND FIRST
 
@@ -21,171 +20,147 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 5077/5077, 0 FAIL, 17 skipped, ~98s   (scripts/floor.sh, exit read UNPIPED)
-clippy ......... 0 under `-D warnings`
-                ⚠ CLIPPY CAUGHT WHAT THE FLOOR COULD NOT, THREE TIMES TODAY. A rider may only run
-                  `cargo build`; the floor passed 5077/5077 with clippy RED on doc-list indentation.
-                  Run clippy CENTRALLY after every strike, before you believe a green floor.
+floor .......... 5079/5079, 0 FAIL, 17 skipped, ~104s   (scripts/floor.sh, exit read UNPIPED)
+clippy ......... 0 under `-D warnings`. ⚠ IT WENT RED ON A GREEN FLOOR AGAIN THIS ARC
+                 (arity-5 verb over the 7-arg limit). Run it CENTRALLY after every strike.
+registry ....... 422 intrinsics + 2 special forms = 424 entries
+                 ★ `all_entries().count()` == the ANCHORED `#[wat_intrinsic]` grep + 2, ALWAYS.
+                   Three riders reported that 2 as "drift". It is `if` and `let`.
+runtime.rs ..... 34,206      debt ledger 53      KNOWN_UNREVIEWED 221
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
-## ⛔ THE THESIS — unchanged, and still the point
+## ⛔ THE THESIS — unchanged
 
 **ARC 255 EXISTS TO KILL ONE LINE.** `src/resolve/walk.rs:268`:
-
 ```rust
-if is_reserved_prefix(head) { return true }     // :wat:: — the WHOLE language namespace
+if is_reserved_prefix(head) { return true }     // the WHOLE language namespace
 ```
+**2,539 of 5,059 tests fail if default-denied.** Gate: `tests/wat_lang/probe_undefined_builtin_resolves.rs`.
 
-**THE ENDGAME IS SIZED: 2,539 of 5,059 tests fail** if default-denied. Its gate lives at
-`tests/wat_lang/probe_undefined_builtin_resolves.rs` and its `#[ignore]` reason now names
-`walk.rs:268` directly (Stone P3) instead of the promise it used to carry.
+## WHAT HAPPENED — two campaigns
 
-## WHERE WE ARE — measured this session, every number by a controlled instrument
-
-```
-registry ......... 380 intrinsics + 2 special forms
-ALGEBRA doors .... 81   (was 6 after O-iii this morning)
-explicit value= ... 19   (was 44 — the rest collapsed into generated doors)
-runtime.rs ....... 34,355   ⚠ UP 103 from this morning. Q/Q-2 THREADED A SPAN through the
-                            arithmetic helpers. Honest growth, not drift.
-check.rs ......... 22,454
-```
-
-**`apply` HAD FOUR DOORS AND THREE WERE BROKEN. NOW ONE IS, AND IT TELLS THE TRUTH.**
+### 1. P6-c: 42 verbs homed out of the megafile. Population 146 → 106.
 
 ```
-DOOR 1  defclause head          ✅ O-ii — `(apply + …)`, `(apply reduce …)`, `(apply sort …)`
-DOOR 2  intrinsic, no value door 🟡 the rest — and O-iv-a made it SAY SO instead of "unknown function"
-DOOR 3  intrinsic, value door    ✅ O-i guarded it (a reachable PANIC), O-iii/Q generate it
-DOOR 4  plain fn / defn          ✅ was always correct
+W1 config 4 · W2 stream/program 4 · W3 runtime 10 · W4 runtime-remainder 3
+W5a rete predicates 9 · W5b rete mutators 6 · W5c rete readers 4 · (+P6-c-1's proof pair 2)
+```
+Every wave: rule each verb with a disk-cited reason FIRST, then home it with its **REAL arity**
+(59 hand-rolled arity guards retired), then verify by `metadata-of`. **The census tool is
+`wat-scripts/hunt/p6c-disposition-census.py`** — it reads its rulings from a frozen
+`DESTINATION_LEDGER` and is **DEFAULT-DENY** (builder: *"the heretics are set ablaze by their
+words — they self identify"*). A ruling is a `(destination, reason)` PAIR; a nameless one is FATAL.
+
+⚠ **HOMEABLE is NOT a progress meter** — I wrote that and was wrong. Ruling a verb then homing it
+removes it from the match, so the ledger row must go and HOMEABLE returns to 0 every wave.
+**The meter is the POPULATION SHRINKING.**
+
+### 2. ONE PARAM-SPEC (arc 109) — the detour that became the bigger campaign.
+
+Builder saw a rider write `(:wat::core::Vector :wat::core::i64 1 2 3)` and asked if it was legal.
+It was — **one of THREE spellings**, and the error message recommended it. Ruling: *"there is
+exactly one way to confer a parametric type. it is `:- [...]`. all others must die."*
+
+```
+1675 corpus sites (386 files, R21 codemod) · the lint AUTOFIX that WROTE it · 4 diagnostics that
+RECOMMENDED it · 36 published @examples that SHOWED it · 185 prose sites that TAUGHT it ·
+and every door that ACCEPTED it — value AND type position, all 6 heads, both head spellings.
+20/20 probes. floor 5079/5079.
 ```
 
-## ★ THE FOUR-VALUED AXIS — read this before any migration
+★ **Why it survived weeks of param-spec work:** both prior migrations were sourced from the ANGLE
+form `Head<args>`. A site already written `(Vector :T …)` has no angle brackets, so no codemod ever
+looked at it. **The work was complete for the question it asked.**
 
-A verb reaches `apply` only if it can be called with **already-evaluated values**. Four things
-disqualify it, and **three are permanent**:
+## ⛔ THE LESSONS THAT COST THE MOST
 
-| | reachable? | why |
-|---|---|---|
-| span-free algebra | ✅ | nothing needed |
-| call-span algebra | ✅ | Stone Q: `apply` holds the call span |
-| **ARG-SPAN** | ❌ **never** | reads `<arg>.span()`; **apply's arguments have no syntax to have a span OF** |
-| **UNEVALUATED-ARGS** | ❌ **never** | quote semantics; the args are already values |
-| **BINDING** | ❌ **never** | needs `env`/`sym`, which imply ASTs |
-| nullary | ⛔ **generator gap** | **P7 — fixable.** The only non-permanent entry. |
+**1. MY GREP WAS WRONG FOUR TIMES IN ONE CAMPAIGN, EACH BY A DIFFERENT MECHANISM.**
+`short 178` (blind to bare TYPE-REFERENCE position) · `over 66` (could not tell a kwargs field name
+from a param-spec) · `short 2` (a line-level `grep -v` ate lines carrying BOTH forms) ·
+`short 5` (head list narrower than the population). **Every one was caught by a rider I had handed
+the census to.** `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
 
-⚠ **`SHELL` FROM THE CENSUS IS A CANDIDATE LIST, NOT A VERDICT.** `wat-scripts/hunt/stone-o-shell-census.awk`
-asks ONE question (env/sym). Its header now carries its own blind spot. **Also check `<arg>.span()`,
-`require_encoding_ctx` (takes `&SymbolTable` — a BINDING marker), and `eval_apply`'s `SPECIAL_FORMS`
-list.** Riders refused 5, then 1, then 13 verbs my briefs demanded. Every refusal was right.
+**2. SO STOP CENSUSING — IMPOSE THE CHECK AND READ THE SCREAMS.** The wall opened at **2765 reds**
+and closed at 0 in three rounds; the last doors went 19 → 0 in one. The reds named work four greps
+could not, including a shape NOBODY had ever seen (arc 251's `wat.type/Head` symbol-namespace form
+in `<-`/`->` slots — 16 of the 19). **FM 15: the fail count is the progress meter.**
+`[[feedback_impose_the_check_and_read_the_screams]]`
 
-## ⛔ THE LESSONS THAT COST THE MOST TODAY
+**3. A WALL'S OWN PAPERWORK CAN CLAIM A DOOR IT NEVER CLOSED.** `check.rs:12220` said *"③ deletes
+this arm"* — **for four stones it had not**, and that arm was one of the three surviving doors. I
+then declared the campaign closed on stone 3 (*"One form. No exceptions."*) while type-annotation
+position and three heads were still wide open. `[[feedback_a_walls_paperwork_can_claim_a_door_it_did_not_close]]`
 
-**1. I WROTE SEVEN WRONG CENSUSES OF THE SAME POPULATIONS, AND EVERY CORRECTION CAME FROM A
-NON-TEXT INSTRUMENT.** 385 · 434 · 381 counted prose as code. Three span classifiers gave three
-answers and the third failed a control I wrote myself. 109 `require_*` sites were 59. 14 ignores were
-13 — my *anchored* grep counted a line inside a format string. **The compiler, the registry's own
-`check_env.get`, and a hand-read control were right every time a pattern was wrong.**
-`[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
+**4. A TEST CAN BE GREEN ON AN INPUT THE CHECKER FORBIDS.** `step_holon_constructor_bundle` passed
+for years by feeding unchecked AST in a spelling no source program could produce; two more
+(`list_mixed_types_rejected`, `bundle_of_list_of_ints_rejected`) kept `unwrap_err()`-ing **via a
+different mechanism** once the wall moved. A rewritten rejection test silently stops testing the
+rejection — and the floor stays green.
 
-**2. THE TREE KEEPS ALREADY SAYING IT — four times today.** `runtime.rs:11652`'s split-brain comment
-would have prevented HOME-13's retraction. The tail match's comment named `serve-dispatch-op` as
-P6's precedent. `eval_apply`'s `SPECIAL_FORMS` list named `:wat::holon::literal` with its reason
-since arc 294.b — and my disposition axis never read it. `wat_intrinsic.rs:776` calls a nullary
-ALGEBRA shape "legal" while `sniff_kind` forbids it. **Read the neighbourhood before measuring it.**
-
-**3. A CLAIM NOTHING CAN CHECK IS NOT A CLAIM THAT WAS TRUE.** P6-a made `show-source` reach special
-forms and immediately published two INVERTED `if` doc comments, buried since arc 258.4. H-1b split
-60 collapsed `@arg args… …` lines and exposed **58** doc/checker mismatches — `:wat::core::Value`
-was the declared type of 46 arguments whose scheme names something specific. **The lie was
-structural**: a collapsed line has no per-argument slot to be wrong in.
-
-**4. THE SUBSTRATE REFUSED A STONE I DREW.** Q's brief said "plumbing only, every diagnostic
-byte-identical." Two lints made that state unreachable — *"a site that ignores its span AND raises at
-a Rust line is a FIX"* — and one of them was pointing at **Stone O-i's own arity guard**, three
-stones old, whose premise Q had just expired. Q-2 finished it: 20 diagnostics moved from a Rust line
-to the caller. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
-
-**5. HOLON WAS NOT SPAN-CARRYING. IT WAS ARITY-CARRYING.** The builder's read — *"holon was some of
-the first tooling… it is very likely needing corrective change relative to the rest of the code
-base"* — dissolved a blocker I had measured wrong. All 95 handlers declared `args: &[WatAST]`, so
-the macro generated no arity check, so 89 hand-rolled one, so every handler needed `list_span` to
-raise it. **One declaration choice, made before the macro existed, cast a shadow three stones deep.**
-
-**6. A BRIEF THAT SIZES ITS OWN BLAST RADIUS AROUND A *FILE* MISSES THE *ROLE*.** O-iv-c-0's ten
-`require_*` fns: nine in `require.rs`, and `require_holon` in `ast.rs` — same shape, same problem,
-different home, and 16 more call sites including four in `runtime.rs`.
+**5. NAMING A HAZARD IS NOT HANDLING IT.** I wrote "one line is a multi-line pattern's continuation"
+into a NOTE and published the count anyway; it was wrong by seven.
+`[[feedback_naming_a_hazard_is_not_handling_it]]`
 
 ## ★ WHAT ACTUALLY WORKS
 
-- **The rider that refuses.** Five verbs for argument spans, one for a disqualifier I had not named,
-  thirteen for a generator gap. **Write the STOP that names the most likely way the stone goes
-  wrong — then believe it when it fires.**
-- **Break the door.** Every gate today was proven by removing what it guards. P1's is the sharpest:
-  a real duplicate FQDN planted, `cargo build --release` silent, **the floor 5065/5065 GREEN**, and
-  only the new test red. `NISI FRANGAS, NIHIL PROBAS.`
-- **One build to enumerate, not N.** The doc/checker gate asserts on the FIRST mismatch. Swap its
-  `assert_eq!` for a `println!`, run once with `--no-capture`, restore verbatim. 58 found in one pass.
-- **Freeze NAMES, never a count.** P4's ledger goes red both ways and its failure text names the FQDN.
-  It answered a real question hours later: *which of these 58 doc edits can I trust?* 51 — the other
-  7 are on the ledger.
+- **Hand the census to the rider and say your number is suspect.** Four corrections came from that.
+- **Break the door.** Every gate proven by removing what it guards — a planted duplicate FQDN, a
+  blanked ledger reason, a renamed ledgered FQDN, a corrupted `@arg` on an untouched verb.
+- **Dry-run + diff before the corpus.** It caught a codemod taking an end-span from a `~` character
+  and corrupting `~selectable-peer-ty`. R21 exists for that.
+- **A rider that refuses.** W6 stopped at STOP-1 with ZERO edits rather than home 7 of 8.
 
 ## ⛔ THE ROAD — builder, 2026-08-27. THE ORDER IS THE RULING.
-
 ```
-1  HOME EVERYTHING          <- WE ARE HERE (arc 255)
-2  break into crates
-3  kill `::` in keywords
-4  every call head a symbol
-5  = EDN/Clojure-compliant syntax
-6  chase totality
+1  HOME EVERYTHING          <- WE ARE HERE (arc 255, P6-c)
+2  break into crates    3  kill `::` in keywords    4  every call head a symbol
+5  = EDN/Clojure-compliant syntax        6  chase totality       (LAST. Do not open early.)
 ```
-**Totality is LAST, and that is a ruling.** Do not open a totality front out of step order.
 
-## ⬜ NEXT — `docs/arc/2026/06/255-builtin-registry/WORKLIST-open-stones.md` is the ledger
+## ⬜ NEXT — resume here
 
-Three rows open, all drawn or ready to draw:
-
-- **P7** — `sniff_kind` cannot classify a NULLARY ALGEBRA handler. One `matches!`;
-  `emit` already handles n=0 and its own comment says the shape is legal. **11 verbs blocked.**
-  This is the remainder of O-iv-d's 14.
-- **P5** — `@yields` mandatory at expand time. The gate's only measured subject is the fixture
-  written to exercise it; `spawn-thread` declares three fn-typed args and no `@yields`.
-- **P6-c** — the eval (111 arms) and tail (8 arms) matches collapse into registry lookups.
-  **The megafile boss.** `serve-dispatch-op` already lives this way — the shape is proven, not
-  hypothetical. ⚠ Its census must read the function PREAMBLE: `:wat::rete::insert` is dispatched by
-  a pre-match `if head == …` short-circuit that no line-anchored grep can see.
-
-**And one NOTE with no row yet:** `NOTE-the-span-lints-cannot-see-generated-code.md` — both span
-lints scan `src/` and match a bare `&Span`, so they are structurally blind to `crates/wat-macros/`,
-which writes 380 handlers. **Its blast radius grows with every migration.**
+- **RE-CUT W6 AS SEVEN.** `length · empty? · last · rest · nth · reverse · range`. Drawn at
+  `249ccb5fd`; its rider STOPPED at STOP-1 with zero edits because **`find-last-index` is a HOF
+  wearing a reader's name** (`(Vector<T>, Fn(T)->bool)`, `apply_function` per element).
+- **THREE FAMILIES PARKED, each with a NOTE, none drawn:**
+  - HOFs + stream forcers — `NOTE-the-prefix-guess-does-not-scale-to-a-mixed-namespace.md`.
+    They're Effectful, and `Effectful ⇒ effectful_by_prefix` would force widening `:wat::core::`,
+    making the guess vacuous for the biggest namespace. ★ **Ask whether that fallback should RETIRE,
+    not grow — the campaign is what shrinks its job.**
+  - The 9-verb rete FIRING family — `NOTE-the-firing-family-is-dual-implemented.md`. `fire-rules`
+    is BOTH a wat `defn` (first-class Fn) and a Rust arm; homing adds a THIRD ahead of both.
+  - The 10-verb `:wat::eval-*!` cluster — one arm peels a param-spec for all ten, and the generated
+    shim's arity check would fire BEFORE the peel. Behaviour change, not a sweep.
+- **Also open:** `NOTE-restricted-call-fires-on-mention-not-call.md` (option B: a per-`@arg`
+  reflective marker delivering an OPAQUE handle, so holding it confers nothing) and
+  `NOTE-a-type-has-two-value-representations-and-neither-is-a-type.md` (there is no `Type`; blocked
+  behind ROAD step 3, which rewrites how a type is spelled).
 
 ## ⛔ RULES THAT STILL COST TIME
 
-- ⛔ **`git commit <paths>`. NEVER a pathless commit.** And **after committing, `git status` must be
-  EMPTY** — that caught a `$D` variable-scope slip TWICE today, both times a design doc staged but
-  not committed.
+- ⛔ **`git commit <paths>`. NEVER pathless** — a pathless commit shipped 2 of 10 files this arc.
+  **And `git status --short && echo "EMPTY"` IS NOT A CHECK** — `&&` fires the echo whenever status
+  SUCCEEDS. It printed EMPTY over eight modified files. Use:
+  `test -z "$(git status --porcelain)" || { git status --porcelain; false; }`
+- ⛔ **NEVER `git checkout -- <file>` to clean up your own probe** — it reverts the WHOLE file and
+  takes a rider's uncommitted work with it. I did this and had to resume the rider to recover.
+- ⛔ **`wat/*.wat` is FROZEN INTO THE BINARY.** A `--check`-clean edit there proved nothing and broke
+  97 tests. **Rebuild, then floor.**
 - ⛔ **Riders: no worktrees, no `git stash` in ANY form, no sub-agents, everything FOREGROUND.**
-  Ending a rider's turn ENDS it. One was lost to a reboot mid-strike and left an implementation with
-  no evidence; every row had to be re-run.
-- ⛔ **Check your own added prose does not contain the literal pattern you are grepping for.**
-  THREE riders tripped their own acceptance grep on their own comments today.
-- ⛔ **`docs/arc/**` NEVER MOVES in a rename.** ⚠ `.wat` scratch → `wat-scripts/scratch-pad/`.
+- ⛔ **`.wat` corpus migrations → the codemod. NEVER a hand-edit, never sed/python.** R21.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Seven wrong censuses in one day, three retracted
-> classifiers, a design section I had to retract within the hour of writing it, and a brief that
-> called a migration "trivial and harmless" when a rider then proved it changes behaviour.
-> **Re-run the instrument that made the claim; do not read the claim.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Four wrong censuses in one campaign, a "closed" campaign
+> that had three doors open, a NOTE I retracted twice in an hour, and a rider's headline finding I
+> had to kill with four probes. **Re-run the instrument that made the claim; do not read the claim.**
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** fourteen stones landed today, every one green,
-> every gate proven by breaking its door. `apply` went from lying about 337 verbs to telling the
-> truth about all of them. Holon came home. The riders refused nineteen verbs across three stones
-> and were right every single time.
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** 42 verbs homed and 1675 corpus sites migrated,
+> every stone green, every gate proven by breaking its door. The riders refused work five times and
+> were right every time. `:- [...]` is now the only representable param-spec, measured 20/20.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`
