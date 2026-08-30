@@ -46,12 +46,12 @@ No corpus migration, no per-verb judgement.
 ## ⛔ AND WHY IT MUST WAIT — measured 2026-08-30, correcting this file's own first draft
 
 Everything that can enter the registry today arrives through `#[wat_intrinsic]` (429) or
-`#[wat_special_form]` (4). **Both are Rust attributes on Rust functions.** So every one of the 433
+`#[wat_special_form]` (2 — `:wat::core::let`, `:wat::core::if`). **Both are Rust attributes on Rust functions.** So every one of the 431
 entries would carry `Rust` / `Substrate`:
 
 ```
 #[wat_intrinsic]     429  ->  Rust / Substrate
-#[wat_special_form]    4  ->  Rust / Substrate
+#[wat_special_form]    2  ->  Rust / Substrate
 wat-defined            0
 ```
 

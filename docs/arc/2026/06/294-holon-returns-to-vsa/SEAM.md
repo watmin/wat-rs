@@ -22,7 +22,7 @@
 ```
 floor ........ 5109/5109, 0 FAIL, 17 skipped, ~106s   (scripts/floor.sh, exit read UNPIPED)
 clippy ....... 0 under `-D warnings`
-registry ..... 429 #[wat_intrinsic] + 4 #[wat_special_form]
+registry ..... 429 #[wat_intrinsic] + 2 #[wat_special_form] = 431   (`let`, `if` — the ONLY two)
 runtime.rs ... 33,917      KNOWN_UNREVIEWED 50      debt ledger 55
 @Total ....... Total 25 · Partial 1 · Preserving 2 · Unreviewed 403
 @ExpandTime .. Legal 143 · RuntimeOnly 0 · Preserving 0 · Unreviewed 288
@@ -105,13 +105,18 @@ floor is a verdict.
 
 ## ⬜ NEXT — resume here
 
-- **THE NAMING NOTE IS UNWRITTEN AND THE BUILDER ASKED FOR IT.** Convention: **`name$native`** for a
-  native impl, **`name$oracle`** for the wat spec — replacing the `'` suffix. Measured: 5 live
-  `$native`/`$oracle` pairs (the whole `:wat::rete::` firing family, e.g. `runtime.rs:5617` dispatches
-  `"fire-rules$native" | "fire-rules"` on one arm), against **25 surviving primes** and 6 `-spec`.
-  ★ **This DISSOLVES the W8 blocker** — I filed the firing family as "dual-implemented, homing adds a
-  THIRD"; the convention already separates native from oracle. And `sort'` is a straggler that should
-  be `sort$native`, which retires the rune that broke the floor today.
+- **THE NAMING NOTE IS WRITTEN** — `NOTE-the-prime-suffix-does-three-jobs-and-native-replaces-one.md`
+  (arc 255). The `$native`/`$oracle` convention **already exists and is already applied**: 5 live pairs
+  (the `:wat::rete::` firing family), and arc 278 0z de-primed 24 IPC names across 302 files by codemod.
+  ★ **The prime does THREE jobs** — native impl (`sort'`), defmacro expansion target (`readln'`), and
+  macro-generated positional ctor (`Env'` `EmptyEnv'` `ThreadLaunch'` `ProcessLaunch'` `Frame'`).
+  **`$native` replaces exactly ONE.** The real migration is `sort'` → `sort$native`, 5 runed sites —
+  and `sort'` is ALSO unhomed, so draw the rename and the homing as ONE stone.
+  ⚠ **THREE OF YESTERDAY'S CLAIMS HERE WERE WRONG, corrected in the NOTE:** "25 surviving primes"
+  was grep contamination (English possessives + closing prose quotes; **7 are live** — the lint's runes
+  are the arbiter, not grep); "6 `-spec`" is 4; and ⛔ **the W8 blocker is NOT dissolved** — that NOTE
+  was written *quoting* the `$native` arm, and its real blocker is registry-vs-wat-`defn` shadowing,
+  which naming does not touch. Its own cheap probe (pass `fire-rules` as a VALUE) is still the next move.
 - **`foldl` should be `reduce`** — `NOTE-foldl-should-have-been-reduce.md` (arc 109). 572 corpus calls
   to the primitive vs 38 to the Clojure surface. ★ `sort'`/`sort` is the SAME shape done RIGHT: its
   primitive wears a suffix meaning "primitive". `foldl` wears a name you would call.
@@ -121,7 +126,7 @@ floor is a verdict.
   reached by an unidentified path) · 3 namespace rules. ⛔ The 5 are NOT homing work until the
   mechanism is named.
 - **`WORKLIST-the-registry-properties.md`** — `expand_time_legal` ✅ done; `defined_in`/`layer`
-  ⛔ **DO NOT BUILD** (they would be constant across all 433 entries); `primitive?` is an open
+  ⛔ **DO NOT BUILD** (they would be constant across all 431 entries); `primitive?` is an open
   question, possibly rete's to own.
 
 ## ⛔ RULES THAT STILL COST TIME
