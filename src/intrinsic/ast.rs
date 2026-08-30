@@ -305,6 +305,7 @@ pub(crate) fn eval_keyword_node_home(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     base :wat::core::String the base name the fresh symbol's text carries
 /// @ret     :wat::WatAST a Symbol node carrying `base`'s text and a fresh, unique scope

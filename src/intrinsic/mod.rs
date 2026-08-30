@@ -252,6 +252,11 @@ pub(crate) struct IntrinsicSubmission {
     /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
     /// `Unreviewed` is default-deny and merely refuses.
     pub totality: wat_doc::Totality,
+    /// Declared expand-time legality from `@ExpandTime <Variant>` in the doc.
+    /// `Unreviewed` when the directive is absent — arc 255 Stone expand-T2 minted
+    /// this axis OPTIONAL, mirroring totality's own T2. Independent of purity,
+    /// determinism, and totality — no combination of those three predicts it.
+    pub expand_time: wat_doc::ExpandTime,
     /// `@Category <Variant>` — functional category.
     pub category: wat_doc::Category,
     /// `@yields <argname> <desc>` pairs, in source order — arc 255 Stone P5-b. One pair per
@@ -285,6 +290,9 @@ pub(crate) struct SpecialFormSubmission {
     /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
     /// `Unreviewed` is default-deny and merely refuses.
     pub totality: wat_doc::Totality,
+    /// Declared expand-time legality from `@ExpandTime <Variant>` in the doc.
+    /// `Unreviewed` when the directive is absent — see `IntrinsicSubmission::expand_time`.
+    pub expand_time: wat_doc::ExpandTime,
     pub category: wat_doc::Category,
     pub deprecated: Option<(&'static str, &'static str)>,
 }
@@ -406,6 +414,14 @@ pub(crate) struct IntrinsicEntry {
     // cfg(test)-only today, so an `expect` is unfulfilled in the test build and fulfilled in
     // the lib build — it cannot be satisfied in both at once. Measured, not assumed.
     pub totality: wat_doc::Totality,
+    /// Declared expand-time legality from `@ExpandTime <Variant>` in the doc.
+    /// `Unreviewed` when the directive is absent — arc 255 Stone expand-T2 minted
+    /// this axis OPTIONAL (T3 will make it required, mirroring totality's own arc).
+    #[allow(dead_code)] // read by expand_time_is_carried_from_the_doc_into_the_registry_entry (cfg(test));
+    // production readers arrive with a later stone, when `is_expand_time_legal`'s
+    // hand-list (arc 255 Stone expand-1's allow-list) stops answering for itself and
+    // DERIVES from here — see the DESIGN's "Out of scope" section.
+    pub expand_time: wat_doc::ExpandTime,
     /// `@Category <Variant>` — functional category.
     /// Consumed by `metadata-of`'s intrinsic branch and `eval_render_doc`.
     pub category: wat_doc::Category,
@@ -496,6 +512,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 purity: submission.purity,
                 determinism: submission.determinism,
                 totality: submission.totality,
+                expand_time: submission.expand_time,
                 category: submission.category,
                 yields: submission.yields,
                 impls: Vec::new(),
@@ -549,6 +566,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 purity: submission.purity,
                 determinism: submission.determinism,
                 totality: submission.totality,
+                expand_time: submission.expand_time,
                 category: submission.category,
                 yields: &[],
                 impls: impls_by_fqdn.remove(submission.name).unwrap_or_default(),
@@ -1024,6 +1042,55 @@ mod tests {
             wat_doc::Totality::Unreviewed,
             "`:wat::i64::*` declares no `@Total`; it must read the `Unreviewed` default, or \
              the field is not being carried per-verb at all"
+        );
+    }
+
+    /// ★ Arc 255 Stone expand-T2, Row 3 — THE STONE. Rows 1-2 (in `wat-doc` and
+    /// `wat-macros`) test that `@ExpandTime` PARSES and turns into a token; this is
+    /// the only row that tests the value survives the last hop into the submission
+    /// literal and out the other side as an `IntrinsicEntry`. A directive that
+    /// parses correctly and is then dropped on the floor passes every parser test
+    /// ever written — exactly `totality_is_carried_from_the_doc_into_the_registry_entry`'s
+    /// own rationale, one axis over.
+    ///
+    /// Two-sided ON PURPOSE: an assertion that only checked `Legal` would also pass
+    /// if the field were hard-wired to `Legal`, and one that only checked
+    /// `Unreviewed` would pass if carriage were broken and everything defaulted.
+    /// Both directions, in one test, is the only shape that can fail for the real
+    /// reason. `[[feedback_a_green_test_can_prove_nothing]]`
+    ///
+    /// The subject is deliberate. `:wat::core::fresh-symbol` is THIS AXIS'S OWN
+    /// WITNESS (`wat/runtime-meta.wat`'s `ExpandTime` doc names it explicitly):
+    /// nondeterministic yet expand-time-legal — minting a different gensym per call
+    /// is what makes hygienic macro expansion possible — so its `@ExpandTime Legal`
+    /// is a true, load-bearing claim rather than decoration. `:wat::i64::*` is the
+    /// other side: it declares `@Total` (required) but no `@ExpandTime`, so it must
+    /// read back the default.
+    #[test]
+    fn expand_time_is_carried_from_the_doc_into_the_registry_entry() {
+        let reg = super::registry();
+        let fresh_symbol = reg
+            .all_entries()
+            .find(|e| e.name == ":wat::core::fresh-symbol")
+            .expect(":wat::core::fresh-symbol must be registered");
+        assert_eq!(
+            fresh_symbol.expand_time,
+            wat_doc::ExpandTime::Legal,
+            "`:wat::core::fresh-symbol` declares `@ExpandTime Legal`; reading `Unreviewed` \
+             here means the directive parsed but never reached the submission literal"
+        );
+
+        // The other side: a verb that declares NOTHING must read back the default. If this
+        // also said `Legal`, the field would be hard-wired rather than carried.
+        let mul = reg
+            .all_entries()
+            .find(|e| e.name == ":wat::i64::*")
+            .expect(":wat::i64::* must be registered");
+        assert_eq!(
+            mul.expand_time,
+            wat_doc::ExpandTime::Unreviewed,
+            "`:wat::i64::*` declares no `@ExpandTime`; it must read the `Unreviewed` default, \
+             or the field is not being carried per-verb at all"
         );
     }
 

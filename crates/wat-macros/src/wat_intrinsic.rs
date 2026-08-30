@@ -593,6 +593,9 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::InvalidTotalityVariant { got } => {
             format!("unknown @Total variant `{}`; known: Total, Partial, Preserving, Unreviewed", got)
         }
+        wat_doc::DocError::InvalidExpandTimeVariant { got } => {
+            format!("unknown @ExpandTime variant `{}`; known: Legal, RuntimeOnly, Preserving, Unreviewed", got)
+        }
         wat_doc::DocError::InvalidCategoryVariant { got } => {
             format!("unknown @Category variant `{}`; known: {}", got, wat_doc::Category::variants().join(", "))
         }
@@ -616,6 +619,21 @@ pub(crate) fn totality_token(t: wat_doc::Totality) -> TokenStream2 {
         wat_doc::Totality::Partial => quote! { ::wat_doc::Totality::Partial },
         wat_doc::Totality::Preserving => quote! { ::wat_doc::Totality::Preserving },
         wat_doc::Totality::Unreviewed => quote! { ::wat_doc::Totality::Unreviewed },
+    }
+}
+
+/// The `@ExpandTime` value -> token match (arc 255 Stone expand-T2), exhaustive, no
+/// wildcard — same shape as `totality_token` just above. A standalone `pub(crate) fn`
+/// (not an inline `let`) so it is directly unit-testable without going through the
+/// full attribute-macro pipeline. Unlike `totality_token`, its result IS spliced into
+/// `IntrinsicSubmission` in THIS stone (expand-T2's blast radius includes the entry
+/// from the start — see the design doc's "one stone" rationale).
+pub(crate) fn expand_time_token(t: wat_doc::ExpandTime) -> TokenStream2 {
+    match t {
+        wat_doc::ExpandTime::Legal => quote! { ::wat_doc::ExpandTime::Legal },
+        wat_doc::ExpandTime::RuntimeOnly => quote! { ::wat_doc::ExpandTime::RuntimeOnly },
+        wat_doc::ExpandTime::Preserving => quote! { ::wat_doc::ExpandTime::Preserving },
+        wat_doc::ExpandTime::Unreviewed => quote! { ::wat_doc::ExpandTime::Unreviewed },
     }
 }
 
@@ -818,6 +836,12 @@ pub(crate) fn emit(
     // recompiles. `totality_token` itself is exhaustive/no-wildcard and unit-tested
     // below; carrying it into the registry entry is the follow-up stone's src/ edit.
     let totality_token = totality_token(doc.totality);
+    // arc 255 Stone expand-T2 — computed for every real handler AND spliced into
+    // `IntrinsicSubmission` below: this stone's blast radius includes `src/intrinsic/mod.rs`
+    // from the start (the design doc's "one stone" rationale — splitting parse from carriage
+    // last time produced a contradiction). `expand_time_token` itself is exhaustive/no-wildcard
+    // and unit-tested below.
+    let expand_time_token = expand_time_token(doc.expand_time);
     let category_token = match doc.category {
         wat_doc::Category::Transform => quote! { ::wat_doc::Category::Transform },
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
@@ -1052,6 +1076,7 @@ pub(crate) fn emit(
                 purity: #purity_token,
                 determinism: #determinism_token,
                 totality: #totality_token,
+                expand_time: #expand_time_token,
                 category: #category_token,
                 yields: &[#(#yields_lit),*],
             }
@@ -1178,6 +1203,111 @@ mod totality_axis_tests {
     fn invalid_totality_message_names_all_four_variants() {
         let msg = render_doc_error(&wat_doc::DocError::InvalidTotalityVariant { got: "Bogus".into() });
         for name in ["Total", "Partial", "Preserving", "Unreviewed"] {
+            assert!(msg.contains(name), "message `{msg}` must name `{name}`");
+        }
+    }
+}
+
+#[cfg(test)]
+mod expand_time_axis_tests {
+    //! arc 255 Stone expand-T2. Mirrors `totality_axis_tests` above, one axis over:
+    //! `@ExpandTime <Variant>` must survive past PARSING (rows 1-2, `wat-doc`'s own
+    //! tests) and reach the SAME token-generation step `emit()` runs for every real
+    //! intrinsic (`expand_time_token`, called at this file's
+    //! `let expand_time_token = expand_time_token(doc.expand_time);`), and — unlike
+    //! totality in ITS T2 — the result is spliced into `IntrinsicSubmission` in this
+    //! same stone (the design's "one stone" rationale).
+    use super::*;
+
+    /// A realistic BINDING-shaped fixture handler. `expand_time_line` is spliced
+    /// between `@Total` and `@Category` — the same column position the real
+    /// `:wat::core::fresh-symbol` annotation uses.
+    fn fixture_fn(expand_time_line: &str) -> ItemFn {
+        let src = format!(
+            "/// Add two i64s.\n\
+             ///\n\
+             /// @added 1.0.0\n\
+             /// @Purity Pure\n\
+             /// @Determinism Deterministic\n\
+             /// @Total Unreviewed\n\
+             {expand_time_line}\
+             /// @Category Arithmetic\n\
+             /// @arg a :wat::core::i64 the left operand\n\
+             /// @arg b :wat::core::i64 the right operand\n\
+             /// @ret :wat::core::i64 the sum\n\
+             /// @example (:probe::add a b) #=> 3\n\
+             fn probe_add(a: &WatAST, b: &WatAST, env: &Environment, sym: &SymbolTable, span: &Span) \
+             -> Result<Value, EvalBreak> {{ unimplemented!() }}"
+        );
+        syn::parse_str(&src).expect("fixture handler must be syntactically valid Rust")
+    }
+
+    fn fqdn() -> LitStr {
+        LitStr::new(":probe::add", proc_macro2::Span::call_site())
+    }
+
+    /// ★ ROW 3/4 — a fixture verb declaring `@ExpandTime Legal` reads back `Legal`
+    /// (not `Unreviewed`) through the SAME function `emit()` calls for every real
+    /// handler, and `emit()` itself accepts the fixture end-to-end.
+    #[test]
+    fn expand_time_legal_survives_into_the_generated_token() {
+        let item = fixture_fn("/// @ExpandTime Legal\n");
+        let raw_doc = sniff_doc(&item).expect("fixture doc must be sniffed");
+        let doc = wat_doc::parse(&raw_doc).expect("fixture doc must parse under the full contract");
+        assert_eq!(doc.expand_time, wat_doc::ExpandTime::Legal, "declared @ExpandTime Legal must read back as Legal");
+
+        // The SAME fn emit() calls at its `expand_time_token(doc.expand_time)` site —
+        // not a reimplementation living only in this test.
+        let token = expand_time_token(doc.expand_time);
+        assert_eq!(token.to_string(), quote! { ::wat_doc::ExpandTime::Legal }.to_string());
+        assert_ne!(token.to_string(), quote! { ::wat_doc::ExpandTime::Unreviewed }.to_string());
+
+        emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring @ExpandTime Legal");
+    }
+
+    /// ★ Row 1's default-when-absent, exercised through the FULL `emit()` pipeline —
+    /// a fixture with NO `@ExpandTime` line must still compile (optional in T2) and
+    /// its generated token must be `Unreviewed`, not merely "some value".
+    #[test]
+    fn absent_expand_time_defaults_to_unreviewed_in_the_generated_token() {
+        let item = fixture_fn("");
+        let raw_doc = sniff_doc(&item).expect("fixture doc must be sniffed");
+        let doc = wat_doc::parse(&raw_doc).expect("absent @ExpandTime must still parse — optional in T2");
+        assert_eq!(doc.expand_time, wat_doc::ExpandTime::Unreviewed);
+
+        let token = expand_time_token(doc.expand_time);
+        assert_eq!(token.to_string(), quote! { ::wat_doc::ExpandTime::Unreviewed }.to_string());
+
+        emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring no @ExpandTime");
+    }
+
+    /// `expand_time_token` is exhaustive, no wildcard — each arm produces the
+    /// matching quoted path. The mirror-drift protection the DESIGN names: a
+    /// variant added to the `.wat` without a matching arm here is `E0004`.
+    #[test]
+    fn expand_time_token_matches_every_variant() {
+        let cases = [
+            (wat_doc::ExpandTime::Legal, quote! { ::wat_doc::ExpandTime::Legal }),
+            (wat_doc::ExpandTime::RuntimeOnly, quote! { ::wat_doc::ExpandTime::RuntimeOnly }),
+            (wat_doc::ExpandTime::Preserving, quote! { ::wat_doc::ExpandTime::Preserving }),
+            (wat_doc::ExpandTime::Unreviewed, quote! { ::wat_doc::ExpandTime::Unreviewed }),
+        ];
+        for (variant, expected) in cases {
+            assert_eq!(expand_time_token(variant).to_string(), expected.to_string());
+        }
+    }
+
+    /// The `InvalidExpandTimeVariant` message (rendered by `render_doc_error`, the
+    /// SAME renderer a real `#[wat_intrinsic]` failure goes through) names all four
+    /// legal values. Quoted verbatim in the stone's report.
+    #[test]
+    fn invalid_expand_time_message_names_all_four_variants() {
+        let msg = render_doc_error(&wat_doc::DocError::InvalidExpandTimeVariant { got: "Bogus".into() });
+        assert_eq!(
+            msg,
+            "unknown @ExpandTime variant `Bogus`; known: Legal, RuntimeOnly, Preserving, Unreviewed"
+        );
+        for name in ["Legal", "RuntimeOnly", "Preserving", "Unreviewed"] {
             assert!(msg.contains(name), "message `{msg}` must name `{name}`");
         }
     }

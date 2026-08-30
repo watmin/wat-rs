@@ -161,6 +161,12 @@ pub struct DocComment {
     /// author must type `:Unreviewed` explicitly instead of the substrate
     /// inventing it.
     pub totality: Totality,
+    /// `@ExpandTime <Variant>` — declared expand-time legality (arc 255 Stone
+    /// expand-T2). OPTIONAL through T2, defaulting to `ExpandTime::Unreviewed`
+    /// when absent — T3 makes it required, mirroring `@Total`'s own T2→T3 arc.
+    /// An unmeasured verb refuses (default-deny) rather than guessing `Legal`,
+    /// which would admit it into a macro body it may corrupt.
+    pub expand_time: ExpandTime,
     /// `@Category <Variant>` — closed-enum category (e.g. `Transform`, `Reflection`).
     pub category: Category,
     /// `@yields <argname> <desc>` — repeatable, one per value-carrying fn-shaped `@arg`.
@@ -240,6 +246,8 @@ pub enum DocError {
     InvalidDeterminismVariant { got: String },
     /// `@Total` value is not a known variant.
     InvalidTotalityVariant { got: String },
+    /// `@ExpandTime` value is not a known variant.
+    InvalidExpandTimeVariant { got: String },
     /// `@Category` value is not a known variant.
     InvalidCategoryVariant { got: String },
     /// A second `@yields` names the same `@arg` subject as an earlier one — `@yields` is
@@ -278,6 +286,11 @@ pub struct DocSpecialForm {
     /// REQUIRED in Stone total-T3). Absence is `DocError::MissingTotality` — see
     /// `DocComment::totality`.
     pub totality: Totality,
+    /// `@ExpandTime <Variant>` — declared expand-time legality. OPTIONAL through
+    /// T2, defaulting to `ExpandTime::Unreviewed` when absent — see
+    /// `DocComment::expand_time`. `DocSpecialForm` is a SIBLING type to
+    /// `DocComment`, so this field and its resolution point are independent.
+    pub expand_time: ExpandTime,
     /// `@see` FQDNs, in source order.
     pub see: Vec<String>,
     /// `@deprecated`, if present.
@@ -355,7 +368,7 @@ fn take_type_token(s: &str) -> (&str, &str) {
 pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@Purity", "@Determinism", "@Total", "@Category", "@yields",
+        "@Purity", "@Determinism", "@Total", "@ExpandTime", "@Category", "@yields",
     ];
 
     // Split into prose lines and directive lines at the first recognized @-directive.
@@ -383,6 +396,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
     let mut totality_val: Option<Totality> = None;
+    let mut expand_time_val: Option<ExpandTime> = None;
     let mut category_val: Option<Category> = None;
     let mut yields_vals: Vec<DocYields> = Vec::new();
 
@@ -626,6 +640,15 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     Err(_) => return Err(DocError::InvalidTotalityVariant { got: payload.to_string() }),
                 }
             }
+            "@ExpandTime" => {
+                if expand_time_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@ExpandTime".into() });
+                }
+                match payload.parse::<ExpandTime>() {
+                    Ok(e) => expand_time_val = Some(e),
+                    Err(_) => return Err(DocError::InvalidExpandTimeVariant { got: payload.to_string() }),
+                }
+            }
             "@Category" => {
                 if category_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
@@ -683,6 +706,10 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     // Arc 255 Stone total-T3: `@Total` is REQUIRED, exactly like purity/determinism/
     // category above. Absence is `MissingTotality`, not a silent `Unreviewed` default.
     let totality = totality_val.ok_or(DocError::MissingTotality)?;
+    // Arc 255 Stone expand-T2: `@ExpandTime` is OPTIONAL — absence DEFAULTS to
+    // `Unreviewed` rather than erroring, exactly like `@Total` did through T2
+    // (T3 struck that default for totality; expand-T3 will do the same here).
+    let expand_time = expand_time_val.unwrap_or(ExpandTime::Unreviewed);
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     // Every `@yields` subject must name a declared `@arg` — a directive with no referent
@@ -694,7 +721,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
         }
     }
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, totality, category, yields: yields_vals })
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, totality, expand_time, category, yields: yields_vals })
 }
 
 /// Parse a special-form doc block.
@@ -708,7 +735,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
 pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@Purity", "@Determinism", "@Total", "@Category", "@syntax",
+        "@Purity", "@Determinism", "@Total", "@ExpandTime", "@Category", "@syntax",
     ];
 
     let lines: Vec<&str> = raw.lines().collect();
@@ -734,6 +761,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
     let mut totality_val: Option<Totality> = None;
+    let mut expand_time_val: Option<ExpandTime> = None;
     let mut category_val: Option<Category> = None;
 
     let directive_lines = match first_directive {
@@ -967,6 +995,15 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                     Err(_) => return Err(DocError::InvalidTotalityVariant { got: payload.to_string() }),
                 }
             }
+            "@ExpandTime" => {
+                if expand_time_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@ExpandTime".into() });
+                }
+                match payload.parse::<ExpandTime>() {
+                    Ok(e) => expand_time_val = Some(e),
+                    Err(_) => return Err(DocError::InvalidExpandTimeVariant { got: payload.to_string() }),
+                }
+            }
             "@Category" => {
                 if category_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
@@ -1002,6 +1039,10 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     // Arc 255 Stone total-T3: `@Total` is REQUIRED (special-form sibling resolution
     // point — see the `parse` fn above for the same change and its rationale).
     let totality = totality_val.ok_or(DocError::MissingTotality)?;
+    // Arc 255 Stone expand-T2: `@ExpandTime` is OPTIONAL — absence DEFAULTS to
+    // `Unreviewed`, mirroring `parse`'s resolution point above. `DocSpecialForm`
+    // is a sibling type with its own resolution point; this is it.
+    let expand_time = expand_time_val.unwrap_or(ExpandTime::Unreviewed);
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     Ok(DocSpecialForm {
@@ -1016,6 +1057,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
         purity,
         determinism,
         totality,
+        expand_time,
         see,
         deprecated,
     })
@@ -1388,6 +1430,98 @@ mod tests {
             @ret :T the result\n\
             @example (:wat::core::if true 1 2) #=> 1";
         assert_eq!(super::parse_special_form(without_total), Err(DocError::MissingTotality));
+    }
+
+    // ─── @ExpandTime (arc 255 Stone expand-T2) ────────────────────────────────
+    //
+    // OPTIONAL in T2, unlike `@Total` (which is required as of total-T3): absence
+    // DEFAULTS to `ExpandTime::Unreviewed` rather than erroring. T3 will make it
+    // required, exactly mirroring totality's own arc.
+
+    /// ★ Row 1 — `@ExpandTime <Variant>` parses, one test per legal variant.
+    #[test]
+    fn expand_time_parses_all_variants() {
+        for (spelling, expected) in [
+            ("Legal", ExpandTime::Legal),
+            ("RuntimeOnly", ExpandTime::RuntimeOnly),
+            ("Preserving", ExpandTime::Preserving),
+            ("Unreviewed", ExpandTime::Unreviewed),
+        ] {
+            let raw = format!(
+                "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                 @Total Unreviewed\n@ExpandTime {spelling}\n@Category Transform\n\
+                 @ret :wat::core::i64 the value\n@example (f) #=> 1"
+            );
+            let doc = parse(&raw).unwrap_or_else(|e| panic!("@ExpandTime {spelling} must parse: {e:?}"));
+            assert_eq!(doc.expand_time, expected, "@ExpandTime {spelling} must read back as {expected:?}");
+        }
+        assert!("legal".parse::<ExpandTime>().is_err()); // case-sensitive
+    }
+
+    /// ★ Row 1 — ABSENT `@ExpandTime` DEFAULTS to `Unreviewed`, tested explicitly
+    /// (not merely "does not error") — this is the half a hard-wired field would
+    /// also pass, but a genuinely-dropped field would NOT: the assertion checks
+    /// the actual value, not just `is_ok()`.
+    #[test]
+    fn absent_expand_time_defaults_to_unreviewed() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n\
+                    @example (f) #=> 1";
+        let doc = parse(raw).expect("absent @ExpandTime must still parse — it is optional in T2");
+        assert_eq!(doc.expand_time, ExpandTime::Unreviewed);
+    }
+
+    /// ★ Row 2a — a SECOND `@ExpandTime` is `DuplicateSingleton`.
+    #[test]
+    fn duplicate_expand_time_is_an_error() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Total Unreviewed\n@ExpandTime Legal\n@ExpandTime RuntimeOnly\n\
+                    @Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        assert_eq!(parse(raw), Err(DocError::DuplicateSingleton { tag: "@ExpandTime".into() }));
+    }
+
+    /// ★ Row 2b — an unknown `@ExpandTime` value is `InvalidExpandTimeVariant { got }`,
+    /// whose rendered message (checked in `wat-macros`) names all four legal values.
+    #[test]
+    fn invalid_expand_time_value_is_an_error() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Total Unreviewed\n@ExpandTime Bogus\n@Category Transform\n\
+                    @ret :wat::core::i64 the value\n@example (f) #=> 1";
+        assert_eq!(parse(raw), Err(DocError::InvalidExpandTimeVariant { got: "Bogus".into() }));
+    }
+
+    /// The special-form parser accepts the identical directive — `DocSpecialForm`
+    /// is a SIBLING type to `DocComment` (not the same type), so its own
+    /// resolution point needs its own coverage, including the default-when-absent
+    /// half, on BOTH doc structs (row 1's "on BOTH doc structs" requirement).
+    #[test]
+    fn special_form_expand_time_parses_and_absence_defaults() {
+        let with_expand_time = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @Total Partial\n\
+            @ExpandTime Legal\n\
+            @arg cond :wat::core::Bool the condition\n\
+            @ret :T the result\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        let doc = super::parse_special_form(with_expand_time)
+            .expect("@ExpandTime Legal must parse on a special form");
+        assert_eq!(doc.expand_time, ExpandTime::Legal);
+
+        let without_expand_time = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @Total Partial\n\
+            @arg cond :wat::core::Bool the condition\n\
+            @ret :T the result\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        let doc = super::parse_special_form(without_expand_time)
+            .expect("absent @ExpandTime must still parse on a special form — it is optional in T2");
+        assert_eq!(doc.expand_time, ExpandTime::Unreviewed);
     }
 
     #[test]

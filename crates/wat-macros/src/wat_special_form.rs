@@ -50,6 +50,19 @@ pub(crate) fn totality_token(t: wat_doc::Totality) -> TokenStream2 {
     }
 }
 
+/// The `@ExpandTime` value -> token match (arc 255 Stone expand-T2), exhaustive, no
+/// wildcard — the special-form twin of `wat_intrinsic::expand_time_token`. Unlike
+/// `totality_token` just above, its result IS spliced into `SpecialFormSubmission`
+/// in THIS stone (expand-T2's blast radius includes the entry from the start).
+pub(crate) fn expand_time_token(t: wat_doc::ExpandTime) -> TokenStream2 {
+    match t {
+        wat_doc::ExpandTime::Legal => quote! { ::wat_doc::ExpandTime::Legal },
+        wat_doc::ExpandTime::RuntimeOnly => quote! { ::wat_doc::ExpandTime::RuntimeOnly },
+        wat_doc::ExpandTime::Preserving => quote! { ::wat_doc::ExpandTime::Preserving },
+        wat_doc::ExpandTime::Unreviewed => quote! { ::wat_doc::ExpandTime::Unreviewed },
+    }
+}
+
 pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenStream2> {
     let raw_doc = match sniff_doc_from_struct(item) {
         Some(d) => d,
@@ -95,6 +108,10 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
     // `SpecialFormSubmission` below (that struct, `src/intrinsic/mod.rs`, has no
     // `totality` field; adding one is a `src/` edit this stone's blast radius forbids).
     let totality_token = totality_token(doc.totality);
+    // arc 255 Stone expand-T2 — computed for every real special form AND spliced into
+    // `SpecialFormSubmission` below: this stone's blast radius includes `src/intrinsic/mod.rs`
+    // from the start.
+    let expand_time_token = expand_time_token(doc.expand_time);
     let category_token = match doc.category {
         wat_doc::Category::Transform => quote! { ::wat_doc::Category::Transform },
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
@@ -171,6 +188,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
                 purity: #purity_token,
                 determinism: #determinism_token,
                 totality: #totality_token,
+                expand_time: #expand_time_token,
                 category: #category_token,
                 deprecated: #deprecated_lit,
             }
@@ -264,6 +282,84 @@ mod totality_axis_tests {
         ];
         for (variant, expected) in cases {
             assert_eq!(totality_token(variant).to_string(), expected.to_string());
+        }
+    }
+}
+
+#[cfg(test)]
+mod expand_time_axis_tests {
+    //! arc 255 Stone expand-T2 — the special-form sibling of `wat_intrinsic`'s
+    //! `expand_time_axis_tests`. `@ExpandTime` is OPTIONAL here too; absence
+    //! DEFAULTS to `Unreviewed` through the SAME `emit()` every real
+    //! `#[wat_special_form]` call site expands through.
+    use super::*;
+
+    fn fixture_item(expand_time_line: &str) -> syn::ItemStruct {
+        let src = format!(
+            "/// A probe form.\n\
+             ///\n\
+             /// @added 1.0.0\n\
+             /// @Purity Pure\n\
+             /// @Determinism Deterministic\n\
+             /// @Total Unreviewed\n\
+             {expand_time_line}\
+             /// @Category ControlFlow\n\
+             /// @syntax (probe-form a b)\n\
+             /// @ret :wat::core::i64 the ret\n\
+             /// @example (probe-form 1 2) #=> 3\n\
+             struct ProbeForm;"
+        );
+        syn::parse_str(&src).expect("fixture special-form struct must be syntactically valid Rust")
+    }
+
+    fn fqdn() -> LitStr {
+        LitStr::new(":probe::probe-form", proc_macro2::Span::call_site())
+    }
+
+    /// ★ ROW 3/4 — a fixture special form declaring `@ExpandTime Legal` reads back
+    /// `Legal` (not `Unreviewed`) through the SAME `expand_time_token` [`emit`]
+    /// calls, and [`emit`] itself accepts the fixture end-to-end.
+    #[test]
+    fn expand_time_legal_survives_into_the_generated_token() {
+        let item = fixture_item("/// @ExpandTime Legal\n");
+        let raw_doc = sniff_doc_from_struct(&item).expect("fixture doc must be sniffed");
+        let doc = wat_doc::parse_special_form(&raw_doc).expect("fixture doc must parse under the full contract");
+        assert_eq!(doc.expand_time, wat_doc::ExpandTime::Legal, "declared @ExpandTime Legal must read back as Legal");
+
+        let token = expand_time_token(doc.expand_time);
+        assert_eq!(token.to_string(), quote! { ::wat_doc::ExpandTime::Legal }.to_string());
+        assert_ne!(token.to_string(), quote! { ::wat_doc::ExpandTime::Unreviewed }.to_string());
+
+        emit(&fqdn(), &item).expect("emit() must accept a fixture declaring @ExpandTime Legal");
+    }
+
+    /// ★ Row 1's default-when-absent, through the FULL `emit()` pipeline — a
+    /// fixture with NO `@ExpandTime` line must still compile (optional in T2) and
+    /// its generated token must be `Unreviewed`.
+    #[test]
+    fn absent_expand_time_defaults_to_unreviewed_in_the_generated_token() {
+        let item = fixture_item("");
+        let raw_doc = sniff_doc_from_struct(&item).expect("fixture doc must be sniffed");
+        let doc = wat_doc::parse_special_form(&raw_doc).expect("absent @ExpandTime must still parse — optional in T2");
+        assert_eq!(doc.expand_time, wat_doc::ExpandTime::Unreviewed);
+
+        let token = expand_time_token(doc.expand_time);
+        assert_eq!(token.to_string(), quote! { ::wat_doc::ExpandTime::Unreviewed }.to_string());
+
+        emit(&fqdn(), &item).expect("emit() must accept a fixture declaring no @ExpandTime");
+    }
+
+    /// `expand_time_token` is exhaustive, no wildcard.
+    #[test]
+    fn expand_time_token_matches_every_variant() {
+        let cases = [
+            (wat_doc::ExpandTime::Legal, quote! { ::wat_doc::ExpandTime::Legal }),
+            (wat_doc::ExpandTime::RuntimeOnly, quote! { ::wat_doc::ExpandTime::RuntimeOnly }),
+            (wat_doc::ExpandTime::Preserving, quote! { ::wat_doc::ExpandTime::Preserving }),
+            (wat_doc::ExpandTime::Unreviewed, quote! { ::wat_doc::ExpandTime::Unreviewed }),
+        ];
+        for (variant, expected) in cases {
+            assert_eq!(expand_time_token(variant).to_string(), expected.to_string());
         }
     }
 }
