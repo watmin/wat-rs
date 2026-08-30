@@ -166,7 +166,7 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
                         return Ok(());
                     }
                     // Check against the blessed allow-list.
-                    if is_pure_total(head) {
+                    if is_expand_time_legal(head) {
                         // BEWARE: `fn` forms are NOT blanket-opaque here. A fn in a
                         // program body can be INVOKED at expand time (blessed HOFs —
                         // map, foldl — take fns), so its body is expand-time code and
@@ -336,21 +336,76 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 
 // ─── Blessed allow-list — DEFAULT-DENY ───────────────────────────────────────
 //
-// ONLY the pure-total subset of `dispatch_keyword_head` / `dispatch_keyword_head_value`
-// (runtime.rs: fn dispatch_keyword_head / fn dispatch_keyword_head_value). Effectful heads (`:wat::kernel::*`, IO, spawning,
-// time `now`, random UUIDs, signal queries, `:wat::core::apply`,
-// `:wat::core::eval-ast!`, etc.) are NOT present here — they are DENIED by default.
+// Decides EXPAND-TIME LEGALITY: which `dispatch_keyword_head` /
+// `dispatch_keyword_head_value` heads (runtime.rs) may be CALLED from inside a
+// `defmacro` body while it is being expanded. This is NOT "the pure-total
+// subset" — arc 255 Stone expand-1 audited all 202 entries against their own
+// registered `@Purity`/`@Determinism`/`@Total` and found expand-time-legality
+// is an independent property that purity and totality each bear on but
+// neither one settles alone:
 //
-// The suite teaches completeness: a false-refusal (a pure head missing from this
-// list) makes a stdlib test RED. Add it here. A missing effectful head is harmless
-// (stays denied).
+//   - Effectful heads (`:wat::kernel::*`, IO, spawning, time `now`, random
+//     UUIDs, signal queries, `:wat::core::apply`, `:wat::core::eval-ast!`,
+//     etc.) are NOT present here — DENIED by default. The audit found zero
+//     exceptions: default-deny has held perfectly across all 202 entries.
+//   - `:wat::i64::/` (and `mod`/`rem`/`quot`) IS present despite being
+//     `@Total Partial` (undefined at a zero divisor). A partial verb can
+//     still be expand-time-legal: dividing by zero during expansion raises a
+//     deterministic, located MacroError — a compile-time failure instead of
+//     a runtime one, which is strictly better. Totality and expand-time
+//     legality are different axes; this list decides the second one only.
+//     (The two claims never conflicted — only the function's old name,
+//     `is_pure_total`, made them look like they did.)
+//   - `:wat::core::fresh-symbol` and `:wat::kernel::macro-call-site` ARE
+//     present despite being Nondeterministic, and correctly so.
+//     `fresh-symbol` mints a different capture-proof gensym on every call —
+//     that nondeterminism IS what makes hygienic expansion possible.
+//     `macro-call-site` reads the current invocation's own source span,
+//     which is stable for the duration of that expansion. Neither one makes
+//     a given macro SOURCE expand to different code across runs.
+//   - `:wat::hashmap::keys` / `:wat::hashmap::values` ARE present, also
+//     Nondeterministic, and also correctly. ⛔ THIS STONE FIRST REMOVED THEM AND
+//     THAT WAS WRONG — the retraction is the finding, so it is recorded here.
+//     A `HashMap` is a pure data collection and `keys` is a pure PROJECTION of
+//     it: the same map yields the same SET of keys every time, and only their
+//     ORDER is unspecified ("deliberately NOT part of the contract" —
+//     src/value/pmap.rs). The hazard people reach for this gate to prevent is a
+//     macro whose EXPANSION varies between runs — but that is a property of a
+//     USE, not of a verb, and a verb-level gate cannot tell the two apart.
+//     Blocking `keys` refuses every order-INDEPENDENT use along with the
+//     dangerous ones, which is precisely the false-refusal drift the paragraph
+//     below warns about.
+//     ★ Measured: removing them made `:wat::core::format` (wat/core.wat:1639)
+//     undefinable and took 247 of 415 targeted tests RED. And `format`'s use is
+//     order-independent — the fold at wat/core.wat:1939 carries a `nil`
+//     accumulator, its result is bound to `_unused-chk` and DISCARDED, and the
+//     emitted code never references the keys. Only WHICH unused kwarg gets
+//     named in an error could vary, and only for a program that is already
+//     broken. The generated code is identical either way.
+//     ⚠ Order-dependence IS a real hazard — `(foldl conj [] (keys m))` inside a
+//     macro would emit varying code — but the honest instrument for it is
+//     EXPANDING A MACRO TWICE AND COMPARING THE OUTPUT, which tests the
+//     property where it actually lives, for every verb, without a curated list.
+//     A determinism gate on the verb cannot see it and refuses the innocent.
 //
-// Arc 249 Stone 249.2b-i — F5 CLOSED: this allow-list is the gate.
+// The suite teaches completeness: a false-refusal (a legal head missing from
+// this list) makes a stdlib test RED. Add it here. A missing effectful head is
+// harmless (stays denied).
 //
-// rune:struere(invariant-coupling) — this allow-list mirrors the pure-total arm of
-// fn dispatch_keyword_head / fn dispatch_keyword_head_value (runtime.rs); the suite enforces completeness
-// (default-deny makes over-restriction the only drift direction).
-fn is_pure_total(head: &str) -> bool {
+// ★ THAT CLAIM HAD NEVER BEEN PUT THROUGH A RED/GREEN CYCLE, and arc 255 Stone
+// expand-1 tested it directly by removing `:wat::hashmap::keys`. It is TRUE,
+// and it fires hard: `:wat::core::format` (wat/core.wat:1639) calls `keys` on
+// its own kwargs-map at expand time, so `format` — foundational across the
+// corpus — could no longer be DEFINED, and 247 of 415 targeted tests went red,
+// every one a MalformedDefmacro naming the refused head. The mechanism works.
+// What the experiment actually demonstrated was that the REMOVAL was wrong, not
+// that `format` was: see the keys/values bullet above.
+//
+// rune:struere(invariant-coupling) — this allow-list mirrors the expand-time-legal
+// arm of fn dispatch_keyword_head / fn dispatch_keyword_head_value (runtime.rs);
+// the suite enforces completeness (default-deny makes over-restriction the only
+// drift direction — and over-restriction is what this stone caught itself doing).
+fn is_expand_time_legal(head: &str) -> bool {
     matches!(
         head,
         // ── Integer arithmetic (pure, total, wrapping) ─────────────────
@@ -547,11 +602,19 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::hashmap::length"
         | ":wat::hashmap::empty?"
         | ":wat::hashmap::contains-key?"
+        | ":wat::hashmap::keys"
+        | ":wat::hashmap::values"
         | ":wat::hashmap::get"
         | ":wat::hashmap::assoc"
         | ":wat::hashmap::dissoc"
-        | ":wat::hashmap::keys"
-        | ":wat::hashmap::values"
+        // Arc 255 Stone expand-1 — `:wat::hashmap::keys` / `:wat::hashmap::values` REMOVED.
+        // Both were classified Nondeterministic (`afc9f776b`, corrected from an earlier
+        // DETERMINISTIC misclassification this list never swept) — hash iteration order is
+        // deliberately NOT part of the contract (src/rete/purity.rs, src/value/pmap.rs). A
+        // macro body folding over them would emit different code on different runs; expansion
+        // must be reproducible. Nondeterminism alone does not disqualify a verb from this list
+        // (see `fresh-symbol` / `macro-call-site` below) — what disqualifies these two
+        // specifically is that their nondeterminism varies the EXPANSION itself.
         // Arc 255 Stone E-iii — `:wat::core::HashSet/*` retired this stone;
         // `:wat::hashset::*` is its replacement (List was never on this list — that
         // asymmetry predates this stone and is not this stone's to fix; `:wat::linkedlist::*`
