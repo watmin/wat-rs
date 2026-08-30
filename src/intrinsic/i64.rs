@@ -165,6 +165,7 @@ fn eval_i64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Partial
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor

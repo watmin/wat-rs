@@ -94,7 +94,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
     // `wat_intrinsic.rs`: computed for every real special form, NOT spliced into
     // `SpecialFormSubmission` below (that struct, `src/intrinsic/mod.rs`, has no
     // `totality` field; adding one is a `src/` edit this stone's blast radius forbids).
-    let _totality_token = totality_token(doc.totality);
+    let totality_token = totality_token(doc.totality);
     let category_token = match doc.category {
         wat_doc::Category::Transform => quote! { ::wat_doc::Category::Transform },
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
@@ -170,6 +170,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
                 see: &[#(#see_lit),*],
                 purity: #purity_token,
                 determinism: #determinism_token,
+                totality: #totality_token,
                 category: #category_token,
                 deprecated: #deprecated_lit,
             }

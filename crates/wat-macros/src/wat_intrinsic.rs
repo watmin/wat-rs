@@ -814,7 +814,7 @@ pub(crate) fn emit(
     // would break E0559 on every real `#[wat_intrinsic]` call site the moment `src/`
     // recompiles. `totality_token` itself is exhaustive/no-wildcard and unit-tested
     // below; carrying it into the registry entry is the follow-up stone's src/ edit.
-    let _totality_token = totality_token(doc.totality);
+    let totality_token = totality_token(doc.totality);
     let category_token = match doc.category {
         wat_doc::Category::Transform => quote! { ::wat_doc::Category::Transform },
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
@@ -1048,6 +1048,7 @@ pub(crate) fn emit(
                 source: #source_lit,
                 purity: #purity_token,
                 determinism: #determinism_token,
+                totality: #totality_token,
                 category: #category_token,
                 yields: &[#(#yields_lit),*],
             }
@@ -1062,7 +1063,7 @@ mod totality_axis_tests {
     //! arc 255 Stone total-T2 — Row 4 ("break the door"): proves `@Total <Variant>`
     //! survives past PARSING (rows 1-3, `wat-doc`'s own tests) and reaches the SAME
     //! token-generation step `emit()` runs for every real intrinsic (`totality_token`,
-    //! called at this file's `let _totality_token = totality_token(doc.totality);`).
+    //! called at this file's `let totality_token = totality_token(doc.totality);`).
     //!
     //! ⛔ This does NOT reach `IntrinsicSubmission` — that struct lives in
     //! `src/intrinsic/mod.rs`, is `pub(crate)`, and has no `totality` field. Adding one

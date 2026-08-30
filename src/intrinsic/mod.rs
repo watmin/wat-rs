@@ -247,6 +247,11 @@ pub(crate) struct IntrinsicSubmission {
     pub purity: wat_doc::Purity,
     /// Declared determinism from `@Determinism <Variant>` in the doc.
     pub determinism: wat_doc::Determinism,
+    /// Declared totality from `@Total <Variant>` in the doc. `Unreviewed` when the
+    /// directive is absent — arc 255 stone total-T2 minted the axis OPTIONAL, because a
+    /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
+    /// `Unreviewed` is default-deny and merely refuses.
+    pub totality: wat_doc::Totality,
     /// `@Category <Variant>` — functional category.
     pub category: wat_doc::Category,
     /// `@yields <argname> <desc>` pairs, in source order — arc 255 Stone P5-b. One pair per
@@ -275,6 +280,11 @@ pub(crate) struct SpecialFormSubmission {
     pub see: &'static [&'static str],
     pub purity: wat_doc::Purity,
     pub determinism: wat_doc::Determinism,
+    /// Declared totality from `@Total <Variant>` in the doc. `Unreviewed` when the
+    /// directive is absent — arc 255 stone total-T2 minted the axis OPTIONAL, because a
+    /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
+    /// `Unreviewed` is default-deny and merely refuses.
+    pub totality: wat_doc::Totality,
     pub category: wat_doc::Category,
     pub deprecated: Option<(&'static str, &'static str)>,
 }
@@ -384,6 +394,18 @@ pub(crate) struct IntrinsicEntry {
     #[allow(dead_code)] // read by purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc + reflect.rs's eval_intrinsic_examples (arc 255.1c site 2)
     /// Declared determinism — from `@Determinism <Variant>` in the doc.
     pub determinism: wat_doc::Determinism,
+    /// Declared totality from `@Total <Variant>` in the doc. `Unreviewed` when the
+    /// directive is absent — arc 255 stone total-T2 minted the axis OPTIONAL, because a
+    /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
+    /// `Unreviewed` is default-deny and merely refuses.
+    #[allow(dead_code)] // read by totality_is_carried_from_the_doc_into_the_registry_entry (cfg(test));
+    // production readers arrive with stone T4, when the three totality hand-lists
+    // (rete/purity.rs's intrinsic_meta, macros/eval.rs's is_pure_total,
+    // rete/vocabulary.rs's RETE_OPS) stop answering for themselves and DERIVE from here.
+    // `allow` not `expect`, matching `purity`/`determinism` two fields up: the readers are
+    // cfg(test)-only today, so an `expect` is unfulfilled in the test build and fulfilled in
+    // the lib build — it cannot be satisfied in both at once. Measured, not assumed.
+    pub totality: wat_doc::Totality,
     /// `@Category <Variant>` — functional category.
     /// Consumed by `metadata-of`'s intrinsic branch and `eval_render_doc`.
     pub category: wat_doc::Category,
@@ -473,6 +495,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 source: submission.source,
                 purity: submission.purity,
                 determinism: submission.determinism,
+                totality: submission.totality,
                 category: submission.category,
                 yields: submission.yields,
                 impls: Vec::new(),
@@ -525,6 +548,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 source: "",
                 purity: submission.purity,
                 determinism: submission.determinism,
+                totality: submission.totality,
                 category: submission.category,
                 yields: &[],
                 impls: impls_by_fqdn.remove(submission.name).unwrap_or_default(),
@@ -952,6 +976,57 @@ mod tests {
 
     /// Arc 255.1b-firm: pure+det intrinsics MUST carry ≥1 runnable `@example`;
     /// non-pure-det intrinsics MUST carry ≥1 `@example-norun` and NO runnable
+    /// ★ ROW 4 — arc 255 stone total-T2b. THE CARRIAGE PROOF, and it is two-sided.
+    ///
+    /// T2 made `@Total` parse and made the proc-macro turn it into a token; what it could
+    /// NOT prove — because its blast radius forbade `src/` while its acceptance row demanded
+    /// the registry — is that the value survives the last hop into the submission literal and
+    /// out the other side as an `IntrinsicEntry`. A directive that parses correctly and is
+    /// then dropped on the floor passes every parser test ever written.
+    ///
+    /// Two-sided ON PURPOSE: an assertion that only checked `Partial` would also pass if the
+    /// field were hard-wired to `Partial`, and one that only checked `Unreviewed` would pass
+    /// if carriage were broken and everything defaulted. Both directions, in one test, is the
+    /// only shape that can fail for the real reason.
+    /// `[[feedback_a_green_test_can_prove_nothing]]`
+    ///
+    /// The subject is deliberate. `:wat::i64::/` is the exact verb the two surviving totality
+    /// hand-lists CONTRADICT each other about — `macros/eval.rs`'s `is_pure_total` includes it
+    /// ("div-by-zero is a deterministic located abort … never a panic") while
+    /// `rete/purity.rs`'s `total` sub-list excludes it ("`i64::/` is both, and undefined at a
+    /// zero divisor"). Its `@Total Partial` here is not an adjudication of that dispute; it is
+    /// a TRANSCRIPTION of what the verb's own shipped doc already says two lines above the
+    /// directive: *"`b = 0` raises `DivisionByZero`; `i64::MIN / -1` raises `IntegerOverflow`."*
+    /// Two distinct inputs on which it is undefined. Resolving what the two LISTS mean by
+    /// "total" remains stone T4's ruling.
+    #[test]
+    fn totality_is_carried_from_the_doc_into_the_registry_entry() {
+        let reg = super::registry();
+        let div = reg
+            .all_entries()
+            .find(|e| e.name == ":wat::i64::/")
+            .expect(":wat::i64::/ must be registered");
+        assert_eq!(
+            div.totality,
+            wat_doc::Totality::Partial,
+            "`:wat::i64::/` declares `@Total Partial`; reading `Unreviewed` here means the \
+             directive parsed but never reached the submission literal"
+        );
+
+        // The other side: a verb that declares NOTHING must read back the default. If this
+        // also said `Partial`, the field would be hard-wired rather than carried.
+        let mul = reg
+            .all_entries()
+            .find(|e| e.name == ":wat::i64::*")
+            .expect(":wat::i64::* must be registered");
+        assert_eq!(
+            mul.totality,
+            wat_doc::Totality::Unreviewed,
+            "`:wat::i64::*` declares no `@Total`; it must read the `Unreviewed` default, or \
+             the field is not being carried per-verb at all"
+        );
+    }
+
     /// `@example`. Enforced at compile time via the doc-contract; enforced at
     /// test time here using the declared `@Purity`/`@Determinism` fields.
     #[test]
