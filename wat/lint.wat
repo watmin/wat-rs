@@ -255,9 +255,9 @@
                               var-name
                               "` compared against "
                               (:wat::i64::to-string n-lits)
-                              " literals — use (:wat::core::contains? (:wat::core::HashSet :T lit…) var) instead")
+                              " literals — use (:wat::core::contains? (:wat::core::HashSet :- [:T] lit…) var) instead")
                     new-text (:wat::core::format
-                               "(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer {lits}) {var})"
+                               "(:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] {lits}) {var})"
                                :lits (:wat::string::join " " lits)
                                :var var-name)
                     fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]

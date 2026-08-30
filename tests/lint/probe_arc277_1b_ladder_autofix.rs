@@ -32,7 +32,7 @@ fn ladder_autofix_rewrites_to_contains() {
             // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
             "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool ",
             // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
-            "(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer ",
+            "(:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] ",
             "\"a\" \"b\" \"c\") x))"
         ),
         "the ladder must be rewritten to a (contains? (HashSet …) x) golden"
