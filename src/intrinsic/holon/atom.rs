@@ -2543,9 +2543,11 @@ pub(crate) fn eval_holon_encode(
 pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::vector-bytes";
     let v = require_vector(OP, v)?;
-    let dim = v.dimensions();
-    let dim_u32 = u32::try_from(dim).map_err(|_| {
-        RuntimeError::new(
+    // Codec logic (dim -> u32 header + 4-cells-per-byte packing) lives in
+    // src/holon/codec.rs::encode_vector — this delegate only converts the
+    // wat Value in, and adapts the domain Vec<u8> / VectorEncodeError back.
+    let bytes = encode_vector(&v).map_err(|e| match e {
+        VectorEncodeError::DimTooLarge => RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -2553,43 +2555,23 @@ pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBr
                 got: Box::new(ValueSnapshot::unavailable("oversized Vector dim")),
                 // arc 138: no per-value AST span — dim comes from Vector value, not AST; the call span is used instead
             },
-        )
+        ),
+        VectorEncodeError::InvalidCell { value, .. } => RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector cell in {-1, 0, +1}",
+                got: Box::new(ValueSnapshot::described(
+                    "wat::core::i64",
+                    format!("cell value out of ternary range ({})", value),
+                )),
+                // arc 138: no per-value AST span — cell value from Vector data, not AST; the call span is used instead
+            },
+        ),
     })?;
-    // 4-byte dim header + ceil(dim/4) data bytes.
-    let data_len = dim.div_ceil(4);
-    let mut out: Vec<Value> = Vec::with_capacity(4 + data_len);
-    for &b in dim_u32.to_le_bytes().iter() {
-        out.push(Value::u8(b));
-    }
-    let data = v.data();
-    for chunk in data.chunks(4) {
-        let mut byte: u8 = 0;
-        for (i, &cell) in chunk.iter().enumerate() {
-            let bits: u8 = match cell {
-                0 => 0b00,
-                1 => 0b01,
-                -1 => 0b10,
-                other => {
-                    return Err(RuntimeError::new(
-                        span.clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "Vector cell in {-1, 0, +1}",
-                            got: Box::new(ValueSnapshot::described(
-                                "wat::core::i64",
-                                format!("cell value out of ternary range ({})", other),
-                            )),
-                            // arc 138: no per-value AST span — cell value from Vector data, not AST; the call span is used instead
-                        },
-                    )
-                    .into());
-                }
-            };
-            byte |= bits << (i * 2);
-        }
-        out.push(Value::u8(byte));
-    }
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(Arc::new(
+        bytes.into_iter().map(Value::u8).collect(),
+    )))
 }
 
 
@@ -2648,58 +2630,39 @@ pub(crate) fn eval_holon_bytes_vector(
             }
         }
     }
-    // Header.
-    if bytes.len() < 4 {
-        return Ok(vector_decode_outcome_truncated_header(bytes.len() as i64));
-    }
-    let header = [bytes[0], bytes[1], bytes[2], bytes[3]];
-    let dim = u32::from_le_bytes(header) as usize;
-    let expected_data_len = dim.div_ceil(4);
-    if bytes.len() != 4 + expected_data_len {
-        return Ok(vector_decode_outcome_length_mismatch(
-            (4 + expected_data_len) as i64,
-            bytes.len() as i64,
-        ));
-    }
-    // Cross-dim validation: this program's dim-count is a static, once-only
-    // constant (`config::collect_entry_file`); a vector whose wire header
-    // names a different d is a foreign-dimension value, not a structural
-    // parse failure — matchable, not fatal (BRIEF-dimension-heresy-screams.md).
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    if dim != ctx.dim_count {
-        return Ok(vector_decode_outcome_dimension_mismatch(
-            ctx.dim_count as i64,
-            dim as i64,
-        ));
-    }
-    // Decode cells.
-    let mut cells: Vec<i8> = Vec::with_capacity(dim);
-    for byte in &bytes[4..] {
-        for shift in 0..4 {
-            if cells.len() == dim {
-                break;
+    // Header + length: structural checks that don't need the program's
+    // dim-count — src/holon/codec.rs::parse_vector_header stays sym-free.
+    match parse_vector_header(&bytes) {
+        VectorHeader::TruncatedHeader { got } => {
+            Ok(vector_decode_outcome_truncated_header(got as i64))
+        }
+        VectorHeader::LengthMismatch { expected, got } => Ok(
+            vector_decode_outcome_length_mismatch(expected as i64, got as i64),
+        ),
+        VectorHeader::Ok { dim } => {
+            // Cross-dim validation: this program's dim-count is a static,
+            // once-only constant (`config::collect_entry_file`); a vector
+            // whose wire header names a different d is a foreign-dimension
+            // value, not a structural parse failure — matchable, not fatal
+            // (BRIEF-dimension-heresy-screams.md). Fetched here — after the
+            // header/length checks, same as before the codec split — so a
+            // symbol table with no EncodingCtx attached still resolves a
+            // truncated/malformed header without ever needing one.
+            let expected_dim = program_dim(OP, sym, list_span)?;
+            if dim != expected_dim {
+                return Ok(vector_decode_outcome_dimension_mismatch(
+                    expected_dim as i64,
+                    dim as i64,
+                ));
             }
-            let bits = (byte >> (shift * 2)) & 0b11;
-            let cell: i8 = match bits {
-                0b00 => 0,
-                0b01 => 1,
-                0b10 => -1,
-                _ => return Ok(vector_decode_outcome_invalid_cell(cells.len() as i64)),
-            };
-            cells.push(cell);
+            // Codec logic (4-cells-per-byte unpacking) lives in
+            // src/holon/codec.rs::decode_vector_cells.
+            Ok(match decode_vector_cells(&bytes, dim) {
+                VectorCells::Decoded(v) => vector_decode_outcome_decoded(v),
+                VectorCells::InvalidCell { at } => vector_decode_outcome_invalid_cell(at as i64),
+            })
         }
     }
-    // arc 278 STOP-6 (grounded, not assumed): `cells.len() != dim` here is
-    // UNREACHABLE and was deleted rather than mapped to a variant. The length
-    // check above guarantees `bytes[4..].len() == dim.div_ceil(4)`, so this
-    // loop has `4 * dim.div_ceil(4) >= dim` decodable bit-pairs available —
-    // always enough to reach `cells.len() == dim` (the `break` never lets it
-    // exceed dim, and an early return already fires above on any invalid
-    // cell). There is no byte-length value that reaches this point with
-    // `cells.len() != dim`.
-    Ok(vector_decode_outcome_decoded(holon::Vector::from_data(
-        cells,
-    )))
 }
 
 

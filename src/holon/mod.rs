@@ -41,6 +41,10 @@
 //! - `require` — `Value -> holon-domain-type` coercion helpers
 //!   (`Hologram`, `Vector`, `OnlineSubspace`, `Reckoner`, `Engram`,
 //!   `EngramLibrary`, plus primitive `String`/`f64`/`Function` args).
+//! - `codec` — the vector wire format (`dim:u32-LE ++ packed-cells`):
+//!   encode/decode, held to a stricter purity bar than its siblings above —
+//!   no wat type (`WatAST`/`Value`/`RuntimeError`/`Span`/`Environment`/
+//!   `SymbolTable`) anywhere in its signatures. Stone layer-2.
 //!
 //! `runtime.rs` calls into every one of these for the binding half of the
 //! same verbs; nothing here reaches back into `runtime.rs`'s evaluator
@@ -48,6 +52,7 @@
 //! whole point.
 
 mod ast;
+mod codec;
 mod outcome;
 mod require;
 
@@ -55,5 +60,6 @@ pub mod hologram;
 pub mod sigma;
 
 pub(crate) use ast::*;
+pub(crate) use codec::*;
 pub(crate) use outcome::*;
 pub(crate) use require::*;
