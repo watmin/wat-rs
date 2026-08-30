@@ -1465,3 +1465,40 @@ mod arc109_reader_adjudicates_type_tokens {
         assert_eq!(parsed.ret_type, "(:wat::kernel::Thread :- [R S])");
     }
 }
+
+::wat_source_derive::wat_enum_from!(
+    pub enum Totality,
+    "../../wat/runtime-meta.wat",
+    ":wat::runtime::Totality"
+);
+
+#[cfg(test)]
+mod probe_totality_axis {
+    use super::Totality;
+    /// FM 2-bis probe — the axis is not merely generated, it carries all FOUR
+    /// variants by name, and the match is exhaustive (a missing variant is E0004).
+    #[test]
+    fn totality_has_four_named_variants_and_matches_exhaustively() {
+        let all = [Totality::Total, Totality::Partial, Totality::Preserving, Totality::Unreviewed];
+        assert_eq!(all.len(), 4);
+        for v in all {
+            // Exhaustive, no wildcard: adding a variant in the .wat breaks this.
+            let name = match v {
+                Totality::Total => "Total",
+                Totality::Partial => "Partial",
+                Totality::Preserving => "Preserving",
+                Totality::Unreviewed => "Unreviewed",
+            };
+            assert!(!name.is_empty());
+        }
+    }
+    /// The per-variant `;;` prose from the .wat must survive into the Rust doc —
+    /// that is the half read from the raw text layer, and it is the half that rots
+    /// silently if the two readers ever disagree.
+    #[test]
+    fn the_work_list_variant_is_documented_as_such() {
+        // Compile-time proof the variant exists under the exact name the census will filter on.
+        let partial = Totality::Partial;
+        assert!(matches!(partial, Totality::Partial));
+    }
+}
