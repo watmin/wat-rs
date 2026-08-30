@@ -774,6 +774,12 @@ admission path — a population of one, which is why no count would ever have su
      fused loop does. Real, but small and zero-risk — logged, not scheduled.
 
    **THE TWO CUTS, named so they are actionable — this is what the tally should have said:**
+   - ✅ **`expr_ir.rs` → split at `// ── exec`. DONE 2026-08-30** — `expr_ir/mod.rs` (1_046 ln,
+     the IR types + lowering) and `expr_ir/eval.rs` (1_413 ln, execution). The module is named
+     `eval` rather than `exec` because `mod exec` would occupy `expr_ir::exec`, the path every
+     external caller already uses for the FUNCTION; naming it `eval` moved no caller. Floor
+     5162/5162, clippy silent, and the compiler named the whole crossing surface — FOUR errors,
+     all of them a re-export. ORIGINALLY WRITTEN AS:
    - **`expr_ir.rs` → split at `// ── exec` (line 890).** The author drew this seam themselves. Above
      it: building the `Expr` DAG (`lower_in_frame`, `lower_list`, `lower_expr`, the `#holon` fold).
      Below it: evaluating one (`exec`, the opcode jump table). **Lowering and execution are two
