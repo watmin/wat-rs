@@ -6,7 +6,7 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-30 (second) — supersedes every earlier stamp and every dated block below
-it. Written against HEAD `b5db936e5`; the commit carrying this stamp lands on top, so a ONE-COMMIT
+it. Written against HEAD `f98226353`; the commit carrying this stamp lands on top, so a ONE-COMMIT
 gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/` or
 `tests/` IS staleness, whatever its size.**
 
@@ -45,16 +45,21 @@ carries that incident in its header; it is anchored and mutation-proven, and it 
 `#[test]` split apart because a test whose name is a sentence already states its contract.
 
 **THE NEXT WORK, in the order I would take it:**
-1. **The 87 undocumented functions.** ✅ `export.rs` is DONE (24 → 0, `b5db936e5`) — it is a codec,
-   so the fix was not 24 one-liners but the three laws its module header now carries. The current
-   head of the list is **`kernel/fire/mod.rs` (14)**, then **`kernel/arm.rs` (11)**,
-   **`compiled_cond.rs` (10)**, **`where_tree.rs` (8)**. ⛔ Do NOT start from the old list —
-   `hash_join.rs` is 0 and `session.rs` is 3. Run the script.
-   Separately still true and NOT a doc gap: `session.rs` holds `pm_to_query_memory` at **nesting
-   10**, the deepest in rete.
-2. **`kernel/tests.rs`** — two wards cast 2026-08-30, verdicts + corrections in
-   `NOTE-tests-rs-two-casts.md`. **Builder ruled: a `mod` with many files, NOT NOW.** Do not
-   re-cast; the note holds both verdicts, the refused cuts, and the one number `partire` got wrong.
+1. ✅ **DONE — `src/rete` IS AT ZERO undocumented non-`#[test]` functions ≥15 lines** (was 111).
+   Re-derive with `scripts/doc-coverage.sh src/rete --exclude tests.rs`; do not quote this line.
+   `pm_to_query_memory` is still the deepest function in rete at nesting 10 — and its doc now
+   argues that the DEPTH IS THE DIAGNOSTICS (three nested levels, each with its own located
+   `TypeMismatch`). If you reduce the nesting, preserve that.
+2. ✅ **DONE — `kernel/tests.rs` 10,189 lines → 13 files, largest 1,676** (`f98226353`). The
+   builder lifted the NOT NOW. Do not re-cast: `NOTE-tests-rs-two-casts.md` holds both verdicts
+   AND the three ward numbers that failed on grounding.
+   ⛔ **What the split did NOT do, and is the remaining value here:** the floor still counts all
+   89 of these as gates and **5 of them cannot fail** (assertions are pure liveness; 2 more assert
+   nothing at all). Moving a test to a new file does not change whether it can fail. Give the
+   instruments a run profile (`#[ignore]` or a `census` feature) so the floor counts GATES — that
+   is `partire`'s own practitioner's-call and it is still open. The `time_ns` two-contracts problem
+   and the 37 hand-rolled `ms` closures are likewise untouched; both are recorded at the top of
+   `src/rete/kernel/tests/mod.rs` where the instrument now lives.
 3. **`IntegerOverflow` / `DivisionByZero`** — 10 sites, the next totality candidates toward
    *"panics are essentially illegal at runtime"*.
 
