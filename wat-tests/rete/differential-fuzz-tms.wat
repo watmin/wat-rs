@@ -69,9 +69,9 @@
   [oracle? <- :wat::core::bool  fires? <- :wat::core::bool
    s <- :wat::rete::Session  op <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::cond
-    ((:wat::core::= op 0) (:wat::rete::insert s (:wat-tests::rete::tms::A 0)))
-    ((:wat::core::= op 1) (:wat::rete::insert s (:wat-tests::rete::tms::A 1)))
-    ((:wat::core::= op 2) (:wat::rete::insert s (:wat-tests::rete::tms::B 0)))
+    ((:wat::core::= op 0) (:wat::core::match (:wat::rete::insert s (:wat-tests::rete::tms::A 0)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
+    ((:wat::core::= op 1) (:wat::core::match (:wat::rete::insert s (:wat-tests::rete::tms::A 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
+    ((:wat::core::= op 2) (:wat::core::match (:wat::rete::insert s (:wat-tests::rete::tms::B 0)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     ((:wat::core::= op 3) (:wat::rete::retract s (:wat-tests::rete::tms::A 0)))
     ((:wat::core::= op 4) (:wat::rete::retract s (:wat-tests::rete::tms::A 1)))
     ((:wat::core::= op 5) (:wat::rete::retract s (:wat-tests::rete::tms::B 0)))

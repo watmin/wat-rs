@@ -328,4 +328,14 @@
           ;; guard behaving correctly, not a bug: it can only detect the shape it emits. Any future
           ;; sweep over this file must exclude it, or expect to undo this one line again.
           -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
-          (:wat::rete::fire-rules (:wat::rete::insert-all base facts)))))))
+          ;; ⛔ AND `insert-all` NOW ANSWERS AN OUTCOME TOO (S2c), so the overlay faces BOTH doors:
+          ;; it unwraps the staging one here (a ceiling while staging the caller's own facts is a
+          ;; loud failure, not something to fold into the fire's outcome and mis-report as a
+          ;; derivation breach) and passes the FIRE outcome straight through.
+          (:wat::rete::fire-rules
+            (:wat::core::match (:wat::rete::insert-all base facts)
+              ((:wat::rete::InsertOutcome::Inserted __staged) __staged)
+              ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __l __u __st)
+                (:wat::kernel::assertion-failed!
+                  "with-overlay: session memory ceiling exceeded while staging the overlay's facts"
+                  :wat::core::None :wat::core::None)))))))))

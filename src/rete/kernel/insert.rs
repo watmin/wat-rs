@@ -31,7 +31,10 @@ fn require_session_facts<'a>(
     })
 }
 
-/// `(:wat::rete::insert <session> <fact>) -> :wat::rete::Session`
+/// `(:wat::rete::insert <session> <fact>) -> :wat::rete::InsertOutcome`
+///
+/// Arc 278 the outcome wall, S2c — staging grows the session, so it answers a matchable outcome
+/// rather than a bare Session. The ceiling arm is built at this door only (`kernel::outcome`).
 ///
 /// Native dual of the wat oracle `insert$oracle` (`wat/rete/oracle/insert.wat`).
 /// Stages `fact` into the Session's `facts` field. ZERO activation:
@@ -161,8 +164,14 @@ fn insert_one_on_session(
     let staged_session = session_with_facts(&session, new_facts);
     // THE SESSION CEILING, at the second of its two doors. AFTER the staging, so `used` and
     // `staged` describe the same session state the caller would have received.
-    super::session::check_insert_ceiling(sym, list_span, staged)?;
-    Ok(staged_session)
+    //
+    // ⛔ AND THE WALL STANDS HERE. All three wat entry points (`insert` 2-ary, `insert` 3+-ary,
+    // `insert-all`) return this helper's value directly and nothing else calls it, so this is the
+    // one place the 2-ary door becomes a wat value — wrapping at the entry points instead would
+    // double-wrap, because `eval_insert_public`'s 2-ary arm delegates to `eval_session_insert`.
+    super::outcome::insert_result_to_outcome(
+        super::session::check_insert_ceiling(sym, list_span, staged).map(|()| staged_session),
+    )
 }
 
 /// Length of a staged `facts` vector, for the ceiling diagnostic only.
@@ -192,14 +201,16 @@ fn insert_facts_on_session(
     let staged = value_len(&new_facts);
     let staged_session = session_with_facts(&session, new_facts);
     // The same door, batch arity. One shared check (`session::check_insert_ceiling`) so the two
-    // arities and the fixpoint cannot drift apart on what "over the ceiling" means.
-    super::session::check_insert_ceiling(sym, list_span, staged)?;
-    Ok(staged_session)
+    // arities and the fixpoint cannot drift apart on what "over the ceiling" means, and the same
+    // single conversion site so they cannot drift on how a breach is REPORTED either.
+    super::outcome::insert_result_to_outcome(
+        super::session::check_insert_ceiling(sym, list_span, staged).map(|()| staged_session),
+    )
 }
 
 // ── Public entry: native insert-all ────────────────────────────────────────────
 
-/// `(:wat::rete::insert-all <session> <facts>) -> :wat::rete::Session`
+/// `(:wat::rete::insert-all <session> <facts>) -> :wat::rete::InsertOutcome`
 ///
 /// The batch sibling of `insert` — native dual of the wat oracle `insert-all$oracle`
 /// (`wat/rete/oracle/insert.wat`). Stages every element of `facts` (a `PersistentVector<Record>`) into the

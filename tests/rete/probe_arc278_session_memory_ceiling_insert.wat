@@ -20,15 +20,39 @@
   :when [(:ins::Edge (?a <- :a))]
   :then [])
 
-(:wat::core::defn :ins::seed [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :ins::seed
+  [s <- :wat::rete::Session  n <- :wat::core::i64]
+  -> :wat::rete::InsertOutcome
+  ;; ⛔ THE FOLD CARRIES THE OUTCOME, NOT A SESSION — hand-faced, NOT codemod'd. The corpus codemod
+  ;; unwraps each `insert` into a Session and dies loudly on a ceiling, which is right for a fixture
+  ;; that merely must not proceed. It is WRONG here: this gate exists to pin `limit`, `used` and
+  ;; `staged`, and an `assertion-failed!` throws all three away. The fold therefore SHORT-CIRCUITS
+  ;; on the ceiling arm and hands it back intact for `:user::main` to print.
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert acc (:ins::Edge :a i :b (:wat::core::i64::+ i 1))))
-    s (:wat::core::range 0 200000)))
+    (:wat::core::fn [acc <- :wat::rete::InsertOutcome  i <- :wat::core::i64] -> :wat::rete::InsertOutcome
+      (:wat::core::match acc
+        ;; still staging — try the next fact
+        ((:wat::rete::InsertOutcome::Inserted session)
+          (:wat::rete::insert session (:ins::Edge :a i :b (:wat::core::i64::+ i 1))))
+        ;; already breached — carry the FIRST breach through UNCHANGED (`acc` itself, not a rebuilt
+        ;; copy). Re-inserting after a ceiling would report whichever fact happened to be last
+        ;; rather than the one that crossed it, and rebuilding the variant would be three chances
+        ;; to transcribe a field wrong for no gain.
+        ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __l __u __s) acc)))
+    (:wat::rete::InsertOutcome::Inserted s)
+    (:wat::core::range 0 n)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :ins)
-     s     (:wat::rete::compile-all rules (:wat::core::PersistentVector))
-     s     (:ins::seed s 200000)]
-    (:wat::kernel::println (:wat::core::length (:wat::rete::Session/facts s)))))
+     s     (:wat::rete::compile-all rules (:wat::core::PersistentVector))]
+    (:wat::core::match (:ins::seed s 200000)
+      ;; Staging 200_000 facts under a 4096-byte ceiling must NOT reach here.
+      ((:wat::rete::InsertOutcome::Inserted staged)
+        (:wat::kernel::println (:wat::core::length (:wat::rete::Session/facts staged))))
+      ((:wat::rete::InsertOutcome::MemoryCeilingExceeded limit used staged)
+        (:wat::core::do
+          (:wat::kernel::println "ARM MemoryCeilingExceeded")
+          (:wat::kernel::println limit)
+          (:wat::kernel::println used)
+          (:wat::kernel::println staged))))))

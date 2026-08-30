@@ -69,18 +69,18 @@
 (:wat::rete::defquery :wpf::qt :params [] :when [(?fact <- :wpf::Trail)])
 
 (:wat::core::defn :wpf::staged [] -> :wat::rete::Session
-  (:wat::rete::insert-all
-    (:wat::rete::insert-all
-      (:wat::rete::insert-all
-        (:wat::rete::insert-all
-          (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
+    (:wat::core::match (:wat::rete::insert-all
+      (:wat::core::match (:wat::rete::insert-all
+        (:wat::core::match (:wat::rete::insert-all
+          (:wat::core::match (:wat::rete::insert-all
             (:wat::rete::compile-all (:wat::rete::collect-rules :wpf)
               (:wat::core::PersistentVector (:wpf::q1) (:wpf::q2) (:wpf::q4) (:wpf::qt)))
-            (:wat::core::PersistentVector (:wpf::A :id 1 :k "yes") (:wpf::A :id 2 :k "no")))
-          (:wat::core::PersistentVector (:wpf::B :id 1) (:wpf::B :id 2)))
-        (:wat::core::PersistentVector (:wpf::C :id 1) (:wpf::C :id 2)))
-      (:wat::core::PersistentVector (:wpf::D :id 1) (:wpf::D :id 2)))
-    (:wat::core::PersistentVector (:wpf::E :id 1) (:wpf::E :id 2))))
+            (:wat::core::PersistentVector (:wpf::A :id 1 :k "yes") (:wpf::A :id 2 :k "no"))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+          (:wat::core::PersistentVector (:wpf::B :id 1) (:wpf::B :id 2))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+        (:wat::core::PersistentVector (:wpf::C :id 1) (:wpf::C :id 2))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+      (:wat::core::PersistentVector (:wpf::D :id 1) (:wpf::D :id 2))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+    (:wat::core::PersistentVector (:wpf::E :id 1) (:wpf::E :id 2))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wpf::counts [s <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector

@@ -36,12 +36,12 @@
 (:wat::rete::defquery :jb::q :params [] :when [(?fact <- :jb::Both)])
 
 (:wat::core::defn :jb::staged [] -> :wat::rete::Session
-  (:wat::rete::insert-all
-    (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
+    (:wat::core::match (:wat::rete::insert-all
       (:wat::rete::compile-all (:wat::rete::collect-rules :jb)
                                (:wat::core::PersistentVector (:jb::q)))
-      (:wat::core::PersistentVector (:jb::Temp :loc "MCI" :celsius 5)))
-    (:wat::core::PersistentVector (:jb::Wind :loc "MCI" :kph 40))))
+      (:wat::core::PersistentVector (:jb::Temp :loc "MCI" :celsius 5))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+    (:wat::core::PersistentVector (:jb::Wind :loc "MCI" :kph 40))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :jb::readback [s <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [rows (:wat::rete::query s (:jb::q))]

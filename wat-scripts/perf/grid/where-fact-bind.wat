@@ -58,10 +58,10 @@
                               (:wfb::q-bound) (:wfb::q-plain) (:wfb::q-both)
                               (:wfb::q-Hit))
                     world (:wat::core::match (:wat::rete::fire-rules
-                            (:wat::rete::insert
+                            (:wat::core::match (:wat::rete::insert
                               (:wat::rete::compile-all rules queries)
                               (:wfb::Temp :c 15 :loc "MCI")
-                              (:wfb::Temp :c 80 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+                              (:wfb::Temp :c 80 :loc "MCI")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     bound (:wat::rete::query world (:wfb::q-bound))
                     plain (:wat::rete::query world (:wfb::q-plain))
                     both  (:wat::rete::query world (:wfb::q-both))
@@ -90,12 +90,12 @@
               "q-Hit: ?c")))))
     (:wfb::line 5 "from"
       (:wat::core::let [only-q (:wat::core::match (:wat::rete::fire-rules
-                                 (:wat::rete::insert
+                                 (:wat::core::match (:wat::rete::insert
                                    (:wat::rete::compile-all
                                      (:wat::core::PersistentVector)
                                      (:wat::core::PersistentVector (:wfb::q-from)))
                                    (:wfb::Temp :c 15 :loc "MCI")
-                                   (:wfb::Temp :c 80 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+                                   (:wfb::Temp :c 80 :loc "MCI")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                         grouped (:wat::rete::query only-q (:wfb::q-from))]
         (:wat::core::String/concat
           " n=" (:wat::core::i64::to-string (:wat::core::length grouped)))))))

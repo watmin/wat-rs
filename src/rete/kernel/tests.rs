@@ -63,8 +63,8 @@ fn round_trip_fired_session() {
             "(:wat::core::let \
                [rules   (:wat::rete::collect-rules :weather)\
                 s0      (:wat::rete::compile rules)\
-                s1      (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-                s2      (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))]\
+                s1      (:wat::core::match (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                s2      (:wat::core::match (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\
               (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None))))",
         );
 
@@ -142,8 +142,8 @@ fn guiding_light_matches_carry_support_chain() {
             "(:wat::core::let \
                [rules (:wat::rete::collect-rules :weather)\
                 s0    (:wat::rete::compile rules)\
-                s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-                s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))]\
+                s1    (:wat::core::match (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                s2    (:wat::core::match (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\
               s2)"
         );
 
@@ -307,7 +307,7 @@ fn root_join_seeds_one_token_per_element() {
                [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))\
                 rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-                sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))]\
+                sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temp :value 25)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\
               sess1)"
         );
 
@@ -405,8 +405,8 @@ fn hash_join_produces_one_token_on_same_loc() {
                 c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
                 rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-                sess1 (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\"))\
-                sess2 (:wat::rete::insert sess1 (:user::WindSpeed :kph 45 :location \"Oslo\"))]\
+                sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                sess2 (:wat::core::match (:wat::rete::insert sess1 (:user::WindSpeed :kph 45 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\
               sess2)"
         );
 
@@ -520,8 +520,8 @@ fn hash_join_drops_on_mismatched_loc() {
                 c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
                 rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-                sess1 (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\"))\
-                sess2 (:wat::rete::insert sess1 (:user::WindSpeed :kph 45 :location \"Bergen\"))]\
+                sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                sess2 (:wat::core::match (:wat::rete::insert sess1 (:user::WindSpeed :kph 45 :location \"Bergen\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\
               sess2)"
         );
 
@@ -596,10 +596,10 @@ fn hash_join_no_cross_loc_leakage() {
                 c2 (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
                 rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
                 s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-                s1 (:wat::rete::insert s0 (:user::Temperature :celsius 15 :location \"Oslo\"))\
-                s2 (:wat::rete::insert s1 (:user::Temperature :celsius 10 :location \"Bergen\"))\
-                s3 (:wat::rete::insert s2 (:user::WindSpeed :kph 45 :location \"Oslo\"))\
-                s4 (:wat::rete::insert s3 (:user::WindSpeed :kph 50 :location \"Bergen\"))]\
+                s1 (:wat::core::match (:wat::rete::insert s0 (:user::Temperature :celsius 15 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                s2 (:wat::core::match (:wat::rete::insert s1 (:user::Temperature :celsius 10 :location \"Bergen\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                s3 (:wat::core::match (:wat::rete::insert s2 (:user::WindSpeed :kph 45 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                s4 (:wat::core::match (:wat::rete::insert s3 (:user::WindSpeed :kph 50 :location \"Bergen\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\
               s4)"
         );
 
@@ -706,7 +706,7 @@ const NODE_SHARE_WORLD: &str = "\
 (:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert (:wat::rete::insert s (:nsh::A i)) (:nsh::B i)))\n\
+      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:nsh::A i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) (:nsh::B i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     session\n\
     (:wat::core::range 0 items)))\n\
 ";
@@ -795,14 +795,14 @@ const ACCUM_GATHER_WORLD: &str = "\
 (:wat::core::defn :agc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert s (:agc::Reading :g g :v j)))\n\
+      (:wat::core::match (:wat::rete::insert s (:agc::Reading :g g :v j)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     session\n\
     (:wat::core::range 0 w)))\n\
 \n\
 (:wat::core::defn :agc::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:agc::seed-readings (:wat::rete::insert s (:agc::Group g)) g w))\n\
+      (:agc::seed-readings (:wat::core::match (:wat::rete::insert s (:agc::Group g)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) g w))\n\
     session\n\
     (:wat::core::range 0 gs)))\n\
 ";
@@ -876,14 +876,14 @@ const ACCUM_AXIS_WORLD: &str = "\
 (:wat::core::defn :apx::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert s (:apx::Reading :g g :v (:apx::val g j))))\n\
+      (:wat::core::match (:wat::rete::insert s (:apx::Reading :g g :v (:apx::val g j))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     session\n\
     (:wat::core::range 0 w)))\n\
 \n\
 (:wat::core::defn :apx::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:apx::seed-readings (:wat::rete::insert s (:apx::Group g)) g w))\n\
+      (:apx::seed-readings (:wat::core::match (:wat::rete::insert s (:apx::Group g)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) g w))\n\
     session\n\
     (:wat::core::range 0 gs)))\n\
 ";
@@ -1563,13 +1563,13 @@ fn one_rule_world(rule: &str) -> String {
 (:wat::core::defn :one::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert s (:one::Reading :g g :v j)))\n\
+      (:wat::core::match (:wat::rete::insert s (:one::Reading :g g :v j)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     session\n\
     (:wat::core::range 0 w)))\n\
 (:wat::core::defn :one::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:one::seed-readings (:wat::rete::insert s (:one::Group g)) g w))\n\
+      (:one::seed-readings (:wat::core::match (:wat::rete::insert s (:one::Group g)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) g w))\n\
     session\n\
     (:wat::core::range 0 gs)))\n")
 }
@@ -1659,7 +1659,7 @@ fn bind_world(reading_cond: &str) -> String {
 (:wat::core::defn :bnd::seed [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert s (:bnd::Reading :g i :v i)))\n\
+      (:wat::core::match (:wat::rete::insert s (:bnd::Reading :g i :v i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     session\n\
     (:wat::core::range 0 n)))\n")
 }
@@ -2195,8 +2195,8 @@ fn binding_cardinality_distribution() {
                     s0   (:wat::rete::compile (:wat::core::PersistentVector rule))]\n\
     (:wat::core::foldl\n\
       (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
-        (:wat::core::let [a (:wat::rete::insert acc (:bcd::Temperature :celsius i :location i))]\n\
-          (:wat::rete::insert a (:bcd::WindSpeed :kph i :location i))))\n\
+        (:wat::core::let [a (:wat::core::match (:wat::rete::insert acc (:bcd::Temperature :celsius i :location i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\n\
+          (:wat::core::match (:wat::rete::insert a (:bcd::WindSpeed :kph i :location i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))))\n\
       s0 (:wat::core::range 0 n))))\n\
 ";
     let wj = startup_from_source(J, None, Arc::new(InMemoryLoader::new()))
@@ -2546,7 +2546,7 @@ const DEPTH_SPLIT_WORLD: &str = "\
 (:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert (:wat::rete::insert s (:cascade::Node :level 0 :id i)) (:cascade::Tag :level 0 :id i)))\n\
+      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:cascade::Node :level 0 :id i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) (:cascade::Tag :level 0 :id i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     session\n\
     (:wat::core::range 0 width)))\n";
 
@@ -2596,7 +2596,7 @@ const FANOUT_CENSUS_WORLD: &str = "\
 (:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left :key k :lid f)) (:fan::Right :key k :rid f)))\n\
+      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:fan::Left :key k :lid f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) (:fan::Right :key k :rid f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     s\n\
     (:wat::core::range 0 fanout)))\n\
 \n\
@@ -2633,7 +2633,7 @@ const TRI_CENSUS_WORLD: &str = "\
 (:wat::core::defn :tri::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert (:wat::rete::insert (:wat::rete::insert acc (:tri::A :key k :a f)) (:tri::B :key k :b f)) (:tri::C :key k :c f)))\n\
+      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:tri::A :key k :a f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) (:tri::B :key k :b f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) (:tri::C :key k :c f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
     s\n\
     (:wat::core::range 0 fanout)))\n\
 \n\
@@ -5054,12 +5054,12 @@ fn class_scan_harvest_includes_input() {
     let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("input-scan world should freeze");
     let src = "(:wat::core::match (:wat::rete::fire-rules\n\
-        (:wat::rete::insert\n\
-          (:wat::rete::insert\n\
+        (:wat::core::match (:wat::rete::insert\n\
+          (:wat::core::match (:wat::rete::insert\n\
             (:wat::rete::compile-all (:wat::rete::collect-rules :hs)\n\
               (:wat::core::PersistentVector (:hs::q-T) (:hs::q-U)))\n\
-            (:hs::T 1))\n\
-          (:hs::T 2))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))";
+            (:hs::T 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n\
+          (:hs::T 2)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))";
     let fired = eval_in_frozen(
         &crate::parse_one!(src).expect("parse input-scan fire"),
         &world,
@@ -9316,9 +9316,9 @@ fn n3_leaf_set_vs_occupancy() {
                [s0 (:wat::rete::compile-all (:wat::rete::collect-rules :n3) \
                      (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) \
                        (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))\
-                s1 (:wat::rete::insert s0 (:n3::A :k 1))\
-                s2 (:wat::rete::insert s1 (:n3::A :k 2))\
-                s3 (:wat::rete::insert s2 (:n3::A :k 3))]\
+                s1 (:wat::core::match (:wat::rete::insert s0 (:n3::A :k 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                s2 (:wat::core::match (:wat::rete::insert s1 (:n3::A :k 2)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\
+                s3 (:wat::core::match (:wat::rete::insert s2 (:n3::A :k 3)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))]\
               (:wat::core::match (:wat::rete::fire-rules s3) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None))))",
         )
     });

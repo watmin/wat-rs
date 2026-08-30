@@ -76,14 +76,14 @@
 ;; the native `insert-all'` — one rebuild, not N). `insert` x N is what a user should never write,
 ;; so the benchmark must not write it either.
 (:wat::core::defn :asym::seed-items [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:asym::A i)))
       (:wat::core::PersistentVector)
-      (:wat::core::range 0 items))))
+      (:wat::core::range 0 items))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; b-codes / c-codes — every derived fact of each type, canonically encoded.
 (:wat::core::defn :asym::b-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])

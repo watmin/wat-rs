@@ -247,6 +247,35 @@
   :RoundCapExceeded      [cap <- :wat::core::i64
                           still-deriving <- :wat::core::i64])
 
+;; ─── InsertOutcome — staging's bounded result, as a VALUE ────────────────────────────────────
+;;
+;; ⛔ A SEPARATE ENUM, NOT `(FireOutcome :- [Session])`, AND THE REASON IS NOT SYMMETRY.
+;; `insert` runs NO ROUNDS, so it can never answer `RoundCapExceeded`. Reusing `FireOutcome` would
+;; hand every one of ~640 insert sites a match arm that cannot occur — dead code the reader must
+;; still write and still wonder about. **An unreachable arm is the two-facts-in-one-value defect
+;; this arc has now paid for four times** (`ret: Bool` on scheme-less rows; `rounds` on the insert
+;; door's error; and twice more in the ledger). Parametricity solved a different problem in S2b —
+;; one payload TYPE varying across verbs — and it does not merge two different ARM SETS.
+;;
+;; Not parametric, for the mirror reason: `insert` yields exactly one payload type, and a type
+;; parameter with a single instantiation is ceremony that every call site pays for.
+;;
+;;   :Inserted              [session]              — the happy path; the session with the fact staged.
+;;   :MemoryCeilingExceeded [limit used staged]    — past `max-session-bytes` while STAGING, before
+;;                                                   any fire. `staged` is the fact count reached —
+;;                                                   read it beside `used`: a large byte count with
+;;                                                   a SMALL `staged` says the memory is not the
+;;                                                   facts (the ceiling measures the session's
+;;                                                   thread from `compile-all`, not a walk of the
+;;                                                   session's own structures).
+;;
+;; Pure, for `FireOutcome`'s reason exactly: a Session and three i64s, nothing live.
+(:wat::core::defenum :wat::rete::InsertOutcome :wat::enum::Pure
+  :Inserted              [session <- :wat::rete::Session]
+  :MemoryCeilingExceeded [limit <- :wat::core::i64
+                          used <- :wat::core::i64
+                          staged <- :wat::core::i64])
+
 (:wat::core::typealias :wat::rete::GroupByMap
   (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])]))
 (:wat::core::typealias :wat::rete::ClassFields

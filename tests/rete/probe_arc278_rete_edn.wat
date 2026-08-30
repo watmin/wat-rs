@@ -14,7 +14,7 @@
 (:wat::rete::defquery :dm::q-hollow :params [] :when [(?hollow <- :dm::Hollow)])
 
 (:wat::core::defn :dm::seed-practice [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert s
+  (:wat::core::match (:wat::rete::insert s
     (:dm::Artifact :kind "log"   :name "datamancer.rete.edn")
     (:dm::Artifact :kind "log"   :name "CURRENT-STATE")
     (:dm::Artifact :kind "cache" :name "summary")
@@ -24,15 +24,15 @@
     (:dm::Beat :t 3 :kind "fetch-primer")
     (:dm::Beat :t 4 :kind "tend-record")
     (:dm::Beat :t 5 :kind "weigh-disk")
-    (:dm::Beat :t 6 :kind "root-failure")))
+    (:dm::Beat :t 6 :kind "root-failure")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; Same gap. A cache. Even a written file. Never read the log.
 (:wat::core::defn :dm::seed-impostor [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert s
+  (:wat::core::match (:wat::rete::insert s
     (:dm::Artifact :kind "cache" :name "summary")
     (:dm::Beat :t 0 :kind "gap")
     (:dm::Beat :t 1 :kind "cache")
-    (:dm::Beat :t 4 :kind "tend-record")))
+    (:dm::Beat :t 4 :kind "tend-record")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :dm::counts
   [txt  <- :wat::core::String

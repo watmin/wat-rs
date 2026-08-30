@@ -53,7 +53,7 @@
 
 ;; batch: ONE insert-all call (the public verb, delegating to insert-all$native).
 (:wat::core::defn :nia::seed-batch [] -> :wat::rete::Session
-  (:wat::rete::insert-all (:nia::base) (:nia::the-facts)))
+  (:wat::core::match (:wat::rete::insert-all (:nia::base) (:nia::the-facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; chained: N sequential 2-ary insert calls — the pre-existing streaming hot path.
 ;; `insert` is now a `defclause` (a dispatch table, not a plain `Function` value), so it
@@ -61,17 +61,17 @@
 (:wat::core::defn :nia::seed-chained [] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session f <- :nia::Reading] -> :wat::rete::Session
-      (:wat::rete::insert s f))
+      (:wat::core::match (:wat::rete::insert s f) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     (:nia::base)
     (:nia::the-facts)))
 
 ;; oracle: batch via insert-all$oracle (the wat reference / differential oracle).
 (:wat::core::defn :nia::seed-oracle [] -> :wat::rete::Session
-  (:wat::rete::insert-all$oracle (:nia::base) (:nia::the-facts)))
+  (:wat::core::match (:wat::rete::insert-all$oracle (:nia::base) (:nia::the-facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; native: batch via insert-all$native DIRECTLY (bypassing the public delegate — isolates the prime).
 (:wat::core::defn :nia::seed-native [] -> :wat::rete::Session
-  (:wat::rete::insert-all$native (:nia::base) (:nia::the-facts)))
+  (:wat::core::match (:wat::rete::insert-all$native (:nia::base) (:nia::the-facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; ── witnesses, read off a seeded Session ──────────────────────────────────────
 
@@ -97,10 +97,10 @@
 ;; ── single-fact seeders (assertion 4 — the 2-ary hot path) ────────────────────
 
 (:wat::core::defn :nia::seed-single-public [] -> :wat::rete::Session
-  (:wat::rete::insert (:nia::base) (:nia::Reading :g 7 :v 70)))
+  (:wat::core::match (:wat::rete::insert (:nia::base) (:nia::Reading :g 7 :v 70)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :nia::seed-single-native [] -> :wat::rete::Session
-  (:wat::rete::insert$native (:nia::base) (:nia::Reading :g 7 :v 70)))
+  (:wat::core::match (:wat::rete::insert$native (:nia::base) (:nia::Reading :g 7 :v 70)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; ── entries (0-arity, called by name from the .rs) ────────────────────────────
 

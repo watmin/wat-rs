@@ -65,11 +65,11 @@
   (:wat::core::let
     [s0 (:wat::rete::compile-all (:wat::core::PersistentVector) (:wat::core::PersistentVector q))
      s1 (:wat::core::if (:wat-tests::rete::nest::has world 1)
-          (:wat::rete::insert s0 (:wat-tests::rete::nest::A :k 1)) s0)
+          (:wat::core::match (:wat::rete::insert s0 (:wat-tests::rete::nest::A :k 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))) s0)
      s2 (:wat::core::if (:wat-tests::rete::nest::has world 2)
-          (:wat::rete::insert s1 (:wat-tests::rete::nest::B :k 1)) s1)]
+          (:wat::core::match (:wat::rete::insert s1 (:wat-tests::rete::nest::B :k 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))) s1)]
     (:wat::core::if (:wat-tests::rete::nest::has world 4)
-      (:wat::rete::insert s2 (:wat-tests::rete::nest::C :k 1)) s2)))
+      (:wat::core::match (:wat::rete::insert s2 (:wat-tests::rete::nest::C :k 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))) s2)))
 
 ;; ── the case, and the readout ────────────────────────────────────────────────
 (:wat::core::defrecord :wat-tests::rete::nest::Case

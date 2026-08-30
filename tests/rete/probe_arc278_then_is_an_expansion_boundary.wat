@@ -70,10 +70,10 @@
 
 (:wat::core::defn :teb::fired [n <- :wat::core::String] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules
-    (:wat::rete::insert-all
+    (:wat::core::match (:wat::rete::insert-all
       (:wat::rete::compile-all (:wat::rete::collect-rules :teb)
         (:wat::core::PersistentVector (:teb::q-out) (:teb::q-pair) (:teb::q-wrap) (:teb::q-lhs)))
-      (:wat::core::PersistentVector (:teb::In :n n)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
+      (:wat::core::PersistentVector (:teb::In :n n))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :teb::fact [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::PersistentMap
   (:wat::core::first (:wat::rete::query s q)))

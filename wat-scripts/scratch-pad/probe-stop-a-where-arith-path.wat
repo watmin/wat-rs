@@ -80,11 +80,11 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [session (:wat::rete::insert-all
+    [session (:wat::core::match (:wat::rete::insert-all
                (:wat::rete::compile-all (:wat::core::PersistentVector (:stopa::overflow-in-where)) (:wat::core::PersistentVector (:stopa::q-Hit)))
                (:wat::core::PersistentVector
                  (:stopa::Big :k 1 :n 1)
-                 (:stopa::Big :k 2 :n 9223372036854775807)))
+                 (:stopa::Big :k 2 :n 9223372036854775807))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      _       (:wat::kernel::println "before-fire")
      fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      _       (:wat::kernel::println "after-fire")]

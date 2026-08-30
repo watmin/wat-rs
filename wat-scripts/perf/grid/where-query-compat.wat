@@ -167,14 +167,14 @@
       (:wat::core::String/concat (:wat::core::String/concat " " name) body))))
 
 (:wat::core::defn :wqc::seed [session <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert session
+  (:wat::core::match (:wat::rete::insert session
     (:wqc::Temp :c 15 :loc "MCI")
     (:wqc::Temp :c 80 :loc "MCI")
     (:wqc::Temp :c 40 :loc "SFO")
     (:wqc::Temp :c 10 :loc "ORD")
     (:wqc::Wind :kph 20 :loc "MCI")
     (:wqc::Wind :kph 5  :loc "SFO")
-    (:wqc::Wind :kph 20 :loc "LAX")))
+    (:wqc::Wind :kph 20 :loc "LAX")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -35,14 +35,14 @@ fn world(acc: &str, gate: &str) -> String {
 fn busy_count(fire_fn: &str, acc: &str, gate: &str, readings: &[(&str, i64)]) -> Result<i64, String> {
     let reading_inserts: String = readings
         .iter()
-        .map(|(loc, v)| format!("             session (:wat::rete::insert session (:w::Reading :location \"{loc}\" :value {v}))\n"))
+        .map(|(loc, v)| format!("             session (:wat::core::match (:wat::rete::insert session (:w::Reading :location \"{loc}\" :value {v})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"))
         .collect();
     let run = format!(
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
              session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Busy)))\n\
-             session (:wat::rete::insert session (:w::Station :location \"Oslo\"))\n\
+             session (:wat::core::match (:wat::rete::insert session (:w::Station :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n\
 {reading_inserts}\
              fired   (:wat::core::match (:wat::rete::{fire_fn} session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))]\n\
             (:wat::rete::query fired (:w::q-Busy))))"

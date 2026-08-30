@@ -141,18 +141,11 @@ fn field_str(fields: &[(OwnedValue, OwnedValue)], name: &str) -> String {
         other => panic!(":{name} must be a String; got {other:?}"),
     }
 }
+// `field_i64` lived here and is GONE (arc 278 S2c). It read an i64 field off a raised EDN error;
+// both ceilings are now matchable ARMS, so their numbers arrive as `arm()`'s fields and nothing
+// reads them off stderr any more. `rete_error`/`field_str` STAY — `RuleSetMayNotTerminate` is a
+// COMPILE-time refusal from the termination verifier, not a ceiling, and it correctly still raises.
 
-fn field_i64(fields: &[(OwnedValue, OwnedValue)], name: &str) -> i64 {
-    let v = fields
-        .iter()
-        .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new(name)))
-        .map(|(_, v)| v)
-        .unwrap_or_else(|| panic!("the error must carry :{name}; got {fields:?}"));
-    match v {
-        OwnedValue::Integer(n) => *n,
-        other => panic!(":{name} must be an integer; got {other:?}"),
-    }
-}
 
 /// The runaway is refused by the TERMINATION VERIFIER at `compile-all` — before a fact is
 /// inserted, before a round runs. It never reaches the round cap, and the fixture's `"firing..."`
@@ -226,47 +219,52 @@ fn a_mint_hidden_inside_a_rete_fn_body_is_refused() {
 /// The fixture NEVER calls `fire-rules`, which is what makes this a proof about `insert` alone.
 #[test]
 fn a_session_that_outgrows_its_ceiling_while_staging_is_refused_at_the_insert_door() {
-    let (ok, _out, err) = run("tests/rete/probe_arc278_session_memory_ceiling_insert.wat");
-    assert!(
-        !ok,
-        "staging past `max-session-bytes` must be refused even though nothing fires\n{err}"
-    );
-    let e = rete_error(&err, "SessionMemoryCeilingExceededOnInsert");
+    let (ok, out, err) = run("tests/rete/probe_arc278_session_memory_ceiling_insert.wat");
+    // Totality (S2c): staging answers `(:wat::rete::InsertOutcome)`, so a breach is a VALUE and
+    // the program lives. What must NOT happen is the `Inserted` arm — that would mean 200_000
+    // facts staged under a 4096-byte ceiling with nothing noticing, which is the exact hole this
+    // gate was built for.
+    assert!(ok, "a staging breach is a VALUE now — the program must not die\n{out}{err}");
+    let a = arm(&out);
     assert_eq!(
-        field_i64(&e, "limit"),
-        4096,
+        a.0, "ARM MemoryCeilingExceeded",
+        "staging past `max-session-bytes` must take the ceiling arm — the `Inserted` arm here \
+         means `insert` is unbounded again\n{out}"
+    );
+    assert_eq!(
+        a.1[0], 4096,
         "the ceiling reported must be the CONFIGURED one — a hardcoded default here would mean \
          the wat directive is decorative"
     );
     assert!(
-        field_i64(&e, "used") > 4096,
+        a.1[1] > 4096,
         "the reported usage must exceed the limit it tripped; got {}",
-        field_i64(&e, "used")
+        a.1[1]
     );
-    // ⛔ THE DOOR IS PART OF THE ASSERTION, not decoration. `SessionMemoryCeilingExceeded` (no
-    // suffix) is the FIRE door's variant and reports ROUNDS COMPLETED — a number with no meaning
-    // where no rounds run. If this gate accepted either tag it would pass just as happily with
-    // the insert check deleted, because the old fixture's fire would have refused instead.
-    // `staged` is a field the FIRE variant does not have at all, so pinning it proves the door
-    // STRUCTURALLY rather than by matching prose. 1, because the breach is detected on the very
-    // first `insert`: the fold's own `(range 0 200000)` is already megabytes against a 4096-byte
-    // ceiling. That pairing — a large `used` beside `staged: 1` — is the diagnostic working as
-    // designed: it says the memory is NOT the facts, which is the honest reading of a counter that
-    // measures the thread rather than walking the session.
+    // ⛔ `staged` IS THE DOOR, STRUCTURALLY. The FIRE arm has no such field — it reports `rounds` —
+    // so pinning this proves which door refused without matching on prose. 1, because the breach
+    // is caught on the very first `insert`: the fold's own `(range 0 200000)` is already megabytes
+    // against a 4096-byte ceiling. That pairing — a large `used` beside `staged: 1` — is the
+    // diagnostic working as designed: it says the memory is NOT the facts, which is the honest
+    // reading of a counter that measures the thread rather than walking the session.
     assert_eq!(
-        field_i64(&e, "staged"),
-        1,
+        a.1[2], 1,
         "the insert door must report how far STAGING had got, and this fixture breaches on its \
          first `insert` — a different value means the ceiling is no longer checked per insert"
     );
 
-    // NON-VACUITY: the same insert-only shape under the DEFAULT ceiling completes. Without this,
+    // NON-VACUITY: a workload that FITS must take the `Inserted` arm and complete. Without this,
     // a ceiling of zero — or a check that refuses unconditionally — satisfies everything above.
     let (ok_ok, out_ok, err_ok) = run("tests/rete/probe_arc278_session_memory_ceiling_fire_default.wat");
     assert!(
         ok_ok,
         "the insert door must not refuse a workload that fits — 400 staged facts at the 1 GiB \
          default is nowhere near the ceiling\n{out_ok}{err_ok}"
+    );
+    assert_eq!(
+        out_ok.trim(),
+        "40000",
+        "and that workload must actually do its work"
     );
 }
 

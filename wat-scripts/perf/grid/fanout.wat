@@ -89,7 +89,7 @@
 ;; delegates to the native `insert-all'`: one rebuild, not N). Order is preserved exactly —
 ;; ascending k, and within a key ascending f, Left before Right — so `:derived` is unchanged.
 (:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all s (:fan::all-facts keys fanout)))
+  (:wat::core::match (:wat::rete::insert-all s (:fan::all-facts keys fanout)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; enc key lid rid — canonical single-i64 witness for one derived Pair fact.
 (:wat::core::defn :fan::enc [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64] -> :wat::core::i64
@@ -128,7 +128,7 @@
                     session (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair)))
                     facts   (:fan::all-facts keys fanout)
                     p0      (:wat::time::now)
-                    staged  (:wat::rete::insert-all session facts)
+                    staged  (:wat::core::match (:wat::rete::insert-all session facts) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
                     i1      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     f1      (:wat::time::now)

@@ -22758,6 +22758,21 @@ pub(crate) fn no_field_names() -> Arc<Vec<String>> {
     ":wat::rete::FireOutcome",
     "RoundCapExceeded"
 );
+
+// `(:wat::rete::InsertOutcome)`'s tagged variants — the staging door's twin of the above. Two
+// variants, not three: `insert` runs no rounds, so it has no `RoundCapExceeded`.
+::wat_source_derive::wat_enum_field_names_from!(
+    INSERT_OUTCOME_INSERTED_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::InsertOutcome",
+    "Inserted"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    INSERT_OUTCOME_MEMORY_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::InsertOutcome",
+    "MemoryCeilingExceeded"
+);
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_CONNECTION_FIELDS,
     "wat/spawn.wat",
@@ -22879,6 +22894,12 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
         }
         (":wat::rete::FireOutcome", "RoundCapExceeded") => {
             return crate::value::value::names_arc_from_static(FIRE_OUTCOME_ROUNDS_FIELDS)
+        }
+        (":wat::rete::InsertOutcome", "Inserted") => {
+            return crate::value::value::names_arc_from_static(INSERT_OUTCOME_INSERTED_FIELDS)
+        }
+        (":wat::rete::InsertOutcome", "MemoryCeilingExceeded") => {
+            return crate::value::value::names_arc_from_static(INSERT_OUTCOME_MEMORY_FIELDS)
         }
         _ => {}
     }

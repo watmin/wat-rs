@@ -48,14 +48,14 @@ fn run_for(n: usize) {
     let mut idx = 1usize;
     for j in 0..n {
         binds.push_str(&format!(
-            "   s{idx} (:wat::rete::insert s{prev} (:weather::Temperature :celsius 15 :location \"loc{j}\"))\n"
+            "   s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:weather::Temperature :celsius 15 :location \"loc{j}\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"
         ));
         prev = idx;
         idx += 1;
     }
     for j in 0..n {
         binds.push_str(&format!(
-            "   s{idx} (:wat::rete::insert s{prev} (:weather::WindSpeed :kph 45 :location \"loc{j}\"))\n"
+            "   s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:weather::WindSpeed :kph 45 :location \"loc{j}\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"
         ));
         prev = idx;
         idx += 1;
@@ -96,11 +96,11 @@ fn run_native(n: usize) {
     let mut prev = 0usize;
     let mut idx = 1usize;
     for j in 0..n {
-        binds.push_str(&format!("   s{idx} (:wat::rete::insert s{prev} (:weather::Temperature :celsius 15 :location \"loc{j}\"))\n"));
+        binds.push_str(&format!("   s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:weather::Temperature :celsius 15 :location \"loc{j}\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"));
         prev = idx; idx += 1;
     }
     for j in 0..n {
-        binds.push_str(&format!("   s{idx} (:wat::rete::insert s{prev} (:weather::WindSpeed :kph 45 :location \"loc{j}\"))\n"));
+        binds.push_str(&format!("   s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:weather::WindSpeed :kph 45 :location \"loc{j}\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"));
         prev = idx; idx += 1;
     }
     // Arc 278 the fire-outcome wall — `fire-once` yields a matchable `(FireOutcome)`, so the

@@ -32,21 +32,21 @@
 (:wat::core::defn :nin::seed-spec [n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert$oracle s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
+      (:wat::core::match (:wat::rete::insert$oracle s (:nin::Reading :g i :v (:wat::core::i64::* i 10))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     (:nin::base)
     (:wat::core::range 0 n)))
 
 (:wat::core::defn :nin::seed-native [n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert$native s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
+      (:wat::core::match (:wat::rete::insert$native s (:nin::Reading :g i :v (:wat::core::i64::* i 10))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     (:nin::base)
     (:wat::core::range 0 n)))
 
 (:wat::core::defn :nin::seed-public [n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
+      (:wat::core::match (:wat::rete::insert s (:nin::Reading :g i :v (:wat::core::i64::* i 10))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     (:nin::base)
     (:wat::core::range 0 n)))
 

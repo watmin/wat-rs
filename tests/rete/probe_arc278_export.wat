@@ -25,9 +25,9 @@
   :then [(:exp::Hit ?c)])
 
 (:wat::core::defn :exp::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert s (:exp::Temp :c 10))
-    (:exp::Temp :c 30)))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert s (:exp::Temp :c 10)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+    (:exp::Temp :c 30)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::source-hits [] -> :wat::core::i64
   (:wat::core::let [s0 (:wat::rete::compile-all
@@ -129,9 +129,9 @@
 (:wat::rete::defquery :sn::q-Ok  :params [] :when [(?fact <- :sn::Ok)])
 
 (:wat::core::defn :sn::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert s (:sn::A :k 1))
-    (:sn::A :k 2)))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert s (:sn::A :k 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+    (:sn::A :k 2)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :sn::counts [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector

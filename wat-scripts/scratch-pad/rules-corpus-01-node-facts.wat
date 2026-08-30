@@ -116,22 +116,22 @@
 ;;   positive arm is broken and the "no leak" reading would have been vacuous.
 
 (:wat::core::defn :fixr::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert-all s
+  (:wat::core::match (:wat::rete::insert-all s
     (:wat::core::PersistentVector
       (:fixr::Node :id 1 :parent 0 :index 0 :kind "symbol")
       (:fixr::Node :id 2 :parent 0 :index 1 :kind "symbol")
       (:fixr::Node :id 3 :parent 0 :index 2 :kind "keyword")
       (:fixr::Node :id 4 :parent 9 :index 0 :kind "keyword")
-      (:fixr::Node :id 5 :parent 9 :index 1 :kind "keyword"))))
+      (:fixr::Node :id 5 :parent 9 :index 1 :kind "keyword"))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fixr::seed-names [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert-all s
+  (:wat::core::match (:wat::rete::insert-all s
     (:wat::core::PersistentVector
       (:fixr::Named :id 1 :name "body")
       (:fixr::Named :id 2 :name "<-")
       (:fixr::Named :id 3 :name ":wat::WatAST")
       ;; id 4 deliberately ABSENT — the unnameable head. This is the whole point.
-      (:fixr::Named :id 5 :name ":wat::core::foo"))))
+      (:fixr::Named :id 5 :name ":wat::core::foo"))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fixr::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println (:wat::core::string::concat label (:wat::core::str n))))

@@ -167,7 +167,7 @@
 
 ;; seed session G W — stage Group(g) + its W Readings for every g in [0, G).
 (:wat::core::defn :acc::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all session (:acc::all-facts G W)))
+  (:wat::core::match (:wat::rete::insert-all session (:acc::all-facts G W)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; codes fired — every derived fact across all five types, canonically encoded, into a (Vector :- [i64]).
 ;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.
@@ -207,7 +207,7 @@
                     facts   (:acc::all-facts groups reads)
                     ;; protocol: insert + fire + query. Compile and fact-construct are setup.
                     p0      (:wat::time::now)
-                    staged  (:wat::rete::insert-all session facts)
+                    staged  (:wat::core::match (:wat::rete::insert-all session facts) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
                     i1      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     f1      (:wat::time::now)

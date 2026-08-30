@@ -264,10 +264,10 @@
                          (:wat::core::mapv
                            (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::fuzz::W (:wat-tests::rete::fuzz::W i))
                            (:wat::core::range 0 dups)))
-                    s1 (:wat::rete::insert-all s0 ws)
-                    s2 (:wat::rete::insert-all s1 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P1 1)))
-                    s3 (:wat::rete::insert-all s2 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P2 1)))
-                    st (:wat::rete::insert-all s3 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::S1 1)))
+                    s1 (:wat::core::match (:wat::rete::insert-all s0 ws) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+                    s2 (:wat::core::match (:wat::rete::insert-all s1 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P1 1))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+                    s3 (:wat::core::match (:wat::rete::insert-all s2 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P2 1))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+                    st (:wat::core::match (:wat::rete::insert-all s3 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::S1 1))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
                     nf (:wat::core::if (:wat::core::= retr 0)
                          (:wat::core::match (:wat::rete::fire-rules st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                          (:wat-tests::rete::fuzz::refire-native d st))
@@ -459,13 +459,13 @@
 ;; dups=1 — a single `(W 0)`, so count=1 and max=0; retracting it empties the `:from` set.
 (:wat::core::defn :wat-tests::rete::fuzz::nv-rows
   [emptied <- :wat::core::bool  q <- :wat::rete::Query] -> :wat::core::i64
-  (:wat::core::let [s0 (:wat::rete::insert
+  (:wat::core::let [s0 (:wat::core::match (:wat::rete::insert
                          (:wat::rete::compile-all
                            (:wat::core::PersistentVector)
                            (:wat::core::PersistentVector
                              (:wat-tests::rete::fuzz::nv-count-1) (:wat-tests::rete::fuzz::nv-count-0)
                              (:wat-tests::rete::fuzz::nv-max-1)   (:wat-tests::rete::fuzz::nv-max-0)))
-                         (:wat-tests::rete::fuzz::W 0))
+                         (:wat-tests::rete::fuzz::W 0)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
                     fired (:wat::core::if emptied
                             (:wat::core::match (:wat::rete::fire-rules
                               (:wat::rete::retract (:wat::core::match (:wat::rete::fire-rules s0) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:wat-tests::rete::fuzz::W 0))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))

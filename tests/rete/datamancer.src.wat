@@ -96,7 +96,7 @@
     (:dm::q-read) (:dm::q-primer) (:dm::q-four)))
 
 (:wat::core::defn :dm::seed-practice [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert s
+  (:wat::core::match (:wat::rete::insert s
     (:dm::Artifact :kind "log"   :name "datamancer.rete.edn")
     (:dm::Artifact :kind "log"   :name "CURRENT-STATE")
     (:dm::Artifact :kind "cache" :name "summary")
@@ -106,7 +106,7 @@
     (:dm::Beat :t 3 :kind "fetch-primer")
     (:dm::Beat :t 4 :kind "tend-record")
     (:dm::Beat :t 5 :kind "weigh-disk")
-    (:dm::Beat :t 6 :kind "root-failure")))
+    (:dm::Beat :t 6 :kind "root-failure")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0    (:wat::rete::compile-all (:dm::rules) (:dm::queries))

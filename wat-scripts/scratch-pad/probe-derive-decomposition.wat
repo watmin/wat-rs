@@ -42,7 +42,7 @@
 (:wat::core::defn :dd::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert (:wat::rete::insert acc (:dd::Left :key k :lid f)) (:dd::Right :key k :rid f)))
+      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:dd::Left :key k :lid f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))) (:dd::Right :key k :rid f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     s
     (:wat::core::range 0 fanout)))
 

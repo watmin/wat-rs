@@ -19,9 +19,9 @@
     (:wat::rete::compile (:wat::core::PersistentVector rule))))
 
 (:wat::core::defn :test::seed-temps [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert s (:user::Temp :value 25))
-    (:user::Temp :value 15)))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert s (:user::Temp :value 25)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+    (:user::Temp :value 15)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::fire-once [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-once s) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-once: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-once: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))

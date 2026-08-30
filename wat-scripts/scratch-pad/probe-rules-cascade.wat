@@ -40,7 +40,7 @@
 
 (:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Temp] -> :wat::core::String
   (:wat::core::let
-    [fired (:wat::core::match (:wat::rete::fire-rules (:wat::rete::insert template seed)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+    [fired (:wat::core::match (:wat::rete::fire-rules (:wat::core::match (:wat::rete::insert template seed) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      h (:wat::core::length (:wat::rete::query fired (:usr::q-Hot)))
      a (:wat::core::length (:wat::rete::query fired (:usr::q-Alert)))
      cr (:wat::core::length (:wat::rete::query fired (:usr::q-Critical)))]

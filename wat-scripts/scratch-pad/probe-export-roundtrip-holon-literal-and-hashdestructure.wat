@@ -20,9 +20,9 @@
 (:wat::rete::defquery :xr::q :params [] :when [(?fact <- :xr::Out)])
 
 (:wat::core::defn :xr::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert s (:xr::In :k "hit"  :p (:xr::Point :x 40 :y 2) :h #holon [1 2 3]))
-    (:xr::In :k "miss" :p (:xr::Point :x 1 :y 1) :h #holon [7 8 9])))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert s (:xr::In :k "hit"  :p (:xr::Point :x 40 :y 2) :h #holon [1 2 3])) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+    (:xr::In :k "miss" :p (:xr::Point :x 1 :y 1) :h #holon [7 8 9])) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

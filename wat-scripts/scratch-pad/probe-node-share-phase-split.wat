@@ -94,7 +94,7 @@
 (:wat::core::defn :phase::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert (:wat::rete::insert s (:phase::A i)) (:phase::B i)))
+      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:phase::A i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))) (:phase::B i)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     session
     (:wat::core::range 0 items)))
 

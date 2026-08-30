@@ -19,8 +19,8 @@
     (:wat::core::length
       (:wat::rete::query
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::rete::insert
+          (:wat::core::match (:wat::rete::insert
             (:wat::rete::compile-all (:wat::core::PersistentVector (:tl::flip))
               (:wat::core::PersistentVector (:tl::q)))
-            (:tl::Wide :f0 true :f1 true :f2 true :f3 true :f4 true :f5 true :f6 true :f7 true :f8 true :f9 true :f10 true :f11 true :f12 true :f13 true :f14 true :f15 true :f16 true :f17 true :f18 true :f19 true))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+            (:tl::Wide :f0 true :f1 true :f2 true :f3 true :f4 true :f5 true :f6 true :f7 true :f8 true :f9 true :f10 true :f11 true :f12 true :f13 true :f14 true :f15 true :f16 true :f17 true :f18 true :f19 true)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
         (:tl::q)))))

@@ -86,7 +86,7 @@ fn chain_expr(n: usize, query_type: &str) -> String {
     for i in 1..=n {
         let cur = i;
         binds.push_str(&format!(
-            "  s{cur} (:wat::rete::insert s{prev} (:chain::A :k {i}))\n"
+            "  s{cur} (:wat::core::match (:wat::rete::insert s{prev} (:chain::A :k {i})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"
         ));
         prev = cur;
     }
@@ -145,7 +145,7 @@ fn triple_expr(n: usize, query_type: &str) -> String {
     );
     let mut prev = 0usize;
     for i in 1..=n {
-        binds.push_str(&format!("  s{i} (:wat::rete::insert s{prev} (:tri::A :k {i}))\n"));
+        binds.push_str(&format!("  s{i} (:wat::core::match (:wat::rete::insert s{prev} (:tri::A :k {i})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"));
         prev = i;
     }
     format!(
@@ -201,12 +201,12 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
     // X seeds the left memory BEFORE Y arrives on the right.
     for i in 1..=n {
         let idx = prev + 1;
-        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::X :k {i}))\n"));
+        binds.push_str(&format!("  s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:xyz::X :k {i})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"));
         prev = idx;
     }
     for i in 1..=n {
         let idx = prev + 1;
-        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::Y :k {i}))\n"));
+        binds.push_str(&format!("  s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:xyz::Y :k {i})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"));
         prev = idx;
     }
     format!(

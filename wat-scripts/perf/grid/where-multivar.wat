@@ -240,7 +240,7 @@
 ;;   e(i) = i mod 3
 ;;   s(i) = to-string(i)
 (:wat::core::defn :wmv::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
@@ -255,7 +255,7 @@
           (:wat::core::PersistentVector/conj acc
             (:wmv::Req :k i :a a :b b :c c :d d :e e :s s))))
       (:wat::core::PersistentVector)
-      (:wat::core::range 0 items))))
+      (:wat::core::range 0 items))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wmv::derived-ints

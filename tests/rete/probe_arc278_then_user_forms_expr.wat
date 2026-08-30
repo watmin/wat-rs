@@ -22,7 +22,7 @@
     (:wat::core::PersistentVector (:tf::q-Rate))))
 
 (:wat::core::defn :test::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert s (:tf::In :n 5)))
+  (:wat::core::match (:wat::rete::insert s (:tf::In :n 5)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::Option/expect

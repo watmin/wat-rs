@@ -113,7 +113,7 @@
   [session <- :wat::rete::Session  stations <- :wat::core::i64  threshold <- :wat::core::i64]
   -> :wat::rete::Session
   (:wat::core::let [span (:wat::core::i64::* 2 threshold)]
-    (:wat::rete::insert-all
+    (:wat::core::match (:wat::rete::insert-all
       session
       (:wat::core::foldl
         (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
@@ -123,7 +123,7 @@
             i
             (:mf::i64-mod i span)))
         (:wat::core::PersistentVector)
-        (:wat::core::range 0 stations)))))
+        (:wat::core::range 0 stations))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one

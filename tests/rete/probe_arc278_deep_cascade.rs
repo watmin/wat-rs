@@ -57,9 +57,9 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
     let mut idx = 1usize;
     let mut prev = 0usize;
     for i in 0..width {
-        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:casc::Stage0 :id {i}))\n"));
+        binds.push_str(&format!("  s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:casc::Stage0 :id {i})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"));
         prev = idx; idx += 1;
-        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:casc::Tag0 :id {i}))\n"));
+        binds.push_str(&format!("  s{idx} (:wat::core::match (:wat::rete::insert s{prev} (:casc::Tag0 :id {i})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n"));
         prev = idx; idx += 1;
     }
     format!(

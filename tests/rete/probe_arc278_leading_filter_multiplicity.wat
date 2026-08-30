@@ -71,10 +71,10 @@
   (:wat::core::let [rules (:wat::rete::collect-rules :lf2)
                     s0    (:wat::rete::compile-all rules
                             (:wat::core::PersistentVector (:lf2::q-exists) (:lf2::q-not)))
-                    s1    (:wat::rete::insert-all s0
-                            (:wat::core::PersistentVector (:lf2::Wind "MCI") (:lf2::Wind "MCI")))
-                    s2    (:wat::rete::insert-all s1
-                            (:wat::core::PersistentVector (:lf2::S1 1)))
+                    s1    (:wat::core::match (:wat::rete::insert-all s0
+                            (:wat::core::PersistentVector (:lf2::Wind "MCI") (:lf2::Wind "MCI"))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+                    s2    (:wat::core::match (:wat::rete::insert-all s1
+                            (:wat::core::PersistentVector (:lf2::S1 1))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
                     fired (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::mapv
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
@@ -86,10 +86,10 @@
   (:wat::core::let [rules (:wat::rete::collect-rules :lf6)
                     s0    (:wat::rete::compile-all rules
                             (:wat::core::PersistentVector (:lf6::q-exists) (:lf6::q-not)))
-                    s1    (:wat::rete::insert-all s0
-                            (:wat::core::PersistentVector (:lf6::Wind "MCI") (:lf6::Wind "MCI")))
-                    s2    (:wat::rete::insert-all s1
-                            (:wat::core::PersistentVector (:lf6::S1 1)))
+                    s1    (:wat::core::match (:wat::rete::insert-all s0
+                            (:wat::core::PersistentVector (:lf6::Wind "MCI") (:lf6::Wind "MCI"))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+                    s2    (:wat::core::match (:wat::rete::insert-all s1
+                            (:wat::core::PersistentVector (:lf6::S1 1))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
                     fired (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::mapv
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)

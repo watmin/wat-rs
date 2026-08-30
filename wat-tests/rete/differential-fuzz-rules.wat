@@ -141,7 +141,7 @@
                (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::rules::Src
                  (:wat-tests::rete::rules::Src :x i :y (:wat::core::i64::+ i 7)))
                (:wat::core::range 0 (:wat-tests::rete::rules::Case/srcs c))))]
-    (:wat::rete::insert-all s0 facts)))
+    (:wat::core::match (:wat::rete::insert-all s0 facts) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))))
 
 ;; The parameterised readout. `qparam 1` selects `?a = 0`, which the first Src (x=0) derives;
 ;; `qparam 2` selects a value no Src produces, so the correct answer is the EMPTY sum — a row that
@@ -198,13 +198,13 @@
   [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
   (:wat-tests::rete::rules::witness
     (:wat::core::match (:wat::rete::fire-rules
-      (:wat::rete::insert
+      (:wat::core::match (:wat::rete::insert
         (:wat::rete::compile-all
           (:wat::core::PersistentVector)
           (:wat::core::PersistentVector
             (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)
             (:wat-tests::rete::rules::q-two-at)))
-        (:wat-tests::rete::rules::Two :a a :b b))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
+        (:wat-tests::rete::rules::Two :a a :b b)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::test::time-limit "60s")
 (:wat::test::deftest :wat-tests::rete::rules::test-the-witness-can-see-a-transposition

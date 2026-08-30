@@ -22,7 +22,7 @@
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hot)))
-     session (:wat::rete::insert session (:probe::Reading :location "Oslo"   :value 42))
-     session (:wat::rete::insert session (:probe::Reading :location "Bergen" :value 3))
+     session (:wat::core::match (:wat::rete::insert session (:probe::Reading :location "Oslo"   :value 42)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+     session (:wat::core::match (:wat::rete::insert session (:probe::Reading :location "Bergen" :value 3)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q-Hot)))))

@@ -30,9 +30,9 @@
     (:wat::core::PersistentVector (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :test::seed-oslo [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert s (:weather::Temperature :celsius -5 :location "Oslo"))
-    (:weather::WindSpeed :kph 40 :location "Oslo")))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert s (:weather::Temperature :celsius -5 :location "Oslo")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+    (:weather::WindSpeed :kph 40 :location "Oslo")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::explain-oslo [] -> :wat::rete::Explained
   (:wat::core::match (:wat::rete::fire-rules-explain (:test::seed-oslo (:test::compile-weather))) ((:wat::rete::FireOutcome::Fired __explained) __explained) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules-explain: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules-explain: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))

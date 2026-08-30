@@ -84,12 +84,12 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [f (:wat::core::match (:wat::rete::fire-rules
-         (:wat::rete::insert
-           (:wat::rete::insert
+         (:wat::core::match (:wat::rete::insert
+           (:wat::core::match (:wat::rete::insert
              (:wat::rete::compile-all (:wat::core::PersistentVector
                (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)) (:wat::core::PersistentVector (:z::q-S) (:z::q-S2) (:z::q-Out2) (:z::q-Out)))
-             (:z::A :c "i64"))
-           (:z::R :c "i64" :t "wat.core.i64"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
+             (:z::A :c "i64")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+           (:z::R :c "i64" :t "wat.core.i64")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::do
       ;; non-vacuity: both gates must derive, or the Out rows below mean nothing
       (:z::show "S  via negation (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-S))))

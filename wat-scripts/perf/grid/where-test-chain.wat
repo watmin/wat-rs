@@ -52,10 +52,10 @@
           :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :wtc::seed [session <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert session
+  (:wat::core::match (:wat::rete::insert session
     (:wtc::Temp :c 15 :loc "MCI")
     (:wtc::Temp :c 10 :loc "MCI")
-    (:wtc::Temp :c 80 :loc "MCI")))
+    (:wtc::Temp :c 80 :loc "MCI")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wtc::render [fired <- :wat::rete::Session] -> :wat::core::String
   (:wat::core::let [pairs (:wat::rete::query fired (:wtc::q-Pair))

@@ -108,14 +108,14 @@
 ;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x 2N.
 ;; The fact vector is heterogeneous (A and B), which `(PersistentVector :- [Record])` carries fine.
 (:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj (:wat::core::PersistentVector/conj acc (:nsh::A i)) (:nsh::B i)))
       (:wat::core::PersistentVector)
-      (:wat::core::range 0 items))))
+      (:wat::core::range 0 items))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one

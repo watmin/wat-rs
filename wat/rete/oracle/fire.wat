@@ -312,7 +312,14 @@
                                     (:wat::core::fn [s <- :wat::rete::Session
                                                      f <- :wat::core::Record]
                                       -> :wat::rete::Session
-                                      (:wat::rete::insert$oracle s f))
+                                      ;; HAND-FACED (arc 278 S2c) — stdlib. The oracle enforces
+                                      ;; no ceiling, so only `Inserted` is reachable.
+                                      (:wat::core::match (:wat::rete::insert$oracle s f)
+                                        ((:wat::rete::InsertOutcome::Inserted __s) __s)
+                                        ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __l __u __st)
+                                          (:wat::kernel::assertion-failed!
+                                            "fire-stratified: session memory ceiling exceeded while staging"
+                                            :wat::core::None :wat::core::None))))
                                     sub-sess
                                     acc-facts)
                       fired       (:wat::rete::fire-fixpoint sub-sess2)

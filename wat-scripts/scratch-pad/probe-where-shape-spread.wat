@@ -154,7 +154,7 @@
 ;; predictor flatter one shape over another, and the row would be an artifact.
 (:wat::core::defn :shape::seed
   [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
@@ -173,7 +173,7 @@
                       :geo (:shape::Geo :country (:wat::core::if (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 5) 5))) "XX" "US"))
                       :rep (:wat::core::i64::- i 5)))))
       (:wat::core::PersistentVector)
-      (:wat::core::range 0 n))))
+      (:wat::core::range 0 n))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

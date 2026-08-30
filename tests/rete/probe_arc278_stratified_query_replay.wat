@@ -47,14 +47,14 @@
   :when [(:wat::rete::exists (:sqr::Wind (?loc <- :loc)))])
 
 (:wat::core::defn :sqr::staged [] -> :wat::rete::Session
-  (:wat::rete::insert-all
-    (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
+    (:wat::core::match (:wat::rete::insert-all
       (:wat::rete::compile-all (:wat::rete::collect-rules :sqr)
         (:wat::core::PersistentVector (:sqr::q-scan) (:sqr::q-join) (:sqr::q-exists)))
       (:wat::core::PersistentVector (:sqr::Item :k 1 :name "a") (:sqr::Item :k 2 :name "b")
-                                    (:sqr::Item :k 3 :name "c")))
+                                    (:sqr::Item :k 3 :name "c"))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
     ;; two Winds sharing one loc => ONE distinct inner binding
-    (:wat::core::PersistentVector (:sqr::Wind :loc "MCI") (:sqr::Wind :loc "MCI"))))
+    (:wat::core::PersistentVector (:sqr::Wind :loc "MCI") (:sqr::Wind :loc "MCI"))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :sqr::counts [s <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector

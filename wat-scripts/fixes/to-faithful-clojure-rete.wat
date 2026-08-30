@@ -161,7 +161,16 @@
   -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  n <- :fix::Node] -> :wat::rete::Session
-      (:wat::rete::insert s n))
+      ;; ⛔ HAND-FACED (arc 278 S2c). `wat-scripts/fixes/*.wat` is excluded from the corpus sweep
+      ;; on purpose — a codemod rewriting a codemod eats itself — so a codemod that HAPPENS to
+      ;; drive rete pays for that exclusion by hand. `every_wat_scripts_file_loads` is the gate
+      ;; that catches it, and it did.
+      (:wat::core::match (:wat::rete::insert s n)
+        ((:wat::rete::InsertOutcome::Inserted __staged) __staged)
+        ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __l __u __c)
+          (:wat::kernel::assertion-failed!
+            "to-faithful-clojure: session memory ceiling exceeded while staging"
+            :wat::core::None :wat::core::None))))
     session
     nodes))
 

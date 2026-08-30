@@ -78,14 +78,14 @@
 (:wat::core::defn :ovl::stage
   [session <- :wat::rete::Session  lo <- :wat::core::i64  hi <- :wat::core::i64]
   -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:ovl::Req :k i)))
       (:wat::core::PersistentVector)
-      (:wat::core::range lo hi))))
+      (:wat::core::range lo hi))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :ovl::derived-count [fired <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::Vector/length

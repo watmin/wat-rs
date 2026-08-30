@@ -43,8 +43,8 @@ fn count(world_src: &str, fire_fn: &str) -> Result<i64, String> {
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :weather)\n\
              session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))\n\
-             session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
-             session (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\"))\n\
+             session (:wat::core::match (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n\
+             session (:wat::core::match (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None)))\n\
              fired   (:wat::core::match (:wat::rete::{fire_fn} session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))]\n\
             (:wat::rete::query fired (:weather::q-ColdAndWindy))))"
     );

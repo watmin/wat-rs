@@ -169,14 +169,14 @@
 (:wat::core::defn :acp::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:acp::Reading :g g :v (:acp::val g j))))
+      (:wat::core::match (:wat::rete::insert s (:acp::Reading :g g :v (:acp::val g j))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
     session
     (:wat::core::range 0 W)))
 
 (:wat::core::defn :acp::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session
-      (:acp::seed-readings (:wat::rete::insert s (:acp::Group g)) g W))
+      (:acp::seed-readings (:wat::core::match (:wat::rete::insert s (:acp::Group g)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))) g W))
     session
     (:wat::core::range 0 G)))
 

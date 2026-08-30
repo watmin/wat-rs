@@ -21,8 +21,8 @@
      rhs1  (:wat::core::quote (:afs::Hot ?t))
      rule  (:wat::rete::Rule :name "afs" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector rhs1))
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:afs::q-Hot)))
-     sess1 (:wat::rete::insert sess0 (:afs::Temp :value 25))
-     sess2 (:wat::rete::insert sess1 (:afs::Temp :value 15))]
+     sess1 (:wat::core::match (:wat::rete::insert sess0 (:afs::Temp :value 25)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+     sess2 (:wat::core::match (:wat::rete::insert sess1 (:afs::Temp :value 15)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))]
     sess2))
 
 ;; (1) native-alpha-key-count — fired via native fixpoint `fire-rules`. Expect 0: the clear happened.

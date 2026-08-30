@@ -237,7 +237,7 @@
 ;;   k(i) = i
 ;;   m(i) = (7i + 11) mod 40
 (:wat::core::defn :wnst::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
@@ -246,7 +246,7 @@
                           m    (:wat::core::i64::- mraw (:wat::core::i64::* (:wat::core::i64::/ mraw 40) 40))]
           (:wat::core::PersistentVector/conj acc (:wnst::Req :k i :m m))))
       (:wat::core::PersistentVector)
-      (:wat::core::range 0 items))))
+      (:wat::core::range 0 items))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wnst::derived-ints
