@@ -26,7 +26,7 @@ Measured against `IntrinsicEntry` (`src/intrinsic/mod.rs`) on 2026-08-30:
 
 ---
 
-## ⬜ 1. `defined_in` · `layer` — the cheapest thing on the board
+## ⬜ 1. `defined_in` · `layer` — cheap, but ⛔ **DO NOT BUILD YET: it would be a CONSTANT**
 
 **`:wat::runtime::DefinedIn` (`:Wat | :Rust`) and `:wat::runtime::Layer`
 (`:Substrate | :Userland`) ALREADY EXIST in `wat/runtime-meta.wat`** — minted for
@@ -43,8 +43,30 @@ So the honesty is structural, not declared: the macro knows whether it is expand
 **What it needs:** two `wat_enum_from!` generations, two entry fields, two derivations in the macro.
 No corpus migration, no per-verb judgement.
 
-**Why it matters beyond tidiness:** the crate split needs to know what is substrate and what is
-userland, and right now nothing in the registry answers that question.
+## ⛔ AND WHY IT MUST WAIT — measured 2026-08-30, correcting this file's own first draft
+
+Everything that can enter the registry today arrives through `#[wat_intrinsic]` (429) or
+`#[wat_special_form]` (4). **Both are Rust attributes on Rust functions.** So every one of the 433
+entries would carry `Rust` / `Substrate`:
+
+```
+#[wat_intrinsic]     429  ->  Rust / Substrate
+#[wat_special_form]    4  ->  Rust / Substrate
+wat-defined            0
+```
+
+**A field with one value across the entire population discriminates nothing, cannot be wrong, and
+teaches no consumer anything.** Building it now is justified only by *"we will need it when wat
+forms register"* — which is future-vapor by this project's own standard, and precisely what
+`exigere` exists to drive out. **Cheap to build is not the same as worth building.**
+
+★ **The unblocking condition is explicit:** build these when a *second kind* can enter the registry
+— when a wat `defn`/`defclause` registers, so `DefinedIn` has a `Wat` to discriminate. Until then
+the crate-split question ("what is substrate, what is userland?") has a constant answer and does not
+need a field to hold it.
+
+⚠ This entry originally read *"the cheapest thing on the board"* and recommended doing it first.
+That was the orchestrator's, and it was wrong on the axis that matters: cost, not value.
 
 ---
 
