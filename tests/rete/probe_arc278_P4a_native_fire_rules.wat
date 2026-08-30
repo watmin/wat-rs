@@ -48,10 +48,10 @@
     (:weather::WindSpeed :kph 45 :location "Bergen")))
 
 (:wat::core::defn :user::compile-cw-fires-nothing [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:test::compile-cw)) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:test::compile-cw)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::compile-ab-fires-nothing [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:test::compile-ab)) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:test::compile-ab)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::seed-oslo-session [] -> :wat::rete::Session
   (:test::seed-oslo (:test::compile-cw)))
@@ -61,29 +61,29 @@
 ;; enumerable named entry — no runtime parameterization.
 
 (:wat::core::defn :user::single-native-oslo [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-cw))) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-cw))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::single-wat-oslo [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-cw))) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-cw))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::single-native-bergen [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-cw))) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-cw))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::single-wat-bergen [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules$oracle (:test::seed-bergen (:test::compile-cw))) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-bergen (:test::compile-cw))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 ;; ── cascade: a fact DERIVED by ruleA unlocks ruleB across rounds (THE canary) ─────
 ;; ruleA: Temperature + WindSpeed (same loc) → ColdAndWindy(loc)
 ;; ruleB: ColdAndWindy(loc)                  → WeatherAlert(loc)   [fires on a DERIVED fact]
 
 (:wat::core::defn :user::cascade-native-cw [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::cascade-wat-cw [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab))) (:weather::q-ColdAndWindy))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::cascade-native-wa [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))) (:weather::q-WeatherAlert))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-WeatherAlert))))
 
 (:wat::core::defn :user::cascade-wat-wa [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab))) (:weather::q-WeatherAlert))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-WeatherAlert))))

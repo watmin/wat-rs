@@ -114,12 +114,12 @@
                     staged  (:nc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:nc::q-Final))) items)
                     ;; NATIVE — the production fast path. Timed alone.
                     n0      (:wat::time::now)
-                    fired   (:wat::rete::fire-rules staged)
+                    fired   (:wat::core::match (:wat::rete::fire-rules staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     n1      (:wat::time::now)
                     ;; ORACLE — the wat spec, fired on the SAME staged session. Value semantics
                     ;; make the two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
-                    ofired  (:wat::rete::fire-rules$oracle staged)
+                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "neg-consumer"

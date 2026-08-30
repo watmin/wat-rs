@@ -76,8 +76,8 @@
     ((:wat::core::= op 4) (:wat::rete::retract s (:wat-tests::rete::tms::A 1)))
     ((:wat::core::= op 5) (:wat::rete::retract s (:wat-tests::rete::tms::B 0)))
     ((:wat::core::not fires?) s)
-    (oracle?               (:wat::rete::fire-rules$oracle s))
-    (:else                 (:wat::rete::fire-rules s))))
+    (oracle?               (:wat::core::match (:wat::rete::fire-rules$oracle s) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
+    (:else                 (:wat::core::match (:wat::rete::fire-rules s) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))))
 
 ;; The fold's carry: the session so far, and the still-undecoded tail of the program.
 ;; Decoding by repeated quot/rem rather than a power avoids needing `pow` and keeps each step's
@@ -105,8 +105,8 @@
      ;; about whether the last op happened to be a fire.
      settled (:wat-tests::rete::tms::Run/s end)]
     (:wat::core::if oracle?
-      (:wat::rete::fire-rules$oracle settled)
-      (:wat::rete::fire-rules settled))))
+      (:wat::core::match (:wat::rete::fire-rules$oracle settled) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+      (:wat::core::match (:wat::rete::fire-rules settled) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))))
 
 ;; ── the queries ──────────────────────────────────────────────────────────────
 ;; One per un-derivation path the rules above create, so a program that breaks only one of them

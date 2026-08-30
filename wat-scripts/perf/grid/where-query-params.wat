@@ -40,15 +40,15 @@
   (:wat::core::let [rules   (:wat::core::PersistentVector (:wqp::mark))
                     queries (:wat::core::PersistentVector
                               (:wqp::temps-at) (:wqp::all-wind) (:wqp::hits))
-                    world (:wat::rete::fire-rules
+                    world (:wat::core::match (:wat::rete::fire-rules
                             (:wat::rete::insert
                               (:wat::rete::compile-all rules queries)
                               (:wqp::Wind :kph 20 :loc "MCI")
                               (:wqp::Wind :kph 20 :loc "SFO")
                               (:wqp::Temp :c 40 :loc "SFO")
-                              (:wqp::Temp :c 50 :loc "SFO")))
-                    empty (:wat::rete::fire-rules
-                            (:wat::rete::compile-all rules queries))]
+                              (:wqp::Temp :c 50 :loc "SFO"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+                    empty (:wat::core::match (:wat::rete::fire-rules
+                            (:wat::rete::compile-all rules queries)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wqp::line 1 "hits"
       (:wat::core::length (:wat::rete::query world (:wqp::hits))))
     (:wqp::line 2 "mci-empty-temps"

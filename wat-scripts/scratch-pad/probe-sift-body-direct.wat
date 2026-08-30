@@ -76,8 +76,8 @@
                     -> (:wat::core::PersistentVector :- [:wat::core::Value])
                     (:wat::core::concat acc
                       (:wat::core::let
-                        [fired (:wat::rete::fire-rules
-                                 (:wat::rete::insert tmpl (:wat::edn::read (:wat::telemetry::Log/message log))))]
+                        [fired (:wat::core::match (:wat::rete::fire-rules
+                                 (:wat::rete::insert tmpl (:wat::edn::read (:wat::telemetry::Log/message log)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
                         (:wat::core::concat
                           (:wat::core::into (:wat::core::PersistentVector)
                             (:wat::core::map

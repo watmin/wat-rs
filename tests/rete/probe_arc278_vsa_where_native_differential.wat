@@ -87,7 +87,7 @@
     (:vsa::Catalog :name "const-false" :obs (:vsa::table-of (:vsa::const-false-fn)))))
 
 (:wat::core::defn :vsa::guess-name
-  [fire    <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session
+  [fire    <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    rule    <- :wat::rete::Rule
    mystery <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
   -> :wat::core::String
@@ -97,7 +97,7 @@
             (:wat::core::PersistentVector (:vsa::q-Guess)))
      s1   (:wat::rete::insert-all s0 (:vsa::catalog))
      s2   (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery)))
-     fired (fire s2)
+     fired (:wat::core::match (fire s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! "fire: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "fire: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      hits  (:wat::rete::query fired (:vsa::q-Guess))
      n     (:wat::core::length hits)]
     (:wat::core::if (:wat::core::i64::= n 1)
@@ -107,7 +107,7 @@
       (:wat::core::String/concat "count=" (:wat::core::i64::to-string n)))))
 
 (:wat::core::defn :vsa::deg-count
-  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session
+  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    rule <- :wat::rete::Rule]
   -> :wat::core::i64
   (:wat::core::let
@@ -118,11 +118,11 @@
              (:wat::core::PersistentVector rule)
              (:wat::core::PersistentVector (:vsa::q-Hit)))
      s1    (:wat::rete::insert s0 (:vsa::Pair :a zero :b other))
-     fired (fire s1)]
+     fired (:wat::core::match (fire s1) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! "fire: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "fire: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:vsa::q-Hit)))))
 
 (:wat::core::defn :vsa::deg-counts
-  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector
     (:vsa::deg-count fire (:vsa::deg-neg1))
@@ -167,7 +167,7 @@
 ;; presence? is a noise-floor detector, not a 0.9 classifier — four-row catalog
 ;; can hit more than one name. Self vs orthogonal pins it is not silent-false.
 (:wat::core::defn :vsa::presence-pair
-  [fire     <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session
+  [fire     <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    cat-name <- :wat::core::String
    cat-fn   <- :wat::core::Fn(wat::core::bool)->wat::core::bool
    mystery  <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
@@ -178,7 +178,7 @@
              (:wat::core::PersistentVector (:vsa::q-Guess)))
      s1    (:wat::rete::insert s0 (:vsa::Catalog :name cat-name :obs (:vsa::table-of cat-fn)))
      s2    (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery)))
-     fired (fire s2)
+     fired (:wat::core::match (fire s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! "fire: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "fire: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      hits  (:wat::rete::query fired (:vsa::q-Guess))
      n     (:wat::core::length hits)]
     (:wat::core::if (:wat::core::i64::= n 1)

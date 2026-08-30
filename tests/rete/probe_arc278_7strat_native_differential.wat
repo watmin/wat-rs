@@ -70,27 +70,47 @@
 
 ;; 2-stratum: A(1),A(2) → (Bad, Ok)
 (:wat::core::defn :n::run-counts
-  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  ;; Arc 278 the fire-outcome wall — the fire verb it is handed now ANSWERS an outcome, so the
+  ;; parameter's type says so. This is the differential's whole point: both sides are the same
+  ;; TYPE, so the harness can pass either and compare like for like.
+  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n)
                     s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
                     s1    (:wat::rete::insert s0 (:n::A :k 1))
                     s2    (:wat::rete::insert s1 (:n::A :k 2))
-                    fired (fire s2)]
+                    fired (:wat::core::match (fire s2)
+                            ((:wat::rete::FireOutcome::Fired __f) __f)
+                            ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r)
+                              (:wat::kernel::assertion-failed! "run-counts: memory ceiling"
+                                :wat::core::None :wat::core::None))
+                            ((:wat::rete::FireOutcome::RoundCapExceeded __c __s)
+                              (:wat::kernel::assertion-failed! "run-counts: round cap"
+                                :wat::core::None :wat::core::None)))]
     (:wat::core::PersistentVector
       (:wat::core::length (:wat::rete::query fired (:n::q-Bad)))
       (:wat::core::length (:wat::rete::query fired (:n::q-Ok))))))
 
 ;; 3-stratum chain: A(1),A(2),A(3) → (Bad, Warn, Safe)
 (:wat::core::defn :n3::run-counts
-  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  ;; Arc 278 the fire-outcome wall — the fire verb it is handed now ANSWERS an outcome, so the
+  ;; parameter's type says so. This is the differential's whole point: both sides are the same
+  ;; TYPE, so the harness can pass either and compare like for like.
+  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n3)
                     s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
                     s1    (:wat::rete::insert s0 (:n3::A :k 1))
                     s2    (:wat::rete::insert s1 (:n3::A :k 2))
                     s3    (:wat::rete::insert s2 (:n3::A :k 3))
-                    fired (fire s3)]
+                    fired (:wat::core::match (fire s3)
+                            ((:wat::rete::FireOutcome::Fired __f) __f)
+                            ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r)
+                              (:wat::kernel::assertion-failed! "run-counts: memory ceiling"
+                                :wat::core::None :wat::core::None))
+                            ((:wat::rete::FireOutcome::RoundCapExceeded __c __s)
+                              (:wat::kernel::assertion-failed! "run-counts: round cap"
+                                :wat::core::None :wat::core::None)))]
     (:wat::core::PersistentVector
       (:wat::core::length (:wat::rete::query fired (:n3::q-Bad)))
       (:wat::core::length (:wat::rete::query fired (:n3::q-Warn)))

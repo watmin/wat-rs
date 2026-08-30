@@ -52,8 +52,8 @@
                     s1 (:wat::rete::insert-all s0 (:wat::core::PersistentVector (:user::W 7) (:user::W 7)))
                     s2 (:wat::rete::insert-all s1 (:wat::core::PersistentVector (:user::P1 1)))
                     st (:wat::rete::insert-all s2 (:wat::core::PersistentVector (:user::S1 1)))
-                    nf (:wat::rete::fire-rules st)
-                    of (:wat::rete::fire-rules$oracle st)]
+                    nf (:wat::core::match (:wat::rete::fire-rules st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+                    of (:wat::core::match (:wat::rete::fire-rules$oracle st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::mapv
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
       (:wat::core::PersistentVector
@@ -86,12 +86,12 @@
   (:wat::core::let [both (:wat::core::PersistentVector (:user::qC) (:user::qS2))
                     s0 (:wat::rete::compile-all (:user::one-rule) both)
                     st (:wat::rete::insert-all s0 (:wat::core::PersistentVector (:user::S1 1)))
-                    nf (:wat::rete::fire-rules st)
-                    of (:wat::rete::fire-rules$oracle st)
+                    nf (:wat::core::match (:wat::rete::fire-rules st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+                    of (:wat::core::match (:wat::rete::fire-rules$oracle st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     n0 (:wat::rete::compile-all (:user::norules) both)
                     t0 (:wat::rete::insert-all n0 (:wat::core::PersistentVector (:user::S1 1)))
-                    nf0 (:wat::rete::fire-rules t0)
-                    of0 (:wat::rete::fire-rules$oracle t0)]
+                    nf0 (:wat::core::match (:wat::rete::fire-rules t0) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+                    of0 (:wat::core::match (:wat::rete::fire-rules$oracle t0) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::mapv
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
       (:wat::core::PersistentVector

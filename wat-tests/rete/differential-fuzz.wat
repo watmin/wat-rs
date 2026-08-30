@@ -228,18 +228,18 @@
 (:wat::core::defn :wat-tests::rete::fuzz::refire-native
   [d <- :wat::core::i64  st <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::if (:wat::core::> d 0)
-    (:wat::rete::fire-rules
-      (:wat::rete::retract (:wat::rete::fire-rules st) (:wat-tests::rete::fuzz::S1 1)))
-    (:wat::rete::fire-rules
-      (:wat::rete::retract (:wat::rete::fire-rules st) (:wat-tests::rete::fuzz::W 0)))))
+    (:wat::core::match (:wat::rete::fire-rules
+      (:wat::rete::retract (:wat::core::match (:wat::rete::fire-rules st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:wat-tests::rete::fuzz::S1 1))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+    (:wat::core::match (:wat::rete::fire-rules
+      (:wat::rete::retract (:wat::core::match (:wat::rete::fire-rules st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:wat-tests::rete::fuzz::W 0))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :wat-tests::rete::fuzz::refire-oracle
   [d <- :wat::core::i64  st <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::if (:wat::core::> d 0)
-    (:wat::rete::fire-rules$oracle
-      (:wat::rete::retract (:wat::rete::fire-rules$oracle st) (:wat-tests::rete::fuzz::S1 1)))
-    (:wat::rete::fire-rules$oracle
-      (:wat::rete::retract (:wat::rete::fire-rules$oracle st) (:wat-tests::rete::fuzz::W 0)))))
+    (:wat::core::match (:wat::rete::fire-rules$oracle
+      (:wat::rete::retract (:wat::core::match (:wat::rete::fire-rules$oracle st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:wat-tests::rete::fuzz::S1 1))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+    (:wat::core::match (:wat::rete::fire-rules$oracle
+      (:wat::rete::retract (:wat::core::match (:wat::rete::fire-rules$oracle st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:wat-tests::rete::fuzz::W 0))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 ;; ── the property ─────────────────────────────────────────────────────────────
 (:wat::core::defn :wat-tests::rete::fuzz::prop [c <- :wat-tests::rete::fuzz::Case] -> :wat::core::bool
@@ -269,10 +269,10 @@
                     s3 (:wat::rete::insert-all s2 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P2 1)))
                     st (:wat::rete::insert-all s3 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::S1 1)))
                     nf (:wat::core::if (:wat::core::= retr 0)
-                         (:wat::rete::fire-rules st)
+                         (:wat::core::match (:wat::rete::fire-rules st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                          (:wat-tests::rete::fuzz::refire-native d st))
                     of (:wat::core::if (:wat::core::= retr 0)
-                         (:wat::rete::fire-rules$oracle st)
+                         (:wat::core::match (:wat::rete::fire-rules$oracle st) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                          (:wat-tests::rete::fuzz::refire-oracle d st))
                     n  (:wat::core::length (:wat::rete::query nf q))
                     o  (:wat::core::length (:wat::rete::query of q))]
@@ -467,9 +467,9 @@
                              (:wat-tests::rete::fuzz::nv-max-1)   (:wat-tests::rete::fuzz::nv-max-0)))
                          (:wat-tests::rete::fuzz::W 0))
                     fired (:wat::core::if emptied
-                            (:wat::rete::fire-rules
-                              (:wat::rete::retract (:wat::rete::fire-rules s0) (:wat-tests::rete::fuzz::W 0)))
-                            (:wat::rete::fire-rules s0))]
+                            (:wat::core::match (:wat::rete::fire-rules
+                              (:wat::rete::retract (:wat::core::match (:wat::rete::fire-rules s0) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:wat-tests::rete::fuzz::W 0))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+                            (:wat::core::match (:wat::rete::fire-rules s0) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))]
     (:wat::core::length (:wat::rete::query fired q))))
 
 ;; `deftest` takes a name and ONE body form, so the six rows are sequenced in a `let` —

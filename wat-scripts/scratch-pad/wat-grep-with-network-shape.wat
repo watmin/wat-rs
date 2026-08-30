@@ -73,7 +73,7 @@
     [facts  (:wat::core::PersistentVector :- [:wat::core::Record]
               (:g::Temp :location loc)
               (:g::Wind :location loc))
-     fired  (:wat::rete::fire-rules (:wat::rete::insert-all base facts))]
+     fired  (:wat::core::match (:wat::rete::fire-rules (:wat::rete::insert-all base facts)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:g::q-match)))))
 
 ;; ── THE LOOP — what wat-grep's main becomes ───────────────────────────────────
@@ -100,7 +100,7 @@
      _ (:wat::kernel::println total)
      ;; base must STILL be empty — proof the overlay never touched it
      _ (:wat::kernel::println
-         (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules base) (:g::q-match))))
+         (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules base) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:g::q-match))))
      ;; variant B — must agree with A, and its body never holds the base session
      _ (:wat::kernel::println (:user::main-variant-b))]
     nil))
@@ -131,7 +131,7 @@
       (body-fn
         (:wat::core::fn [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])]
           -> :wat::rete::Session
-          (:wat::rete::fire-rules (:wat::rete::insert-all base facts)))))))
+          (:wat::core::match (:wat::rete::fire-rules (:wat::rete::insert-all base facts)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))))))
 
 (:wat::core::defn :user::main-variant-b [] -> :wat::core::i64
   (:wat::core::let [_ 0]

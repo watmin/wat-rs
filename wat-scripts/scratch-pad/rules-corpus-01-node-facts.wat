@@ -140,7 +140,7 @@
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:fixr::arrow) (:fixr::head-kw) (:fixr::type-pos))
      template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fixr::q-IsArrow) (:fixr::q-IsHeadKw) (:fixr::q-IsTypePos)))
-     fired    (:wat::rete::fire-rules (:fixr::seed-names (:fixr::seed template)))]
+     fired    (:wat::core::match (:wat::rete::fire-rules (:fixr::seed-names (:fixr::seed template))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::do
       ;; ⚠ `query` reads accumulated PRODUCTION memory, so it can only see DERIVED facts —
       ;; querying a base type (Node/Named) returns 0 even when the seed landed. That is R18's

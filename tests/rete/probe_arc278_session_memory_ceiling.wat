@@ -38,6 +38,27 @@
   (:wat::core::let
     [rules (:wat::rete::collect-rules :fd)
      s     (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fd::q)))
-     s     (:fd::seed s)
-     f     (:wat::rete::fire-rules s)]
-    (:wat::kernel::println (:wat::core::length (:wat::rete::query f (:fd::q))))))
+     s     (:fd::seed s)]
+    ;; ⛔ THIS FIXTURE MATCHES THE ARM AND PRINTS ITS FIELDS — it is NOT codemod material, and the
+    ;; codemod's generic `assertion-failed!` arms were UNDONE here on purpose. The whole point of
+    ;; this gate is that a ceiling breach is a VALUE carrying `limit`, `used` and `rounds`; an arm
+    ;; that collapses to a message string throws away the three numbers the gate exists to assert,
+    ;; and the gate would then be proving only that *something* went wrong.
+    ;;
+    ;; It prints one line per field so the Rust gate can pin each exactly. The `Fired` arm prints a
+    ;; count instead, which is what makes the NON-VACUITY twin meaningful: the same program under a
+    ;; default ceiling takes the other arm and prints 40000.
+    (:wat::core::match (:wat::rete::fire-rules s)
+      ((:wat::rete::FireOutcome::Fired fired)
+        (:wat::kernel::println (:wat::core::length (:wat::rete::query fired (:fd::q)))))
+      ((:wat::rete::FireOutcome::MemoryCeilingExceeded limit used rounds)
+        (:wat::core::do
+          (:wat::kernel::println "ARM MemoryCeilingExceeded")
+          (:wat::kernel::println limit)
+          (:wat::kernel::println used)
+          (:wat::kernel::println rounds)))
+      ((:wat::rete::FireOutcome::RoundCapExceeded cap still-deriving)
+        (:wat::core::do
+          (:wat::kernel::println "ARM RoundCapExceeded")
+          (:wat::kernel::println cap)
+          (:wat::kernel::println still-deriving))))))

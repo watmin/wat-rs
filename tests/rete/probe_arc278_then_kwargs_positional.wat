@@ -27,13 +27,13 @@
           (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?b") "b"))))
     0
     (:wat::rete::query
-      (:wat::rete::fire-rules
+      (:wat::core::match (:wat::rete::fire-rules
         (:wat::rete::insert-all
           (:wat::rete::compile-all
             (:wat::core::PersistentVector (:tk::rule rhs))
             (:wat::core::PersistentVector (:tk::q)))
           (:wat::core::PersistentVector
-            (:tk::Src :x 0 :y 7) (:tk::Src :x 1 :y 8) (:tk::Src :x 2 :y 9))))
+            (:tk::Src :x 0 :y 7) (:tk::Src :x 1 :y 8) (:tk::Src :x 2 :y 9)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
       (:tk::q))))
 
 ;; [declaration-order  reversed-order]

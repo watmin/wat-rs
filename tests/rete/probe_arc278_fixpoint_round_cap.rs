@@ -58,6 +58,33 @@ fn run(rel: &str) -> (bool, String, String) {
     )
 }
 
+
+/// Read a printed `FireOutcome` arm: its name, then its i64 fields, one per line.
+///
+/// ⛔ WHY THE FIXTURES PRINT INSTEAD OF RAISING. Before the fire-outcome wall a ceiling breach was
+/// a raise, and these gates read structured EDN off stderr (`rete_error`). Totality removed the
+/// raise: the breach is now an arm the fixture MATCHES, so there is no error to parse and the
+/// program exits 0. The arm's fields are the assertion, so the fixture prints them and this reads
+/// them back — the same exactness on a value instead of a corpse.
+///
+/// `println` renders a String with quotes and an i64 bare, which is why the name is compared with
+/// them included and the numbers parse cleanly.
+fn arm(stdout: &str) -> (String, Vec<i64>) {
+    let mut lines = stdout.lines().map(str::trim).filter(|l| !l.is_empty());
+    let name = lines
+        .next()
+        .unwrap_or_else(|| panic!("the fixture must print the arm name first; got {stdout:?}"))
+        .trim_matches('"')
+        .to_string();
+    let fields = lines
+        .map(|l| {
+            l.parse::<i64>()
+                .unwrap_or_else(|e| panic!("arm field must be an i64; got {l:?} ({e})"))
+        })
+        .collect();
+    (name, fields)
+}
+
 /// The refusal, PARSED — tag pinned, named fields read exactly.
 ///
 /// Not `contains`: `tests/lint/no_loose_string_assert.rs` refuses a substring check where an exact
@@ -262,45 +289,44 @@ fn a_session_that_outgrows_its_ceiling_while_staging_is_refused_at_the_insert_do
 /// inside the refusing band with staging orders of magnitude below it.
 #[test]
 fn a_session_that_outgrows_its_ceiling_while_deriving_is_refused_at_the_fire_door() {
-    let (ok, _out, err) = run("tests/rete/probe_arc278_session_memory_ceiling.wat");
-    assert!(!ok, "a fire past `max-session-bytes` must be refused\n{err}");
-    let e = rete_error(&err, "SessionMemoryCeilingExceeded");
+    let (ok, out, err) = run("tests/rete/probe_arc278_session_memory_ceiling.wat");
+    // ⛔ THE PROGRAM SURVIVES, AND THAT IS THE POINT OF THE WALL. Before totality this asserted
+    // `!ok` — the breach killed the process and the gate read a raise off stderr. `fire-rules` now
+    // answers a matchable `(FireOutcome :- [Session])`, so a ceiling breach is a VALUE the fixture
+    // handles and the program exits 0. A gate still demanding a corpse would be asserting the
+    // absence of the feature.
+    assert!(ok, "a ceiling breach is a VALUE now — the program must not die\n{out}{err}");
+    let a = arm(&out);
     assert_eq!(
-        field_i64(&e, "limit"),
-        16_777_216,
+        a.0, "ARM MemoryCeilingExceeded",
+        "a fanout that outgrows `max-session-bytes` must take the MEMORY arm, not the round-cap \
+         one — they are different mechanisms and this workload multiplies inside one round\n{out}"
+    );
+    assert_eq!(
+        a.1[0], 16_777_216,
         "the ceiling reported must be the CONFIGURED one — a hardcoded default here would mean \
          the wat directive is decorative"
     );
     assert!(
-        field_i64(&e, "used") > 16_777_216,
+        a.1[1] > 16_777_216,
         "the reported usage must exceed the limit it tripped; got {}",
-        field_i64(&e, "used")
+        a.1[1]
     );
-    // `rounds` is rounds COMPLETED, so 0 means "tripped during the first round" — which is the
-    // most informative value it can take, not a missing one. A low count is the SIGNAL: it
-    // distinguishes fanout (multiplies within a round) from depth (which the round cap handles).
-    // Asserting `>= 0` on a usize would be vacuous, so this pins the value the fixture produces.
-    assert_eq!(
-        field_i64(&e, "rounds"),
-        0,
-        "a cross-product fans out inside the FIRST round, so 0 rounds completed is the honest \
-         report — a non-zero value here would mean the check no longer runs before the counter"
-    );
+    // `rounds` is rounds COMPLETED, so 0 means "tripped during the first round" — the most
+    // informative value it can take. A cross-product fans out inside one round; a non-zero value
+    // would mean the check no longer runs before the counter.
+    assert_eq!(a.1[2], 0, "a cross product fans out inside the FIRST round\n{out}");
 
-    // NON-VACUITY, and it is doing more work than usual here: the byte-for-byte identical rule set
-    // and fact population at the DEFAULT ceiling must COMPLETE, deriving all 40_000. Without it a
-    // ceiling of zero, or a check placed before any work, would satisfy every row above.
+    // NON-VACUITY, doing more work than usual: the byte-for-byte identical rule set and fact
+    // population at the DEFAULT ceiling must take the OTHER arm and derive all 40_000. Without it
+    // a ceiling of zero, or a check placed before any work, would satisfy every row above.
     let (ok_ok, out_ok, err_ok) = run("tests/rete/probe_arc278_session_memory_ceiling_fire_default.wat");
-    assert!(
-        ok_ok,
-        "a 40_000-fact cross product is a legitimate workload and must not trip the memory \
-         ceiling at its default\n{out_ok}{err_ok}"
-    );
+    assert!(ok_ok, "the same workload at the default ceiling must complete\n{out_ok}{err_ok}");
     assert_eq!(
         out_ok.trim(),
         "40000",
-        "the non-vacuity twin must actually DERIVE its 40_000 facts — a run that completes \
-         without doing the work proves nothing about the ceiling's headroom"
+        "the non-vacuity twin must take the `Fired` arm and DERIVE its 40_000 facts — a run that \
+         completes without doing the work proves nothing about the ceiling's headroom"
     );
 
     // The 500-round DEEP closure must also stay under the default — depth is the round cap's axis,
@@ -308,8 +334,8 @@ fn a_session_that_outgrows_its_ceiling_while_deriving_is_refused_at_the_fire_doo
     let (ok_deep, out_deep, err_deep) = run("tests/rete/probe_arc278_fixpoint_round_cap_deep.wat");
     assert!(
         ok_deep,
-        "a 500-round range-restricted closure is a legitimate workload and must not trip the \
-         memory ceiling at its default\n{out_deep}{err_deep}"
+        "a 500-round range-restricted closure is legitimate and must not trip the memory \
+         ceiling at its default\n{out_deep}{err_deep}"
     );
 }
 
@@ -437,15 +463,19 @@ fn the_cap_fires_at_exactly_its_round_and_not_one_before() {
     assert_eq!(out_pass.trim(), "\"501\"", "and derive the full closure");
 
     let (ok_fail, out_fail, err_fail) = run("tests/rete/probe_arc278_fixpoint_round_cap_boundary_fail.wat");
-    assert!(
-        !ok_fail,
-        "one round SHORT of what the workload needs must be refused — passing here would be \
-         off-by-one in the permissive direction\n{out_fail}{err_fail}"
+    // Totality: the breach is a VALUE, so the program lives and reports. What must NOT happen is
+    // the `Fired` arm — that would be the permissive off-by-one, a cap that let the workload run
+    // one round past its bound.
+    assert!(ok_fail, "a cap breach is a VALUE now — the program must not die\n{out_fail}{err_fail}");
+    let a = arm(&out_fail);
+    assert_eq!(
+        a.0, "ARM RoundCapExceeded",
+        "one round SHORT of what the workload needs must take the ROUND-CAP arm — the `Fired` arm \
+         here is off-by-one in the permissive direction\n{out_fail}"
     );
     assert_eq!(
-        field_i64(&rete_error(&err_fail, "FixpointRoundCapExceeded"), "cap"),
-        501,
-        "and at the boundary the refusal is the CAP's, not the verifier's — this workload is \
+        a.1[0], 501,
+        "at the boundary the refusal is the CAP's, not the verifier's — this workload is \
          range-restricted, so the verifier accepts it and only the cap can stop it"
     );
 }

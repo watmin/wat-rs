@@ -21362,7 +21362,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
-            ret: TypeExpr::Path(":wat::rete::FireOutcome".into()),
+            ret: TypeExpr::Parametric {
+                head: "wat::rete::FireOutcome".into(),
+                args: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            },
             rest_param_type: None,
         },
     );
@@ -21373,7 +21376,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
-            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            ret: TypeExpr::Parametric {
+                head: "wat::rete::FireOutcome".into(),
+                args: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            },
             rest_param_type: None,
         },
     );
@@ -21382,7 +21388,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
-            ret: TypeExpr::Path(":wat::rete::Explained".into()),
+            ret: TypeExpr::Parametric {
+                head: "wat::rete::FireOutcome".into(),
+                args: vec![TypeExpr::Path(":wat::rete::Explained".into())],
+            },
             rest_param_type: None,
         },
     );

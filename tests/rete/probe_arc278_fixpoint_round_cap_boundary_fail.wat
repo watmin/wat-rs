@@ -28,16 +28,31 @@
       (:wat::core::range 0 500))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println
-    (:wat::core::i64::to-string
-      (:wat::core::length
-        (:wat::rete::query
-          (:wat::rete::fire-rules
-            (:wat::rete::insert
-              (:wat::rete::insert-all
-                (:wat::rete::compile-all
-                  (:wat::core::PersistentVector (:cap::seed) (:cap::step))
-                  (:wat::core::PersistentVector (:cap::q)))
-                (:cap::edges))
-              (:cap::Start :n 0)))
-          (:cap::q))))))
+  ;; ⛔ HAND-FACED, NOT CODEMOD'D (arc 278 the fire-outcome wall). The corpus codemod collapses both
+  ;; ceiling arms to an `assertion-failed!` message — correct for a fixture that merely must not
+  ;; proceed, and WRONG here: this gate exists to pin the refusal's `cap`, and a message string
+  ;; throws that number away. It would still have gone red, then green on a careless "fix", while
+  ;; proving only that *something* stopped. The arm is the assertion; print its fields.
+  (:wat::core::match
+    (:wat::rete::fire-rules
+      (:wat::rete::insert
+        (:wat::rete::insert-all
+          (:wat::rete::compile-all
+            (:wat::core::PersistentVector (:cap::seed) (:cap::step))
+            (:wat::core::PersistentVector (:cap::q)))
+          (:cap::edges))
+        (:cap::Start :n 0)))
+    ((:wat::rete::FireOutcome::Fired fired)
+      ;; The permissive off-by-one: one round SHORT of the workload must NOT complete.
+      (:wat::kernel::println
+        (:wat::core::i64::to-string
+          (:wat::core::length (:wat::rete::query fired (:cap::q))))))
+    ((:wat::rete::FireOutcome::MemoryCeilingExceeded limit used rounds)
+      (:wat::core::do
+        (:wat::kernel::println "ARM MemoryCeilingExceeded")
+        (:wat::kernel::println limit)))
+    ((:wat::rete::FireOutcome::RoundCapExceeded cap still-deriving)
+      (:wat::core::do
+        (:wat::kernel::println "ARM RoundCapExceeded")
+        (:wat::kernel::println cap)
+        (:wat::kernel::println still-deriving)))))

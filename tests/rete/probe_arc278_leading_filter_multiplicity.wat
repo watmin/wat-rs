@@ -75,7 +75,7 @@
                             (:wat::core::PersistentVector (:lf2::Wind "MCI") (:lf2::Wind "MCI")))
                     s2    (:wat::rete::insert-all s1
                             (:wat::core::PersistentVector (:lf2::S1 1)))
-                    fired (:wat::rete::fire-rules s2)]
+                    fired (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::mapv
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
       (:wat::core::PersistentVector
@@ -90,7 +90,7 @@
                             (:wat::core::PersistentVector (:lf6::Wind "MCI") (:lf6::Wind "MCI")))
                     s2    (:wat::rete::insert-all s1
                             (:wat::core::PersistentVector (:lf6::S1 1)))
-                    fired (:wat::rete::fire-rules s2)]
+                    fired (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::mapv
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
       (:wat::core::PersistentVector

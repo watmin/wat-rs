@@ -318,5 +318,14 @@
     (:wat::core::fn [base <- :wat::rete::Session] -> T
       (body-fn
         (:wat::core::fn [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])]
-          -> :wat::rete::Session
+          ;; Arc 278 the fire-outcome wall — the overlay hands back what the fire ACTUALLY
+          ;; returns. A pure PASS-THROUGH: `fire-rules` already answers the outcome, so there is
+          ;; nothing to unwrap and nothing to swallow here.
+          ;;
+          ;; ⚠ THE CODEMOD WRAPPED THIS AND HAD TO BE UNDONE — its idempotency guard recognises an
+          ;; already-faced site by finding a `FireOutcome::` arm on a `match` whose scrutinee is the
+          ;; call. A pass-through has NO match, so the guard cannot see it and re-wraps. That is the
+          ;; guard behaving correctly, not a bug: it can only detect the shape it emits. Any future
+          ;; sweep over this file must exclude it, or expect to undo this one line again.
+          -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
           (:wat::rete::fire-rules (:wat::rete::insert-all base facts)))))))

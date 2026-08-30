@@ -119,7 +119,7 @@
              (:wat::grep::Facts/nodes facts))
      s1    (:wat::rete::insert-all s0 (:wat::grep::Facts/named facts))
      s2    (:wat::rete::insert-all s1 (:wat::grep::Facts/spans facts))
-     fired (:wat::rete::fire-rules s2)
+     fired (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      arrow-lines (:wat::rete::query fired (:fx::q-ArrowLine))
      n-arrow-lines (:wat::core::length arrow-lines)]
     (:wat::kernel::println
@@ -147,7 +147,7 @@
      s1    (:wat::rete::insert-all s0 (:wat::grep::Facts/spans facts))
      ;; the ONE Source fact — the rule joins it for :file, so it must be inserted like any other.
      s2    (:wat::rete::insert s1 (:wat::grep::Facts/source facts))
-     fired (:wat::rete::fire-rules s2)
+     fired (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      matches (:wat::rete::query fired (:wat::grep::q-match))
      m       (:wat::core::Option/expect
                (:wat::core::PersistentMap/get (:wat::core::first matches) "?fact")

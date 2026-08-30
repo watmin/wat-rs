@@ -24,7 +24,7 @@
                          (:wat::core::PersistentVector (:eir::q-Hit)))
                     s1 (:wat::rete::insert s0 (:eir::Temp :c 10))
                     s2 (:wat::rete::insert s1 (:eir::Temp :c 30))
-                    fired (:wat::rete::fire-rules s2)]
+                    fired (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:eir::q-Hit)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

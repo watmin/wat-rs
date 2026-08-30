@@ -35,13 +35,17 @@ use crate::runtime::{EvalBreak, EnumValue, RuntimeErrorKind, Value};
 /// `(:wat::rete::FireOutcome)`, declared in `wat/rete.wat`.
 const FIRE_OUTCOME_TYPE: &str = ":wat::rete::FireOutcome";
 
-/// `FireOutcome::Fired [session]` — the happy path.
-fn fired(session: Value) -> Value {
+/// `FireOutcome::Fired [value]` — the happy path.
+///
+/// The payload is whatever the fire produced: a `Session` for `fire-rules`/`fire-once`, an
+/// `Explained` for `fire-rules-explain`. The enum is parametric precisely so both fit one type
+/// (`wat/rete.wat`); Rust builds the same variant either way, since a `Value` carries its own tag.
+fn fired(value: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: FIRE_OUTCOME_TYPE.into(),
         variant_name: "Fired".into(),
         names: crate::runtime::builtin_enum_variant_names(FIRE_OUTCOME_TYPE, "Fired"),
-        fields: vec![session],
+        fields: vec![value],
     }))
 }
 

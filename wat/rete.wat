@@ -166,8 +166,14 @@
 ;; from the compiled base is the only "reset" there is. Named by the 2026-08-24 intueri cast
 ;; (rete-scoped-work-naming.wat.intueri) — "overlay" is this corpus's own word (arm.rs:572,
 ;; session.rs:1114, kernel/tests.rs:3068), not imported vocabulary.
+;;
+;; ⛔ IT HANDS BACK A `(FireOutcome :- [Session])`, NOT A BARE SESSION — arc 278, the fire-outcome
+;; wall. `with-overlay` fires, and a fire carries two ceilings; a convenience wrapper that swallowed
+;; that and returned a bare Session would be hiding a partiality inside the stdlib, which is the
+;; exact defect this wall exists to remove. The caller matches, once, at the mouth of its own loop.
 (:wat::core::typealias :wat::rete::Overlay
-  [(:wat::core::PersistentVector :- [:wat::core::Record]) :-> :wat::rete::Session])
+  [(:wat::core::PersistentVector :- [:wat::core::Record])
+    :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])])
 
 ;; Session — the complete rete engine state; the caller-facing handle.
 ;;   network:           id → raw node record — the compiled DAG, id-indexed.
@@ -207,7 +213,7 @@
 ;; Nothing half-fired escapes and there is no mid-fixpoint session with inconsistent memories to
 ;; hand back — the objection this shape would normally founder on, dissolved by value semantics.
 ;;
-;;   :Fired                 [session]              — the happy path; the fired session.
+;;   :Fired                 [value <- :T]          — the happy path; what the fire produced.
 ;;   :MemoryCeilingExceeded [limit used rounds]    — past `max-session-bytes`. `rounds` is rounds
 ;;                                                   COMPLETED: 0 says the growth was FANOUT
 ;;                                                   (multiplying inside one round), which the
@@ -216,10 +222,25 @@
 ;;                                                   the evidence it was still GROWING, not merely
 ;;                                                   deep.
 ;;
-;; Pure: every payload is plain data (a Session, i64s) — no fd, no peer, nothing live. That is the
-;; honest marking, and it is what lets a FireOutcome cross a wire like any other rete value.
-(:wat::core::defenum :wat::rete::FireOutcome :wat::enum::Pure
-  :Fired                 [session <- :wat::rete::Session]
+;; ⛔ PARAMETRIC IN `T`, AND THAT IS WHAT KEEPS IT ONE ENUM. `fire-rules`/`fire-once` answer
+;; `(FireOutcome :- [Session])`; `fire-rules-explain` answers `(FireOutcome :- [Explained])`. The
+;; alternative was a second enum — `ExplainOutcome` — carrying a byte-identical copy of both
+;; ceiling arms, which is two places holding one truth, the defect this arc pulls out most often.
+;; The precedent is the substrate's own: `(RecvOutcome :- [O])`, `(NextOutcome :- [T])`,
+;; `(ServiceEvent :- [I O A])`. Note the ceiling arms do NOT mention `T` — a breach is the same
+;; fact whatever the fire was going to produce, which is exactly why one enum can serve both.
+;;
+;; ⚠ NO NULLARY VARIANT, deliberately. `check.rs` documents the un-parametrized-nullary-variant
+;; unify failure that bit `NextOutcome::Exhausted`; all three arms here are tagged, so the hazard
+;; cannot arise — but do not add a bare `:Refused` later without reading that note first.
+;;
+;; Pure: every payload is plain data (a Session or an Explained, plus i64s) — no fd, no peer,
+;; nothing live — and that is what lets a FireOutcome cross a wire like any other rete value.
+;; Enum purity is DECLARED and fixed, so this marking is a claim about every instantiation: it
+;; holds because only rete's own verbs construct one, and they do so at `Session` and `Explained`.
+;; If a rete verb ever returns a FireOutcome over a LIVE payload, this line is what must change.
+(:wat::core::defenum :wat::rete::FireOutcome :- [T] :wat::enum::Pure
+  :Fired                 [value <- :T]
   :MemoryCeilingExceeded [limit <- :wat::core::i64
                           used <- :wat::core::i64
                           rounds <- :wat::core::i64]

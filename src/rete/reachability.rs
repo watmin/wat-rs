@@ -242,7 +242,7 @@ fn synth(cell: &Cell, site: CallSite) -> String {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v {hit}))
      session (:wat::rete::insert session (:probe::In :k "miss" :v {miss}))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#,
         extra = cell.extra,
@@ -1276,7 +1276,7 @@ fn a_keyword_constant_is_writable_in_an_inline_constraint() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v :alpha))
      session (:wat::rete::insert session (:probe::In :k "miss" :v :beta))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
     assert_eq!(
@@ -1343,7 +1343,7 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v 10))
      session (:wat::rete::insert session (:probe::In :k "miss" :v 1))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
 
@@ -1391,7 +1391,7 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v 10))
      session (:wat::rete::insert session (:probe::In :k "miss" :v 1))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
     assert_eq!(
@@ -1463,7 +1463,7 @@ fn every_provably_boolean_form_is_admitted_inline() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v 10))
      session (:wat::rete::insert session (:probe::In :k "miss" :v 1))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#
         )
@@ -1572,7 +1572,7 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v :alpha))
      session (:wat::rete::insert session (:probe::In :k "miss" :v :beta))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
 
@@ -1595,7 +1595,7 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v :probe::E::A))
      session (:wat::rete::insert session (:probe::In :k "miss" :v :probe::E::B))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
 
@@ -1647,7 +1647,7 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v :x :alpha :x))
      session (:wat::rete::insert session (:probe::In :k "miss" :v :x :alpha :y))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
     assert_eq!(
@@ -1711,7 +1711,7 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :p (:probe::Point :x 40 :y 2)))
      session (:wat::rete::insert session (:probe::In :k "miss" :p (:probe::Point :x 1 :y 1)))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#
         )
@@ -1810,7 +1810,7 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "hit"  :v (:probe::alpha) :w (:probe::alpha)))
      session (:wat::rete::insert session (:probe::In :k "miss" :v (:probe::beta)  :w (:probe::alpha)))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
     let inline = format!(
@@ -1855,7 +1855,7 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
      session (:wat::rete::insert session (:probe::In :k "a" :v 7))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
     let verdict = raw_count(TUPLE);
@@ -1884,7 +1884,7 @@ fn a_mistyped_field_still_names_the_field_and_only_once() {
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
-     fired   (:wat::rete::fire-rules session)]
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
     let msg = raw_count(SRC).expect_err("a mistyped field must not compile");

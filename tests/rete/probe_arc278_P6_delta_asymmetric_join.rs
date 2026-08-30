@@ -92,7 +92,7 @@ fn chain_expr(n: usize, query_type: &str) -> String {
     }
     format!(
         "(:wat::core::let [{binds}\n\
-           fired (FIRE_VERB s{prev})]\n\
+           fired (:wat::core::match (FIRE_VERB s{prev}) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))]\n\
            (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
@@ -150,7 +150,7 @@ fn triple_expr(n: usize, query_type: &str) -> String {
     }
     format!(
         "(:wat::core::let [{binds}\n\
-           fired (FIRE_VERB s{prev})]\n\
+           fired (:wat::core::match (FIRE_VERB s{prev}) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))]\n\
            (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
@@ -211,7 +211,7 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
     }
     format!(
         "(:wat::core::let [{binds}\n\
-           fired (FIRE_VERB s{prev})]\n\
+           fired (:wat::core::match (FIRE_VERB s{prev}) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))]\n\
            (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }

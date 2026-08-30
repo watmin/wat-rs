@@ -62,7 +62,7 @@
 ;; on the first pass, and the accum grid axis reads it the same way (map a concretely-typed fn over
 ;; the result). Declaring `(Vector :- [nin::Out])` here was my error, not the subject's.
 (:wat::core::defn :nin::fired-outs [s <- :wat::rete::Session] -> :wat::core::PersistentVector
-  (:wat::rete::query (:wat::rete::fire-rules s) (:nin::q-Out)))
+  (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules s) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:nin::q-Out)))
 
 (:wat::core::defn :nin::fired-count [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:nin::fired-outs s)))

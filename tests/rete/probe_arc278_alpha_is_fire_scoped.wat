@@ -28,7 +28,7 @@
 ;; (1) native-alpha-key-count — fired via native fixpoint `fire-rules`. Expect 0: the clear happened.
 (:wat::core::defn :user::native-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
-    [fired (:wat::rete::fire-rules (:afs::built))
+    [fired (:wat::core::match (:wat::rete::fire-rules (:afs::built)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
@@ -37,7 +37,7 @@
 ;; 0: `fire-stratified` returns alpha-memory empty (wat/rete/oracle/fire.wat:349) — asserted here, not assumed.
 (:wat::core::defn :user::oracle-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
-    [fired (:wat::rete::fire-rules$oracle (:afs::built))
+    [fired (:wat::core::match (:wat::rete::fire-rules$oracle (:afs::built)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
@@ -55,7 +55,7 @@
 ;; (5) native-derived-count / oracle-derived-count — the RESULT (production output), expected equal
 ;; and > 0: closing the alpha divergence must not move what fire actually derives.
 (:wat::core::defn :user::native-derived-count [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:afs::built)) (:afs::q-Hot))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:afs::built)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:afs::q-Hot))))
 
 (:wat::core::defn :user::oracle-derived-count [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules$oracle (:afs::built)) (:afs::q-Hot))))
+  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:afs::built)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:afs::q-Hot))))

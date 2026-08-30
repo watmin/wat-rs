@@ -139,7 +139,7 @@
                     p0      (:wat::time::now)
                     staged  (:wat::rete::insert-all session facts)
                     i1      (:wat::time::now)
-                    fired   (:wat::rete::fire-rules staged)
+                    fired   (:wat::core::match (:wat::rete::fire-rules staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     f1      (:wat::time::now)
                     derived (:dc::derived-vector fired)
                     q1      (:wat::time::now)
@@ -150,7 +150,7 @@
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
-                    ofired  (:wat::rete::fire-rules$oracle staged)
+                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "deep-cascade" :size (:wat::core::PersistentVector depth width) :derived derived :native-ns fir-ns :oracle-derived (:dc::derived-vector ofired) :oracle-ns (:dc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

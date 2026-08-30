@@ -292,7 +292,21 @@
   (:wat::core::let
     [facts   (:wat::grep::facts-of path (:wat::io::read-file path))
      records (:wat::grep::facts-as-records facts)
-     fired   (overlay records)
+     ;; ⛔ ARC 278 THE FIRE-OUTCOME WALL — `overlay` fires, so it hands back a matchable
+     ;; `(FireOutcome :- [Session])`. This is `wat-grep`, a real user-facing tool: a file whose
+     ;; rules fan out past `max-session-bytes` must say WHICH file and WHY, not die in the
+     ;; allocator with no name. The path is in scope here and nowhere below, so this is the only
+     ;; place that can name it.
+     fired   (:wat::core::match (overlay records)
+               ((:wat::rete::FireOutcome::Fired __session) __session)
+               ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds)
+                 (:wat::kernel::assertion-failed!
+                   (:wat::core::string::concat "wat::grep: session memory ceiling exceeded on " path)
+                   :wat::core::None :wat::core::None))
+               ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still)
+                 (:wat::kernel::assertion-failed!
+                   (:wat::core::string::concat "wat::grep: fixpoint round cap exceeded on " path)
+                   :wat::core::None :wat::core::None)))
      matches (:wat::rete::query fired (:wat::grep::q-match))]
     (:wat::core::run! :wat::grep::print-match matches)))
 

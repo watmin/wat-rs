@@ -41,13 +41,13 @@
     (:weather::WindSpeed :kph 50 :location "Bergen")))
 
 (:wat::core::defn :test::fired-oslo [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-cw))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-cw))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::fired-bergen [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-cw))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-cw))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::fired-2x2 [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-2x2 (:test::compile-cw))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-2x2 (:test::compile-cw))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::cw-count [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query s (:weather::q-ColdAndWindy))))
@@ -62,7 +62,7 @@
     "fact"))
 
 (:wat::core::defn :user::compile-cw-fires-nothing [] -> :wat::core::i64
-  (:test::cw-count (:wat::rete::fire-rules (:test::compile-cw))))
+  (:test::cw-count (:wat::core::match (:wat::rete::fire-rules (:test::compile-cw)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::pfacts-length-oslo [] -> :wat::core::i64
   (:test::cw-count (:test::fired-oslo)))

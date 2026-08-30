@@ -30,7 +30,7 @@
          session (:wat::rete::compile rules)
          session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
          session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
-         fired   (:wat::rete::fire-rules-explain session)]
+         fired   (:wat::core::match (:wat::rete::fire-rules-explain session) ((:wat::rete::FireOutcome::Fired __explained) __explained) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules-explain: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules-explain: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
         (:wat::rete::explain fired (:weather::ColdAndWindy :celsius -5 :kph 40))))))
 
 ;; LEVEL 2 — explain a CASCADE-derived fact: `WeatherAlert` is derived by `alert` from the derived
@@ -43,6 +43,6 @@
          session (:wat::rete::compile rules)
          session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
          session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
-         fired   (:wat::rete::fire-rules-explain session)]
+         fired   (:wat::core::match (:wat::rete::fire-rules-explain session) ((:wat::rete::FireOutcome::Fired __explained) __explained) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules-explain: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules-explain: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
         (:wat::rete::explain fired (:weather::WeatherAlert :celsius -5 :kph 40))))))
 

@@ -210,7 +210,19 @@ fn skip_oracle_fire(src: &str) -> String {
     let mut needle = String::new();
     needle.push('(');
     needle.push_str(":wat::rete::fire-rules$oracle staged)");
-    src.replace(&needle, "fired")
+    // ⛔ IT SUBSTITUTES AN OUTCOME, NOT A SESSION — arc 278 the fire-outcome wall.
+    //
+    // This used to replace the call with the bare binding `fired`. Since the axis files face the
+    // outcome, that call is now the SCRUTINEE of a `match`, and swapping in a Session left the
+    // match applied to a Session — a type error, in a file this test writes to /tmp and only the
+    // checker ever sees. Substituting the `Fired` ARM instead keeps the match well-typed and makes
+    // it take that arm immediately, which is exactly what "skip the oracle fire, reuse the native
+    // result" means. It also stays independent of the arms' exact text, so a reworded diagnostic
+    // in the codemod cannot silently break this rewrite.
+    let mut replacement = String::new();
+    replacement.push('(');
+    replacement.push_str(":wat::rete::FireOutcome::Fired fired)");
+    src.replace(&needle, &replacement)
 }
 
 /// Run a sized axis: pipe `size` as an EDN i64 vector on stdin, return (success, stdout, stderr).

@@ -41,7 +41,7 @@
      s1 (:wat::core::if (:wnc::has w 1) (:wat::rete::insert s0 (:wnc::A :k 1)) s0)
      s2 (:wat::core::if (:wnc::has w 2) (:wat::rete::insert s1 (:wnc::B :k 1)) s1)
      s3 (:wat::core::if (:wnc::has w 4) (:wat::rete::insert s2 (:wnc::C :k 1)) s2)]
-    (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules s3) q))))
+    (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules s3) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) q))))
 
 (:wat::core::defn :wnc::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println

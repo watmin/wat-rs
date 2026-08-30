@@ -29,7 +29,7 @@
      session (:wat::rete::compile rules)
      session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
      session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
-     ex      (:wat::rete::fire-rules-explain session)]
+     ex      (:wat::core::match (:wat::rete::fire-rules-explain session) ((:wat::rete::FireOutcome::Fired __explained) __explained) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules-explain: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules-explain: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::rete::explain ex (:weather::ColdAndWindy :celsius -5 :kph 40))))
 
 (:wat::core::defn :user::explain-cw-step0 [] -> :wat::rete::DerivationStep

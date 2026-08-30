@@ -34,7 +34,7 @@
                          (:wat::core::PersistentVector (:exp::cool))
                          (:wat::core::PersistentVector (:exp::q-Hit)))]
     (:wat::core::length
-      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s0)) (:exp::q-Hit)))))
+      (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s0)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:exp::q-Hit)))))
 
 (:wat::core::defn :user::empty-pv [] -> :wat::core::PersistentVector
   (:wat::core::PersistentVector))
@@ -54,7 +54,7 @@
                          (:wat::core::PersistentVector (:exp::q-Hit)))
                     s1 (:wat::rete::import (:wat::rete::export s0))]
     (:wat::core::length
-      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
+      (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s1)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:exp::q-Hit)))))
 
 ;; The SOURCE answer for the same rule — no export/import at all. The round-trip is only
 ;; meaningful against what the un-serialized program says, and pinning both catches a fixture
@@ -64,7 +64,7 @@
                          (:wat::core::PersistentVector (:exp::cool-computed))
                          (:wat::core::PersistentVector (:exp::q-Hit)))]
     (:wat::core::length
-      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s0)) (:exp::q-Hit)))))
+      (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s0)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:exp::q-Hit)))))
 
 (:wat::core::defn :user::import-one [e <- :wat::rete::Export] -> :wat::rete::Session
   (:wat::rete::import e))
@@ -76,7 +76,7 @@
                     s1 (:wat::rete::import (:wat::rete::export s0))]
     (:wat::core::length
       (:wat::rete::query
-        (:wat::rete::fire-rules$oracle (:exp::seed s1))
+        (:wat::core::match (:wat::rete::fire-rules$oracle (:exp::seed s1)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
         (:exp::q-Hit)))))
 
 (:wat::core::defn :user::spec-once-on-import [] -> :wat::core::i64
@@ -96,7 +96,7 @@
                     exp (:wat::rete::export s0)
                     s1 (:wat::rete::import exp)]
     (:wat::core::length
-      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
+      (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s1)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:exp::q-Hit)))))
 
 (:wat::core::defn :user::export-sizes [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
@@ -142,7 +142,7 @@
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:sn::mark-bad) (:sn::ok))
                          (:wat::core::PersistentVector (:sn::q-Bad) (:sn::q-Ok)))]
-    (:sn::counts (:wat::rete::fire-rules (:sn::seed s0)))))
+    (:sn::counts (:wat::core::match (:wat::rete::fire-rules (:sn::seed s0)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))))
 
 (:wat::core::defn :user::strat-import-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
@@ -150,7 +150,7 @@
                          (:wat::core::PersistentVector (:sn::q-Bad) (:sn::q-Ok)))
                     exp (:wat::rete::export s0)
                     s1 (:wat::rete::import exp)]
-    (:sn::counts (:wat::rete::fire-rules (:sn::seed s1)))))
+    (:sn::counts (:wat::core::match (:wat::rete::fire-rules (:sn::seed s1)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))))
 
 (:wat::core::defn :user::reexport-shape [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
@@ -186,7 +186,7 @@
                     exp2 (:wat::edn::read txt)
                     s1 (:wat::rete::import exp2)]
     (:wat::core::length
-      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
+      (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s1)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:exp::q-Hit)))))
 
 ;; One EDN value: write(e) == write(export(import(e))).
 (:wat::core::defn :user::reexport-edn-identical [] -> :wat::core::bool
@@ -206,7 +206,7 @@
                     e2 (:wat::rete::export (:wat::rete::import e1))
                     s2 (:wat::rete::import e2)]
     (:wat::core::length
-      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s2)) (:exp::q-Hit)))))
+      (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s2)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:exp::q-Hit)))))
 
 ;; The compiled program as an EDN string — source of tests/rete/hello.rete.edn.
 (:wat::core::defn :user::export-edn [] -> :wat::core::String

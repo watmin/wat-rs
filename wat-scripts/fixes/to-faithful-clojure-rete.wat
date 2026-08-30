@@ -243,7 +243,22 @@
                     rules   (:wat::rete::collect-rules :fix)
                     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
                     staged  (:fix::insert-nodes session nodes)
-                    fired   (:wat::rete::fire-rules staged)
+                    ;; ⛔ ARC 278 the fire-outcome wall — HAND-FACED. This file lives under
+                    ;; `wat-scripts/fixes/`, which the corpus sweep excludes on purpose: those are
+                    ;; codemods, and rewriting a codemod's own body while it is the tool doing the
+                    ;; rewriting is how a migration eats itself. The exclusion is right; the cost
+                    ;; is that a codemod which HAPPENS to fire rete must be faced by hand, and the
+                    ;; `every_wat_scripts_file_loads` gate is what catches it — as it did here.
+                    fired   (:wat::core::match (:wat::rete::fire-rules staged)
+                              ((:wat::rete::FireOutcome::Fired __fired) __fired)
+                              ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r)
+                                (:wat::kernel::assertion-failed!
+                                  "to-faithful-clojure-rete: session memory ceiling exceeded"
+                                  :wat::core::None :wat::core::None))
+                              ((:wat::rete::FireOutcome::RoundCapExceeded __c __s)
+                                (:wat::kernel::assertion-failed!
+                                  "to-faithful-clojure-rete: fixpoint round cap exceeded"
+                                  :wat::core::None :wat::core::None)))
                     ;; query out + action (the transform lives here, outside rete)
                     ;; query-by-type-string (colon-free FQDN) is the checked-body idiom — the bare
                     ;; type-name constructor form `query` wants doesn't type-check in a defn body.

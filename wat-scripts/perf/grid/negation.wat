@@ -104,14 +104,14 @@
                     staged  (:neg::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:neg::q-Ok))) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
-                    fired   (:wat::rete::fire-rules staged)
+                    fired   (:wat::core::match (:wat::rete::fire-rules staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     n1      (:wat::time::now)
                     derived (:neg::derived-vector fired)
                     nat-ns  (:neg::ns-between n0 n1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
-                    ofired  (:wat::rete::fire-rules$oracle staged)
+                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "negation" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:neg::derived-vector ofired) :oracle-ns (:neg::ns-between o0 o1)))))

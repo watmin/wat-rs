@@ -45,7 +45,7 @@ fn count(world_src: &str, fire_fn: &str) -> Result<i64, String> {
              session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))\n\
              session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
              session (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\"))\n\
-             fired   (:wat::rete::{fire_fn} session)]\n\
+             fired   (:wat::core::match (:wat::rete::{fire_fn} session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))]\n\
             (:wat::rete::query fired (:weather::q-ColdAndWindy))))"
     );
     let world = startup_from_source(world_src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))

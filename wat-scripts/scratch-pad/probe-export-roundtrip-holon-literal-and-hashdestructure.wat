@@ -33,7 +33,7 @@
       (:wat::kernel::println
         (:wat::core::length
           (:wat::rete::query
-            (:wat::rete::fire-rules (:xr::seed (:wat::rete::compile-all rules qs))) (:xr::q))))
+            (:wat::core::match (:wat::rete::fire-rules (:xr::seed (:wat::rete::compile-all rules qs))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:xr::q))))
       ;; ⚠ NOT DEMONSTRATED HERE BECAUSE IT PANICS: `(:wat::edn::write <this Export>)`.
       ;; An Export carrying a `#holon` literal cannot be written as EDN text — the literal is an
       ;; UNCLASSIFIED bundle, and `edn::write` refuses (panics) on unclassified holon algebra.
@@ -44,6 +44,6 @@
       (:wat::kernel::println
         (:wat::core::length
           (:wat::rete::query
-            (:wat::rete::fire-rules
-              (:xr::seed (:wat::rete::import (:wat::rete::export (:wat::rete::compile-all rules qs)))))
+            (:wat::core::match (:wat::rete::fire-rules
+              (:xr::seed (:wat::rete::import (:wat::rete::export (:wat::rete::compile-all rules qs))))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
             (:xr::q)))))))

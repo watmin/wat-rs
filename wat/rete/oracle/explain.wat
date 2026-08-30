@@ -53,9 +53,25 @@
 ;; closure so beta is live. First-producer-wins, matching the native index.
 (:wat::core::defn :wat::rete::fire-rules-explain$oracle
   [session <- :wat::rete::Session]
-  -> :wat::rete::Explained
+  ;; ⛔ SAME TYPE AS THE NATIVE, by the dual-impl contract — `(FireOutcome :- [Explained])`. The
+  ;; oracle enforces no ceilings, so it can only ever answer `Fired`; answering a bare `Explained`
+  ;; would make the differential harness unwrap one side and not the other, i.e. compare two
+  ;; different things.
+  -> (:wat::rete::FireOutcome :- [:wat::rete::Explained])
   (:wat::core::let [input       (:wat::rete::Session/facts session)
-                    oracle-sess (:wat::rete::fire-rules$oracle session)
+                    ;; HAND-FACED (arc 278 the fire-outcome wall) — stdlib, per-site semantic.
+                    ;; The oracle enforces no ceilings, so only `Fired` is reachable; the other
+                    ;; arms say so loudly rather than being swallowed.
+                    oracle-sess (:wat::core::match (:wat::rete::fire-rules$oracle session)
+                                  ((:wat::rete::FireOutcome::Fired __f) __f)
+                                  ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r)
+                                    (:wat::kernel::assertion-failed!
+                                      "fire-rules-explain$oracle: memory ceiling — the oracle enforces none"
+                                      :wat::core::None :wat::core::None))
+                                  ((:wat::rete::FireOutcome::RoundCapExceeded __c __s)
+                                    (:wat::kernel::assertion-failed!
+                                      "fire-rules-explain$oracle: round cap — the oracle enforces none"
+                                      :wat::core::None :wat::core::None)))
                     derived     (:wat::rete::collect-derived
                                   (:wat::rete::Session/production-memory oracle-sess))
                     closed      (:wat::rete::merge-facts input derived)
@@ -96,5 +112,6 @@
                                   (:wat::rete::Session/network replay)
                                   (:wat::rete::Session/beta-memory replay)
                                   (:wat::rete::Session/rules session))]
-    (:wat::rete::Explained :session oracle-sess :support support)))
+    (:wat::rete::FireOutcome::Fired
+      (:wat::rete::Explained :session oracle-sess :support support))))
 

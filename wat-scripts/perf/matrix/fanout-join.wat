@@ -36,7 +36,7 @@
                                 (:fan::seed-key acc k fanout))
                               s0
                               (:wat::core::range 0 keys))
-                    n0 (:wat::time::now)  fn (:wat::rete::fire-rules staged)       n1 (:wat::time::now)
+                    n0 (:wat::time::now)  fn (:wat::core::match (:wat::rete::fire-rules staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))       n1 (:wat::time::now)
                     pairs   (:wat::core::length (:wat::rete::query fn (:fan::q-Pair)))
                     nat-ns  (:wat::core::i64::- (:wat::time::epoch-nanos n1) (:wat::time::epoch-nanos n0))]
     (:wat::kernel::println (:perf::FanResult :keys keys :fanout fanout :pairs pairs :native-ns nat-ns))))

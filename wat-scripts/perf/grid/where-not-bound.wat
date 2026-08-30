@@ -25,12 +25,12 @@
 
 
 (:wat::core::defn :wnb::fire [lo <- :wat::core::i64  hi <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::fire-rules
+  (:wat::core::match (:wat::rete::fire-rules
     (:wat::rete::insert
       (:wat::rete::compile-all (:wat::core::PersistentVector (:wnb::max-not-below)) (:wat::core::PersistentVector (:wnb::q-Busy)))
       (:wnb::Station :loc "OSL")
       (:wnb::Reading :loc "OSL" :v lo)
-      (:wnb::Reading :loc "OSL" :v hi))))
+      (:wnb::Reading :loc "OSL" :v hi))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wnb::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println

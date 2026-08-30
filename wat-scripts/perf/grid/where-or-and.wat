@@ -38,34 +38,34 @@
   (:wat::core::let [rules (:wat::core::PersistentVector (:woa::really-cold-or-cold-and-windy))]
     (:woa::line 1 "really-cold"
       (:woa::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
-            (:woa::Temp :c -10 :loc "MCI")))))
+            (:woa::Temp :c -10 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:woa::line 2 "cold-and-windy"
       (:woa::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c 15 :loc "MCI")
-            (:woa::Wind :kph 50 :loc "MCI")))))
+            (:woa::Wind :kph 50 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:woa::line 3 "mild-only"
       (:woa::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
-            (:woa::Temp :c 15 :loc "MCI")))))
+            (:woa::Temp :c 15 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:woa::line 4 "wind-only"
       (:woa::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
-            (:woa::Wind :kph 50 :loc "MCI")))))
+            (:woa::Wind :kph 50 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:woa::line 5 "really-cold-and-windy"
       (:woa::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c -10 :loc "MCI")
-            (:woa::Wind :kph 50 :loc "MCI")))))
+            (:woa::Wind :kph 50 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:woa::line 6 "hot-and-windy"
       (:woa::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:woa::q-Hit)))
             (:woa::Temp :c 25 :loc "MCI")
-            (:woa::Wind :kph 50 :loc "MCI")))))))
+            (:woa::Wind :kph 50 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))))

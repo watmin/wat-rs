@@ -65,7 +65,7 @@ fn round_trip_fired_session() {
                 s0      (:wat::rete::compile rules)\
                 s1      (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
                 s2      (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))]\
-              (:wat::rete::fire-rules s2))",
+              (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None))))",
         );
 
     let wm = to_transient(&fired).expect("to_transient should succeed on a valid Session");
@@ -720,7 +720,7 @@ fn node_share_census(n: i64, m: i64) -> Vec<super::RoundCensus> {
     let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("node-share world should freeze");
     let src = format!(
-        "(:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m}))"
+        "(:wat::core::match (:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
     );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, census) = super::with_fire_census(|| {
@@ -812,7 +812,7 @@ fn accum_gather_visits(g: i64, w: i64) -> u64 {
     let world = startup_from_source(ACCUM_GATHER_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-gather world should freeze");
     let src = format!(
-            "(:wat::rete::fire-rules (:agc::seed (:wat::rete::compile (:wat::rete::collect-rules :agc)) {g} {w}))"
+            "(:wat::core::match (:wat::rete::fire-rules (:agc::seed (:wat::rete::compile (:wat::rete::collect-rules :agc)) {g} {w})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
         );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, visits) = super::with_gather_census(|| {
@@ -897,7 +897,7 @@ fn accum_phase_census(g: i64, w: i64) -> Vec<(&'static str, u64, u64)> {
         .expect("accum-axis world should freeze");
     let staged =
         format!("(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {g} {w})");
-    let src = format!("(:wat::rete::fire-rules {staged})");
+    let src = format!("(:wat::core::match (:wat::rete::fire-rules {staged}) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))");
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let t0 = std::time::Instant::now();
     let (_fired, mut rows) = super::with_phase_census_counted(|| {
@@ -1049,7 +1049,7 @@ fn node_share_phase_census(n: i64, m: i64) -> Vec<(&'static str, u64, u64)> {
     let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("node-share world should freeze");
     let staged = format!("(:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m})");
-    let src = format!("(:wat::rete::fire-rules {staged})");
+    let src = format!("(:wat::core::match (:wat::rete::fire-rules {staged}) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))");
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, rows) = super::with_phase_census_counted(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
@@ -1098,7 +1098,7 @@ fn node_share_where_cost_decomposition() {
     let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("node-share world should freeze");
     let src = format!(
-        "(:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {N})) {M}))"
+        "(:wat::core::match (:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {N})) {M})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
     );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, sample) = super::with_where_sample(|| {
@@ -1352,7 +1352,7 @@ fn node_share_filter_eval_census() {
         let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("node-share world should freeze");
         let src = format!(
-                "(:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m}))"
+                "(:wat::core::match (:wat::rete::fire-rules (:nsh::seed (:wat::rete::compile (:nsh::build-rules {n})) {m})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
             );
         let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
         let (_fired, rows) = super::with_count_census(|| {
@@ -1477,7 +1477,7 @@ fn accum_count_census(g: i64, w: i64) -> Vec<(&'static str, u64)> {
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
     let src = format!(
-            "(:wat::rete::fire-rules (:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {g} {w}))"
+            "(:wat::core::match (:wat::rete::fire-rules (:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) {g} {w})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
         );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, rows) = super::with_count_census(|| {
@@ -1578,7 +1578,7 @@ fn one_rule_fold_ns(rule: &str, g: i64, w: i64) -> u64 {
     let world = startup_from_source(&one_rule_world(rule), None, Arc::new(InMemoryLoader::new()))
         .expect("one-rule world should freeze");
     let src = format!(
-            "(:wat::rete::fire-rules (:one::seed (:wat::rete::compile (:wat::rete::collect-rules :one)) {g} {w}))"
+            "(:wat::core::match (:wat::rete::fire-rules (:one::seed (:wat::rete::compile (:wat::rete::collect-rules :one)) {g} {w})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
         );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, rows) = super::with_phase_census(|| {
@@ -1674,7 +1674,7 @@ fn bind_world_alpha_ns(reading_cond: &str, n: i64) -> u64 {
     )
     .expect("bind world should freeze");
     let src = format!(
-            "(:wat::rete::fire-rules (:bnd::seed (:wat::rete::compile (:wat::rete::collect-rules :bnd)) {n}))"
+            "(:wat::core::match (:wat::rete::fire-rules (:bnd::seed (:wat::rete::compile (:wat::rete::collect-rules :bnd)) {n})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
         );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, rows) = super::with_phase_census(|| {
@@ -1789,7 +1789,7 @@ fn bind_key_construction_vs_map_operation() {
 fn accum_alpha_memory_shape() {
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
-    let src = "(:wat::rete::fire-rules (:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200))";
+    let src = "(:wat::core::match (:wat::rete::fire-rules (:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))";
     let ast = crate::parse_one!(src).expect("parse the fire driver");
     let (_fired, census) = super::with_fire_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
@@ -2201,7 +2201,7 @@ fn binding_cardinality_distribution() {
 ";
     let wj = startup_from_source(J, None, Arc::new(InMemoryLoader::new()))
         .expect("join world should freeze");
-    let ast = crate::parse_one!("(:wat::rete::fire-rules (:bcd::seed 400))").expect("parse");
+    let ast = crate::parse_one!("(:wat::core::match (:wat::rete::fire-rules (:bcd::seed 400)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))").expect("parse");
     let (_f, rows_join) = super::with_count_census(|| {
         eval_in_frozen(&ast, &wj, &Environment::new())
             .unwrap_or_else(|e| panic!("join fire raised: {e:?}"))
@@ -2555,7 +2555,7 @@ fn cascade_phase_census(depth: i64, width: i64) -> Vec<(&'static str, u64, u64)>
     let world = startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("depth-split world should freeze");
     let src = format!(
-            "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width}))"
+            "(:wat::core::match (:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
         );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, rows) = super::with_phase_census_counted(|| {
@@ -2738,13 +2738,13 @@ fn beta_write_read_traffic() {
     let (fanout, _fanout_rows) = traffic(
         "fanout [100 x 20] — one rule, two conditions (the join is TERMINAL)",
         FANOUT_CENSUS_WORLD,
-        "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
-             (:wat::rete::collect-rules :fan)) 100 20))",
+        "(:wat::core::match (:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
+             (:wat::rete::collect-rules :fan)) 100 20)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))",
     );
     let (cascade, cascade_rows) = traffic(
             "deep-cascade [10 x 100] — CHAINED joins (the CONTROL: middle betas must be read)",
             DEPTH_SPLIT_WORLD,
-            "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules 10)) 100))",
+            "(:wat::core::match (:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules 10)) 100)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))",
         );
     // THE case neither shape above produces: a MIDDLE hash-join, whose beta feeds the next
     // join's catch-up. Both worlds above are two-condition rules, so every hash-join in them
@@ -2753,8 +2753,8 @@ fn beta_write_read_traffic() {
     let (tri, tri_rows) = traffic(
         "tri [10 x 5] — THREE conditions: root-join -> J1 -> J2, so J1 is a MIDDLE join",
         TRI_CENSUS_WORLD,
-        "(:wat::rete::fire-rules (:tri::seed (:wat::rete::compile \
-             (:wat::rete::collect-rules :tri)) 10 5))",
+        "(:wat::core::match (:wat::rete::fire-rules (:tri::seed (:wat::rete::compile \
+             (:wat::rete::collect-rules :tri)) 10 5)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))",
     );
     println!("{fanout}{cascade}{tri}");
 
@@ -2945,7 +2945,7 @@ fn fire_cascade(depth: i64, width: i64) -> (crate::freeze::FrozenWorld, Value) {
     let world = startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("depth-split world should freeze");
     let src = format!(
-            "(:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width}))"
+            "(:wat::core::match (:wat::rete::fire-rules (:dc::seed-level-0 (:wat::rete::compile (:dc::build-rules {depth})) {width})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
         );
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let fired = eval_in_frozen(&ast, &world, &Environment::new())
@@ -3216,7 +3216,7 @@ fn scoped_work_with_overlay_reuses_one_build() {
     (:wat::core::foldl\n\
       (:wat::core::fn [acc <- :wat::core::i64  loc <- :wat::core::String] -> :wat::core::i64\n\
         (:wat::core::i64::+ acc\n\
-          (:wat::core::length (:wat::rete::query (overlay (:sw::facts-for loc)) (:sw::q-match)))))\n\
+          (:wat::core::length (:wat::rete::query (:wat::core::match (overlay (:sw::facts-for loc)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! \"overlay: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! \"overlay: fixpoint round cap exceeded\" :wat::core::None :wat::core::None))) (:sw::q-match)))))\n\
       0\n\
       (:wat::core::Vector :- [:wat::core::String] \"fileA\" \"fileB\" \"fileC\"))))";
     let ast = crate::parse_one!(src).expect("parse with-overlay driver");
@@ -3249,7 +3249,7 @@ fn scoped_work_with_network_base_untouched() {
     let src = "\
 (:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
   (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64\n\
-    (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules base) (:sw::q-match)))))";
+    (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules base) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None))) (:sw::q-match)))))";
     let ast = crate::parse_one!(src).expect("parse with-network driver");
     let zero = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("with-network raised: {e:?}"))
@@ -3335,7 +3335,7 @@ fn fanout_phase_census(keys: i64, fanout: i64) -> Vec<(&'static str, u64, u64)> 
     let staged = format!(
         "(:fan::seed (:wat::rete::compile (:wat::rete::collect-rules :fan)) {keys} {fanout})"
     );
-    let src = format!("(:wat::rete::fire-rules {staged})");
+    let src = format!("(:wat::core::match (:wat::rete::fire-rules {staged}) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))");
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let (_fired, rows) = super::with_phase_census_counted(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
@@ -3360,8 +3360,8 @@ fn fanout_phase_census(keys: i64, fanout: i64) -> Vec<(&'static str, u64, u64)> 
 fn fanout_rhs_key_alloc_census() {
     let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("fanout census world should freeze");
-    let src = "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
-                   (:wat::rete::collect-rules :fan)) 100 20))";
+    let src = "(:wat::core::match (:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
+                   (:wat::rete::collect-rules :fan)) 100 20)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))";
     let ast = crate::parse_one!(src).expect("parse the fire driver");
     let (_fired, rows) = super::with_count_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
@@ -3419,8 +3419,8 @@ fn fanout_rhs_key_alloc_census() {
 fn fanout_per_call_alpha_census() {
     let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("fanout census world should freeze");
-    let src = "(:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
-                   (:wat::rete::collect-rules :fan)) 100 20))";
+    let src = "(:wat::core::match (:wat::rete::fire-rules (:fan::seed (:wat::rete::compile \
+                   (:wat::rete::collect-rules :fan)) 100 20)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))";
     let ast = crate::parse_one!(src).expect("parse the fire driver");
     let (_fired, rows) = super::with_phase_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
@@ -5053,13 +5053,13 @@ fn class_scan_harvest_includes_input() {
   :when [(?fact <- :hs::U)])\n";
     let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("input-scan world should freeze");
-    let src = "(:wat::rete::fire-rules\n\
+    let src = "(:wat::core::match (:wat::rete::fire-rules\n\
         (:wat::rete::insert\n\
           (:wat::rete::insert\n\
             (:wat::rete::compile-all (:wat::rete::collect-rules :hs)\n\
               (:wat::core::PersistentVector (:hs::q-T) (:hs::q-U)))\n\
             (:hs::T 1))\n\
-          (:hs::T 2)))";
+          (:hs::T 2))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))";
     let fired = eval_in_frozen(
         &crate::parse_one!(src).expect("parse input-scan fire"),
         &world,
@@ -9319,7 +9319,7 @@ fn n3_leaf_set_vs_occupancy() {
                 s1 (:wat::rete::insert s0 (:n3::A :k 1))\
                 s2 (:wat::rete::insert s1 (:n3::A :k 2))\
                 s3 (:wat::rete::insert s2 (:n3::A :k 3))]\
-              (:wat::rete::fire-rules s3))",
+              (:wat::core::match (:wat::rete::fire-rules s3) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None))))",
         )
     });
     let wm = to_transient(&fired).expect("fired session");

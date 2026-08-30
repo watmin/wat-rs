@@ -136,7 +136,7 @@
 ;; reference an embedder never runs"*) — the same asymmetry the round cap already carries.
 (:wat::core::defn :wat::rete::fire-once$oracle
   [session <- :wat::rete::Session]
-  -> :wat::rete::FireOutcome
+  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
   (:wat::core::let [network  (:wat::rete::Session/network session)
                     rules    (:wat::rete::Session/rules   session)
                     _export (:wat::core::Option/expect
@@ -188,7 +188,7 @@
 ;; nothing half-fired can escape.
 (:wat::core::defn :wat::rete::fire-once
   [session <- :wat::rete::Session]
-  -> :wat::rete::FireOutcome
+  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
   (:wat::rete::fire-once$native session))
 
 ;; collect-derived — flatten production-memory's per-node (PV :- [Record]) values into one (PV :- [:wat::core::Record]).
@@ -416,9 +416,13 @@
     false
     (:wat::core::PersistentMap/keys net)))
 
+;; ⛔ RETURNS `(FireOutcome :- [Session])` — the dual-impl contract is that the oracle and the
+;; native answer the same TYPE; a differential harness unwrapping one side only would be comparing
+;; two different things. It can only ever answer `Fired`: the oracle enforces no ceilings, the
+;; standing accepted asymmetry ("the $oracle is the reference an embedder never runs").
 (:wat::core::defn :wat::rete::fire-rules$oracle
   [session <- :wat::rete::Session]
-  -> :wat::rete::Session
+  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
   (:wat::core::let [input (:wat::rete::Session/facts session)
                     rules (:wat::rete::Session/rules session)
                     net   (:wat::rete::Session/network session)
@@ -431,26 +435,27 @@
                                 (:wat::core::Some nil))
                               "fire-rules$oracle: oracle cannot consume an Export — empty rules, live network")
                     fired (:wat::rete::fire-stratified session)]
-    (:wat::rete::Session
-      :network (:wat::rete::Session/network           fired)
-      :rules (:wat::rete::Session/rules             fired)
-      :alpha-memory (:wat::rete::Session/alpha-memory      fired)
-      :beta-memory (:wat::rete::Session/beta-memory       fired)
-      :production-memory (:wat::rete::Session/production-memory fired)
-      :facts input
-      :next-id (:wat::rete::Session/next-id           fired)
-      :query-memory (:wat::rete::Session/query-memory fired))))
+    (:wat::rete::FireOutcome::Fired
+      (:wat::rete::Session
+        :network (:wat::rete::Session/network           fired)
+        :rules (:wat::rete::Session/rules             fired)
+        :alpha-memory (:wat::rete::Session/alpha-memory      fired)
+        :beta-memory (:wat::rete::Session/beta-memory       fired)
+        :production-memory (:wat::rete::Session/production-memory fired)
+        :facts input
+        :next-id (:wat::rete::Session/next-id           fired)
+        :query-memory (:wat::rete::Session/query-memory fired)))))
 
 ;; fire-rules — public production verb. Keyword-head calls and this first-class
 ;; Fn body both reach rust through `$native` (`runtime.rs`).
 (:wat::core::defn :wat::rete::fire-rules
   [session <- :wat::rete::Session]
-  -> :wat::rete::Session
+  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
   (:wat::rete::fire-rules$native session))
 
 ;; fire-rules-explain — opt-in diagnostic fire. Same intercept/Fn split.
 (:wat::core::defn :wat::rete::fire-rules-explain
   [session <- :wat::rete::Session]
-  -> :wat::rete::Explained
+  -> (:wat::rete::FireOutcome :- [:wat::rete::Explained])
   (:wat::rete::fire-rules-explain$native session))
 

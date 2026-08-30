@@ -110,7 +110,7 @@
 
 (:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0    (:wat::rete::compile-all (:dm::rules) (:dm::queries))
-                    fired (:wat::rete::fire-rules (:dm::seed-practice s0))]
+                    fired (:wat::core::match (:wat::rete::fire-rules (:dm::seed-practice s0)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::PersistentVector
       (:wat::core::length (:wat::rete::query fired (:dm::q-gap)))
       (:wat::core::length (:wat::rete::query fired (:dm::q-read)))

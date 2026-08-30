@@ -67,5 +67,5 @@
   (:wat::core::mapv
     (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
     (:wat::core::PersistentVector/concat
-      (:sqr::counts (:wat::rete::fire-rules (:sqr::staged)))
-      (:sqr::counts (:wat::rete::fire-rules$oracle (:sqr::staged))))))
+      (:sqr::counts (:wat::core::match (:wat::rete::fire-rules (:sqr::staged)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
+      (:sqr::counts (:wat::core::match (:wat::rete::fire-rules$oracle (:sqr::staged)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))))

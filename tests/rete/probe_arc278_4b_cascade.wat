@@ -40,16 +40,16 @@
     (:weather::WindSpeed :kph 45 :location "Bergen")))
 
 (:wat::core::defn :test::cascade-fired-session [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::cascade-fired-bergen [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-ab))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-ab))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::query-count [s <- :wat::rete::Session q <- :wat::rete::Query] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query s q)))
 
 (:wat::core::defn :user::compile-ab-fires-nothing [] -> :wat::core::i64
-  (:test::query-count (:wat::rete::fire-rules (:test::compile-ab)) (:weather::q-ColdAndWindy)))
+  (:test::query-count (:wat::core::match (:wat::rete::fire-rules (:test::compile-ab)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))) (:weather::q-ColdAndWindy)))
 
 (:wat::core::defn :user::weatheralert-count-oslo [] -> :wat::core::i64
   (:test::query-count (:test::cascade-fired-session) (:weather::q-WeatherAlert)))

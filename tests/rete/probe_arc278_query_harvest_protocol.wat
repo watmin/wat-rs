@@ -16,10 +16,10 @@
                          (:wat::core::PersistentVector (:qhp::cool))
                          (:wat::core::PersistentVector (:qhp::q-Hit)))
                     s1 (:wat::rete::insert s0 (:qhp::Temp :c 10))
-                    f1 (:wat::rete::fire-rules s1)
+                    f1 (:wat::core::match (:wat::rete::fire-rules s1) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     n1 (:wat::core::length (:wat::rete::query f1 (:qhp::q-Hit)))
                     s2 (:wat::rete::insert f1 (:qhp::Temp :c 15))
                     n2 (:wat::core::length (:wat::rete::query s2 (:qhp::q-Hit)))
-                    f2 (:wat::rete::fire-rules s2)
+                    f2 (:wat::core::match (:wat::rete::fire-rules s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     n3 (:wat::core::length (:wat::rete::query f2 (:qhp::q-Hit)))]
     (:wat::core::PersistentVector n1 n2 n3)))

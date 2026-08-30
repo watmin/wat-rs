@@ -61,7 +61,7 @@ fn run_for(n: usize) {
         idx += 1;
     }
     let expr = format!(
-        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-rules$oracle s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
+        "(:wat::core::let [{binds}\n fired (:wat::core::match (:wat::rete::fire-rules$oracle s{prev}) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))\n pmem (:wat::rete::Session/production-memory fired)]\
            (:wat::core::length (:wat::core::PersistentMap/keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");

@@ -32,19 +32,19 @@
 
 (:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:nad::counts
-    (:wat::rete::fire-rules
+    (:wat::core::match (:wat::rete::fire-rules
       (:nad::seed
         (:wat::rete::compile-all
           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
-          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok)))))))
+          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok))))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::spec-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:nad::counts
-    (:wat::rete::fire-rules$oracle
+    (:wat::core::match (:wat::rete::fire-rules$oracle
       (:nad::seed
         (:wat::rete::compile-all
           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
-          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok)))))))
+          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok))))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::import-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0  (:wat::rete::compile-all
@@ -52,4 +52,4 @@
                           (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok)))
                     exp (:wat::rete::export s0)
                     s1  (:wat::rete::import exp)]
-    (:nad::counts (:wat::rete::fire-rules (:nad::seed s1)))))
+    (:nad::counts (:wat::core::match (:wat::rete::fire-rules (:nad::seed s1)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None))))))

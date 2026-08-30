@@ -55,55 +55,55 @@
   (:wat::core::let [inline (:wjl::run (:wjl::wind-above-temp-inline))
                     where  (:wjl::run (:wjl::wind-above-temp-where))]
     (:wjl::line 1 "empty-inline"
-      (:wjl::n-hit (:wat::rete::fire-rules inline)))
+      (:wjl::n-hit (:wat::core::match (:wat::rete::fire-rules inline) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:wjl::line 2 "temp-only-inline"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
-          (:wat::rete::insert inline (:wjl::Temp :c 10 :loc "MCI")))))
+        (:wat::core::match (:wat::rete::fire-rules
+          (:wat::rete::insert inline (:wjl::Temp :c 10 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:wjl::line 3 "wind-only-inline"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
-          (:wat::rete::insert inline (:wjl::Wind :kph 20 :loc "MCI")))))
+        (:wat::core::match (:wat::rete::fire-rules
+          (:wat::rete::insert inline (:wjl::Wind :kph 20 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     ;; Clara 0 — wind is not above temp. Wat must print 0 to be in parity.
     (:wjl::line 4 "below-inline"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert inline
             (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 5 :loc "MCI")))))
+            (:wjl::Wind :kph 5 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     ;; Clara 1 — 20 > 10. Wat must print 1 to be in parity.
     (:wjl::line 5 "above-inline"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert inline
             (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 20 :loc "MCI")))))
+            (:wjl::Wind :kph 20 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     ;; Clara 0 — equal is not >.
     (:wjl::line 6 "equal-inline"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert inline
             (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 10 :loc "MCI")))))
+            (:wjl::Wind :kph 10 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     ;; CONTROL: same facts as 4 / 5, predicate in a :where. Both engines.
     (:wjl::line 7 "below-where"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert where
             (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 5 :loc "MCI")))))
+            (:wjl::Wind :kph 5 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:wjl::line 8 "above-where"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert where
             (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 20 :loc "MCI")))))
+            (:wjl::Wind :kph 20 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     ;; Clara 1 — only MCI is above; ORD is below.
     (:wjl::line 9 "two-locs-inline"
       (:wjl::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert inline
             (:wjl::Temp :c 10 :loc "MCI")
             (:wjl::Wind :kph 20 :loc "MCI")
             (:wjl::Temp :c 10 :loc "ORD")
-            (:wjl::Wind :kph 5 :loc "ORD")))))))
+            (:wjl::Wind :kph 5 :loc "ORD"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))))

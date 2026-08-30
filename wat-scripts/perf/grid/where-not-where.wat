@@ -34,26 +34,26 @@
   (:wat::core::let [rules (:wat::core::PersistentVector (:wnw::not-same-loc))]
     (:wnw::line 1 "same-loc"
       (:wnw::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
             (:wnw::Temp :c 10 :loc "MCI")
-            (:wnw::Wind :kph 10 :loc "MCI")))))
+            (:wnw::Wind :kph 10 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:wnw::line 2 "diff-loc"
       (:wnw::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
             (:wnw::Temp :c 10 :loc "MCI")
-            (:wnw::Wind :kph 10 :loc "ORD")))))
+            (:wnw::Wind :kph 10 :loc "ORD"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:wnw::line 3 "temp-only"
       (:wnw::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
-            (:wnw::Temp :c 10 :loc "MCI")))))
+            (:wnw::Temp :c 10 :loc "MCI"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))
     (:wnw::line 4 "two-diff"
       (:wnw::n-hit
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnw::q-Hit)))
             (:wnw::Temp :c 10 :loc "MCI")
             (:wnw::Temp :c 12 :loc "ORD")
             (:wnw::Wind :kph 10 :loc "DFW")
-            (:wnw::Wind :kph 20 :loc "SEA")))))))
+            (:wnw::Wind :kph 20 :loc "SEA"))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))))))
