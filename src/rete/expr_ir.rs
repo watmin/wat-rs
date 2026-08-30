@@ -1,8 +1,46 @@
 //! The one expression core — `DESIGN-STONE-the-one-expression-core.md`.
 //!
-//! Nested `Expr` DAG. No `Interp` arm. `lower()` is total or it refuses.
-//! First consumer: `where` (rule-compile refuse + native filter exec).
-//! Oracle remains `eval_test_core`.
+//! Every rete expression in the substrate compiles and runs through this file: an inline
+//! constraint, a `where` fence, a `:then` value, a user `defn` body reached from any of them. There
+//! is no second path and no `Interp` arm — that is what "the ONE expression core" names.
+//!
+//! ── THE TWO PHASES, AND THE LINE BETWEEN THEM ────────────────────────────────────────────────
+//!
+//! **[`lower`] : `WatAST` → [`Program`]** happens once, at rule-compile time. It resolves every
+//! binder to a numbered SLOT, resolves every head to a `RETE_OPS` row index, and refuses anything
+//! it cannot represent. **[`exec`] : `Program` × frame → `Value`** happens per row, per fire, and
+//! does no resolution at all.
+//!
+//! ⛔ **THE INVARIANT THAT MAKES THAT SPLIT WORTH IT: `lower` IS TOTAL OR IT REFUSES.** A
+//! `Program` that exists is one `exec` can run — every name resolved, every arity checked, every
+//! head known. `exec` therefore raises only on VALUES (an unbound slot, a wrong type, a partial
+//! primitive), never on shape. **A refusal that belongs at compile time and lands at fire time is
+//! a defect in this file**, because it moves a diagnostic from the rule the author is writing to
+//! the millionth row of someone's data.
+//!
+//! That invariant is also why the lowering half is the bigger half: `lower_list` alone is the
+//! dispatcher for every form the language admits, and every "cannot lower" it emits is a promise
+//! that `exec` will not meet that shape.
+//!
+//! ── THE FRAME MODEL ──────────────────────────────────────────────────────────────────────────
+//!
+//! A [`Program`] carries `frame_len` slots. The caller allocates `[Option<Value>; frame_len]`,
+//! writes the bound values in, and hands it to [`exec`]. Three fields describe how it is filled:
+//!
+//! - `reads` — token-binding key (`"?x"`) → slot. The prologue a `where` runs to seed the frame
+//!   from a row's bindings; sorted, so two structurally identical programs compare equal.
+//! - `params` — parameter slots in declaration order, EMPTY for a `where` program. A literal `fn`
+//!   lowered inside a `where` shares the parent's slot numbering rather than restarting at zero,
+//!   which is why `foldl` writes `[acc, x]` at these slots and not at `0..n`.
+//! - `names` — slot → binder name, read ONLY to name an unbound slot in a diagnostic. Nothing on a
+//!   successful path touches it.
+//!
+//! ── WHAT LIVES ON TOP ────────────────────────────────────────────────────────────────────────
+//!
+//! `compiled_cond.rs` and `compiled_rhs.rs` sit on this; `where_tree.rs`'s `exec_dim` is its
+//! sibling for the compiled-dimension path. The wat oracle keeps its own interpreter
+//! (`eval_test_core`) by the dual-impl contract — the two are compared by the differential
+//! fuzzers, so a divergence here is caught as a divergence rather than as a wrong answer.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -247,6 +285,18 @@ pub(crate) fn lower_in_frame(
     out
 }
 
+/// Compile one expression AST into a runnable [`Program`] — the module's front door.
+///
+/// Allocates a slot per distinct binder as they are encountered, so slot numbers are an artifact
+/// of traversal order and mean nothing outside the `Program` that owns them.
+///
+/// `reads` is built from the `?`-prefixed binders only — those are the ones a row supplies — and
+/// is SORTED. That sort is not cosmetic: two structurally identical programs must compare equal
+/// for the arm-intern table to reuse one build, and a `HashMap` iteration order would make that
+/// depend on hashing.
+///
+/// Refuses rather than defers: see the module's totality invariant. Everything this returns `Ok`
+/// for is something [`exec`] can run.
 pub(crate) fn lower(expr: &WatAST, sym: &SymbolTable) -> Result<Program, LowerError> {
     let mut cx = LowerCx {
         sym,
@@ -285,6 +335,18 @@ fn slot_names(cx: &LowerCx<'_>) -> SlotNames {
     names.into_boxed_slice()
 }
 
+/// Lower any expression: literals and symbols directly, everything else through [`lower_list`].
+///
+/// ⛔ **THE `?` PREFIX IS A SCOPING RULE, not a naming convention.** A `?`-prefixed symbol is a
+/// TOKEN BINDING supplied by the row, so it mints a slot on first sight and reuses it after —
+/// which is how `?x` twice in one fence reads one value. Any other symbol must ALREADY be in scope
+/// (a `let` or `fn` binder lowered earlier); if it is not, this refuses with `unbound` rather than
+/// minting, because there is nothing to fill that slot from.
+///
+/// So the two spellings fail at different TIMES, and both do fail: a typo'd `tpyo` is refused
+/// here, at rule-compile; a typo'd `?tpyo` lowers fine, mints a slot nothing writes, and raises
+/// `UnboundSymbol` from [`exec`]'s `Slot` arm on the first row. Neither is silent — but only one
+/// of them reaches the author while they are still looking at the rule.
 fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     // Consume the HOF-callee flag at THIS node only. A literal `fn` body's
     // symbols (`acc` in `(and acc …)`) are ordinary binders, not callees.
@@ -337,6 +399,11 @@ pub(crate) fn keyword_value(k: &str, sym: &SymbolTable) -> Value {
     Value::wat__core__keyword(Arc::new(k.to_string()))
 }
 
+/// Lower the FUNCTION operand of a higher-order op (`foldl`, `reduce`, `mapv`, `filterv`).
+///
+/// Distinct from [`lower_expr`] because a callee position admits shapes an ordinary operand does
+/// not — a literal `fn`, a named rete `defn` — and refuses shapes an operand would accept. It sets
+/// `cx.hof_fn_pos` so a nested call knows it is being lowered as a callee, not as a value.
 fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     match ast {
         WatAST::List(items, span) => {
@@ -369,6 +436,16 @@ fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> 
     }
 }
 
+/// THE DISPATCHER — every non-atomic form in the language arrives here and leaves as an [`Expr`]
+/// or as a refusal.
+///
+/// Ordered deliberately: reader-desugared literals (`#holon`) fold to constants FIRST, then the
+/// special forms that cannot be lowered as ordinary calls (`if`/`and`/`or`/`let`/`match`/`fn`,
+/// because their operands are not all strictly evaluated), then record/variant construction, then
+/// the generic `RETE_OPS` lookup. A head that reaches the end unmatched is refused by name.
+///
+/// ⛔ **EVERY REFUSAL HERE IS A PROMISE `exec` WILL NOT MEET THAT SHAPE** (the module's totality
+/// invariant). Adding a form means adding it here, not adding an arm to `exec`.
 fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     let head = match items.first() {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
@@ -536,6 +613,7 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
 
 type ExprArgs = Box<[Expr]>;
 
+/// Lower a call's operands, threading `hof` so a callee position is lowered as a callee.
 fn lower_call_args(
     args: &[WatAST],
     cx: &mut LowerCx,
@@ -560,6 +638,9 @@ fn lower_args(args: &[WatAST], cx: &mut LowerCx) -> Result<ExprArgs, LowerError>
     Ok(out.into_boxed_slice())
 }
 
+/// Lower a call whose row declares a FALLBACK — an op that may answer "no value" rather than
+/// raise (`Option`-shaped rows). The fallback expression is lowered too and `exec` picks between
+/// them via `classify_fallback_outcome`, the one classifier `where_tree.rs` also uses.
 fn lower_fallback(
     op: u16,
     args: &[WatAST],
@@ -588,6 +669,8 @@ fn lower_fallback(
     })
 }
 
+/// Lower `(let [name expr …] body)`. Each binder mints a slot BEFORE the body is lowered, so the
+/// body resolves the name; bindings are sequential, and a later one may read an earlier.
 fn lower_let(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     let (binds_ast, body) = match args {
         [binds, body] => (binds, body),
@@ -621,6 +704,8 @@ fn lower_let(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
     })
 }
 
+/// Lower `(match scrutinee (pattern body)…)`. Each arm's pattern is lowered first so its binders
+/// exist as slots when its body is lowered.
 fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     if args.is_empty() {
         return Err(LowerError::unsupported(span.clone(), "match needs a scrutinee".into()));
@@ -652,6 +737,11 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
     })
 }
 
+/// Lower one `match` pattern into a [`Pat`], minting a slot for every binder it introduces.
+///
+/// Covers literals, wildcards, binders, enum variants and hash-destructure (`Type{a, b}`). A
+/// pattern's binders are in scope for that arm's body ONLY — the slots are shared with the parent
+/// frame, so an arm must not read a binder another arm introduced.
 fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
     if let Some(v) = crate::rete::matcher::ast_literal_value(ast) {
         return Ok(Pat::Lit(v));
@@ -749,6 +839,11 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
     }
 }
 
+/// Lower a literal `(fn [params] body)` into a nested [`Program`].
+///
+/// ⚠ It shares the PARENT's slot numbering rather than starting a fresh frame. That is what lets
+/// `foldl` write `[acc, x]` into the enclosing frame instead of allocating one per element — see
+/// the module's frame model.
 fn lower_fn(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     let arrow = items
         .iter()
@@ -792,6 +887,8 @@ fn lower_fn(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
     })
 }
 
+/// Lower a NAMED rete `defn`'s body into a `Program`, so a user fn called from a fence runs on
+/// this core rather than through the general interpreter. Cached by the caller.
 fn lower_rete_defn(
     func: &crate::runtime::Function,
     body: &WatAST,
@@ -885,6 +982,10 @@ fn field_index(sym: &SymbolTable, class: &str, field: &str) -> Option<usize> {
     }
 }
 
+/// Lower record / enum-variant construction, or return `Ok(None)` if `head` names neither.
+///
+/// `None` is "not a constructor, keep looking" — NOT a refusal. It is what lets [`lower_list`] try
+/// construction before the generic op lookup without having to know the type table itself.
 fn lower_construct(
     head: &str,
     items: &[WatAST],
@@ -956,6 +1057,10 @@ fn lower_construct(
 
 // ── exec ─────────────────────────────────────────────────────────────────────
 
+/// Run a lowered `where` fence against one row's bindings — the module's other public entry.
+///
+/// Seeds the frame from `program.reads`, runs [`exec`], and requires a `bool`: a fence that
+/// evaluates to anything else is a type error at the fence, not a silent non-match.
 pub(crate) fn exec_where<B: Bindings + ?Sized>(
     program: &Program,
     bindings: &B,
@@ -976,6 +1081,10 @@ pub(crate) fn exec_where<B: Bindings + ?Sized>(
     }
 }
 
+/// Write one value into a frame slot, refusing an out-of-range slot rather than growing.
+///
+/// A slot index out of range means the `Program` and the frame disagree on `frame_len`, which is a
+/// bug in lowering — so it raises rather than resizing, keeping the disagreement visible.
 fn write_slot(
     frame: &mut [Option<Value>],
     slot: u16,
@@ -1023,6 +1132,18 @@ thread_local! {
     static EXEC_SP: Cell<usize> = const { Cell::new(0) };
 }
 
+/// Run `f` with a frame of `len` slots, carved off a thread-local ARENA rather than allocated.
+///
+/// `exec` runs once per row per fire, so a `Vec` per call is the hot-path cost this exists to
+/// avoid. `EXEC_SP` is a stack pointer into the arena: a frame is the window `[sp, sp+len)`, the
+/// window is zeroed on entry, and the pointer is restored on the way out. Nested calls therefore
+/// stack rather than collide.
+///
+/// ⚠ **THE `Err` ARM IS THE PART THAT MATTERS.** A nested `exec_where` / `CallUser` / fold can be
+/// entered while the OUTER frame is still borrowed — the `RefCell` is already held, so the arena
+/// cannot hand out a second window. That case falls back to a plain heap `vec` for the inner
+/// frame, leaving the arena with its outer owner. It is a correctness path, not an optimisation
+/// gap: without it, re-entrancy would be a panic on a live borrow.
 fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> R {
     EXEC_ARENA.with(|arena| {
         match arena.try_borrow_mut() {
@@ -1334,6 +1455,10 @@ fn exec_program_on(
     })
 }
 
+/// `foldl` — the higher-order op that motivates the callee machinery.
+///
+/// Its function operand is applied PER ELEMENT, so it cannot be pre-evaluated into a value the way
+/// `exec`'s strict arms evaluate theirs; see the divert documented on [`exec`].
 fn exec_foldl(
     args: &[Expr],
     frame: &mut [Option<Value>],
@@ -2162,6 +2287,11 @@ fn first_of(v: &Value, span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::positional_at(v.clone(), 0, ":wat::core::first", span)
 }
 
+/// The shared body of EIGHT comparison ops — `<`, `<=`, `>`, `>=` in both the generic and the
+/// `f64` spellings — reduced to one `Ordering` and the caller's predicate over it.
+///
+/// One comparison site is the point: `i64::<` and `f64::<` cannot drift on what is comparable or
+/// on how a mixed pair is refused, because there is only one place that decides.
 fn ord(
     a: &Value,
     b: &Value,
