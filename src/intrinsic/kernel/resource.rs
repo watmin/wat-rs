@@ -165,6 +165,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     name :wat::core::String the pool's name, surfaced in pop/finish error messages
 /// @arg     handles (:wat::core::Vector :- [T]) the handles to pool, in claim order
@@ -202,6 +203,7 @@ pub(crate) fn eval_handle_pool_new(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     pool (:wat::kernel::HandlePool :- [T]) the pool to claim from
 /// @ret     :T the claimed handle
@@ -239,6 +241,7 @@ pub(crate) fn eval_handle_pool_pop(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     pool (:wat::kernel::HandlePool :- [T]) the pool to check is drained
 /// @ret     :wat::core::nil always `:()` on success
@@ -291,6 +294,7 @@ pub(crate) fn eval_handle_pool_finish(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @ret     (:wat::core::Tuple :- [:wat::io::IOWriter :wat::io::IOReader]) the fresh pipe's write and read ends
 /// @example-norun (:wat::kernel::pipe) #=> #wat.core/Tuple[#wat.io/IOWriter{} #wat.io/IOReader{}]
@@ -327,6 +331,7 @@ pub(crate) fn eval_kernel_pipe(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the self-peer program body, run once on the new thread
 /// @arg     init_fn [:-> :wat::core::Record] 0-arg fn run at peer-start; its return becomes the peer's user-data
@@ -382,6 +387,7 @@ pub(crate) fn eval_kernel_spawn_thread_prime(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     forms (:wat::core::Vector :- [:wat::WatAST]) the forms-server program to run in the child
 /// @arg     post_spawn_fn [:wat::spawn::ProcessLaunch :-> :wat::core::nil] runs owner-side after fork, with the child pid
@@ -448,6 +454,7 @@ pub(crate) fn eval_kernel_spawn_process_prime(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     peer_kind :wat::program::PeerKind `:thread` or `:process` — selects the timer's tier
 /// @arg     duration :wat::time::Duration non-negative delay before the timer fires
@@ -502,6 +509,7 @@ pub(crate) fn eval_kernel_after(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer to close (Thread' or Process')
 /// @ret     :wat::kernel::CloseOutcome Closed[exit] / Failed[cause] / Signaled[signal] — must-use
@@ -540,6 +548,7 @@ pub(crate) fn eval_peer_close_prime(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     peer (:wat::kernel::Process :- [I O]) the process peer to signal (process-tier only)
 /// @arg     sig :wat::kernel::Signal the POSIX signal to deliver (User1/User2/Hangup/Interrupt/Terminate/Kill)
@@ -583,6 +592,7 @@ pub(crate) fn eval_signal(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     xs… :wat::core::Value locus (+ tier-dependent trailing args — see `infer_listener_prime`)
 /// @ret     (:wat::kernel::Listener :- [S R]) the fresh listener (thread tier also returns its paired Address in a tuple)
@@ -622,6 +632,7 @@ pub(crate) fn eval_listener_prime(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     addr (:wat::kernel::Address :- [S R]) the address to dial (from `listener`'s thread-tier tuple, or discovered process-tier)
 /// @ret     (:wat::kernel::Peer :- [S R]) the client end of the new connection
@@ -659,6 +670,7 @@ pub(crate) fn eval_connect_prime(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the listener to accept a connection from
 /// @ret     (:wat::kernel::Peer :- [R S]) the server end of the accepted connection
@@ -698,6 +710,7 @@ pub(crate) fn eval_accept_prime(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the listener whose allow-set to administer
 /// @arg     pid :wat::core::i64 the pid to allow
@@ -739,6 +752,7 @@ pub(crate) fn eval_allow_prime(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the listener whose allow-set to administer
 /// @arg     pid :wat::core::i64 the pid to deny

@@ -30,6 +30,7 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg xs… :wat::core::Value the args to count
 /// @ret :wat::core::i64 the number of arguments passed
@@ -59,6 +60,7 @@ pub(crate) fn eval_variadic_args_measurement(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg f [:wat::core::i64 :-> :wat::core::i64] the fn applied to the yielded value
 /// @yields f the value handed to f (always 42 for this witness)

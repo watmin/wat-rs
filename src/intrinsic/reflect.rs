@@ -60,6 +60,7 @@ fn example_names() -> Arc<Vec<String>> {
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @ret (:wat::core::Vector :- [:wat::intrinsic::Example]) a Vector of Example records, one per @example/@example-norun across all registered intrinsics
 /// @example-norun (:wat::intrinsic::examples)
@@ -225,6 +226,7 @@ fn extract_fqdn(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String the handler's Rust source (for intrinsics) or the body's wat source (for user forms)
@@ -345,6 +347,7 @@ pub(crate) fn eval_show_source(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String a plain-text multi-line String rendering the intrinsic's name, prose, and examples
@@ -562,6 +565,7 @@ fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>,
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg params (:wat::core::Vector :- [:wat::WatAST]) the candidate type-param name nodes (Symbols, or Keywords), in declaration order
 /// @arg node :wat::WatAST the AST subtree to search — typically a field/member vector
@@ -657,6 +661,7 @@ pub(crate) fn eval_type_params_used_in(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg a :wat::WatAST a type-expression node — keyword, `wat.type/` symbol, parametric form `(Head :- [args])`, or fn-type bracket `[arg… :-> ret]`
 /// @arg b :wat::WatAST the other type-expression node, same surface set

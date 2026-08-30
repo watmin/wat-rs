@@ -54,6 +54,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the left addend
 /// @arg     b :wat::core::rational the right addend
@@ -89,6 +90,7 @@ fn eval_rational_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the minuend
 /// @arg     b :wat::core::rational the subtrahend
@@ -120,6 +122,7 @@ fn eval_rational_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the first factor
 /// @arg     b :wat::core::rational the second factor
@@ -152,6 +155,7 @@ fn eval_rational_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the dividend
 /// @arg     b :wat::core::rational the divisor
@@ -196,6 +200,7 @@ fn eval_rational_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::rational the rational to cast
 /// @ret     :wat::core::f64 `n`, cast to f64
@@ -218,6 +223,7 @@ pub(crate) fn eval_rational_to_f64_intrinsic(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::rational the rational to inspect
 /// @ret     :wat::core::i64 the numerator of `n`
@@ -240,6 +246,7 @@ pub(crate) fn eval_rational_numerator_intrinsic(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::rational the rational to inspect
 /// @ret     :wat::core::i64 the denominator of `n`

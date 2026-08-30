@@ -45,6 +45,7 @@ use holon::HolonAST;
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     name :wat::core::String the reckoner's name
 /// @arg     dims :wat::core::i64 the raw vector dimension
@@ -127,6 +128,7 @@ pub(crate) fn eval_reckoner_new_discrete(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     name :wat::core::String the reckoner's name
 /// @arg     dims :wat::core::i64 the raw vector dimension
@@ -206,6 +208,7 @@ pub(crate) fn eval_reckoner_new_continuous(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner mutated
 /// @arg     v :wat::holon::Vector the observed vector
@@ -241,6 +244,7 @@ pub(crate) fn reckoner_observe(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @arg     v :wat::holon::Vector the vector to score
@@ -286,6 +290,7 @@ pub(crate) fn reckoner_predict(r: &Value, v: &Value, span: &Span) -> Result<Valu
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner mutated
 /// @arg     conviction :wat::core::f64 the prediction's conviction
@@ -342,6 +347,7 @@ pub(crate) fn eval_reckoner_resolve(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     (:wat::core::Option :- [(:wat::core::Tuple :- [:wat::core::f64 :wat::core::f64])]) the fitted `(slope, intercept)` curve, or `None`
@@ -369,6 +375,7 @@ pub(crate) fn reckoner_curve(r: &Value, span: &Span) -> Result<Value, EvalBreak>
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     (:wat::core::Vector :- [:wat::core::i64]) the label indices `r` tracks
@@ -392,6 +399,7 @@ pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     :wat::core::i64 the raw vector dimension

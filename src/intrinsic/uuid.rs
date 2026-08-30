@@ -49,6 +49,7 @@ fn is_canonical_uuid_string(s: &str) -> bool {
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @ret     :wat::core::Uuid a freshly-minted random UUID
 /// @example-norun (:wat::uuid::v4) #=> #uuid "a random v4 UUID, different every call"
@@ -69,6 +70,7 @@ pub(crate) fn eval_uuid_v4() -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     ns   :wat::core::Uuid   the namespace UUID
 /// @arg     name :wat::core::String the name, scoped by `ns`
@@ -122,6 +124,7 @@ pub(crate) fn eval_uuid_v5(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the candidate UUID text
 /// @ret     (:wat::core::Option :- [:wat::core::Uuid]) `Some(u)` iff `s` is a canonical UUID string, `None` otherwise
@@ -162,6 +165,7 @@ pub(crate) fn eval_uuid_from_string(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     u :wat::core::Uuid the UUID to render
 /// @ret     :wat::core::String the canonical 8-4-4-4-12 lowercase hyphenated rendering of `u`
@@ -197,6 +201,7 @@ pub(crate) fn eval_uuid_to_string(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @ret     :wat::core::Uuid the nil UUID (`00000000-0000-0000-0000-000000000000`)
 /// @example (:wat::uuid::nil) #=> (:wat::uuid::nil)
@@ -214,6 +219,7 @@ pub(crate) fn eval_uuid_nil() -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     u :wat::core::Uuid the UUID to inspect
 /// @ret     :wat::core::i64 the version nibble of `u` (e.g. 4 for a v4 UUID)
@@ -251,6 +257,7 @@ pub(crate) fn eval_uuid_version(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     u :wat::core::Uuid the UUID to inspect
 /// @ret     :wat::core::bool true iff `u`'s variant nibble indicates RFC-4122

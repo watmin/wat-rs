@@ -215,6 +215,7 @@ mod totality_axis_tests {
              /// @Purity Pure\n\
              /// @Determinism Deterministic\n\
              {total_line}\
+             /// @ExpandTime Unreviewed\n\
              /// @Category ControlFlow\n\
              /// @syntax (probe-form a b)\n\
              /// @ret :wat::core::i64 the ret\n\
@@ -288,10 +289,12 @@ mod totality_axis_tests {
 
 #[cfg(test)]
 mod expand_time_axis_tests {
-    //! arc 255 Stone expand-T2 — the special-form sibling of `wat_intrinsic`'s
-    //! `expand_time_axis_tests`. `@ExpandTime` is OPTIONAL here too; absence
-    //! DEFAULTS to `Unreviewed` through the SAME `emit()` every real
-    //! `#[wat_special_form]` call site expands through.
+    //! arc 255 Stones expand-T2 / expand-T3 — the special-form sibling of
+    //! `wat_intrinsic`'s `expand_time_axis_tests`. T2's Row 3/4 proved
+    //! `@ExpandTime` reaches `expand_time_token` (the same fn [`emit`] calls for
+    //! every real special form). T3 adds this module's own Row 1: absence of
+    //! `@ExpandTime` must make [`emit`] refuse to expand, with
+    //! `MissingExpandTime`.
     use super::*;
 
     fn fixture_item(expand_time_line: &str) -> syn::ItemStruct {
@@ -333,20 +336,30 @@ mod expand_time_axis_tests {
         emit(&fqdn(), &item).expect("emit() must accept a fixture declaring @ExpandTime Legal");
     }
 
-    /// ★ Row 1's default-when-absent, through the FULL `emit()` pipeline — a
-    /// fixture with NO `@ExpandTime` line must still compile (optional in T2) and
-    /// its generated token must be `Unreviewed`.
+    /// ★ Arc 255 Stone expand-T3, ROW 1 (special-form sibling) — a fixture with NO
+    /// `@ExpandTime` line must FAIL TO COMPILE with `MissingExpandTime`, through
+    /// the same `emit()` every real `#[wat_special_form]` call site expands
+    /// through.
     #[test]
-    fn absent_expand_time_defaults_to_unreviewed_in_the_generated_token() {
+    fn absent_expand_time_fails_to_compile_with_missing_expand_time() {
         let item = fixture_item("");
         let raw_doc = sniff_doc_from_struct(&item).expect("fixture doc must be sniffed");
-        let doc = wat_doc::parse_special_form(&raw_doc).expect("absent @ExpandTime must still parse — optional in T2");
-        assert_eq!(doc.expand_time, wat_doc::ExpandTime::Unreviewed);
+        assert_eq!(
+            wat_doc::parse_special_form(&raw_doc),
+            Err(wat_doc::DocError::MissingExpandTime),
+            "a doc block with no @ExpandTime must fail to parse with MissingExpandTime"
+        );
 
-        let token = expand_time_token(doc.expand_time);
-        assert_eq!(token.to_string(), quote! { ::wat_doc::ExpandTime::Unreviewed }.to_string());
-
-        emit(&fqdn(), &item).expect("emit() must accept a fixture declaring no @ExpandTime");
+        let err = emit(&fqdn(), &item)
+            .expect_err("emit() must refuse to expand a fixture with no @ExpandTime");
+        // Exact, not `contains` — this file's error path is `format!("{:?}", e)`, so the
+        // whole rendering IS the variant name and an exact compare costs nothing while
+        // catching drift.
+        assert_eq!(
+            err.to_string(),
+            "#[wat_special_form] :probe::probe-form: MissingExpandTime",
+            "emit()'s refusal must name the form and MissingExpandTime"
+        );
     }
 
     /// `expand_time_token` is exhaustive, no wildcard.

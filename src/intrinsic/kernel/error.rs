@@ -62,6 +62,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     err :wat::kernel::LociDiedError the death report to read a message from
 /// @ret     :wat::core::String the carried message
@@ -102,6 +103,7 @@ pub(crate) fn eval_died_error_message(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a message from
 /// @ret     :wat::core::String the message carried on `f`'s `error` field
@@ -134,6 +136,7 @@ pub(crate) fn eval_failure_message(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a location from
 /// @ret     (:wat::core::Option :- [:wat::kernel::Location]) `Some` of `f`'s `error.location`
@@ -165,6 +168,7 @@ pub(crate) fn eval_failure_location(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     err :wat::kernel::LociDiedError the death report to convert
 /// @ret     :wat::kernel::Failure a structured Failure built from `err`

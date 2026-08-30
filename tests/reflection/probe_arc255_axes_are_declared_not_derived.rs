@@ -49,6 +49,13 @@
 //!      the axis exists: **totality is the one axis a namespace prefix cannot derive** —
 //!      `:wat::i64::+` is pure ∧ deterministic ∧ NOT total. What changed is that it now has a
 //!      home. `[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`
+//!
+//!      ⊘ UPDATED 2026-08-30 (arc 255 Stone expand-T3) — `@ExpandTime` went through the identical
+//!      arc one stone later: minted at expand-T1, recognized (OPTIONAL) at expand-T2, **REQUIRED**
+//!      here — and this probe's baseline went RED on `MissingExpandTime` the moment it did, the
+//!      SAME failure mode total-T3 produced, for the SAME reason (a fixture in `tests/` this
+//!      file's own criteria did not name as in-scope). Fixed the same way: extend the CLAIM below
+//!      to assert `doc.expand_time`, not merely patch the fixture and move on.
 //!   2. **`wat_doc::Category` has no arithmetic variant** — the closed set is
 //!      `Transform | Reflection | ControlFlow | Binding | Clock | Arithmetic | Io | Probe | Combine`
 //!      (append-only; see `Category::variants()`). Whenever 255 enrols
@@ -83,6 +90,7 @@ fn doc_with(extra_tag_lines: &str) -> String {
          @Purity        Pure\n\
          @Determinism   Deterministic\n\
          @Total         Unreviewed\n\
+         @ExpandTime    Unreviewed\n\
          @Category      Transform\n\
          {extra_tag_lines}\
          @arg     a :wat::core::i64 the left operand\n\
@@ -103,12 +111,13 @@ fn control_baseline_doc_parses() {
 
 /// ★ THE CLAIM — every purity axis is read OFF THE DOC. Refutes the stale module header.
 ///
-/// ⚠ THREE axes now, not two. Arc 255 stone total-T3 minted `@Total` and made it REQUIRED, and
+/// ⚠ FOUR axes now, not three. Arc 255 stone total-T3 minted `@Total` and made it REQUIRED, and
 /// this probe's own baseline went RED on `MissingTotality` when it did — the file that exists to
 /// assert "the axes are DECLARED" was itself not declaring the newest one. Extending the claim to
 /// cover it, rather than only adding the directive to the fixture, is the difference between
 /// fixing the probe and silencing it: a new axis that nothing here asserts is a new axis this
-/// file's thesis has quietly stopped covering.
+/// file's thesis has quietly stopped covering. Stone expand-T3 repeated the exact same lesson one
+/// axis later — `@ExpandTime`'s own `MissingExpandTime` red — fixed the same way, below.
 #[test]
 fn axes_are_declared_not_derived() {
     let doc = wat_doc::parse(&doc_with("")).expect("baseline doc must parse");
@@ -122,6 +131,11 @@ fn axes_are_declared_not_derived() {
         doc.totality,
         wat_doc::Totality::Unreviewed,
         "@Total is parsed from the doc, not inferred"
+    );
+    assert_eq!(
+        doc.expand_time,
+        wat_doc::ExpandTime::Unreviewed,
+        "@ExpandTime is parsed from the doc, not inferred"
     );
 }
 

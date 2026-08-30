@@ -23,6 +23,7 @@ use wat_macros::wat_intrinsic;
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String a length-1 BMP string
 /// @ret     :wat::core::char the single character in `s`

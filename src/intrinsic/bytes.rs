@@ -37,6 +37,7 @@ use crate::value::{
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     bs :wat::core::Bytes the bytes to encode
 /// @ret     :wat::core::String the lowercase hex string, two chars per byte, no separators
@@ -101,6 +102,7 @@ const NIBBLE: [char; 16] = [
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg        s :wat::core::String the hex-encoded string to decode
 /// @ret        (:wat::core::Option :- [:wat::core::Bytes]) Some(Bytes) on success, None on malformed input

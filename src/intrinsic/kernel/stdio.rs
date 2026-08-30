@@ -72,6 +72,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to print
 /// @ret     :wat::core::nil always nil on success; a write failure raises
@@ -93,6 +94,7 @@ pub(crate) fn eval_kernel_println(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to pretty-print
 /// @ret     :wat::core::nil always nil on success; a write failure raises
@@ -117,6 +119,7 @@ pub(crate) fn eval_kernel_pprintln(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the crash-reason value
 /// @ret     :R never returns — the process terminates non-zero
@@ -139,6 +142,7 @@ pub(crate) fn eval_kernel_eprintln(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the crash-reason value
 /// @ret     :R never returns — the process terminates non-zero
@@ -164,6 +168,7 @@ pub(crate) fn eval_kernel_epprintln(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     cap :wat::core::i64 max buffer bytes for the read frame
 /// @ret     :T the decoded value (checker special-cases real inference; the registered scheme is vestigial)
@@ -206,6 +211,7 @@ pub(crate) fn eval_kernel_readln_prime(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @ret     :wat::kernel::ReadFrameOutcome the raw outcome — Frame(text) / Eof / Stopped
 /// @example-norun (:wat::kernel::read-frame) #=> #wat.kernel/ReadFrameOutcome.Frame{...}

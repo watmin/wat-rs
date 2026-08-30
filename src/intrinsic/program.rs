@@ -42,6 +42,7 @@ use crate::value::{EvalBreak, RuntimeError, RuntimeErrorKind, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::program::Env the calling thread's ambient program env
 /// @example (:wat::program::Env/peer-kind (:wat::program::env)) #=> :wat::program::PeerKind::process

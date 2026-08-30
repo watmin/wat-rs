@@ -162,9 +162,11 @@ pub struct DocComment {
     /// inventing it.
     pub totality: Totality,
     /// `@ExpandTime <Variant>` — declared expand-time legality (arc 255 Stone
-    /// expand-T2). OPTIONAL through T2, defaulting to `ExpandTime::Unreviewed`
-    /// when absent — T3 makes it required, mirroring `@Total`'s own T2→T3 arc.
-    /// An unmeasured verb refuses (default-deny) rather than guessing `Legal`,
+    /// expand-T2; made REQUIRED in Stone expand-T3). Absence is
+    /// `DocError::MissingExpandTime`, exactly like `purity`/`determinism`/
+    /// `totality`/`category` — declaring nothing is illegal. An author must
+    /// type `:Unreviewed` explicitly instead of the substrate inventing it;
+    /// an unmeasured verb refuses (default-deny) rather than guessing `Legal`,
     /// which would admit it into a macro body it may corrupt.
     pub expand_time: ExpandTime,
     /// `@Category <Variant>` — closed-enum category (e.g. `Transform`, `Reflection`).
@@ -240,6 +242,12 @@ pub enum DocError {
     /// explicitly if the verb has not been reviewed; the substrate no longer
     /// invents the answer.
     MissingTotality,
+    /// No `@ExpandTime` directive. Arc 255 Stone expand-T3: `@ExpandTime` was
+    /// OPTIONAL through T2 (absence defaulted to `ExpandTime::Unreviewed`);
+    /// mirroring `@Total`'s own T2→T3 arc, declaring nothing is now illegal.
+    /// An author must type `@ExpandTime Unreviewed` explicitly if the verb
+    /// has not been reviewed; the substrate no longer invents the answer.
+    MissingExpandTime,
     /// `@Purity` value is not a known variant.
     InvalidPurityVariant { got: String },
     /// `@Determinism` value is not a known variant.
@@ -286,10 +294,11 @@ pub struct DocSpecialForm {
     /// REQUIRED in Stone total-T3). Absence is `DocError::MissingTotality` — see
     /// `DocComment::totality`.
     pub totality: Totality,
-    /// `@ExpandTime <Variant>` — declared expand-time legality. OPTIONAL through
-    /// T2, defaulting to `ExpandTime::Unreviewed` when absent — see
-    /// `DocComment::expand_time`. `DocSpecialForm` is a SIBLING type to
-    /// `DocComment`, so this field and its resolution point are independent.
+    /// `@ExpandTime <Variant>` — declared expand-time legality (arc 255 Stone
+    /// expand-T2; made REQUIRED in Stone expand-T3). Absence is
+    /// `DocError::MissingExpandTime` — see `DocComment::expand_time`.
+    /// `DocSpecialForm` is a SIBLING type to `DocComment`, so this field and
+    /// its resolution point are independent.
     pub expand_time: ExpandTime,
     /// `@see` FQDNs, in source order.
     pub see: Vec<String>,
@@ -706,10 +715,10 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     // Arc 255 Stone total-T3: `@Total` is REQUIRED, exactly like purity/determinism/
     // category above. Absence is `MissingTotality`, not a silent `Unreviewed` default.
     let totality = totality_val.ok_or(DocError::MissingTotality)?;
-    // Arc 255 Stone expand-T2: `@ExpandTime` is OPTIONAL — absence DEFAULTS to
-    // `Unreviewed` rather than erroring, exactly like `@Total` did through T2
-    // (T3 struck that default for totality; expand-T3 will do the same here).
-    let expand_time = expand_time_val.unwrap_or(ExpandTime::Unreviewed);
+    // Arc 255 Stone expand-T3: `@ExpandTime` is REQUIRED, exactly like `@Total`
+    // above. Absence is `MissingExpandTime`, not a silent `Unreviewed` default —
+    // T2's default is struck, mirroring totality's own T2→T3 arc.
+    let expand_time = expand_time_val.ok_or(DocError::MissingExpandTime)?;
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     // Every `@yields` subject must name a declared `@arg` — a directive with no referent
@@ -1039,10 +1048,9 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     // Arc 255 Stone total-T3: `@Total` is REQUIRED (special-form sibling resolution
     // point — see the `parse` fn above for the same change and its rationale).
     let totality = totality_val.ok_or(DocError::MissingTotality)?;
-    // Arc 255 Stone expand-T2: `@ExpandTime` is OPTIONAL — absence DEFAULTS to
-    // `Unreviewed`, mirroring `parse`'s resolution point above. `DocSpecialForm`
-    // is a sibling type with its own resolution point; this is it.
-    let expand_time = expand_time_val.unwrap_or(ExpandTime::Unreviewed);
+    // Arc 255 Stone expand-T3: `@ExpandTime` is REQUIRED (special-form sibling
+    // resolution point — see the `parse` fn above for the same change).
+    let expand_time = expand_time_val.ok_or(DocError::MissingExpandTime)?;
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     Ok(DocSpecialForm {
@@ -1104,7 +1112,7 @@ mod tests {
     /// The reference intrinsic doc block (`core::Bytes::to-hex`), in the exact
     /// joined form `sniff_doc` produces (`/// ` stripped, `\n`-joined). This IS
     /// the contract the parser must satisfy. Updated to firm grammar (no separator).
-    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
+    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
 
     #[test]
     fn parses_the_reference_intrinsic() {
@@ -1137,7 +1145,7 @@ mod tests {
 
     #[test]
     fn norun_example_may_omit_the_marker() {
-        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Total Unreviewed\n@Category Transform\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
+        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
         let doc = parse(raw).expect("norun parses");
         assert_eq!(
             doc.examples,
@@ -1151,7 +1159,7 @@ mod tests {
 
     #[test]
     fn norun_example_may_carry_an_unverified_marker() {
-        let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Total Unreviewed\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::uuid::v4) #=> #uuid \"…\"";
+        let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::uuid::v4) #=> #uuid \"…\"";
         let doc = parse(raw).expect("norun-with-marker parses");
         assert!(!doc.examples[0].run);
         assert_eq!(doc.examples[0].expected.as_deref(), Some("#uuid \"…\""));
@@ -1159,7 +1167,7 @@ mod tests {
 
     #[test]
     fn multiple_args_and_see_in_order() {
-        let raw = "Blend two things.\n\n@added 1.2.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
+        let raw = "Blend two things.\n\n@added 1.2.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
         let doc = parse(raw).expect("parses");
         assert_eq!(doc.args.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), vec!["a", "b"]);
         assert_eq!(doc.args[0].desc, "the first");
@@ -1169,7 +1177,7 @@ mod tests {
 
     #[test]
     fn deprecated_parses() {
-        let raw = "Old thing.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
+        let raw = "Old thing.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
         let doc = parse(raw).expect("parses");
         assert_eq!(
             doc.deprecated,
@@ -1285,14 +1293,14 @@ mod tests {
 
     #[test]
     fn check_args_zero_arity_ok() {
-        let raw = "A constant.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
+        let raw = "A constant.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
         let doc = parse(raw).unwrap();
         assert_eq!(check_args(&doc, &[]), Ok(()));
     }
 
     #[test]
     fn pure_and_deterministic_parse() {
-        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Nondeterministic\n@Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Nondeterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("pure+det doc parses");
         assert_eq!(doc.purity, Purity::Pure);
         assert_eq!(doc.determinism, Determinism::Nondeterministic);
@@ -1321,13 +1329,16 @@ mod tests {
 
     #[test]
     fn missing_category_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        // @ExpandTime IS present — its own resolution point is checked BEFORE
+        // @Category's, so it must be satisfied here or this test would fail with
+        // MissingExpandTime instead of the MissingCategory it means to prove.
+        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@ret :wat::core::i64 x\n@example (f) #=> y";
         assert_eq!(parse(raw), Err(DocError::MissingCategory));
     }
 
     #[test]
     fn category_parses() {
-        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Reflection\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Reflection\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("category doc parses");
         assert_eq!(doc.category, Category::Reflection);
     }
@@ -1366,7 +1377,7 @@ mod tests {
         ] {
             let raw = format!(
                 "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
-                 @Total {spelling}\n@Category Transform\n@ret :wat::core::i64 the value\n\
+                 @Total {spelling}\n@ExpandTime Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n\
                  @example (f) #=> 1"
             );
             let doc = parse(&raw).unwrap_or_else(|e| panic!("@Total {spelling} must parse: {e:?}"));
@@ -1415,6 +1426,7 @@ mod tests {
             @Purity Preserving\n\
             @Determinism Preserving\n\
             @Total Partial\n\
+            @ExpandTime Unreviewed\n\
             @arg cond :wat::core::Bool the condition\n\
             @ret :T the result\n\
             @example (:wat::core::if true 1 2) #=> 1";
@@ -1432,11 +1444,12 @@ mod tests {
         assert_eq!(super::parse_special_form(without_total), Err(DocError::MissingTotality));
     }
 
-    // ─── @ExpandTime (arc 255 Stone expand-T2) ────────────────────────────────
+    // ─── @ExpandTime (arc 255 Stone expand-T2, made REQUIRED in Stone expand-T3) ──
     //
-    // OPTIONAL in T2, unlike `@Total` (which is required as of total-T3): absence
-    // DEFAULTS to `ExpandTime::Unreviewed` rather than erroring. T3 will make it
-    // required, exactly mirroring totality's own arc.
+    // @ExpandTime is now REQUIRED, exactly like @Purity/@Determinism/@Total/
+    // @Category. Absence is `DocError::MissingExpandTime` — mirroring totality's
+    // own T2→T3 arc, the builder's ruling struck the T2 default. An author must
+    // type `@ExpandTime Unreviewed` explicitly if a verb has not been reviewed.
 
     /// ★ Row 1 — `@ExpandTime <Variant>` parses, one test per legal variant.
     #[test]
@@ -1458,17 +1471,17 @@ mod tests {
         assert!("legal".parse::<ExpandTime>().is_err()); // case-sensitive
     }
 
-    /// ★ Row 1 — ABSENT `@ExpandTime` DEFAULTS to `Unreviewed`, tested explicitly
-    /// (not merely "does not error") — this is the half a hard-wired field would
-    /// also pass, but a genuinely-dropped field would NOT: the assertion checks
-    /// the actual value, not just `is_ok()`.
+    /// ★ Arc 255 Stone expand-T3, Row 1 — ABSENT `@ExpandTime` is now
+    /// `MissingExpandTime`, exactly like `missing_purity_is_an_error` /
+    /// `absent_total_is_an_error` above. This is the "break the door first"
+    /// proof: declaring nothing must genuinely fail before the 431-site sweep
+    /// makes the requirement untestable.
     #[test]
-    fn absent_expand_time_defaults_to_unreviewed() {
+    fn absent_expand_time_is_an_error() {
         let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
                     @Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n\
                     @example (f) #=> 1";
-        let doc = parse(raw).expect("absent @ExpandTime must still parse — it is optional in T2");
-        assert_eq!(doc.expand_time, ExpandTime::Unreviewed);
+        assert_eq!(parse(raw), Err(DocError::MissingExpandTime));
     }
 
     /// ★ Row 2a — a SECOND `@ExpandTime` is `DuplicateSingleton`.
@@ -1491,11 +1504,11 @@ mod tests {
     }
 
     /// The special-form parser accepts the identical directive — `DocSpecialForm`
-    /// is a SIBLING type to `DocComment` (not the same type), so its own
-    /// resolution point needs its own coverage, including the default-when-absent
-    /// half, on BOTH doc structs (row 1's "on BOTH doc structs" requirement).
+    /// is a SIBLING type to `DocComment` (not the same type), so both resolution
+    /// points need their own coverage, including the "absence errors" half (row 1),
+    /// exactly mirroring `special_form_total_parses_and_absence_is_an_error` above.
     #[test]
-    fn special_form_expand_time_parses_and_absence_defaults() {
+    fn special_form_expand_time_parses_and_absence_is_an_error() {
         let with_expand_time = "Evaluate the condition.\n\n\
             @added 1.0.0\n\
             @Category ControlFlow\n\
@@ -1519,9 +1532,7 @@ mod tests {
             @arg cond :wat::core::Bool the condition\n\
             @ret :T the result\n\
             @example (:wat::core::if true 1 2) #=> 1";
-        let doc = super::parse_special_form(without_expand_time)
-            .expect("absent @ExpandTime must still parse on a special form — it is optional in T2");
-        assert_eq!(doc.expand_time, ExpandTime::Unreviewed);
+        assert_eq!(super::parse_special_form(without_expand_time), Err(DocError::MissingExpandTime));
     }
 
     #[test]
@@ -1628,6 +1639,7 @@ mod tests {
             @Purity Preserving\n\
             @Determinism Preserving\n\
             @Total Unreviewed\n\
+            @ExpandTime Unreviewed\n\
             @arg cond :wat::core::Bool the condition\n\
             @arg then :T the then branch\n\
             @arg else :T the else branch\n\
@@ -1655,7 +1667,7 @@ mod arc109_reader_adjudicates_type_tokens {
     /// token under test.
     fn doc_with_ret_type(ty: &str) -> String {
         format!(
-            "A probe.\n\n@added   1.0.0\n@ret     {ty} the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1"
+            "A probe.\n\n@added   1.0.0\n@ret     {ty} the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1"
         )
     }
 
@@ -1715,7 +1727,7 @@ mod arc109_reader_adjudicates_type_tokens {
     /// MATCHING close across nested parens/brackets, not just the first one.
     #[test]
     fn nested_parametric_type_reference_round_trips() {
-        let doc = "A probe.\n\n@added   1.0.0\n@arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the peers\n@ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
+        let doc = "A probe.\n\n@added   1.0.0\n@arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the peers\n@ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
         let parsed = parse(doc).expect("nested parametric type references must be accepted");
         assert_eq!(parsed.args[0].ty, "(:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])])");
         assert_eq!(parsed.args[0].desc, "the peers");
@@ -1725,7 +1737,7 @@ mod arc109_reader_adjudicates_type_tokens {
 
     #[test]
     fn fn_type_bracket_form_round_trips() {
-        let doc = "A probe.\n\n@added   1.0.0\n@arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the prog\n@ret     (:wat::kernel::Thread :- [R S]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
+        let doc = "A probe.\n\n@added   1.0.0\n@arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the prog\n@ret     (:wat::kernel::Thread :- [R S]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
         let parsed = parse(doc).expect("the fn-type bracket form must be accepted");
         assert_eq!(parsed.args[0].ty, "[(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]");
         assert_eq!(parsed.args[0].desc, "the prog");

@@ -53,6 +53,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     error :wat::core::Error the error to raise; carried structurally, never stringified
 /// @ret     :T never returns — `T` unifies with whatever the caller's context demands
@@ -88,6 +89,7 @@ pub(crate) fn eval_kernel_raise(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     message :wat::core::String short diagnostic (e.g. "assert-eq failed")
 /// @arg     actual (:wat::core::Option :- [:wat::core::String]) stringified actual value, when the caller has one

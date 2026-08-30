@@ -584,6 +584,9 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::MissingTotality => {
             "doc comment is missing a required `@Total <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)".into()
         }
+        wat_doc::DocError::MissingExpandTime => {
+            "doc comment is missing a required `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, Preserving, Unreviewed)".into()
+        }
         wat_doc::DocError::InvalidPurityVariant { got } => {
             format!("unknown @Purity variant `{}`; known: Pure, Effectful, Preserving", got)
         }
@@ -1113,6 +1116,7 @@ mod totality_axis_tests {
              /// @Purity Pure\n\
              /// @Determinism Deterministic\n\
              {total_line}\
+             /// @ExpandTime Unreviewed\n\
              /// @Category Arithmetic\n\
              /// @arg a :wat::core::i64 the left operand\n\
              /// @arg b :wat::core::i64 the right operand\n\
@@ -1210,13 +1214,17 @@ mod totality_axis_tests {
 
 #[cfg(test)]
 mod expand_time_axis_tests {
-    //! arc 255 Stone expand-T2. Mirrors `totality_axis_tests` above, one axis over:
-    //! `@ExpandTime <Variant>` must survive past PARSING (rows 1-2, `wat-doc`'s own
-    //! tests) and reach the SAME token-generation step `emit()` runs for every real
-    //! intrinsic (`expand_time_token`, called at this file's
+    //! arc 255 Stones expand-T2 / expand-T3. Mirrors `totality_axis_tests` above,
+    //! one axis over: `@ExpandTime <Variant>` must survive past PARSING (rows 1-2,
+    //! `wat-doc`'s own tests) and reach the SAME token-generation step `emit()`
+    //! runs for every real intrinsic (`expand_time_token`, called at this file's
     //! `let expand_time_token = expand_time_token(doc.expand_time);`), and — unlike
-    //! totality in ITS T2 — the result is spliced into `IntrinsicSubmission` in this
-    //! same stone (the design's "one stone" rationale).
+    //! totality in ITS T2 — the result is spliced into `IntrinsicSubmission` from
+    //! T2 onward (the design's "one stone" rationale).
+    //!
+    //! T3 adds this module's own Row 1: absence of `@ExpandTime` must make
+    //! `emit()` itself refuse to expand, with `MissingExpandTime`, BEFORE the
+    //! 431-site sweep removes every real fixture that could demonstrate it.
     use super::*;
 
     /// A realistic BINDING-shaped fixture handler. `expand_time_line` is spliced
@@ -1265,20 +1273,35 @@ mod expand_time_axis_tests {
         emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring @ExpandTime Legal");
     }
 
-    /// ★ Row 1's default-when-absent, exercised through the FULL `emit()` pipeline —
-    /// a fixture with NO `@ExpandTime` line must still compile (optional in T2) and
-    /// its generated token must be `Unreviewed`, not merely "some value".
+    /// ★ Arc 255 Stone expand-T3, ROW 1 — "break the door first": a fixture with NO
+    /// `@ExpandTime` line must FAIL TO COMPILE. `wat_doc::parse` returns
+    /// `MissingExpandTime` directly, and `emit()` — the exact fn every real
+    /// `#[wat_intrinsic]` call site expands through — refuses with that error
+    /// rendered into its message. This is the artifact kept from the sweep: the
+    /// moment every real site declares, there is nothing left in the tree to prove
+    /// the requirement is real, so it is proven HERE, against a fixture that is
+    /// never swept.
     #[test]
-    fn absent_expand_time_defaults_to_unreviewed_in_the_generated_token() {
+    fn absent_expand_time_fails_to_compile_with_missing_expand_time() {
         let item = fixture_fn("");
         let raw_doc = sniff_doc(&item).expect("fixture doc must be sniffed");
-        let doc = wat_doc::parse(&raw_doc).expect("absent @ExpandTime must still parse — optional in T2");
-        assert_eq!(doc.expand_time, wat_doc::ExpandTime::Unreviewed);
+        assert_eq!(
+            wat_doc::parse(&raw_doc),
+            Err(wat_doc::DocError::MissingExpandTime),
+            "a doc block with no @ExpandTime must fail to parse with MissingExpandTime"
+        );
 
-        let token = expand_time_token(doc.expand_time);
-        assert_eq!(token.to_string(), quote! { ::wat_doc::ExpandTime::Unreviewed }.to_string());
-
-        emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring no @ExpandTime");
+        let err = emit(&fqdn(), None, &item)
+            .expect_err("emit() must refuse to expand a fixture with no @ExpandTime");
+        // Exact, not `contains` — see `absent_total_fails_to_compile_with_missing_totality`'s
+        // identical rationale above: the refusal names the OFFENDING VERB, not just the
+        // directive.
+        assert_eq!(
+            err.to_string(),
+            "#[wat_intrinsic] :probe::add: doc comment is missing a required \
+             `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, Preserving, Unreviewed)",
+            "emit()'s refusal must name the verb, @ExpandTime, and all four legal values"
+        );
     }
 
     /// `expand_time_token` is exhaustive, no wildcard — each arm produces the

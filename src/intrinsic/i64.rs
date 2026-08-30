@@ -56,6 +56,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the left addend
 /// @arg     b :wat::core::i64 the right addend
@@ -100,6 +101,7 @@ fn eval_i64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the minuend
 /// @arg     b :wat::core::i64 the subtrahend
@@ -134,6 +136,7 @@ fn eval_i64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the first factor
 /// @arg     b :wat::core::i64 the second factor
@@ -169,6 +172,7 @@ fn eval_i64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Partial
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -208,6 +212,7 @@ fn eval_i64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -252,6 +257,7 @@ fn eval_i64_mod_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -291,6 +297,7 @@ fn eval_i64_quot_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> 
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -342,6 +349,7 @@ fn eval_i64_rem_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -372,6 +380,7 @@ pub(crate) fn eval_i64_lt(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -402,6 +411,7 @@ pub(crate) fn eval_i64_lte(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -432,6 +442,7 @@ pub(crate) fn eval_i64_gt(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -462,6 +473,7 @@ pub(crate) fn eval_i64_gte(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -492,6 +504,7 @@ pub(crate) fn eval_i64_eq(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -524,6 +537,7 @@ pub(crate) fn eval_i64_not_eq(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
 /// @ret     :wat::core::bigint `n`, promoted to bigint
@@ -551,6 +565,7 @@ pub(crate) fn eval_i64_to_bigint(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to cast
 /// @ret     :wat::core::f64 `n`, cast to f64
@@ -572,6 +587,7 @@ pub(crate) fn eval_i64_to_f64(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
 /// @ret     :wat::core::rational `n`, promoted to rational
@@ -598,6 +614,7 @@ pub(crate) fn eval_i64_to_rational(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to render
 /// @ret     :wat::core::String the base-10 rendering of `n`

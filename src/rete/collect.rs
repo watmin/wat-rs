@@ -46,6 +46,7 @@ use crate::span::Span;
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     ns :wat::core::keyword the namespace to reflect (e.g. `:weather`); matches `"{ns}::"` as a prefix, subtree included
 /// @ret     (:wat::core::PersistentVector :- [:wat::rete::Rule]) every discovered rule, sorted by name; empty if none

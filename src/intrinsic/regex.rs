@@ -23,6 +23,7 @@ use wat_macros::wat_intrinsic;
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     pattern  :wat::core::String the regex pattern (not anchored)
 /// @arg     haystack :wat::core::String the string searched

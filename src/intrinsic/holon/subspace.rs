@@ -38,6 +38,7 @@ use crate::value::{EvalBreak, Value};
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     dim :wat::core::i64 the ambient vector dimension
 /// @arg     k :wat::core::i64 the tracked rank
@@ -61,6 +62,7 @@ pub(crate) fn subspace_new(dim: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::i64 the raw vector dimension
@@ -80,6 +82,7 @@ pub(crate) fn subspace_dim(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::i64 the tracked rank
@@ -99,6 +102,7 @@ pub(crate) fn subspace_k(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::i64 the number of observations absorbed so far
@@ -118,6 +122,7 @@ pub(crate) fn subspace_n(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::f64 the current residual threshold
@@ -137,6 +142,7 @@ pub(crate) fn subspace_threshold(s: &Value, span: &Span) -> Result<Value, EvalBr
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) the tracked basis's current eigenvalues
@@ -159,6 +165,7 @@ pub(crate) fn subspace_eigenvalues(s: &Value, span: &Span) -> Result<Value, Eval
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace mutated
 /// @arg     v :wat::holon::Vector the raw `f64` vector observed
@@ -186,6 +193,7 @@ pub(crate) fn subspace_update(s: &Value, v: &Value, span: &Span) -> Result<Value
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector scored
@@ -208,6 +216,7 @@ pub(crate) fn subspace_residual(s: &Value, v: &Value, span: &Span) -> Result<Val
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector projected
@@ -231,6 +240,7 @@ pub(crate) fn subspace_project(s: &Value, v: &Value, span: &Span) -> Result<Valu
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector reconstructed

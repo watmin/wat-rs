@@ -1834,6 +1834,7 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
 /// @arg     axis :wat::rete::Axis which of the four fence axes to check (`Pure`/`Deterministic`/`Total`/`RetePrimitive`)

@@ -65,6 +65,7 @@ use crate::value::{
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @ret     :wat::time::Instant the instant sampled at call time
 /// @example-norun (:wat::time::now) #=> #inst "2026-08-13T12:00:00.000000000Z"
@@ -80,6 +81,7 @@ pub(crate) fn eval_time_now() -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     secs :wat::core::i64 epoch seconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-seconds mark
@@ -111,6 +113,7 @@ pub(crate) fn eval_time_at(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     ms :wat::core::i64 epoch milliseconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-millis mark
@@ -143,6 +146,7 @@ pub(crate) fn eval_time_at_millis(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     ns :wat::core::i64 epoch nanoseconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-nanos mark
@@ -168,6 +172,7 @@ pub(crate) fn eval_time_at_nanos(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the ISO 8601 / RFC 3339 timestamp string
 /// @ret     (:wat::core::Option :- [:wat::time::Instant]) Some(Instant) on success, None on malformed input
@@ -198,6 +203,7 @@ pub(crate) fn eval_time_from_iso8601(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to format
 /// @arg     digits :wat::core::i64 fractional-second digit count, clamped to [0, 9]
@@ -246,6 +252,7 @@ pub(crate) fn eval_time_to_iso8601(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
 /// @ret     :wat::core::i64 epoch seconds since the Unix epoch, truncated
@@ -269,6 +276,7 @@ pub(crate) fn eval_time_epoch_seconds(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
 /// @ret     :wat::core::i64 epoch milliseconds since the Unix epoch, truncated
@@ -293,6 +301,7 @@ pub(crate) fn eval_time_epoch_millis(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
 /// @ret     :wat::core::i64 epoch nanoseconds since the Unix epoch
@@ -377,6 +386,7 @@ fn unit_constructor(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of nanoseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N nanoseconds
@@ -398,6 +408,7 @@ pub(crate) fn eval_time_unit_nanosecond(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of microseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N microseconds
@@ -420,6 +431,7 @@ pub(crate) fn eval_time_unit_microsecond(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of milliseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N milliseconds
@@ -442,6 +454,7 @@ pub(crate) fn eval_time_unit_millisecond(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of seconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N seconds
@@ -463,6 +476,7 @@ pub(crate) fn eval_time_unit_second(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of minutes (non-negative)
 /// @ret     :wat::time::Duration the Duration of N minutes
@@ -484,6 +498,7 @@ pub(crate) fn eval_time_unit_minute(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of hours (non-negative)
 /// @ret     :wat::time::Duration the Duration of N hours
@@ -505,6 +520,7 @@ pub(crate) fn eval_time_unit_hour(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of days (non-negative)
 /// @ret     :wat::time::Duration the Duration of N days
@@ -550,6 +566,7 @@ fn unit_readout(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in nanoseconds, truncated
@@ -571,6 +588,7 @@ pub(crate) fn eval_time_nanoseconds(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in microseconds, truncated
@@ -592,6 +610,7 @@ pub(crate) fn eval_time_microseconds(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in milliseconds, truncated
@@ -613,6 +632,7 @@ pub(crate) fn eval_time_milliseconds(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in seconds, truncated
@@ -634,6 +654,7 @@ pub(crate) fn eval_time_seconds(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in minutes, truncated
@@ -655,6 +676,7 @@ pub(crate) fn eval_time_minutes(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in hours, truncated
@@ -676,6 +698,7 @@ pub(crate) fn eval_time_hours(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in days, truncated
@@ -722,6 +745,7 @@ pub(crate) fn eval_time_days(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::time::Instant the instant to subtract from
 /// @arg     b :wat::time::Instant the RHS — a Duration or an Instant, dispatched at runtime
@@ -794,6 +818,7 @@ pub(crate) fn eval_time_sub(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::time::Instant the instant to advance
 /// @arg     b :wat::time::Duration the interval to advance by
@@ -848,6 +873,7 @@ pub(crate) fn eval_time_add(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     d :wat::time::Duration the interval before now
 /// @ret     :wat::time::Instant the instant `d` before wall-clock now
@@ -881,6 +907,7 @@ pub(crate) fn eval_time_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     d :wat::time::Duration the interval after now
 /// @ret     :wat::time::Instant the instant `d` after wall-clock now
@@ -997,6 +1024,7 @@ fn unit_from_now(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of nanoseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N nanoseconds before wall-clock now
@@ -1018,6 +1046,7 @@ pub(crate) fn eval_time_nanoseconds_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of microseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N microseconds before wall-clock now
@@ -1039,6 +1068,7 @@ pub(crate) fn eval_time_microseconds_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of milliseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N milliseconds before wall-clock now
@@ -1060,6 +1090,7 @@ pub(crate) fn eval_time_milliseconds_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of seconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N seconds before wall-clock now
@@ -1081,6 +1112,7 @@ pub(crate) fn eval_time_seconds_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of minutes before now (non-negative)
 /// @ret     :wat::time::Instant the instant N minutes before wall-clock now
@@ -1102,6 +1134,7 @@ pub(crate) fn eval_time_minutes_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of hours before now (non-negative)
 /// @ret     :wat::time::Instant the instant N hours before wall-clock now
@@ -1123,6 +1156,7 @@ pub(crate) fn eval_time_hours_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of days before now (non-negative)
 /// @ret     :wat::time::Instant the instant N days before wall-clock now
@@ -1146,6 +1180,7 @@ pub(crate) fn eval_time_days_ago(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of nanoseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N nanoseconds after wall-clock now
@@ -1167,6 +1202,7 @@ pub(crate) fn eval_time_nanoseconds_from_now(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of microseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N microseconds after wall-clock now
@@ -1189,6 +1225,7 @@ pub(crate) fn eval_time_microseconds_from_now(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of milliseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N milliseconds after wall-clock now
@@ -1211,6 +1248,7 @@ pub(crate) fn eval_time_milliseconds_from_now(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of seconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N seconds after wall-clock now
@@ -1233,6 +1271,7 @@ pub(crate) fn eval_time_seconds_from_now(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of minutes after now (non-negative)
 /// @ret     :wat::time::Instant the instant N minutes after wall-clock now
@@ -1255,6 +1294,7 @@ pub(crate) fn eval_time_minutes_from_now(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of hours after now (non-negative)
 /// @ret     :wat::time::Instant the instant N hours after wall-clock now
@@ -1276,6 +1316,7 @@ pub(crate) fn eval_time_hours_from_now(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @arg     n :wat::core::i64 the count of days after now (non-negative)
 /// @ret     :wat::time::Instant the instant N days after wall-clock now

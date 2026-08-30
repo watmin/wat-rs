@@ -13041,6 +13041,7 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name looked up (a literal keyword; a named fn value also resolves via its stored name)
 /// @ret     (:wat::core::Option :- [:wat::WatAST]) the FULL define AST for `name_ast`, or `:None` if unregistered
@@ -13156,6 +13157,7 @@ fn eval_lookup_define(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name whose signature head is reconstructed
 /// @ret     (:wat::core::Option :- [:wat::WatAST]) the signature head, or `:None` if unregistered
@@ -13272,6 +13274,7 @@ fn eval_signature_of_defn(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     fn_expr :wat::core::fn the fn value whose signature is reconstructed
 /// @ret     :wat::WatAST the signature head `(:anonymous (param type)... -> ret-type)`
@@ -13338,6 +13341,7 @@ fn eval_signature_of_fn(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     fn_expr :wat::core::fn the fn value whose declared return type is read
 /// @ret     :wat::core::String the return type's FQDN, colon-free
@@ -13429,6 +13433,7 @@ fn eval_return_type_of(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name whose body is read
 /// @ret     (:wat::core::Option :- [:wat::WatAST]) the wat body (function or macro template), or `:None` when body-less or unregistered
@@ -13534,6 +13539,7 @@ fn eval_body_of(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
 /// @ret     (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])]) the metadata map, or `:None` when the binding is unregistered or carries no metadata
@@ -13726,6 +13732,7 @@ fn require_ast_children<'a>(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head whose name is replaced
 /// @arg     from :wat::core::keyword the expected current name (verified against `head`'s own name)
@@ -13918,6 +13925,7 @@ fn eval_rename_callable_name(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head walked
 /// @ret     (:wat::core::Vector :- [:wat::core::keyword]) one keyword per declared arg name, in order
@@ -14018,6 +14026,7 @@ fn eval_extract_arg_names(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head walked
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) one type AST per declared arg, in order
@@ -14120,6 +14129,7 @@ fn eval_extract_arg_types(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field names are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
 /// @ret     (:wat::core::Vector :- [:wat::core::keyword]) each field name as a keyword, in declaration order
@@ -14171,6 +14181,7 @@ fn eval_field_names_of(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field types are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) each field's type, rendered as a canonical `wat.type/` WatAST node, in declaration order (positionally aligned with `field-names-of`)
@@ -14338,6 +14349,7 @@ fn resolve_aggregate_def_for_reflection<'a>(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value SUBJECT (evaluated) followed by the pattern `(:TYPE-NAME clause ...)` (never evaluated — walked structurally)
 /// @ret     :wat::core::bool whether SUBJECT structurally matches the pattern (Clara semantics: a non-matching class, non-Struct value, or `:None` subject is `false`, never an error)
@@ -19508,6 +19520,7 @@ fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @arg     args… :wat::core::Value must be empty — this verb takes no wat-level arguments
 /// @ret     :wat::core::i64 the host's available parallelism (`std::thread::available_parallelism()`), sampled at call time
@@ -19545,6 +19558,7 @@ fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     (:wat::core::Vector :- [:wat::core::String]) the process argv, fixed for this run's duration (empty if never set)
 /// @example (:wat::core::= (:wat::runtime::argv) (:wat::runtime::argv)) #=> true
@@ -19580,6 +19594,7 @@ fn eval_runtime_argv() -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::String the calling thread's id, `{:?}`-formatted
 /// @example-norun (:wat::runtime::current-thread) #=> "ThreadId(1)"

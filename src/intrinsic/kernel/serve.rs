@@ -119,6 +119,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     op :T the op value to re-tag; not further constrained at check time
 /// @arg     surface_path :wat::core::keyword the surface Op type path (the runtime discriminator)
@@ -170,6 +171,7 @@ pub(crate) fn eval_retag_op(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     clients (:wat::core::Vector :- [(:wat::kernel::Peer :- [S R])]) the connected clients to notify on a handler crash
 /// @arg     body :T the op-dispatch form to evaluate (a `(:wat::core::match op ~@arms)`)

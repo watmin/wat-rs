@@ -126,6 +126,7 @@ use holon::{encode, HolonAST, Similarity};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the HolonAST to decode, alone or with a `-> :T` type-hint suffix
 /// @ret     :T the decoded wat value
@@ -443,6 +444,7 @@ pub(crate) fn eval_holon_from_holon(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST to wrap, alone
 /// @ret     :wat::holon::HolonAST an `Atom` wrapping the given HolonAST
@@ -468,6 +470,7 @@ pub(crate) fn eval_holon_atom_constructor(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value to encode, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding `v`
@@ -493,6 +496,7 @@ pub(crate) fn eval_holon_to_holon(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the primitive value to wrap, alone
 /// @ret     :wat::holon::HolonAST the primitive leaf
@@ -543,6 +547,7 @@ pub(crate) fn eval_holon_leaf(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     a :wat::WatAST the quoted form to lower, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding the form's structure
@@ -585,6 +590,7 @@ pub(crate) fn eval_holon_from_wat(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST to raise back to a form, alone
 /// @ret     :wat::WatAST the reconstructed quoted form
@@ -625,6 +631,7 @@ pub(crate) fn eval_holon_to_wat(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the unevaluated form, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding the form's structure
@@ -657,6 +664,7 @@ pub(crate) fn eval_holon_literal(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     x :wat::core::Value the value projected
 /// @arg     surface :wat::core::keyword the surface probe `x` is projected onto (a literal keyword, not evaluated)
@@ -703,6 +711,7 @@ pub(crate) fn eval_to_holon_record(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
@@ -752,6 +761,7 @@ pub(crate) fn eval_algebra_map(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
@@ -801,6 +811,7 @@ pub(crate) fn eval_algebra_set(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
@@ -854,6 +865,7 @@ pub(crate) fn eval_algebra_vector(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
@@ -903,6 +915,7 @@ pub(crate) fn eval_algebra_list(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
@@ -957,6 +970,7 @@ pub(crate) fn eval_algebra_tuple(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     a :wat::holon::HolonAST the two operands bound together, in order
 /// @arg     b :wat::holon::HolonAST the two operands bound together, in order
@@ -1006,6 +1020,7 @@ pub(crate) fn eval_algebra_bind(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs bundled, alone
 /// @ret     (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded]) `Ok` the Bundle composition, or `Err` a `CapacityExceeded`
@@ -1092,6 +1107,7 @@ pub(crate) fn eval_algebra_bundle(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST permuted and the integer shift amount, in order
 /// @arg     k :wat::core::i64 the HolonAST permuted and the integer shift amount, in order
@@ -1147,6 +1163,7 @@ pub(crate) fn eval_algebra_permute(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :wat::core::f64 the value and its `[min, max]` range, in order
 /// @arg     min :wat::core::f64 the value and its `[min, max]` range, in order
@@ -1178,6 +1195,7 @@ pub(crate) fn algebra_thermometer(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     a :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
 /// @arg     b :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
@@ -1216,6 +1234,7 @@ pub(crate) fn algebra_blend(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     x :wat::holon::HolonAST the HolonAST or Record probed, alone
 /// @ret     (:wat::core::Option :- [:wat::core::String]) the classifier name — a bare `String` (Record) or an `Option` (HolonAST)
@@ -1261,6 +1280,7 @@ pub(crate) fn eval_extract_classifier(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) `h`'s left child, or `None`
@@ -1301,6 +1321,7 @@ pub(crate) fn eval_bind_left(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) `h`'s right child, or `None`
@@ -1342,6 +1363,7 @@ pub(crate) fn eval_bind_right(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [:wat::holon::HolonAST]) `h`'s children, in order
@@ -1387,6 +1409,7 @@ pub(crate) fn eval_bundle_children(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     :wat::holon::HolonAST `h`'s first child
@@ -1438,6 +1461,7 @@ pub(crate) fn eval_bundle_first(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Map`-classified HolonAST
@@ -1461,6 +1485,7 @@ pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Set`-classified HolonAST
@@ -1484,6 +1509,7 @@ pub(crate) fn holon_is_set_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Vector`-classified HolonAST
@@ -1507,6 +1533,7 @@ pub(crate) fn holon_is_vector_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `List`-classified HolonAST
@@ -1530,6 +1557,7 @@ pub(crate) fn holon_is_list_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Tuple`-classified HolonAST
@@ -1553,6 +1581,7 @@ pub(crate) fn holon_is_tuple_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Symbol`-classified HolonAST
@@ -1576,6 +1605,7 @@ pub(crate) fn holon_is_symbol_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Keyword`-classified HolonAST
@@ -1599,6 +1629,7 @@ pub(crate) fn holon_is_keyword_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Tag`-classified HolonAST
@@ -1621,6 +1652,7 @@ pub(crate) fn holon_is_tag_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a nil-composition HolonAST
@@ -1643,6 +1675,7 @@ pub(crate) fn holon_is_nil_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed and the classifier name, in order
 /// @arg     class :wat::core::String the value probed and the classifier name, in order
@@ -1690,6 +1723,7 @@ pub(crate) fn eval_holon_is_predicate(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST templated, alone
 /// @ret     :wat::holon::HolonAST `h` with scalar leaves erased
@@ -1729,6 +1763,7 @@ pub(crate) fn eval_term_template(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) `h`'s Thermometer leaf values, in pre-order
@@ -1769,6 +1804,7 @@ pub(crate) fn eval_term_slots(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::f64 :wat::core::f64])]) `h`'s Thermometer leaf `[min, max]` ranges, in pre-order
@@ -1813,6 +1849,7 @@ pub(crate) fn eval_term_ranges(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     q :wat::holon::HolonAST the query and subject HolonASTs, in order
 /// @arg     s :wat::holon::HolonAST the query and subject HolonASTs, in order
@@ -1897,6 +1934,7 @@ pub(crate) fn eval_term_matches_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     low :wat::core::f64 the low bound, high bound, and value, in order
 /// @arg     high :wat::core::f64 the low bound, high bound, and value, in order
@@ -1988,6 +2026,7 @@ pub(crate) fn eval_therm_form(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     d :wat::core::i64 the vector dimension, alone
 /// @ret     :wat::core::f64 the presence-detection noise floor at dimension `d`
@@ -2025,6 +2064,7 @@ pub(crate) fn eval_presence_floor(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     d :wat::core::i64 the vector dimension, alone
 /// @ret     :wat::core::f64 the coincident-detection noise floor at dimension `d`
@@ -2076,6 +2116,7 @@ pub(crate) fn eval_coincident_floor(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
 /// @arg     b :wat::core::Value the two operands compared, in order
@@ -2114,6 +2155,7 @@ pub(crate) fn eval_algebra_cosine(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     target :wat::holon::HolonAST the target and reference operands, in order
 /// @arg     reference :wat::holon::HolonAST the target and reference operands, in order
@@ -2152,6 +2194,7 @@ pub(crate) fn eval_algebra_presence_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
 /// @arg     b :wat::core::Value the two operands compared, in order
@@ -2182,6 +2225,7 @@ pub(crate) fn eval_algebra_coincident_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
 /// @arg     b :wat::core::Value the two operands compared, in order
@@ -2257,6 +2301,7 @@ pub(crate) fn eval_algebra_coincident_explain(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
 /// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
@@ -2302,6 +2347,7 @@ pub(crate) fn eval_form_ast_coincident_q(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
 /// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
@@ -2343,6 +2389,7 @@ pub(crate) fn eval_form_edn_coincident_q(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
 /// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
@@ -2368,6 +2415,7 @@ pub(crate) fn eval_form_digest_coincident_q(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
 /// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
@@ -2393,6 +2441,7 @@ pub(crate) fn eval_form_digest_string_coincident_q(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
 /// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
@@ -2418,6 +2467,7 @@ pub(crate) fn eval_form_signed_coincident_q(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
 /// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
@@ -2452,6 +2502,7 @@ pub(crate) fn eval_form_signed_string_coincident_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
 /// @arg     b :wat::core::Value the two operands compared, in order
@@ -2482,6 +2533,7 @@ pub(crate) fn eval_algebra_dot(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     target :wat::core::Value the value hashed, alone
 /// @ret     :wat::core::i64 a 64-bit locality-sensitive hash
@@ -2544,6 +2596,7 @@ pub(crate) fn eval_algebra_simhash(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     target :wat::holon::HolonAST the HolonAST encoded, alone
 /// @ret     :wat::holon::Vector the encoded raw ternary vector
@@ -2574,6 +2627,7 @@ pub(crate) fn eval_holon_encode(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :wat::holon::Vector the vector encoded, alone
 /// @ret     :wat::core::Bytes the packed byte representation
@@ -2624,6 +2678,7 @@ pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBr
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     bs :wat::core::Bytes the packed byte vector decoded, alone
 /// @ret     :wat::holon::VectorDecodeOutcome the matchable decode outcome
@@ -2714,6 +2769,7 @@ pub(crate) fn eval_holon_bytes_vector(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     a :wat::holon::Vector the two raw vectors bound together, in order
 /// @arg     b :wat::holon::Vector the two raw vectors bound together, in order
@@ -2743,6 +2799,7 @@ pub(crate) fn holon_vector_bind(a: &Value, b: &Value) -> Result<Value, EvalBreak
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     vs (:wat::core::Vector :- [:wat::holon::Vector]) the `:wat::core::Vector` of raw vectors bundled, alone
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
@@ -2808,6 +2865,7 @@ pub(crate) fn eval_holon_vector_bundle(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     a :wat::holon::Vector the two raw vectors and their two weights, in order
 /// @arg     b :wat::holon::Vector the two raw vectors and their two weights, in order
@@ -2846,6 +2904,7 @@ pub(crate) fn holon_vector_blend(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     v :wat::holon::Vector the raw vector permuted and the integer shift amount, in order
 /// @arg     k :wat::core::i64 the raw vector permuted and the integer shift amount, in order
@@ -2892,6 +2951,7 @@ pub(crate) fn eval_holon_vector_permute(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     ast :wat::holon::HolonAST the HolonAST measured, alone
 /// @ret     :wat::core::i64 the top-level form's structural size

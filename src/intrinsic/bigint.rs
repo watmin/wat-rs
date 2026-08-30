@@ -49,6 +49,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the left addend
 /// @arg     b :wat::core::bigint the right addend
@@ -86,6 +87,7 @@ fn eval_bigint_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the minuend
 /// @arg     b :wat::core::bigint the subtrahend
@@ -119,6 +121,7 @@ fn eval_bigint_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the first factor
 /// @arg     b :wat::core::bigint the second factor
@@ -154,6 +157,7 @@ fn eval_bigint_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the dividend
 /// @arg     b :wat::core::bigint the divisor
@@ -207,6 +211,7 @@ fn eval_bigint_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::bigint the bigint to cast
 /// @ret     :wat::core::f64 `n`, cast to f64
@@ -228,6 +233,7 @@ pub(crate) fn eval_bigint_to_f64_intrinsic(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::bigint the bigint to promote
 /// @ret     :wat::core::rational `n`, promoted to rational

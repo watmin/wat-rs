@@ -1001,6 +1001,7 @@ pub(crate) fn subset_rete_arm(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     session :wat::rete::Session the compiled session to arm; its network identity keys the lease
 /// @ret     :wat::rete::Session the same session, value-unchanged — the only effect is on the thread-local intern table (`ARM_TABLE`)
@@ -1059,6 +1060,7 @@ pub(crate) fn eval_arm_session(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     session :wat::rete::Session the session whose network identity's lease is dropped by one
 /// @ret     :wat::rete::Session the same session, value-unchanged — the only effect is on the thread-local intern table (`ARM_TABLE`)

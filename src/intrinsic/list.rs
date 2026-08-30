@@ -28,6 +28,7 @@ use crate::value::{EvalBreak, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     vals… :wat::core::Value the elements of the new list, in order
 /// @ret     :wat::core::List a `List` holding each argument, in order

@@ -1579,6 +1579,7 @@ fn map_str<V>(m: &HashMap<String, V>, mut f: impl FnMut(&V) -> Value) -> Value {
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     session :wat::rete::Session the compiled session to serialize
 /// @ret     :wat::rete::Export the packed, self-describing program value
@@ -1704,6 +1705,7 @@ fn unpack_deps(v: &Value, span: &Span) -> Result<Vec<RuleDep>, EvalBreak> {
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     export :wat::rete::Export the packed program value to reconstruct a session from
 /// @ret     :wat::rete::Session a slim session over the reconstructed, interned network

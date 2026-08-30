@@ -51,6 +51,7 @@ use std::sync::Arc;
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     session :wat::rete::Session the compiled session (network read via `session_network`)
 /// @arg     alpha_id :wat::core::i64 the AlphaNode id for this condition

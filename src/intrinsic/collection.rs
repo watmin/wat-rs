@@ -56,6 +56,7 @@ use crate::span::Span;
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
 /// @ret     :wat::core::i64 the element/entry count
@@ -102,6 +103,7 @@ pub(crate) fn eval_length(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
 /// @ret     :wat::core::bool whether the collection has zero elements/entries
@@ -151,6 +153,7 @@ pub(crate) fn eval_empty(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the receiver — this call also accepts (PersistentVector :- [T]), (List :- [T]), or a WatAST list form (returning :wat::WatAST); a (Stream :- [T]) is refused (`nth_indexable()` gate excludes it — use (drop s i) then :wat::stream::next)
 /// @arg     idx :wat::core::i64 the zero-based index; raises "nth: index out of range" if out of bounds
@@ -192,6 +195,7 @@ pub(crate) fn eval_nth(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the vector probed
 /// @ret     (:wat::core::Option :- [T]) the last element, or `None` if `xs` is empty
@@ -238,6 +242,7 @@ pub(crate) fn eval_vec_last(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the receiver; identity-preserving — this call also accepts (List :- [T]), (PersistentVector :- [T]), or a WatAST list form, each returning the same container kind; a (Stream :- [T]) is refused (`has_tail()` gate excludes it — see :wat::stream::next)
 /// @ret     (:wat::core::Vector :- [T]) every element after the first
@@ -273,6 +278,7 @@ pub(crate) fn eval_rest(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     xs (:wat::core::Vector :- [T]) the sequence reversed; this call also accepts (PersistentVector :- [T]) or (List :- [T]), each returning the same container kind — a (Stream :- [T]), Tuple, HashSet, or WatAST form is refused (`ordered()` gate excludes them)
 /// @ret     (:wat::core::Vector :- [T]) `xs`'s elements in reverse order
@@ -312,6 +318,7 @@ pub(crate) fn eval_vec_reverse(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     start :wat::core::i64 the inclusive lower bound
 /// @arg     end :wat::core::i64 the exclusive upper bound

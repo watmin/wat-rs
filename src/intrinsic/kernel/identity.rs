@@ -161,6 +161,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      CheckGate
 /// @arg     x :T the value whose transport marker must be `Wire`
 /// @ret     :T `x`, unchanged
@@ -196,6 +197,7 @@ pub(crate) fn eval_require_wire_address(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     peer (:wat::kernel::Peer :- [S R]) the peer to interrogate
 /// @ret     :wat::core::bool whether the peer's transport is a wire
@@ -240,6 +242,7 @@ pub(crate) fn eval_peer_wire(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     addr (:wat::kernel::Address :- [S R]) the address to interrogate
 /// @ret     :wat::core::bool whether the address has a portable (wire) form
@@ -286,6 +289,7 @@ pub(crate) fn eval_address_wire(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer to read the far-end pid from
 /// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(pid)` for a process peer, `:None` for a thread peer
@@ -329,6 +333,7 @@ pub(crate) fn eval_peer_pid(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer whose concrete locus to un-erase
 /// @ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) `Some(peer)` if process-tier, `:None` if thread-tier

@@ -116,6 +116,7 @@ pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     expr :wat::WatAST the quoted predicate expression (from `:wat::core::quote`)
 /// @arg     bindings :wat::core::PersistentMap the token's bound `?var`s, visible to `expr` as a fresh child `Environment`

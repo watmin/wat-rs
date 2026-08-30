@@ -58,6 +58,7 @@ use crate::value::{EvalBreak, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @ret     :wat::core::i64 the number of elements in `v`
@@ -75,6 +76,7 @@ pub(crate) fn vector_length(v: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @ret     :wat::core::bool true iff `v` has zero elements
@@ -93,6 +95,7 @@ pub(crate) fn vector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @arg     item :T the candidate element
@@ -112,6 +115,7 @@ pub(crate) fn vector_contains_q(v: &Value, item: &Value) -> Result<Value, EvalBr
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @arg     i :wat::core::i64 the index looked up
@@ -131,6 +135,7 @@ pub(crate) fn vector_get(v: &Value, i: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v (:wat::core::Vector :- [T]) the vector transformed
 /// @arg     item :T the element appended
@@ -152,6 +157,7 @@ pub(crate) fn vector_conj(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     left (:wat::core::Vector :- [T]) the left half
 /// @arg     right (:wat::core::Vector :- [T]) the right half
@@ -174,6 +180,7 @@ pub(crate) fn vector_concat(left: &Value, right: &Value) -> Result<Value, EvalBr
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     to (:wat::core::Vector :- [T]) the receiver; its kind is preserved
 /// @arg     from (:wat::core::Vector :- [T]) the elements appended (a `PersistentVector<T>` is also accepted at check time)

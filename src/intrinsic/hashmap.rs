@@ -47,6 +47,7 @@ use crate::value::{EvalBreak, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @ret     :wat::core::i64 the number of entries in `m`
@@ -63,6 +64,7 @@ pub(crate) fn hashmap_length(m: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @ret     :wat::core::bool true iff `m` has zero entries
@@ -79,6 +81,7 @@ pub(crate) fn hashmap_empty_q(m: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @arg     k :K the candidate key
@@ -97,6 +100,7 @@ pub(crate) fn hashmap_contains_key_q(m: &Value, k: &Value) -> Result<Value, Eval
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @arg     k :K the key looked up
@@ -115,6 +119,7 @@ pub(crate) fn hashmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
 /// @arg     k :K the key inserted or overwritten
@@ -134,6 +139,7 @@ pub(crate) fn hashmap_assoc(m: &Value, k: &Value, v: &Value) -> Result<Value, Ev
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
 /// @arg     k :K the key removed
@@ -153,6 +159,7 @@ pub(crate) fn hashmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected
 /// @ret     (:wat::core::Vector :- [K]) `m`'s keys, order unspecified
@@ -170,6 +177,7 @@ pub(crate) fn hashmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
+/// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected
 /// @ret     (:wat::core::Vector :- [V]) `m`'s values, order unspecified
