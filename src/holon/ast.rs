@@ -1118,20 +1118,35 @@ pub(crate) fn is_holon_arg_canonical(form: &WatAST) -> bool {
                 | ":wat::holon::Permute"
                 | ":wat::holon::Thermometer"
                 | ":wat::holon::Blend" => items[1..].iter().all(is_holon_arg_canonical),
-                // `(:wat::core::Vector :T <elems>...)` — Bundle's
-                // canonical input shape. The first arg is a type
-                // keyword (not evaluated, always canonical);
-                // subsequent args are the holon elements that must
+                // `(:wat::core::Vector :- [T] <elems>...)` — Bundle's
+                // canonical input shape. The `:- [T]` param-spec is a
+                // declaration (not evaluated, always canonical); the
+                // elements after it are the holon elements that must
                 // be recursively canonical for the parent
                 // constructor to fire as a single step.
                 //
                 // Arc 163 slice 3d — retired `:wat::core::vec` /
                 // `:wat::core::list` keywords removed; only the
                 // canonical `:wat::core::Vector` arm remains.
+                //
+                // Arc 109 "THE LAST DOORS" door 3 — this arm used to require
+                // a BARE type keyword at `items[1]` (`matches!(items[1],
+                // WatAST::Keyword(_, _))`), with elements starting at
+                // `items[2..]`. That is the retired spelling: the wall now
+                // rejects it at parse/check time, so it can never appear
+                // here, and it never learned the canonical `:- [T]` marker
+                // in the first place — under it, `items[1]` is the `:-`
+                // Keyword (still matches the old guard) but `items[2]` is
+                // the bracket `Vector`, not an element, so `_ => false`
+                // fired and Bundle's single-step path was dead for every
+                // program a user could actually write
+                // (`NOTE-bundle-is-coupled-to-the-retired-spelling.md`).
+                // Fixed by peeling the param-spec the same way the checker
+                // does — `peel_param_spec` — rather than assuming its
+                // absence; the elements are whatever remains after the peel.
                 ":wat::core::Vector" => {
-                    items.len() >= 2
-                        && matches!(items[1], WatAST::Keyword(_, _))
-                        && items[2..].iter().all(is_holon_arg_canonical)
+                    let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
+                    peeled.is_some() && rest.iter().all(is_holon_arg_canonical)
                 }
                 _ => false,
             },

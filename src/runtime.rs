@@ -5902,8 +5902,7 @@ fn dispatch_keyword_head_value(
         // `:wat::core::tuple` arm retired; Pattern 2 poison in
         // check.rs handles any remaining consumer sites at type-check.
         //
-        // Arc 109 step ①b Room 3 — accept `(Tuple [T1 T2 …] …)` too, and, since
-        // Stone ②-i-b, `(Tuple :- [T1 T2 …] …)`. Still NOT wired to
+        // Arc 109 step ①b Room 3 — accept `(Tuple :- [T1 T2 …] …)`. Still NOT wired to
         // `crate::check::unwrap_type_param_bracket` (splicing would evaluate the bracket's
         // type keywords as VALUES — same reasoning as step ①'s STOP-3, unchanged). Instead:
         // strip a genuine leading bracket via `crate::check::split_type_param_bracket` —
@@ -5916,15 +5915,14 @@ fn dispatch_keyword_head_value(
         //
         // Stone ②-i-b — one case `eval_tuple_ctor` cannot take: a `:-`-declared EMPTY
         // bracket (`(Tuple :- [])`) strips to zero values, and `eval_tuple_ctor` treats
-        // `args.is_empty()` as the illegal bare `(Tuple)` head (previously the ONLY way an
-        // unmarked/no-bracket call could reach it with zero args — an unmarked empty
-        // bracket `[]` fails `is_type_bracket_candidate`'s non-empty guard and is left as an
-        // ordinary value, never stripped). A `:-`-declared empty bracket is different: it
-        // is the empty tuple VALUE this stone makes writable (measured: today
-        // `(Tuple [])` builds `[[]]`, a 1-tuple holding an empty vector — see the design's
-        // "two unwritable forms" table). Build it directly here rather than teaching
-        // `eval_tuple_ctor` to disambiguate "no bracket, zero args" from "bracket, zero
-        // args" — it cannot, by the time it sees only `values`.
+        // `args.is_empty()` as the illegal bare `(Tuple)` head. A `:-`-declared empty
+        // bracket is different: it is the empty tuple VALUE this stone makes writable
+        // (measured: today `(Tuple [])` — a literal Vector element, not a param-spec,
+        // since arc 109 "THE LAST DOORS" retired bracket-sniffing entirely — builds
+        // `[[]]`, a 1-tuple holding an empty vector; only `(Tuple :- [])` now means the
+        // empty tuple). Build it directly here rather than teaching `eval_tuple_ctor` to
+        // disambiguate "no bracket, zero args" from "bracket, zero args" — it cannot, by
+        // the time it sees only `values`.
         ":wat::core::Tuple" => {
             match crate::check::split_type_param_bracket(args) {
                 // The empty tuple is a ZERO-LENGTH param-spec with zero values —
@@ -5934,8 +5932,8 @@ fn dispatch_keyword_head_value(
                 // VALUE arity), and answering it with an empty tuple here would be a
                 // check-says-no / runtime-says-yes divergence — the exact class step
                 // ①b's Room 3 was found by. `inner.is_empty()` also confines this arm
-                // to the `:-` spelling for free: the unmarked arm cannot produce an
-                // empty `inner` (`is_type_bracket_candidate` requires non-empty).
+                // to the `:-` spelling for free: `split_type_param_bracket` only ever
+                // returns `Some` for the `:-`-marked spelling now.
                 Some((inner, _bspan, rest)) if inner.is_empty() && rest.is_empty() => {
                     Ok(Value::Tuple(Arc::new(vec![])))
                 }
@@ -6056,8 +6054,7 @@ fn dispatch_keyword_head_value(
             let spliced_args = crate::check::unwrap_type_param_bracket(args);
             crate::collection::eval::eval_hashmap_ctor(&spliced_args, list_span, env, sym)
         }
-        // Arc 109 step ①b Room 3 — accept `(PersistentMap [K V] …)` too, and, since
-        // Stone ②-i-b, `(PersistentMap :- [K V] …)`. Still NOT wired
+        // Arc 109 step ①b Room 3 — accept `(PersistentMap :- [K V] …)`. Still NOT wired
         // to `crate::check::unwrap_type_param_bracket` (splicing would misalign the
         // `args.chunks(2)` pairing, same as check-time — unchanged reasoning). Instead:
         // strip a genuine leading bracket via `crate::check::split_type_param_bracket`,
@@ -6071,8 +6068,7 @@ fn dispatch_keyword_head_value(
             };
             crate::collection::eval::eval_persistentmap_ctor(values, list_span, env, sym)
         }
-        // Arc 109 step ①b Room 3 — accept `(PersistentVector [T] …)` too, and, since
-        // Stone ②-i-b, `(PersistentVector :- [T] …)`. Same reasoning
+        // Arc 109 step ①b Room 3 — accept `(PersistentVector :- [T] …)`. Same reasoning
         // and mechanism as `PersistentMap` above: strip a genuine leading bracket via
         // `crate::check::split_type_param_bracket`; `eval_persistentvector_ctor` itself
         // stays untouched.
@@ -33216,27 +33212,26 @@ mod tests {
 
     #[test]
     fn step_holon_constructor_bundle() {
-        // `(:wat::holon::Bundle (:wat::core::Vector :HolonAST (Atom "a")
+        // `(:wat::holon::Bundle (:wat::core::Vector :- [HolonAST] (Atom "a")
         //                                                  (Atom "b")))`
         // — the vec list's elements are themselves holon-canonical
         // (Atom forms with primitive args). Bundle's arg recognizes
-        // the (vec :T <holons>...) shape as canonical, so the entire
+        // the `(vec :- [T] <holons>...)` shape as canonical, so the entire
         // tree fires in one step. The result is a HolonAST::Bundle of
         // typed-leaf Strings.
         //
-        // ⚠ annihilate-the-prose stone: this is genuinely BARE-KEYWORD-ONLY,
-        // NOT retired-form teaching — `is_holon_arg_canonical`
-        // (`src/holon/ast.rs`) and the stepper's Bundle recognition require
-        // `items[1]` to be a bare type Keyword with elements at `items[2..]`;
-        // fed the canonical `:- [T]` spelling, `items[1]` is the `:-` Keyword
-        // (still matches) but `items[2]` is the bracket Vector, not an
-        // element, and `items[2..].iter().all(is_holon_arg_canonical)` fails
-        // (a `WatAST::Vector` is not holon-canonical) — the whole tree then
-        // does not fire as one step and eval-step! has no rule for the raw
-        // `:wat::core::Vector` op. Verified empirically: converting this
-        // literal to `:- [...]` turns this test red with exactly that panic.
-        // Do not convert; `lower_bundle` (`src/lower.rs`) has the identical
-        // dependency.
+        // Arc 109 "THE LAST DOORS" door 3 — this test used to be pinned to
+        // the BARE-KEYWORD-ONLY spelling, with a comment explaining that
+        // converting it to `:- [...]` turned it red: `is_holon_arg_canonical`
+        // (`src/holon/ast.rs`) and `lower_bundle` (`src/lower.rs`) both
+        // required a bare type Keyword at `items[1]` and never learned the
+        // `:-` marker, so the canonical spelling — the only one a user can
+        // write once the checker walls the bare form out of source — could
+        // never fire as a single step
+        // (`NOTE-bundle-is-coupled-to-the-retired-spelling.md`). Both sites
+        // now peel the param-spec via `peel_param_spec` instead of assuming
+        // its absence, so this test now asserts the single-step path on a
+        // form a user can actually write — which it had never done before.
         //
         // Bundle exercises the encoding pipeline (capacity guard +
         // dim router), so this test runs through `run_with_ctx`
@@ -33249,7 +33244,7 @@ mod tests {
             (:my::test::step-to-terminal
               (:wat::core::quote
                 (:wat::holon::Bundle
-                  (:wat::core::Vector :wat::holon::HolonAST
+                  (:wat::core::Vector :- [:wat::holon::HolonAST]
                     (:wat::holon::to-holon "a")
                     (:wat::holon::to-holon "b")))))
             "#,

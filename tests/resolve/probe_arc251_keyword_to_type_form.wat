@@ -17,4 +17,4 @@
 (:wat::core::defn :user::c08 [] -> :wat::core::String
   (:wat::core::write-forms (:wat::keyword::to-type-form (:wat::core::keyword-node ":(wat::core::Vector<T>,wat::core::i64)"))))
 ;; c09: proves the tuple form parses back as a type — including this declaration makes startup the gate
-(:wat::core::defn :user::c09-f [t :- (wat.type/Tuple wat.type/i64 wat.type/String)] -> :wat::core::nil nil)
+(:wat::core::defn :user::c09-f [t :- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::nil nil)

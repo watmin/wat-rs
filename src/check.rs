@@ -3171,7 +3171,7 @@ fn infer_list(
             // Arc-278-0a — PersistentMap constructor: same K/V inference as HashMap;
             // returns (PersistentMap :- [K V]) instead of (HashMap :- [K V]).
             //
-            // Arc 109 step ①b — `(PersistentMap [K V] …)` now accepted too. Not wired
+            // Arc 109 step ①b — `(PersistentMap :- [K V] …)` accepted. Not wired
             // to `unwrap_type_param_bracket` (splicing would misalign the `args.chunks(2)`
             // pairing — see that helper's doc comment); `infer_persistentmap_constructor`
             // detects and parses its own leading bracket internally, so this call site is
@@ -12147,13 +12147,14 @@ fn process_let_binding(
 /// Arc 109 step ①b lifted that STOP-3 (`109/BRIEF-STONE-109-parametric-bracket-the-remaining-three.md`).
 /// `Tuple` / `PersistentMap` / `PersistentVector` still do NOT use THIS helper — splicing
 /// still corrupts them, unchanged from the reasoning above — but each now detects and
-/// parses its own leading bracket directly via the sibling helpers
-/// `is_type_bracket_candidate` / `parse_bracket_type_keyword`, just below. Unlike this
-/// helper's UNCONDITIONAL splice (sound only because Vector/HashMap/HashSet already
-/// required a leading type keyword, so a literal Vector was never a legal first arg for
-/// them), those three's bracket detection is CONDITIONAL: a literal `WatAST::Vector` was
-/// (and remains) a legal first VALUE for all three — `(:wat::core::Tuple [1 2 3] "tag")`
-/// is a real corpus fixture (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`),
+/// parses its own leading bracket directly via `split_type_param_bracket` /
+/// `parse_bracket_type_keyword`, just below. Unlike this helper's UNCONDITIONAL splice
+/// (sound only because Vector/HashMap/HashSet already required a leading type keyword,
+/// so a literal Vector was never a legal first arg for them), those three's bracket
+/// detection is by the `:-` MARKER alone (arc 109 "THE LAST DOORS" door 2 retired the
+/// unmarked-bracket sniff): a literal `WatAST::Vector` remains a legal first VALUE for
+/// all three — `(:wat::core::Tuple [1 2 3] "tag")` is a real corpus fixture
+/// (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`),
 /// a 2-tuple whose first element is a `(Vector :- [i64])` literal, not a type bracket.
 ///
 /// `pub(crate)` — Room 3 (`src/runtime.rs`'s dispatch arms for `:wat::core::Vector`
@@ -12196,70 +12197,45 @@ pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
 /// `Tuple` / `PersistentMap` / `PersistentVector` never required a leading
 /// type keyword the way Vector/HashMap/HashSet do, so a literal
 /// `WatAST::Vector` was — and, per the STOP-2 no-bracket-form-changes rule,
-/// remains — a legal first ELEMENT for all three. Unconditionally treating
-/// `args.first()` as a bracket (`unwrap_type_param_bracket`'s rule) would
-/// silently reinterpret real corpus usage: `(:wat::core::Tuple [1 2 3] "tag")`
-/// (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`) is a 2-tuple
-/// whose first element is a `(Vector :- [i64])` literal, not a type declaration.
+/// remains — a legal first ELEMENT for all three: `(:wat::core::Tuple [1 2 3]
+/// "tag")` (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`) is a
+/// 2-tuple whose first element is a `(Vector :- [i64])` literal, not a type
+/// declaration. Since a genuine type-param bracket is now ONLY ever spelled
+/// with the `:-` marker (arc 109 "THE LAST DOORS" door 2 — see
+/// `split_type_param_bracket`, just below), there is no longer any content
+/// to sniff here at all: an unmarked leading `WatAST::Vector` is unconditionally
+/// an ordinary first value, whatever its contents.
 ///
-/// The discriminator: a genuine type-parameter bracket is syntactically a
-/// non-empty vector of BARE type-keyword tokens (`[wat.type/i64]`,
-/// `[:wat::core::i64 :wat::core::Record]`); `[1 2 3]` is a vector of integer
-/// literals, so it fails this check and is left as an ordinary value — the
-/// bracket-less path runs untouched. (This does not distinguish a bracket
-/// from a data-vector-of-KEYWORDS, e.g. `[:a :b]` — no such usage exists
-/// today for these three heads in `wat/`, `wat-scripts/`, or `tests/`
-/// (confirmed by search), so the ambiguity is real but currently vacuous;
-/// a future literal vector-of-keyword-VALUES in this exact position would
-/// need a different production to stay unambiguous.)
-pub(crate) fn is_type_bracket_candidate(items: &[WatAST]) -> bool {
-    !items.is_empty() && items.iter().all(|e| matches!(e, WatAST::Keyword(_, _)))
-}
-
 /// Arc 109 Stone ②-i-b — the ONE door for reading `Tuple` / `PersistentMap` /
-/// `PersistentVector`'s leading type-param bracket, both spellings. Replaces
-/// six per-call-site matches on `is_type_bracket_candidate` (`check.rs:14062,
+/// `PersistentVector`'s leading type-param bracket. Replaces six per-call-site
+/// matches on the retired `is_type_bracket_candidate` sniff (`check.rs:14062,
 /// 14165, 14330`; `runtime.rs:6257, 6479, 6494`) with a single production, so
 /// a future hard cut has one door to touch rather than six call sites to
 /// re-audit. ⚠ Arc 109 Stone 3 (THE WALL) closed `unwrap_type_param_bracket`'s
-/// door for `Vector` / `HashMap` / `HashSet` only; it did NOT touch this door
-/// — `Tuple` / `PersistentMap` / `PersistentVector`'s unmarked bracket is
-/// still live (verified: `(:wat::core::PersistentVector [:wat::core::i64] 1)`
-/// checks clean). See the annihilate-the-prose stone's report.
+/// door for `Vector` / `HashMap` / `HashSet`; this door — `Tuple` /
+/// `PersistentMap` / `PersistentVector` — was left open (its own comment
+/// said "③ deletes this arm" and it never happened) until arc 109 "THE LAST
+/// DOORS", which deletes it here: the comment is now TRUE.
 ///
 /// Split a constructor's args into (type-param bracket, its span, the values).
-/// - `:-`-marked (`(Head :- [types] v…)`) → the bracket is types BY
-///   DECLARATION. NO content sniffing — the param-spec position is reserved
-///   for type refs; data was never legal there, so there is nothing to guess
-///   about. An EMPTY `:-`-marked bracket (`(Head :- [])`) is a legitimate
-///   zero-length param-spec, not a non-candidate.
-/// - unmarked (`(Head [types] v…)`) → falls back to `is_type_bracket_candidate`
-///   (dual-read; ③ did NOT delete this arm or `is_type_bracket_candidate` —
-///   both remain live for these three heads, unlike the door THE WALL closed
-///   for `Vector` / `HashMap` / `HashSet`).
-///
-/// ★ The two arms do NOT share a rule and must not be unified into one: the
-/// `:-` arm never inherits `is_type_bracket_candidate`'s `!items.is_empty()`
-/// guard. Under `:-`, an empty bracket is a declared param-spec of length
-/// zero and the empty tuple/etc. it declares is a real, distinct value
-/// (`(Tuple :- [])` → an empty tuple). Under the unmarked arm the old guard
-/// stays exactly as it is — `(Tuple [])` keeps meaning a 1-tuple holding an
-/// empty vector, dual-read, unchanged by this stone.
+/// `:-`-marked (`(Head :- [types] v…)`) is the ONLY spelling recognised — the
+/// bracket is types BY DECLARATION, never sniffed from an unmarked leading
+/// vector. An EMPTY `:-`-marked bracket (`(Head :- [])`) is a legitimate
+/// zero-length param-spec, not a non-candidate — `(Tuple :- [])` is a real,
+/// distinct empty-tuple value. An unmarked leading `WatAST::Vector` — however
+/// its contents look — is never treated as a bracket; it is always an
+/// ordinary first value (`(Tuple [1 2 3] "tag")` stays a 2-tuple; the retired
+/// `(Tuple [:wat::core::i64] 1)` unmarked-bracket spelling no longer parses
+/// as a declaration and instead type-errors on `[:wat::core::i64]` as a value).
 pub(crate) fn split_type_param_bracket(
     args: &[WatAST],
 ) -> Option<(&[WatAST], &Span, &[WatAST])> {
     let (peeled, rest) = crate::types::peel_param_spec(args);
-    if let Some(inner) = peeled {
+    peeled.map(|inner| {
         // `peel_param_spec` only returns `Some` when `args[1]` was the `Vector` it
         // peeled — its span is the bracket's span.
-        return Some((inner, args[1].span(), rest));
-    }
-    match args {
-        [WatAST::Vector(inner, bspan), rest @ ..] if is_type_bracket_candidate(inner) => {
-            Some((inner.as_slice(), bspan, rest))
-        }
-        _ => None,
-    }
+        (inner, args[1].span(), rest)
+    })
 }
 
 /// Arc 109 step ①b — parse one keyword token from inside a leading
@@ -12282,9 +12258,11 @@ fn parse_bracket_type_keyword(
     local_errors: &mut Vec<CheckError>,
 ) -> TypeExpr {
     let WatAST::Keyword(k, kspan) = node else {
-        // `is_type_bracket_candidate` already guarantees every bracket
-        // element is a `WatAST::Keyword`; this arm is unreachable through
-        // this stone's own callers and kept only as a defensive fallback.
+        // A `:-`-marked bracket's elements are never sniffed or shape-checked
+        // ahead of time (that's the whole point of requiring the marker) — a
+        // non-Keyword slot (a nested list, a literal) reaches here and gets a
+        // named diagnostic + poison-and-continue, rather than being silently
+        // accepted or panicking.
         local_errors.push(CheckError { span: node.span().clone(), kind: CheckErrorKind::MalformedForm {
             head: head.into(),
             reason: "bracketed type must be a type keyword".into(),
@@ -14583,24 +14561,25 @@ fn infer_hashmap_constructor(
 }
 
 /// Arc-278-0a — Type-check `(:wat::core::PersistentMap k1 v1 k2 v2 ...)`,
-/// now also `(:wat::core::PersistentMap [K V] k1 v1 k2 v2 ...)` (Arc 109 step
-/// ①b). Bracket-less: K and V are free type variables, inferred from the
+/// now also `(:wat::core::PersistentMap :- [K V] k1 v1 k2 v2 ...)` (Arc 109
+/// step ①b). Bracket-less: K and V are free type variables, inferred from the
 /// first pair (if any) then UNIFIED against the rest — exactly as before.
 ///
-/// With a `[K V]` bracket: K/V are NOT fresh variables started from the
+/// With a `:- [K V]` bracket: K/V are NOT fresh variables started from the
 /// first pair — they ARE the declared unification target every key/value
 /// is checked against, via `assignable` (up-cast) rather than `unify`
 /// (invariant). This is the one contract change the stone's brief calls
 /// out: it is what lets a declared common supertype (e.g. the record-top
 /// `:wat::core::Record`) hold heterogeneous values —
 /// `109/NOTE-typed-literal-constructors.md`'s worked example
-/// (`(:wat::core::PersistentMap [:wat::core::i64 :wat::core::Record] 0
+/// (`(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record] 0
 /// (:user::A :x 1) 1 (:user::B :y "s"))`) now builds. `unwrap_type_param_bracket`
 /// is bypassed (see its doc comment): this fn has no leading-type-arg read
 /// path, so a spliced bare type keyword would flow into the elementwise
 /// `infer()` calls below and trip Doctrine-1. `split_type_param_bracket`
-/// (Arc 109 Stone ②-i-b) detects + `parse_bracket_type_keyword` parses the
-/// bracket directly instead — both spellings, `[K V]` and `:- [K V]`.
+/// detects + `parse_bracket_type_keyword` parses the bracket directly instead —
+/// arc 109 "THE LAST DOORS" door 2 retired the unmarked `[K V]` spelling this
+/// comment used to also name; `:- [K V]` is the only one recognised now.
 fn infer_persistentmap_constructor(
     args: &[WatAST],
     head_span: &Span,
@@ -14691,11 +14670,11 @@ fn infer_persistentmap_constructor(
 }
 
 /// Arc-278-0b — Type-check `(:wat::core::PersistentVector e1 e2 ...)`, now
-/// also `(:wat::core::PersistentVector [T] e1 e2 ...)` (Arc 109 step ①b).
+/// also `(:wat::core::PersistentVector :- [T] e1 e2 ...)` (Arc 109 step ①b).
 /// Bracket-less: T is a free type variable, inferred from the first element
 /// (if any) then UNIFIED against the rest — exactly as before.
 ///
-/// With a `[T]` bracket: T is NOT a fresh variable started from the first
+/// With a `:- [T]` bracket: T is NOT a fresh variable started from the first
 /// element — it IS the declared unification target every element is
 /// checked against, via `assignable` (up-cast) rather than `unify`
 /// (invariant), so a declared common supertype can hold heterogeneous
@@ -14862,9 +14841,9 @@ fn infer_tuple_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // Arc 109 step ①b — optional leading `[T1 T2 … Tn]` bracket, both spellings
-    // (`[T…]` and, since Stone ②-i-b, `:- [T…]`) via `split_type_param_bracket`.
-    // Tuple is the odd shape among the three this stone lifts: it has no single declared
+    // Arc 109 step ①b — optional leading `:- [T1 T2 … Tn]` bracket, via
+    // `split_type_param_bracket` (the unmarked `[T…]` spelling was retired by arc 109
+    // "THE LAST DOORS" door 2). Tuple is the odd shape among the three this stone lifts: it has no single declared
     // element type to unify against — it's heterogeneous BY CONSTRUCTION, one
     // type per POSITION — so the bracket's arity is checked against the VALUE
     // arity, not folded into a single target. A mismatch is a hard

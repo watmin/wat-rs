@@ -343,6 +343,27 @@
   (:wat::core::let [ch (:wat::core::ast->children vec-node)]
     (:wat::core::if (:wat::core::empty? ch) false (:user::all-keyword? ch))))
 
+;; ── EXTENSION, arc 109 "THE LAST DOORS" door 1 — the TYPE-ANNOTATION-position symbol form ──
+;; The sweep above walks every list node structurally, so it should have caught every shape —
+;; but it only ever recognises a KEYWORD head (`:wat::core::Vector`, …), because that is the
+;; only spelling the VALUE-construction path (this stone's original target) uses. Door 1 (the
+;; `<-`/`->`/`:-` type-annotation parser, `src/types.rs::parse_type_form`) parses a wholly
+;; separate spelling this sweep never walked: arc 251's faithful-Clojure `wat.type/Head` SYMBOL
+;; form — `(wat.type/Vector wat.type/i64)`, `(wat.type/Tuple wat.type/i64 wat.type/String)`,
+;; `(wat.type/Tuple [wat.type/i64])` — found live in `tests/resolve/probe_arc251_*.wat` and
+;; `wat-scripts/scratch-pad/arc109-tuple-bracket-reader.wat` once door 1 closed and rejected them.
+;;
+;; Unlike the keyword-headed sweep, `wat.type/` is NEVER ambiguous with a value construction —
+;; it is EXCLUSIVELY arc 251's type-position spelling (confirmed: every corpus use of a
+;; `wat.type/`-namespaced symbol sits in a type slot — `<-`, `->`, `:-`, `typealias`, `ann-form`,
+;; a `defenum` variant field, a fn-type arrow bracket; never a value construction). So there is
+;; no arity table, no substrate/corpus-declared distinction, and no "got > n is presumed kwargs"
+;; gate here: every non-empty, non-`:-`-marked args list under a `wat.type/`-namespaced head IS
+;; a param-spec, unconditionally.
+(:wat::core::defn :user::type-ns-symbol?
+  [name <- :wat::core::String] -> :wat::core::bool
+  (:wat::string::starts-with? name "wat.type/"))
+
 ;; ── classify — the ONE decision, shared by both the edit-emitter and the reporter ────────
 ;; Returns (kind, n, got):
 ;;   0 not-a-match           — unrecognised head, or not a list at all
@@ -448,7 +469,28 @@
                                 (:wat::core::if (:wat::core::if (:wat::core::= got n) (:user::all-type-shaped? (:user::take-n args n) table) false)
                                   (:wat::core::Tuple 2 n got)
                                   (:wat::core::Tuple 0 0 0))))))))))))
-            (:wat::core::Tuple 0 0 0)))))
+            ;; head is NOT a keyword — the EXTENSION above: a `wat.type/`-namespaced SYMBOL
+            ;; head is unconditionally a param-spec site (see the block comment there); any
+            ;; other symbol (`wat.core/fn`, `my.ns/identity`, a plain call) or any other node
+            ;; kind is simply not a match.
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "symbol")
+              (:wat::core::let [hn (:wat::core::ast-name h)]
+                (:wat::core::if (:user::type-ns-symbol? hn)
+                  (:wat::core::let [args (:wat::core::into [] (:wat::core::rest ch))]
+                    (:wat::core::if (:wat::core::empty? args)
+                      (:wat::core::Tuple 0 0 0)
+                      (:wat::core::let [a0 (:wat::core::first args)]
+                        (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind a0) "keyword")
+                                          (:wat::core::= (:wat::core::ast-name a0) ":-")
+                                          false)
+                          (:wat::core::Tuple 1 0 0)
+                          (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind a0) "vector")
+                                            (:wat::core::= (:wat::core::length args) 1)
+                                            false)
+                            (:wat::core::Tuple 4 0 0)
+                            (:wat::core::Tuple 2 (:wat::core::length args) (:wat::core::length args)))))))
+                  (:wat::core::Tuple 0 0 0)))
+              (:wat::core::Tuple 0 0 0))))))
     (:wat::core::Tuple 0 0 0)))
 
 ;; ── edit collection ───────────────────────────────────────────────────────────────────────

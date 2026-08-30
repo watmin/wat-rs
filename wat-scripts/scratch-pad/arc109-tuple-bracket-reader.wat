@@ -15,26 +15,26 @@
 ;; 1-ary bracketed tuple — the rung the keyword surface can only spell with a trailing comma
 ;; (`:(wat::core::i64,)`; bare `:(A)` is Rust GROUPING and collapses to `A`). The form surface has
 ;; no such ambiguity. Measured distinct from a scalar: passing a bare 7 here is a TypeMismatch.
-(:wat::core::defn :user::one-ary [p <- (wat.type/Tuple [wat.type/i64])] -> :wat::core::i64
+(:wat::core::defn :user::one-ary [p <- (wat.type/Tuple :- [wat.type/i64])] -> :wat::core::i64
   0)
 
 ;; 2-ary bracketed tuple as a PARAM type
-(:wat::core::defn :user::takes-pair [p <- (wat.type/Tuple [wat.type/i64 wat.type/String])] -> :wat::core::i64
+(:wat::core::defn :user::takes-pair [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::i64
   1)
 
 ;; bracketed tuple as a RETURN type, with a nested parametric inside it
-(:wat::core::defn :user::nested [] -> (wat.type/Tuple [(wat.type/Vector [wat.type/i64]) wat.type/String])
+(:wat::core::defn :user::nested [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
   (:wat::core::Tuple (:wat::core::Vector :- [:wat::core::i64] 1 2) "s"))
 
 ;; EMPTY bracketed tuple — `(wat.type/Tuple [])`. This is LEGAL, WRITABLE source: the form surface
 ;; can spell the empty tuple even though the keyword surface `:()` is retired. Today it is still the
 ;; SAME TYPE as `nil` (measured: a `nil` argument satisfies both a `(wat.type/Tuple [])` param and a
 ;; `:wat::core::nil` param), which is exactly the identity the builder's `nil != ()` ruling splits.
-(:wat::core::defn :user::empty-tuple [] -> (wat.type/Tuple [])
+(:wat::core::defn :user::empty-tuple [] -> (wat.type/Tuple :- [])
   (:wat::kernel::println "e"))
 
 ;; the FLAT form still reads (the c09 contract) — the reader accepts both; only the WRITER changes
-(:wat::core::defn :user::flat-still-reads [p <- (wat.type/Tuple wat.type/i64 wat.type/String)] -> :wat::core::i64
+(:wat::core::defn :user::flat-still-reads [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::i64
   2)
 
 ;; Arc 109 Stone ②-i-b — the `:-`-marked spelling of the same rungs above. `:-` declares "the
