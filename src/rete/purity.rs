@@ -2043,7 +2043,7 @@ mod completeness_gate {
     ":wat::core::record->map",
     ":wat::core::seqable->stream",
     ":wat::core::show",
-    ":wat::core::sort'",  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+    ":wat::core::sort$native",
     ":wat::core::struct->form",
     ":wat::core::struct-field",
     ":wat::core::struct-new",

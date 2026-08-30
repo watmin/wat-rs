@@ -354,6 +354,8 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
             closure's own params flip from (item, index) to (index, item), and the result is a \
             LAZY Stream, not an eager Vector — wrap in `(:wat::core::into [] ...)` to force it \
             back to a Vector if the caller needs one") },
+    // Arc 255 STONE sort$native — the `'` native-impl marker becomes the `$native` convention.
+    RetirementEntry { retired: ":wat::core::sort'", replacement: ":wat::core::sort$native", note: None }, // rune:lint(retired-name) — retirement-table entry: the retired string must stay byte-exact for retirement_lookup to match a caller who still types sort'
 ];
 
 /// Look up `needle` in the retirement table.

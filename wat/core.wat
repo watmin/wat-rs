@@ -1510,8 +1510,8 @@
 
 ;; ─── Instinct-faithful ordering surface (Arc 251 Stone) ──────────────────────
 ;;
-;; `sort'` is the Rust primitive (comparator-sort engine; fn-first `(sort' cmp xs)`).
-;; `sort` and `sort-by` are Clojure-exact multi-arity defclauses over `sort'` + `<`.
+;; `sort$native` is the Rust primitive (comparator-sort engine; fn-first `(sort$native cmp xs)`).
+;; `sort` and `sort-by` are Clojure-exact multi-arity defclauses over `sort$native` + `<`.
 ;; Dispatch is purely by arity (sort: 1 vs 2; sort-by: 2 vs 3).
 ;; All clauses auto-generalize over bare type-vars T and K (Arc 256 / Stone 251.7).
 
@@ -1519,7 +1519,7 @@
   ;; 1-ary: natural ascending — default comparator is <
   ;; T auto-generalizes (bare uppercase type-var, Arc 256 / Stone 251.7).
   ([coll <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
-    (:wat::core::sort'
+    (:wat::core::sort$native
       (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
         (:wat::core::< a b))
       coll))
@@ -1527,14 +1527,14 @@
   ;; Cmp is a bare type-var that unifies with the caller's [T T :-> bool].
   ([cmp  <- :Cmp
     coll <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
-    (:wat::core::sort' cmp coll)))
+    (:wat::core::sort$native cmp coll)))
 
 (:wat::core::defclause :wat::core::sort-by
   ;; 2-ary: key function only — default comparator is < on the keys.
   ;; Keyfn is a bare type-var that unifies with the caller's [T :-> K].
   ([keyfn <- :Keyfn
     coll  <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
-    (:wat::core::sort'
+    (:wat::core::sort$native
       (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
         (:wat::core::< (keyfn a) (keyfn b)))
       coll))
@@ -1543,7 +1543,7 @@
   ([keyfn <- :Keyfn
     cmp   <- :Cmp
     coll  <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
-    (:wat::core::sort'
+    (:wat::core::sort$native
       (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
         (cmp (keyfn a) (keyfn b)))
       coll)))

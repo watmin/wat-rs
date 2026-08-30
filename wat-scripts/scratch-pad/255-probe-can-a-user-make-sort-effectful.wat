@@ -1,4 +1,4 @@
-;; Scratch probe — arc 255. TWO QUESTIONS ABOUT `sort'`, BOTH ANSWERED BY RUNNING IT.
+;; Scratch probe — arc 255. TWO QUESTIONS ABOUT `sort$native` (measured while it was still named `sort'`), BOTH ANSWERED BY RUNNING IT.
 ;;
 ;; Builder, 2026-08-30: "can we impose the sort fn is pure, deterministic, total?"
 ;;                      "users can't make sort effectful with their callable?"
@@ -9,7 +9,7 @@
 ;; FOUR effects for a THREE-element vector — the count is an artifact of the
 ;; two-sided less? call (transform.rs:294), i.e. an implementation detail leaking
 ;; into observable user output. `--check` exits 0; no purity gate exists at this door.
-;; ⇒ `sort'`'s HONEST @Purity today is Effectful, which is why homing it hits the
+;; ⇒ `sort$native`'s HONEST @Purity today is Effectful, which is why homing it hits the
 ;;   W7 `effectful_by_prefix` blocker (NOTE-the-prefix-guess-does-not-scale...).
 ;;
 ;; ── MEASURED 2: a PURE but INCONSISTENT comparator does NOT panic. ──
@@ -37,7 +37,7 @@
              (:wat::kernel::println "SIDE-EFFECT-FROM-COMPARATOR")
              (:wat::core::< a b)))]
     (:wat::kernel::println
-      (:wat::core::sort' cmp (:wat::core::Vector :- [:wat::core::i64] 3 1 2)))))
+      (:wat::core::sort$native cmp (:wat::core::Vector :- [:wat::core::i64] 3 1 2)))))
 
 (:wat::core::defn :user::inconsistent [] -> :wat::core::nil
   (:wat::core::let
@@ -45,7 +45,7 @@
                                   b <- :wat::core::i64] -> :wat::core::bool
                    true)]
     (:wat::kernel::println
-      (:wat::core::sort' always-less
+      (:wat::core::sort$native always-less
         (:wat::core::Vector :- [:wat::core::i64] 5 3 9 1 7 2 8 4 6 0)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

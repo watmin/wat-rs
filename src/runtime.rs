@@ -6020,7 +6020,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::drop" => {
             crate::collection::transform::eval_vec_drop(args, list_span, env, sym)
         }
-        ":wat::core::sort'" => { // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+        ":wat::core::sort$native" => {
             crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym)
         }
         ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),

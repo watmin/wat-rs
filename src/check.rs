@@ -20264,12 +20264,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // Superseded by infer_take (collection/infer.rs); accepts (Vector :- [T]) | (PersistentVector :- [T]).
     // Arc-278-0d: :wat::core::drop scheme RETIRED.
     // Superseded by infer_drop (collection/infer.rs); accepts (Vector :- [T]) | (PersistentVector :- [T]).
-    // Arc 056 — comparator-sort primitive (renamed sort' in Arc 251 Stone).
-    // Arc 247: fn-first — `(sort' less? xs) -> (Vector :- [T])` where `less? : [T T :-> :bool]`.
+    // Arc 056 — comparator-sort primitive (renamed sort' in Arc 251 Stone; Arc 255 STONE
+    // renamed sort' to sort$native, the $native native-impl convention).
+    // Arc 247: fn-first — `(sort$native less? xs) -> (Vector :- [T])` where `less? : [T T :-> :bool]`.
     // Arc 251: wat-level `sort` and `sort-by` defclauses in core.wat wrap this primitive.
     // The user owns asc vs desc via the predicate. Common Lisp tradition.
     env.register(
-        ":wat::core::sort'".into(),  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+        ":wat::core::sort$native".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![

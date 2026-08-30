@@ -448,7 +448,7 @@ fn is_expand_time_legal(head: &str) -> bool {
     //   collection / sequence ops still on the pre-registry dispatch path —
     //     `assoc`, `conj`, `contains?`, `count`, `first`, `second`, `third`, `get`,
     //     `into`, `drop`, `take`, `filter`, `filterv`, `map`, `mapv`, `foldl`,
-    //     `reduce`, `reduce-stream`, `doall`, `dorun`, `find-last-index`, `sort'`,
+    //     `reduce`, `reduce-stream`, `doall`, `dorun`, `find-last-index`, `sort$native`,
     //     `stream::lazy`, `stream->vec`, `stream->pvec`
     //   homoiconic AST helpers not yet homed — `forms`, `with-children`,
     //     `write-forms`, `struct->form`
@@ -502,7 +502,7 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::doall"
         | ":wat::core::dorun"
         | ":wat::core::find-last-index"
-        | ":wat::core::sort'"  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+        | ":wat::core::sort$native"
         | ":wat::stream::lazy"
         | ":wat::core::stream->vec"
         | ":wat::core::stream->pvec"

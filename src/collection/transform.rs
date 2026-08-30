@@ -1,7 +1,7 @@
 //! Stream-HOF and helper functions for the collection dispatch home.
 //!
 //! Contains the ~12 seq-HOF and helper functions (map, filter, foldl,
-//! sort' (primitive comparator-sort), take, drop,
+//! sort$native (primitive comparator-sort), take, drop,
 //! find-last-index, zip, window, remove-at, map-with-index).
 //!
 //! Arc 255 Stone P6-c-W6 — `reverse`/`range`/`last` MOVED (not left in place) to
@@ -250,11 +250,12 @@ fn lazy_drop_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::st
     ))))
 }
 
-/// `(:wat::core::sort' less? xs)` → `Vec<T>` — the primitive comparator-sort engine.
+/// `(:wat::core::sort$native less? xs)` → `Vec<T>` — the primitive comparator-sort engine.
 ///
 /// Arc 251 Stone: renamed from `sort-by` to `sort'` (primitive convention, like
-/// `spawn-program'`). The wat-level `sort` and `sort-by` defclauses in `core.wat`
-/// build on this primitive.
+/// `spawn-program'`). Arc 255 STONE renamed `sort'` to `sort$native` (the `$native`
+/// native-impl convention, already applied to the five `:wat::rete::` firing verbs).
+/// The wat-level `sort` and `sort-by` defclauses in `core.wat` build on this primitive.
 ///
 /// `less?` is a callable `:fn(T, T) -> :bool`; it returns true iff
 /// the first arg is "less than" the second under the desired order.
@@ -279,7 +280,7 @@ pub(crate) fn eval_vec_sort_by(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::sort'"; // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it
+    const OP: &str = ":wat::core::sort$native";
     if args.len() != 2 {
         return Err(RuntimeError::new(
             call_span.clone(),
@@ -291,7 +292,7 @@ pub(crate) fn eval_vec_sort_by(
         )
         .into());
     }
-    // Arc 247: fn-first — (sort' cmp xs)
+    // Arc 247: fn-first — (sort$native cmp xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
     let xs = require_vec(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
     let func = match &f {

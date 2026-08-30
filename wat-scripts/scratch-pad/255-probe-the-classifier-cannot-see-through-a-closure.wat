@@ -3,7 +3,7 @@
 ;; Builder ruled: impose pure ∧ deterministic ∧ total on sort's comparator.
 ;; This probe asks the substrate's OWN classifier (`:wat::rete::pure?`, the same
 ;; `classify_expr` walk `src/freeze.rs:803` uses to impose exactly this on sigma fns)
-;; what it says about the THREE comparator shapes that actually reach `sort'`.
+;; what it says about the THREE comparator shapes that actually reach `sort$native` (named `sort'` when this was measured).
 ;;
 ;; ── MEASURED 2026-08-30 ──
 ;;   1. sort/1's comparator      (fn [a b] (< a b))                  -> true

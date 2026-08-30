@@ -58,7 +58,7 @@ are untouched. Nothing a normal user types changes.
 ## Out of scope = REJECTED (not deferred)
 
 - **Homing it into the registry** — that is **STONE A**, drawn as this stone's sibling
-  (`DESIGN-STONE-A-the-classifier-follows-a-captured-fn.md`). Not "later": the next stone.
+  (`DESIGN-STONE-A-the-classifier-cannot-follow-a-captured-fn.md`). Not "later": the next stone.
 - **Imposing pure ∧ det ∧ total on the comparator** — ruled and then REFUTED by measurement this
   session (`wat-scripts/scratch-pad/255-probe-the-classifier-cannot-see-through-a-closure.wat`):
   the classifier default-denies `sort-by`'s free-variable comparator, so the gate would break every
@@ -80,8 +80,8 @@ are untouched. Nothing a normal user types changes.
 | what | command | expected |
 |---|---|---|
 | no primed sort survives in code | `grep -rn "sort'" src/ wat/ wat-scripts/ --include=*.rs --include=*.wat` | only `wat-scripts/fixes/reclaim-service-fixture-names.wat:19` (historical prose in a recorded migration) |
-| the five runes are gone | `grep -rn "rune:lint(retired-name)" src/ \| grep sort` | no output |
+| ⚠ ~~the five runes are gone~~ | ~~`grep … \| grep sort`~~ | ⛔ **THIS BAR WAS WRONG AND COULD NEVER PASS** — the `RETIREMENT_TABLE` row must hold `":wat::core::sort'"` verbatim, so it is itself a lint hit needing a rune. Corrected bar: **no rune survives at a site whose name no longer contains a prime** — five retired, one born, and the one born is structural. See `NOTE-a-retirement-row-must-hold-the-shape-its-own-lint-hunts.md`. `[[feedback_an_acceptance_row_is_a_pin_unless_it_derives_its_bar]]` |
 | old spelling teaches | a `.wat` calling `(:wat::core::sort' …)` under `--check` | check-time error naming `:wat::core::sort$native` |
-| public surface intact | `target/release/wat tests/resolve/probe_arc251_ordering_surface.wat` | unchanged output |
+| ⚠ public surface intact | ~~`wat tests/resolve/probe_arc251_ordering_surface.wat`~~ — that fixture has NO `:user::main` (it is consumed by a Rust test), so the command errors for a reason unrelated to this stone. Corrected: a standalone program exercising `sort/1`, `sort/2` and `sort-by` | `[1 2 3]` · `[3 2 1]` · `[3 2 1]` — **verified** |
 | floor | `scripts/floor.sh`, exit read UNPIPED | 5109/5109, 0 failed |
 | clippy | `cargo clippy --release --all-targets -- -D warnings` | 0 |

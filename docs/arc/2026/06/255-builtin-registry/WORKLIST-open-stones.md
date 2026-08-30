@@ -17,13 +17,12 @@
 > ⛔ **THE POPULATION IS THE METER, NOT `HOMEABLE`.** Ruling a verb then homing it removes its ledger
 > row, so HOMEABLE returns to 0 every wave. **146 → 106** is the progress.
 >
-> ⛔ **RESUME HERE — AND IT IS NOT A WAVE. THE METER HAS A HOLE.**
-> `NOTE-the-completeness-gate-cannot-see-a-home-outside-one-directory.md`. The gate's
-> `#[wat_intrinsic]` half is `read_dir`-scoped to `src/intrinsic/`, so **25 registrations homed
-> elsewhere (15 in `runtime.rs`, 10 in `src/rete/`) left the population entirely** — no arm, no
-> ruling, no ledger line. It reports 510 dispatched verbs; the surface is 535. Remedy named at the
-> CHECK rung: make the scan root the whole tree, then read the ~25 screams. **Builder's ruling on
-> whether this precedes W7.**
+> ✅ **THE METER HOLE IS CLOSED — struck by STONE meter-1, verified on disk 2026-08-30.**
+> `dispatch_verbs`' `#[wat_intrinsic]` half was `read_dir`-scoped to `src/intrinsic/`; it is now
+> `walk_intrinsic_homes`, a RECURSIVE walk of the whole `src/` tree (`src/rete/purity.rs`, and its
+> own comment records the change). A home can no longer hide from the meter at any depth. This row
+> read "⛔ RESUME HERE" until 2026-08-30 and was **stale** — the fix had already shipped.
+> `NOTE-the-completeness-gate-cannot-see-a-home-outside-one-directory.md` is now history, not a task.
 >
 > ★ **W6 also settled the megafile question empirically** —
 > `NOTE-homing-in-place-does-not-shrink-the-megafile.md`. Six waves homing IN PLACE moved
@@ -111,8 +110,10 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~P6-c-1~~ | ~~does the context-tail ORDER explain 129 of 148?~~ | | | ✅ **STRUCK** — YES; one macro change |
 | ~~W1–W5c~~ | ~~the waves — config · stream/program · runtime · rete~~ | 42 FQDNs | | ✅ **STRUCK** — population 146 → 106 |
 | ~~W6~~ | ~~the seven core readers~~ | 7 FQDNs | | ✅ **STRUCK** — `5725ab10d`; bodies MOVED, runtime.rs −346 |
-| **GATE** | the completeness scan's root becomes the whole tree | 1 scan change + ~25 rulings | `NOTE-the-completeness-gate-cannot-see-a-home-outside-one-directory.md` | — **READY to draw.** ⛔ Outranks W7: every wave's numbers come from this meter |
-| **W7 HOFs** | `map · mapv · filter · foldl · find-last-index` + the stream forcers | ~8 FQDNs | `NOTE-the-prefix-guess-does-not-scale-to-a-mixed-namespace.md` | ⛔ `Effectful ⇒ effectful_by_prefix` would force widening `:wat::core::`, making the guess vacuous for the biggest namespace. **Ask whether the fallback should RETIRE.** |
+| ~~GATE~~ | ~~the completeness scan's root becomes the whole tree~~ | | | ✅ **STRUCK** (STONE meter-1) — `walk_intrinsic_homes` recurses all of `src/` |
+| **sort$native** | `sort'` takes the `$native` convention; 5 runes retire | 1 codemod + 5 Rust sites + 1 retirement row | `BRIEF-STONE-sort-prime-becomes-sort-native.md` | ✅ **STRUCK** — codemod idempotent (checksum-verified), 5 runes retired + 1 STRUCTURAL one born (see NOTE), floor 5109/5109 |
+| **A** | the axis classifier cannot follow a CAPTURED FN VALUE | fork: 3 shapes, 19 `classify_expr` callers | `DESIGN-STONE-A-the-classifier-cannot-follow-a-captured-fn.md` | ⛔ **BUILDER'S FORK.** Measured: `classify_expr` is AST-structural + sym-only, so `sort-by`'s free-variable comparator default-denies. Unblocks `map · mapv · filter · foldl · sort$native` — one cause, five verbs. ★ Supersedes W7's `effectful_by_prefix` framing: that NOTE named the symptom |
+| **W7 HOFs** | `map · mapv · filter · foldl · find-last-index` + the stream forcers | ~8 FQDNs | `NOTE-the-prefix-guess-does-not-scale-to-a-mixed-namespace.md` | ⛔ **Superseded by STONE A** — measured 2026-08-30: the real blocker is that the classifier cannot follow a captured fn value, not the prefix guess. Do not widen `:wat::core::` |
 | **W8 firing** | the rete FIRING family | 9 FQDNs | `NOTE-the-firing-family-is-dual-implemented.md` | ⛔ `fire-rules` is BOTH a wat `defn` and a Rust arm; homing adds a THIRD ahead of both |
 | **W9 eval-\*!** | the `:wat::eval-*!` cluster | 10 FQDNs | *not drawn* | ⛔ one arm peels a param-spec for all ten; the generated shim's arity check fires BEFORE the peel — behaviour change, not a sweep |
 
