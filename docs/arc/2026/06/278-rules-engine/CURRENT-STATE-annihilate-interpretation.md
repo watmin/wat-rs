@@ -10,8 +10,8 @@
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline f98226353..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat f98226353..HEAD        # what they touched
+git log --oneline 99bf573df..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 99bf573df..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -39,50 +39,75 @@ total, no ceiling reaches wat as a raise, a lint keeps it so), the termination v
 | `expr_ir.rs` 2_458 | → `expr_ir/mod.rs` 1_046 + `expr_ir/eval.rs` 1_413 |
 | `validate.rs` 2_452 | → `mod.rs` 1_494 + `typing.rs` 549 + `error.rs` 448 |
 
-**⛔ AND HERE IS THE MEASUREMENT THAT SAYS WE ARE NOT THERE.** Normalised, `src/rete` is behind its
-siblings — this is the gap the initiative has to close. **Re-derive it, do not quote it:**
-`scripts/doc-coverage.sh <dir> --exclude /tests/` (add `--list` for file:line). It is committed precisely because the
-previous version of this table was measured by a script that no longer existed:
+**⛔ THE METRICS ARE EXHAUSTED — AND THAT IS THE FINDING.** Every mechanically checkable axis is
+green or has been retired with reasons. **Re-derive, do not quote:**
+`scripts/doc-coverage.sh <dir> --exclude /tests/` (`--list` for file:line).
 
-| | `src/rete` | `src/process` | `src/channel` |
-|---|---:|---:|---:|
-| lines | 30_256 | 2_928 | 475 |
-| comment | **27%** | 40% | 53% |
-| undocumented non-`#[test]` fns ≥15 ln | **87 (27%)** | 4 (12%) | 0 |
-| nesting ≥8 | **10** | **0** | 1 |
+| axis | `src/rete` | `src/process` | `src/channel` | verdict |
+|---|---:|---:|---:|---|
+| undocumented fns ≥15 ln | **0** (was 111) | 4 (12%) | 0 | ✅ done |
+| tests that cannot fail | **0** (was 26) | — | — | ✅ done |
+| nesting ≥8, NORMALISED | **1.1%** (9/817) | 0/85 | **14%** (1/7) | ✅ ahead of channel |
+| largest test file | **1,676** (was 10,189) | — | — | ✅ done |
+| comment density | 29% | 39% | 53% | ⚰️ **RETIRED — see below** |
 
-⛔ **THE "102" IN THE PREVIOUS STAMP WAS WRONG, AND SO WAS THE FILE IT BLAMED.** That instrument
-read only the line directly above `fn`, so any doc sitting above an attribute — `#[allow(...)]`,
-`#[inline]`, `#[cfg(test)]` — counted as absent. It named `hash_join.rs` the worst file in rete;
-**all four of its functions are documented**, three of them behind
-`#[allow(clippy::too_many_arguments)]`. It also named `session.rs` as a top site (it has **3**) and
-missed that `export.rs` was the real head of the list (**24**). The instrument was never committed,
-so for days the figure could be quoted but not refuted. `scripts/doc-coverage.sh` is the cure and
-carries that incident in its header; it is anchored and mutation-proven, and it reports the
-`#[test]` split apart because a test whose name is a sentence already states its contract.
+⚰️ **COMMENT DENSITY IS A DEAD METRIC. Do not chase it.** Deleting 22 duplicated functions and 37
+duplicated closures — an unambiguous improvement — moved it **zero points**. It counts lines, not
+information, and can be raised to 50% by restating every line. It is also confounded by size: a
+79-line file with a 40-line header scores 50% from the header alone, which a 31k-line directory
+cannot reproduce. AND IT MAY POINT THE WRONG WAY: `probare` exists to ask *"is this a program or a
+description?"*, so `channel`'s 53% is as plausibly a FINDING as a target.
+
+⚠ The nesting row was previously RAW COUNTS ("rete 10, process 0, channel 1"), which penalised the
+directory with 817 functions against one with 7. Normalised, rete is ahead of `channel`.
+
+**★ THE WARDS WERE CAST 2026-08-30 AND THEY SETTLED IT** (`99bf573df`, reports weighed against the
+disk finding by finding):
+
+- **`probare` ACQUITTED the prose** — 5.89:1 / 4.07:1 / 4.23:1, ZERO described or hollow forms in
+  5,536 lines. It took 23 falsifiable claims out of the docs and broke 3. *Restatement never gets
+  a number wrong, because restatement never commits to one.*
+- **`intueri` CONVICTED the self-description** — six false claims, ALL about the tree's own layout,
+  all trivially checkable, none checked. Both gates below exist because of it.
+
+**⛔ SO THE ANSWER TO "IS IT AN EXEMPLAR" IS: NOT YET, AND THE GAP IS NAMED RATHER THAN HIDDEN.**
+What remains is in the next-work list — it is no longer a number nobody can reproduce.
 
 **THE NEXT WORK, in the order I would take it:**
-1. ✅ **DONE — `src/rete` IS AT ZERO undocumented non-`#[test]` functions ≥15 lines** (was 111).
-   Re-derive with `scripts/doc-coverage.sh src/rete --exclude /tests/`; do not quote this line.
-   ⛔ The flag takes a PATH FRAGMENT, not a basename — `--exclude tests.rs` was correct until the
-   split made it a directory, at which point it matched nothing and the figure moved silently.
-   `pm_to_query_memory` is still the deepest function in rete at nesting 10 — and its doc now
-   argues that the DEPTH IS THE DIAGNOSTICS (three nested levels, each with its own located
-   `TypeMismatch`). If you reduce the nesting, preserve that.
-2. ✅ **DONE — `kernel/tests.rs` 10,189 lines → 13 files, largest 1,676** (`f98226353`). The
-   builder lifted the NOT NOW. Do not re-cast: `NOTE-tests-rs-two-casts.md` holds both verdicts
-   AND the three ward numbers that failed on grounding.
-   ✅ **AND THE R59 WORK IS DONE TOO.** The count was **10**, not the 5+2 recorded — re-measured
-   with a classifier that knows every liveness SHAPE. Two were genuinely un-gateable
-   (`binding_key_cost`, `binding_repr_microbench`: measured 1.0–1.9x effects, inside runner noise;
-   a threshold there would manufacture the flake this repo bans) and are `#[ignore]`d with the
-   numbers as the reason. The other EIGHT became real gates — and **none needed a performance
-   threshold**: each had deterministic structure sitting unasserted beside its liveness check.
-   All eight mutation-proven. Floor 89 → **87 running + 2 ignored, and the 87 all test something**.
-   ✅ The `time_ns` two-contracts problem and the 37 `ms` closures are also cured (`d17d1fc23`):
-   one definition each, in `tests/mod.rs`, under names that cannot be read as one another.
-3. **`IntegerOverflow` / `DivisionByZero`** — 10 sites, the next totality candidates toward
-   *"panics are essentially illegal at runtime"*.
+
+1. ⛔ **THE INSTRUMENT ITSELF IS BROKEN, AND THIS IS THE STRIKE THAT MATTERS.** Three independent
+   census tests report SUBTRACTIONS WITH IMPOSSIBLE SIGNS, measured 2026-08-30:
+   - `accum_alpha_leftover_split`: `A−M push = −87.28 ms`
+   - `accum_alpha_push_split`: `H−M HashMap entry = −98.42 ms`
+   - `alpha_match_cost_per_binding`: **2 binds measured FASTER than 1 bind** (−1.12 ms, −28 ns/fact)
+
+   A negative delta means the ISOLATED micro-bench (`exec_compiled`, 103–110 ms) runs ~6x SLOWER
+   than the full operation it claims to decompose (`alpha_activate_fact`, 16 ms). The isolated
+   loop is not measuring the same work the in-fire path does, so every "X−Y" row built on it is
+   invalid in sign — and those rows are printed as findings. I did NOT encode these as
+   assertions: freezing an impossible result would make a broken instrument permanent. They are
+   recorded at their sites and belong here.
+
+   This is `render_phase_table`'s own warning coming true — *"two copies is how one of them
+   silently stops subtracting"* — one level up, in the subtraction itself.
+
+2. **`IntegerOverflow` / `DivisionByZero` — 16 sites, not the 10 recorded.** Concentrated in
+   `expr_ir/eval.rs` (9) and `purity.rs` (4). The next totality candidates toward *"panics are
+   essentially illegal at runtime"*, and the same shape as the outcome wall this arc already built.
+
+3. **`linear Vec` beats `FxHashMap` 2.8x at 2 types** in `accum_alpha_class_lookup_split` — looks
+   like the structural finding that test exists to demonstrate. NOT asserted: one sample is not a
+   measurement. Three runs before it becomes a claim.
+
+4. **`purity.rs` is now the largest file in `src/rete` at 2,598 lines and `partire` has NEVER
+   assessed it.** The earlier cast covered `expr_ir`, `validate`, `arm`, `fire/mod` — this one was
+   never in scope.
+
+⚠ **A CAVEAT ON THE HOLLOW-TEST TOOL, so nobody rediscovers five phantom regressions:**
+`scratchpad/hollow2.py` measures "no assertion macro LEXICALLY INSIDE the test body". Five tests
+now assert through the shared `assert_phases_present` helper and therefore READ AS HOLLOW and are
+not. The tool rewards the duplication it exists to detect. `probare` had the same blind spot; its
+count of 26 was right only because none of those tests then called an asserting helper.
 
 ⏸ **PARKED ON A BUILDER RULING:** item 7 steps 3–5 (the holon surface); step 5 needs the `:panic`
 call.
