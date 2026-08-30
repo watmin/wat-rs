@@ -328,25 +328,31 @@ pub(crate) fn native_rule_stratum(
 //   - An imported Export carries no rule AST (`rules_lack_ast`), so there is nothing to analyse.
 //     That is where the runtime round cap keeps earning its place — the path where static proof is
 //     unavailable, rather than a general apology for not having proof.
-//   - A GUARDED COUNTER is refused THOUGH IT TERMINATES — the third hole, named here 2026-08-28
-//     after an integration-branch report pointed out it was recorded in exactly one place: the
-//     prose header of an unrelated fixture (`probe_arc278_fixpoint_round_cap_deep.wat`), where
-//     nothing would ever find it again.
+//   - ~~A GUARDED COUNTER is refused THOUGH IT TERMINATES~~ — **CLOSED 2026-08-29.** It is now
+//     ADMITTED by `computed_head_is_monotone_bounded`, and the hole is worth keeping described
+//     because of what actually unblocked it.
 //
-//         N(k+1) :- N(k), (where (< ?k 500))      -> REFUSED. Terminates at k=500.
+//         N(k+1) :- N(k), (where (< ?k 500))      -> ADMITTED. Converges at 501.
+//         N(k+1) :- N(k), (where (> ?k 500))      -> REFUSED. One character; it never stops.
 //
-//     The cyclicity test below is purely STRUCTURAL — reachability over fact-type edges — and does
-//     not read the `where` fence. Proving this one terminates needs monotonicity analysis plus
-//     comparison-direction reasoning against a literal, which the first cut deliberately punted.
-//     The refusal is therefore correct BY THIS VERIFIER'S OWN CLAIM ("proves the absence of ONE
-//     unbounded-derivation shape"), and the cost is that a bounded counter — the first thing most
-//     people write in recursive Datalog-with-arithmetic — meets a hard compile refusal.
+//     Reported from outside this tree (the main x grok-rete integration branch). The cyclicity
+//     test below is still purely STRUCTURAL — reachability over fact-type edges — but the fence is
+//     now read ALONGSIDE it: a step of constant sign, against a bound on the same field, is a
+//     well-founded measure. The fence was always available here; nothing read it.
 //
-//     ⛔ THE ANSWER IS NOT AN ESCAPE HATCH; both were already refused above, and both rulings
-//     stand. It is a FORM THE VERIFIER CAN CHECK — eBPF's `bpf_loop()` posture, the bound as an
-//     argument it READS rather than a promise it trusts. Tracked, with the open design questions,
-//     at `RETE-OPEN-WORK.md` § "The order" item 9. Zero programs in the corpus trip this today,
-//     which is exactly when the class is cheapest to widen.
+//     ⛔ AND THE RECORDED DESIGN WAS WRONG. This block used to say the answer was "a FORM the
+//     verifier can check — eBPF's `bpf_loop()` posture, the bound as an argument it READS". That
+//     was written from the IDEA of eBPF. We have SHIPPED a rete engine on eBPF
+//     (`holon-lab-ddos/veth-lab/filter-ebpf`), and it declares no bound anywhere: every bound is
+//     STRUCTURAL — a fixed-size `[u32; 16]` stack, a masked index, a step ceiling owned by the
+//     kernel. Nothing is annotated and nothing is trusted. The admission built here follows THAT:
+//     it reads a shape the program already has, and asks the author for nothing.
+//
+//     ⚠ WHAT MADE IT SAFE WAS NOT THE ANALYSIS — IT WAS THE RUNTIME CEILINGS. This proof gives
+//     TERMINATION, not POPULATION SIZE: the seed is runtime data, so `k` may start at -10^18 and
+//     the fixpoint, though finite, is enormous. Before `max-session-bytes` existed that was an
+//     allocator abort with no diagnostic, and "terminates" was not enough to admit on. The
+//     verifier proves termination; the ceilings bound cost; neither could admit this class alone.
 //
 //   - A fn-headed `:then` is opaque: `(:my::mk-fact ?k)` may compute anything inside `mk-fact`,
 //     so a cycle through one is NOT proven terminating. It is nonetheless ADMITTED, and that is a
@@ -390,6 +396,42 @@ pub(crate) fn native_rule_stratum(
 //     walk does not model. What this verifier proves is the absence of ONE unbounded-derivation
 //     shape. The runtime round cap still stands behind both this and Export's missing AST.
 
+/// Why a cyclic computed head is admitted. **Two proofs, not one number.**
+///
+/// ⛔ THIS WAS AN `Option<u128>` AND THAT SHAPE COULD NOT HOLD THE SECOND PROOF. `Some(n)` meant
+/// "finite, with population n" and `None` meant "no proof" — leaving nowhere to say **"terminates,
+/// population unknown"**, which is exactly what a fence-bounded counter proves. Widening `None` to
+/// carry it would have made one value mean two things, the defect this arc has pulled out four
+/// times. Each proof now names itself.
+#[derive(Debug, Clone)]
+enum TerminationProof {
+    /// Every computed field's TYPE has finitely many inhabitants, so their product bounds the
+    /// population and the fixpoint converges at or before it.
+    ///
+    /// ⚠ CARRIES NO NUMBER, deliberately. The population was computed to *make* this proof and
+    /// checked against [`MAX_PROVABLE_FACT_POPULATION`] inside the producer — by the time the
+    /// variant exists the number has done its work, and a field nothing reads is dead weight that
+    /// reads like a promise. If a diagnostic ever wants to say "bounded at n", re-derive it there.
+    FiniteDomain,
+    /// A **monotone measure bounded by a fence**: the head steps one field by a constant in the
+    /// direction of a `where` bound on that same field, so the rule stops firing once the bound is
+    /// crossed. The reachable set is finite; its SIZE is not statically known, because the seed is
+    /// runtime data.
+    ///
+    /// ⛔ **ADMITTING AN UNKNOWN SIZE IS ONLY HONEST BECAUSE THE RUNTIME CEILINGS NOW EXIST.** When
+    /// this class was first refused, an enormous-but-finite population meant an allocator abort
+    /// with no diagnostic — so "terminates" was not enough to admit on. `max-session-bytes` and
+    /// `max-fire-rounds` now catch that as a located, MATCHABLE value
+    /// (`(:wat::rete::FireOutcome)`), which is precisely the trade this item recorded as its own
+    /// precondition: *"raise it once a runtime STATE ceiling exists — exhaustion becomes catchable,
+    /// so certifying more costs less."* The verifier proves TERMINATION; the ceilings bound COST.
+    /// Neither could admit this class alone.
+    ///
+    /// Carries no field name, for `FiniteDomain`'s reason: the field was needed to FIND the
+    /// binding and the fence, and nothing downstream reads it.
+    BoundedMeasure,
+}
+
 /// Every type the rule's `:then` derives, paired with the rule's `:when` types — the edge
 /// `consumed -> produced` this rule contributes to the derivation graph.
 struct RuleEdge {
@@ -398,11 +440,9 @@ struct RuleEdge {
     consumed: Vec<String>,
     /// The `:then` form that computes rather than copies, if any, with its own span for the error.
     computed: Option<(String, crate::span::Span)>,
-    /// `Some(n)` when that form's COMPUTED fields are all finite-typed and their product is `n`,
-    /// under [`MAX_PROVABLE_FACT_POPULATION`]. A cycle through such a form terminates after at
-    /// most `n` distinct facts, so it is admitted. `None` is "this analysis cannot bound it" —
-    /// never "unbounded"; see [`domain_cardinality`].
-    provably_finite: Option<u128>,
+    /// Why this rule's computed head is admitted despite sitting in a cycle, or `None` for
+    /// "no proof this analysis can produce" — never "unbounded"; see [`TerminationProof`].
+    proof: Option<TerminationProof>,
 }
 
 /// Does a rete fn's BODY construct a fact from a computed value?
@@ -623,6 +663,157 @@ fn computed_fields_are_provably_finite(form: &WatAST, sym: &SymbolTable) -> Opti
     saw_computed.then_some(population)
 }
 
+/// Is `?v` bound, somewhere in this rule's `:when`, from `field` of fact type `ty`?
+///
+/// A binding is the three-element form `(?v <- :field)` inside a condition whose head is the fact
+/// type — `(:gc::N (?k <- :k))`. Requiring the SAME type and the SAME field is what makes the
+/// measure apply to the thing being stepped: a fence on some other record's `:k` bounds nothing
+/// about this one.
+fn binds_var_from(lhs: &[WatAST], ty: &str, field: &str, var: &str) -> bool {
+    fn is_binding(form: &WatAST, field: &str, var: &str) -> bool {
+        let WatAST::List(parts, _) = form else { return false };
+        let [WatAST::Symbol(v, _), WatAST::Symbol(arrow, _), WatAST::Keyword(f, _)] = &parts[..]
+        else {
+            return false;
+        };
+        arrow.as_str() == "<-" && v.as_str() == var && f.trim_start_matches(':') == field
+    }
+    lhs.iter().any(|cond| {
+        let WatAST::List(items, _) = cond else { return false };
+        let Some(WatAST::Keyword(head, _)) = items.first() else { return false };
+        head.trim_start_matches(':') == ty.trim_start_matches(':')
+            && items[1..].iter().any(|p| is_binding(p, field, var))
+    })
+}
+
+/// Every `where` fence in this rule, as `(op, var, literal)`.
+///
+/// The fence arrives intact at the verifier — measured 2026-08-29 by instrumenting this function:
+/// `(:wat::rete::where (:wat::rete::core::i64::< ?k 500))` reaches here with its op, its variable
+/// and its bound all present. Nothing read it, which is not the same as it not being here.
+fn fences(lhs: &[WatAST]) -> Vec<(String, String, i64)> {
+    let mut out = Vec::new();
+    for form in lhs {
+        let WatAST::List(items, _) = form else { continue };
+        let Some(WatAST::Keyword(head, _)) = items.first() else { continue };
+        if head.trim_start_matches(':') != "wat::rete::where" {
+            continue;
+        }
+        for inner in &items[1..] {
+            let WatAST::List(call, _) = inner else { continue };
+            let [WatAST::Keyword(op, _), WatAST::Symbol(v, _), WatAST::IntLit(n, _)] = &call[..]
+            else {
+                continue;
+            };
+            out.push((op.trim_start_matches(':').to_string(), v.as_str().to_string(), *n));
+        }
+    }
+    out
+}
+
+/// Does this cyclic computed head step ONE field monotonically toward a fence that stops it?
+///
+/// ── THE PROOF ────────────────────────────────────────────────────────────────────────────────
+///
+/// For `N(k+C) :- N(k), (where (< k L))` with `C > 0`: the rule fires only while `k < L`, and each
+/// firing produces `k + C > k`. So every derived value is at most `L - 1 + C`, the derived values
+/// strictly increase, and dedup bites at the reachable set — which is therefore FINITE. The
+/// mirror holds for `k - C` under a lower bound.
+///
+/// ⛔ **THE DIRECTION IS THE WHOLE PROOF, AND GETTING IT BACKWARDS ADMITS A DIVERGENCE.**
+/// `N(k+1) :- N(k), (where (> k 500))` fires only while `k > 500` and produces `k + 1`, which is
+/// *also* `> 500` — it satisfies its own guard forever. A fence is not evidence of termination;
+/// a fence pointing AGAINST the step is. Both shapes are gated
+/// (`probe_arc278_termination_fence_*`), because they are one character apart and refusing the
+/// terminating one is a nuisance while admitting the diverging one is a hang.
+///
+/// ── WHAT IT DELIBERATELY DOES NOT DO ─────────────────────────────────────────────────────────
+///
+/// One computed field, one variable, one integer literal, one fence. No arithmetic on the bound,
+/// no two-variable measures, no transitive fences. This is the shape the report named — *"the
+/// first thing anyone writes in recursive Datalog-with-arithmetic"* — and a narrow analysis that
+/// is right beats a general one that is hard to trust. **Anything it cannot prove is still
+/// refused**, which is the honest direction for a verifier to fail in.
+fn computed_head_is_monotone_bounded(
+    form: &WatAST,
+    lhs: &[WatAST],
+    sym: &SymbolTable,
+) -> Option<TerminationProof> {
+    let types = sym.types()?;
+    let head = fact_type_head(form)?;
+    let key = format!(":{}", head.trim_start_matches(':'));
+    let crate::types::TypeDef::Aggregate(def) = types.get(&key)? else {
+        return None;
+    };
+    let WatAST::List(items, _) = form else { return None };
+    // Positional by now — `reorder_then_kwargs` dropped the keywords. Same trap documented on
+    // `computed_fields_are_provably_finite`; `items[1..]` maps 1:1 onto `def.fields`.
+    if items.len() != def.fields.len() + 1 {
+        return None;
+    }
+
+    // Exactly ONE computed field. With two, the measure would have to bound both, and a proof
+    // about one says nothing about the other.
+    let mut computed: Option<(usize, &Vec<WatAST>)> = None;
+    for (idx, value) in items.iter().enumerate().skip(1) {
+        if let WatAST::List(call, _) = value {
+            if computed.is_some() {
+                return None;
+            }
+            computed = Some((idx, call));
+        }
+    }
+    let (idx, call) = computed?;
+    let (field_name, _) = &def.fields[idx - 1];
+
+    // The step: `(i64::+ ?v C …)` or `(i64::- ?v C …)`. Trailing kwargs (the `:undefined 0` tail)
+    // are ignored — only the first two operands carry the measure.
+    let WatAST::Keyword(op, _) = call.first()? else {
+        return None;
+    };
+    let op = op.trim_start_matches(':');
+    let step_up = match op {
+        "wat::rete::core::i64::+" => true,
+        "wat::rete::core::i64::-" => false,
+        _ => return None,
+    };
+    let (WatAST::Symbol(var, _), WatAST::IntLit(c, _)) = (call.get(1)?, call.get(2)?) else {
+        return None;
+    };
+    // A non-positive step is not a measure: `+0` mints nothing new and `+(-1)` walks the other way.
+    if *c <= 0 {
+        return None;
+    }
+
+    // The stepped variable must be bound from the SAME field of the SAME type this head derives:
+    // the measure's argument is FEEDBACK — the derived value becomes the next round's input — and
+    // this is the line that makes the code check what the argument claims.
+    //
+    // ⚠ **HONEST ABOUT ITS COVERAGE: this is a conservative alignment, not a demonstrated
+    // soundness requirement.** Mutating it away (2026-08-29) changed no verdict in the corpus or
+    // in any probe written for it — the fence-variable equality below already refuses the cases
+    // tried, and the shapes it uniquely blocks (`?j` fenced, `:k` computed from it) turn out to
+    // terminate anyway by dedup. It is kept because a check that admits on a proof it does not
+    // actually verify is worse than a narrow one, and REMOVED CONSERVATISM NEEDS ITS OWN
+    // EVIDENCE. If someone later wants the wider rule, the thing to produce is the terminating
+    // program this refuses — not the observation that mutating it is invisible.
+    if !binds_var_from(lhs, &key, field_name, var.as_str()) {
+        return None;
+    }
+
+    // …and a fence must point AGAINST the step.
+    let bounded = fences(lhs).into_iter().any(|(fop, fvar, _lit)| {
+        fvar == var.as_str()
+            && match fop.as_str() {
+                "wat::rete::core::i64::<" | "wat::rete::core::i64::<=" => step_up,
+                "wat::rete::core::i64::>" | "wat::rete::core::i64::>=" => !step_up,
+                _ => false,
+            }
+    });
+
+    bounded.then_some(TerminationProof::BoundedMeasure)
+}
+
 /// Refuse a rule set that cannot be proven to terminate.
 ///
 /// See the doctrine block above. Called from `arm-session`, so it covers every rule that reaches
@@ -667,13 +858,19 @@ pub(crate) fn refuse_non_terminating(
                     f.span().clone(),
                 )
             });
-        let provably_finite = rhs
+        // TWO independent proofs, tried in order of cost. The finite-domain one is a type lookup;
+        // the measure one walks the `:when`. Either admits; neither being available refuses.
+        let proof = rhs
             .iter()
             .find(|f| then_form_computes(f) || rete_fn_body_mints(f, sym))
-            .and_then(|f| computed_fields_are_provably_finite(f, sym));
+            .and_then(|f| {
+                computed_fields_are_provably_finite(f, sym)
+                    .map(|_population| TerminationProof::FiniteDomain)
+                    .or_else(|| computed_head_is_monotone_bounded(f, &lhs, sym))
+            });
         edges.push(RuleEdge {
             name,
-            provably_finite,
+            proof,
             produced: rule_produces(&rhs, sym),
             consumed: rule_consumes(&lhs),
             computed,
@@ -751,12 +948,19 @@ pub(crate) fn refuse_non_terminating(
         // asserts nothing and there is nothing to assert. A type either has finitely many
         // inhabitants or it does not.
         //
-        // ⛔ IT DOES NOT WIDEN THE `i64` AXIS, which is where the danger measured. An `i64`
-        // computed field is `None` here and stays refused, so the shape that reaches an allocator
-        // abort in 6.2s is untouched by this admission.
+        // ⛔ THE FINITE-DOMAIN PROOF DOES NOT WIDEN THE `i64` AXIS, which is where the danger
+        // measured: an `i64` computed field has no finite cardinality and is refused by it.
+        //
+        // ⚠ THE MEASURE PROOF DOES REACH `i64`, AND THAT IS THE POINT OF IT — but only when a
+        // `where` fence points AGAINST the step, which is what separates `k+1 while k < 500` (it
+        // stops) from `k+1 while k > 500` (it never does). The bare unfenced counter that reaches
+        // an allocator abort in 6.2s has no fence at all and is still refused.
         if cyclic {
-            if let Some(population) = e.provably_finite {
-                let _ = population; // the bound is the PROOF; nothing downstream needs the number yet
+            // Either proof admits. `FiniteDomain` bounds the POPULATION; `BoundedMeasure` bounds
+            // only the DIRECTION of growth and leaves the size to the runtime ceilings — see
+            // `TerminationProof` for why an unknown size became admissible once those existed.
+            if let Some(proof) = &e.proof {
+                let _ = proof;
                 continue;
             }
             return Err(crate::runtime::RuntimeError::new(
