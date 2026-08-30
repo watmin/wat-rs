@@ -91,9 +91,29 @@ What remains is in the next-work list — it is no longer a number nobody can re
    This is `render_phase_table`'s own warning coming true — *"two copies is how one of them
    silently stops subtracting"* — one level up, in the subtraction itself.
 
-2. **`IntegerOverflow` / `DivisionByZero` — 16 sites, not the 10 recorded.** Concentrated in
-   `expr_ir/eval.rs` (9) and `purity.rs` (4). The next totality candidates toward *"panics are
-   essentially illegal at runtime"*, and the same shape as the outcome wall this arc already built.
+2. ⛔ **`IntegerOverflow` / `DivisionByZero` IS NOT A RETE GAP — STRUCK 2026-08-30, at the
+   builder's correction, and the disk agrees.** It was listed here as "the next totality
+   candidate". That was mis-filed, in three ways:
+
+   - **Rete's arithmetic is ALREADY TOTAL.** Every user-observable `i64` op is checked —
+     `checked_add`/`sub`/`mul`/`div`/`rem`, 11 sites across `expr_ir/eval.rs` and
+     `fire/acc.rs`. NOTHING WRAPS. Rete cannot produce a wrong arithmetic answer; it refuses.
+     (The `wrapping_`/`saturating_` hits in rete are FNV-1a's hash — where wrapping IS the
+     algorithm — lease refcounts, `reserve()` capacity hints, and slice-index clamps. None is a
+     user value.)
+   - **The residual is the FORM of refusal — a raise, not a matchable value — and core does the
+     same thing.** `runtime.rs` has 12 `IntegerOverflow` raises behind the identical
+     `checked_*` pattern. Rete is LEVEL with core here, not behind it.
+   - **The machinery does not exist in EITHER.** No `ArithOutcome` anywhere in `src/` or `wat/`.
+     The outcome wall was buildable for ceilings because rete owns those verbs and could mint
+     `FireOutcome`/`InsertOutcome`/`CompileOutcome` in `rete.wat`. Arithmetic totality needs
+     `:wat::core::i64::+` ITSELF to answer an outcome — a CORE surface change touching every
+     arithmetic call site in the substrate.
+
+   **Builder, 2026-08-30:** *"this is core's tooling and core is not yet total… that cannot be
+   held against rete as rete is the first subsystem to demand totality."* Correct, and it
+   inverts the credit: rete built the outcome wall for the ceilings it OWNS, and checks the
+   arithmetic it does not. If this is picked up, it is a CORE arc, not a rete one.
 
 3. **`linear Vec` beats `FxHashMap` 2.8x at 2 types** in `accum_alpha_class_lookup_split` — looks
    like the structural finding that test exists to demonstrate. NOT asserted: one sample is not a
