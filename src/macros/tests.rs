@@ -144,12 +144,12 @@ fn alias_macro_expands_to_primitive() {
           [xs <- :wat::WatAST]
           -> :wat::WatAST
           `(:wat::holon::Bundle ~xs))
-        (:my::vocab::Concurrent (:wat::core::Vector :wat::holon::HolonAST a b c))
+        (:my::vocab::Concurrent (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
         "#,
     )
     .unwrap();
     assert_eq!(forms.len(), 1);
-    // Expansion: (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b c))
+    // Expansion: (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
     match &forms[0] {
         WatAST::List(items, _) => {
             assert_eq!(items.len(), 2);
@@ -587,7 +587,7 @@ fn program_body_producing_non_ast_rejected() {
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::m [x <- :wat::WatAST] -> :wat::WatAST
-          (:wat::core::Vector :bogus x))
+          (:wat::core::Vector :- [:bogus] x))
         (:my::m 1)
         "#,
     )
@@ -1070,7 +1070,7 @@ fn computed_unquote_splicing_evaluates_and_splices() {
         (:wat::core::defmacro :my::trio
           []
           -> :wat::WatAST
-          `(:wrapper ~@(:wat::core::Vector :wat::core::i64 1 2 3)))
+          `(:wrapper ~@(:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
         (:my::trio)
         "#,
     )

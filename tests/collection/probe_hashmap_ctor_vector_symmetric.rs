@@ -1,12 +1,13 @@
 //! Arc 214 P1 — HashMap constructor: Vector-symmetric shape probes.
 //!
-//! Verifies that the refactored `:wat::core::HashMap :K :V k0 v0 ...`
-//! constructor shape (two separate type-keywords, per arc 109 slice 1f)
-//! is accepted by both the runtime evaluator and the type-checker.
+//! Verifies that the refactored `:wat::core::HashMap :- [K V] k0 v0 ...`
+//! constructor shape (two type-keywords in one `:-`-marked bracket, per arc
+//! 109 slice 1f / stone 3 THE WALL) is accepted by both the runtime
+//! evaluator and the type-checker.
 //!
 //! ## The 9 probes
 //!
-//! 1. Empty literal — `(:wat::core::HashMap :wat::core::keyword :wat::core::i64)` constructs empty HashMap
+//! 1. Empty literal — `(:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])` constructs empty HashMap
 //! 2. Single pair — length 1; get returns the value
 //! 3. Multi pair — three pairs; length + get per key
 //! 4. String-keyed — K = String confirms K can be any hashable type
@@ -14,7 +15,7 @@
 //! 6. Wrong-type rejection — value type mismatch at type-check
 //! 7. Odd count rejection — type-check catches arity parity error
 //! 8. Missing K type-arg — `(:wat::core::HashMap)` fails arity check
-//! 9. Missing V type-arg — `(:wat::core::HashMap :wat::core::keyword)` fails arity check
+//! 9. Missing V type-arg — `(:wat::core::HashMap :- [:wat::core::keyword])` fails arity check
 
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;

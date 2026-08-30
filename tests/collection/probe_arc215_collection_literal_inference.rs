@@ -1,8 +1,9 @@
 //! Arc 215 Stone 1 — `_infer` placeholder + literal completion probes.
 //!
 //! Verifies that:
-//! - `{...}` map literals use `:wat::type::Infer` for V; type inferred from values
-//! - `#{...}` set literals desugar to `(:wat::core::HashSet :wat::type::Infer ...)`
+//! - `{...}` map literals parse to a native `WatAST::Map` node; V's type inferred from values
+//! - `#{...}` set literals parse to a native `WatAST::Set` node (Arc 257 slice 1 — no longer
+//!   desugared to a `(:wat::core::HashSet ...)` constructor-call List); T inferred from values
 //! - The type-checker correctly infers concrete types from first element/value
 //! - Mixed-type literals are rejected at check time with TypeMismatch
 //! - Nested collections work without Atom auto-wrap (resolves P2 Probe 5 class)

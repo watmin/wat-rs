@@ -2069,11 +2069,12 @@ fn encode_value_with_path(
         }
         Value::wat__std__HashMap(map) => {
             // Closure-capture round-trip: re-encode a runtime HashMap<K,V> Value
-            // back to the corresponding `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)`
+            // back to the corresponding `(:wat::core::HashMap :- [K V] k1 v1 k2 v2 ...)`
             // constructor AST, so the captured env can be replayed in a fresh
-            // world. Verb-equals-type per arc 109 slice 1f; mirrors Vector's
-            // single `:T` with two type-args for K + V (arc 214 P1 retired the
-            // earlier `:(K,V)` tuple-keyword shape).
+            // world (Arc 109 stone 3, THE WALL, updated the synthesis below to
+            // the `:-`-marked spelling — see its comment). Mirrors Vector's
+            // single-element `:- [T]` bracket, with two type-args for K + V
+            // (arc 214 P1 retired the earlier `:(K,V)` tuple-keyword shape).
             //
             // Stone 216.5c — storage is now Arc<HashMap<Value, Value>>; iterate (k, v) directly.
             //

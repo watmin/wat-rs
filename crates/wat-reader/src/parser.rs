@@ -344,8 +344,10 @@ impl<'a> Cursor<'a> {
             Token::RBrace => Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBrace }),
             Token::LHashBrace => {
                 // Arc 215 stone 1 — `#{x y z ...}` set literal.
-                // Desugars to `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
-                // T inferred by check.rs from element types.
+                // Arc 257 slice 1: produces a native `WatAST::Set` node
+                // directly — no longer desugared to a `(:wat::core::HashSet
+                // ...)` constructor-call List. T inferred by check.rs from
+                // element types.
                 // Arc 281 — thread the close span so the Set node covers open..close.
                 let (items, close_span) = self.parse_brace_body(span.clone())?;
                 let (end_l, end_c) = close_span.end.as_ref()

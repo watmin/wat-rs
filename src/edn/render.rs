@@ -1486,11 +1486,12 @@ fn eval_keyword_to_type_form_impl(
 
 /// `(:wat::keyword::to-type-form <keyword-node>)` — arc 251 type-position rendering (arc 255 Stone E-iv rename).
 /// Convert an old rust-scheme TYPE keyword (`:wat::core::Vector<wat::core::i64>`) into the
-/// faithful-Clojure type FORM (`(wat.type/Vector [wat.type/i64])`). Parses the keyword string
+/// faithful-Clojure type FORM (`(wat.type/Vector :- [wat.type/i64])`). Parses the keyword string
 /// via the EXISTING type parser ([`crate::types::parse_type_expr_with_span`] → `TypeExpr`),
 /// then renders the closed `TypeExpr` enum via [`type_expr_to_clojure_form`] in
-/// [`TypeFormHeadMode::Clojure`] — UNCHANGED head spelling; only the bracketing moved (Room 1,
-/// arc 109 Stone ②-i).
+/// [`TypeFormHeadMode::Clojure`] — UNCHANGED head spelling; only the bracketing moved, and Arc
+/// 109 Stone ②-i-b moved it again onto the `:-` binder (see `type_expr_to_clojure_form`'s
+/// "Room 1" comment) — this doc trailed that second move until the annihilate-the-prose stone.
 pub fn eval_keyword_to_type_form(
     args: &[WatAST],
     list_span: &crate::span::Span,
@@ -1503,9 +1504,10 @@ pub fn eval_keyword_to_type_form(
 
 /// `(:wat::keyword::to-type-form-colon <keyword-node>)` — arc 109 Stone ②-i, Room 3 sibling (arc 255 Stone E-iv rename)
 /// of [`eval_keyword_to_type_form`]. Same parse + render pipeline, [`TypeFormHeadMode::Colon`]:
-/// `:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])` — a colon-
-/// quoted Keyword head, bracketed args, the rust-ish spelling step ②'s corpus codemod needs
-/// (the Clojure head-flip is separate and later).
+/// `:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector :- [:wat::core::i64])` — a
+/// colon-quoted Keyword head, `:-`-bracketed args (Stone ②-i-b moved the bracketing here too),
+/// the rust-ish spelling step ②'s corpus codemod needs (the Clojure head-flip is separate and
+/// later).
 pub fn eval_keyword_to_type_form_colon(
     args: &[WatAST],
     list_span: &crate::span::Span,

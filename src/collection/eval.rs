@@ -1295,9 +1295,10 @@ pub(crate) fn eval_hashmap_ctor(
     Ok(Value::wat__std__HashMap(Arc::new(map)))
 }
 
-/// `(:wat::core::HashSet :T x1 x2 x3 ...)` — first arg is a type
-/// keyword read by the checker; remaining args are elements. Duplicate
-/// elements collapse (HashSet semantics; Value: Hash + Eq).
+/// Post-splice runtime shape: `args[0]` is the element type (keyword or
+/// nested type form), already unwrapped from any `:- [...]` marker by the
+/// dispatch call site's `unwrap_type_param_bracket`; remaining args are
+/// elements. Duplicate elements collapse (HashSet semantics; Value: Hash + Eq).
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]

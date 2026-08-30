@@ -51,12 +51,17 @@ use std::collections::HashMap;
 /// Appears in type-arg slots of parametric constructor calls to signal
 /// "infer this type from the values." Used by:
 ///
-/// - `{...}` map literals (V slot) — desugar emits `:wat::type::Infer`
-///   as V; `infer_hashmap_constructor` detects it and uses `fresh.fresh()`.
-/// - `#{...}` set literals (T slot) — desugar emits `:wat::type::Infer`
-///   as T; `infer_hashset_constructor` detects it and uses `fresh.fresh()`.
-/// - Explicit verb-form with inference: `(:wat::core::HashMap :wat::core::keyword
-///   :wat::type::Infer :k v)` — K is explicit, V is inferred.
+/// - Explicit verb-form with inference: `(:wat::core::HashMap :- [:wat::core::keyword
+///   :wat::type::Infer] :k v)` — K is explicit, V is inferred; detected by
+///   `infer_hashmap_constructor`, routes to `fresh.fresh()`.
+/// - The `#{...}` set-literal verb-form twin is `infer_hashset_constructor`.
+///
+/// `{...}` map literals and `#{...}` set literals themselves (Arc 257 slice 1)
+/// parse to native `WatAST::Map` / `WatAST::Set` nodes — NOT a desugar to a
+/// `(:wat::core::HashMap ...)` / `(:wat::core::HashSet ...)` constructor call
+/// — and their own `infer_map_literal` / `infer_set_literal` skip the leading
+/// type-keyword sentinel slots entirely, starting from fresh type variables
+/// directly; `:wat::type::Infer` never appears on that path.
 ///
 /// `parse_type_expr(":wat::type::Infer")` returns
 /// `Ok(TypeExpr::Path(":wat::type::Infer"))` — no special registration

@@ -3,7 +3,7 @@
 //! Covers:
 //! - `(:wat::core::u8 <i64>)` cast: in-range produces `:wat::core::u8`; out-of-range errors.
 //! - Comparison (`:wat::core::=`) works on `:wat::core::u8` values.
-//! - `:wat::core::Vector<u8>` construction via `(:wat::core::Vector :wat::core::u8 ...)` round-trips.
+//! - `:wat::core::Vector<u8>` construction via `(:wat::core::Vector :- [:wat::core::u8] ...)` round-trips.
 //! - Passing `:wat::core::u8` values through function parameters and return types.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
@@ -67,7 +67,7 @@ fn u8_inequality_works() {
 
 #[test]
 fn vec_u8_construction_round_trips() {
-    // (:wat::core::Vector :wat::core::u8 0 65 127 255) — cast each from i64 literal.
+    // (:wat::core::Vector :- [:wat::core::u8] 0 65 127 255) — cast each from i64 literal.
     match run_fn(":my::compute-vec-u8") {
         Value::Vec(items) => {
             assert_eq!(items.len(), 4);

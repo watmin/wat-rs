@@ -161,7 +161,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     // substrate-equivalent of closure-capture-across-fork is runtime AST construction:
     // the launcher splices the runtime `offset` value INTO the child program AST via
     // `:wat::core::quasiquote` + `:wat::core::unquote`, builds the
-    // `(:wat::core::Vector :wat::WatAST main-form)` forms VALUE, and hands it to
+    // `(:wat::core::Vector :- [:wat::WatAST] main-form)` forms VALUE, and hands it to
     // `spawn-program' (process)` — the process clause accepts a forms value the same way
     // spawn-process did, so the quasiquote-factory shape is unchanged; only the DRIVER
     // flipped to the peer wire. The launcher feeds the child's `readln` with `send' 7`

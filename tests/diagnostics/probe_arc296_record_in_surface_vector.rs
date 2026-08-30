@@ -1,7 +1,7 @@
 //! Arc 296 — Vector<Surface> element structural satisfaction probe.
 //!
 //! Verifies that a record satisfying a surface may be passed as an element
-//! to `(:wat::core::Vector :Surface <record>)` — the same structural satisfaction
+//! to `(:wat::core::Vector :- [:Surface] <record>)` — the same structural satisfaction
 //! path that function-parameter binding already accepts.
 //!
 //! RED at HEAD: `infer_list_constructor` uses bare `unify` for element checks →

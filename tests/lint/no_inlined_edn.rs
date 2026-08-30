@@ -631,7 +631,7 @@ mod detector_tests {
     fn form_then_english_prose_is_a_message_not_a_golden() {
         assert!(is_form_then_trailing("[1 2 3] must have length 3"));
         assert!(is_form_then_trailing("(:wat::io::IOReader/read-frame r) must type-check; got: {}"));
-        assert!(is_form_then_trailing("(:wat::core::Vector :wat::type::Infer 1 2 3) empty case"));
+        assert!(is_form_then_trailing("(:wat::core::Vector :- [:wat::type::Infer] 1 2 3) empty case"));
         assert!(is_form_then_trailing("[{}] {:?}")); // eprintln fmt: [{}] balances, {:?} trails
     }
 

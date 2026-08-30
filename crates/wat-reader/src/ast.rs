@@ -153,7 +153,7 @@ pub enum WatAST {
     ///
     /// Arc 257 slice 1 (additive substrate). In value position this
     /// evaluates to `Value::wat__std__HashMap` (same as the explicit
-    /// `(:wat::core::HashMap :K :V k v ...)` constructor, but without
+    /// `(:wat::core::HashMap :- [K V] k v ...)` constructor, but without
     /// the leading type-keyword sentinels). In binder/pattern position
     /// (after arc 257.3) it becomes a map-destructure.
     ///
@@ -166,7 +166,7 @@ pub enum WatAST {
     ///
     /// Arc 257 slice 1 (additive substrate). Evaluates to
     /// `Value::wat__std__HashSet` (same as the explicit
-    /// `(:wat::core::HashSet :T x y z)` constructor form).
+    /// `(:wat::core::HashSet :- [T] x y z)` constructor form).
     Set(Vec<WatAST>, Span),
 }
 

@@ -589,7 +589,7 @@ pub(crate) fn eval_string_join(
 /// Differs from `join` in that there's no separator and the args are passed
 /// positionally rather than packed into a `Vector<String>` — the natural
 /// form for "stitch a few strings together at the call site." Equivalent to
-/// `(:wat::string::join "" (:wat::core::Vector :wat::core::String s1 s2
+/// `(:wat::string::join "" (:wat::core::Vector :- [:wat::core::String] s1 s2
 /// ...))` but spares the caller the Vec ceremony. Arity: 1+; the empty arg
 /// list errors (the empty string has no useful concat semantics worth
 /// special-casing).

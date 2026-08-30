@@ -25,7 +25,7 @@
 //!  5. Tuple containing Vec: `(:wat::core::Tuple [1 2 3] "tag")` — outer Bind + inner Vec-shape
 //!
 //! Tuple containing HashSet:
-//!  6. `(:wat::core::Tuple (:wat::core::HashSet :wat::core::i64 1 2) "label")` → Bundle 2 children
+//!  6. `(:wat::core::Tuple (:wat::core::HashSet :- [:wat::core::i64] 1 2) "label")` → Bundle 2 children
 //!
 //! is_atomizable predicate:
 //!  7. Tuple<i64, String> admits; Tuple containing Fn rejects
@@ -181,7 +181,7 @@ fn probe_5_tuple_containing_vec_roundtrip() {
 
 // ─── Probe 6 — Tuple containing HashSet ───────────────────────────────────────
 
-/// `(:wat::core::Tuple (:wat::core::HashSet :wat::core::i64 1 2) "label")` — composition
+/// `(:wat::core::Tuple (:wat::core::HashSet :- [:wat::core::i64] 1 2) "label")` — composition
 /// with Stone 216.1. Arc 228: outer is classifier-wrapped Bind; Bundle/children no longer applies.
 /// Verify via round-trip: to-holon → from-holon → outer Tuple; first element = inner HashSet.
 /// HashSet/length = 2.

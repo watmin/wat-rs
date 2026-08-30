@@ -145,7 +145,7 @@ pub(crate) fn eval_keyword_to_type_form_home(
 
 /// `(:wat::keyword::to-type-form-colon kw-node)` — Colon-mode sibling of `to-type-form`: same
 /// parse+render pipeline, the rust-ish `:wat::core::` head spelling instead of the Clojure
-/// `wat.type/` flip (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])`).
+/// `wat.type/` flip (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector :- [:wat::core::i64])`).
 ///
 /// @added         1.0.0
 /// @Purity        Pure

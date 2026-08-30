@@ -1419,7 +1419,7 @@ mod seqable_to_stream_tests {
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");
         let ast = crate::parse_one!(
-            "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
+            "(:wat::core::length (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) \
               (:wat::core::keep :cx::keep-all (:cx::build-pv 4000))))"
         )
         .expect("parse the keep pipeline");
@@ -1484,7 +1484,7 @@ mod filter_native_tests {
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");
         let ast = crate::parse_one!(
-            "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
+            "(:wat::core::length (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) \
               (:wat::core::filter :cx::keep-all (:cx::build-pv 4000))))"
         )
         .expect("parse the filter pipeline");

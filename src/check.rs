@@ -12092,11 +12092,14 @@ fn process_let_binding(
     // retired the legacy typed-single `(name :T)` and legacy List
     // destructure binder arms.
     //
-    // Arc 214 P2 note: `{}` in expression position now parses as a
-    // `WatAST::List` (the desugared HashMap call) rather than an
-    // error. If that List lands in a let binder position (e.g.
-    // `[{} p]`), it is structurally invalid as a binder. Emit a
-    // MalformedForm here so the type-checker surfaces a diagnostic
+    // Arc 214 P2 note, updated for Arc 257 slice 1: `{}` in expression
+    // position parses as a native `WatAST::Map([], span)` (no longer a
+    // desugared `(:wat::core::HashMap ...)` call List) rather than an
+    // error. If that Map lands in a let binder position (e.g.
+    // `[{} p]`), it is structurally invalid as a binder (verified:
+    // `(:wat::core::let [{} p] p)` still surfaces "got a map in binder
+    // position" here). Emit a MalformedForm here so the type-checker
+    // surfaces a diagnostic
     // at startup rather than silently accepting and letting the
     // runtime catch it.
     let binder = &kv[0];
@@ -12217,7 +12220,12 @@ pub(crate) fn is_type_bracket_candidate(items: &[WatAST]) -> bool {
 /// `PersistentVector`'s leading type-param bracket, both spellings. Replaces
 /// six per-call-site matches on `is_type_bracket_candidate` (`check.rs:14062,
 /// 14165, 14330`; `runtime.rs:6257, 6479, 6494`) with a single production, so
-/// ③'s hard cut is one door to delete rather than six call sites to re-audit.
+/// a future hard cut has one door to touch rather than six call sites to
+/// re-audit. ⚠ Arc 109 Stone 3 (THE WALL) closed `unwrap_type_param_bracket`'s
+/// door for `Vector` / `HashMap` / `HashSet` only; it did NOT touch this door
+/// — `Tuple` / `PersistentMap` / `PersistentVector`'s unmarked bracket is
+/// still live (verified: `(:wat::core::PersistentVector [:wat::core::i64] 1)`
+/// checks clean). See the annihilate-the-prose stone's report.
 ///
 /// Split a constructor's args into (type-param bracket, its span, the values).
 /// - `:-`-marked (`(Head :- [types] v…)`) → the bracket is types BY
@@ -12226,7 +12234,9 @@ pub(crate) fn is_type_bracket_candidate(items: &[WatAST]) -> bool {
 ///   about. An EMPTY `:-`-marked bracket (`(Head :- [])`) is a legitimate
 ///   zero-length param-spec, not a non-candidate.
 /// - unmarked (`(Head [types] v…)`) → falls back to `is_type_bracket_candidate`
-///   (dual-read; ③ deletes this arm and the helper it calls).
+///   (dual-read; ③ did NOT delete this arm or `is_type_bracket_candidate` —
+///   both remain live for these three heads, unlike the door THE WALL closed
+///   for `Vector` / `HashMap` / `HashSet`).
 ///
 /// ★ The two arms do NOT share a rule and must not be unified into one: the
 /// `:-` arm never inherits `is_type_bracket_candidate`'s `!items.is_empty()`
@@ -12345,11 +12355,10 @@ fn parse_param_spec_slot(
 /// make-queue resource-constructor discipline — shape never depends on
 /// context).
 ///
-/// Arc 109 stone 3 — a bare leading type keyword
-/// (`(:wat::core::HashSet :wat::core::i64 1 2)`) and an unmarked bracket
-/// (`(:wat::core::HashSet [:wat::core::i64] 1 2)`) are BOTH now rejected:
-/// `peel_param_spec` requires the literal `:-` marker, so neither shape can
-/// reach `parse_param_spec_slot` at all. This function no longer sees
+/// Arc 109 stone 3 — a bare leading type keyword and an unmarked bracket
+/// are BOTH now rejected: `peel_param_spec` requires the literal `:-`
+/// marker, so neither shape can reach `parse_param_spec_slot` at all.
+/// This function no longer sees
 /// `args[0]` pre-spliced (see `unwrap_type_param_bracket`'s stone-3 update);
 /// the bare-vs-`:-` distinction survives to this match, which is the whole
 /// point of the wall.
@@ -12509,8 +12518,8 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
     }
 
     /// Row 1/2 (the wall) — the BARE keyword first-arg this test used to prove
-    /// "unchanged" is now the retired spelling: `(:wat::core::Vector :wat::core::i64 1)`
-    /// must be REJECTED, structurally, with the wall's own diagnostic.
+    /// "unchanged" is now the retired spelling (no `:-` marker) and must be
+    /// REJECTED, structurally, with the wall's own diagnostic.
     #[test]
     fn row1_infer_list_constructor_bare_keyword_first_arg_now_rejected() {
         let types = env_and_types();
@@ -15043,11 +15052,10 @@ fn infer_list_constructor(
             args: vec![t],
         }, local_errors);
     }
-    // Arc 109 stone 3 — a bare leading type keyword
-    // (`(:wat::core::Vector :wat::core::i64 1 2 3)`) and an unmarked bracket
-    // (`(:wat::core::Vector [:wat::core::i64] 1 2 3)`) are BOTH now rejected:
-    // `peel_param_spec` requires the literal `:-` marker, so neither shape
-    // reaches `parse_param_spec_slot`. This function no longer sees `args[0]`
+    // Arc 109 stone 3 — a bare leading type keyword and an unmarked bracket
+    // are BOTH now rejected: `peel_param_spec` requires the literal `:-`
+    // marker, so neither shape reaches `parse_param_spec_slot`. This
+    // function no longer sees `args[0]`
     // pre-spliced (see `unwrap_type_param_bracket`'s stone-3 update) — the
     // bare-vs-`:-` distinction survives to this match, which is the whole
     // point of the wall.
@@ -21980,7 +21988,7 @@ mod tests {
 
     #[test]
     fn list_mixed_types_rejected() {
-        let err = check(r#"(:wat::core::Vector :wat::core::i64 1 "two" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::Vector :- [:wat::core::i64] 1 "two" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -22001,7 +22009,7 @@ mod tests {
     #[test]
     fn bundle_of_list_of_ints_rejected() {
         // Bundle wants :wat::holon::Holons, but this is (:wat::core::Vector :- [wat::core::i64]).
-        let err = check(r#"(:wat::holon::Bundle (:wat::core::Vector :wat::core::i64 1 2 3))"#).unwrap_err();
+        let err = check(r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::core::i64] 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
