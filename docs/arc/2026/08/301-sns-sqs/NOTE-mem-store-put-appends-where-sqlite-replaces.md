@@ -34,9 +34,39 @@ sqlite against.
 > **An oracle that admits states the subject cannot represent is not an oracle.** It will
 > certify behaviour that cannot occur, and — as here — stay silent on behaviour that differs.
 
-`wat/query.wat`'s Store surface never says which one is right. `put`'s doc-comment is *"write a
-batch ATOMICALLY (one transaction)"* — it says nothing about key semantics, so both
-implementations are defensible readings of the contract. **The contract is the defect.**
+## ⛔ CORRECTED 2026-08-30 — this NOTE first called it a tie. It is not.
+
+The paragraph here originally read: *"the Store surface never says which one is right … both
+implementations are defensible readings of the contract. The contract is the defect."*
+**That is false.** Builder's question — *"both of these were replicating DynamoDB — ddb does
+what here?"* — settles it, and the referent is named in the surface file itself:
+
+> `wat/query.wat:7` — *"The narrow waist is still **DynamoDB's** `(pk, sk, data)` + named-GSI"*
+
+**DynamoDB `PutItem` replaces.** *"Creates a new item, or replaces an old item with a new item.
+If an item that has the same primary key as the new item already exists in the specified table,
+the new item completely replaces the existing item."* A DDB table cannot hold two items with
+one primary key — that is the data model, not a policy. On replace, DDB also rewrites the
+item's index projections: old removed, new written.
+
+So `sqlite-store` is **correct on both halves** — `DELETE → clear-index-projections → INSERT →
+insert-index-projections` is precisely `PutItem`. **`mem-store` is simply a bug.** There is
+nothing to adjudicate.
+
+I reached the wrong conclusion by searching `wat/query.wat`'s prose for key semantics, finding
+none, and reading silence as ambiguity. The spec was not silent — it was elsewhere, and named.
+
+### A THIRD answer, found while checking
+
+`docs/arc/2026/06/278-rules-engine/DESIGN-store-contract.md:150` maps the ops to backends:
+
+```
+| put | prepared INSERT in BEGIN/COMMIT | INSERT in a txn | insertMany(ordered:true) |
+```
+
+Plain `INSERT` — which against `PRIMARY KEY(pk,sk)` would **error** on a duplicate, not replace.
+So the design doc's own shorthand disagrees with the implementation that is correct. It is what
+a future backend author would copy, so it is owed a fix too.
 
 ## Why stone 2b did not catch it
 
@@ -67,8 +97,11 @@ a crash window that would **duplicate the message**.
 
 ## What is owed — stone 2c, before stone 3
 
-1. **Rule the contract.** `put` is a replace-by-`(pk, sk)`, or it is an append and the surface
-   says so. The DDL has already voted; the surface should say it out loud.
+1. ✅ **RULED, builder, 2026-08-30: fix `mem-store`.** `put` is a replace-by-`(pk, sk)`,
+   because `PutItem` is. Say it out loud on the surface — the referent is currently a prose
+   aside at `wat/query.wat:7`, and a contract whose key semantics live in another document's
+   header is a contract that will be misread again. Also fix `DESIGN-store-contract.md:150`,
+   which says plain `INSERT`.
 2. **Make `mem-store` match.** Its `put` folds the incoming batch onto `Record/rows`; a
    replace is that fold with the same `key-hits-row?` predicate stone 2 already wrote for
    `delete` — drop any existing row whose `(pk, sk)` a new row names, then `conj`.
