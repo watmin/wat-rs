@@ -82,58 +82,92 @@ screams have been substantial:
 **None of that is megafile work, and all of it is worth having.** The finding is that the campaign
 has two products and only one of them is on the ROAD's step-1 line.
 
-## The ceiling, so the next decision is made against a bound
+## ⛔ THE CEILING — AND A CORRECTION I OWE, MADE THE SAME HOUR
 
-`src/runtime.rs` at HEAD, decomposed (`awk` over top-level items):
+**First published here, then measured properly and found TOO GENEROUS. The corrected number is
+below; the wrong one is left visible because the mechanism is the lesson.**
+
+**What I first wrote:** *"171 × `eval_*`/`step_*` bodies = 10,638 lines = 31% = P6-c's addressable
+surface,"* and from it, *"everything P6-c could ever move is 12,366 lines — 36% of the file."*
+
+**What is actually true.** I used a NAME PATTERN as a proxy for a POPULATION and never validated
+it. Of those 171 fns, only **48** are the body of a verb still in the dispatch. The other **123**
+are a mix I had folded in without looking: already-homed verbs whose bodies stayed behind
+(`eval_bigint_arith`, `eval_body_of`, `eval_edn_validate` — registered elsewhere, calling back in)
+and pure evaluator machinery that was never a verb at all (`eval_do_tail`, `eval_and_tail`,
+`eval_call_to_defclause`). `eval_*` is what the evaluator names its own internals, not a verb marker.
+`[[feedback_validate_a_search_pattern_before_trusting_its_count]]` — re-read this morning, recurred
+by lunchtime.
+
+**The measured surface, resolved arm-by-arm instead of by name:**
 
 ```
-                                  lines    share
-  171 × eval_* / step_* bodies   10,638     31%   ← P6-c's addressable surface
-    4 × dispatch_*                1,728      5%   ← incl. dispatch_keyword_head_value (1,539)
-  250 × other top-level fns       9,627     28%
-  non-fn (impl/struct/static)    12,213     36%
-                                 ------
-                                 34,206
+  90  FQDN arms left in dispatch_keyword_head_value  (63 :wat::core:: + 9 bare core + 18 other)
+  81  resolved to a target (62 single-expression, 19 block-form)
+  61  whose target fn is DEFINED IN runtime.rs        ~2,669 lines   ← the remaining waves' mass
+  20  already delegating out (collection::transform 13 · rete::kernel 4 · eval 1 · function 1 · io 1)
 ```
 
-**Everything P6-c could ever move is 12,366 lines — 36% of the file.** A total victory, every
-remaining verb body relocated, leaves `runtime.rs` at **~21,800 lines**. It would still be the
-second-largest file in the tree.
-
-The other giants, for scale (`>3,000` lines, `src/` + `crates/`, 203,694 total):
-
 ```
-  34,206  src/runtime.rs          7,250  src/types.rs
-  22,505  src/check.rs            5,018  src/edn/render.rs
-  10,123  src/rete/kernel/tests.rs  3,209  src/closure_extract.rs
+                                       lines   share of runtime.rs
+  61 resident bodies of REMAINING arms  2,669       7.8%
+  15 verbs homed IN PLACE (attribute
+     on the fn, body never moved)         844       2.5%
+  dispatch_keyword_head_value           1,539       4.5%   (collapses to ~7 lines when the
+                                        -----               last arm goes — HOME-13's precedent)
+  realistic P6-c-addressable total     ~5,050        15%
+                                                    ----
+  runtime.rs                           34,206
 ```
 
-Two files hold **56,711 lines — 28% of the tree.**
+**So the ceiling is ~15%, not 36%.** A total P6-c victory — every remaining verb homed AND its body
+moved AND the dispatch collapsed — leaves `runtime.rs` at roughly **29,150 lines**. It stays the
+largest file in the tree by a wide margin (`check.rs` is 22,505).
+
+That is the number the megafile decision should be made against, and it is far worse for the
+campaign-as-megafile-lever than the one I published an hour earlier. The remaining **19,000+ lines**
+of `runtime.rs` are the evaluator itself — `Environment`, `SymbolTable`, `apply_function`,
+defclause parsing and selection, pattern matching, quasiquote walking, shutdown/fault machinery —
+and **no amount of verb homing touches any of it.**
+
+★ Only **15 of 422** registrations live in `runtime.rs`. The campaign has been moving code out for
+real; it is simply that the mass it can still reach is small, and the file's bulk was never verbs.
 
 ## The question for the builder — NOT drawn, NOT decided
 
-If the near-term enemy is the megafile, three things are true at once and they pull apart:
+The measurement the first draft of this NOTE asked for has now been TAKEN (it was cheap, and the
+rider was in the field). It changes the question rather than answering it:
 
-1. P6-c's remaining ~106 verbs, homed at the current in-place rate, will move runtime.rs by
-   roughly **−450 lines**. That is not a megafile campaign; it is a correctness campaign that
-   happens to touch the megafile.
-2. The in-place ruling is *correct on its own terms* — the helper-visibility cost is real. Reversing
-   it wholesale would trade 12,000 lines of megafile for a dozen widened helpers and a lot of churn.
-3. The lever that actually worked was **HOME-8's shape: move a whole namespace's bodies at once**,
-   where the helpers travel WITH the verbs instead of being left behind. `:wat::holon::` went out as
-   a unit for −6,001. The remaining population may or may not contain another such unit.
+1. **`:wat::core::` IS the last big unit — 63 of the 90 remaining arms, plus 9 bare.** That is
+   HOME-8 scale by verb count (HOME-8 moved 95). So the "is there another HOME-8 in here" question
+   has a YES on the count axis. **W6 is the first wave into exactly this namespace.**
+2. **But the LINE mass is not there.** Those 90 arms' resident bodies are ~2,669 lines, against
+   HOME-8's −6,001. `:wat::holon::` was 95 verbs of dense algebra; `:wat::core::` is 90 arms of
+   mostly-small readers, and a third of them already delegate out. Same verb count, a quarter of
+   the mass.
+3. **So the ceiling binds before the shape does.** Even run at HOME-8's shape — bodies moved,
+   helpers travelling with them, dispatch collapsed — `runtime.rs` lands near **29,150**. The
+   megafile is not made of verbs. It is made of the evaluator.
 
-So the question is not "should P6-c continue" — its correctness yield alone justifies it. The
-question is whether a **separate, differently-shaped strike** should run against the megafile:
-one that asks *"which cluster of runtime.rs bodies shares enough private helpers to move as a
-unit?"* rather than *"which verb is next in the ledger?"*
+**Therefore the question is no longer "which cluster moves as a unit."** It is:
 
-**That is a measurement nobody has taken, and it is the one that would tell us whether the megafile
-has another HOME-8 in it or only a long tail.** It is cheap — cluster the 171 bodies by which
-module-private helpers they call, and read the sizes.
+> ⬜ **If `runtime.rs` cannot go below ~29,000 by homing, what is the ACTUAL decomposition of the
+> evaluator?** `Environment` + `SymbolTable`, `apply_function` + the call path, defclause
+> parse/select, pattern matching, quasiquote, shutdown/fault — those are the 19,000+ lines, and
+> they are six or seven genuinely different concerns sharing one file. That is a `partire` question
+> (does this file have one reason to change, or several?), not a homing question, and it is the
+> only lever left that can move the number the builder cares about.
 
-⛔ Not drawn. The builder rules whether that measurement happens before, after, or instead of the
-remaining waves.
+And the honest counterweight, so this is not read as "stop":
+
+- P6-c should still finish. Its yield is **correctness, not lines** — doc lies, arity truth, `apply`
+  reachability, purity rulings. Seven lies in W3 alone. Killing the dispatch match also removes the
+  last unregistered surface, which is the thesis of arc 255 (the blanket-accept at
+  `resolve/walk.rs:268`) and a hard prerequisite for ROAD steps 2–4.
+- Nothing here says the waves are wasted. It says **the megafile campaign and the registry campaign
+  are two campaigns wearing one name**, and only the second one is being fought.
+
+⛔ Not drawn. Which of the two the builder wants swung next is the builder's ruling.
 
 ---
 
