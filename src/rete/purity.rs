@@ -2605,6 +2605,65 @@ mod completeness_gate {
         ":wat::core::keyword-node",
         ":wat::core::read-string",
         ":wat::core::symbol-node",
+
+        // ── ADDED (STONE meter-1, the recursive-walk scan). `dispatch_verbs`'s
+        // `#[wat_intrinsic]`-home scan used to `read_dir` only `src/intrinsic` (files plus one
+        // subdirectory level); these eleven are homed elsewhere in `src/` (`src/rete/`,
+        // `src/rete/kernel/`, and `src/runtime.rs` itself) and were invisible to it — and since
+        // homing a verb also deletes its literal dispatch arm, they had left the population
+        // entirely rather than becoming ruled. Walking the whole tree recursively makes them
+        // visible again, unchanged in every other respect.
+        //
+        // All eleven already declare `@Purity` and `@Determinism` — each was ruled with a
+        // disk-cited reason in arc 255 Stone P6-c (W5a/W5b/W5c) or Stone P6-c-1. What none of
+        // them declare is `@Total`: every one carries `@Total Unreviewed`, because totality is
+        // a separate axis the registry could not hold before stone total-T1. The gate's
+        // question is the FENCE's three axes (pure ∧ det ∧ total), not the doc contract's two
+        // — so a verb ruled `@Purity Pure` here is still honestly unreviewed for this gate. No
+        // `@Purity` value is copied into `intrinsic_meta`; only the ledger records the gap.
+        //
+        // `:wat::form::matches?`      (`src/runtime.rs`)             @Purity Pure       @Determinism Deterministic — a structural Clara-semantics
+        //                             walk over an already-evaluated subject and a never-evaluated pattern; total is unreviewed.
+        ":wat::form::matches?",
+        // `:wat::rete::arm-session`   (`src/rete/kernel/arm.rs`)     @Purity Effectful  @Determinism Deterministic — takes an intern
+        //                             lease on the thread-local `ARM_TABLE`; the return value is unchanged, only the table's state moves.
+        ":wat::rete::arm-session",
+        // `:wat::rete::release-session` (`src/rete/kernel/arm.rs`)   @Purity Effectful  @Determinism Deterministic — drops one intern
+        //                             lease on `ARM_TABLE`; same shape as `arm-session`, the opposite direction.
+        ":wat::rete::release-session",
+        // `:wat::rete::collect-rules` (`src/rete/collect.rs`)        @Purity Effectful  @Determinism Nondeterministic — the doc's own
+        //                             "purity ground" flags that its reflection filter is shape-only (zero-arg, ret-type `Rule`) and
+        //                             does not verify the discovered fn's body came from `defrule`'s always-quoted expansion, so it
+        //                             invokes arbitrary already-defined code via `eval_inner`, unbounded.
+        ":wat::rete::collect-rules",
+        // `:wat::rete::eval-insert`   (`src/rete/eval_insert.rs`)    @Purity Effectful  @Determinism Nondeterministic — falls through
+        //                             to `eval_rhs_expr`, which runs `eval_inner` then `apply_function` on a caller-supplied `List`
+        //                             this verb has no way to bound.
+        ":wat::rete::eval-insert",
+        // `:wat::rete::eval-test`     (`src/rete/eval_test.rs`)      @Purity Effectful  @Determinism Nondeterministic — evaluates a
+        //                             caller-supplied expression in a fresh child `Environment` via `eval_inner`; the compile-time
+        //                             fence that bounds `where`/`:test` clauses does not apply when this verb is called directly.
+        ":wat::rete::eval-test",
+        // `:wat::rete::export`        (`src/rete/export.rs`)         @Purity Effectful  @Determinism Deterministic — packs the
+        //                             session via `rete_arm_get_or_build`, which on a MISS builds AND interns into the same
+        //                             thread-local `ARM_TABLE` as `arm-session`.
+        ":wat::rete::export",
+        // `:wat::rete::import`        (`src/rete/export.rs`)         @Purity Effectful  @Determinism Deterministic — interns the
+        //                             reconstructed network into `ARM_TABLE` unconditionally; a session dropped without
+        //                             `release-session` leaks until thread end.
+        ":wat::rete::import",
+        // `:wat::rete::lower`         (`src/rete/expr_ir.rs`)        @Purity Pure       @Determinism Deterministic — a pure static
+        //                             compile pass (`lower()`) that reads the symbol table and never calls `eval_inner`/
+        //                             `apply_function`; the built `Program` is discarded, nothing outlives the call.
+        ":wat::rete::lower",
+        // `:wat::rete::step-payload`  (`src/rete/step_payload.rs`)   @Purity Pure       @Determinism Deterministic — a read-only
+        //                             structural walk over an already-compiled network, the same shape as the W5a axis predicates;
+        //                             its two `OnceLock`s cache fixed, compile-time-constant tables, not per-call state.
+        ":wat::rete::step-payload",
+        // `:wat::rete::axis-violation` (`src/rete/purity.rs`)        @Purity Pure       @Determinism Deterministic — the same
+        //                             read-only `classify_expr` walk `is_pure_expr`/`is_deterministic_expr`/`is_total_expr` run,
+        //                             never evaluating `expr`.
+        ":wat::rete::axis-violation",
     ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the
@@ -2645,40 +2704,42 @@ mod completeness_gate {
         // registry is still DISPATCHED; it just no longer appears as a literal arm. So the
         // population is the UNION — literal arms plus every `#[wat_intrinsic]`-registered name.
         // Read as text, like the arms above, so this stays one mechanism and not two.
-        for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src/intrinsic"))
-            .into_iter()
-            .flatten()
-            .flatten()
-        {
-            let mut files = Vec::new();
-            if entry.path().is_dir() {
-                files.extend(
-                    std::fs::read_dir(entry.path())
-                        .into_iter()
-                        .flatten()
-                        .flatten()
-                        .map(|e| e.path()),
-                );
-            } else {
-                files.push(entry.path());
-            }
-            let rs = files
-                .into_iter()
-                .filter(|f| f.extension().is_some_and(|e| e == "rs"));
-            for f in rs {
-                let Ok(text) = std::fs::read_to_string(&f) else {
+        //
+        // STONE meter-1: this used to be a `read_dir` over `src/intrinsic` alone — files plus
+        // exactly one subdirectory level — so a `#[wat_intrinsic]` homed anywhere else (e.g.
+        // `src/rete/`) was invisible to the union, and since homing also deletes the verb's
+        // literal dispatch arm, such a verb left the population entirely rather than becoming
+        // ruled. Walk the WHOLE `src/` tree, recursively, so a home cannot hide from the meter
+        // regardless of depth or directory.
+        fn walk_intrinsic_homes(dir: std::path::PathBuf, out: &mut Vec<String>) {
+            let Ok(rd) = std::fs::read_dir(&dir) else {
+                return;
+            };
+            for entry in rd.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    walk_intrinsic_homes(p, out);
                     continue;
-                };
-                for line in text.lines() {
-                    let t = line.trim_start();
-                    if let Some(rest) = t.strip_prefix("#[wat_intrinsic(\"") {
-                        if let Some(j) = rest.find('"') {
-                            out.push(rest[..j].to_string());
+                }
+                if p.extension().is_some_and(|e| e == "rs") {
+                    let Ok(text) = std::fs::read_to_string(&p) else {
+                        continue;
+                    };
+                    for line in text.lines() {
+                        let t = line.trim_start();
+                        if let Some(rest) = t.strip_prefix("#[wat_intrinsic(\"") {
+                            if let Some(j) = rest.find('"') {
+                                out.push(rest[..j].to_string());
+                            }
                         }
                     }
                 }
             }
         }
+        walk_intrinsic_homes(
+            std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/src")),
+            &mut out,
+        );
         out.sort();
         out.dedup();
         out
