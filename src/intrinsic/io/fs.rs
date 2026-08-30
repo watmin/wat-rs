@@ -97,6 +97,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @ret     :wat::io::TempFile a fresh, auto-deleting temp file handle
 /// @example-norun (:wat::io::TempFile/new) #=> #wat.io/TempFile{}
@@ -135,6 +136,7 @@ pub(crate) fn eval_io_temp_file_new(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     temp_file :wat::io::TempFile the temp file handle to read the path from
 /// @ret     :wat::core::String the temp file's on-disk path
@@ -178,6 +180,7 @@ pub(crate) fn eval_io_temp_file_path(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @ret     :wat::io::TempDir a fresh, auto-deleting temp directory handle
 /// @example-norun (:wat::io::TempDir/new) #=> #wat.io/TempDir{}
@@ -211,6 +214,7 @@ pub(crate) fn eval_io_temp_dir_new(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     temp_dir :wat::io::TempDir the temp dir handle to read the path from
 /// @ret     :wat::core::String the temp dir's on-disk path
@@ -248,6 +252,7 @@ pub(crate) fn eval_io_temp_dir_path(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     path :wat::core::String the path to read
 /// @ret     :wat::core::String the file's full contents
@@ -287,6 +292,7 @@ pub(crate) fn eval_io_read_file(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     path :wat::core::String the directory to list
 /// @ret     (:wat::core::Vector :- [:wat::core::String]) each entry's full path

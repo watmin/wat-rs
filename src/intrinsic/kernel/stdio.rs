@@ -71,6 +71,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to print
 /// @ret     :wat::core::nil always nil on success; a write failure raises
@@ -91,6 +92,7 @@ pub(crate) fn eval_kernel_println(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to pretty-print
 /// @ret     :wat::core::nil always nil on success; a write failure raises
@@ -114,6 +116,7 @@ pub(crate) fn eval_kernel_pprintln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     v :T the crash-reason value
 /// @ret     :R never returns — the process terminates non-zero
@@ -135,6 +138,7 @@ pub(crate) fn eval_kernel_eprintln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     v :T the crash-reason value
 /// @ret     :R never returns — the process terminates non-zero
@@ -159,6 +163,7 @@ pub(crate) fn eval_kernel_epprintln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     cap :wat::core::i64 max buffer bytes for the read frame
 /// @ret     :T the decoded value (checker special-cases real inference; the registered scheme is vestigial)
@@ -200,6 +205,7 @@ pub(crate) fn eval_kernel_readln_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @ret     :wat::kernel::ReadFrameOutcome the raw outcome — Frame(text) / Eof / Stopped
 /// @example-norun (:wat::kernel::read-frame) #=> #wat.kernel/ReadFrameOutcome.Frame{...}

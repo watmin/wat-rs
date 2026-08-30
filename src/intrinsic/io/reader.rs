@@ -99,10 +99,11 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes the reader will yield back, in order
 /// @ret     :wat::io::IOReader a fresh in-memory reader over `bytes`
-/// @example (:wat::io::IOReader/read-all-string (:wat::io::IOReader/from-bytes (:wat::core::Vector :wat::core::u8 (:wat::core::u8 104) (:wat::core::u8 105)))) #=> "hi"
+/// @example (:wat::io::IOReader/read-all-string (:wat::io::IOReader/from-bytes (:wat::core::Vector :- [:wat::core::u8] (:wat::core::u8 104) (:wat::core::u8 105)))) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15729` — gate LIVE.
 //
 // Deciding line for `@Category Transform`: `src/io.rs:875`
@@ -134,6 +135,7 @@ pub(crate) fn eval_ioreader_from_bytes(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string the reader will yield back
 /// @ret     :wat::io::IOReader a fresh in-memory reader over `s`
@@ -168,6 +170,7 @@ pub(crate) fn eval_ioreader_from_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     path :wat::core::String the path to open for reading
 /// @ret     :wat::io::IOReader a fresh file-backed reader
@@ -205,6 +208,7 @@ pub(crate) fn eval_ioreader_open_file(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     fd :wat::core::i64 the raw fd to dup and wrap
 /// @ret     :wat::io::IOReader a fresh reader owning a private dup of `fd`
@@ -238,6 +242,7 @@ pub(crate) fn eval_ioreader_from_fd(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull bytes from
 /// @arg     n :wat::core::i64 max bytes to read (must be non-negative)
@@ -273,6 +278,7 @@ pub(crate) fn eval_ioreader_read(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to drain to EOF
 /// @ret     (:wat::core::Vector :- [:wat::core::u8]) every byte read
@@ -305,6 +311,7 @@ pub(crate) fn eval_ioreader_read_all(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to drain to EOF
 /// @ret     :wat::core::String the decoded UTF-8 text
@@ -336,6 +343,7 @@ pub(crate) fn eval_ioreader_read_all_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull a line from
 /// @ret     (:wat::core::Option :- [:wat::core::String]) the line read, or `None` on clean EOF
@@ -371,6 +379,7 @@ pub(crate) fn eval_ioreader_read_line(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      Io
 /// @arg     xs… :wat::io::IOReader the reader to pull a frame from (+ optional max-bytes — see `infer_ioreader_read_frame`)
 /// @ret     :wat::io::IOReader::ReadFrameOutcome Frame(text) / Eof / Stopped
@@ -416,6 +425,7 @@ pub(crate) fn eval_ioreader_read_frame(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     reader :wat::io::IOReader the reader to rewind
 /// @ret     :wat::core::nil always `:()` on success; a non-rewindable backing raises

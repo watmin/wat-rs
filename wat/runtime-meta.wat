@@ -189,3 +189,37 @@
 ;; runtime body is identity or otherwise incidental to the variant's purpose — minted
 ;; ahead of the totality campaign's `must-*` family on the builder's forward knowledge.
   :CheckGate)
+
+;; Totality — is the verb DEFINED ON EVERY INPUT in its declared domain?
+;;
+;; Arc 255 / arc 278's `where`-fence needs this as a first-class axis and it has
+;; never had a home: `pure` and `deterministic` live in the baseline, `total` lived
+;; in THREE hand-lists that disagree (`rete/purity.rs`'s `intrinsic_meta`,
+;; `macros/eval.rs`'s `is_pure_total`, `rete/vocabulary.rs`'s `RETE_OPS`).
+;;
+;; ⛔ ORTHOGONAL TO PURITY AND DETERMINISM, never derived from them: `i64::/` is
+;; Pure AND Deterministic AND undefined at a zero divisor.
+;;
+;; ★ FOUR variants, and the fourth is the honest one. Two poles plus `:Preserving`
+;; mirrors `Purity`/`Determinism` exactly. `:Unreviewed` exists because a verb
+;; nobody has measured must NOT be recorded as either pole — collapsing "measured
+;; partial" into "never looked at" is the failure `feedback_none_means_skip_
+;; conflates_cannot_with_did_not_look` names, and a GUESSED `:Total` is a lie in a
+;; fence that admits code into a `where`.
+(:wat::core::defenum :wat::runtime::Totality :wat::enum::Pure
+;; Defined on EVERY input of its declared domain — measured, by reading the
+;; implementation, never inferred from the name. `f64::>` is total: its output is
+;; a bool for any pair of floats.
+  :Total
+;; Undefined somewhere in its declared domain — measured. `i64::/` at a zero
+;; divisor; `f64::*` overflowing to +/-Inf. ★ THIS VARIANT IS THE WORK LIST: the
+;; totality endgame's census is `all_entries().filter(|e| e.totality == Partial)`.
+  :Partial
+;; A special form that PRESERVES the totality of its sub-forms rather than having
+;; one of its own: `if` is total exactly when its branches are.
+  :Preserving
+;; NOBODY HAS MEASURED THIS VERB YET. Not a pole, not a guess. Default-deny: it
+;; does NOT satisfy the `where`-fence, so an unreviewed verb is refused rather
+;; than admitted. Shrinks to zero as the census runs; a migration state, and the
+;; only variant expected to disappear.
+  :Unreviewed)

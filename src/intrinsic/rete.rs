@@ -102,6 +102,7 @@ fn eval_axis_predicate_impl(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
 /// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is effect-free
@@ -125,6 +126,7 @@ pub(crate) fn eval_rete_pure_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
 /// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is referentially transparent
@@ -149,6 +151,7 @@ pub(crate) fn eval_rete_deterministic_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
 /// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is defined on all its inputs
@@ -176,6 +179,7 @@ pub(crate) fn eval_rete_total_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
 /// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is a rete primitive
@@ -204,6 +208,7 @@ pub(crate) fn eval_rete_primitive_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     head :wat::WatAST a `:wat::WatAST` holding a quoted Keyword (a head name), from `:wat::core::quote`
 /// @ret     :wat::core::bool whether `head` falls inside a declared rete-vocabulary sub-namespace
@@ -261,6 +266,7 @@ pub(crate) fn eval_rete_vocabulary_admitted_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form (from `:wat::core::quote`), walked structurally, never evaluated
 /// @ret     :wat::core::bool whether an inline constraint in `cond` references a `?var` not bound by `cond` itself
@@ -357,6 +363,7 @@ fn eval_alpha_match_kind_impl(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
 /// @arg     fact :wat::core::Record the fact to test the condition against
@@ -384,6 +391,7 @@ pub(crate) fn eval_rete_alpha_match_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
 /// @arg     fact :wat::core::Record the fact to test the condition against
@@ -409,6 +417,7 @@ pub(crate) fn eval_rete_alpha_match_local_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
 /// @arg     fact :wat::core::Record the fact to test the condition against

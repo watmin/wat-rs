@@ -2027,18 +2027,27 @@ fn encode_value_with_path(
 
         // ─── containers ────────────────────────────────────────────────
         Value::Vec(items) => {
-            // `(:wat::core::Vector :T elem1 elem2 ...)` — infer T from
+            // `(:wat::core::Vector :- [T] elem1 elem2 ...)` — infer T from
             // the first element. Empty Vec falls back to `:wat::core::nil`
             // (the singleton type), which type-checks against any
             // surface that doesn't dispatch on element type.
+            //
+            // Arc 109 stone 3 (THE WALL) — this Rust-side synthesis used to emit the
+            // now-retired bare form (`(Vector T ...)`); the checker no longer
+            // represents that shape at all, so re-freezing a captured Vec value
+            // failed CheckErrors::MalformedForm on the synthesized AST. Wrap the
+            // type keyword in the `:-` marker + one-element bracket, the same
+            // canonicalization `infer`'s `WatAST::Vector` literal arm does in
+            // `src/check.rs`.
             let elem_kw = if let Some(first) = items.first() {
                 value_static_type_keyword(first, state, &span)?
             } else {
                 WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone())
             };
-            let mut out = Vec::with_capacity(items.len() + 2);
+            let mut out = Vec::with_capacity(items.len() + 3);
             out.push(WatAST::Keyword(":wat::core::Vector".into(), span.clone()));
-            out.push(elem_kw);
+            out.push(WatAST::Keyword(":-".into(), span.clone()));
+            out.push(WatAST::Vector(vec![elem_kw], span.clone()));
             for (i, it) in items.iter().enumerate() {
                 path.push(format!("[{}]", i));
                 let encoded = encode_value_with_path(it, binding_name, path, state)?;
@@ -2060,11 +2069,12 @@ fn encode_value_with_path(
         }
         Value::wat__std__HashMap(map) => {
             // Closure-capture round-trip: re-encode a runtime HashMap<K,V> Value
-            // back to the corresponding `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)`
+            // back to the corresponding `(:wat::core::HashMap :- [K V] k1 v1 k2 v2 ...)`
             // constructor AST, so the captured env can be replayed in a fresh
-            // world. Verb-equals-type per arc 109 slice 1f; mirrors Vector's
-            // single `:T` with two type-args for K + V (arc 214 P1 retired the
-            // earlier `:(K,V)` tuple-keyword shape).
+            // world (Arc 109 stone 3, THE WALL, updated the synthesis below to
+            // the `:-`-marked spelling — see its comment). Mirrors Vector's
+            // single-element `:- [T]` bracket, with two type-args for K + V
+            // (arc 214 P1 retired the earlier `:(K,V)` tuple-keyword shape).
             //
             // Stone 216.5c — storage is now Arc<HashMap<Value, Value>>; iterate (k, v) directly.
             //
@@ -2084,10 +2094,13 @@ fn encode_value_with_path(
                     WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone()),
                 )
             };
-            let mut out = Vec::with_capacity(map.len() * 2 + 3);
+            // Arc 109 stone 3 (THE WALL) — `:- [K V]` is the ONE legal param-spec
+            // spelling now; see the `Value::Vec` arm's comment above for why this
+            // Rust-side synthesis needed the same update.
+            let mut out = Vec::with_capacity(map.len() * 2 + 4);
             out.push(WatAST::Keyword(":wat::core::HashMap".into(), span.clone()));
-            out.push(k_kw);
-            out.push(v_kw);
+            out.push(WatAST::Keyword(":-".into(), span.clone()));
+            out.push(WatAST::Vector(vec![k_kw, v_kw], span.clone()));
             // Stone 216.5d — sort by Value's native Hash for determinism.
             // hashmap_key canonical-key crutch removed; Value: Hash (arc 216.5a) is the contract.
             // DefaultHasher produces a stable u64 key per Value for sort ordering.
@@ -2119,9 +2132,12 @@ fn encode_value_with_path(
             } else {
                 WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone())
             };
-            let mut out = Vec::with_capacity(set.len() + 2);
+            // Arc 109 stone 3 (THE WALL) — `:- [T]` is the ONE legal param-spec
+            // spelling now; see the `Value::Vec` arm's comment above.
+            let mut out = Vec::with_capacity(set.len() + 3);
             out.push(WatAST::Keyword(":wat::core::HashSet".into(), span.clone()));
-            out.push(elem_kw);
+            out.push(WatAST::Keyword(":-".into(), span.clone()));
+            out.push(WatAST::Vector(vec![elem_kw], span.clone()));
             // Stone 216.5d — sort by Value's native Hash for determinism.
             // hashmap_key canonical-key crutch removed; Value: Hash (arc 216.5a) is the contract.
             use std::collections::hash_map::DefaultHasher;

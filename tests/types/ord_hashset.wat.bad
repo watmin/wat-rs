@@ -1,6 +1,6 @@
 ;; ord_hashset.wat.bad — HashSet not in orderable class. Must FAIL.
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [s1 (:wat::core::HashSet :wat::core::i64 1 2)
-     s2 (:wat::core::HashSet :wat::core::i64 3 4)]
+    [s1 (:wat::core::HashSet :- [:wat::core::i64] 1 2)
+     s2 (:wat::core::HashSet :- [:wat::core::i64] 3 4)]
     (:wat::core::< s1 s2)))

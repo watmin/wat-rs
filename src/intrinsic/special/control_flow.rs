@@ -11,6 +11,7 @@ use wat_macros::wat_special_form;
 /// @Category ControlFlow
 /// @Purity Preserving
 /// @Determinism Preserving
+/// @Total       Unreviewed
 /// @arg cond :wat::core::Bool the condition to branch on
 /// @arg then :T returned when cond is :true (the taken branch)
 /// @arg else :T returned when cond is :false (the taken branch)

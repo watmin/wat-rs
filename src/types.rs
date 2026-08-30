@@ -51,12 +51,17 @@ use std::collections::HashMap;
 /// Appears in type-arg slots of parametric constructor calls to signal
 /// "infer this type from the values." Used by:
 ///
-/// - `{...}` map literals (V slot) — desugar emits `:wat::type::Infer`
-///   as V; `infer_hashmap_constructor` detects it and uses `fresh.fresh()`.
-/// - `#{...}` set literals (T slot) — desugar emits `:wat::type::Infer`
-///   as T; `infer_hashset_constructor` detects it and uses `fresh.fresh()`.
-/// - Explicit verb-form with inference: `(:wat::core::HashMap :wat::core::keyword
-///   :wat::type::Infer :k v)` — K is explicit, V is inferred.
+/// - Explicit verb-form with inference: `(:wat::core::HashMap :- [:wat::core::keyword
+///   :wat::type::Infer] :k v)` — K is explicit, V is inferred; detected by
+///   `infer_hashmap_constructor`, routes to `fresh.fresh()`.
+/// - The `#{...}` set-literal verb-form twin is `infer_hashset_constructor`.
+///
+/// `{...}` map literals and `#{...}` set literals themselves (Arc 257 slice 1)
+/// parse to native `WatAST::Map` / `WatAST::Set` nodes — NOT a desugar to a
+/// `(:wat::core::HashMap ...)` / `(:wat::core::HashSet ...)` constructor call
+/// — and their own `infer_map_literal` / `infer_set_literal` skip the leading
+/// type-keyword sentinel slots entirely, starting from fresh type variables
+/// directly; `:wat::type::Infer` never appears on that path.
 ///
 /// `parse_type_expr(":wat::type::Infer")` returns
 /// `Ok(TypeExpr::Path(":wat::type::Infer"))` — no special registration
@@ -5153,15 +5158,17 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     };
     // Parse args recursively.
     //
-    // Arc 109 step ① — the bracketed type-param group `(Head [type…])`. When the
-    // args tail is EXACTLY ONE `WatAST::Vector`, that vector's own items are the
-    // type-param list (`(Head [A B])` → args `[A, B]`; `(Head [])` → args `[]`);
-    // otherwise unchanged (`(Head A B)` parses each item positionally, as today).
-    // This does not collide with the standalone function-type bracket `[A :-> B]`
-    // (`parse_type_node`'s `WatAST::Vector` arm, ~line 4383): that arm only fires
-    // when a bracket is parsed as a top-level type node on its own, never here,
-    // where a bracket is one argument of a parametric head. Position — head vs.
-    // standalone — already distinguishes the two; nothing here changes that.
+    // Arc 109 step ① originally accepted a bare bracketed type-param group
+    // `(Head [type…])` here, and the positional tail `(Head A B)` alongside it.
+    // Arc 109 "THE LAST DOORS" stone (door 1, TYPE-ANNOTATION POSITION) retires
+    // BOTH: the unmarked bracket and the bare positional tail were the last two
+    // heretical spellings of a parametric literal still accepted anywhere in the
+    // language. `:- [type…]` — peeled just below — is now the ONLY spelling this
+    // door accepts; anything else is a named `MalformedTypeExpr`, not a silent
+    // positional parse. This does not collide with the standalone function-type
+    // bracket `[A :-> B]` (`parse_type_node`'s `WatAST::Vector` arm, ~line 4383):
+    // that arm only fires when a bracket is parsed as a top-level type node on
+    // its own, never here, where a bracket is one argument of a parametric head.
     //
     // Arc 109 Stone ②-i-b — the `:-`-marked spelling: `(Head :- [type…])`. `:-`
     // declares "the thing on the left is parameterized by the thing on the right"
@@ -5209,10 +5216,23 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
             }
             inner.iter().map(parse_type_node).collect()
         }
-        None => match rest_items {
-            [WatAST::Vector(inner, _)] => inner.iter().map(parse_type_node).collect(),
-            rest => rest.iter().map(parse_type_node).collect(),
-        },
+        None => {
+            // Arc 109 "THE LAST DOORS" door 1 — no `:-` marker present. Both
+            // heretical spellings this arm used to accept — the unmarked bracket
+            // `(Head [type…])` and the bare positional tail `(Head A B …)` — are
+            // retired; `:- [type…]` is the one legal param-spec, everywhere.
+            return Err(TypeError::new(
+                span.clone(),
+                TypeErrorKind::MalformedTypeExpr {
+                    raw: format!("({} …)", raw_head),
+                    reason: "a parametric type must declare its parameters with the `:- [types...]` \
+                              binder — `(Head A B …)` (bare positional) and `(Head [A B …])` \
+                              (unmarked bracket) are retired spellings. Canonical: \
+                              `(Head :- [A B …])`."
+                        .into(),
+                },
+            ));
+        }
     };
     let args = args?;
     // Arc 251 — the `Tuple` constructor head produces a TUPLE type, not a generic Parametric:
@@ -7013,12 +7033,14 @@ mod tests {
     }
 
     #[test]
-    fn stone_2_request_malformed_path_accepts_the_list_type_spelling() {
-        // `(:wat::core::Vector :wat::core::String)` (the bare parametric FORM) and
-        // `(:wat::core::Vector :- [:wat::core::String])` (the canonical `:-` FORM, used by the
-        // sibling test below) are the SAME type written two ways, and the lock compares parsed
-        // `TypeExpr`s — so both clear it. This is why `rm_fields` is built by PARSING the
-        // canonical spelling rather than hand-assembling the `TypeExpr`.
+    fn stone_2_request_malformed_path_accepts_the_canonical_vector_spelling() {
+        // Arc 109 "THE LAST DOORS" retired the bare parametric FORM
+        // `(:wat::core::Vector :wat::core::String)` this test used to exercise — the type
+        // position now accepts only the `:-` marker (door 1). `rm_fields` is built by
+        // PARSING the canonical spelling rather than hand-assembling the `TypeExpr`, so this
+        // still proves the lock accepts a parsed `Vector<String>` for `path` — it is now
+        // exactly the same fixture as `stone_16_1c_wellshaped_enum_response_passes_and_synthesizes`
+        // below, kept as an independent regression anchor for this lock specifically.
         expand_then_register(
             r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Ok2::FooRequest :wat::core::Record
@@ -7026,13 +7048,13 @@ mod tests {
                              (:wat::core::defenum :t::Ok2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                :RequestMalformed [path     <- (:wat::core::Vector :wat::core::String)
+                                :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
                                                    expected <- :wat::core::String
                                                    got      <- :wat::core::String])]
                   :features [(foo [self <- :t::Ok2  req <- :t::Ok2::FooRequest]
                                -> :t::Ok2::FooResponse :max-request-bytes 524288)])"#,
         )
-        .expect("the list spelling of Vector<String> is the same type and must clear the lock");
+        .expect("the canonical Vector<String> spelling must clear the lock");
     }
 
     #[test]

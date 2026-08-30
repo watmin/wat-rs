@@ -61,6 +61,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     err :wat::kernel::LociDiedError the death report to read a message from
 /// @ret     :wat::core::String the carried message
@@ -100,6 +101,7 @@ pub(crate) fn eval_died_error_message(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a message from
 /// @ret     :wat::core::String the message carried on `f`'s `error` field
@@ -131,10 +133,11 @@ pub(crate) fn eval_failure_message(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a location from
 /// @ret     (:wat::core::Option :- [:wat::kernel::Location]) `Some` of `f`'s `error.location`
-/// @example (:wat::kernel::Failure/location (:wat::kernel::Failure :error (:wat::core::Fault :message "boom" :location (:wat::kernel::Location :file "test" :line 1 :col 1) :causes (:wat::core::Vector :wat::core::Error)) :frames (:wat::core::Vector :wat::kernel::Frame) :actual :wat::core::None :expected :wat::core::None)) #=> (:wat::core::Some (:wat::kernel::Location :file "test" :line 1 :col 1))
+/// @example (:wat::kernel::Failure/location (:wat::kernel::Failure :error (:wat::core::Fault :message "boom" :location (:wat::kernel::Location :file "test" :line 1 :col 1) :causes (:wat::core::Vector :- [:wat::core::Error])) :frames (:wat::core::Vector :- [:wat::kernel::Frame]) :actual :wat::core::None :expected :wat::core::None)) #=> (:wat::core::Some (:wat::kernel::Location :file "test" :line 1 :col 1))
 // Deciding line for `@Category Projection`: `runtime.rs:27452`
 // `eval_failure_location` reads `record_field_by_name(&error, "location", …)`
 // off the `error` field already held by `f` — same one-hop-deeper
@@ -161,6 +164,7 @@ pub(crate) fn eval_failure_location(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     err :wat::kernel::LociDiedError the death report to convert
 /// @ret     :wat::kernel::Failure a structured Failure built from `err`

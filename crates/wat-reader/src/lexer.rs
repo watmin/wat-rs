@@ -99,9 +99,10 @@ pub enum Token {
     LBrace,
     /// `}`
     RBrace,
-    /// `#{` — opens a set literal. Arc 215 stone 1: `#{x y z ...}`
-    /// desugars to `(:wat::core::HashSet :wat::type::Infer x y z ...)`
-    /// at parse time; T is inferred from the element types by check.rs.
+    /// `#{` — opens a set literal. `#{x y z ...}` parses to a native
+    /// `WatAST::Set(items, span)` node (Arc 257 slice 1 — no longer
+    /// desugared to a `(:wat::core::HashSet ...)` constructor-call List);
+    /// T is inferred from the element types by check.rs.
     LHashBrace,
     /// Integer literal.
     Int(i64),

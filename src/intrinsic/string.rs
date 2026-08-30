@@ -114,6 +114,7 @@ fn arg_i64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string searched
 /// @arg     needle   :wat::core::String the substring sought
@@ -140,6 +141,7 @@ pub(crate) fn eval_string_contains(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
 /// @arg     prefix   :wat::core::String the prefix sought
@@ -166,6 +168,7 @@ pub(crate) fn eval_string_starts_with(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
 /// @arg     suffix   :wat::core::String the suffix sought
@@ -198,6 +201,7 @@ pub(crate) fn eval_string_ends_with(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     s :wat::core::String the string to test
 /// @ret     :wat::core::bool true iff `s` has zero characters
@@ -223,6 +227,7 @@ pub(crate) fn eval_string_empty(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to measure
 /// @ret     :wat::core::i64 the number of Unicode scalar values in `s`
@@ -244,6 +249,7 @@ pub(crate) fn eval_string_length(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to trim
 /// @ret     :wat::core::String the string with leading and trailing whitespace removed
@@ -269,6 +275,7 @@ pub(crate) fn eval_string_trim(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to lowercase
 /// @ret     :wat::core::String `s` with every character lowercased
@@ -294,6 +301,7 @@ pub(crate) fn eval_string_to_lowercase(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to uppercase
 /// @ret     :wat::core::String `s` with every character uppercased
@@ -322,6 +330,7 @@ pub(crate) fn eval_string_to_uppercase(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the PascalCase string to convert
 /// @ret     :wat::core::String the kebab-case rendering of `s`
@@ -359,6 +368,7 @@ pub(crate) fn eval_string_pascal_to_kebab(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
 /// @arg     s  :wat::core::String  the PascalCase string to convert
@@ -392,6 +402,7 @@ pub(crate) fn eval_string_pascal_to_kebab_in(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
 /// @arg     s  :wat::core::String  the kebab-case string to convert
@@ -424,6 +435,7 @@ pub(crate) fn eval_string_kebab_to_pascal_in(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s     :wat::core::String the string to slice
 /// @arg     start :wat::core::i64    the start index, inclusive
@@ -472,11 +484,12 @@ pub(crate) fn eval_string_subs(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     haystack :wat::core::String the string to split
 /// @arg     sep      :wat::core::String the separator; must not be empty
 /// @ret     (:wat::core::Vector :- [:wat::core::String]) the pieces of `haystack` between occurrences of `sep`
-/// @example (:wat::string::split "a,b,c" ",") #=> (:wat::core::Vector :wat::core::String "a" "b" "c")
+/// @example (:wat::string::split "a,b,c" ",") #=> (:wat::core::Vector :- [:wat::core::String] "a" "b" "c")
 /// @see     :wat::string::join
 #[wat_intrinsic(":wat::string::split")]
 pub(crate) fn eval_string_split(
@@ -517,11 +530,12 @@ pub(crate) fn eval_string_split(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     sep    :wat::core::String the separator
 /// @arg     pieces (:wat::core::Seqable :- [T]) the elements to render and join
 /// @ret     :wat::core::String every element of `pieces`, rendered and joined by `sep`
-/// @example (:wat::string::join "-" (:wat::core::Vector :wat::core::String "a" "b")) #=> "a-b"
+/// @example (:wat::string::join "-" (:wat::core::Vector :- [:wat::core::String] "a" "b")) #=> "a-b"
 /// @see     :wat::string::split
 #[wat_intrinsic(":wat::string::join")]
 pub(crate) fn eval_string_join(
@@ -589,7 +603,7 @@ pub(crate) fn eval_string_join(
 /// Differs from `join` in that there's no separator and the args are passed
 /// positionally rather than packed into a `Vector<String>` — the natural
 /// form for "stitch a few strings together at the call site." Equivalent to
-/// `(:wat::string::join "" (:wat::core::Vector :wat::core::String s1 s2
+/// `(:wat::string::join "" (:wat::core::Vector :- [:wat::core::String] s1 s2
 /// ...))` but spares the caller the Vec ceremony. Arity: 1+; the empty arg
 /// list errors (the empty string has no useful concat semantics worth
 /// special-casing).
@@ -597,6 +611,7 @@ pub(crate) fn eval_string_join(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     args… :wat::core::String the strings to concatenate, in order
 /// @ret     :wat::core::String every argument, concatenated in order
@@ -660,6 +675,7 @@ pub(crate) fn eval_string_concat(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the template followed by `:name value` kwarg pairs
 /// @ret     :wat::core::String `tmpl` with each `{name}` replaced by its rendered `:name` kwarg
@@ -890,6 +906,7 @@ pub(crate) fn eval_string_interpolate(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Declaration
 /// @arg     _ns        :wat::core::keyword the namespace the acronyms are declared for (unused here — registered by the pre-pass)
 /// @arg     _acronyms  :wat::core::Vector   the acronym literals (unused here — registered by the pre-pass)
@@ -912,6 +929,7 @@ pub(crate) fn eval_string_declare_acronyms(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(n)` on a valid base-10 i64 literal, `None` otherwise
@@ -936,6 +954,7 @@ pub(crate) fn eval_string_to_i64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some(x)` on a valid f64 literal, `None` otherwise
@@ -960,6 +979,7 @@ pub(crate) fn eval_string_to_f64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::bool]) `Some(b)` for exactly `"true"`/`"false"`, `None` otherwise

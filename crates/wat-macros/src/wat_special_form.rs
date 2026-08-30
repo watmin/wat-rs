@@ -36,6 +36,20 @@ fn sniff_doc_from_struct(item: &syn::ItemStruct) -> Option<String> {
     if lines.is_empty() { None } else { Some(lines.join("\n")) }
 }
 
+/// The `@Total` value -> token match (arc 255 Stone total-T2), exhaustive, no wildcard —
+/// mirrors `purity_token`/`determinism_token`/`category_token` in [`emit`], and is the
+/// same shape as `wat_intrinsic::totality_token`. A standalone `pub(crate) fn` so it is
+/// directly unit-testable. See the call site in [`emit`] for why its result is not yet
+/// spliced into `SpecialFormSubmission`.
+pub(crate) fn totality_token(t: wat_doc::Totality) -> TokenStream2 {
+    match t {
+        wat_doc::Totality::Total => quote! { ::wat_doc::Totality::Total },
+        wat_doc::Totality::Partial => quote! { ::wat_doc::Totality::Partial },
+        wat_doc::Totality::Preserving => quote! { ::wat_doc::Totality::Preserving },
+        wat_doc::Totality::Unreviewed => quote! { ::wat_doc::Totality::Unreviewed },
+    }
+}
+
 pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenStream2> {
     let raw_doc = match sniff_doc_from_struct(item) {
         Some(d) => d,
@@ -76,6 +90,11 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
         wat_doc::Determinism::Nondeterministic => quote! { ::wat_doc::Determinism::Nondeterministic },
         wat_doc::Determinism::Preserving => quote! { ::wat_doc::Determinism::Preserving },
     };
+    // arc 255 Stone total-T2 — see the identical comment + `totality_token` fn in
+    // `wat_intrinsic.rs`: computed for every real special form, NOT spliced into
+    // `SpecialFormSubmission` below (that struct, `src/intrinsic/mod.rs`, has no
+    // `totality` field; adding one is a `src/` edit this stone's blast radius forbids).
+    let totality_token = totality_token(doc.totality);
     let category_token = match doc.category {
         wat_doc::Category::Transform => quote! { ::wat_doc::Category::Transform },
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
@@ -151,6 +170,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
                 see: &[#(#see_lit),*],
                 purity: #purity_token,
                 determinism: #determinism_token,
+                totality: #totality_token,
                 category: #category_token,
                 deprecated: #deprecated_lit,
             }
@@ -158,4 +178,92 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
     };
 
     Ok(expanded)
+}
+
+#[cfg(test)]
+mod totality_axis_tests {
+    //! arc 255 Stones total-T2 / total-T3 — the special-form sibling of
+    //! `wat_intrinsic`'s `totality_axis_tests`. T2's Row 4 proved `@Total` reaches
+    //! `totality_token` (the same fn [`emit`] calls for every real special form).
+    //! T3 adds this module's own Row 1: absence of `@Total` must make [`emit`]
+    //! refuse to expand, with `MissingTotality`.
+    use super::*;
+
+    fn fixture_item(total_line: &str) -> syn::ItemStruct {
+        let src = format!(
+            "/// A probe form.\n\
+             ///\n\
+             /// @added 1.0.0\n\
+             /// @Purity Pure\n\
+             /// @Determinism Deterministic\n\
+             {total_line}\
+             /// @Category ControlFlow\n\
+             /// @syntax (probe-form a b)\n\
+             /// @ret :wat::core::i64 the ret\n\
+             /// @example (probe-form 1 2) #=> 3\n\
+             struct ProbeForm;"
+        );
+        syn::parse_str(&src).expect("fixture special-form struct must be syntactically valid Rust")
+    }
+
+    fn fqdn() -> LitStr {
+        LitStr::new(":probe::probe-form", proc_macro2::Span::call_site())
+    }
+
+    /// ★ ROW 4 — a fixture special form declaring `@Total Partial` reads back
+    /// `Partial` (not `Unreviewed`) through the SAME `totality_token` [`emit`] calls,
+    /// and [`emit`] itself accepts the fixture end-to-end.
+    #[test]
+    fn row4_total_partial_survives_into_the_generated_token() {
+        let item = fixture_item("/// @Total Partial\n");
+        let raw_doc = sniff_doc_from_struct(&item).expect("fixture doc must be sniffed");
+        let doc = wat_doc::parse_special_form(&raw_doc).expect("fixture doc must parse under the full contract");
+        assert_eq!(doc.totality, wat_doc::Totality::Partial, "declared @Total Partial must read back as Partial");
+
+        let token = totality_token(doc.totality);
+        assert_eq!(token.to_string(), quote! { ::wat_doc::Totality::Partial }.to_string());
+        assert_ne!(token.to_string(), quote! { ::wat_doc::Totality::Unreviewed }.to_string());
+
+        emit(&fqdn(), &item).expect("emit() must accept a fixture declaring @Total Partial");
+    }
+
+    /// ★ Arc 255 Stone total-T3, ROW 1 (special-form sibling) — a fixture with NO
+    /// `@Total` line must FAIL TO COMPILE with `MissingTotality`, through the same
+    /// `emit()` every real `#[wat_special_form]` call site expands through.
+    #[test]
+    fn absent_total_fails_to_compile_with_missing_totality() {
+        let item = fixture_item("");
+        let raw_doc = sniff_doc_from_struct(&item).expect("fixture doc must be sniffed");
+        assert_eq!(
+            wat_doc::parse_special_form(&raw_doc),
+            Err(wat_doc::DocError::MissingTotality),
+            "a doc block with no @Total must fail to parse with MissingTotality"
+        );
+
+        let err = emit(&fqdn(), &item)
+            .expect_err("emit() must refuse to expand a fixture with no @Total");
+        // Exact, not `contains` — this file's error path is `format!("{:?}", e)`, so the
+        // whole rendering IS the variant name and an exact compare costs nothing while
+        // catching drift. (tests/lint/no_loose_string_assert.rs went RED on the
+        // `contains` form this replaces.)
+        assert_eq!(
+            err.to_string(),
+            "#[wat_special_form] :probe::probe-form: MissingTotality",
+            "emit()'s refusal must name the form and MissingTotality"
+        );
+    }
+
+    /// `totality_token` is exhaustive, no wildcard.
+    #[test]
+    fn totality_token_matches_every_variant() {
+        let cases = [
+            (wat_doc::Totality::Total, quote! { ::wat_doc::Totality::Total }),
+            (wat_doc::Totality::Partial, quote! { ::wat_doc::Totality::Partial }),
+            (wat_doc::Totality::Preserving, quote! { ::wat_doc::Totality::Preserving }),
+            (wat_doc::Totality::Unreviewed, quote! { ::wat_doc::Totality::Unreviewed }),
+        ];
+        for (variant, expected) in cases {
+            assert_eq!(totality_token(variant).to_string(), expected.to_string());
+        }
+    }
 }

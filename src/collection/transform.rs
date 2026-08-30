@@ -1,10 +1,16 @@
 //! Stream-HOF and helper functions for the collection dispatch home.
 //!
-//! Contains the ~15 seq-HOF and helper functions (map, filter, foldl,
-//! sort' (primitive comparator-sort), reverse, range, take, drop, last,
+//! Contains the ~12 seq-HOF and helper functions (map, filter, foldl,
+//! sort' (primitive comparator-sort), take, drop,
 //! find-last-index, zip, window, remove-at, map-with-index).
 //!
-//! Arc-278 strike 3: the HOF family (map/filter/foldl/reverse/take/drop)
+//! Arc 255 Stone P6-c-W6 — `reverse`/`range`/`last` MOVED (not left in place) to
+//! `src/intrinsic/collection.rs` as `#[wat_intrinsic]` handlers with their real arities
+//! declared: `dispatch_verbs`'s completeness-gate scan (`rete::purity::completeness_gate`)
+//! only sees `#[wat_intrinsic]` attributes under `src/intrinsic/`, so a handler homed here
+//! would vanish from that gate's population entirely.
+//!
+//! Arc-278 strike 3: the HOF family (map/filter/foldl/take/drop)
 //! is now container-polymorphic over `mappable()` containers (currently Vector
 //! and PersistentVector). Classification delegates to `StreamContainer::of_value` +
 //! `mappable()` — no hand-rolled per-container match in the classifier gate.
@@ -21,7 +27,7 @@
 //! `:wat::core::map-indexed` already does its job, generically; see `wat/holon/Sequential.wat`
 //! for the one real caller's migration (arg order flips, and the result is a lazy Stream, not
 //! an eager Vector — NOT a drop-in).
-//! `rest` lives in `eval.rs` (container-polymorphic; Vec/List/WatAST-form/PersistentVector).
+//! `rest` moved to `src/intrinsic/collection.rs` too (same reason as reverse/range/last above).
 //! Their dispatch arms in `dispatch_keyword_head_value` redirect here.
 //!
 //! See `src/collection/mod.rs` and `docs/DISPATCH.md` for the full doctrine.
@@ -34,109 +40,10 @@ use crate::runtime::{
 use crate::span::Span;
 use std::sync::Arc;
 
-pub(crate) fn eval_vec_reverse(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::reverse".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&v) {
-        Some(container) if container.ordered() => match container {
-            StreamContainer::Vector => {
-                let Value::Vec(xs) = v else {
-                    unreachable!("of_value⇒Vector")
-                };
-                let mut out = (*xs).clone();
-                out.reverse();
-                Ok(Value::Vec(Arc::new(out)))
-            }
-            StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = v else {
-                    unreachable!("of_value⇒PersistentVector")
-                };
-                let mut out: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
-                for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
-                    out.push_back_mut(elem.clone());
-                }
-                Ok(Value::wat__core__PersistentVector(out))
-            }
-            StreamContainer::List => {
-                let Value::wat__core__List(xs) = v else {
-                    unreachable!("of_value⇒List")
-                };
-                let out: std::collections::LinkedList<Value> = xs.iter().rev().cloned().collect();
-                Ok(Value::wat__core__List(Arc::new(out)))
-            }
-            // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple
-            | StreamContainer::WatAstList
-            | StreamContainer::HashSet
-            | StreamContainer::Stream => {
-                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream")
-            }
-        },
-        _ => Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::reverse".into(),
-                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-                got: Box::new(ValueSnapshot::of(&v)),
-            },
-        )
-        .into()),
-    }
-}
-
-/// `(:wat::core::range start end)` → `Vec<i64>`. Two-arg only; the
-/// spec-frozen shape maps to Rust's `start..end` exactly. Callers
-/// write `(range 0 n)` explicitly for 0..n.
-pub(crate) fn eval_vec_range(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::range".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let start = require_i64(
-        ":wat::core::range",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let end = require_i64(
-        ":wat::core::range",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
-    let items: Vec<Value> = if start <= end {
-        (start..end).map(Value::i64).collect()
-    } else {
-        Vec::new()
-    };
-    Ok(Value::Vec(Arc::new(items)))
-}
+// Arc 255 Stone P6-c-W6 — `:wat::core::reverse`/`range` moved verbatim into
+// `#[wat_intrinsic]` handlers (`src/intrinsic/collection.rs`) with their real (1/2)
+// arities declared; the pre-match registry check intercepts both names before
+// reaching the giant match.
 
 /// `(:wat::core::take xs n)` → `Stream<T>`. Lazily yields at most the first `n` elements of
 /// `xs` (any seqable: `Vector<T>` | `List<T>` | `PersistentVector<T>` | `Stream<T>`) — pulling
@@ -1031,29 +938,9 @@ pub(crate) fn eval_seq_remove_at(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-pub(crate) fn eval_vec_last(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::last".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let xs = require_vec(
-        ":wat::core::last",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    Ok(Value::Option(Arc::new(xs.last().cloned())))
-}
+// Arc 255 Stone P6-c-W6 — `:wat::core::last` moved verbatim into a `#[wat_intrinsic]`
+// handler (`src/intrinsic/collection.rs`) with its real (1) arity declared; the
+// pre-match registry check intercepts the name before reaching the giant match.
 
 /// Arc 047 — `(:wat::core::find-last-index xs pred)` returns
 /// `Option<i64>`. Iterates `xs`, applies `pred` to each element,
@@ -1419,7 +1306,7 @@ mod seqable_to_stream_tests {
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");
         let ast = crate::parse_one!(
-            "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
+            "(:wat::core::length (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) \
               (:wat::core::keep :cx::keep-all (:cx::build-pv 4000))))"
         )
         .expect("parse the keep pipeline");
@@ -1484,7 +1371,7 @@ mod filter_native_tests {
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");
         let ast = crate::parse_one!(
-            "(:wat::core::length (:wat::core::into (:wat::core::Vector :wat::core::i64) \
+            "(:wat::core::length (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) \
               (:wat::core::filter :cx::keep-all (:cx::build-pv 4000))))"
         )
         .expect("parse the filter pipeline");

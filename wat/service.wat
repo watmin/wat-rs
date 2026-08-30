@@ -1304,7 +1304,7 @@
      peers-fold-fn `(:wat::core::fn [~peers-acc-sym <- ~selectable-vec-ty  ~peers-t-sym <- ~selectable-entry-ty]
                         -> ~selectable-vec-ty
                       (:wat::core::conj ~peers-acc-sym (:wat::core::second ~peers-t-sym)))
-     peers-only-expr `(:wat::core::foldl ~peers-fold-fn (:wat::core::Vector ~selectable-peer-ty) selectables)
+     peers-only-expr `(:wat::core::foldl ~peers-fold-fn (:wat::core::Vector :- [~selectable-peer-ty]) selectables)
      ;; alarm-o-ty: (Alarm :- [service::Op]) — the arm-foldl binder type.
      ;; identity 2c: ANNOTATION-only (arm-fold's alarm param type) — mints the reference FORM,
      ;; structurally off `service-op-ty-ann` (Arc 109 ③ retired the angle-string concat).
@@ -1573,7 +1573,7 @@
                                            (:wat::core::conj ~arm-acc-sym
                                              (:wat::core::Tuple -1
                                                (:wat::core::first
-                                                 (:wat::core::conj (:wat::core::Vector ~selectable-peer-ty)
+                                                 (:wat::core::conj (:wat::core::Vector :- [~selectable-peer-ty])
                                                    (:wat::kernel::after
                                                      (:wat::program::Env/peer-kind (:wat::program::env))
                                                      (:wat::service::Alarm/after ~arm-alarm-sym)
@@ -2472,7 +2472,7 @@
                           (:wat::core::apply
                             (:wat::keyword::from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)
-                            (:wat::core::Vector ~selectable-entry-ty)
+                            (:wat::core::Vector :- [~selectable-entry-ty])
                             0
                             ~cm-st-sym [])))
      ;; The transport-agnostic service-forms defn: Op/Reply/records/serve + agnostic child

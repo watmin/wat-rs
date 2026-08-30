@@ -61,6 +61,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
 /// @ret     :wat::core::i64 the number of elements in `l`
@@ -77,6 +78,7 @@ pub(crate) fn list_length(l: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
 /// @ret     :wat::core::bool true iff `l` has zero elements
@@ -94,6 +96,7 @@ pub(crate) fn list_empty_q(l: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
 /// @arg     item :T the candidate element
@@ -113,6 +116,7 @@ pub(crate) fn list_contains_q(l: &Value, item: &Value) -> Result<Value, EvalBrea
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
 /// @arg     i :wat::core::i64 the index looked up
@@ -132,6 +136,7 @@ pub(crate) fn list_get(l: &Value, i: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     l (:wat::core::List :- [T]) the list transformed
 /// @arg     item :T the element prepended

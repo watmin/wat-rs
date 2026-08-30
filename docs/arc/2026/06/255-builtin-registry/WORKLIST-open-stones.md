@@ -1,9 +1,30 @@
-# WORKLIST — arc 255's open stones, ordered. As of 2026-08-28, P6-c-0 struck.
+# WORKLIST — arc 255's open stones, ordered. As of 2026-08-29. SEVEN waves struck; 49 verbs homed.
 
 > ⛔ **P6-c IS A CAMPAIGN, NOT A ROW** — 136 arms, 148 FQDNs, six dispositions. Sized in
-> `NOTE-p6c-is-a-campaign-not-a-stone.md`. Its census is struck; the next thing to draw is NOT a
-> wave but a MEASUREMENT (P6-c-1), because 129 of the 148 fail for one reason that may be a single
-> macro change rather than ~120 hand reorders.
+> `NOTE-p6c-is-a-campaign-not-a-stone.md`. The measurement (P6-c-1) answered YES — ONE macro change
+> (the declared context-tail, `ContextParam::{Env,Sym,Span}`) retired the 129, so the campaign became
+> a wave sweep rather than ~120 hand reorders.
+>
+> ⛔ **THE POPULATION IS THE METER, NOT `HOMEABLE`.** Ruling a verb then homing it removes its ledger
+> row, so HOMEABLE returns to 0 every wave. **146 → 106** is the progress.
+>
+> ⛔ **RESUME HERE — AND IT IS NOT A WAVE. THE METER HAS A HOLE.**
+> `NOTE-the-completeness-gate-cannot-see-a-home-outside-one-directory.md`. The gate's
+> `#[wat_intrinsic]` half is `read_dir`-scoped to `src/intrinsic/`, so **25 registrations homed
+> elsewhere (15 in `runtime.rs`, 10 in `src/rete/`) left the population entirely** — no arm, no
+> ruling, no ledger line. It reports 510 dispatched verbs; the surface is 535. Remedy named at the
+> CHECK rung: make the scan root the whole tree, then read the ~25 screams. **Builder's ruling on
+> whether this precedes W7.**
+>
+> ★ **W6 also settled the megafile question empirically** —
+> `NOTE-homing-in-place-does-not-shrink-the-megafile.md`. Six waves homing IN PLACE moved
+> `runtime.rs` −182 across 42 verbs; W6 MOVED the bodies and cut **−346 with seven**.
+> `34,206 → 33,860`.
+>
+> ⛔ **THREE FAMILIES PARKED — each has a NOTE, none is drawn, each is blocked on a real question:**
+> the HOFs + stream forcers (`NOTE-the-prefix-guess-does-not-scale-to-a-mixed-namespace.md`) ·
+> the 9-verb rete FIRING family (`NOTE-the-firing-family-is-dual-implemented.md`) ·
+> the 10-verb `:wat::eval-*!` cluster (shared param-spec peel; the shim's arity check fires BEFORE it).
 >
 > And one finding OUTSIDE the arc that outranks all of it —
 > a top-level `def` launders a restricted verb past its capability wall. See
@@ -38,8 +59,16 @@ P5-b  @yields gains a SUBJECT             ✅ STRUCK — repeatable, TYPE DROPPE
                                              expand time, and the redundant gate DELETED
 P6-c  ⛔ NOT A STONE — A CAMPAIGN. 136 arms · 148 FQDNs · SIX dispositions.
       P6-c-0  the disposition census        ✅ STRUCK — instrument committed, wave plan out
-      P6-c-1  ← NEXT, and it is NOT a wave: measure whether ONE macro change (the context-tail
-              ORDER) retires 129 of the 148. If it does, the campaign is far smaller.
+      P6-c-1  the context-tail measurement    ✅ STRUCK — YES. `ContextParam::{Env,Sym,Span}`;
+                                                 `emit` forwards the DECLARED tail in DECLARED order
+      W1 config 4 · W2 stream/program 4 · W3 runtime 10 · W4 runtime-remainder 3
+      W5a rete predicates 9 · W5b rete mutators 6 · W5c rete readers 4  (+ P6-c-1's proof pair 2)
+                                            ✅ ALL STRUCK — 42 homed, 59 hand-rolled arity guards
+                                                 retired, population 146 → 106
+      W6  seven core readers            ✅ STRUCK — 5725ab10d. Homed into a NEW
+                                             src/intrinsic/collection.rs (NOT in place — the gate
+                                             blind spot forced it), runtime.rs −346, debt 53 → 55
+      ⛔ THE GATE HOLE ← NEXT, and it is not a wave. 25 verbs outside the population.
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
 ```
@@ -70,8 +99,13 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~P5-b~~ | ~~`@yields` gains a SUBJECT, repeatable, mandatory~~ | | | ✅ **STRUCK** — and the TYPE dropped |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P6-c-0~~ | ~~the disposition census~~ | | | ✅ **STRUCK** — 148 FQDNs, six dispositions |
-| **P6-c-1** | does the context-tail ORDER explain 129 of 148? one `sniff_args`/`emit` change vs ~120 callee reorders | macro-side measurement, no sweep | *not drawn* | — **READY to draw** |
-| **P6-c-2+** | the waves — config (6) · eval-cluster+small (18) · runtime (13) · rete (28) · core (82, split 5a–5e) | ~148 FQDNs | *not drawn* | P6-c-1's answer changes the size |
+| ~~P6-c-1~~ | ~~does the context-tail ORDER explain 129 of 148?~~ | | | ✅ **STRUCK** — YES; one macro change |
+| ~~W1–W5c~~ | ~~the waves — config · stream/program · runtime · rete~~ | 42 FQDNs | | ✅ **STRUCK** — population 146 → 106 |
+| ~~W6~~ | ~~the seven core readers~~ | 7 FQDNs | | ✅ **STRUCK** — `5725ab10d`; bodies MOVED, runtime.rs −346 |
+| **GATE** | the completeness scan's root becomes the whole tree | 1 scan change + ~25 rulings | `NOTE-the-completeness-gate-cannot-see-a-home-outside-one-directory.md` | — **READY to draw.** ⛔ Outranks W7: every wave's numbers come from this meter |
+| **W7 HOFs** | `map · mapv · filter · foldl · find-last-index` + the stream forcers | ~8 FQDNs | `NOTE-the-prefix-guess-does-not-scale-to-a-mixed-namespace.md` | ⛔ `Effectful ⇒ effectful_by_prefix` would force widening `:wat::core::`, making the guess vacuous for the biggest namespace. **Ask whether the fallback should RETIRE.** |
+| **W8 firing** | the rete FIRING family | 9 FQDNs | `NOTE-the-firing-family-is-dual-implemented.md` | ⛔ `fire-rules` is BOTH a wat `defn` and a Rust arm; homing adds a THIRD ahead of both |
+| **W9 eval-\*!** | the `:wat::eval-*!` cluster | 10 FQDNs | *not drawn* | ⛔ one arm peels a param-spec for all ten; the generated shim's arity check fires BEFORE the peel — behaviour change, not a sweep |
 
 ## What each row is FOR — one line, so a fresh reader does not need the NOTE
 

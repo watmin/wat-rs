@@ -146,7 +146,7 @@ use std::process::ExitCode;
 /// `(:repl::turn defs)` to embed a loop seeded with its own definitions, which is the thing
 /// a REPL-as-a-file could never offer.
 const REPL_SOURCE: &str =
-    "(:wat::core::defn :user::main [] -> :wat::core::nil\n   (:repl::turn (:wat::core::Vector :wat::WatAST)))\n";
+    "(:wat::core::defn :user::main [] -> :wat::core::nil\n   (:repl::turn (:wat::core::Vector :- [:wat::WatAST])))\n";
 const REPL_LABEL: &str = "<repl-entry>";
 /// `--mcp` has no entry file either — the loop is Rust (see `mcp.rs`), and this is what any
 /// diagnostic reaching a span from that path carries.

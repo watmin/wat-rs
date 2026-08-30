@@ -78,6 +78,7 @@ fn next_outcome_exhausted() -> Value {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @ret     (:wat::stream::Stream :- [T]) the Empty terminator
 /// @example (:wat::core::stream->vec [] (:wat::stream::empty)) #=> []
@@ -98,6 +99,7 @@ pub(crate) fn eval_stream_empty_intrinsic() -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     head :T the value prepended, evaluated strictly
 /// @arg     tail (:wat::stream::Stream :- [T]) the stream tail (may itself be an unforced Thunk)
@@ -154,6 +156,7 @@ pub(crate) fn eval_stream_cons_intrinsic(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
+/// @Total         Unreviewed
 /// @Category      ControlFlow
 /// @arg     s (:wat::stream::Stream :- [T]) the stream forced to WHNF
 /// @ret     (:wat::stream::NextOutcome :- [T]) `Item(value, rest)`, or `Exhausted`

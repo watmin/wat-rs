@@ -38,7 +38,7 @@ use wat::runtime::Value;
 #[test]
 fn variadic_macro_splices_rest_into_vec_ctor() {
     // `(my::vec-of :wat::core::i64 1 2 3)` expands to
-    // `(:wat::core::Vector :wat::core::i64 1 2 3)`. The `& (items ...)` rest-binder
+    // `(:wat::core::Vector :- [:wat::core::i64] 1 2 3)`. The `& (items ...)` rest-binder
     // collects the trailing 1 2 3 into a list; `,@items` splices them.
     let got = call_beside_value(file!(), ":my::compute-splice").expect("compute should run");
     assert!(matches!(got, Value::i64(10)));

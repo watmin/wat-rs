@@ -55,6 +55,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the EDN text parsed
 /// @ret     :T the decoded value
@@ -80,6 +81,7 @@ pub(crate) fn eval_edn_read_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the JSON text parsed
 /// @ret     (:wat::edn::ReadJsonOutcome :- [T]) `Value[v]` on success, `Malformed[cause]` otherwise
@@ -105,6 +107,7 @@ pub(crate) fn eval_edn_read_json_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the EDN text parsed
 /// @ret     (:wat::edn::ReadForeignOutcome :- [T]) `Value[v]` on success, `Malformed[cause]` otherwise
@@ -128,6 +131,7 @@ pub(crate) fn eval_edn_read_foreign_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
 /// @ret     :wat::core::String the compact single-line EDN text
@@ -148,6 +152,7 @@ pub(crate) fn eval_edn_write_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
 /// @ret     :wat::core::String the multi-line indented EDN text
@@ -169,6 +174,7 @@ pub(crate) fn eval_edn_write_pretty_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
 /// @ret     :wat::core::String the round-trip-safe JSON text
@@ -192,6 +198,7 @@ pub(crate) fn eval_edn_write_json_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
 /// @ret     :wat::core::String the natural (lossy) JSON text
@@ -220,6 +227,7 @@ pub(crate) fn eval_edn_write_json_natural_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      CheckGate
 /// @arg     value :T the value checked against `declared_type`'s shape
 /// @arg     declared_type :wat::WatAST the type keyword or `(Head :- [args])` type form checked against
@@ -254,6 +262,7 @@ pub(crate) fn eval_edn_validate_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record navigated
 /// @arg     key :wat::core::keyword the field key looked up
@@ -279,6 +288,7 @@ pub(crate) fn eval_foreign_record_get_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record probed
 /// @ret     :wat::core::String `fr`'s fully-qualified class name
@@ -302,6 +312,7 @@ pub(crate) fn eval_foreign_record_class_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
 /// @ret     :wat::core::Keyword the variant's name
@@ -324,6 +335,7 @@ pub(crate) fn eval_foreign_variant_variant_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
 /// @ret     :wat::core::String `v`'s fully-qualified enum class name
@@ -347,10 +359,11 @@ pub(crate) fn eval_foreign_variant_enum_class_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
 /// @ret     (:wat::core::Vector :- [:wat::core::Value]) `v`'s positional fields, in order
-/// @example (:wat::edn::ForeignVariant/fields (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> (:wat::core::Vector :wat::core::Value 42)
+/// @example (:wat::edn::ForeignVariant/fields (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> (:wat::core::Vector :- [:wat::core::Value] 42)
 /// @see     :wat::edn::ForeignVariant/variant
 #[wat_intrinsic(":wat::edn::ForeignVariant/fields")]
 pub(crate) fn eval_foreign_variant_fields_home(

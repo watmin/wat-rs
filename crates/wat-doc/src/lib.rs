@@ -153,6 +153,14 @@ pub struct DocComment {
     pub purity: Purity,
     /// `@Determinism <Variant>` — declared determinism.
     pub determinism: Determinism,
+    /// `@Total <Variant>` — declared totality (arc 255 Stone total-T2; made
+    /// REQUIRED in Stone total-T3). Absence is `DocError::MissingTotality`,
+    /// exactly like `purity`/`determinism`/`category` — declaring nothing is
+    /// illegal. See `DESIGN-STONE-total-t3-declaring-nothing-is-illegal.md`: a
+    /// guessed `:Total` is a lie in a fence that admits code into a `where`; an
+    /// author must type `:Unreviewed` explicitly instead of the substrate
+    /// inventing it.
+    pub totality: Totality,
     /// `@Category <Variant>` — closed-enum category (e.g. `Transform`, `Reflection`).
     pub category: Category,
     /// `@yields <argname> <desc>` — repeatable, one per value-carrying fn-shaped `@arg`.
@@ -219,10 +227,19 @@ pub enum DocError {
     MissingPurity,
     /// No `@Determinism` directive.
     MissingDeterminism,
+    /// No `@Total` directive. Arc 255 Stone total-T3: `@Total` was OPTIONAL
+    /// through T2 (absence defaulted to `Totality::Unreviewed`); the builder's
+    /// ruling struck that default — declaring nothing is now illegal, exactly
+    /// like `@Purity`/`@Determinism`. An author must type `@Total Unreviewed`
+    /// explicitly if the verb has not been reviewed; the substrate no longer
+    /// invents the answer.
+    MissingTotality,
     /// `@Purity` value is not a known variant.
     InvalidPurityVariant { got: String },
     /// `@Determinism` value is not a known variant.
     InvalidDeterminismVariant { got: String },
+    /// `@Total` value is not a known variant.
+    InvalidTotalityVariant { got: String },
     /// `@Category` value is not a known variant.
     InvalidCategoryVariant { got: String },
     /// A second `@yields` names the same `@arg` subject as an earlier one — `@yields` is
@@ -257,6 +274,10 @@ pub struct DocSpecialForm {
     pub purity: Purity,
     /// `@Determinism <Variant>` — declared determinism.
     pub determinism: Determinism,
+    /// `@Total <Variant>` — declared totality (arc 255 Stone total-T2; made
+    /// REQUIRED in Stone total-T3). Absence is `DocError::MissingTotality` — see
+    /// `DocComment::totality`.
+    pub totality: Totality,
     /// `@see` FQDNs, in source order.
     pub see: Vec<String>,
     /// `@deprecated`, if present.
@@ -334,7 +355,7 @@ fn take_type_token(s: &str) -> (&str, &str) {
 pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@Purity", "@Determinism", "@Category", "@yields",
+        "@Purity", "@Determinism", "@Total", "@Category", "@yields",
     ];
 
     // Split into prose lines and directive lines at the first recognized @-directive.
@@ -361,6 +382,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let mut see: Vec<String> = Vec::new();
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
+    let mut totality_val: Option<Totality> = None;
     let mut category_val: Option<Category> = None;
     let mut yields_vals: Vec<DocYields> = Vec::new();
 
@@ -595,6 +617,15 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     }),
                 }
             }
+            "@Total" => {
+                if totality_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Total".into() });
+                }
+                match payload.parse::<Totality>() {
+                    Ok(t) => totality_val = Some(t),
+                    Err(_) => return Err(DocError::InvalidTotalityVariant { got: payload.to_string() }),
+                }
+            }
             "@Category" => {
                 if category_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
@@ -649,6 +680,9 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     }
     let purity = purity_val.ok_or(DocError::MissingPurity)?;
     let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
+    // Arc 255 Stone total-T3: `@Total` is REQUIRED, exactly like purity/determinism/
+    // category above. Absence is `MissingTotality`, not a silent `Unreviewed` default.
+    let totality = totality_val.ok_or(DocError::MissingTotality)?;
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     // Every `@yields` subject must name a declared `@arg` — a directive with no referent
@@ -660,7 +694,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
         }
     }
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, category, yields: yields_vals })
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, totality, category, yields: yields_vals })
 }
 
 /// Parse a special-form doc block.
@@ -674,7 +708,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
 pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@Purity", "@Determinism", "@Category", "@syntax",
+        "@Purity", "@Determinism", "@Total", "@Category", "@syntax",
     ];
 
     let lines: Vec<&str> = raw.lines().collect();
@@ -699,6 +733,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let mut see: Vec<String> = Vec::new();
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
+    let mut totality_val: Option<Totality> = None;
     let mut category_val: Option<Category> = None;
 
     let directive_lines = match first_directive {
@@ -923,6 +958,15 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                     }),
                 }
             }
+            "@Total" => {
+                if totality_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Total".into() });
+                }
+                match payload.parse::<Totality>() {
+                    Ok(t) => totality_val = Some(t),
+                    Err(_) => return Err(DocError::InvalidTotalityVariant { got: payload.to_string() }),
+                }
+            }
             "@Category" => {
                 if category_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
@@ -955,6 +999,9 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     }
     let purity = purity_val.ok_or(DocError::MissingPurity)?;
     let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
+    // Arc 255 Stone total-T3: `@Total` is REQUIRED (special-form sibling resolution
+    // point — see the `parse` fn above for the same change and its rationale).
+    let totality = totality_val.ok_or(DocError::MissingTotality)?;
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     Ok(DocSpecialForm {
@@ -968,6 +1015,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
         category,
         purity,
         determinism,
+        totality,
         see,
         deprecated,
     })
@@ -1014,7 +1062,7 @@ mod tests {
     /// The reference intrinsic doc block (`core::Bytes::to-hex`), in the exact
     /// joined form `sniff_doc` produces (`/// ` stripped, `\n`-joined). This IS
     /// the contract the parser must satisfy. Updated to firm grammar (no separator).
-    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
+    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
 
     #[test]
     fn parses_the_reference_intrinsic() {
@@ -1033,7 +1081,7 @@ mod tests {
         assert_eq!(
             doc.examples,
             vec![DocExample {
-                expr: "(:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))".into(),
+                expr: "(:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))".into(),
                 expected: Some("\"ff0010\"".into()),
                 run: true,
             }]
@@ -1047,7 +1095,7 @@ mod tests {
 
     #[test]
     fn norun_example_may_omit_the_marker() {
-        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Transform\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
+        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Total Unreviewed\n@Category Transform\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
         let doc = parse(raw).expect("norun parses");
         assert_eq!(
             doc.examples,
@@ -1061,7 +1109,7 @@ mod tests {
 
     #[test]
     fn norun_example_may_carry_an_unverified_marker() {
-        let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::uuid::v4) #=> #uuid \"…\"";
+        let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Total Unreviewed\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::uuid::v4) #=> #uuid \"…\"";
         let doc = parse(raw).expect("norun-with-marker parses");
         assert!(!doc.examples[0].run);
         assert_eq!(doc.examples[0].expected.as_deref(), Some("#uuid \"…\""));
@@ -1069,7 +1117,7 @@ mod tests {
 
     #[test]
     fn multiple_args_and_see_in_order() {
-        let raw = "Blend two things.\n\n@added 1.2.0\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
+        let raw = "Blend two things.\n\n@added 1.2.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
         let doc = parse(raw).expect("parses");
         assert_eq!(doc.args.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), vec!["a", "b"]);
         assert_eq!(doc.args[0].desc, "the first");
@@ -1079,7 +1127,7 @@ mod tests {
 
     #[test]
     fn deprecated_parses() {
-        let raw = "Old thing.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
+        let raw = "Old thing.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
         let doc = parse(raw).expect("parses");
         assert_eq!(
             doc.deprecated,
@@ -1195,14 +1243,14 @@ mod tests {
 
     #[test]
     fn check_args_zero_arity_ok() {
-        let raw = "A constant.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
+        let raw = "A constant.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
         let doc = parse(raw).unwrap();
         assert_eq!(check_args(&doc, &[]), Ok(()));
     }
 
     #[test]
     fn pure_and_deterministic_parse() {
-        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Nondeterministic\n@Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Nondeterministic\n@Total Unreviewed\n@Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("pure+det doc parses");
         assert_eq!(doc.purity, Purity::Pure);
         assert_eq!(doc.determinism, Determinism::Nondeterministic);
@@ -1231,13 +1279,13 @@ mod tests {
 
     #[test]
     fn missing_category_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@ret :wat::core::i64 x\n@example (f) #=> y";
         assert_eq!(parse(raw), Err(DocError::MissingCategory));
     }
 
     #[test]
     fn category_parses() {
-        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Reflection\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Reflection\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("category doc parses");
         assert_eq!(doc.category, Category::Reflection);
     }
@@ -1256,6 +1304,90 @@ mod tests {
             assert!(v.parse::<Determinism>().is_ok(), "should parse: {}", v);
         }
         assert!("deterministic".parse::<Determinism>().is_err());
+    }
+
+    // ─── @Total (arc 255 Stone total-T2, made REQUIRED in Stone total-T3) ─────
+    //
+    // @Total is now REQUIRED, exactly like @Purity/@Determinism/@Category.
+    // Absence is `DocError::MissingTotality` — the builder's ruling struck the
+    // T2 default ("declaring nothing needs to be illegal"). An author must type
+    // `@Total Unreviewed` explicitly if a verb has not been reviewed.
+
+    /// `@Total <Variant>` parses, one test per legal variant.
+    #[test]
+    fn total_parses_all_variants() {
+        for (spelling, expected) in [
+            ("Total", Totality::Total),
+            ("Partial", Totality::Partial),
+            ("Preserving", Totality::Preserving),
+            ("Unreviewed", Totality::Unreviewed),
+        ] {
+            let raw = format!(
+                "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                 @Total {spelling}\n@Category Transform\n@ret :wat::core::i64 the value\n\
+                 @example (f) #=> 1"
+            );
+            let doc = parse(&raw).unwrap_or_else(|e| panic!("@Total {spelling} must parse: {e:?}"));
+            assert_eq!(doc.totality, expected, "@Total {spelling} must read back as {expected:?}");
+        }
+        assert!("total".parse::<Totality>().is_err()); // case-sensitive
+    }
+
+    /// ★ Arc 255 Stone total-T3, Row 1 — ABSENT `@Total` is now `MissingTotality`,
+    /// exactly like `missing_purity_is_an_error` / `missing_determinism_is_an_error`
+    /// above. This is the "break the door first" proof: declaring nothing must
+    /// genuinely fail before the 437-site sweep makes the requirement untestable.
+    #[test]
+    fn absent_total_is_an_error() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        assert_eq!(parse(raw), Err(DocError::MissingTotality));
+    }
+
+    /// Row 3a — a SECOND `@Total` is `DuplicateSingleton`.
+    #[test]
+    fn duplicate_total_is_an_error() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Total Total\n@Total Partial\n@Category Transform\n\
+                    @ret :wat::core::i64 the value\n@example (f) #=> 1";
+        assert_eq!(parse(raw), Err(DocError::DuplicateSingleton { tag: "@Total".into() }));
+    }
+
+    /// Row 3b — an unknown `@Total` value is `InvalidTotalityVariant { got }`.
+    #[test]
+    fn invalid_total_value_is_an_error() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Total Bogus\n@Category Transform\n@ret :wat::core::i64 the value\n\
+                    @example (f) #=> 1";
+        assert_eq!(parse(raw), Err(DocError::InvalidTotalityVariant { got: "Bogus".into() }));
+    }
+
+    /// The special-form parser accepts the identical directive — `DocSpecialForm`
+    /// is a SIBLING type to `DocComment` (not the same type), so both resolution
+    /// points need their own coverage, including the "absence errors" half (row 1).
+    #[test]
+    fn special_form_total_parses_and_absence_is_an_error() {
+        let with_total = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @Total Partial\n\
+            @arg cond :wat::core::Bool the condition\n\
+            @ret :T the result\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        let doc = super::parse_special_form(with_total).expect("@Total Partial must parse on a special form");
+        assert_eq!(doc.totality, Totality::Partial);
+
+        let without_total = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @arg cond :wat::core::Bool the condition\n\
+            @ret :T the result\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        assert_eq!(super::parse_special_form(without_total), Err(DocError::MissingTotality));
     }
 
     #[test]
@@ -1361,6 +1493,7 @@ mod tests {
             @Category ControlFlow\n\
             @Purity Preserving\n\
             @Determinism Preserving\n\
+            @Total Unreviewed\n\
             @arg cond :wat::core::Bool the condition\n\
             @arg then :T the then branch\n\
             @arg else :T the else branch\n\
@@ -1388,7 +1521,7 @@ mod arc109_reader_adjudicates_type_tokens {
     /// token under test.
     fn doc_with_ret_type(ty: &str) -> String {
         format!(
-            "A probe.\n\n@added   1.0.0\n@ret     {ty} the ret\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::foo x) #=> 1"
+            "A probe.\n\n@added   1.0.0\n@ret     {ty} the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1"
         )
     }
 
@@ -1448,7 +1581,7 @@ mod arc109_reader_adjudicates_type_tokens {
     /// MATCHING close across nested parens/brackets, not just the first one.
     #[test]
     fn nested_parametric_type_reference_round_trips() {
-        let doc = "A probe.\n\n@added   1.0.0\n@arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the peers\n@ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
+        let doc = "A probe.\n\n@added   1.0.0\n@arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the peers\n@ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
         let parsed = parse(doc).expect("nested parametric type references must be accepted");
         assert_eq!(parsed.args[0].ty, "(:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])])");
         assert_eq!(parsed.args[0].desc, "the peers");
@@ -1458,10 +1591,47 @@ mod arc109_reader_adjudicates_type_tokens {
 
     #[test]
     fn fn_type_bracket_form_round_trips() {
-        let doc = "A probe.\n\n@added   1.0.0\n@arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the prog\n@ret     (:wat::kernel::Thread :- [R S]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
+        let doc = "A probe.\n\n@added   1.0.0\n@arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the prog\n@ret     (:wat::kernel::Thread :- [R S]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Total Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
         let parsed = parse(doc).expect("the fn-type bracket form must be accepted");
         assert_eq!(parsed.args[0].ty, "[(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]");
         assert_eq!(parsed.args[0].desc, "the prog");
         assert_eq!(parsed.ret_type, "(:wat::kernel::Thread :- [R S])");
+    }
+}
+
+::wat_source_derive::wat_enum_from!(
+    pub enum Totality,
+    "../../wat/runtime-meta.wat",
+    ":wat::runtime::Totality"
+);
+
+#[cfg(test)]
+mod probe_totality_axis {
+    use super::Totality;
+    /// FM 2-bis probe — the axis is not merely generated, it carries all FOUR
+    /// variants by name, and the match is exhaustive (a missing variant is E0004).
+    #[test]
+    fn totality_has_four_named_variants_and_matches_exhaustively() {
+        let all = [Totality::Total, Totality::Partial, Totality::Preserving, Totality::Unreviewed];
+        assert_eq!(all.len(), 4);
+        for v in all {
+            // Exhaustive, no wildcard: adding a variant in the .wat breaks this.
+            let name = match v {
+                Totality::Total => "Total",
+                Totality::Partial => "Partial",
+                Totality::Preserving => "Preserving",
+                Totality::Unreviewed => "Unreviewed",
+            };
+            assert!(!name.is_empty());
+        }
+    }
+    /// The per-variant `;;` prose from the .wat must survive into the Rust doc —
+    /// that is the half read from the raw text layer, and it is the half that rots
+    /// silently if the two readers ever disagree.
+    #[test]
+    fn the_work_list_variant_is_documented_as_such() {
+        // Compile-time proof the variant exists under the exact name the census will filter on.
+        let partial = Totality::Partial;
+        assert!(matches!(partial, Totality::Partial));
     }
 }

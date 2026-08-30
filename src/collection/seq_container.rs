@@ -304,8 +304,8 @@ impl StreamContainer {
     /// `length` / `empty?` — element count.
     ///
     /// Grounded against the `None =>` arms in `eval_length` and `eval_empty`
-    /// (runtime.rs): `Vec`, `PV`, `HashSet`, `List`, `Tuple`, and `WatAstList`
-    /// each have inner helpers called there (seq-1b filled).
+    /// (`src/intrinsic/collection.rs`, arc 255 Stone P6-c-W6): `Vec`, `PV`, `HashSet`, `List`,
+    /// `Tuple`, and `WatAstList` each have inner helpers called there (seq-1b filled).
     pub(crate) fn measurable(self) -> bool {
         match self {
             StreamContainer::Vector => true,
@@ -316,9 +316,15 @@ impl StreamContainer {
             StreamContainer::Tuple => true,
             // seq-1b — filled
             StreamContainer::WatAstList => true,
-            // Arc 118 — Stream: length/empty? on an infinite seq would diverge. ∅ N/A for length;
-            // `empty?` IS supported via realize (handled directly in eval_empty's Stream arm, not
-            // routed through this gate). Keep measurable=false so `length` rejects lazy seqs.
+            // Arc 118 — Stream: length/empty? on an infinite seq would diverge. ∅ N/A for
+            // length. Arc 255 Stone P6-c-W6 — THIS COMMENT WAS STALE: it used to say "`empty?`
+            // IS supported via realize (handled directly in eval_empty's Stream arm, not routed
+            // through this gate)", describing behavior Stone 118.B4-iii — THE WALL already
+            // deleted (the hand-written early-realize branch that forced one step to decide
+            // Empty vs Cons is gone; `eval_empty`'s own doc says so). Verified live against the
+            // current `eval_empty` body: a `Stream` receiver now falls through to the
+            // `measurable()==false` arms uniformly, like every other non-measurable container —
+            // no realize, no force, a `TypeMismatch` teaching `:wat::stream::next`.
             StreamContainer::Stream => false,
         }
     }

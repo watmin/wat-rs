@@ -57,6 +57,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Probe
 /// @arg     k :wat::core::keyword the keyword probed
 /// @ret     :wat::core::String the text of `k`, without the leading colon
@@ -80,6 +81,7 @@ pub(crate) fn eval_keyword_to_string_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the colon-free keyword text
 /// @ret     :wat::core::keyword a keyword built from `s`
@@ -104,6 +106,7 @@ pub(crate) fn eval_keyword_from_string_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the Keyword form node converted
 /// @ret     :wat::WatAST a Symbol form node carrying the faithful-Clojure spelling
@@ -127,6 +130,7 @@ pub(crate) fn eval_keyword_to_symbol_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the type Keyword form node rendered
 /// @ret     :wat::WatAST the faithful-Clojure type form
@@ -145,11 +149,12 @@ pub(crate) fn eval_keyword_to_type_form_home(
 
 /// `(:wat::keyword::to-type-form-colon kw-node)` — Colon-mode sibling of `to-type-form`: same
 /// parse+render pipeline, the rust-ish `:wat::core::` head spelling instead of the Clojure
-/// `wat.type/` flip (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])`).
+/// `wat.type/` flip (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector :- [:wat::core::i64])`).
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
+/// @Total         Unreviewed
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the type Keyword form node rendered
 /// @ret     :wat::WatAST the Colon-mode type form

@@ -240,9 +240,18 @@ fn lower_bind(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError> 
 }
 
 fn lower_bundle(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError> {
-    // Expect exactly one argument: a (:wat::core::Vector :T item ...) form.
-    // Typed form per 2026-04-19: the :T arg after the keyword is skipped
-    // at lower time (it's for the checker).
+    // Expect exactly one argument: a (:wat::core::Vector :- [T] item ...) form.
+    // The `:- [T]` param-spec is skipped at lower time (it's for the checker).
+    //
+    // Arc 109 "THE LAST DOORS" door 3 — this used to require a BARE type
+    // keyword at `items[1]`, with elements starting at `items[2..]`. That
+    // spelling is retired (walled out of source by the checker), and the
+    // canonical `:- [T]` spelling was never recognized here — `items[1]`
+    // matched the old guard (it's still a Keyword, `:-`) but `items[2]` was
+    // the bracket Vector, not an element, so the match failed and Bundle's
+    // single-step lowering was dead for every program a user could actually
+    // write (`NOTE-bundle-is-coupled-to-the-retired-spelling.md`). Fixed by
+    // peeling the param-spec the same way the checker does.
     if args.len() != 1 {
         // Pattern D — head keyword span for shape errors
         return Err(LowerError { span: head_span.clone(), kind: LowerErrorKind::BundleShape });
@@ -255,13 +264,11 @@ fn lower_bundle(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError
                 WatAST::Keyword(k, _)
                     if k == ":wat::core::Vector" =>
                 {
-                    if items.len() < 2 {
+                    let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
+                    if peeled.is_none() {
                         return Err(LowerError { span: list_span.clone(), kind: LowerErrorKind::BundleShape });
                     }
-                    if !matches!(&items[1], WatAST::Keyword(_, _)) {
-                        return Err(LowerError { span: list_span.clone(), kind: LowerErrorKind::BundleShape });
-                    }
-                    &items[2..]
+                    rest
                 }
                 // Pattern A — unexpected head's span
                 _ => return Err(LowerError { span: head.span().clone(), kind: LowerErrorKind::BundleShape }),
@@ -393,8 +400,13 @@ mod tests {
 
     #[test]
     fn lower_bundle() {
+        // Arc 109 "THE LAST DOORS" door 3 — moved to the canonical `:- [T]`
+        // param-spec; the bare `:T` spelling this test used to carry is
+        // walled out of source by the checker (this test feeds `lower`
+        // directly, bypassing the checker, but it should still exercise a
+        // form a user could actually write).
         let ast = crate::parse_one!(
-            r#"(:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
+            r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();

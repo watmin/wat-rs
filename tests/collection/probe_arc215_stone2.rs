@@ -3,7 +3,7 @@
 //! Verifies that:
 //! - `[...]` expression-position vector literals route through the unified
 //!   `:wat::type::Infer` machinery (infer_list_constructor); behavior preserved
-//! - `(:wat::core::Vector :wat::type::Infer ...)` explicit-infer verb form works
+//! - `(:wat::core::Vector :- [:wat::type::Infer] ...)` explicit-infer verb form works
 //! - Mixed-type vector literals rejected at check time with TypeMismatch
 //! - `{...}` map literal now accepts non-keyword keys (K inferred from actual keys)
 //! - Mixed-K map literals rejected at check time with TypeMismatch
@@ -17,10 +17,10 @@
 //!  3. `["a" "b"]` → Vec<String>; length 2 (T inferred String)
 //!  4. `[]` empty → Vec; length 0 (T fresh type variable)
 //!  5. `[true false true]` → Vec<bool>; length 3
-//!  6. `(:wat::core::Vector :wat::type::Infer 1 2 3)` → Vec<i64>; equivalent to `[1 2 3]`
-//!  7. `(:wat::core::Vector :wat::type::Infer)` empty → Vec; length 0
+//!  6. `(:wat::core::Vector :- [:wat::type::Infer] 1 2 3)` → Vec<i64>; equivalent to `[1 2 3]`
+//!  7. `(:wat::core::Vector :- [:wat::type::Infer])` empty → Vec; length 0
 //!  8. `[1 "two"]` → check fails with TypeMismatch (mixed-type rejection)
-//!  9. `(:wat::core::Vector :wat::core::i64 1 2 3)` → Vec<i64>; explicit-type path unchanged
+//!  9. `(:wat::core::Vector :- [:wat::core::i64] 1 2 3)` → Vec<i64>; explicit-type path unchanged
 //! 10. `(:wat::core::let [x 1 y 2] ...)` → tuple-destructure via Vector binder still works
 //!
 //! Change B — keyword-key restriction lifted:
@@ -89,22 +89,22 @@ fn probe_5_bool_vec_length() {
     }
 }
 
-// ─── Probe 6: `(:wat::core::Vector :wat::type::Infer 1 2 3)` new path ────────
+// ─── Probe 6: `(:wat::core::Vector :- [:wat::type::Infer] 1 2 3)` new path ────────
 
 #[test]
 fn probe_6_explicit_infer_vector_form() {
     match call_beside_value(file!(), ":t::p6-explicit-infer-vec-len").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :wat::type::Infer 1 2 3) must have length 3"),
+        Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :- [:wat::type::Infer] 1 2 3) must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 }
 
-// ─── Probe 7: `(:wat::core::Vector :wat::type::Infer)` empty ─────────────────
+// ─── Probe 7: `(:wat::core::Vector :- [:wat::type::Infer])` empty ─────────────────
 
 #[test]
 fn probe_7_explicit_infer_vector_form_empty() {
     match call_beside_value(file!(), ":t::p7-empty-infer-vec-len").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 0, "(:wat::core::Vector :wat::type::Infer) empty must have length 0"),
+        Value::i64(n) => assert_eq!(n, 0, "(:wat::core::Vector :- [:wat::type::Infer]) empty must have length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
 }
@@ -121,12 +121,12 @@ fn probe_8_mixed_type_vector_rejected_at_check() {
     wat::assert_edn_matches_file!(format!("{err:?}"), "probe_arc215_stone2__mixed_type_vector.edn", "probe_8: mixed-type vector TypeMismatch golden (Debug)");
 }
 
-// ─── Probe 9: `(:wat::core::Vector :wat::core::i64 1 2 3)` explicit ──────────
+// ─── Probe 9: `(:wat::core::Vector :- [:wat::core::i64] 1 2 3)` explicit ──────────
 
 #[test]
 fn probe_9_explicit_type_vector_form_preserved() {
     match call_beside_value(file!(), ":t::p9-explicit-type-vec-len").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :wat::core::i64 1 2 3) must have length 3"),
+        Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :- [:wat::core::i64] 1 2 3) must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 }

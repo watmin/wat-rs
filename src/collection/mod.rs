@@ -79,7 +79,10 @@
 //! - `infer.rs` — the 4 check-side inference intrinsics
 //!   (`infer_contains`, `infer_conj`, `infer_get`, `infer_assoc`).
 //!   Import world: `CheckEnv`, `InferCtx`, `Subst`, `TypeExpr`.
-//! - `eval.rs` — 50 functions in two tiers, plus 3 constructors and `eval_rest`.
+//! - `eval.rs` — 49 functions in two tiers, plus 3 constructors. Arc 255 Stone P6-c-W6 —
+//!   `eval_rest` MOVED to `src/intrinsic/collection.rs` as a `#[wat_intrinsic]` handler
+//!   (`dispatch_verbs`'s completeness-gate scan only sees `#[wat_intrinsic]` attributes under
+//!   `src/intrinsic/`).
 //!
 //!   **Tier 1 — `*_inner` helpers (23 fns):** operate on a pre-evaluated `&Value`
 //!   (no `WatAST` in scope). Called by both the `eval_*` wrappers and
@@ -99,8 +102,8 @@
 //!   not `contains?`. List has no `assoc`/`dissoc`/`keys`/`values`/`concat`.
 //!   Vector and HashSet have no `assoc`/`dissoc`/`keys`/`values`.
 //!
-//!   **Plus:** `eval_rest` (container-polymorphic; Vec/List/WatAST-form arms)
-//!   and 3 constructors: `eval_vector_ctor`, `eval_hashmap_ctor`, `eval_hashset_ctor`.
+//!   **Plus:** 3 constructors: `eval_vector_ctor`, `eval_hashmap_ctor`, `eval_hashset_ctor`
+//!   (`eval_rest` moved out — see above).
 //!   Import world: `Value`, `Environment`, `SymbolTable`, `RuntimeError`.
 //! - `transform.rs` — the ~14 seq-HOF/utility ops. Most still enforce `Value::Vec` via
 //!   `require_vec` (named `eval_vec_*`). Arc 255 Stone HOME-9 — `zip`/`window`/`remove-at`
@@ -110,10 +113,14 @@
 //!   `PersistentVector`, `List`, or `Stream`, not just `Value::Vec`). The fourth
 //!   `:wat::std::list::*` op, `map-with-index`, is DELETED — `eval_vec_map_with_index` no
 //!   longer exists; `:wat::core::map-indexed` (`wat/seq.wat`) is its non-drop-in replacement.
-//!   `rest` was moved to `eval.rs` (container-polymorphic). Functions:
+//!   `rest` was moved to `eval.rs`, then on to `src/intrinsic/collection.rs` (arc 255 Stone
+//!   P6-c-W6). `reverse`/`range`/`last` moved out of THIS file to the same new home in the
+//!   same stone (see the module doc's header note) — `dispatch_verbs`'s completeness-gate
+//!   scan is scoped to `src/intrinsic/**`, so a handler left here would vanish from its
+//!   population. Remaining functions:
 //!   `eval_vec_map`, `eval_vec_filter`, `eval_vec_foldl`,
-//!   `eval_vec_sort_by`, `eval_vec_reverse`, `eval_vec_range`, `eval_vec_take`,
-//!   `eval_vec_drop`, `eval_vec_last`, `eval_vec_find_last_index`,
+//!   `eval_vec_sort_by`, `eval_vec_take`,
+//!   `eval_vec_drop`, `eval_vec_find_last_index`,
 //!   `eval_seq_zip`, `eval_seq_window`, `eval_seq_remove_at`.
 //!
 //! ## Declaration sites (source markers)
