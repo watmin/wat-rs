@@ -5,50 +5,46 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-29 (LATEST — supersedes every earlier stamp and every dated block below
-it). Written against HEAD `ab82872f5`; the commit carrying this stamp lands on top, so a
-ONE-COMMIT gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/`
-or `tests/` IS staleness, whatever its size.**
+**CURRENT STAMP 2026-08-30 — supersedes every earlier stamp and every dated block below it.
+Written against HEAD `adb420425`; the commit carrying this stamp lands on top, so a ONE-COMMIT gap
+at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/` or `tests/`
+IS staleness, whatever its size.**
 
-**✅✅ EVERY RETE REFUSAL A CALLER CAN ACT ON IS NOW A VALUE. Items 9, 10, 11 CLOSED.**
+**⛔⛔ START HERE. THE INITIATIVE IS: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures
+against.** Correctness is done; the exemplar work is not.
 
-| verb | answers |
+**✅ WHAT IS FINISHED** — every vigilia row (audited, not inherited), the outcome wall (five verbs
+total, no ceiling reaches wat as a raise, a lint keeps it so), the termination verifier reading the
+`where` fence, and BOTH of `partire`'s named cuts:
+
+| | |
 |---|---|
-| `compile`, `compile-all`, `arm-session` | `CompileOutcome` |
-| `insert`, `insert-all` | `InsertOutcome` |
-| `fire-rules`, `fire-once` | `(FireOutcome :- [Session])` |
-| `fire-rules-explain` | `(FireOutcome :- [Explained])` |
+| `expr_ir.rs` 2_458 | → `expr_ir/mod.rs` 1_046 + `expr_ir/eval.rs` 1_413 |
+| `validate.rs` 2_452 | → `mod.rs` 1_494 + `typing.rs` 549 + `error.rs` 448 |
 
-**⛔ THE RULE THIS ARC CONVERGED ON — do not re-derive it for the next verb:**
-> **A bound, ceiling or verdict the caller can ACT ON becomes a matchable value.
-> A malformed program stays a raise.**
+**⛔ AND HERE IS THE MEASUREMENT THAT SAYS WE ARE NOT THERE.** Normalised, `src/rete` is behind its
+siblings on every axis — this is the gap the initiative has to close:
 
-`arm-session`'s `ArityMismatch`/`TypeMismatch` stay raises under exactly that rule: they are bugs
-the checker should have caught, not judgements about the caller's data. `tests/lint/no_ceiling_raise_in_rete.rs`
-makes a new raising door a RED BUILD. Floor 5162/5162.
+| | `src/rete` | `src/process` | `src/channel` |
+|---|---:|---:|---:|
+| lines | 30_256 | 2_928 | 475 |
+| comment | **27%** | 40% | 53% |
+| undocumented fns ≥15 ln | **102 (34%)** | 5 (21%) | 0 |
+| nesting ≥8 | **10** | **0** | 1 |
 
-**★ THE HONEST READ ON "ALL OF WAT IS TOTAL" (builder's stated direction).** Measured across
-`src/rete/`: **136** raises are `TypeMismatch`/`MalformedForm`/`ArityMismatch` — statically
-preventable program bugs, NOT totality candidates. **10 are `IntegerOverflow`/`DivisionByZero` —
-and those ARE the next honest candidates**, data-dependent exactly as the ceilings were: the same
-program on different input either overflows or does not, and the caller can act. Table in
-`DESIGN-STONE-the-session-is-the-boundary.md` § "What still raises".
+**THE NEXT WORK, in the order I would take it:**
+1. **The 102 undocumented functions**, concentrated in files no pass has touched — `session.rs`
+   (holds `pm_to_query_memory` at **nesting 10**, the deepest in rete), `export.rs` (`import_export`
+   194 ln, `unpack_node` 121), `hash_join.rs` (`hash_join_delta` — 326 lines and **no doc**, and I
+   studied its DEPTH this week without ever checking whether it was documented).
+2. **`kernel/tests.rs`** — two wards cast 2026-08-30, verdicts + corrections in
+   `NOTE-tests-rs-two-casts.md`. **Builder ruled: a `mod` with many files, NOT NOW.** Do not
+   re-cast; the note holds both verdicts, the refused cuts, and the one number `partire` got wrong.
+3. **`IntegerOverflow` / `DivisionByZero`** — 10 sites, the next totality candidates toward
+   *"panics are essentially illegal at runtime"*.
 
-**⛔⛔ BEFORE ANY NEW SWEEP — the six classes a `.wat` tree-walk CANNOT see**, and the three defects
-my `.rs` script shipped, are in the design stone. Read them; they cost a day across five strikes:
-1. **Raw strings** — `r#"…"#` needs `"`, normal strings need `\"`, and both occur IN ONE FILE.
-2. **Nested calls** — a linear scan that advances past its own wrapper never visits the inner call.
-   **wat-fix recurses into children and got this right.**
-3. **A wat form SPLIT ACROSS SEVERAL Rust statements** — `(` in one literal, `)` in a later
-   `format!`. A paren-balancer walks out of the string and into Rust. **Only a parser can see it.**
-
-**⚠ AND `ugrep` IS NOT GNU grep.** It ignored `^\./` in one exclusion and `\|` alternation in
-another — twice this session a pattern silently matched less than intended, and once it swept the
-stdlib by mistake. **Use `-E` and verify the file list length.**
-
-**⛔ THIS IS THE STANDING ARGUMENT FOR A RUST-FIX — builder's want, explicitly NOT NOW.** Recorded
-with what would justify it at `RETE-OPEN-WORK.md` § "A rust-fix". Until it exists: read the diff of
-every blanket `.rs` edit.
+⏸ **PARKED ON A BUILDER RULING:** item 7 steps 3–5 (the holon surface); step 5 needs the `:panic`
+call.
 
 **★★ ITEM 11'S CLASS IS DEAD — killed by its own FIFTH occurrence, on this very work.** 36 lines of
 derives moved `runtime.rs`'s `rust_caller_span!` sentinel and reddened five goldens at once. Four
