@@ -12361,7 +12361,7 @@ fn infer_hashset_constructor(
         _ => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashSet".into(),
-                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
+                reason: "first argument must be a `(Head :- [T …])` type form".into(),
                 remedies: vec![],
             } });
             fresh.fresh()
@@ -12502,7 +12502,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
                 "{:?}",
                 CheckErrorKind::MalformedForm {
                     head: ":wat::core::vec".into(),
-                    reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
+                    reason: "first argument must be a `(Head :- [T …])` type form".into(),
                     remedies: vec![],
                 }
             )
@@ -12600,7 +12600,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
                 "{:?}",
                 CheckErrorKind::MalformedForm {
                     head: ":wat::core::HashSet".into(),
-                    reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
+                    reason: "first argument must be a `(Head :- [T …])` type form".into(),
                     remedies: vec![],
                 }
             )
@@ -15002,7 +15002,7 @@ fn infer_list_constructor(
         _ => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::vec".into(),
-                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
+                reason: "first argument must be a `(Head :- [T …])` type form".into(),
                 remedies: vec![],
             } });
             fresh.fresh()

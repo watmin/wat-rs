@@ -241,7 +241,7 @@ pub(crate) fn reckoner_observe(
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @arg     v :wat::holon::Vector the vector to score
 /// @ret     (:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::f64])]) (:wat::core::Option :- [:wat::core::i64]) :wat::core::f64 :wat::core::f64]) `(scores, direction, conviction, raw-cos)`
-/// @example (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role")))
+/// @example (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::Reckoner/predict")]
 pub(crate) fn reckoner_predict(r: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
     let r = require_reckoner(":wat::holon::Reckoner/predict", r, span)?;
@@ -365,7 +365,7 @@ pub(crate) fn reckoner_curve(r: &Value, span: &Span) -> Result<Value, EvalBreak>
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     (:wat::core::Vector :- [:wat::core::i64]) the label indices `r` tracks
-/// @example (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
+/// @example (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/labels")]
 pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak> {
     let r = require_reckoner(":wat::holon::Reckoner/labels", r, span)?;
@@ -387,7 +387,7 @@ pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     :wat::core::i64 the raw vector dimension
-/// @example (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
+/// @example (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/dims")]
 pub(crate) fn reckoner_dims(r: &Value, span: &Span) -> Result<Value, EvalBreak> {
     let r = require_reckoner(":wat::holon::Reckoner/dims", r, span)?;

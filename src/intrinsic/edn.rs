@@ -350,7 +350,7 @@ pub(crate) fn eval_foreign_variant_enum_class_home(
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
 /// @ret     (:wat::core::Vector :- [:wat::core::Value]) `v`'s positional fields, in order
-/// @example (:wat::edn::ForeignVariant/fields (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> (:wat::core::Vector :wat::core::Value 42)
+/// @example (:wat::edn::ForeignVariant/fields (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> (:wat::core::Vector :- [:wat::core::Value] 42)
 /// @see     :wat::edn::ForeignVariant/variant
 #[wat_intrinsic(":wat::edn::ForeignVariant/fields")]
 pub(crate) fn eval_foreign_variant_fields_home(

@@ -33,7 +33,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to average
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population mean of `xs`, or `None` on empty input
-/// @example (:wat::stat::mean (:wat::core::Vector :wat::core::f64 2.0 4.0)) #=> (:wat::core::Some 3.0)
+/// @example (:wat::stat::mean (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0)) #=> (:wat::core::Some 3.0)
 #[wat_intrinsic(":wat::stat::mean")]
 pub(crate) fn eval_stat_mean_intrinsic(
     xs: &WatAST,
@@ -54,7 +54,7 @@ pub(crate) fn eval_stat_mean_intrinsic(
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population variance of `xs`, or `None` on empty input
-/// @example (:wat::stat::variance (:wat::core::Vector :wat::core::f64 2.0 4.0)) #=> (:wat::core::Some 1.0)
+/// @example (:wat::stat::variance (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0)) #=> (:wat::core::Some 1.0)
 #[wat_intrinsic(":wat::stat::variance")]
 pub(crate) fn eval_stat_variance_intrinsic(
     xs: &WatAST,
@@ -74,7 +74,7 @@ pub(crate) fn eval_stat_variance_intrinsic(
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population standard deviation of `xs`, or `None` on empty input
-/// @example (:wat::stat::stddev (:wat::core::Vector :wat::core::f64 2.0 4.0)) #=> (:wat::core::Some 1.0)
+/// @example (:wat::stat::stddev (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0)) #=> (:wat::core::Some 1.0)
 #[wat_intrinsic(":wat::stat::stddev")]
 pub(crate) fn eval_stat_stddev_intrinsic(
     xs: &WatAST,

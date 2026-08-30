@@ -122,7 +122,7 @@ fn render_doc_shows_category_encoding() {
     let s = call_string(":user::render-to-hex");
     assert_eq!(
         s,
-        ":wat::core::Bytes::to-hex\n\nEncode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\nSyntax: (to-hex <bs>)\n\nCategory: Transform\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))  #=> \"ff0010\"\n\nSee also:\n  :wat::core::Bytes::from-hex\n",
+        ":wat::core::Bytes::to-hex\n\nEncode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\nSyntax: (to-hex <bs>)\n\nCategory: Transform\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))  #=> \"ff0010\"\n\nSee also:\n  :wat::core::Bytes::from-hex\n",
         "render-doc for Bytes::to-hex must match golden"
     );
 }

@@ -476,7 +476,7 @@ pub(crate) fn eval_string_subs(
 /// @arg     haystack :wat::core::String the string to split
 /// @arg     sep      :wat::core::String the separator; must not be empty
 /// @ret     (:wat::core::Vector :- [:wat::core::String]) the pieces of `haystack` between occurrences of `sep`
-/// @example (:wat::string::split "a,b,c" ",") #=> (:wat::core::Vector :wat::core::String "a" "b" "c")
+/// @example (:wat::string::split "a,b,c" ",") #=> (:wat::core::Vector :- [:wat::core::String] "a" "b" "c")
 /// @see     :wat::string::join
 #[wat_intrinsic(":wat::string::split")]
 pub(crate) fn eval_string_split(
@@ -521,7 +521,7 @@ pub(crate) fn eval_string_split(
 /// @arg     sep    :wat::core::String the separator
 /// @arg     pieces (:wat::core::Seqable :- [T]) the elements to render and join
 /// @ret     :wat::core::String every element of `pieces`, rendered and joined by `sep`
-/// @example (:wat::string::join "-" (:wat::core::Vector :wat::core::String "a" "b")) #=> "a-b"
+/// @example (:wat::string::join "-" (:wat::core::Vector :- [:wat::core::String] "a" "b")) #=> "a-b"
 /// @see     :wat::string::split
 #[wat_intrinsic(":wat::string::join")]
 pub(crate) fn eval_string_join(

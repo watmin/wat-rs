@@ -121,7 +121,7 @@ pub(crate) fn eval_ast_to_source_home(
 /// @Category      Transform
 /// @arg     ast :wat::WatAST the node decomposed
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) `ast`'s children, in order (empty for a leaf)
-/// @example (:wat::core::ast->children (:wat::core::symbol-node "foo")) #=> (:wat::core::Vector :wat::WatAST)
+/// @example (:wat::core::ast->children (:wat::core::symbol-node "foo")) #=> (:wat::core::Vector :- [:wat::WatAST])
 /// @see     :wat::core::ast->source
 /// @see     :wat::core::ast-kind
 #[wat_intrinsic(":wat::core::ast->children")]

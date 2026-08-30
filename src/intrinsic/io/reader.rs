@@ -102,7 +102,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Category      Transform
 /// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes the reader will yield back, in order
 /// @ret     :wat::io::IOReader a fresh in-memory reader over `bytes`
-/// @example (:wat::io::IOReader/read-all-string (:wat::io::IOReader/from-bytes (:wat::core::Vector :wat::core::u8 (:wat::core::u8 104) (:wat::core::u8 105)))) #=> "hi"
+/// @example (:wat::io::IOReader/read-all-string (:wat::io::IOReader/from-bytes (:wat::core::Vector :- [:wat::core::u8] (:wat::core::u8 104) (:wat::core::u8 105)))) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15729` — gate LIVE.
 //
 // Deciding line for `@Category Transform`: `src/io.rs:875`

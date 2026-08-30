@@ -697,7 +697,7 @@ pub(crate) fn eval_to_holon_record(
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
-/// @example (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))) #=> (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))
+/// @example (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))) #=> (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Map")]
 pub(crate) fn eval_algebra_map(
@@ -745,7 +745,7 @@ pub(crate) fn eval_algebra_map(
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
-/// @example (:wat::holon::Set (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::Set (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
+/// @example (:wat::holon::Set (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::Set (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Set")]
 pub(crate) fn eval_algebra_set(
@@ -793,7 +793,7 @@ pub(crate) fn eval_algebra_set(
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
-/// @example (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
+/// @example (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Vector")]
 pub(crate) fn eval_algebra_vector(
@@ -845,7 +845,7 @@ pub(crate) fn eval_algebra_vector(
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
-/// @example (:wat::holon::List (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::List (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
+/// @example (:wat::holon::List (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::List (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::List")]
 pub(crate) fn eval_algebra_list(
@@ -893,7 +893,7 @@ pub(crate) fn eval_algebra_list(
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
-/// @example (:wat::holon::Tuple (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::Tuple (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
+/// @example (:wat::holon::Tuple (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::Tuple (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Tuple")]
 pub(crate) fn eval_algebra_tuple(
@@ -994,7 +994,7 @@ pub(crate) fn eval_algebra_bind(
 /// @Category      Combine
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs bundled, alone
 /// @ret     (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded]) `Ok` the Bundle composition, or `Err` a `CapacityExceeded`
-/// @example (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
+/// @example (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::Bundle")]
 pub(crate) fn eval_algebra_bundle(
     items: &WatAST,
@@ -1200,7 +1200,7 @@ pub(crate) fn algebra_blend(
 /// @Category      Projection
 /// @arg     x :wat::holon::HolonAST the HolonAST or Record probed, alone
 /// @ret     (:wat::core::Option :- [:wat::core::String]) the classifier name — a bare `String` (Record) or an `Option` (HolonAST)
-/// @example (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))) #=> (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))))
+/// @example (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))) #=> (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))))
 #[wat_intrinsic(":wat::holon::extract-classifier")]
 pub(crate) fn eval_extract_classifier(
     x: &WatAST,
@@ -1323,7 +1323,7 @@ pub(crate) fn eval_bind_right(
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [:wat::holon::HolonAST]) `h`'s children, in order
-/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))))
+/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))))
 /// @see     :wat::holon::Bundle/first
 #[wat_intrinsic(":wat::holon::Bundle/children")]
 pub(crate) fn eval_bundle_children(
@@ -1367,7 +1367,7 @@ pub(crate) fn eval_bundle_children(
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     :wat::holon::HolonAST `h`'s first child
-/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))))
+/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))))
 /// @see     :wat::holon::Bundle/children
 #[wat_intrinsic(":wat::holon::Bundle/first")]
 pub(crate) fn eval_bundle_first(
@@ -1417,7 +1417,7 @@ pub(crate) fn eval_bundle_first(
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Map`-classified HolonAST
-/// @example (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))) #=> (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))))
+/// @example (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))) #=> (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Map?")]
 pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
@@ -2686,7 +2686,7 @@ pub(crate) fn holon_vector_bind(a: &Value, b: &Value) -> Result<Value, EvalBreak
 /// @Category      Combine
 /// @arg     vs (:wat::core::Vector :- [:wat::holon::Vector]) the `:wat::core::Vector` of raw vectors bundled, alone
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
-/// @example (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")))) #=> (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))))
+/// @example (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")))) #=> (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))))
 #[wat_intrinsic(":wat::holon::vector-bundle")]
 pub(crate) fn eval_holon_vector_bundle(
     vs: &WatAST,

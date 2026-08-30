@@ -1221,7 +1221,7 @@ pub(crate) fn eval_vector_ctor(
         _ => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::Vector".into(),
-                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+                reason: "first argument must be a `(Head :- [T …])` type form".into()
             }).into());
         }
     }
@@ -1335,7 +1335,7 @@ pub(crate) fn eval_hashset_ctor(
         _ => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::HashSet".into(),
-                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+                reason: "first argument must be a `(Head :- [T …])` type form".into()
             }).into());
         }
     }
@@ -1631,7 +1631,7 @@ mod arc109_two_iii_ctor_guard_widening {
                     "{:?}",
                     RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::Vector".into(),
-                        reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+                        reason: "first argument must be a `(Head :- [T …])` type form".into()
                     }
                 )
             ),
@@ -1652,7 +1652,7 @@ mod arc109_two_iii_ctor_guard_widening {
                     "{:?}",
                     RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::HashSet".into(),
-                        reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+                        reason: "first argument must be a `(Head :- [T …])` type form".into()
                     }
                 )
             ),

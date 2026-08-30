@@ -39,7 +39,7 @@ use crate::value::{
 /// @Category      Transform
 /// @arg     bs :wat::core::Bytes the bytes to encode
 /// @ret     :wat::core::String the lowercase hex string, two chars per byte, no separators
-/// @example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> "ff0010"
+/// @example (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> "ff0010"
 /// @see     :wat::core::Bytes::from-hex
 #[wat_intrinsic(":wat::core::Bytes::to-hex")]
 pub(crate) fn eval_bytes_to_hex(
