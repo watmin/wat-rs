@@ -153,24 +153,24 @@ fn accum_alpha_leftover_split() {
         d_alpha.clear();
     };
 
-    let mut wp = 0.0;
-    let mut w = 0.0;
-    let mut c = 0.0;
-    let mut t = 0.0;
-    let mut m = 0.0;
-    let mut a = 0.0;
+    let mut wp = f64::INFINITY;
+    let mut w = f64::INFINITY;
+    let mut c = f64::INFINITY;
+    let mut t = f64::INFINITY;
+    let mut m = f64::INFINITY;
+    let mut a = f64::INFINITY;
     for _ in 0..RUNS {
-        wp += elapsed_ns(|| {
+        wp = wp.min(elapsed_ns(|| {
             for f in input_pv.iter() {
                 black_box(f);
             }
-        });
-        w += elapsed_ns(|| {
+        }));
+        w = w.min(elapsed_ns(|| {
             for f in &facts {
                 black_box(f);
             }
-        });
-        c += elapsed_ns(|| {
+        }));
+        c = c.min(elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -179,8 +179,8 @@ fn accum_alpha_leftover_split() {
                     _ => {}
                 }
             }
-        });
-        t += elapsed_ns(|| {
+        }));
+        t = t.min(elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -192,8 +192,8 @@ fn accum_alpha_leftover_split() {
                     _ => {}
                 }
             }
-        });
-        m += elapsed_ns(|| {
+        }));
+        m = m.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm, &mut FxHashMap::default());
             for f in &facts {
@@ -217,8 +217,8 @@ fn accum_alpha_leftover_split() {
                     ));
                 }
             }
-        });
-        a += elapsed_ns(|| {
+        }));
+        a = a.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut cand = Vec::new();
             let mut d_alpha: AlphaDelta = FxHashMap::default();
@@ -250,17 +250,11 @@ fn accum_alpha_leftover_split() {
                 .expect("isolated activate");
                 black_box(d_alpha.len());
             }
-        });
+        }));
     }
-    wp /= r;
-    w /= r;
-    c /= r;
-    t /= r;
-    m /= r;
-    a /= r;
 
     let table = format!(
-        "\naccum alpha leftover split — [200 200], mean of {RUNS}\n\
+        "\naccum alpha leftover split — [200 200], MINIMUM of {RUNS}\n\
              in-fire (2 pairs, not per fact)\n\
              FIRE                       {:>7.2} ms\n\
              alpha                      {:>7.2} ms\n\
@@ -401,20 +395,20 @@ fn accum_alpha_seed_after_fold_split() {
         cond_key_ids
     };
 
-    let mut p = 0.0;
-    let mut s = 0.0;
-    let mut x = 0.0;
-    let mut k = 0.0;
-    let mut e = 0.0;
-    let mut n = 0.0;
-    let mut a = 0.0;
+    let mut p = f64::INFINITY;
+    let mut s = f64::INFINITY;
+    let mut x = f64::INFINITY;
+    let mut k = f64::INFINITY;
+    let mut e = f64::INFINITY;
+    let mut n = f64::INFINITY;
+    let mut a = f64::INFINITY;
     for _ in 0..RUNS {
-        p += elapsed_ns(|| {
+        p = p.min(elapsed_ns(|| {
             for f in input_pv.iter() {
                 black_box(f);
             }
-        });
-        s += elapsed_ns(|| {
+        }));
+        s = s.min(elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -423,8 +417,8 @@ fn accum_alpha_seed_after_fold_split() {
                 black_box(f);
             }
             black_box(seen_ids.len() + seen_rest.len());
-        });
-        x += elapsed_ns(|| {
+        }));
+        x = x.min(elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -438,8 +432,8 @@ fn accum_alpha_seed_after_fold_split() {
                 }
             }
             black_box(seen_ids.len());
-        });
-        k += elapsed_ns(|| {
+        }));
+        k = k.min(elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -458,11 +452,11 @@ fn accum_alpha_seed_after_fold_split() {
                     _ => {}
                 }
             }
-        });
+        }));
         let mut d_alpha_e: AlphaDelta = FxHashMap::default();
         reset(&mut wm, &mut d_alpha_e);
         let _cond_key_ids_e = intern_keys(&mut wm);
-        e += elapsed_ns(|| {
+        e = e.min(elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -490,11 +484,11 @@ fn accum_alpha_seed_after_fold_split() {
                     ));
                 }
             }
-        });
+        }));
         let mut d_alpha_n: AlphaDelta = FxHashMap::default();
         reset(&mut wm, &mut d_alpha_n);
         let cond_key_ids_n = intern_keys(&mut wm);
-        n += elapsed_ns(|| {
+        n = n.min(elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -531,7 +525,7 @@ fn accum_alpha_seed_after_fold_split() {
                 }
             }
             black_box(d_alpha_n.len());
-        });
+        }));
         let mut d_alpha_a: AlphaDelta = FxHashMap::default();
         reset(&mut wm, &mut d_alpha_a);
         let cond_key_ids_a = intern_keys(&mut wm);
@@ -541,7 +535,7 @@ fn accum_alpha_seed_after_fold_split() {
                 bind_only.insert(id, fields);
             }
         }
-        a += elapsed_ns(|| {
+        a = a.min(elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -567,18 +561,11 @@ fn accum_alpha_seed_after_fold_split() {
                 .expect("isolated activate");
             }
             black_box(d_alpha_a.len());
-        });
+        }));
     }
-    p /= r;
-    s /= r;
-    x /= r;
-    k /= r;
-    e /= r;
-    n /= r;
-    a /= r;
 
     let table = format!(
-        "\naccum alpha:seed after fold — [200 200], mean of {RUNS}, {n_facts} facts\n\
+        "\naccum alpha:seed after fold — [200 200], MINIMUM of {RUNS}, {n_facts} facts\n\
              in-fire\n\
              FIRE                       {:>7.2} ms\n\
              alpha:seed                 {:>7.2} ms\n\
@@ -665,12 +652,12 @@ fn accum_alpha_tree_walk_split() {
         facts.len()
     );
 
-    let mut e = 0.0;
-    let mut g = 0.0;
-    let mut i = 0.0;
-    let mut t = 0.0;
+    let mut e = f64::INFINITY;
+    let mut g = f64::INFINITY;
+    let mut i = f64::INFINITY;
+    let mut t = f64::INFINITY;
     for _ in 0..RUNS {
-        e += elapsed_ns(|| {
+        e = e.min(elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -679,8 +666,8 @@ fn accum_alpha_tree_walk_split() {
                     _ => {}
                 }
             }
-        });
-        g += elapsed_ns(|| {
+        }));
+        g = g.min(elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -692,8 +679,8 @@ fn accum_alpha_tree_walk_split() {
                     _ => {}
                 }
             }
-        });
-        i += elapsed_ns(|| {
+        }));
+        i = i.min(elapsed_ns(|| {
             let mut buf = Vec::new();
             for f in &facts {
                 match f {
@@ -708,8 +695,8 @@ fn accum_alpha_tree_walk_split() {
                     _ => {}
                 }
             }
-        });
-        t += elapsed_ns(|| {
+        }));
+        t = t.min(elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -721,16 +708,11 @@ fn accum_alpha_tree_walk_split() {
                     _ => {}
                 }
             }
-        });
+        }));
     }
-    let r = RUNS as f64;
-    e /= r;
-    g /= r;
-    i /= r;
-    t /= r;
 
     let table = format!(
-        "\naccum alpha-tree walk split — 40,200 facts, mean of {RUNS}\n\
+        "\naccum alpha-tree walk split — 40,200 facts, MINIMUM of {RUNS}\n\
              \n\
              E   class extract              {:>7.2} ms\n\
              G   + has_class                {:>7.2} ms\n\
@@ -821,36 +803,32 @@ fn accum_alpha_class_lookup_split() {
         lin.push((u.clone(), i as u8));
     }
 
-    let mut s = 0.0;
-    let mut f = 0.0;
-    let mut l = 0.0;
+    let mut s = f64::INFINITY;
+    let mut f = f64::INFINITY;
+    let mut l = f64::INFINITY;
     for _ in 0..RUNS {
-        s += elapsed_ns(|| {
+        s = s.min(elapsed_ns(|| {
             for c in &classes {
                 black_box(std_map.get(c.as_ref()));
             }
-        });
-        f += elapsed_ns(|| {
+        }));
+        f = f.min(elapsed_ns(|| {
             for c in &classes {
                 black_box(fx_map.get(c.as_ref()));
             }
-        });
-        l += elapsed_ns(|| {
+        }));
+        l = l.min(elapsed_ns(|| {
             for c in &classes {
                 let cs = c.as_ref();
                 black_box(lin.iter().find(|(k, _)| k == cs).map(|(_, v)| v));
             }
-        });
+        }));
     }
-    let r = RUNS as f64;
-    s /= r;
-    f /= r;
-    l /= r;
     let best = f.min(l);
     let winner = if l <= f { "L" } else { "F" };
 
     let table = format!(
-        "\naccum alpha class-lookup split — {} facts, {n_types} types, mean of {RUNS}\n\
+        "\naccum alpha class-lookup split — {} facts, {n_types} types, MINIMUM of {RUNS}\n\
              types: {unique:?}\n\
              \n\
              S  std HashMap (engine)        {:>7.2} ms\n\
@@ -923,13 +901,13 @@ fn accum_alpha_push_split() {
         d_alpha.clear();
     };
 
-    let mut m = 0.0;
-    let mut h = 0.0;
-    let mut v = 0.0;
-    let mut d = 0.0;
-    let mut a = 0.0;
+    let mut m = f64::INFINITY;
+    let mut h = f64::INFINITY;
+    let mut v = f64::INFINITY;
+    let mut d = f64::INFINITY;
+    let mut a = f64::INFINITY;
     for _ in 0..RUNS {
-        m += elapsed_ns(|| {
+        m = m.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm, &mut FxHashMap::default());
             for f in &facts {
@@ -953,8 +931,8 @@ fn accum_alpha_push_split() {
                     ));
                 }
             }
-        });
-        h += elapsed_ns(|| {
+        }));
+        h = h.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut d_alpha: AlphaDelta = FxHashMap::default();
             reset(&mut wm, &mut d_alpha);
@@ -983,8 +961,8 @@ fn accum_alpha_push_split() {
                     }
                 }
             }
-        });
-        v += elapsed_ns(|| {
+        }));
+        v = v.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut d_alpha: AlphaDelta = FxHashMap::default();
             reset(&mut wm, &mut d_alpha);
@@ -1012,8 +990,8 @@ fn accum_alpha_push_split() {
                     }
                 }
             }
-        });
-        d += elapsed_ns(|| {
+        }));
+        d = d.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut d_alpha: AlphaDelta = FxHashMap::default();
             reset(&mut wm, &mut d_alpha);
@@ -1046,8 +1024,8 @@ fn accum_alpha_push_split() {
                     }
                 }
             }
-        });
-        a += elapsed_ns(|| {
+        }));
+        a = a.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut cand = Vec::new();
             let mut d_alpha: AlphaDelta = FxHashMap::default();
@@ -1079,17 +1057,11 @@ fn accum_alpha_push_split() {
                 .expect("isolated activate");
                 black_box(d_alpha.len());
             }
-        });
+        }));
     }
-    let r = RUNS as f64;
-    m /= r;
-    h /= r;
-    v /= r;
-    d /= r;
-    a /= r;
 
     let table = format!(
-        "\naccum alpha push split — 40,200 facts, mean of {RUNS}\n\
+        "\naccum alpha push split — 40,200 facts, MINIMUM of {RUNS}\n\
              \n\
              M   exec_compiled              {:>7.2} ms\n\
              H   + alpha.entry              {:>7.2} ms\n\

@@ -264,51 +264,40 @@ fn cascade_query_harvest_split() {
     };
 
     let mut without = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        setup: 0.0,
-        round: 0.0,
-        harvest: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        setup: f64::INFINITY,
+        round: f64::INFINITY,
+        harvest: f64::INFINITY,
         query_maps: 0,
     };
     let mut with = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        setup: 0.0,
-        round: 0.0,
-        harvest: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        setup: f64::INFINITY,
+        round: f64::INFINITY,
+        harvest: f64::INFINITY,
         query_maps: 0,
     };
     for _ in 0..RUNS {
         let a = shot(false);
         let b = shot(true);
-        without.wall += a.wall;
-        without.fire += a.fire;
-        without.setup += a.setup;
-        without.round += a.round;
-        without.harvest += a.harvest;
+        without.wall = without.wall.min(a.wall);
+        without.fire = without.fire.min(a.fire);
+        without.setup = without.setup.min(a.setup);
+        without.round = without.round.min(a.round);
+        without.harvest = without.harvest.min(a.harvest);
         without.query_maps = a.query_maps;
-        with.wall += b.wall;
-        with.fire += b.fire;
-        with.setup += b.setup;
-        with.round += b.round;
-        with.harvest += b.harvest;
+        with.wall = with.wall.min(b.wall);
+        with.fire = with.fire.min(b.fire);
+        with.setup = with.setup.min(b.setup);
+        with.round = with.round.min(b.round);
+        with.harvest = with.harvest.min(b.harvest);
         with.query_maps = b.query_maps;
     }
-    let r = RUNS as f64;
-    without.wall /= r;
-    without.fire /= r;
-    without.setup /= r;
-    without.round /= r;
-    without.harvest /= r;
-    with.wall /= r;
-    with.fire /= r;
-    with.setup /= r;
-    with.round /= r;
-    with.harvest /= r;
 
     println!(
-        "\ncascade query harvest split — [50 100], mean of {RUNS}\n\
+        "\ncascade query harvest split — [50 100], MINIMUM of {RUNS}\n\
              \n\
              without queries       wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  harvest {:>7.2}  maps {}\n\
              with    q-Node q-Tag  wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  harvest {:>7.2}  maps {}\n\
@@ -386,7 +375,7 @@ fn cascade_setup_leftover_split() {
     arm_raw /= r;
     let remainder_raw = setup_raw - seen_raw - arm_raw;
     let table = format!(
-        "\ncascade SETUP leftover split — [50 100], mean of {RUNS}\n\
+        "\ncascade SETUP leftover split — [50 100], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              \n\
              SETUP                     {:>7.2} ms raw  {:>6}x\n\

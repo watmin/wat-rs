@@ -145,7 +145,7 @@ fn fold_cost_with_and_without_the_binding_lookup() {
     );
 
     println!(
-            "\nfold cost, {elements} elements gathered, mean of {RUNS}\n                 count (NO per-element lookup)  {:>7.2} ms\n                 sum   (ONE lookup per element) {:>7.2} ms\n                 delta = the lookup             {:>7.2} ms   ({:.0} ns/element)\n",
+            "\nfold cost, {elements} elements gathered, MINIMUM of {RUNS}\n                 count (NO per-element lookup)  {:>7.2} ms\n                 sum   (ONE lookup per element) {:>7.2} ms\n                 delta = the lookup             {:>7.2} ms   ({:.0} ns/element)\n",
             c / 1e6, s / 1e6, (s - c) / 1e6, (s - c) / elements as f64
         );
     // (b) + keyed gather left rematch in the fold mark. After the fold stone,
@@ -219,15 +219,14 @@ fn alpha_match_cost_per_binding() {
     const RUNS: usize = 3;
     let n = 40_000i64;
 
-    let mut a1 = 0u64;
-    let mut a2 = 0u64;
+    let mut a1 = u64::MAX;
+    let mut a2 = u64::MAX;
     for _ in 0..RUNS {
-        a1 += bind_world_alpha_ns(ONE, n);
-        a2 += bind_world_alpha_ns(TWO, n);
+        a1 = a1.min(bind_world_alpha_ns(ONE, n));
+        a2 = a2.min(bind_world_alpha_ns(TWO, n));
     }
-    let r = RUNS as f64;
-    let a1 = a1 as f64 / r;
-    let a2 = a2 as f64 / r;
+    let a1 = a1 as f64;
+    let a2 = a2 as f64;
     assert!(
         a1 > 0.0 && a2 > 0.0,
         "alpha recorded nothing — the instrument never fired"
@@ -247,7 +246,7 @@ fn alpha_match_cost_per_binding() {
     // instrument-validity strike, not to this one.
 
     println!(
-            "\nalpha cost per BINDING — {n} facts, mean of {RUNS}\n                 1 bind : alpha {:>7.2} ms\n                 2 binds: alpha {:>7.2} ms\n                 delta  : alpha {:>7.2} ms ({:>4.0} ns/fact)\n",
+            "\nalpha cost per BINDING — {n} facts, MINIMUM of {RUNS}\n                 1 bind : alpha {:>7.2} ms\n                 2 binds: alpha {:>7.2} ms\n                 delta  : alpha {:>7.2} ms ({:>4.0} ns/fact)\n",
             a1 / 1e6,
             a2 / 1e6,
             (a2 - a1) / 1e6,
@@ -381,7 +380,7 @@ fn cell_rank_after_fanout() {
     share.0 /= r;
     share.2 /= r;
     let table = format!(
-        "\ncell rank after fanout — mean of {RUNS}\n\
+        "\ncell rank after fanout — MINIMUM of {RUNS}\n\
              FIRE is IN+SETUP+ROUND+OUT; top-row is the largest named child\n\
              \n\
              cell                 FIRE      top-row\n\
@@ -471,7 +470,7 @@ fn cell_rank_after_grid() {
     accum.0 /= r;
     accum.2 /= r;
     let table = format!(
-        "\ncell rank after grid — mean of {RUNS}\n\
+        "\ncell rank after grid — MINIMUM of {RUNS}\n\
              FIRE is IN+SETUP+ROUND+OUT; top-row is the largest named child\n\
              08-20 closest rungs: fanout [40000], deep-cascade [50 100], accum [200 200]\n\
              \n\
@@ -582,7 +581,7 @@ fn honest_cell_rank_after_arm() {
     accum.2 /= r;
     accum.3 /= r;
     let table = format!(
-        "\nhonest cell rank after arm — mean of {RUNS}\n\
+        "\nhonest cell rank after arm — MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              FIRE is IN+SETUP+ROUND+OUT; honest_FIRE strips production remainder+tax (2p)\n\
              \n\

@@ -85,39 +85,32 @@ fn strat_neg_query_harvest_split() {
     };
 
     let mut without = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        harvest: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        harvest: f64::INFINITY,
         query_maps: 0,
     };
     let mut with = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        harvest: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        harvest: f64::INFINITY,
         query_maps: 0,
     };
     for _ in 0..RUNS {
         let a = shot(false);
         let b = shot(true);
-        without.wall += a.wall;
-        without.fire += a.fire;
-        without.harvest += a.harvest;
+        without.wall = without.wall.min(a.wall);
+        without.fire = without.fire.min(a.fire);
+        without.harvest = without.harvest.min(a.harvest);
         without.query_maps = a.query_maps;
-        with.wall += b.wall;
-        with.fire += b.fire;
-        with.harvest += b.harvest;
+        with.wall = with.wall.min(b.wall);
+        with.fire = with.fire.min(b.fire);
+        with.harvest = with.harvest.min(b.harvest);
         with.query_maps = b.query_maps;
     }
-    let r = RUNS as f64;
-    without.wall /= r;
-    without.fire /= r;
-    without.harvest /= r;
-    with.wall /= r;
-    with.fire /= r;
-    with.harvest /= r;
 
     println!(
-        "\nstrat-neg query harvest split — [6 2000], mean of {RUNS}\n\
+        "\nstrat-neg query harvest split — [6 2000], MINIMUM of {RUNS}\n\
              \n\
              without queries       wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
              with    ten q-S*      wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
@@ -233,7 +226,7 @@ fn strat_merge_present_parts() {
     let (a, b) = (a / r, b / r);
 
     let table = format!(
-        "\nstrat merge present — [{STRATA} {ITEMS}], mean of {RUNS}\n\
+        "\nstrat merge present — [{STRATA} {ITEMS}], MINIMUM of {RUNS}\n\
          \n\
          seed {} facts, derived {} across {STRATA} strata, closure {}\n\
          hashes  REBUILD {rebuild_hashes}   CARRIED {carried_hashes}   wasted {}\n\
@@ -335,7 +328,7 @@ fn strat_acc_derived_clone_parts() {
     let total = STRATA * PER_STRATUM as usize;
 
     let table = format!(
-        "\nstrat acc_derived clones — {STRATA} strata x {PER_STRATUM}, mean of {RUNS}\n\
+        "\nstrat acc_derived clones — {STRATA} strata x {PER_STRATUM}, MINIMUM of {RUNS}\n\
          \n\
          {total} derived facts; A does {} clones, B does {}\n\
          \n\
@@ -439,7 +432,7 @@ fn strat_neg_stratum_split() {
     }
 
     let table = format!(
-        "\nstrat-neg stratum split — [{STRATA} {ITEMS}], no query, mean of {RUNS}\n\
+        "\nstrat-neg stratum split — [{STRATA} {ITEMS}], no query, MINIMUM of {RUNS}\n\
          instrument: {cal:.1} ns per mark pair\n\
          \n\
          wall                   {:>8.3} ms\n\
@@ -606,7 +599,7 @@ fn strat_merge_cow_parts() {
     let (a, b) = (a / r, b / r);
 
     let table = format!(
-        "\nstrat merge copy-on-write — [{STRATA} {SEED}], mean of {RUNS}\n\
+        "\nstrat merge copy-on-write — [{STRATA} {SEED}], MINIMUM of {RUNS}\n\
          \n\
          closure {} -> {}; the SHARED path deep-copies {copied} Values total\n\
          \n\
