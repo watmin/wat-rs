@@ -153,17 +153,18 @@
   :Put [k <- :wat::core::i64  v <- :wat::core::i64]
   :Del [k <- :wat::core::i64])
 
-;; a variant constructor is a CALL FORM, so a one-line wrapper makes it a function value
-(:wat::core::defn :wat-tests::pat::mk-put [k <- :wat::core::i64  v <- :wat::core::i64]
-  -> :wat-tests::pat::Cmd (:wat-tests::pat::Cmd::Put k v))
-(:wat::core::defn :wat-tests::pat::mk-del [k <- :wat::core::i64]
-  -> :wat-tests::pat::Cmd (:wat-tests::pat::Cmd::Del k))
-
+;; ⚠ CORRECTION (2026-08-29). This comment previously claimed a variant constructor
+;; is a CALL FORM, so a one-line wrapper is needed to make it a function value.
+;; Measured false: `:Cmd::Put` and `:Cmd::Del` pass directly to `lift2` / `fmap`.
+;; The wrappers `mk-put` / `mk-del` were deleted. The same fact was already
+;; recorded in `wat/gen.wat` (CORRECTION 2026-08-25): a type's constructor IS a
+;; first-class function value, including variants.
+;;
 ;; 4 keys x 3 values = 12 Puts, + 4 Dels = 16 commands; sequences of 0..2 => 273 programs
 (:wat::core::defn :wat-tests::pat::gen-cmd [] -> (:wat::gen::Gen :- [:wat-tests::pat::Cmd])
   (:wat::gen::one-of (:wat::core::PersistentVector
-    (:wat::gen::lift2 :wat-tests::pat::mk-put (:wat::gen::ints 0 4) (:wat::gen::ints 0 3))
-    (:wat::gen::fmap  :wat-tests::pat::mk-del (:wat::gen::ints 0 4)))))
+    (:wat::gen::lift2 :wat-tests::pat::Cmd::Put (:wat::gen::ints 0 4) (:wat::gen::ints 0 3))
+    (:wat::gen::fmap  :wat-tests::pat::Cmd::Del (:wat::gen::ints 0 4)))))
 
 ;; THE REAL THING — fold the program over a PersistentMap
 (:wat::core::defn :wat-tests::pat::run-real

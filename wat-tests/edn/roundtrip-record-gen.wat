@@ -91,16 +91,9 @@
   [o <- :wat-tests::edn-record-gen::Outer] -> :wat::core::bool
   (:wat::core::= (:wat::edn::read (:wat::edn::write o)) o))
 
-;; ── variant constructors are CALL FORMS, so wrappers make them function values ───────────
-;; Copied from `wat-tests/gen-patterns.wat` (P3). The enum probe used inline `fn`
-;; for the same reason. `lift2` / `fmap` take a function value, not a call form.
-(:wat::core::defn :wat-tests::edn-record-gen::mk-line
-  [n <- :wat::core::i64] -> :wat-tests::edn-record-gen::Shape
-  (:wat-tests::edn-record-gen::Shape::Line n))
-
-(:wat::core::defn :wat-tests::edn-record-gen::mk-rect
-  [w <- :wat::core::i64  h <- :wat::core::i64] -> :wat-tests::edn-record-gen::Shape
-  (:wat-tests::edn-record-gen::Shape::Rect w h))
+;; ⚠ CORRECTION (2026-08-29). Strike 2 copied gen-patterns.wat's claim that
+;; variant constructors are CALL FORMS needing wrappers for `fmap` / `lift2`.
+;; Measured false: the constructors pass directly. `mk-line` / `mk-rect` deleted.
 
 ;; ── the generators ───────────────────────────────────────────────────────────────────────
 ;;
@@ -132,8 +125,8 @@
   (:wat::gen::one-of (:wat::core::PersistentVector
     (:wat::gen::elements
       (:wat::core::PersistentVector (:wat-tests::edn-record-gen::Shape::Dot)))
-    (:wat::gen::fmap :wat-tests::edn-record-gen::mk-line (:wat::gen::ints 0 3))
-    (:wat::gen::lift2 :wat-tests::edn-record-gen::mk-rect
+    (:wat::gen::fmap :wat-tests::edn-record-gen::Shape::Line (:wat::gen::ints 0 3))
+    (:wat::gen::lift2 :wat-tests::edn-record-gen::Shape::Rect
                       (:wat::gen::ints 0 3)
                       (:wat::gen::ints 0 3)))))
 
