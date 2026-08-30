@@ -542,6 +542,12 @@ mod ast;
 mod bigint;
 mod bytes;
 mod char;
+// Arc 255 Stone P6-c-W6 — the first wave into `:wat::core::`, and the first to hit the
+// dispatch_verbs blind spot: a handler homed outside `src/intrinsic/` vanishes from
+// `rete::purity::completeness_gate`'s population entirely (that scan's `#[wat_intrinsic]`
+// half is scoped to this directory). `length`/`empty?`/`nth`/`last`/`rest`/`reverse`/`range`
+// moved here (out of `runtime.rs` and `src/collection/{eval,transform}.rs`) for that reason.
+mod collection;
 // Arc 255 Stone P6-c-W1 — the campaign's first wave. Four nullary `:wat::config::` readers,
 // moved verbatim out of `runtime.rs`'s giant match with their real (0) arity declared.
 mod config;
@@ -691,6 +697,18 @@ mod tests {
         ":wat::core::fresh-symbol",
         ":wat::core::if",
         ":wat::core::let",
+        // Arc 255 Stone P6-c-W6 — `nth`/`reverse` are checked for real (the hand-written
+        // `check_call` arms `infer_nth`/`infer_reverse`), but NEITHER carries an
+        // `env.register()` TypeScheme: `nth` never had one (custom arm from birth, stone
+        // 118.B4-0), and `reverse`'s was explicitly RETIRED (arc-278-0d comment, check.rs)
+        // when `infer_reverse` superseded it. `checker_skip_debt_is_named_and_frozen`'s
+        // criterion is exactly `check_env.get().is_none()` — "no TypeScheme", not "unchecked"
+        // (W4's correction) — so homing either as a `#[wat_intrinsic]` makes it newly
+        // measured with nothing to compare its doc `@arg`/`@ret` against. `check.rs` stays
+        // untouched (STOP-4); the ledger grows by two, honestly, the same shape W4 used for
+        // `field-names-of`/`field-types-of`/`metadata-of`.
+        ":wat::core::nth",
+        ":wat::core::reverse",
         ":wat::core::type-equal?",
         ":wat::core::type-params-used-in",
         ":wat::edn::validate",

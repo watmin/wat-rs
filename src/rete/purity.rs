@@ -591,6 +591,26 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // like `first`/`second`/`third`, it raises on out-of-range (verified `eval_nth`,
             // runtime.rs) — a genuinely partial function, exactly the reason this axis exists.
             | ":wat::core::nth"
+            // Arc 255 Stone P6-c-W6 — `last`/`rest`/`reverse`/`range` homed to
+            // `#[wat_intrinsic]` (`src/intrinsic/collection.rs`), same shape as `nth`
+            // immediately above: `intrinsic_meta` only judges DISPATCHED verbs, and these four
+            // sat in `KNOWN_UNREVIEWED` until this stone gave them a real ruling instead of a
+            // parked line. Each reads an already-evaluated receiver (`last`/`rest`/`reverse`)
+            // or two already-evaluated i64s (`range`) through a `StreamContainer` capability
+            // gate (`has_tail()`/`ordered()`) or `require_vec`/`require_i64` — no `eval_inner`/
+            // `apply_function` on caller-supplied code, no thunk ever forced (Stone 118.B4-iii
+            // — THE WALL — already set every relevant gate `false` for `Stream`). Pure ∧
+            // deterministic, all four. `rest` is NOT added to the `total` list below: it raises
+            // `MalformedForm` on an empty receiver (verified `eval_rest`,
+            // `intrinsic/collection.rs`) — genuinely partial, same axis `nth` is excluded for.
+            // `last`/`reverse`/`range` ARE added there: `last` always returns `Option` (never
+            // raises), `reverse` always returns a same-kind collection for any accepted
+            // receiver, and `range` always returns a `Vector` (empty when `start >= end`) for
+            // any two i64s — none has a domain hole.
+            | ":wat::core::last"
+            | ":wat::core::rest"
+            | ":wat::core::reverse"
+            | ":wat::core::range"
             // Stone 118.B5 — `stream->vec`/`stream->pvec` promoted from wat `defn` (also
             // unruled here; same reason `nth`'s comment gives — `intrinsic_meta` only judges
             // DISPATCHED verbs, and a wat `defn` is not one) to Rust intrinsics, which are.
@@ -873,6 +893,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::vector::length"
             | ":wat::vector::contains?"
             | ":wat::vector::get"
+            // Arc 255 Stone P6-c-W6 — `last`/`reverse`/`range` (`src/intrinsic/collection.rs`):
+            // `last` returns `(Option :- [T])` unconditionally (`None` on an empty Vector,
+            // never a raise); `reverse` returns a same-kind collection for any receiver its
+            // `ordered()` gate admits; `range` returns a `Vector` (empty when `start >= end`)
+            // for any two i64s. None has a domain hole. `rest` is excluded — see the pure∧det
+            // entry above for why it is genuinely partial.
+            | ":wat::core::last"
+            | ":wat::core::reverse"
+            | ":wat::core::range"
             // Arc 255 Stone F — the `:wat::core::String/*` five that lived here are DELETED,
             // not migrated: their `:wat::string::*` replacement's totality is carried by the
             // `:wat::string::` prefix block above, which this stone extended to cover them.
@@ -2345,16 +2374,12 @@ mod completeness_gate {
     ":wat::core::find-last-index",
     ":wat::core::fn",
     ":wat::core::forms",
-    ":wat::core::last",
     ":wat::core::macroexpand",
     ":wat::core::macroexpand-1",
     ":wat::core::match",
     ":wat::core::quasiquote",
     ":wat::core::quote",
-    ":wat::core::range",
     ":wat::core::record->map",
-    ":wat::core::rest",
-    ":wat::core::reverse",
     ":wat::core::seqable->stream",
     ":wat::core::show",
     ":wat::core::sort'",  // rune:lint(retired-name) — live prime (arc 251 comparator-sort primitive); wat-level sort/sort-by wrap it

@@ -5380,14 +5380,10 @@ fn dispatch_keyword_head_value(
         // Consumed by surface-method dispatch (revised Stone 232.1)
         // and all arc 234.x record-y verbs.
         ":wat::core::type" => eval_type(args, list_span, env, sym),
-        // Arc 237 Stone 237.7a — `:wat::core::length` ∀T intrinsic.
-        // Polymorphic collection-length: (Vector :- [T]) / (HashMap :- [K V]) / (HashSet :- [T]) → i64.
-        // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
-        ":wat::core::length" => eval_length(args, list_span, env, sym),
-        // Arc 237 Stone 237.7b-i — `:wat::core::empty?` ∀T intrinsic.
-        // Polymorphic collection-empty predicate: (Vector :- [T]) / (HashMap :- [K V]) / (HashSet :- [T]) → bool.
-        // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
-        ":wat::core::empty?" => eval_empty(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W6 — `:wat::core::length`/`empty?` moved into `#[wat_intrinsic]`
+        // handlers (above this match, still in this file) with their real (1/1) arities
+        // declared; the pre-match registry check above (arc 255.1c-guard) intercepts both
+        // names before reaching here.
         // Arc 237 Stone 237.7b-ii — `:wat::core::contains?` ∀T intrinsic with custom inference arm.
         // Polymorphic membership predicate: (Vector :- [T]) / (HashSet :- [T]) / (HashMap :- [K V]) → bool.
         // Tier B: element-typing enforced at check by infer_contains (src/check.rs); behavior-preserving.
@@ -5739,7 +5735,9 @@ fn dispatch_keyword_head_value(
         // `defmacro` program body (which evaluates only through this dispatcher) can call it.
         // The runtime-index generalization of first/second/third, above. `:wat::core::nth-spec`
         // (`wat/core.wat`) is the wat ORACLE kept honest by a differential test.
-        ":wat::core::nth" => eval_nth(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W6 — moved into a `#[wat_intrinsic]` handler (above this match,
+        // still in this file) with its real (2) arity declared; the pre-match registry check
+        // above (arc 255.1c-guard) intercepts the name before reaching here.
         // Stone 118.B5 — `stream->vec`/`stream->pvec` promoted from wat `defn` to Rust
         // intrinsics: the native kernel underneath `into`'s two Stream clause arms
         // (`wat/seq.wat:166`; the clause bodies are UNCHANGED — they already named these two
@@ -5755,13 +5753,17 @@ fn dispatch_keyword_head_value(
             crate::collection::transform::eval_stream_to_pvec(args, list_span, env, sym)
         }
         // Vec last + find-last-index. Arc 047.
-        ":wat::core::last" => {
-            crate::collection::transform::eval_vec_last(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W6 — `:wat::core::last` moved into a `#[wat_intrinsic]` handler
+        // (`src/collection/transform.rs`, in place) with its real (1) arity declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before
+        // reaching here. `find-last-index` is a HOF wearing a reader's name (calls
+        // `apply_function` on a caller fn) and stays in this giant match — W7's family, not W6.
         ":wat::core::find-last-index" => {
             crate::collection::transform::eval_vec_find_last_index(args, list_span, env, sym)
         }
-        ":wat::core::rest" => crate::collection::eval::eval_rest(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W6 — `:wat::core::rest` moved into a `#[wat_intrinsic]` handler
+        // (`src/collection/eval.rs`, in place) with its real (1) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index`'s dispatch arm (which lived
         // here) is DELETED, not moved. `:wat::core::map-indexed` is its non-drop-in Seqable-
         // generic replacement (arg order flips, result is a lazy Stream) — see
@@ -6008,12 +6010,10 @@ fn dispatch_keyword_head_value(
         // Arc 255 Stone E-ii — `:wat::core::Vector/concat`, `:wat::core::Vector/extend`, and
         // `:wat::core::PersistentVector/concat` RETIRED this stone; `:wat::vec::concat`,
         // `:wat::vec::extend`, and `:wat::vector::concat` are their replacements.
-        ":wat::core::reverse" => {
-            crate::collection::transform::eval_vec_reverse(args, list_span, env, sym)
-        }
-        ":wat::core::range" => {
-            crate::collection::transform::eval_vec_range(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W6 — `:wat::core::reverse`/`range` moved into `#[wat_intrinsic]`
+        // handlers (`src/collection/transform.rs`, in place) with their real (1/2) arities
+        // declared; the pre-match registry check above (arc 255.1c-guard) intercepts both
+        // names before reaching here.
         ":wat::core::take" => {
             crate::collection::transform::eval_vec_take(args, list_span, env, sym)
         }
@@ -14942,181 +14942,9 @@ fn eval_positional_accessor(
     }
 }
 
-/// `(:wat::core::nth coll i)` — stone 118.B4-0: the general positional accessor, the
-/// RUNTIME-index generalization of `first`/`second`/`third` above (same shape, `index` taken
-/// from `args[1]` instead of a Rust constant). Promoted from a wat `defclause` to a Rust
-/// intrinsic specifically so a `defmacro` program body — which evaluates only through
-/// `dispatch_keyword_head`, this function's caller — can call it (B4-ii's codemod tripped on
-/// exactly that). `:wat::core::nth-spec` (`wat/core.wat`) is the retained wat ORACLE; a
-/// differential test (`wat-tests/core/core-nth-differential.wat`) proves they agree.
-///
-/// CONTRACT (unchanged from the retired clause): raise, uniformly, `"nth: index out of range"`
-/// on out-of-range — never an `Option`, never a container-specific message. Gated by
-/// `nth_indexable()` (`seq_container.rs`), NOT `indexable()` — see that method's doc for why.
-///
-/// Stream has no O(1) nth (`nth_indexable()`'s doc). It walks: `realize` one cell, and if that
-/// is not the target index, recurse on the tail — exactly `i+1` forces for index `i`, one per
-/// step. Realizing the whole stream first and then indexing would reintroduce the O(n)
-/// retention stone B3 deleted; the walk is the honest cost, not a regression.
-fn eval_nth(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::nth";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let idx_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let index_i64 = match idx_val {
-        Value::i64(n) => n,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "i64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-
-    // Uniform out-of-range raise — the ONE CONTRACT DECISION (DESIGN-STONE-118.B4-0): the
-    // native and `nth-spec` must produce the exact same message on every receiver, never a
-    // per-container variant (contrast `eval_positional_accessor`'s arms above, which DO vary
-    // their message per container — that shape is deliberately NOT reused here).
-    //
-    // ⚠ MUST panic (`panic_any` + `AssertionPayload`), NOT return a `RuntimeError`: the wat
-    // oracle `nth-spec` raises via `Option/expect`/`assertion-failed!`, both of which panic. A
-    // `RuntimeError` return surfaces at a process boundary as a DIFFERENT `LociDiedError`
-    // variant (not `Panic`) — measured directly: it broke `wat-tests/core/core-nth.wat`'s
-    // pre-existing `nth-past-end-*-raises` rows (STOP-4, caught and fixed during this strike).
-    fn out_of_range(span: Span) -> EvalBreak {
-        let frames = snapshot_call_stack();
-        let payload = crate::assertion::AssertionPayload {
-            message: "nth: index out of range".into(),
-            actual: None,
-            expected: None,
-            location: Some(span),
-            frames,
-            upstream_chain: None,
-            thread_name: std::thread::current().name().map(String::from),
-            raised_error: None,
-        };
-        std::panic::panic_any(payload)
-    }
-
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&v) {
-        Some(container) if container.nth_indexable() => {
-            if index_i64 < 0 {
-                return Err(out_of_range(args[0].span().clone()));
-            }
-            let index = index_i64 as usize;
-            match container {
-                StreamContainer::Vector => {
-                    let Value::Vec(items) = v else {
-                        unreachable!("of_value⇒Vector")
-                    };
-                    items
-                        .get(index)
-                        .cloned()
-                        .ok_or_else(|| out_of_range(args[0].span().clone()))
-                }
-                StreamContainer::PersistentVector => {
-                    let Value::wat__core__PersistentVector(pv) = v else {
-                        unreachable!("of_value⇒PersistentVector")
-                    };
-                    pv.get(index)
-                        .cloned()
-                        .ok_or_else(|| out_of_range(args[0].span().clone()))
-                }
-                StreamContainer::List => {
-                    let Value::wat__core__List(items) = v else {
-                        unreachable!("of_value⇒List")
-                    };
-                    items
-                        .iter()
-                        .nth(index)
-                        .cloned()
-                        .ok_or_else(|| out_of_range(args[0].span().clone()))
-                }
-                StreamContainer::WatAstList => {
-                    let Value::wat__WatAST(ast) = v else {
-                        unreachable!("of_value⇒WatAstList")
-                    };
-                    match &*ast {
-                        WatAST::List(children, _) => children
-                            .get(index)
-                            .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
-                            .ok_or_else(|| out_of_range(args[0].span().clone())),
-                        _ => unreachable!(
-                            "StreamContainer::of_value guarantees WatAST::List for WatAstList"
-                        ),
-                    }
-                }
-                // Stone 118.B4-iii — THE WALL: `nth_indexable()` is FALSE for Stream now, so
-                // this arm is dead — no `container` value can reach it as `Stream`. Named, not
-                // folded into `_`, so a future capability change that reopens Stream here is a
-                // compile error, not a silent revival. Built one stone ago (B4-0) — the O(i)
-                // walk this arm performed is exactly the quadratic-under-a-loop hazard the wall
-                // exists to make un-spellable: `(nth s i)` read like O(1) and was O(i).
-                StreamContainer::Stream => unreachable!(
-                    "nth_indexable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use (drop s i) then :wat::stream::next)"
-                ),
-                // nth_indexable() gate excludes Tuple/HashSet — named arms, genuinely dead,
-                // compiler-forced (exhaustiveness guarantee, seq_container.rs's own doc).
-                StreamContainer::Tuple | StreamContainer::HashSet => {
-                    unreachable!("nth_indexable() gate excludes Tuple and HashSet")
-                }
-            }
-        }
-        // Stone 118.B4-iii — THE WALL: Stream lands here now (nth_indexable()==false). A lazy
-        // seq has no O(1) positional access — `(nth s i)` was O(i) via `realize`, walking `i+1`
-        // cells with syntax that reads like the O(1) Vector case. Spell it honestly instead:
-        // `(drop s i)` then `:wat::stream::next`.
-        Some(StreamContainer::Stream) => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no O(1) nth; use (drop s i) then :wat::stream::next",
-                got: Box::new(ValueSnapshot::of(&v)),
-            },
-        )
-        .into()),
-        // ∅ N/A: Tuple (heterogeneous — runtime index can't be typed) / HashSet (unordered).
-        Some(_) => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vector, PersistentVector, List, or WatAST list",
-                got: Box::new(ValueSnapshot::of(&v)),
-            },
-        )
-        .into()),
-        None => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vector, PersistentVector, List, or WatAST list",
-                got: Box::new(ValueSnapshot::of(&v)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 255 Stone P6-c-W6 — `:wat::core::nth` moved verbatim into a `#[wat_intrinsic]`
+// handler (`src/intrinsic/collection.rs`) with its real (2) arity declared; the
+// pre-match registry check intercepts the name before reaching the giant match.
 
 // Arc 255 Stone C — `eval_f64_reduce` (the shared implementation for the OLD
 // single-`Vector`-arg `:wat::core::f64::max-of` / `min-of`) is DELETED: its
@@ -16516,184 +16344,10 @@ fn eval_type(
     Ok(Value::String(Arc::new(type_str)))
 }
 
-// ─── Arc 237 Stone 237.7a — :wat::core::length intrinsic ─────────────────────
-
-/// `(:wat::core::length <collection>) -> :wat::core::i64` — arc 237 Stone 237.7a.
-///
-/// Polymorphic collection-length primitive: ∀T. T -> i64.
-/// Mirrors `eval_type` in shape: arity-1, eval arg, match Value variant.
-/// Accepted variants:
-/// - `Value::Vec(..)` → vector length
-/// - `Value::wat__std__HashMap(..)` → map entry count
-/// - `Value::wat__std__HashSet(..)` → set element count
-/// - `Value::wat__core__List(..)` → list element count
-///
-/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
-fn eval_length(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::length";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc-278 strike A — map-family arms route through MapContainer (measurable capability).
-    // The capability DRIVES the accepted set: the `if m.measurable()` guard is the genuine gate,
-    // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
-    // new keyed container forces this arm to be updated before the code compiles.
-    use crate::collection::map_container::MapContainer;
-    match MapContainer::of_value(&arg_val) {
-        Some(m) if m.measurable() => return match m {
-            MapContainer::HashMap => crate::collection::eval::hashmap_length_inner(&arg_val),
-            MapContainer::PersistentMap => crate::collection::eval::persistentmap_length_inner(&arg_val),
-            // Arc-278-A2 — Record: length = field count (fields.len()), no registry needed.
-            MapContainer::Record => crate::collection::eval::record_length_inner(&arg_val),
-        },
-        Some(_) => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
-            got: Box::new(ValueSnapshot::of(&arg_val))
-        }).into()),
-        None => {}
-    }
-    // Arc-278 seq-1a — seq-family arms route through StreamContainer (measurable capability).
-    // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
-    // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
-    // forces this arm to be updated before the code compiles.
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&arg_val) {
-        Some(c) if c.measurable() => match c {
-            StreamContainer::Vector => crate::collection::eval::vector_length_inner(&arg_val),
-            StreamContainer::PersistentVector => crate::collection::eval::persistentvector_length_inner(&arg_val),
-            StreamContainer::HashSet => crate::collection::eval::hashset_length_inner(&arg_val),
-            StreamContainer::List => crate::collection::eval::list_length_inner(&arg_val),
-            // seq-1b — filled
-            StreamContainer::Tuple => crate::collection::eval::tuple_length_inner(&arg_val),
-            StreamContainer::WatAstList => crate::collection::eval::watastlist_length_inner(&arg_val),
-            // Arc 118 — measurable() gate excludes Stream (length on a lazy/infinite seq diverges):
-            StreamContainer::Stream => unreachable!("measurable() gate excludes Stream"),
-        },
-        Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
-            got: Box::new(ValueSnapshot::of(&arg_val))
-        }).into()),
-        None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
-            got: Box::new(ValueSnapshot::of(&arg_val))
-        }).into()),
-    }
-}
-
-// ─── Arc 237 Stone 237.7b-i — :wat::core::empty? ────────────────────────────
-
-/// `(:wat::core::empty? <collection>) -> :wat::core::bool` — arc 237 Stone 237.7b-i.
-///
-/// Polymorphic collection-empty predicate: ∀T. T -> bool.
-/// Mirrors `eval_length` in shape: arity-1, eval arg, match Value variant.
-/// Accepted variants:
-/// - `Value::Vec(..)` → true iff vector is empty
-/// - `Value::wat__std__HashMap(..)` → true iff map has no entries
-/// - `Value::wat__std__HashSet(..)` → true iff set has no elements
-/// - `Value::wat__core__List(..)` → true iff list has no elements
-///
-/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
-fn eval_empty(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::empty?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc-278 strike A — map-family arms route through MapContainer (measurable capability).
-    // The capability DRIVES the accepted set: the `if m.measurable()` guard is the genuine gate,
-    // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
-    // new keyed container forces this arm to be updated before the code compiles.
-    use crate::collection::map_container::MapContainer;
-    match MapContainer::of_value(&arg_val) {
-        Some(m) if m.measurable() => return match m {
-            MapContainer::HashMap => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
-            MapContainer::PersistentMap => crate::collection::eval::persistentmap_empty_q_inner(&arg_val),
-            // Arc-278-A2 — Record: empty? = fields.is_empty(), no registry needed.
-            MapContainer::Record => crate::collection::eval::record_empty_q_inner(&arg_val),
-        },
-        Some(_) => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
-            got: Box::new(ValueSnapshot::of(&arg_val))
-        }).into()),
-        None => {}
-    }
-    // Arc-278 seq-1a — seq-family arms route through StreamContainer (measurable capability).
-    // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
-    // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
-    // forces this arm to be updated before the code compiles.
-    //
-    // Stone 118.B4-iii — THE WALL: the hand-written Stream early-realize branch that used to sit
-    // here (forcing one step to decide Empty vs Cons) is DELETED. It routed AROUND this very
-    // gate — `measurable()` was already `false` for Stream, and the special case let `empty?`
-    // ignore that. Deleting it means Stream now falls through to `Some(_)` below like any other
-    // non-measurable container, and is refused uniformly.
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&arg_val) {
-        Some(c) if c.measurable() => match c {
-            StreamContainer::Vector => crate::collection::eval::vector_empty_q_inner(&arg_val),
-            StreamContainer::PersistentVector => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
-            StreamContainer::HashSet => crate::collection::eval::hashset_empty_q_inner(&arg_val),
-            StreamContainer::List => crate::collection::eval::list_empty_q_inner(&arg_val),
-            // seq-1b — filled
-            StreamContainer::Tuple => crate::collection::eval::tuple_empty_q_inner(&arg_val),
-            StreamContainer::WatAstList => crate::collection::eval::watastlist_empty_q_inner(&arg_val),
-            // measurable() gate excludes Stream — named arm, genuinely dead, compiler-forced:
-            StreamContainer::Stream => unreachable!(
-                "measurable() gate excludes Stream (Stone 118.B4-iii — THE WALL: use :wat::stream::next)"
-            ),
-        },
-        // Stone 118.B4-iii — THE WALL: Stream lands here now (measurable()==false, and no early
-        // realize left to intercept it first). A lazy seq's emptiness is decidable in one force,
-        // but the wall closes the verb anyway — advance it with `:wat::stream::next`, whose
-        // `(NextOutcome :- [T])::Exhausted` already answers exactly what `empty?` was asked.
-        Some(StreamContainer::Stream) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), (HashSet :- [T]), Tuple, or WatAST — a lazy (Stream :- [T]) has no empty?; advance it with :wat::stream::next, whose (NextOutcome :- [T])::Exhausted answers what empty? was asked",
-            got: Box::new(ValueSnapshot::of(&arg_val))
-        }).into()),
-        Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
-            got: Box::new(ValueSnapshot::of(&arg_val))
-        }).into()),
-        None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
-            got: Box::new(ValueSnapshot::of(&arg_val))
-        }).into()),
-    }
-}
+// Arc 255 Stone P6-c-W6 — `:wat::core::length`/`empty?` moved verbatim into
+// `#[wat_intrinsic]` handlers (`src/intrinsic/collection.rs`) with their real (1/1)
+// arities declared; the pre-match registry check intercepts both names before
+// reaching the giant match.
 
 // ─── Arc 237 Stone 237.7b-ii — :wat::core::contains? ────────────────────────
 
