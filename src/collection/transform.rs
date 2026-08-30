@@ -40,10 +40,84 @@ use crate::runtime::{
 use crate::span::Span;
 use std::sync::Arc;
 
-// Arc 255 Stone P6-c-W6 — `:wat::core::reverse`/`range` moved verbatim into
-// `#[wat_intrinsic]` handlers (`src/intrinsic/collection.rs`) with their real (1/2)
-// arities declared; the pre-match registry check intercepts both names before
-// reaching the giant match.
+// Arc 255 Stone layer-1 — `:wat::core::reverse`/`range` impls, back where they lived
+// before Stone P6-c-W6 moved them into `src/intrinsic/collection.rs`'s
+// `#[wat_intrinsic]` handlers (which are now thin delegates to these two). Names match
+// the pre-`5725ab10d` spelling — the attribute-side `eval_vec_reverse`/`eval_vec_range`
+// in `intrinsic/collection.rs` are distinct fns in a distinct module.
+
+pub(crate) fn eval_vec_reverse(
+    xs: &WatAST,
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let v = eval_inner(xs, env, sym)?.value_owned();
+    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&v) {
+        Some(container) if container.ordered() => match container {
+            StreamContainer::Vector => {
+                let Value::Vec(items) = v else {
+                    unreachable!("of_value⇒Vector")
+                };
+                let mut out = (*items).clone();
+                out.reverse();
+                Ok(Value::Vec(Arc::new(out)))
+            }
+            StreamContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = v else {
+                    unreachable!("of_value⇒PersistentVector")
+                };
+                let mut out: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
+                for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
+                    out.push_back_mut(elem.clone());
+                }
+                Ok(Value::wat__core__PersistentVector(out))
+            }
+            StreamContainer::List => {
+                let Value::wat__core__List(items) = v else {
+                    unreachable!("of_value⇒List")
+                };
+                let out: std::collections::LinkedList<Value> = items.iter().rev().cloned().collect();
+                Ok(Value::wat__core__List(Arc::new(out)))
+            }
+            // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
+            StreamContainer::Tuple
+            | StreamContainer::WatAstList
+            | StreamContainer::HashSet
+            | StreamContainer::Stream => {
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream")
+            }
+        },
+        _ => Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::reverse".into(),
+                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
+                got: Box::new(ValueSnapshot::of(&v)),
+            },
+        )
+        .into()),
+    }
+}
+
+pub(crate) fn eval_vec_range(
+    start: &WatAST,
+    end: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let start = require_i64(":wat::core::range", eval_inner(start, env, sym)?.value_owned())?;
+    let end = require_i64(":wat::core::range", eval_inner(end, env, sym)?.value_owned())?;
+    let items: Vec<Value> = if start <= end {
+        (start..end).map(Value::i64).collect()
+    } else {
+        Vec::new()
+    };
+    Ok(Value::Vec(Arc::new(items)))
+}
 
 /// `(:wat::core::take xs n)` → `Stream<T>`. Lazily yields at most the first `n` elements of
 /// `xs` (any seqable: `Vector<T>` | `List<T>` | `PersistentVector<T>` | `Stream<T>`) — pulling
@@ -938,9 +1012,20 @@ pub(crate) fn eval_seq_remove_at(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-// Arc 255 Stone P6-c-W6 — `:wat::core::last` moved verbatim into a `#[wat_intrinsic]`
-// handler (`src/intrinsic/collection.rs`) with its real (1) arity declared; the
-// pre-match registry check intercepts the name before reaching the giant match.
+// Arc 255 Stone layer-1 — `:wat::core::last` impl, back where it lived before Stone
+// P6-c-W6 moved it into `src/intrinsic/collection.rs`'s `#[wat_intrinsic]` handler
+// (now a thin delegate to this fn). Name matches the pre-`5725ab10d` spelling — the
+// attribute-side `eval_vec_last` in `intrinsic/collection.rs` is a distinct fn in a
+// distinct module.
+
+pub(crate) fn eval_vec_last(
+    xs: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let xs = require_vec(":wat::core::last", eval_inner(xs, env, sym)?.value_owned())?;
+    Ok(Value::Option(Arc::new(xs.last().cloned())))
+}
 
 /// Arc 047 — `(:wat::core::find-last-index xs pred)` returns
 /// `Option<i64>`. Iterates `xs`, applies `pred` to each element,
