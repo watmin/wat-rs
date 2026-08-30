@@ -208,6 +208,14 @@ impl CompiledCond {
     // the USER's rule instead of at `rust_caller_span!()` — the `conformare` class this arc spent a
     // day removing. A builder would be ceremony for a constructor with two call sites.
     #[allow(clippy::too_many_arguments)]
+    /// The only constructor — every field is supplied, and `has_seed_cmp` is DERIVED here rather
+    /// than passed in.
+    ///
+    /// That derivation is the reason this exists instead of a struct literal: `has_seed_cmp`
+    /// must agree with the ops it summarises, and a caller computing it by hand could get it
+    /// wrong in the direction that is invisible — claiming no seed-cmp when one is present makes
+    /// populate skip a compare it should have run. Deriving it from the ops makes the two
+    /// unable to disagree.
     pub(crate) fn from_parts(
         ops: Vec<Op>,
         slot_keys: Arc<[Value]>,
@@ -317,6 +325,18 @@ pub(crate) fn compile_condition_local(
     compile_condition_opts(cond, field_names, sym, true)
 }
 
+/// The shared body behind both compile doors, differing only in `defer_unbound`.
+///
+/// [`compile_alpha_ops`] passes `false` (strict: an unbound `?var` can never match, so it
+/// compiles to a permanent refusal) and [`compile_condition_local`] passes `true`
+/// (leftover-as-seed: an unbound `?var` becomes a seed slot plus [`Op::SeedCmp`], filled from
+/// the token at rematch). One body rather than two because everything else — slot allocation,
+/// field binding, output ordering — is identical, and two copies would drift on the parts that
+/// are the same.
+///
+/// The `None` from `compile_seq` is a REFUSAL, not an absence: Law A freeze-walls a
+/// `CoreGeneric` comparator on `defrule`, so `compile-all` must refuse the same head rather
+/// than compile something that quietly matches nothing.
 fn compile_condition_opts(
     cond: &WatAST,
     field_names: &[String],
@@ -563,15 +583,6 @@ fn expr_slot(slot: usize) -> Option<Expr> {
     u16::try_from(slot).ok().map(Expr::Slot)
 }
 
-/// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes
-/// `resolve_operand` distinguishes at runtime (`?var` from the scope-so-far, `:field` from the
-/// class's declared fields, or a bare literal). `:field` is prologue (a Bind into a slot,
-/// reused if this condition already bound that field), so the Cmp itself only sees `Expr`.
-/// Returns `None` exactly when `resolve_operand` would unconditionally return `None` for every
-/// fact of this class: an unbound `?var` (strict compile), an unknown field, or a nested list
-/// (lists are `where`-territory on both sides; do not compile them here alone).
-/// Leftover-as-seed (`defer_unbound`): an unbound `?var` allocates a seed slot and
-/// returns `Expr::Slot` so the Constraint arm can emit [`Op::SeedCmp`].
 /// What compiling one operand produced — and the three cases must NOT collapse.
 ///
 /// ⛔ **THIS ENUM IS FIX-LIST F's LESSON APPLIED TO F's OWN FIX.** F was "could not lower" being
@@ -594,6 +605,29 @@ enum OperandLowering {
     Refused,
 }
 
+/// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes the
+/// oracle's `resolve_operand` distinguishes at RUNTIME (`?var` from the scope-so-far, `:field`
+/// from the class's declared fields, or a bare literal). `:field` is prologue (a Bind into a
+/// slot, reused if this condition already bound that field), so the Cmp itself only sees an
+/// [`Expr`].
+///
+/// ⛔ **This doc used to say "returns `None` exactly when…" and it was attached to
+/// [`OperandLowering`], not here.** Both halves of that were wrong in the same direction, and the
+/// enum's own doc explains why it matters: `Option` is precisely what fix-list F's cure REPLACED,
+/// because one `None` was carrying "can never match" and "will not lower" at once. The prose
+/// describing the old signature outlived the signature and came to sit on top of its own
+/// replacement. Read [`OperandLowering`] for the three outcomes; they are:
+///
+/// - `Unresolvable` — an unbound `?var` under a strict compile, an unknown field, or a nested
+///   list (lists are `where`-territory on both sides; do not compile them here alone). This can
+///   never match any fact of this class, and `Op::Fail` is the right compilation of it.
+/// - `Refused` — the form will not lower at all. A USER ERROR, which must reach the user by
+///   name.
+/// - `Lowered` — an expression the executor can run.
+///
+/// Leftover-as-seed (`defer_unbound`) changes exactly one of these: an unbound `?var` stops being
+/// `Unresolvable` and instead allocates a seed slot, returning `Expr::Slot` so the Constraint arm
+/// can emit [`Op::SeedCmp`] for rematch to fill later.
 fn compile_operand_expr(
     operand: &WatAST,
     scope: &mut HashMap<String, usize>,
@@ -865,6 +899,17 @@ pub(crate) fn exec_compiled(
     exec_compiled_with_key_ids(sym, compiled, fact_fields, scratch, intern, fact, None)
 }
 
+/// Run a compiled condition against one fact. Returns the bind pool span written on SUCCESS,
+/// or `None` — and on `None` the pool is untouched (`DESIGN-STONE-bind-pool`: a failing
+/// populate never writes).
+///
+/// `key_ids` is the pre-interned key list for this alpha; passing `Some` skips re-interning
+/// every binding key on every fact, which is the allocation the module header names as the
+/// reason this module exists. [`exec_compiled`] is the `#[cfg(test)]` door that passes `None`.
+///
+/// It bumps the `compiled:calls` census on purpose: this function replaced `alpha_match_inner`
+/// as the round loop's step 1, so `match:calls` reads ZERO on a real fire now. A census that
+/// silently went to zero would look like the path went dead rather than moved.
 pub(crate) fn exec_compiled_with_key_ids(
     sym: &crate::runtime::SymbolTable,
     compiled: &CompiledCond,
@@ -975,6 +1020,13 @@ impl ValIntern {
     }
 }
 
+/// Intern a value to a `u32` id, via a direct-index fast path for small non-negative `i64`s and
+/// a hash map for everything else.
+///
+/// The split is not premature: join keys in this engine are overwhelmingly small non-negative
+/// integers, and for those `ids.small` is an array index rather than a hash and a compare. The
+/// `u32::MAX` sentinel in that array means "not yet interned", which is why the slot is checked
+/// before it is trusted — a zero would be a valid id.
 pub(crate) fn intern_val(vals: &mut Vec<Value>, ids: &mut ValIntern, v: Value) -> u32 {
     if let Value::i64(n) = v {
         if n >= 0 {
@@ -1000,6 +1052,13 @@ pub(crate) fn intern_val(vals: &mut Vec<Value>, ids: &mut ValIntern, v: Value) -
     id
 }
 
+/// Write the successful match's bindings into the fire-scoped bind pool, returning the
+/// `(offset, len)` span.
+///
+/// The `next_key` closure is the whole point of `key_ids`: with it, each key is a pre-interned
+/// id read positionally; without it, every key is interned by value on every successful match.
+/// The positional read is why the caller's id list must be in the SAME ORDER as
+/// `compiled.output_slots` — they are two views of one sequence, and nothing here can check that.
 pub(crate) fn materialize_into(
     compiled: &CompiledCond,
     scratch: &[Option<Value>],
@@ -1089,6 +1148,13 @@ pub(crate) fn exec_compiled_under_holds(
     exec_ops(&compiled.ops, scratch, fact_fields, false, cx)
 }
 
+/// Materialise the bindings as owned `(key, value)` pairs — the rematch path's answer, where a
+/// `PMap` is wanted rather than a pool span.
+///
+/// The unbound-slot arm should be unreachable: an output slot is written by the `Bind` that
+/// introduced it, which must have run and held for `exec_ops` to have returned `true`. It fails
+/// CLOSED anyway — `debug_assert!` in debug, `None` in release — because handing back a
+/// half-filled binding array would be a wrong answer, and a wrong answer is worse than no answer.
 fn materialize(compiled: &CompiledCond, scratch: &[Option<Value>]) -> BindPairs {
     let mut out: Vec<(Value, Value)> = Vec::with_capacity(compiled.output_slots.len());
     for (i, &slot) in compiled.output_slots.iter().enumerate() {
@@ -1152,6 +1218,13 @@ pub(crate) fn test_exec_cx() -> ExecCx<'static> {
     }
 }
 
+/// Run a compiled program: every op in order, stopping at the first that does not hold.
+///
+/// `skip_seed` is what makes ONE compiled program serve two callers. Populate runs against a
+/// fact alone and skips [`Op::SeedCmp`], because the slot a seed-cmp reads is filled from a
+/// TOKEN that populate does not have; rematch passes `false` and runs them. Compiling twice —
+/// once per caller — is the alternative, and it would put the two programs' agreement on the
+/// honour system.
 pub(crate) fn exec_ops(
     ops: &[Op],
     slots: &mut [Option<Value>],
@@ -1170,6 +1243,13 @@ pub(crate) fn exec_ops(
     true
 }
 
+/// One op. The interpreter's inner step; `exec_ops` is the loop around it.
+///
+/// Every arm returns a plain `bool` rather than a `Result`, and that is deliberate: a rete row
+/// is TOTAL by the wall, so a raise reaching here means an ENGINE bug, not a user error. The
+/// `Eval` arm therefore fails the clause on `Err` instead of propagating — which is also exactly
+/// what an unresolvable operand has always done, so the failure mode stays one shape rather
+/// than two.
 fn exec_op(
     op: &Op,
     slots: &mut [Option<Value>],
@@ -1421,6 +1501,9 @@ mod tests {
         Driver,
     }
 
+    /// Classify one op as core-expression or slot-driver. Exhaustive by construction — no
+    /// catch-all — so adding an `Op` variant without deciding where it lands is a RED BUILD
+    /// rather than a silent default, which is the freeze this test module exists to hold.
     fn lands(op: &Op) -> Lands {
         match op {
             // `Eval` is `Bind`'s sibling and lands the same way: both POPULATE a slot, and that is

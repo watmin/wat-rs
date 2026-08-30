@@ -126,6 +126,16 @@ impl WhereTree {
         }
     }
 
+    /// Build the discrimination tree from every armed `where` program.
+    ///
+    /// Three passes, and they are separate because each needs the previous one whole: analyse
+    /// each program into its per-dimension constraints, collect the UNION of dimensions across
+    /// all programs (a tree level exists if ANY program constrains that dim), then decide which
+    /// programs are `pure_cmp` — fully representable as tree edges, so a match on every level
+    /// PROVES them rather than merely nominating them.
+    ///
+    /// An empty input short-circuits to `empty()`: a tree over no `where`s would answer every
+    /// query with an empty candidate set, which is correct but pays a walk to say so.
     pub(crate) fn build(compiled_wheres: &HashMap<i64, Program>) -> Self {
         if compiled_wheres.is_empty() {
             return Self::empty();
@@ -184,6 +194,14 @@ impl WhereTree {
     }
 }
 
+/// Build one level of the tree, discriminating on `dims[pos]`.
+///
+/// ⛔ The comment inside is the invariant, and it is easy to "optimise" away: **do not leaf
+/// early on `test_ids.len() <= 1`.** A single surviving TestNode still has to prove its
+/// REMAINING dimensions — stopping here would hand it back as proven when later levels were
+/// never checked, and `exec_where` would then be skipped on a lie. The contract permits
+/// over-approximation, never under-approximation, and an early leaf is exactly an
+/// under-approximation.
 fn build_node(
     test_ids: Vec<i64>,
     disc: &WhereDiscs,
@@ -245,6 +263,14 @@ fn build_node(
     })
 }
 
+/// Descend the tree under one token's bindings, partitioning leaves into PROVEN and MAYBE.
+///
+/// The `proven` flag is carried down rather than recomputed: it stays true only while every
+/// level so far matched an exact edge for a `pure_cmp` program. The moment the walk takes a
+/// wildcard or a range edge — a guard, not a proof — everything below it is `maybe` and must be
+/// re-checked by `exec_where`. Two output vectors instead of one because the caller can SKIP the
+/// predicate for proven leaves and cannot for the others; collapsing them would throw away the
+/// only thing the tree bought.
 fn walk<B: Bindings + ?Sized>(
     node: &WhereDiscNode,
     bindings: &B,
@@ -310,6 +336,14 @@ fn expr_is_pure_cmp(e: &Expr, slots: &HashMap<u16, String>) -> bool {
     conflicts.is_empty()
 }
 
+/// Is this expression *entirely* an `and` of `(cmp dim literal)` comparisons — the shape the
+/// tree can represent edge-for-edge?
+///
+/// Every arm must hold for the answer to be true (`And` requires ALL children, and a non-empty
+/// list — an empty `and` proves nothing and must not read as vacuously pure). The literal-plus-
+/// dimension test accepts either operand order but refuses literal-vs-literal, since that names
+/// no dimension to discriminate on. Anything else falls through to `false` and rides the
+/// wildcard, which is the conservative answer and therefore always safe.
 fn shape_is_pure_cmp(e: &Expr, slots: &HashMap<u16, String>) -> bool {
     match e {
         Expr::And(xs) => !xs.is_empty() && xs.iter().all(|x| shape_is_pure_cmp(x, slots)),
@@ -389,6 +423,14 @@ fn classify_dim_con(op: u16, lit_on_left: bool, lit: Value) -> Option<DimCon> {
     ))
 }
 
+/// Record one constraint for a dimension — and make a SECOND constraint on the same dimension
+/// poison it.
+///
+/// This is where the header's "two constraints on one dim rides the wildcard" rule is actually
+/// enforced, and the mechanism is deliberately blunt: a repeat write REMOVES the existing entry
+/// and marks the dim conflicted, so neither constraint survives to become an edge. Keeping
+/// either one would build a tree edge that admits tokens the other rejects — an
+/// under-approximation. Once conflicted, a dim stays conflicted; later writes return early.
 fn put_con(
     out: &mut HashMap<DimKey, DimCon>,
     conflicts: &mut HashSet<DimKey>,
@@ -418,6 +460,13 @@ fn analyze_where(prog: &Program) -> HashMap<DimKey, DimCon> {
     out
 }
 
+/// Walk a program's expression DAG and collect the per-dimension constraints it implies,
+/// routing every one through `put_con` so conflicts poison rather than overwrite.
+///
+/// `And` recurses (its children's constraints all apply jointly); a two-argument comparison
+/// contributes a constraint when exactly one side canonicalises to a dimension and the other to
+/// a literal. Everything else contributes NOTHING — silently, and correctly: an unrepresentable
+/// form simply leaves its dims unconstrained, and an unconstrained dim rides the wildcard.
 fn collect_cons(
     e: &Expr,
     slots: &HashMap<u16, String>,
@@ -451,6 +500,15 @@ fn collect_cons(
     }
 }
 
+/// Canonicalise one compiled operand into a `DimKey` — the identity two programs must agree on
+/// to share a tree level.
+///
+/// Slots are rewritten to their BINDING KEY here, which is the whole reason dimensions are
+/// derived from the compiled `Expr` DAG rather than from `WatAST` (header, item 12): two
+/// programs that wrote the same predicate will have allocated different slot numbers, and
+/// comparing slots would make them look like different dimensions. Calls recurse structurally,
+/// so `(f ?x 1)` in two programs is one dimension. `None` means "cannot canonicalise" — the
+/// caller then leaves the dim unconstrained, which rides the wildcard.
 fn to_dim(e: &Expr, slots: &HashMap<u16, String>) -> Option<DimKey> {
     match e {
         Expr::Lit(v) => Some(DimKey::Lit(v.clone())),
@@ -771,6 +829,12 @@ mod tests {
         );
     }
 
+    /// Fixture: `(and (> ?k 10) (< ?k 20))` — TWO constraints on ONE dimension.
+    ///
+    /// The shape `put_con` must poison. Both comparisons are individually representable as tree
+    /// edges, which is what makes this the interesting case: a tree that kept either one would
+    /// look correct and quietly under-approximate. Shared by the two tests that check the
+    /// conflicted dim rides the wildcard instead.
     fn two_constraint_where() -> Program {
         let k = Value::String(Arc::new("?k".into()));
         Program {
