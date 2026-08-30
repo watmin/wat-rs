@@ -97,8 +97,15 @@ site's subtype narrowing becomes redundant rather than load-bearing, and value p
 without help.
 
 **Not drawn.** It is a type-system change, not an arc-301 change, and 301 has a working
-one-line workaround (wrap the accessor in a `defn`). Recorded here because 301 surfaced it;
-the fix belongs wherever the accessor scheme is built.
+one-line workaround (wrap the accessor in a `defn`). Recorded here because 301 surfaced it.
+
+**Filed to its home arc as
+`docs/arc/2026/04/109-kill-std/NOTE-a-callable-keyword-in-value-position-has-four-kinds-and-three-answers.md`** —
+where scoping the census from the RULE (rather than from this instance) turned one defect into
+a four-row table: a user `defn` resolves concretely, an accessor resolves with an ABSTRACT
+receiver, and a constructor resolves to a bare `keyword` exactly like an intrinsic. Three
+different answers to the same question. Read that one for the taxonomy; this one for the
+measurement.
 
 ## What to do meanwhile
 
