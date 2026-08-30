@@ -1,4 +1,35 @@
 //! Interned compiled network (`InternedNetwork`) and the thread-owned intern table.
+//!
+//! ## What "the arm" is, and why it is built exactly once
+//!
+//! The arm is the rete CONTROL PLANE: everything derivable from a network that the fire loop
+//! would otherwise re-derive on every round. Compiled conditions, driver trees, `where`
+//! programs, accumulator folds, and a dozen indices — all keyed by node id, all immutable once
+//! built. The round loop matches against the arm, never against raw clause forms
+//! (`classify_rete_clause` runs HERE, at setup, and never in the loop).
+//!
+//! `build_rete_arm` is the one constructor and reads top-to-bottom as the build order:
+//! node ids → alpha index → alpha tree → compiled conds → drivers → `where`s → user folds →
+//! acc folds → `derive_indices`. Each stage consumes the one above it, which is why the order
+//! is not arrangeable to taste.
+//!
+//! ## The intern table is thread-owned — ZERO MUTEX by construction
+//!
+//! `ARM_TABLE` is a `thread_local!` `RefCell`, not a shared map behind a lock. There is no
+//! contention to manage because there is no sharing: a network identity is armed on the thread
+//! that fires it. Entries are LEASED — `rete_arm_intern` bumps a count, `rete_arm_release` drops
+//! one and evicts at zero — so an arm outlives any single fire but not the last holder.
+//!
+//! ## Two indices over the same alphas, keyed differently — do not merge them
+//!
+//! - `alpha_index_by_cond_text` maps condition TEXT → one alpha id, and exists so
+//!   `compile_cond_driver` can resolve a driver leaf. Textually identical conditions in
+//!   different rules therefore SHARE an alpha — that sharing is the point.
+//! - `build_alpha_index` maps fact TYPE → many alpha ids (plus id → cond AST), and exists so the
+//!   alpha pass can find the candidates for an incoming fact.
+//!
+//! One is a lookup, the other a grouping; one is keyed by how a condition is WRITTEN, the other
+//! by what it MATCHES. They answer different questions over the same nodes.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -38,6 +69,16 @@ pub(crate) enum CondDriver {
     Where(Arc<crate::rete::expr_ir::Program>),
 }
 
+/// Lower one classified condition into the `CondDriver` tree the fire loop walks.
+///
+/// The combinators (`and`/`or`/`not`/`exists`) recurse structurally and `where` lowers to an
+/// `expr_ir::Program`; everything else is FACT-SHAPED and becomes a `Leaf` holding an alpha id,
+/// resolved by the condition's TEXT through `alpha_by_text`.
+///
+/// Resolving by text is what makes two rules with an identical condition share one alpha — the
+/// sharing is deliberate, not incidental. A miss is therefore a setup contradiction (a
+/// fact-shaped cond that was never minted an alpha) and raises rather than inventing one, since
+/// a fabricated leaf would match nothing and read as an empty result.
 pub(crate) fn compile_cond_driver(
     cond: &WatAST,
     alpha_by_text: &HashMap<String, i64>,
@@ -88,6 +129,11 @@ pub(crate) fn compile_cond_driver(
     }
 }
 
+/// Condition TEXT → alpha id, for `compile_cond_driver`'s leaf resolution.
+///
+/// Note the `insert`: identical text collapses to ONE entry, which is exactly the alpha sharing
+/// described above. Contrast `build_alpha_index`, which `push`es because many alphas legitimately
+/// share a fact type. Same nodes, different question, different collection.
 fn alpha_index_by_cond_text(network: &Value, node_ids: &[i64]) -> HashMap<String, i64> {
     let mut out = HashMap::new();
     for id in node_ids {
@@ -105,6 +151,8 @@ fn alpha_index_by_cond_text(network: &Value, node_ids: &[i64]) -> HashMap<String
     out
 }
 
+/// Every alpha's driver, in one pass. Builds the text index once and reuses it across all
+/// alphas — an index per alpha would be quadratic in a network where conditions cross-reference.
 pub(crate) fn compile_all_cond_drivers(
     network: &Value,
     node_ids: &[i64],
@@ -168,6 +216,17 @@ impl AccFold {
     }
 }
 
+/// Lower an `accumulate` acc-form into an `AccFold`.
+///
+/// Eight built-in heads (`count`, `sum`, `min`, `max`, `mean`, `distinct`, `all`, `group-by`)
+/// map to their own variants; anything else is a USER fold and needs the `Program` that setup
+/// compiled for it. That `compiled_user` being `None` at this point is a setup bug rather than a
+/// bad program — the user fold should have been compiled or refused earlier — and it raises
+/// saying so.
+///
+/// The malformed-shape arms come first and are separate for a reason: "acc-form is not a list"
+/// and "acc-form has no head" are different diagnoses, and collapsing them into one message
+/// would make the more common mistake harder to read.
 pub(crate) fn compile_acc_fold(
     acc_form: &WatAST,
     compiled_user: Option<Arc<crate::rete::expr_ir::Program>>,
@@ -245,6 +304,12 @@ pub(crate) fn compile_acc_fold(
     })
 }
 
+/// Fact TYPE → the alphas that test it, plus each alpha's condition AST.
+///
+/// The type key is the condition's fact-type head read through `alpha_pattern` — deliberately
+/// the SAME reader `alpha_match_inner` uses, so the index cannot disagree with the matcher about
+/// what an alpha is for. An alpha whose condition has no readable pattern is skipped rather than
+/// filed under a guessed type.
 pub(crate) fn build_alpha_index(
     network: &Value,
     node_ids: &[i64],
@@ -410,6 +475,14 @@ pub(crate) struct KindIdLists {
     pub(crate) query: Vec<i64>,
 }
 
+/// Partition node ids by kind, once, so the fire loop can iterate one kind without re-testing
+/// every node each round.
+///
+/// Two groupings are coarser than `NodeKind` on purpose: `join_parent` merges RootJoin with
+/// HashJoin (both are left-parents to a join), and `filter` merges Test/Negation/Exists (all
+/// three gate tokens rather than producing them). `filter_or_acc` is then the sorted merge of
+/// two already-sorted lists — cheaper than concatenating and re-sorting, and it preserves the
+/// ascending node order the passes rely on for topological correctness.
 pub(crate) fn kind_id_lists(network: &Value, node_ids: &[i64]) -> KindIdLists {
     let mut alpha = Vec::new();
     let mut join_parent = Vec::new();
@@ -459,6 +532,17 @@ pub(crate) struct NetworkEdges {
     pub beta_readers: HashSet<i64>,
 }
 
+/// The four edge indices, in two walks.
+///
+/// The first walk splits parenthood in TWO, and the asymmetry is the whole point: a node has at
+/// most ONE feeding alpha (`feeding_alpha_of`, a plain map) but may have MANY beta parents
+/// (`parents_of`, a map of lists). Storing them in one structure would force the alpha case to
+/// carry a vector it can never fill past one.
+///
+/// The second walk computes `beta_readers`: nodes with a HashJoin or Query child. This is the
+/// set whose beta memory anyone will actually READ, and the fire loop uses it to skip writing
+/// beta for everyone else (`fire/pass/mod.rs`'s `record_token`). It is a separate walk because
+/// it needs to look at each child's KIND, which the first walk does not fetch.
 pub(crate) fn index_network_edges(network: &Value, node_ids: &[i64]) -> NetworkEdges {
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
     let mut parents_of: ParentsOf = HashMap::new();
@@ -502,6 +586,11 @@ pub(crate) fn index_network_edges(network: &Value, node_ids: &[i64]) -> NetworkE
 }
 
 
+/// Sorted union of two sorted id lists, deduplicating equal heads.
+///
+/// A merge rather than `concat` + `sort` + `dedup` because both inputs are ALREADY sorted —
+/// ascending node id is the topological order every pass depends on, so the output must keep it
+/// and a re-sort would be paying to rediscover what the inputs already knew.
 pub(crate) fn merge_sorted_ids(a: &[i64], b: &[i64]) -> Vec<i64> {
     let mut out = Vec::with_capacity(a.len() + b.len());
     let (mut i, mut j) = (0, 0);
@@ -605,6 +694,11 @@ pub(crate) fn rete_arm_leases(id: u64) -> Option<usize> {
     ARM_TABLE.with(|t| t.borrow().get(&id).map(|e| e.leases))
 }
 
+/// Publish an arm under a network identity and take a lease on it.
+///
+/// Re-interning an id REPLACES the arm and still increments — the newest build wins, and the
+/// count tracks holders rather than builds. See `rete_arm_release` for the other half; the table
+/// is thread-local, so neither needs a lock (module header).
 pub(crate) fn rete_arm_intern(id: u64, arm: &Arc<InternedNetwork>) {
     ARM_TABLE.with(|t| {
         let mut m = t.borrow_mut();
@@ -690,6 +784,17 @@ fn rete_arm_lease_or_build(
     rete_arm_build_put(network, rules, sym)
 }
 
+/// Build the whole control plane for one network. The single constructor for `InternedNetwork`.
+///
+/// The body reads as the build order because it IS the dependency order: node ids feed the alpha
+/// index, which feeds both the alpha tree and the compiled conds; drivers need the network and
+/// the symbol table; `where`s and user folds are independent; acc folds need the user folds that
+/// precede them; and `derive_indices` closes over the compiled results. Reordering it is not a
+/// style choice.
+///
+/// Accumulate nodes are walked here rather than in a helper because the fold needs BOTH the
+/// node's `acc-form` and the user program compiled two lines above — a helper would have to take
+/// the map back apart.
 pub(crate) fn build_rete_arm(
     network: &Value,
     rules: &Value,
@@ -809,6 +914,13 @@ pub(crate) struct DerivedIndices {
     pub(crate) test_children: TestChildren,
 }
 
+/// Everything derivable from an already-compiled network: the edge indices, the kind
+/// partitions, the where-tree, the test sibling/child maps, and `compiled_max_slots`.
+///
+/// Split from `build_rete_arm` because these are PURE functions of what came before — nothing
+/// here compiles, everything here indexes. `compiled_max_slots` is the widest frame any compiled
+/// cond needs, computed once so the fire loop can size its scratch frame a single time instead
+/// of per node.
 pub(crate) fn derive_indices(
     network: &Value,
     node_ids: &[i64],
