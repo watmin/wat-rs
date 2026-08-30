@@ -224,7 +224,7 @@ pub fn write_to(v: &Value, out: &mut String) {
         Value::Inst(dt) => {
             // Standard EDN form: #inst "RFC3339"
             out.push_str("#inst \"");
-            out.push_str(&dt.to_rfc3339_opts(SecondsFormat::AutoSi, true));
+            out.push_str(&dt.to_rfc3339_opts(SecondsFormat::Nanos, true));
             out.push('"');
         }
         Value::Uuid(u) => {
