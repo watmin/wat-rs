@@ -901,14 +901,47 @@ What replaced it is a different question — *is this code the exemplar the rest
 of wat's subsystems should copy?* — and it is measured differently: **code
 volume × nesting**, not milliseconds. Current state of rete, longest first:
 
+⛔ **THE TABLE THAT STOOD HERE WAS FICTION BY 2026-08-29 — ALL THREE OF ITS "open, never
+examined" ROWS WERE STALE, and by an order of magnitude.** It claimed:
+
+| it said | actually, measured 2026-08-29 |
+|---|---|
+| `eval_axis_violation` — 590 lines, *"~480 code lines, never examined"* | **72 lines** (`purity.rs:1974..2045`) |
+| `exec_compiled_rhs_at` — 451 lines, *"~405 code lines, never examined"* | **35 lines** (`compiled_rhs.rs:313..347`) |
+| `exec_dim` — 388 lines, *"zero comments is its own defect"* | **80 lines**, and it opens with a real doc comment |
+
+They were decomposed and nobody struck the row. **This is the same disease as the T7 paragraph
+above, found the same hour** — and it is worse here, because a stale OPEN row invents work rather
+than merely hiding closed work. Someone would have gone hunting ~1_400 lines of unexamined code
+that does not exist.
+
+⚠ **AND MEASURING IT WAS ITSELF WRONG TWICE.** The first pass counted braces and ran past function
+ends on braces inside string literals (`lower_pat` came back as 1_632 lines; it is ~97). The second
+used "the next top-level `fn`" as the boundary and swallowed everything up to EOF whenever a `mod`
+or `impl` followed (`eval_axis_violation` came back as 618). **Both were caught by anchoring the
+result against one function read by hand.** The rule that works, given rustfmt: a top-level `fn`
+ends at the first column-0 `}`.
+
+**THE REAL PICTURE, measured with that rule** (`src/rete/**`, excluding `kernel/tests.rs`):
+
 | function | lines | comment | nesting | verdict |
 |---|---:|---:|---:|---|
-| `intrinsic_meta` (`purity.rs`) | 701 | **71%** | **2** | **NOT a defect.** ~200 code lines, flat cascade, 500 lines of justification. Line count is the wrong lens here. |
-| `eval_axis_violation` (`purity.rs`) | 590 | 18% | **7** | **open** — ~480 code lines, never examined |
-| `exec_compiled_rhs_at` (`compiled_rhs.rs`) | 451 | 10% | 4 | **open** — ~405 code lines, never examined |
-| `fire_fixpoint_delta_armed` | 448 | 17% | 4 | done — was 1774 at nesting 12 |
-| `hash_join_delta` | 361 | 18% | 9 | depth **explained** on `FireCtx`, not fixable without over-borrowing |
-| `exec_dim` (`where_tree.rs`) | 388 | **0%** | 6 | **open** — zero comments in a codebase this documented is its own defect |
+| `intrinsic_meta` (`purity.rs`) | 571 | **64%** | 2 | **NOT a defect** — ~200 code lines, flat cascade, 500 lines of justification |
+| `fire_fixpoint_delta_armed` | 569 | 28% | 4 | done — was 1774 at nesting 12 |
+| `apply_core_kind` (`expr_ir.rs`) | 366 | **8%** | 6 | **open, and never listed before** |
+| `hash_join_delta` | 350 | 21% | **9** | depth **explained** on `FireCtx`; not fixable without over-borrowing |
+| `unpack_expr` (`export.rs`) | 262 | **0%** | 4 | **open, and never listed before** |
+| `filter_after_join` | 259 | 7% | **9** | **open, and never listed before** |
+| `filter_pass` | 258 | 27% | 6 | — |
+| `classify_expr` (`purity.rs`) | 257 | 43% | 7 | — |
+| `fire_rules_stratified` | 238 | 33% | 7 | — |
+| `exec` (`expr_ir.rs`) | 202 | **1%** | 7 | **open, and never listed before** |
+
+⛔ **THE FOUR GENUINELY UNEXPLAINED ONES ARE ALL ABSENT FROM THE OLD TABLE, AND TWO OF THEM ARE THE
+ARC'S OWN LOAD-BEARING CODE.** `exec` and `apply_core_kind` live in `expr_ir.rs` — the ONE
+expression compiler every rete form now lowers through, the thing this arc spent weeks widening.
+**568 lines between them at 8% and 1% comment density, in a codebase whose exemplar row is 64%.**
+The hunt was looking at a list written before that code existed.
 
 ### Two findings that generalise beyond rete
 
