@@ -153,6 +153,13 @@ pub struct DocComment {
     pub purity: Purity,
     /// `@Determinism <Variant>` — declared determinism.
     pub determinism: Determinism,
+    /// `@Total <Variant>` — declared totality (arc 255 Stone total-T2). Unlike
+    /// `purity`/`determinism`/`category`, this directive is OPTIONAL: absence
+    /// defaults to `Totality::Unreviewed` rather than erroring. See
+    /// `DESIGN-STONE-total-t2-the-axis-declarable.md`'s "one contract decision,
+    /// pinned" — a guessed `:Total` is a lie in a fence that admits code into a
+    /// `where`; an honest `:Unreviewed` default-denies instead.
+    pub totality: Totality,
     /// `@Category <Variant>` — closed-enum category (e.g. `Transform`, `Reflection`).
     pub category: Category,
     /// `@yields <argname> <desc>` — repeatable, one per value-carrying fn-shaped `@arg`.
@@ -223,6 +230,10 @@ pub enum DocError {
     InvalidPurityVariant { got: String },
     /// `@Determinism` value is not a known variant.
     InvalidDeterminismVariant { got: String },
+    /// `@Total` value is not a known variant. Unlike `Missing*`, there is no
+    /// `MissingTotality` sibling — `@Total` is OPTIONAL (arc 255 Stone total-T2,
+    /// STOP-1: mandating it is T3, a separate stone).
+    InvalidTotalityVariant { got: String },
     /// `@Category` value is not a known variant.
     InvalidCategoryVariant { got: String },
     /// A second `@yields` names the same `@arg` subject as an earlier one — `@yields` is
@@ -257,6 +268,9 @@ pub struct DocSpecialForm {
     pub purity: Purity,
     /// `@Determinism <Variant>` — declared determinism.
     pub determinism: Determinism,
+    /// `@Total <Variant>` — declared totality (arc 255 Stone total-T2). OPTIONAL,
+    /// defaulting to `Totality::Unreviewed` when absent — see `DocComment::totality`.
+    pub totality: Totality,
     /// `@see` FQDNs, in source order.
     pub see: Vec<String>,
     /// `@deprecated`, if present.
@@ -334,7 +348,7 @@ fn take_type_token(s: &str) -> (&str, &str) {
 pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@Purity", "@Determinism", "@Category", "@yields",
+        "@Purity", "@Determinism", "@Total", "@Category", "@yields",
     ];
 
     // Split into prose lines and directive lines at the first recognized @-directive.
@@ -361,6 +375,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let mut see: Vec<String> = Vec::new();
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
+    let mut totality_val: Option<Totality> = None;
     let mut category_val: Option<Category> = None;
     let mut yields_vals: Vec<DocYields> = Vec::new();
 
@@ -595,6 +610,15 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     }),
                 }
             }
+            "@Total" => {
+                if totality_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Total".into() });
+                }
+                match payload.parse::<Totality>() {
+                    Ok(t) => totality_val = Some(t),
+                    Err(_) => return Err(DocError::InvalidTotalityVariant { got: payload.to_string() }),
+                }
+            }
             "@Category" => {
                 if category_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
@@ -649,6 +673,9 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     }
     let purity = purity_val.ok_or(DocError::MissingPurity)?;
     let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
+    // `@Total` is OPTIONAL (arc 255 Stone total-T2, STOP-1) — DEFAULTS to `Unreviewed`
+    // rather than erroring, unlike purity/determinism/category above.
+    let totality = totality_val.unwrap_or(Totality::Unreviewed);
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     // Every `@yields` subject must name a declared `@arg` — a directive with no referent
@@ -660,7 +687,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
         }
     }
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, category, yields: yields_vals })
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, totality, category, yields: yields_vals })
 }
 
 /// Parse a special-form doc block.
@@ -674,7 +701,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
 pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@Purity", "@Determinism", "@Category", "@syntax",
+        "@Purity", "@Determinism", "@Total", "@Category", "@syntax",
     ];
 
     let lines: Vec<&str> = raw.lines().collect();
@@ -699,6 +726,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let mut see: Vec<String> = Vec::new();
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
+    let mut totality_val: Option<Totality> = None;
     let mut category_val: Option<Category> = None;
 
     let directive_lines = match first_directive {
@@ -923,6 +951,15 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                     }),
                 }
             }
+            "@Total" => {
+                if totality_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Total".into() });
+                }
+                match payload.parse::<Totality>() {
+                    Ok(t) => totality_val = Some(t),
+                    Err(_) => return Err(DocError::InvalidTotalityVariant { got: payload.to_string() }),
+                }
+            }
             "@Category" => {
                 if category_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
@@ -955,6 +992,8 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     }
     let purity = purity_val.ok_or(DocError::MissingPurity)?;
     let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
+    // `@Total` is OPTIONAL (arc 255 Stone total-T2, STOP-1) — DEFAULTS to `Unreviewed`.
+    let totality = totality_val.unwrap_or(Totality::Unreviewed);
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
     Ok(DocSpecialForm {
@@ -968,6 +1007,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
         category,
         purity,
         determinism,
+        totality,
         see,
         deprecated,
     })
@@ -1256,6 +1296,89 @@ mod tests {
             assert!(v.parse::<Determinism>().is_ok(), "should parse: {}", v);
         }
         assert!("deterministic".parse::<Determinism>().is_err());
+    }
+
+    // ─── @Total (arc 255 Stone total-T2) ─────────────────────────────────────
+    //
+    // Unlike @Purity/@Determinism/@Category, @Total is OPTIONAL — STOP-1 forbids
+    // making it mandatory in this stone (that is T3). Absence DEFAULTS to
+    // `Totality::Unreviewed` rather than erroring.
+
+    /// Row 1 — `@Total <Variant>` parses, one test per legal variant.
+    #[test]
+    fn total_parses_all_variants() {
+        for (spelling, expected) in [
+            ("Total", Totality::Total),
+            ("Partial", Totality::Partial),
+            ("Preserving", Totality::Preserving),
+            ("Unreviewed", Totality::Unreviewed),
+        ] {
+            let raw = format!(
+                "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                 @Total {spelling}\n@Category Transform\n@ret :wat::core::i64 the value\n\
+                 @example (f) #=> 1"
+            );
+            let doc = parse(&raw).unwrap_or_else(|e| panic!("@Total {spelling} must parse: {e:?}"));
+            assert_eq!(doc.totality, expected, "@Total {spelling} must read back as {expected:?}");
+        }
+        assert!("total".parse::<Totality>().is_err()); // case-sensitive
+    }
+
+    /// Row 2 — ABSENT `@Total` yields the `Totality::Unreviewed` default, tested
+    /// explicitly (not merely "parses" — the field must carry the right value).
+    #[test]
+    fn absent_total_defaults_to_unreviewed() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Category Transform\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let doc = parse(raw).expect("doc with no @Total must still parse (it is OPTIONAL)");
+        assert_eq!(doc.totality, Totality::Unreviewed);
+    }
+
+    /// Row 3a — a SECOND `@Total` is `DuplicateSingleton`.
+    #[test]
+    fn duplicate_total_is_an_error() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Total Total\n@Total Partial\n@Category Transform\n\
+                    @ret :wat::core::i64 the value\n@example (f) #=> 1";
+        assert_eq!(parse(raw), Err(DocError::DuplicateSingleton { tag: "@Total".into() }));
+    }
+
+    /// Row 3b — an unknown `@Total` value is `InvalidTotalityVariant { got }`.
+    #[test]
+    fn invalid_total_value_is_an_error() {
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n\
+                    @Total Bogus\n@Category Transform\n@ret :wat::core::i64 the value\n\
+                    @example (f) #=> 1";
+        assert_eq!(parse(raw), Err(DocError::InvalidTotalityVariant { got: "Bogus".into() }));
+    }
+
+    /// The special-form parser accepts the identical directive with the identical
+    /// default — `DocSpecialForm` is a SIBLING type to `DocComment` (not the same
+    /// type), so both resolution points need their own coverage.
+    #[test]
+    fn special_form_total_parses_and_defaults() {
+        let with_total = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @Total Partial\n\
+            @arg cond :wat::core::Bool the condition\n\
+            @ret :T the result\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        let doc = super::parse_special_form(with_total).expect("@Total Partial must parse on a special form");
+        assert_eq!(doc.totality, Totality::Partial);
+
+        let without_total = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @arg cond :wat::core::Bool the condition\n\
+            @ret :T the result\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        let doc = super::parse_special_form(without_total).expect("absent @Total must still parse");
+        assert_eq!(doc.totality, Totality::Unreviewed);
     }
 
     #[test]

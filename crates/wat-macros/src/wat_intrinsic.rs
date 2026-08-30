@@ -587,6 +587,9 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::InvalidDeterminismVariant { got } => {
             format!("unknown @Determinism variant `{}`; known: Deterministic, Nondeterministic, Preserving", got)
         }
+        wat_doc::DocError::InvalidTotalityVariant { got } => {
+            format!("unknown @Total variant `{}`; known: Total, Partial, Preserving, Unreviewed", got)
+        }
         wat_doc::DocError::InvalidCategoryVariant { got } => {
             format!("unknown @Category variant `{}`; known: {}", got, wat_doc::Category::variants().join(", "))
         }
@@ -596,6 +599,20 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::UnknownYieldsSubject { arg } => {
             format!("`@yields {}` names no declared `@arg`; the subject must match an `@arg` name", arg)
         }
+    }
+}
+
+/// The `@Total` value -> token match (arc 255 Stone total-T2), exhaustive, no wildcard —
+/// mirrors `purity_token`/`determinism_token`/`category_token` in [`emit`]. A standalone
+/// `pub(crate) fn` (not an inline `let`) so it is directly unit-testable without going
+/// through the full attribute-macro pipeline. See the call site in [`emit`] for why its
+/// result is not yet spliced into `IntrinsicSubmission`.
+pub(crate) fn totality_token(t: wat_doc::Totality) -> TokenStream2 {
+    match t {
+        wat_doc::Totality::Total => quote! { ::wat_doc::Totality::Total },
+        wat_doc::Totality::Partial => quote! { ::wat_doc::Totality::Partial },
+        wat_doc::Totality::Preserving => quote! { ::wat_doc::Totality::Preserving },
+        wat_doc::Totality::Unreviewed => quote! { ::wat_doc::Totality::Unreviewed },
     }
 }
 
@@ -788,6 +805,16 @@ pub(crate) fn emit(
         wat_doc::Determinism::Nondeterministic => quote! { ::wat_doc::Determinism::Nondeterministic },
         wat_doc::Determinism::Preserving => quote! { ::wat_doc::Determinism::Preserving },
     };
+    // arc 255 Stone total-T2 — computed for every real handler (exercising the match
+    // against whatever `doc.totality` resolves to, `Unreviewed` for all ~250 today,
+    // since STOP-2 forbids annotating a real verb in this stone) but NOT spliced into
+    // `IntrinsicSubmission` below: that struct (`src/intrinsic/mod.rs`, `pub(crate)`)
+    // has no `totality` field, and this stone's blast radius (crates/wat-doc +
+    // crates/wat-macros ONLY) forbids adding one — wiring this token into the literal
+    // would break E0559 on every real `#[wat_intrinsic]` call site the moment `src/`
+    // recompiles. `totality_token` itself is exhaustive/no-wildcard and unit-tested
+    // below; carrying it into the registry entry is the follow-up stone's src/ edit.
+    let _totality_token = totality_token(doc.totality);
     let category_token = match doc.category {
         wat_doc::Category::Transform => quote! { ::wat_doc::Category::Transform },
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
@@ -1028,4 +1055,110 @@ pub(crate) fn emit(
     };
 
     Ok(expanded)
+}
+
+#[cfg(test)]
+mod totality_axis_tests {
+    //! arc 255 Stone total-T2 — Row 4 ("break the door"): proves `@Total <Variant>`
+    //! survives past PARSING (rows 1-3, `wat-doc`'s own tests) and reaches the SAME
+    //! token-generation step `emit()` runs for every real intrinsic (`totality_token`,
+    //! called at this file's `let _totality_token = totality_token(doc.totality);`).
+    //!
+    //! ⛔ This does NOT reach `IntrinsicSubmission` — that struct lives in
+    //! `src/intrinsic/mod.rs`, is `pub(crate)`, and has no `totality` field. Adding one
+    //! is a `src/` edit (STOP-3) that this stone's blast radius (crates/wat-doc +
+    //! crates/wat-macros ONLY) forbids; wiring the token into the literal without it
+    //! would break every real `#[wat_intrinsic]` call site the moment `src/` recompiles
+    //! (E0559, unknown field). This is the honest limit of what T2 can prove.
+    use super::*;
+
+    /// A realistic BINDING-shaped fixture handler (leading `&WatAST` params, full
+    /// `env`/`sym`/`span` context tail) — the exact shape this module's own header
+    /// example (`bytes_to_hex`) documents. Type names (`WatAST`/`Environment`/
+    /// `SymbolTable`/`Span`/`Value`/`EvalBreak`) are matched by `syn` purely
+    /// SYNTACTICALLY (`type_path_ends_with`, by final path segment), so they need not
+    /// resolve to real items — this test never depends on the `wat` crate.
+    fn fixture_fn(total_line: &str) -> ItemFn {
+        let src = format!(
+            "/// Add two i64s.\n\
+             ///\n\
+             /// @added 1.0.0\n\
+             /// @Purity Pure\n\
+             /// @Determinism Deterministic\n\
+             {total_line}\
+             /// @Category Arithmetic\n\
+             /// @arg a :wat::core::i64 the left operand\n\
+             /// @arg b :wat::core::i64 the right operand\n\
+             /// @ret :wat::core::i64 the sum\n\
+             /// @example (:probe::add a b) #=> 3\n\
+             fn probe_add(a: &WatAST, b: &WatAST, env: &Environment, sym: &SymbolTable, span: &Span) \
+             -> Result<Value, EvalBreak> {{ unimplemented!() }}"
+        );
+        syn::parse_str(&src).expect("fixture handler must be syntactically valid Rust")
+    }
+
+    fn fqdn() -> LitStr {
+        LitStr::new(":probe::add", proc_macro2::Span::call_site())
+    }
+
+    /// ★ ROW 4 — a fixture verb declaring `@Total Partial` reads back `Partial` (not
+    /// `Unreviewed`) through the SAME function `emit()` calls for every real handler,
+    /// and `emit()` itself accepts the fixture end-to-end.
+    #[test]
+    fn row4_total_partial_survives_into_the_generated_token() {
+        let item = fixture_fn("/// @Total Partial\n");
+        let raw_doc = sniff_doc(&item).expect("fixture doc must be sniffed");
+        let doc = wat_doc::parse(&raw_doc).expect("fixture doc must parse under the full contract");
+        assert_eq!(doc.totality, wat_doc::Totality::Partial, "declared @Total Partial must read back as Partial");
+
+        // The SAME fn emit() calls at its `totality_token(doc.totality)` site — not a
+        // reimplementation living only in this test.
+        let token = totality_token(doc.totality);
+        assert_eq!(token.to_string(), quote! { ::wat_doc::Totality::Partial }.to_string());
+        assert_ne!(token.to_string(), quote! { ::wat_doc::Totality::Unreviewed }.to_string());
+
+        emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring @Total Partial");
+    }
+
+    /// CONTROL — the same fixture with NO `@Total` line defaults to `Unreviewed`
+    /// (STOP-1: absence is not an error), through the identical pipeline.
+    #[test]
+    fn absent_total_defaults_to_unreviewed_in_the_same_pipeline() {
+        let item = fixture_fn("");
+        let raw_doc = sniff_doc(&item).expect("fixture doc must be sniffed");
+        let doc = wat_doc::parse(&raw_doc).expect("fixture doc must parse without @Total");
+        assert_eq!(doc.totality, wat_doc::Totality::Unreviewed);
+        assert_eq!(
+            totality_token(doc.totality).to_string(),
+            quote! { ::wat_doc::Totality::Unreviewed }.to_string()
+        );
+        emit(&fqdn(), None, &item).expect("emit() must accept a fixture with no @Total");
+    }
+
+    /// `totality_token` is exhaustive, no wildcard — each arm produces the matching
+    /// quoted path. The mirror-drift protection the DESIGN names: a variant added to
+    /// the `.wat` without a matching arm here is `E0004`, not a silent gap.
+    #[test]
+    fn totality_token_matches_every_variant() {
+        let cases = [
+            (wat_doc::Totality::Total, quote! { ::wat_doc::Totality::Total }),
+            (wat_doc::Totality::Partial, quote! { ::wat_doc::Totality::Partial }),
+            (wat_doc::Totality::Preserving, quote! { ::wat_doc::Totality::Preserving }),
+            (wat_doc::Totality::Unreviewed, quote! { ::wat_doc::Totality::Unreviewed }),
+        ];
+        for (variant, expected) in cases {
+            assert_eq!(totality_token(variant).to_string(), expected.to_string());
+        }
+    }
+
+    /// Row 3, second half — the `InvalidTotalityVariant` message (rendered by
+    /// `render_doc_error`, the SAME renderer a real `#[wat_intrinsic]` failure goes
+    /// through) names all four legal values.
+    #[test]
+    fn invalid_totality_message_names_all_four_variants() {
+        let msg = render_doc_error(&wat_doc::DocError::InvalidTotalityVariant { got: "Bogus".into() });
+        for name in ["Total", "Partial", "Preserving", "Unreviewed"] {
+            assert!(msg.contains(name), "message `{msg}` must name `{name}`");
+        }
+    }
 }
