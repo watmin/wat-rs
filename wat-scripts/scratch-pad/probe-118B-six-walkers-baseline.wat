@@ -38,20 +38,20 @@
 (:wat::core::defn :probe::take-nth-zero [] -> :wat::core::String
   (:wat::string::join ","
     (:wat::core::into []
-      (:wat::core::take (:wat::core::take-nth 0 (:wat::core::Vector :wat::core::i64 1 2 3)) 5))))
+      (:wat::core::take (:wat::core::take-nth 0 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)) 5))))
 
 ;; n=1 over [1 2 3] — every element. The control that says row 1 is about n=0, not about take-nth.
 (:wat::core::defn :probe::take-nth-one [] -> :wat::core::String
   (:wat::string::join ","
     (:wat::core::into []
-      (:wat::core::take (:wat::core::take-nth 1 (:wat::core::Vector :wat::core::i64 1 2 3)) 5))))
+      (:wat::core::take (:wat::core::take-nth 1 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)) 5))))
 
 ;; n=2 over [1..6] — indices 0,2,4 => 1,3,5. The ordinary case, so a migration that breaks it
 ;; cannot hide behind "only the degenerate case moved".
 (:wat::core::defn :probe::take-nth-two [] -> :wat::core::String
   (:wat::string::join ","
     (:wat::core::into []
-      (:wat::core::take-nth 2 (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6)))))
+      (:wat::core::take-nth 2 (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6)))))
 
 ;; ─── row 2 — RETIRED by stone 118.B4-iii (THE WALL) — see the header note above.
 
@@ -75,7 +75,7 @@
         (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::+ a b))
         0
-        (:wat::core::Vector :wat::core::i64 1 2 3 4)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))))
 
 (:wat::core::defn :probe::reductions-2arity [] -> :wat::core::String
   (:wat::string::join ","
@@ -83,7 +83,7 @@
       (:wat::core::reductions
         (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::+ a b))
-        (:wat::core::Vector :wat::core::i64 1 2 3 4)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))))
 
 ;; ─── the three stateless verbs — ordinary behaviour, all four containers' worth of shape ───────
 (:wat::core::defn :probe::remove-evens [] -> :wat::core::String
@@ -92,21 +92,21 @@
       (:wat::core::remove
         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
           (:wat::core::= 0 (:wat::core::mod x 2)))
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6)))))
 
 (:wat::core::defn :probe::take-while-lt4 [] -> :wat::core::String
   (:wat::string::join ","
     (:wat::core::into []
       (:wat::core::take-while
         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 4))
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2)))))
 
 (:wat::core::defn :probe::drop-while-lt4 [] -> :wat::core::String
   (:wat::string::join ","
     (:wat::core::into []
       (:wat::core::drop-while
         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 4))
-        (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2)))))
+        (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

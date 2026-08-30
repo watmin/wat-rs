@@ -100,7 +100,7 @@
   -> :wat::core::String
   (:wqc::render-strs
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :wat::core::String)
+      (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
         (:wat::core::map
           (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
             (:wat::string::concat
@@ -113,7 +113,7 @@
   -> :wat::core::String
   (:wqc::render-strs
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :wat::core::String)
+      (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
         (:wat::core::map
           (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
             (:wat::string::concat
@@ -128,12 +128,12 @@
   [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
   -> :wat::core::String
   (:wqc::render-strs
-    (:wat::core::into (:wat::core::Vector :wat::core::String)
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
       (:wat::core::map
         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::String
           (:wat::i64::to-string x))
         (:wat::core::sort
-          (:wat::core::into (:wat::core::Vector :wat::core::i64)
+          (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
             (:wat::core::map
               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
                 (:wqc::i64-of p "?c"))
@@ -144,7 +144,7 @@
   -> :wat::core::String
   (:wqc::render-strs
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :wat::core::String)
+      (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
         (:wat::core::map
           (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
             (:wqc::str-of p "?loc"))

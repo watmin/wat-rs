@@ -28,7 +28,7 @@
 
 (:wat::core::extend-type :wat::core::PersistentVector :t118b::BareSeqable
   (as-vec-bare [self] -> (:wat::core::Vector :- [:wat::core::i64])
-    (:wat::core::into (:wat::core::Vector :wat::core::i64) self)))
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) self)))
 
 (:wat::core::defn :t118b::bare-count-of [s <- :t118b::BareSeqable] -> :wat::core::i64
   (:wat::core::length (:t118b::BareSeqable/as-vec-bare s)))
@@ -41,16 +41,16 @@
   (as-vec [self] -> (:wat::core::Vector :- [T]) self))
 
 (:wat::core::extend-type :wat::core::PersistentVector (:t118b::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :T) self)))
+  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :- [:T]) self)))
 
 (:wat::core::extend-type :wat::core::List (:t118b::Seqable :- [T])
   (as-vec [self] -> (:wat::core::Vector :- [T])
     (:wat::core::foldl (:wat::core::fn [acc <- (:wat::core::Vector :- [T]) x <- :T] -> (:wat::core::Vector :- [T])
                          (:wat::core::conj acc x))
-                       (:wat::core::Vector :T) self)))
+                       (:wat::core::Vector :- [:T]) self)))
 
 (:wat::core::extend-type :wat::stream::Stream (:t118b::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :T) self)))
+  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :- [:T]) self)))
 
 (:wat::core::defn :t118b::count-of :- [T] [s <- (:t118b::Seqable :- [T])] -> :wat::core::i64
   (:wat::core::length (:t118b::Seqable/as-vec s)))
@@ -59,14 +59,14 @@
 
 ;; row 2 — bare-surface path untouched.
 (:wat::core::defn :t::bare-vector [] -> :wat::core::i64
-  (:t118b::bare-count-of (:wat::core::Vector :wat::core::i64 10 20 30)))
+  (:t118b::bare-count-of (:wat::core::Vector :- [:wat::core::i64] 10 20 30)))
 
 (:wat::core::defn :t::bare-persistent-vector [] -> :wat::core::i64
   (:t118b::bare-count-of (:wat::core::PersistentVector 1 2 3 4)))
 
 ;; row 1 — all four containers dispatch through the parametric surface.
 (:wat::core::defn :t::param-vector [] -> :wat::core::i64
-  (:t118b::count-of (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:t118b::count-of (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 
 (:wat::core::defn :t::param-persistent-vector [] -> :wat::core::i64
   (:t118b::count-of (:wat::core::PersistentVector 1 2 3 4)))

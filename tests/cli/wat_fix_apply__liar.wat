@@ -5,6 +5,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [src   "hello world"
-     edits (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+     edits (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
              (:wat::core::Tuple 6 "xxxxx" "there"))]
     (:wat::kernel::println (:wat::fix::fix-text-apply src edits))))

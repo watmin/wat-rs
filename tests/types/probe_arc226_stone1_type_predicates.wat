@@ -32,7 +32,7 @@
 
 (:wat::core::defn :user::probe-is-vector-negative-tuple [] -> :wat::core::bool
   (:wat::core::let
-    [items (:wat::core::Vector :wat::holon::HolonAST
+    [items (:wat::core::Vector :- [:wat::holon::HolonAST]
               (:wat::holon::to-holon 1)
               (:wat::holon::to-holon 2))
      tup   (:wat::holon::Tuple items)]
@@ -41,7 +41,7 @@
 ;; ─── is-List? ────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::probe-is-list-positive [] -> :wat::core::bool
   (:wat::core::let
-    [items (:wat::core::Vector :wat::holon::HolonAST
+    [items (:wat::core::Vector :- [:wat::holon::HolonAST]
               (:wat::holon::to-holon 1)
               (:wat::holon::to-holon 2))
      lst   (:wat::holon::List items)]
@@ -53,7 +53,7 @@
 ;; ─── is-Tuple? ───────────────────────────────────────────────────────────────
 (:wat::core::defn :user::probe-is-tuple-positive [] -> :wat::core::bool
   (:wat::core::let
-    [items (:wat::core::Vector :wat::holon::HolonAST
+    [items (:wat::core::Vector :- [:wat::holon::HolonAST]
               (:wat::holon::to-holon 1)
               (:wat::holon::to-holon 2))
      tup   (:wat::holon::Tuple items)]

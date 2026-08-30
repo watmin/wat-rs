@@ -173,7 +173,7 @@
 ;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.
 (:wat::core::defn :acc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
           (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acc::enc 0 (:acc::CountF/g f) (:acc::CountF/n f))))
             (:wat::rete::query fired (:acc::q-CountF))))
      c1 (:wat::core::into c0

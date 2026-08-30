@@ -8,7 +8,7 @@
 (:wat::core::defmacro :my::splice-vec
   [xs <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::Vector :wat::core::i64 ~@xs))
+  `(:wat::core::Vector :- [:wat::core::i64] ~@xs))
 
 (:wat::core::defn :my::compute-splice [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:my::splice-vec [10 20 30]))

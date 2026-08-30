@@ -75,7 +75,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:probe::echo/grant eh
-                        (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
            :record (:probe::caller::Record) :echo-addr ea)
      cc1 (:wat::core::match (:wat::kernel::connect (:probe::caller::Handle/addr ch1)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      rr1 (:probe::Caller/run cc1 (:probe::Caller::RunRequest))
@@ -88,7 +88,7 @@
      ;; MID-LIFE explicit revoke, direct from main, echo already serving — a 2-element dummy vec.
      ;; (dummy pids; the fold + ack must complete and return nil — mirrors the grant probe's
      ;; identical mid-life dummy-vec proof.)
-     _   (:probe::echo/revoke eh (:wat::core::Vector :wat::core::i64 900001 900002))
+     _   (:probe::echo/revoke eh (:wat::core::Vector :- [:wat::core::i64] 900001 900002))
      _   (:wat::kernel::println "revoke-midlife-ok")
      ;; caller2 — its OWN post-spawn hook grants then IMMEDIATELY revokes its own pid
      ;; (both a synchronous request/reply round trip on echo's already-warm lineage peer),
@@ -104,7 +104,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::core::let
-                        [pidv (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl))
+                        [pidv (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))
                          _    (:probe::echo/grant eh pidv)
                          _    (:probe::echo/revoke eh pidv)]
                         nil)))

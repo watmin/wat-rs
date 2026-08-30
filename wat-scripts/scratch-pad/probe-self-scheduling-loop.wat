@@ -54,9 +54,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [;; seed 3 staggered item-timers (1/2/3 ms) — simulate 3 client pushes before the flush:
-     items (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :probe::SinkSig])
+     items (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :probe::SinkSig])]
              (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 1) (:probe::SinkSig::Item 10))
              (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 2) (:probe::SinkSig::Item 20))
              (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 3) (:probe::SinkSig::Item 30)))
-     flushed (:probe::sink-loop items (:wat::core::Vector :wat::core::i64) false)]
+     flushed (:probe::sink-loop items (:wat::core::Vector :- [:wat::core::i64]) false)]
     (:wat::kernel::println flushed)))     ;; EXPECT: [10 20 30] — all 3 buffered, flushed on the tick

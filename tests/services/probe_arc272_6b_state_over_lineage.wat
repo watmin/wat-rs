@@ -47,7 +47,7 @@
                          (:wat::kernel::RecvOutcome::Closed
                            (:wat::kernel::assertion-failed! "recv': self closed before the owner sent state0" :wat::core::None :wat::core::None)))]
                  (:user::serve self (:wat::spawn::Bound/listener b)
-                   (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])) st)))))
+                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]) st)))))
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
      addr (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)

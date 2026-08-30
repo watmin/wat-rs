@@ -9,6 +9,6 @@
      pb (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
      ta (:wat::spawn::Bound/address tb)
      pa (:wat::spawn::Bound/address pb)]
-    (:wat::core::Vector :wat::core::bool
+    (:wat::core::Vector :- [:wat::core::bool]
       (:wat::kernel::address-wire? ta)
       (:wat::kernel::address-wire? pa))))

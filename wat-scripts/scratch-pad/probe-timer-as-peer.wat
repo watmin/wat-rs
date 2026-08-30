@@ -51,7 +51,7 @@
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 30) :tick)]
                 (:probe::serve-thread self l
-                  (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword]) t)))))
+                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t)))))
      got  (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -87,7 +87,7 @@
                   self (:wat::program::self-peer :wat::core::keyword :wat::core::nil)
                   t    (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Millisecond 30) :tick)]
                  (:probe::serve-proc self (:wat::spawn::Bound/listener b)
-                   (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword]) t))))))
+                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t))))))
      got (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

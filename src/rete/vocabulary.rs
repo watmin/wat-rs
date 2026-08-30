@@ -109,11 +109,6 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use crate::ast::WatAST;
-use crate::runtime::{
-    EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
-};
-use crate::span::Span;
 use crate::types::TypeExpr;
 
 use super::purity::OpMeta;
@@ -1646,62 +1641,11 @@ pub(crate) fn rete_vocabulary_admitted(head: &str) -> bool {
     RETE_MODULES.iter().any(|module| head.starts_with(module))
 }
 
-/// `(:wat::rete::vocabulary-admitted? <head: :wat::WatAST, a QUOTED keyword>) -> :bool` — THE
-/// ADMISSION TEST surfaced for wat callers and its own isolated probe (`tests/rete/`), decoupled
-/// from `pure?`/`deterministic?`/`total?` (which classify an EXPRESSION; this classifies a HEAD
-/// NAME against the module-set boundary alone, independent of whether that head is pure).
-/// Not consulted by `compile-condition` — the fence's Law A check is `primitive?`.
-///
-/// Takes a QUOTED keyword (`(:wat::rete::vocabulary-admitted? (:wat::core::quote
-/// :wat::rete::i64::>))`), mirroring `pure?`/`deterministic?`'s own `:wat::WatAST` argument
-/// shape (`eval_axis_predicate`, above) — NOT a bare `:wat::core::keyword` value: a bare keyword
-/// literal that names a REGISTERED function resolves at check time to that function's `Fn` type
-/// (first-class function reference), not a `:wat::core::keyword` value, so an unquoted head name
-/// cannot reach this predicate as data for exactly the heads worth testing.
-pub(crate) fn eval_vocabulary_admitted_predicate(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::vocabulary-admitted?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
-        )
-        .into());
-    }
-    let val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let head = match val {
-        Value::wat__WatAST(ref a) => match a.as_ref() {
-            WatAST::Keyword(k, _) => k.clone(),
-            other => {
-                return Err(RuntimeError::new(
-                    args[0].span().clone(),
-                    RuntimeErrorKind::TypeMismatch {
-                        op: OP.into(),
-                        expected: ":wat::WatAST holding a Keyword (a quoted head name)",
-                        got: Box::new(ValueSnapshot::of(&Value::String(std::sync::Arc::new(format!("{other:?}"))))),
-                    },
-                )
-                .into());
-            }
-        },
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: ":wat::WatAST (a quoted keyword from :wat::core::quote)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::bool(rete_vocabulary_admitted(&head)))
-}
+// Arc 255 Stone P6-c-W5a — `eval_vocabulary_admitted_predicate` (the hand-rolled
+// `:wat::rete::vocabulary-admitted?` dispatch fn, with its own inline `args.len() != 1` arity
+// guard) is DELETED — moved to a `#[wat_intrinsic]` handler in `src/intrinsic/rete.rs`, taking
+// a typed `head: &WatAST` leading param (arity shim-owned) and calling `rete_vocabulary_admitted`
+// above directly. `rete_vocabulary_admitted` itself is unchanged.
 
 // ─── Phase 1 (BRIEF-one-naming-rule-then-first-nth-to-string.md) — the naming rule's own ward ──
 //

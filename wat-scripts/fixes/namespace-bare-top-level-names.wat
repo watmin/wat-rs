@@ -90,7 +90,7 @@
 ;; ── the definitional heads the wall polices — a top-level form headed by one of these has
 ;; its NAME at child[1] ─────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::def-heads [] -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::Vector :wat::core::String
+  (:wat::core::Vector :- [:wat::core::String]
     ":wat::core::def" ":wat::core::defn" ":wat::core::defrecord" ":wat::holon::defrecord"
     ":wat::core::defstruct" ":wat::core::defenum" ":wat::core::defsurface"
     ":wat::core::defclause" ":wat::rete::defrule" ":wat::service::defservice"
@@ -136,15 +136,15 @@
 
 (:wat::core::defn :user::deep-find-forms-blocks [node <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [here (:wat::core::if (:user::forms-call? node)
-                            (:wat::core::Vector :wat::WatAST node)
-                            (:wat::core::Vector :wat::WatAST))]
+                            (:wat::core::Vector :- [:wat::WatAST] node)
+                            (:wat::core::Vector :- [:wat::WatAST]))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat here (:user::deep-find-forms-blocks-seq (:wat::core::ast->children node)))
       here)))
 
 (:wat::core::defn :user::deep-find-forms-blocks-seq [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :wat::WatAST)
+    (:wat::core::Vector :- [:wat::WatAST])
     (:wat::core::concat
       (:user::deep-find-forms-blocks (:wat::core::first items))
       (:user::deep-find-forms-blocks-seq (:wat::core::rest items)))))
@@ -159,18 +159,18 @@
 ;; deep-searching for `forms` — that is the caller's job). Order-preserving.
 (:wat::core::defn :user::collect-def-names-shallow [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :wat::WatAST)
+    (:wat::core::Vector :- [:wat::WatAST])
     (:wat::core::let [f (:wat::core::first items) tl (:wat::core::rest items)
                       h (:wat::fix::head-name f)]
       (:wat::core::concat
         (:wat::core::if (:user::def-head? h)
           (:wat::core::let [nn (:user::name-node-of f)]
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind nn) "keyword")
-              (:wat::core::Vector :wat::WatAST nn)
-              (:wat::core::Vector :wat::WatAST)))
+              (:wat::core::Vector :- [:wat::WatAST] nn)
+              (:wat::core::Vector :- [:wat::WatAST])))
           (:wat::core::if (:user::splice-head? h)
             (:user::collect-def-names-shallow (:user::splice-body f h))
-            (:wat::core::Vector :wat::WatAST)))
+            (:wat::core::Vector :- [:wat::WatAST])))
         (:user::collect-def-names-shallow tl)))))
 
 ;; names-in-forms-blocks — every def-form NAME node inside every `forms`-block found ANYWHERE
@@ -181,7 +181,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) fb <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
       (:wat::core::concat acc (:user::collect-def-names-shallow (:user::forms-block-body fb))))
-    (:wat::core::Vector :wat::WatAST)
+    (:wat::core::Vector :- [:wat::WatAST])
     (:user::deep-find-forms-blocks-seq forms)))
 
 ;; collect-def-names — the file-level entry point: names at the literal top level (+ let/do
@@ -212,7 +212,7 @@
 ;; ── deriving / minting the file's namespace ──────────────────────────────────────────────
 
 ;; find-ns — the FIRST already-namespaced collected name donates its leading segment.
-(:wat::core::defn :user::find-ns [names <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Option :wat::core::String)
+(:wat::core::defn :user::find-ns [names <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:wat::core::empty? names)
     :wat::core::None
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
@@ -269,13 +269,13 @@
   [names <- (:wat::core::Vector :- [:wat::WatAST]) ns <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? names)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
       (:wat::core::if (:user::needs-fix? n)
         (:wat::core::let [old (:wat::core::ast-name n)
                           new (:user::new-name-for n ns)]
           (:wat::core::concat
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new))
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (:wat::core::Tuple old new))
             (:user::collect-renames tl ns)))
         (:user::collect-renames tl ns)))))
 

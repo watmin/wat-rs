@@ -97,7 +97,7 @@
 
 (:wat::core::defn :user::no-edits []
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))
+  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
 
 ;; find-kw-index — index of the first child that is EXACTLY the keyword `name`; -1 if absent.
 (:wat::core::defn :user::find-kw-index
@@ -128,7 +128,7 @@
         [kw (:wat::core::Option/expect (:wat::core::get ch irtl) "rtl kw")
          fv (:wat::core::Option/expect (:wat::core::get ch (:wat::core::+ irtl 1)) "rtl fields")]
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
             (:wat::core::Tuple (:user::end-off fv lines) ""
               (:wat::string::concat "\n"
                 (:wat::string::concat (:user::spaces (:wat::core::- (:user::col-of kw) 1))
@@ -195,7 +195,7 @@
         [arm  (:wat::core::Option/expect (:wat::core::get ch irtl) "rtl arm")
          head (:user::arm-head-kw arm)
          ind  (:wat::core::- (:user::col-of arm) 1)]
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
           (:wat::core::Tuple (:user::end-off arm lines) ""
             (:wat::string::concat "\n"
               (:wat::string::concat (:user::spaces ind)

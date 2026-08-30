@@ -40,15 +40,15 @@
 
 (:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-six [] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
-    (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6)))
+    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6)))
 
 (:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-1234-12 [] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
-    (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2)))
+    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2)))
 
 (:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-four [] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
-    (:wat::core::Vector :wat::core::i64 1 2 3 4)))
+    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))
 
 ;; ─── remove — all four containers, plus the bare PersistentVector the old 5th arm served ───────
 
@@ -59,7 +59,7 @@
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::remove pred (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))))
+          (:wat::core::into [] (:wat::core::remove pred (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6))))
         "1,3,5")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -97,7 +97,7 @@
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::take-while pred (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2))))
+          (:wat::core::into [] (:wat::core::take-while pred (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2))))
         "1,2,3")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -135,7 +135,7 @@
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2))))
+          (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2))))
         "4,1,2")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -157,7 +157,7 @@
   (:wat::core::do
     (:wat::test::assert-eq
       (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))))
+        (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6))))
       "1,3,5")
     (:wat::test::assert-eq
       (:wat::string::join ","
@@ -175,7 +175,7 @@
     ;; n = 1 is every element — the control that separates "take-nth works" from "n=0 is special".
     (:wat::test::assert-eq
       (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::take-nth 1 (:wat::core::Vector :wat::core::i64 1 2 3))))
+        (:wat::core::into [] (:wat::core::take-nth 1 (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))
       "1,2,3")))
 
 ;; ★★ THE TRAP, PINNED. `(take-nth 0 coll)` is an INFINITE repeat of the head — clojure's own
@@ -187,7 +187,7 @@
   (:wat::test::assert-eq
     (:wat::string::join ","
       (:wat::core::into []
-        (:wat::core::take (:wat::core::take-nth 0 (:wat::core::Vector :wat::core::i64 1 2 3)) 5)))
+        (:wat::core::take (:wat::core::take-nth 0 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)) 5)))
     "1,1,1,1,1"))
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::take-nth-stays-lazy-over-an-infinite-source
@@ -206,7 +206,7 @@
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::Vector :wat::core::i64 1 2 3 4))))
+          (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4))))
         "0,1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -229,7 +229,7 @@
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::reductions f (:wat::core::Vector :wat::core::i64 1 2 3 4))))
+          (:wat::core::into [] (:wat::core::reductions f (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4))))
         "1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -289,7 +289,7 @@
                    (:wat::core::reductions
                      (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
                        (:wat::core::+ a b))
-                     (:wat::core::Vector :wat::core::i64))))))))
+                     (:wat::core::Vector :- [:wat::core::i64]))))))))
      msg (:wat::core::match (:wat::kernel::recv p)
            ((:wat::kernel::RecvOutcome::Message _m)
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Message" :wat::core::None :wat::core::None))

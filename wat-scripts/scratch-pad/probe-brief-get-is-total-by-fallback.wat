@@ -57,7 +57,7 @@
   (:wat::core::let
     [pv       (:wat::core::PersistentVector 7 8 9)
      empty-pv (:wat::core::PersistentVector)
-     vec      (:wat::core::Vector :wat::core::i64 7 8 9)
+     vec      (:wat::core::Vector :- [:wat::core::i64] 7 8 9)
      lst      (:wat::core::List 7 8 9)
      h        (:wat::holon::to-holon "some-atom")
      other    (:wat::holon::to-holon "an-entirely-different-atom")

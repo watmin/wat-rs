@@ -30,4 +30,4 @@
 
 ;; THE ROW THAT WAS RED — a (Vector :- [i64]) routed through the surface method. Now yields (Stream :- [i64]).
 (:wat::core::defn :my::via-surface-method [] -> :wat::core::i64
-  (:my::eats-concrete (:wat::core::Seqable/seq (:wat::core::Vector :wat::core::i64 1 2 3))))
+  (:my::eats-concrete (:wat::core::Seqable/seq (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))

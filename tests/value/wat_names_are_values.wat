@@ -61,7 +61,7 @@
 ;; `length` needs a concrete container regardless, so `mapv`.
 (:wat::core::defn :t::test5 [] -> :wat::core::i64
   (:wat::core::let
-    [source  (:wat::core::Vector :wat::core::i64 1 2 3)
+    [source  (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      doubled (:wat::core::mapv :t::test5-double source)
      first   (:wat::core::first doubled)
      len     (:wat::core::length doubled)]

@@ -61,10 +61,10 @@
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
              (:wat::core::let
-               [_  (:probe::echo/grant  eh (:wat::core::Vector :wat::core::i64 p))
+               [_  (:probe::echo/grant  eh (:wat::core::Vector :- [:wat::core::i64] p))
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                 r1 (:wat::kernel::recv prober)
-                _r (:probe::echo/revoke eh (:wat::core::Vector :wat::core::i64 p))
+                _r (:probe::echo/revoke eh (:wat::core::Vector :- [:wat::core::i64] p))
                 ;; <<< the echo'/revoke line is REMOVED here (the counterfactual) >>>
                 _  (:wat::core::match (:wat::kernel::send prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                 rr2 (:wat::kernel::recv prober)

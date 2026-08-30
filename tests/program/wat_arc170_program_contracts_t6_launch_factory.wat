@@ -16,7 +16,7 @@
                             (:wat::i64::+ n ~offset))]
                     nil))
      p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::Vector :wat::WatAST main-form))
+         (:wat::core::Vector :- [:wat::WatAST] main-form))
      _ (:wat::core::match (:wat::kernel::send p 7)
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)

@@ -5,6 +5,6 @@
 
 (:wat::core::defn :t::lint [] -> (:wat::core::Vector :- [:wat::lint::Finding])
   (:wat::lint::lint-source
-    (:wat::core::Vector :wat::source::File
+    (:wat::core::Vector :- [:wat::source::File]
       (:wat::source::File :path "t.wat"
         :source "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))"))))

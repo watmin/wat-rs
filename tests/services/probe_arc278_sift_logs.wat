@@ -18,7 +18,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
@@ -29,7 +29,7 @@
              :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2 l3)))
+             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))
      sieve (:wat::query::sieve-pred
              (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
                (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
@@ -50,12 +50,12 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1)))
+             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1)))
      sieve (:wat::query::sieve-pred
              (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
                (:wat::core::do (:wat::kernel::println "impure predicate side effect") true)))
@@ -80,10 +80,10 @@
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
@@ -94,7 +94,7 @@
              :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2 l3)))
+             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))
      sieve (:wat::query::sieve-pred
              (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
                (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
@@ -116,15 +116,15 @@
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1)))
+             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1)))
      sieve (:wat::query::sieve-pred
              (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
                (:wat::core::do (:wat::kernel::println "impure predicate side effect") true)))

@@ -3,12 +3,13 @@
 //! The `:then` dual of `matcher.rs`'s alpha-match. Native fire runs
 //! `exec_compiled_rhs`; this file is the interpreter / differential.
 
+use wat_macros::wat_intrinsic;
+
 use crate::ast::WatAST;
 use crate::rete::eval_test::eval_rhs_expr;
 use crate::rete::matcher::resolve_operand;
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::value::value::AggregateValue;
-use crate::span::Span;
 use std::sync::Arc;
 
 /// Kwargs `(:Type :field v …)` vs positional `(:Type v …)` → the field VALUES, in DECLARATION
@@ -293,39 +294,54 @@ pub(crate) fn resolve_rhs_value(
     }
 }
 
-/// `(:wat::rete::eval-insert <fact-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
-/// -> :wat::core::Record`
+/// `(:wat::rete::eval-insert fact_form bindings) -> :wat::core::Record`
 ///
-/// The RHS dual of `eval_alpha_match`: where alpha-match is `(cond, fact) → Option<bindings>`,
-/// eval-insert is `(fact-form, bindings) → fact`. Both sides reuse `resolve_operand`. Arc 278
-/// Stone A: `fact-form` is a bare `(:Type arg…)` — the `insert` RHS-marker wrapper is gone.
+/// The RHS dual of `:wat::rete::alpha-match`: where alpha-match is `(cond, fact) → Option<bindings>`,
+/// eval-insert is `(fact-form, bindings) → fact`. Arc 278 Stone A: `fact-form` is a bare
+/// `(:Type arg…)` — the `insert` RHS-marker wrapper is gone.
+///
+/// ⚠ Corrected: the previous revision of this doc said "both sides reuse `resolve_operand`" —
+/// true when it was written, false since Arc 278 Stone B (`DESIGN-STONE-then-is-a-vector-of-
+/// singular-facts.md` § "Stone B") added [`build_insert_fact_call`]'s fn-call widening: when
+/// `fact_form`'s head names a registered fn rather than a fact-type constructor,
+/// [`resolve_rhs_value`] falls through to [`eval_rhs_expr`], which runs `eval_inner` on a
+/// caller-supplied `List` and then `apply_function` on whatever it evaluates to — arbitrary
+/// user code this verb has no way to bound, the same shape `:wat::stream::next` forcing a
+/// thunk is effectful for. `resolve_operand`-only (`?var`/`:field`/literal) is still the FAST
+/// path; it is no longer the ONLY path.
 ///
 /// Entry point dispatched by `dispatch_keyword_head_value` in `runtime.rs`.
 /// Evaluates both arguments, then delegates to `build_insert_fact` for the pure inner.
 ///
-/// Raises `RuntimeError` on arity mismatch, type mismatch, malformed form, or
+/// Arc 255 Stone P6-c-W5b — moved verbatim into `#[wat_intrinsic]` with its real (2) arity
+/// declared; the hand-rolled `args.len() != 2` guard this wave retired lived right here.
+///
+/// Raises `RuntimeError` on type mismatch, malformed form, or
 /// unresolved operand. Never panics, never silently drops.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Nondeterministic
+/// @Category      ControlFlow
+/// @arg     fact_form :wat::WatAST the quoted fact-form `(:Type arg…)` (from `:wat::core::quote`)
+/// @arg     bindings :wat::core::PersistentMap the token's bound `?var`s, resolved into the fact's args
+/// @ret     :wat::core::Record the derived fact
+/// @example-norun (:wat::rete::eval-insert (:wat::core::quote (:probe::EvalInsertTemp ?v)) (:wat::core::PersistentMap "?v" 7))
+#[wat_intrinsic(":wat::rete::eval-insert")]
 pub(crate) fn eval_insert(
-    args: &[WatAST],
-    list_span: &Span,
+    fact_form: &WatAST,
+    bindings: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-insert";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-        }).into());
-    }
 
     // Evaluate arg[0]: must be Value::wat__WatAST wrapping a List.
-    let form_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let form_val = crate::runtime::eval_inner(fact_form, env, sym)?.value_owned();
     let form_ast = match form_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(fact_form.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST (fact form from quote)",
                 got: Box::new(ValueSnapshot::of(&other)),
@@ -336,11 +352,11 @@ pub(crate) fn eval_insert(
     // Evaluate arg[1]: must be Value::wat__core__PersistentMap (token bindings). `build_insert_fact`
     // is now typed to `PMap` directly (DESIGN-STONE-token-bindings-promoting) — no trie
     // materialisation at this boundary; the value IS the field.
-    let bindings_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-    let bindings: crate::value::pmap::PMap = match bindings_val {
+    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?.value_owned();
+    let token_bindings: crate::value::pmap::PMap = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(bindings.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::PersistentMap (token bindings)",
                 got: Box::new(ValueSnapshot::of(&other)),
@@ -349,5 +365,5 @@ pub(crate) fn eval_insert(
     };
 
     // Interpreter / differential door. Native production runs `exec_compiled_rhs`.
-    build_insert_fact(&form_ast, &bindings, sym)
+    build_insert_fact(&form_ast, &token_bindings, sym)
 }

@@ -20,7 +20,7 @@
   (:wat::core::let
     [a  (:wat::source::File :path "a" :source "(:t::caller (:t::m))")
      b  (:wat::source::File :path "b" :source "(:wat::core::defmacro :t::m [] 1)")
-     files (:wat::core::Vector :wat::source::File a b)
+     files (:wat::core::Vector :- [:wat::source::File] a b)
      viols (:wat::deporder::verify files)]
     (:wat::test::assert-eq (:wat::core::length viols) 0)))
 
@@ -33,8 +33,8 @@
   (:wat::core::let
     [a  (:wat::source::File :path "a" :source "(:t::caller (:t::f))")
      b  (:wat::source::File :path "b" :source "(:wat::core::defn :t::f [] 1)")
-     files-bad  (:wat::core::Vector :wat::source::File a b)
-     files-good (:wat::core::Vector :wat::source::File b a)
+     files-bad  (:wat::core::Vector :- [:wat::source::File] a b)
+     files-good (:wat::core::Vector :- [:wat::source::File] b a)
      viols-bad  (:wat::deporder::verify files-bad)
      viols-good (:wat::deporder::verify files-good)]
     (:wat::core::do
@@ -49,7 +49,7 @@
   ;; must produce no violation (it resolves to an intrinsic / built-in).
   (:wat::core::let
     [f (:wat::source::File :path "f" :source "(:wat::io::read-file \"some-path\")")
-     files (:wat::core::Vector :wat::source::File f)
+     files (:wat::core::Vector :- [:wat::source::File] f)
      viols (:wat::deporder::verify files)]
     (:wat::test::assert-eq (:wat::core::length viols) 0)))
 

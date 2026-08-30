@@ -44,7 +44,7 @@
                 ;; the serve loop: threads the held service peer (Option, None until Setup)
                 (:wat::core::defn :probe::serve
                   [self <- (:wat::kernel::Peer :- [:wat::core::String :probe::Msg])
-                   held <- (:wat::core::Option (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]))]
+                   held <- (:wat::core::Option :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])])]
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv self) 
                     ((:probe::Msg::Setup addr)
@@ -66,7 +66,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p)) ;; grant BEFORE the setup dial
+                [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; grant BEFORE the setup dial
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup ea)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))            ;; worker dials-and-holds (admitted)
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "a")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  rr1 (:wat::kernel::recv worker)

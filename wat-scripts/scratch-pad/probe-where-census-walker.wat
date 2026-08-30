@@ -17,7 +17,7 @@
 
 (:wat::core::defn :user::structural? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::contains? (:wat::core::HashSet :wat::type::Infer "list" "vector" "map" "set") k)))
+    (:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
 (:wat::core::defn :user::kw-name [n <- :wat::WatAST] -> :wat::core::String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
@@ -138,7 +138,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::process-seq
-    (:wat::core::Vector :wat::core::String
+    (:wat::core::Vector :- [:wat::core::String]
       "wat-scripts/perf/grid/where-boolean.wat"
       "wat-scripts/perf/grid/where-collection.wat"
       "wat-scripts/perf/grid/where-control.wat"

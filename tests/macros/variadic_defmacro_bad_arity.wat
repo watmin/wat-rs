@@ -10,6 +10,6 @@
       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
         (:wat::i64::+ acc x))
       ~init
-      (:wat::core::Vector :wat::core::i64 ~@items)))
+      (:wat::core::Vector :- [:wat::core::i64] ~@items)))
 
 (:wat::core::defn :user::main [] -> :wat::core::i64 (:my::sum-of))

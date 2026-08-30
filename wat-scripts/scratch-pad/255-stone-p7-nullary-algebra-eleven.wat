@@ -18,7 +18,7 @@
 ;;
 ;; Run: ./target/release/wat wat-scripts/scratch-pad/255-stone-p7-nullary-algebra-eleven.wat
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :wat::core::Value :wat::core::EvalError)]
+(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::core::Ok v)  (:wat::string::concat "ok:" (:wat::edn::write v)))
@@ -37,45 +37,45 @@
   (:wat::core::let
     [_01 (:probe::show "uuid::v4              "
            (:wat::core::quote (:wat::uuid::v4))
-           (:wat::core::quote (:wat::core::apply :wat::uuid::v4 (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::uuid::v4 (:wat::core::Vector :- [:wat::core::Value]))))
 
      _02 (:probe::show "uuid::nil             "
            (:wat::core::quote (:wat::uuid::nil))
-           (:wat::core::quote (:wat::core::apply :wat::uuid::nil (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::uuid::nil (:wat::core::Vector :- [:wat::core::Value]))))
 
      _03 (:probe::show "time::now             "
            (:wat::core::quote (:wat::time::now))
-           (:wat::core::quote (:wat::core::apply :wat::time::now (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::time::now (:wat::core::Vector :- [:wat::core::Value]))))
 
      _04 (:probe::show "math::pi              "
            (:wat::core::quote (:wat::math::pi))
-           (:wat::core::quote (:wat::core::apply :wat::math::pi (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::math::pi (:wat::core::Vector :- [:wat::core::Value]))))
 
      _05 (:probe::show "kernel::stopped?      "
            (:wat::core::quote (:wat::kernel::stopped?))
-           (:wat::core::quote (:wat::core::apply :wat::kernel::stopped? (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::kernel::stopped? (:wat::core::Vector :- [:wat::core::Value]))))
 
      _06 (:probe::show "kernel::sigusr1?      "
            (:wat::core::quote (:wat::kernel::sigusr1?))
-           (:wat::core::quote (:wat::core::apply :wat::kernel::sigusr1? (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::kernel::sigusr1? (:wat::core::Vector :- [:wat::core::Value]))))
 
      _07 (:probe::show "kernel::sigusr2?      "
            (:wat::core::quote (:wat::kernel::sigusr2?))
-           (:wat::core::quote (:wat::core::apply :wat::kernel::sigusr2? (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::kernel::sigusr2? (:wat::core::Vector :- [:wat::core::Value]))))
 
      _08 (:probe::show "kernel::sighup?       "
            (:wat::core::quote (:wat::kernel::sighup?))
-           (:wat::core::quote (:wat::core::apply :wat::kernel::sighup? (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::kernel::sighup? (:wat::core::Vector :- [:wat::core::Value]))))
 
      _09 (:probe::show "kernel::reset-sigusr1!"
            (:wat::core::quote (:wat::kernel::reset-sigusr1!))
-           (:wat::core::quote (:wat::core::apply :wat::kernel::reset-sigusr1! (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::kernel::reset-sigusr1! (:wat::core::Vector :- [:wat::core::Value]))))
 
      _10 (:probe::show "kernel::reset-sigusr2!"
            (:wat::core::quote (:wat::kernel::reset-sigusr2!))
-           (:wat::core::quote (:wat::core::apply :wat::kernel::reset-sigusr2! (:wat::core::Vector :wat::core::Value))))
+           (:wat::core::quote (:wat::core::apply :wat::kernel::reset-sigusr2! (:wat::core::Vector :- [:wat::core::Value]))))
 
      _11 (:probe::show "kernel::reset-sighup! "
            (:wat::core::quote (:wat::kernel::reset-sighup!))
-           (:wat::core::quote (:wat::core::apply :wat::kernel::reset-sighup! (:wat::core::Vector :wat::core::Value))))]
+           (:wat::core::quote (:wat::core::apply :wat::kernel::reset-sighup! (:wat::core::Vector :- [:wat::core::Value]))))]
     nil))

@@ -98,7 +98,7 @@
 
                     ;; Same pipeline, Vector target — measured linear in the derive chain.
                     v0     (:wat::time::now)
-                    ivec   (:wat::core::into (:wat::core::Vector :wat::core::i64)
+                    ivec   (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
                              (:wat::core::filter :cx::keep? pv))
                     v1     (:wat::time::now)
 

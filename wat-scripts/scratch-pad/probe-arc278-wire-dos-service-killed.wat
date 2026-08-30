@@ -80,7 +80,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [h (:dos::bag-svc/start :locus (:wat::spawn::process) :record (:dos::bag-svc::Record :n 0))
-     good (:dos::Bag::PutRequest :items (:wat::core::Vector :wat::core::String "abcd"))
+     good (:dos::Bag::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
      bad  (:wat::edn::read "#dos.Bag/PutRequest {:items [1 2 3]}")
      ;; ATTACKER connection
      a (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))

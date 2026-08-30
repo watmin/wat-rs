@@ -38,7 +38,7 @@
                              (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64)
                      _    (:wat::core::match (:wat::kernel::send self (:wat::spawn::Bound/address b)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                     (:user::serve self (:wat::spawn::Bound/listener b)
-                      (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])))))))
+                      (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))))
      ;; recv' the service's minted capability (blocks until service sends it).
      svc-addr (:wat::core::match (:wat::kernel::recv svc)
                 ((:wat::kernel::RecvOutcome::Message m) m)

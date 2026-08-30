@@ -91,7 +91,7 @@
                 [t (:wat::kernel::after :wat::program::PeerKind::thread
                      (:wat::time::Millisecond 5) (:probe-retag::Svc::Op::Tick))]
                 (:probe-retag::serve-thread self l
-                  (:wat::core::Vector (:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op]) t)
+                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                   false -1))))
      c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op::Ping)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
@@ -161,7 +161,7 @@
                    t    (:wat::kernel::after :wat::program::PeerKind::process
                           (:wat::time::Millisecond 5) (:probe-retag::Svc::Op::Tick))]
                   (:probe-retag::serve-proc self (:wat::spawn::Bound/listener b2)
-                    (:wat::core::Vector (:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op]) t)
+                    (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                     false -1)))))
      addr (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)

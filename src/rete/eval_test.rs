@@ -2,10 +2,11 @@
 //!
 //! `where` / `:test` raise (not Clara). Shared by interpreted RHS operands.
 
+use wat_macros::wat_intrinsic;
+
 use crate::ast::WatAST;
 use crate::rete::matcher::Bindings;
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value, ValueSnapshot};
-use crate::span::Span;
 
 /// Interpreter / differential for a fenced `:then` operand against one token's bindings.
 /// Live caller is [`resolve_rhs_value`]. Compiled `RhsOp::Expr` runs `expr_ir::exec_value`
@@ -92,38 +93,48 @@ pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
     }
 }
 
-/// `(:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool`
+/// `(:wat::rete::eval-test expr bindings) -> :wat::core::bool`
 ///
 /// Dispatch wrapper: evaluates the two args, extracts the `WatAST` and `PersistentMap`,
 /// then delegates to `eval_test_core`. No behavior change from the previous monolithic
 /// implementation — the core extraction is a refactor only.
 ///
-/// Because the four-axis compile-condition fence (pure ∧ det ∧ total ∧ rete)
-/// proves safety at compile time, eval-test does not re-run it.
+/// The four-axis compile-condition fence (pure ∧ det ∧ total ∧ rete) proves `expr` safe
+/// BEFORE a `where`/`:test` clause is compiled into a rule, so `eval_test_core` does not
+/// re-run it on that path. ⚠ Corrected: that guarantee belongs to the RULE-COMPILE path
+/// (`compile-condition`), not to this verb itself — `eval-test` is directly callable, and a
+/// caller invoking it on an un-fenced `expr` gets exactly what `eval_inner` does with it, fence
+/// or no fence. That is precisely why this verb cannot honestly be `Pure`/`Deterministic`: it
+/// evaluates a caller-supplied expression in a fresh child `Environment`, and nothing at this
+/// boundary bounds what that expression can do — the same "purity is the form's, like apply"
+/// shape `:wat::stream::next` forcing a thunk is effectful for.
+///
+/// Arc 255 Stone P6-c-W5b — moved verbatim into `#[wat_intrinsic]` with its real (2) arity
+/// declared; the hand-rolled `args.len() != 2` guard this wave retired lived right here.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Nondeterministic
+/// @Category      ControlFlow
+/// @arg     expr :wat::WatAST the quoted predicate expression (from `:wat::core::quote`)
+/// @arg     bindings :wat::core::PersistentMap the token's bound `?var`s, visible to `expr` as a fresh child `Environment`
+/// @ret     :wat::core::bool `expr`'s result; raises if it is not a `:wat::core::bool`
+/// @example-norun (:wat::rete::eval-test (:wat::core::quote (:wat::rete::i64::> ?t 20)) (:wat::core::PersistentMap "?t" 25))
+#[wat_intrinsic(":wat::rete::eval-test")]
 pub(crate) fn eval_test(
-    args: &[WatAST],
-    list_span: &Span,
+    expr: &WatAST,
+    bindings: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::eval-test";
 
-    // Arity: exactly 2 args.
-    if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            })
-        .into());
-    }
-
     // Arg 0: evaluate → must be Value::wat__WatAST (a quoted expr from :wat::core::quote).
-    let expr_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let expr_val = crate::runtime::eval_inner(expr, env, sym)?.value_owned();
     let expr_ast = match expr_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(expr.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
                     got: Box::new(ValueSnapshot::of(&other)),
@@ -133,11 +144,11 @@ pub(crate) fn eval_test(
     };
 
     // Arg 1: evaluate → must be Value::wat__core__PersistentMap.
-    let bindings_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?.value_owned();
     let map = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(bindings.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::core::PersistentMap (the token's merged bindings)",
                     got: Box::new(ValueSnapshot::of(&other)),

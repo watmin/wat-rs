@@ -29,7 +29,7 @@
      ea   (:probe::echo::Handle/addr eh)
      ;; ERASE concrete (Address' :- [Op Reply]) -> bare Address' via ann-form:
      eab  (:wat::core::ann-form ea :wat::kernel::Address)
-     erased (:wat::core::Vector :wat::kernel::Address eab)
+     erased (:wat::core::Vector :- [:wat::kernel::Address] eab)
      worker (:wat::test::spawn-peer (:wat::spawn::process)
               (:wat::core::forms
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
@@ -45,7 +45,7 @@
                   :Work  [s    <- :wat::core::String])
                 (:wat::core::defn :probe::serve
                   [self <- (:wat::kernel::Peer :- [:wat::core::String :probe::CMsg])
-                   held <- (:wat::core::Option (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]))]
+                   held <- (:wat::core::Option :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])])]
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv self) 
                     ((:probe::CMsg::Setup addr)
@@ -67,7 +67,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p))
+                [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))
                  ;; parent sends a BARE-typed Setup; child decodes into concrete slot.
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Setup (:wat::core::first erased))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Work "z")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))

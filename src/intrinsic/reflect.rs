@@ -432,12 +432,22 @@ pub(crate) fn eval_render_doc(
         out.push('\n');
     }
 
-    // Yields line (optional — only for HOF intrinsics with @yields).
-    if let Some(yields_ty) = entry.yields_type {
+    // Yields section (optional — only for HOF intrinsics with ≥1 `@yields`). Arc 255
+    // Stone P5-b: N lines, one per subject, `<argname> <type>` — the TYPE is DERIVED from
+    // the matching `@arg`'s own canonical bracket-form type (`fn_arg_param_type`), never
+    // re-typed by hand, so it cannot drift from what the `@arg` itself declares.
+    if !entry.yields.is_empty() {
         out.push('\n');
-        out.push_str("Yields: ");
-        out.push_str(yields_ty);
-        out.push('\n');
+        out.push_str("Yields:\n");
+        for &(arg_name, _desc) in entry.yields {
+            let arg_ty = entry.args.iter().find(|&&(name, ..)| name == arg_name).map(|&(_, ty, ..)| ty);
+            let param_ty = arg_ty.and_then(super::fn_arg_param_type);
+            out.push_str("  ");
+            out.push_str(arg_name);
+            out.push(' ');
+            out.push_str(param_ty.unwrap_or("?"));
+            out.push('\n');
+        }
     }
 
     // Examples section (if any).

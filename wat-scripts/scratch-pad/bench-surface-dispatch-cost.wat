@@ -72,7 +72,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [n  200000
-     v  (:wat::core::Vector :wat::core::i64 1 2 3)
+     v  (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      ;; ── ORDER A: dispatched first, then direct ──
      a0 (:wat::time::now) ra (:bench::loop-disp n v)   a1 (:wat::time::now)
      b0 (:wat::time::now) rb (:bench::loop-direct n v) b1 (:wat::time::now)

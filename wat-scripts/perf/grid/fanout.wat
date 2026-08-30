@@ -107,7 +107,7 @@
 (:wat::core::defn :fan::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:fan::vec->pvec
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :wat::core::i64)
+      (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
         (:wat::core::map
           (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
           (:wat::rete::query fired (:fan::q-Pair)))))))

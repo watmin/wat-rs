@@ -79,9 +79,9 @@
   [forms <- (:wat::core::Vector :- [:wat::WatAST]) src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :wat::core::String)
+    (:wat::core::Vector :- [:wat::core::String])
     (:wat::core::concat
-      (:wat::core::Vector :wat::core::String (:user::fact-text (:wat::core::first forms) src lines))
+      (:wat::core::Vector :- [:wat::core::String] (:user::fact-text (:wat::core::first forms) src lines))
       (:user::fact-texts (:wat::core::rest forms) src lines))))
 
 ;; join-with-space — left-to-right join; no trailing/leading space.
@@ -113,7 +113,7 @@
           :wat::core::None :wat::core::None)
         (:wat::core::let [then-forms (:wat::core::into [] (:wat::core::drop ch 5))]
           (:wat::core::if (:user::then-already-vector? then-forms)
-            (:wat::core::Vector :wat::fix::Edit) ;; idempotent no-op — already migrated
+            (:wat::core::Vector :- [:wat::fix::Edit]) ;; idempotent no-op — already migrated
             (:wat::core::if (:wat::core::not (:user::all-insert-wrapped? then-forms))
               (:wat::kernel::assertion-failed!
                 (:wat::string::concat
@@ -131,10 +131,10 @@
                  ;; (join with spaces, wrap in "[...]"), not a rename; no name-based claim
                  ;; about the inter-form whitespace exists to diverge from the span.
                  old-text   (:wat::fix::fix-text-span-text (:wat::core::ast-span first-fact) (:wat::core::ast-end-span last-fact) lines src)]
-                (:wat::core::Vector :wat::fix::Edit
+                (:wat::core::Vector :- [:wat::fix::Edit]
                   (:wat::core::Tuple first-off old-text
                     (:wat::string::concat "[" (:wat::string::concat joined "]"))))))))))
-    (:wat::core::Vector :wat::fix::Edit)))
+    (:wat::core::Vector :- [:wat::fix::Edit])))
 
 ;; ── deep walk (defrule forms may be nested inside a data literal, not just top-level) ─────────
 
@@ -154,7 +154,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::walk-edits (:wat::core::first items) src lines)
       (:user::walk-seq-edits (:wat::core::rest items) src lines))))

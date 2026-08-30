@@ -28,7 +28,7 @@
                       before      (:wat::kernel::sigusr1?)
                       reset-done  (:wat::kernel::reset-sigusr1!)
                       after       (:wat::kernel::sigusr1?)]
-                     (:wat::kernel::println (:wat::core::Vector :wat::core::bool before after))))))]
+                     (:wat::kernel::println (:wat::core::Vector :- [:wat::core::bool] before after))))))]
       (:wat::core::match (:wat::kernel::signal child :wat::kernel::Signal::User1)
         (:wat::kernel::SignalOutcome::Delivered
           (:wat::core::match (:wat::kernel::send child 0)
@@ -49,4 +49,4 @@
               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
         ((:wat::kernel::SignalOutcome::Failed cause)
           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
-    (:wat::core::Vector :wat::core::bool true false)))
+    (:wat::core::Vector :- [:wat::core::bool] true false)))

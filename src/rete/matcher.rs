@@ -40,8 +40,7 @@
 
 use crate::ast::WatAST;
 use crate::rete::clause::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
-use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
-use crate::span::Span;
+use crate::runtime::{EvalBreak, SymbolTable, Value};
 use std::sync::Arc;
 
 // ─── Fact abstraction ─────────────────────────────────────────────────────────
@@ -200,131 +199,26 @@ impl Bindings for crate::value::pmap::PMap {
 }
 
 // ─── Public entry point ────────────────────────────────────────────────────────
+//
+// Arc 255 Stone P6-c-W5a — `eval_alpha_match`/`eval_alpha_match_local`/
+// `eval_alpha_match_kind`/`eval_alpha_match_under`/`eval_cond_has_deferred_constraint` (the
+// hand-rolled `:wat::rete::alpha-match`/`alpha-match-local`/`alpha-match-under`/
+// `cond-has-deferred-constraint?` dispatch fns, each with its own inline `args.len() != N`
+// arity guard) are DELETED — moved to `#[wat_intrinsic]` handlers in `src/intrinsic/rete.rs`,
+// each taking typed leading `&WatAST` params (arity shim-owned) and calling straight into
+// `fact_from_value`/`class_field_names`/`attach_fact_bind`/`alpha_match_inner`/
+// `alpha_match_inner_local`/`alpha_match_inner_seeded`/`cond_has_deferred_constraint`/
+// `pack_alpha_match_option` below — all unchanged, all still exactly where they were, all now
+// `pub(crate)` reads from a sibling module rather than a same-file dispatch fn.
 
-/// `(:wat::rete::alpha-match cond fact) -> Option<PersistentMap<String, Value>>`
-///
-/// Entry point dispatched by `dispatch_keyword_head_value` in `runtime.rs`.
-/// Evaluates both arguments, extracts the WatAST condition and record fact,
-/// then delegates to the pure inner matcher.
-pub(crate) fn eval_alpha_match(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_alpha_match_kind(args, list_span, env, sym, false)
-}
-
-pub(crate) fn eval_alpha_match_local(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_alpha_match_kind(args, list_span, env, sym, true)
-}
-
-/// `(:wat::rete::cond-has-deferred-constraint? cond) -> bool`
-pub(crate) fn eval_cond_has_deferred_constraint(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::cond-has-deferred-constraint?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let cond_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let cond_ast = match cond_val {
-        Value::wat__WatAST(ref a) => (**a).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: ":wat::WatAST (condition form)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::bool(cond_has_deferred_constraint(&cond_ast)))
-}
-
-fn eval_alpha_match_kind(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    local: bool,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::alpha-match";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-        }).into());
-    }
-
-    // Evaluate cond: must be Value::wat__WatAST wrapping a List.
-    let cond_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let cond_ast = match cond_val {
-        Value::wat__WatAST(ref a) => (**a).clone(),
-        other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::WatAST (condition form from quote)",
-                got: Box::new(ValueSnapshot::of(&other)),
-            }).into());
-        }
-    };
-
-    // Evaluate fact: must be a record value (`Value::Aggregate`, nature Record/HolonRecord).
-    let fact_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-
-    // Resolve the fact's declared field names from the type registry.
-    // The registry key carries the leading colon (e.g. ":user::Temp").
-    // Falls back to an empty slice if the registry is absent (test harnesses
-    // that bypass freeze) — binding clauses will return None at the first lookup.
-    let fact = match fact_from_value(&fact_val) {
-        Some(f) => f,
-        None => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::Record (a record fact)",
-                got: Box::new(ValueSnapshot::of(&fact_val)),
-            }).into());
-        }
-    };
-
-    let field_names = class_field_names(sym, fact.class_fqdn);
-
-    // Pure match: no environment, no eval, bindings as an array (element-side — see `Bindings`).
-    let matched = if local {
-        alpha_match_inner_local(Some(sym), &cond_ast, fact.class_fqdn, fact.fields, &field_names)
-    } else {
-        alpha_match_inner(Some(sym), &cond_ast, fact.class_fqdn, fact.fields, &field_names)
-    };
-    let result = matched.map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
-    pack_alpha_match_option(result)
-}
-
-fn pack_alpha_match_option(result: BindPairs) -> Result<Value, EvalBreak> {
+/// wat-contract boundary: this primitive's surface is `Option<PersistentMap>` — build one from
+/// the binding array here (not the matcher hot path; this is a primitive dispatch, not
+/// per-element construction inside `alpha_pass`/`alpha_match_inner`'s own fold). `pub(crate)`
+/// (arc 255 Stone P6-c-W5a): shared by the three `#[wat_intrinsic]` alpha-matchers in
+/// `src/intrinsic/rete.rs`, which is why it lives here rather than in that file — the packing
+/// step is the SAME regardless of which of the three matchers produced `result`.
+pub(crate) fn pack_alpha_match_option(result: BindPairs) -> Result<Value, EvalBreak> {
     Ok(match result {
-        // wat-contract boundary: this primitive's surface is `Option<PersistentMap>` — build one
-        // from the array here (not the matcher hot path; this is a primitive dispatch, not
-        // per-element construction inside `alpha_pass`/`alpha_match_inner`'s own fold).
         Some(bindings) => {
             let pm = crate::value::pmap::PMap::from_pairs(
                 bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
@@ -333,80 +227,6 @@ fn pack_alpha_match_option(result: BindPairs) -> Result<Value, EvalBreak> {
         }
         None => Value::Option(Arc::new(None)),
     })
-}
-
-/// `(:wat::rete::alpha-match-under cond fact bindings) -> Option<PersistentMap>`
-///
-/// Same matcher as `alpha-match`, but `bindings` (a token's left-accumulated
-/// `?vars`) seed the clause fold. Used by the oracle `:not` / `:exists` filter
-/// so a constraint that names a left-bound var (`?v < ?m`) is a beta check,
-/// not a silent alpha miss.
-pub(crate) fn eval_alpha_match_under(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::alpha-match-under";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 3,
-            got: args.len(),
-        }).into());
-    }
-
-    let cond_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let cond_ast = match cond_val {
-        Value::wat__WatAST(ref a) => (**a).clone(),
-        other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::WatAST (condition form from quote)",
-                got: Box::new(ValueSnapshot::of(&other)),
-            }).into());
-        }
-    };
-
-    let fact_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-    let fact = match fact_from_value(&fact_val) {
-        Some(f) => f,
-        None => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::Record (a record fact)",
-                got: Box::new(ValueSnapshot::of(&fact_val)),
-            }).into());
-        }
-    };
-
-    let binds_val = crate::runtime::eval_inner(&args[2], env, sym)?.value_owned();
-    let seed: Vec<(Value, Value)> = match &binds_val {
-        Value::wat__core__PersistentMap(pm) => pm
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect(),
-        other => {
-            return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::PersistentMap (token bindings)",
-                got: Box::new(ValueSnapshot::of(other)),
-            }).into());
-        }
-    };
-
-    let field_names = class_field_names(sym, fact.class_fqdn);
-
-    let result = alpha_match_inner_seeded(
-        Some(sym),
-        &cond_ast,
-        fact.class_fqdn,
-        fact.fields,
-        &field_names,
-        &seed,
-    )
-    .map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
-    pack_alpha_match_option(result)
 }
 
 // ─── Pure inner matcher ────────────────────────────────────────────────────────

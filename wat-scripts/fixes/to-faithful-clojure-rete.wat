@@ -140,8 +140,8 @@
         (:wat::core::let [name (:wat::core::ast-name node)
                           off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                           len  (:wat::string::length name)]
-          (:wat::core::Vector :fix::Node (:fix::Node :kind kind :name name :offset off :len len :post-arrow prev-arrow?)))
-        (:wat::core::Vector :fix::Node)))))
+          (:wat::core::Vector :- [:fix::Node] (:fix::Node :kind kind :name name :offset off :len len :post-arrow prev-arrow?)))
+        (:wat::core::Vector :- [:fix::Node])))))
 
 (:wat::core::defn :fix::collect-nodes-seq
   [items       <- (:wat::core::Vector :- [:wat::WatAST])
@@ -149,7 +149,7 @@
    lines       <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:fix::Node])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :fix::Node)
+    (:wat::core::Vector :- [:fix::Node])
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
@@ -181,7 +181,7 @@
         ;; old-text = ?name directly (arc 282) — NEVER ?len; see wat-scripts/fixes/to-
         ;; faithful-clojure-net.wat's sibling comment for the full reasoning.
         (:wat::core::concat a
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
             (:wat::core::Tuple
               (:wat::core::Option/expect (:wat::map::get hc "?offset") "q-HeadConv: ?offset")
               old-name
@@ -200,7 +200,7 @@
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       ;; old-text = ?name — see q-HeadConv's sibling comment above (arc 282).
       (:wat::core::concat a
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
           (:wat::core::Tuple
             (:wat::core::Option/expect (:wat::map::get ac "?offset") "q-ArrowConv: ?offset")
             (:wat::core::Option/expect (:wat::map::get ac "?name") "q-ArrowConv: ?name")
@@ -220,7 +220,7 @@
       (:wat::core::let [old-name (:wat::core::Option/expect (:wat::map::get tc "?name") "q-TypeConv: ?name")]
         ;; old-text = ?name directly (arc 282) — NEVER ?len.
         (:wat::core::concat a
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
             (:wat::core::Tuple
               (:wat::core::Option/expect (:wat::map::get tc "?offset") "q-TypeConv: ?offset")
               old-name
@@ -245,7 +245,7 @@
                     ;; query out + action (the transform lives here, outside rete)
                     ;; query-by-type-string (colon-free FQDN) is the checked-body idiom — the bare
                     ;; type-name constructor form `query` wants doesn't type-check in a defn body.
-                    empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+                    empty-e (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                     e1      (:fix::head-edits  (:wat::rete::query fired (:fix::q-HeadConv))  empty-e)
                     e2      (:fix::arrow-edits (:wat::rete::query fired (:fix::q-ArrowConv)) e1)
                     e3      (:fix::type-edits  (:wat::rete::query fired (:fix::q-TypeConv))  e2)

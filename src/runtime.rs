@@ -52,6 +52,7 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use wat_macros::restricted_to;
+use wat_macros::wat_intrinsic;
 use wat_macros::wat_special_form_impl;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
@@ -5527,41 +5528,34 @@ fn dispatch_keyword_head_value(
         ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
         ":wat::core::quote" => eval_quote(args, list_span),
         // Arc 118 — lazy-seq foundation primitives.
-        // `seq-empty`/`cons` are NORMAL intrinsics (args evaluated).
-        ":wat::stream::empty" => eval_seq_empty(args, list_span),
-        ":wat::stream::cons" => eval_cons(args, list_span, env, sym),
+        // `seq-empty`/`cons`/`next` (arc 255 Stone P6-c-W2) moved into `#[wat_intrinsic]`
+        // handlers (`src/intrinsic/stream.rs`); the pre-match registry check above
+        // (arc 255.1c-guard) intercepts all three names before reaching here.
         // `lazy-seq` is a SPECIAL FORM (capture-don't-eval): wrap the body in a
         // 0-arg closure over the current env → Stream::Thunk. Mirrors `quote`.
         ":wat::stream::lazy" => eval_lazy_seq(args, list_span, env),
-        // Arc 118.11a — `next` is a NORMAL intrinsic (arg evaluated). Forces
-        // exactly one cell via `realize` and destructures — no second forcing loop.
-        ":wat::stream::next" => eval_stream_next(args, list_span, env, sym),
         // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
         // `Value::wat__WatAST` through `watast_to_holon` at runtime.rs:14437).
         ":wat::core::quasiquote" => eval_quasiquote(args, list_span, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, list_span, env, sym),
-        // Arc 143 slice 1 — runtime introspection: look up a named
-        // callable by keyword and return its AST representation.
-        ":wat::runtime::lookup-define" => eval_lookup_define(args, list_span, env, sym),
-        ":wat::runtime::signature-of-defn" => eval_signature_of_defn(args, list_span, env, sym),
-        ":wat::runtime::signature-of-fn" => eval_signature_of_fn(args, list_span, env, sym),
-        ":wat::runtime::return-type-of" => eval_return_type_of(args, list_span, env, sym),
-        ":wat::runtime::body-of" => eval_body_of(args, list_span, env, sym),
-        // Stone 241.7 — metadata-map reflection verb.
-        ":wat::runtime::metadata-of" => eval_metadata_of(args, list_span, env, sym),
-        // Arc 143 slice 3 — HolonAST manipulation primitives.
-        ":wat::runtime::rename-callable-name" => {
-            eval_rename_callable_name(args, list_span, env, sym)
-        }
-        ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, list_span, env, sym),
-        // Arc 201 slice 5 — type-direction sibling of extract-arg-names.
-        ":wat::runtime::extract-arg-types" => eval_extract_arg_types(args, list_span, env, sym),
-        // Arc 170 Strike B — struct-field reflection: extract-arg-names/-types'
-        // sibling pair for a TYPE's fields rather than a callable's argspec.
-        ":wat::runtime::field-names-of" => eval_field_names_of(args, list_span, env, sym),
-        ":wat::runtime::field-types-of" => eval_field_types_of(args, list_span, env, sym),
+        // Arc 143 slice 1 / slice 3, Arc 201 slice 5 — `lookup-define`, `signature-of-defn`,
+        // `signature-of-fn`, `return-type-of`, `body-of`, `rename-callable-name`,
+        // `extract-arg-names`, `extract-arg-types` (arc 255 Stone P6-c-W3) moved into
+        // `#[wat_intrinsic]` handlers (above this match, still in this file); the pre-match
+        // registry check above (arc 255.1c-guard) intercepts all eight names before reaching
+        // here. Real arity declared for each (1/1/1/1/1/3/1/1) — no hand-rolled arity guard
+        // survives.
+        // Stone 241.7 / Arc 170 Strike B — `metadata-of`, `field-names-of`, `field-types-of`
+        // (arc 255 Stone P6-c-W4) moved into `#[wat_intrinsic]` handlers (above this match,
+        // still in this file); the pre-match registry check above (arc 255.1c-guard)
+        // intercepts all three names before reaching here. Real arity declared for each
+        // (1/1/1) — no hand-rolled arity guard survives. Unlike W3's eight, these three carry
+        // NO checker `TypeScheme` (`FROZEN_CHECKER_DEBT_LEDGER`, `src/intrinsic/mod.rs`) —
+        // homing them grows that ledger by three, not zero; `src/check.rs` itself is
+        // untouched (`field-names-of`/`field-types-of` keep their `infer_list` special-case;
+        // `metadata-of` keeps having no check-side treatment at all).
         // Arc 201 slice 2 — general-purpose Bundle accessors. The
         // leaf-unwrap counterpart (`:wat::core::atom-value`) was already
         // minted by arc 057; SCORE-SLICE-2 § Sibling check documents the
@@ -5576,47 +5570,42 @@ fn dispatch_keyword_head_value(
         // positional (structural fact); extract-classifier is semantic
         // (classifier-wrap convention). Per intueri cast 2026-05-23 night.
         // Arc 259 — The Forced Hand: ambient program environment.
-        // Reads the calling thread's PROGRAM_ENV slot (installed via
-        // install_program_env at the post-bootstrap / pre-:user::main seam).
-        ":wat::program::env" => eval_program_env(args, list_span),
+        // `:wat::program::env` (arc 255 Stone P6-c-W2) moved into a `#[wat_intrinsic]`
+        // handler (`src/intrinsic/program.rs`); the pre-match registry check above
+        // (arc 255.1c-guard) intercepts the name before reaching here.
         // Arc 209 C0b.3a-0 — process child owner-link.
         // Reads the calling thread's SELF_PEER slot (installed at the
         // child-only seam run_forms_as_server_child, before :user::main).
         // Root → clean MalformedForm error (no owner-link). Two checker-only
         // type-keyword args (:S :R) validated but not evaluated.
         ":wat::program::self-peer" => eval_program_self_peer(args, list_span),
-        // Arc 259 S3.2b-i — live host parallelism verb.
-        // Answers std::thread::available_parallelism() directly, no program env needed.
-        ":wat::program::cpu-count" => eval_program_cpu_count(args, list_span),
-        // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
-        // pass 7 (drop stdio params from `:user::main`; argv +
-        // current-thread move to ambient).
-        ":wat::runtime::argv" => eval_runtime_argv(args, list_span),
-        ":wat::runtime::current-thread" => eval_runtime_current_thread(args, list_span),
-        // Arc 098 — Clara-style single-item pattern matcher.
-        // Both type checker and runtime walk the same pattern grammar
-        // via the shared classifier in `crate::form_match`.
-        ":wat::form::matches?" => eval_form_matches(args, list_span, env, sym),
-        // Arc 278 Stone 2a — rete single-fact alpha matcher.
-        // Pure data-in/data-out: cond (WatAST from quote) × fact (Record) →
-        // (Option :- [(PersistentMap :- [String Value])]). No Environment, no eval_inner.
+        // Arc 170 slice 1e — `:wat::runtime::argv`/`current-thread` (ambient runtime values
+        // per REALIZATIONS pass 7) moved into `#[wat_intrinsic]` handlers (arc 255 Stone
+        // P6-c-W3, both above this match, still in this file) with their real (0) arity
+        // declared — no `args`/`list_span` params survive (true nullary, like
+        // `:wat::stream::empty`); the pre-match registry check above (arc 255.1c-guard)
+        // intercepts both names before reaching here.
+        // arc 255 Stone P6-c-1 — `:wat::program::cpu-count` and `:wat::form::matches?`
+        // homed to `#[wat_intrinsic]` (both above this match, still in this file); no
+        // arm needed here anymore. Type-checking (`check.rs::infer_form_matches` for
+        // `matches?`; the hand-registered `TypeScheme` for `cpu-count`) is unaffected.
+        // Arc 278 Stone 2a — rete single-fact alpha matcher. Pure data-in/data-out: cond
+        // (WatAST from quote) × fact (Record) → (Option :- [(PersistentMap :- [String Value])]).
         // Bindings keyed by logic-var name string ("?t" → bound value).
-        ":wat::rete::alpha-match" => {
-            crate::rete::matcher::eval_alpha_match(args, list_span, env, sym)
-        }
-        ":wat::rete::alpha-match-local" => {
-            crate::rete::matcher::eval_alpha_match_local(args, list_span, env, sym)
-        }
-        ":wat::rete::cond-has-deferred-constraint?" => {
-            crate::rete::matcher::eval_cond_has_deferred_constraint(args, list_span, env, sym)
-        }
-        ":wat::rete::alpha-match-under" => {
-            crate::rete::matcher::eval_alpha_match_under(args, list_span, env, sym)
-        }
-        // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
-        // Pure data-in/data-out: insert-form (WatAST) × bindings (PersistentMap) → Record.
-        // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).
-        ":wat::rete::eval-insert" => crate::rete::eval_insert::eval_insert(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W5a — `:wat::rete::alpha-match`/`alpha-match-local`/
+        // `alpha-match-under`/`cond-has-deferred-constraint?` moved into `#[wat_intrinsic]`
+        // handlers (`src/intrinsic/rete.rs`) with their real (2/2/3/1) arities declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts all four names before
+        // reaching here. The pure inner matcher (`alpha_match_inner`/`*_local`/`*_seeded`,
+        // `src/rete/matcher.rs`) is unchanged.
+        // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match): insert-form
+        // (WatAST) × bindings (PersistentMap) → Record, resolving ?var/literal fact-args via
+        // resolve_operand, OR (Stone B widening) falling through to a fenced fn-call eval —
+        // no longer pure data-in/data-out, see `eval_insert`'s own doc.
+        // Arc 255 Stone P6-c-W5b — `:wat::rete::eval-insert` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/eval_insert.rs`, in place — not relocated to `src/intrinsic/`)
+        // with its real (2) arity declared; the pre-match registry check above (arc
+        // 255.1c-guard) intercepts the name before reaching here.
         // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
         // (:wat::rete::fire-once <session>) → :wat::rete::Session
         // Equivalent to fire-once$oracle on AST Sessions; Export is native-only
@@ -5634,14 +5623,12 @@ fn dispatch_keyword_head_value(
         // rune:circumspicere(accepted-by-design) — intern hangup mouths are keyword
         // primitives (TypeScheme + runtime dispatch), not dual-impl wat Fns; bound in
         // DESIGN-STONE-intern-eviction.md (keyword primitives; oracle has no intern).
-        ":wat::rete::arm-session" => {
-            crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
-        }
         // Arc 278 — drop one intern lease (`DESIGN-STONE-intern-eviction`).
         // Value unchanged. Last lease removes the intern entry.
-        ":wat::rete::release-session" => {
-            crate::rete::kernel::eval_release_session(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5b — `:wat::rete::arm-session`/`release-session` moved into
+        // `#[wat_intrinsic]` handlers (`src/rete/kernel/arm.rs`, in place) with their real (1)
+        // arity declared each; the pre-match registry check above (arc 255.1c-guard)
+        // intercepts both names before reaching here.
         // Arc 278 — native `insert-all` (oracle is `insert-all$oracle`).
         // 2-ary `insert` is handled above (`eval_insert_public`).
         ":wat::rete::insert-all$native" | ":wat::rete::insert-all" => {
@@ -5656,55 +5643,45 @@ fn dispatch_keyword_head_value(
         // Arc 278 Stone P12c — per-edge explain payload builder.
         // (:wat::rete::step-payload session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
-        ":wat::rete::step-payload" => {
-            crate::rete::step_payload::eval_step_payload(args, list_span, env, sym)
-        }
-        ":wat::rete::collect-rules" => {
-            crate::rete::collect::eval_collect_rules(args, list_span, env, sym)
-        }
-        ":wat::rete::export" => crate::rete::export::eval_export(args, list_span, env, sym),
-        ":wat::rete::import" => crate::rete::export::eval_import(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::step-payload` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/step_payload.rs`, in place) with its real (5) arity declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here.
+        // Arc 255 Stone P6-c-W5b — `:wat::rete::export`/`import` moved into `#[wat_intrinsic]`
+        // handlers (`src/rete/export.rs`, in place) with their real (1) arity declared each;
+        // the pre-match registry check above (arc 255.1c-guard) intercepts both names before
+        // reaching here.
         // Arc 278 Stone 6a — the rete condition fence: four orthogonal classifiers, each
         // default-deny + transitive over user-fn bodies. A rete condition must be
         // (pure AND deterministic AND total AND a rete primitive).
         //   pure?          = effect-free (no IO/mutation). Uuid/v4 IS pure (does no IO).
         //   deterministic? = same inputs → same output. Uuid/v4 is NOT (random); Uuid/v5 IS.
         //   total?         = defined on all inputs. ARMED: `compile-condition` consults it.
-        // (:wat::rete::pure? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
-        // (:wat::rete::deterministic? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
-        ":wat::rete::pure?" => crate::rete::purity::eval_pure_predicate(args, list_span, env, sym),
-        ":wat::rete::deterministic?" => {
-            crate::rete::purity::eval_deterministic_predicate(args, list_span, env, sym)
-        }
-        // The THIRD fence axis: domain-total (defined on all inputs)?
-        // ARMED: `compile-condition` consults it as the third conjunct.
-        // (:wat::rete::total? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
-        ":wat::rete::total?" => {
-            crate::rete::purity::eval_total_predicate(args, list_span, env, sym)
-        }
-        // (:wat::rete::primitive? <quoted-expr: :wat::WatAST>) -> :wat::core::bool — LAW A.
-        ":wat::rete::primitive?" => {
-            crate::rete::purity::eval_rete_primitive_predicate(args, list_span, env, sym)
-        }
-        // Arc 278 #55 slice one — THE ADMISSION TEST's wat surface: classifies a HEAD NAME
-        // against the rete-vocabulary module-set boundary alone (decoupled from pure/
-        // deterministic/total, which classify an EXPRESSION). Not the fence — Law A is
-        // `primitive?`.
-        // (:wat::rete::vocabulary-admitted? <head: :wat::WatAST, a QUOTED keyword>) -> :wat::core::bool
-        ":wat::rete::vocabulary-admitted?" => {
-            crate::rete::vocabulary::eval_vocabulary_admitted_predicate(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5a — `:wat::rete::pure?`/`deterministic?`/`total?`/`primitive?`
+        // and the admission test `vocabulary-admitted?` all moved into `#[wat_intrinsic]`
+        // handlers (`src/intrinsic/rete.rs`) with their real (1) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts all five names before reaching
+        // here. `axis-violation` below runs the SAME walk and IS part of Stone P6-c-W5c.
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it.
         // (:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) -> (:wat::core::Option :- [wat::rete::AxisViolation])
-        ":wat::rete::axis-violation" => {
-            crate::rete::purity::eval_axis_violation(args, list_span, env, sym)
-        }
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::axis-violation` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/purity.rs`, in place) with its real (2) arity declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here.
         // Arc 278 Stone 6b-i — the runtime evaluator for where/:test predicates.
         // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
-        ":wat::rete::eval-test" => crate::rete::eval_test::eval_test(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W5b — moved into a `#[wat_intrinsic]` handler
+        // (`src/rete/eval_test.rs`, in place) with its real (2) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // #49 — rule-compile refuse: lower the where expr or raise. Returns nil on success.
-        ":wat::rete::lower" => crate::rete::expr_ir::eval_lower(args, list_span, env, sym),
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::lower` moved into a `#[wat_intrinsic]` handler
+        // (`src/rete/expr_ir.rs`, in place) with its real (1) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
+        // Arc 255 Stone P6-c-W5c — `:wat::rete::collect-rules` moved into a `#[wat_intrinsic]`
+        // handler (`src/rete/collect.rs`, in place) with its real (1) arity declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here.
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
@@ -6280,19 +6257,11 @@ fn dispatch_keyword_head_value(
         // but not illegal).
         ":wat::core::use!" => Ok(Value::Unit),
 
-        // Config accessors — read committed config fields at runtime.
-        // Arc 037 slice 6: :wat::config::dims and :wat::config::noise-floor
-        // became compatibility shims that return the smallest-tier
-        // default values (DEFAULT_TIERS[0]). Under multi-d these
-        // single-value accessors are semantically stale; callers that
-        // need honest per-AST measurement should use presence? /
-        // coincident? / (statement-length ast) primitives instead.
-        // Shimmed here so existing lab code compiles; deprecation
-        // arc will sweep callers later.
-        ":wat::config::dim-count" => eval_config_dim_count(args, sym, list_span),
-        ":wat::config::dim-capacity" => eval_config_dim_capacity(args, sym, list_span),
-        ":wat::config::global-seed" => eval_config_global_seed(args, sym, list_span),
-        ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym, list_span),
+        // Config accessors (:wat::config::dim-count/dim-capacity/global-seed/noise-floor) —
+        // arc 255 Stone P6-c-W1 moved their dispatch arms into `#[wat_intrinsic]` handlers
+        // (`src/intrinsic/config.rs`); the pre-match registry check above (arc 255.1c-guard)
+        // intercepts all four names before reaching here, same shape as `:wat::math::*` a
+        // few dozen lines down.
 
         // Stdlib math (:wat::math::ln/exp/sqrt/sin/cos/pi) and stat
         // (:wat::stat::mean/variance/stddev) — arc 255 Stone HOME-9 moved these off the dead
@@ -12037,67 +12006,11 @@ pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
 
-/// Arc 118 — `(:wat::stream::empty) -> (Stream :- [T])`. The Empty terminator.
-///
-/// Zero-arg constructor producing `Value::wat__stream__Stream(Arc::new(Stream::Empty))`.
-fn eval_seq_empty(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::stream::empty".into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    Ok(Value::wat__stream__Stream(Arc::new(
-        crate::stream::Stream::Empty,
-    )))
-}
-
-/// Arc 118 — `(:wat::stream::cons head tail) -> (Stream :- [T])`. Strict-head Cons cell.
-///
-/// `head` is evaluated (strict); `tail` is evaluated and must be a `Stream` (it may
-/// itself be a Thunk — O(1), no forcing). Returns a `Stream::Cons{head, tail}`.
-fn eval_cons(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::stream::cons".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let head = eval_inner(&args[0], env, sym)?.value_owned();
-    let tail_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let tail = match tail_val {
-        Value::wat__stream__Stream(s) => s,
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::stream::cons".into(),
-                    expected: "wat::stream::Stream",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    Ok(Value::wat__stream__Stream(Arc::new(
-        crate::stream::Stream::Cons { head, tail },
-    )))
-}
+// `eval_seq_empty`/`eval_cons` that used to live here (`:wat::stream::empty`/`cons`) moved to
+// `src/intrinsic/stream.rs` — arc 255 Stone P6-c-W2, the P6-c campaign's second wave. Both
+// were declaring a variadic `&[WatAST]` they used only to reject (a hand-rolled length
+// check); homing them meant declaring the real arity (0 and 2) so `#[wat_intrinsic]`'s
+// generated shim owns the check and `metadata-of` reports the true arity instead of a lie.
 
 /// Arc 118 — `(:wat::stream::lazy <body>) -> (Stream :- [T])`. SPECIAL FORM (capture-don't-eval).
 ///
@@ -12147,88 +12060,11 @@ fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result
     )))
 }
 
-/// Arc 118.11a — the type path of `next`'s matchable outcome enum
-/// (`(:wat::stream::NextOutcome :- [T])`, registered in `types.rs`).
-const NEXT_OUTCOME_TYPE: &str = ":wat::stream::NextOutcome";
-
-/// `NextOutcome::Item [value <- T, rest <- (Stream :- [T])]` — the forced head plus the
-/// undrained tail, both from the SAME single force. Mirrors `recv_outcome_message`.
-fn next_outcome_item(value: Value, rest: Value) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: NEXT_OUTCOME_TYPE.into(),
-        variant_name: "Item".into(),
-        names: builtin_enum_variant_names(NEXT_OUTCOME_TYPE, "Item"),
-        fields: vec![value, rest],
-    }))
-}
-
-/// `NextOutcome::Exhausted []` — the named end; no more elements. Mirrors
-/// `recv_outcome_closed`.
-fn next_outcome_exhausted() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: NEXT_OUTCOME_TYPE.into(),
-        variant_name: "Exhausted".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
-}
-
-/// Arc 118.11a — `(:wat::stream::next s) -> (NextOutcome :- [T])`. The pull primitive:
-/// forces `s` to WHNF via `realize` (reusing the existing `forced` memo — this
-/// stone does not touch it) and destructures the result. `Empty` → `Exhausted`;
-/// `Cons{head, tail}` → `Item[value <- head, rest <- (Stream :- [T]) wrapping tail]`.
-///
-/// **Exactly one force per call** — `realize`'s own loop already stops at the
-/// first `Empty`/`Cons`; this function does not add a second forcing loop or
-/// consult/build any cache of its own. That is the entire reason this verb
-/// exists (DESIGN-STONE-118.11a): the three-call `empty?`/`first`/`rest` walk
-/// forces the SAME cell three times.
-fn eval_stream_next(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::stream::next".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let seq_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let seq = match seq_val {
-        Value::wat__stream__Stream(s) => s,
-        other => {
-            return Err(RuntimeError::new(
-                args[0].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::stream::next".into(),
-                    expected: "wat::stream::Stream",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into())
-        }
-    };
-    let whnf = crate::stream::realize(&seq, sym, list_span)?;
-    match whnf.as_ref() {
-        crate::stream::Stream::Empty => Ok(next_outcome_exhausted()),
-        crate::stream::Stream::Cons { head, tail } => Ok(next_outcome_item(
-            head.clone(),
-            Value::wat__stream__Stream(Arc::clone(tail)),
-        )),
-        // INVARIANT (src/stream/mod.rs `realize` doc): realize always terminates
-        // with Empty or Cons; Thunk/NativeThunk is the only transitional state.
-        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
-            unreachable!("realize returns only Empty|Cons (WHNF invariant, src/stream/mod.rs)")
-        }
-    }
-}
+// `NEXT_OUTCOME_TYPE`/`next_outcome_item`/`next_outcome_exhausted`/`eval_stream_next` that
+// used to live here (`:wat::stream::next`) moved to `src/intrinsic/stream.rs` — arc 255
+// Stone P6-c-W2. Declared a variadic `&[WatAST]` used only to reject (a hand-rolled length
+// check); homing it meant declaring the real arity (1) so `#[wat_intrinsic]`'s generated
+// shim owns the check.
 
 /// `(:wat::core::ann-form <expr> <type>) -> T` — arc 251 Stone 251.4b.
 ///
@@ -13216,35 +13052,45 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
     None
 }
 
-/// `(:wat::runtime::lookup-define <name :keyword>) -> (:Option :- [wat::holon::HolonAST])`
+/// `(:wat::runtime::lookup-define name) -> (:wat::core::Option :- [:wat::WatAST])`. The FULL
+/// define AST for any known binding, dispatched on the uniform `Binding` enum (`lookup_form`):
+/// `UserFunction` reconstructs `(:wat::core::defn <head> <body>)` from the stored `Function`
+/// (params/param_types/ret_type/body all preserved); `Primitive` synthesises the same shape from
+/// the registered `TypeScheme` with `:_a0`, `:_a1`, ... stand-in param names and the sentinel body
+/// `(:wat::core::__internal/primitive <name>)`; `Macro` reconstructs from the stored `MacroDef`
+/// template; `Type` reconstructs the type's own declaration form; `SpecialForm` emits the
+/// sentinel `(:wat::core::__internal/special-form <name>)` (arc 144 slice 2 populated this
+/// registry — `if`/`let`/`match`/… all resolve here, not only substrate-primitive names). An
+/// unregistered name returns `:None`.
 ///
-/// Arc 143 slice 1. Returns the FULL define AST:
-/// `(:wat::core::define <head> <body>)`.
+/// Arc 143 slice 1 / Arc 144 slice 1.
 ///
-/// For user defines, reconstructs from the stored `Function`
-/// (params, param_types, ret_type, body are all preserved).
-/// For substrate primitives, synthesises from the registered
-/// `TypeScheme` with `:_a0`, `:_a1`, ... param names and the sentinel body
-/// `(:wat::core::__internal/primitive <name>)`.
-/// For unknown names, returns `:None`.
+/// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header (and a matching inline comment on
+/// the `SpecialForm` arm below, claiming that arm was "unreachable... until slice 2") both
+/// predate slice 2 landing — the registry has been populated since, `tests/wat_lang/
+/// wat_arc144_special_forms.rs` exercises it directly, and `(lookup-define :wat::core::if)`
+/// returns `Some` today. The prior return-type annotation (`(:Option :- [wat::holon::HolonAST])`)
+/// was also stale: arc 201/251/294.f already retired that representation on this whole surface —
+/// the wrapped value is a plain `:wat::WatAST` (confirmed against the registered `TypeScheme` for
+/// this FQDN, `check.rs`'s `register_builtins`, which returns `Option<:wat::WatAST>`).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     name_ast :wat::core::keyword the binding name looked up (a literal keyword; a named fn value also resolves via its stored name)
+/// @ret     (:wat::core::Option :- [:wat::WatAST]) the FULL define AST for `name_ast`, or `:None` if unregistered
+/// @example (:wat::core::match (:wat::runtime::lookup-define :wat::core::if) ((:wat::core::Some _) true) (:wat::core::None false)) #=> true
+/// @example (:wat::core::match (:wat::runtime::lookup-define :probe::totally-unknown-xyz) ((:wat::core::Some _) true) (:wat::core::None false)) #=> false
+/// @see     :wat::runtime::signature-of-defn
+/// @see     :wat::runtime::body-of
+#[wat_intrinsic(":wat::runtime::lookup-define")]
 fn eval_lookup_define(
-    args: &[WatAST],
-    list_span: &Span,
+    name_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::lookup-define";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Arc 166 — when the argument is a literal keyword AST, use it
     // directly instead of going through `eval`. Without this, a literal
     // `:user::add` (a defn-bound fn) eval-resolves to the unnamed fn
@@ -13257,15 +13103,15 @@ fn eval_lookup_define(
     // The eval path remains the fallback for non-literal callers
     // (e.g., `(lookup-define some-var)` where the var holds a Function
     // value with `name: Some(...)` from a sym.functions lookup).
-    let name = if let WatAST::Keyword(k, _) = &args[0] {
+    let name = if let WatAST::Keyword(k, _) = name_ast {
         k.clone()
     } else {
-        let v = eval_inner(&args[0], env, sym)?.value_owned();
+        let v = eval_inner(name_ast, env, sym)?.value_owned();
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
                 return Err(RuntimeError::new(
-                    args[0].span().clone(),
+                    name_ast.span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: ":wat::core::keyword or named function (e.g. :my::fn)",
@@ -13277,8 +13123,8 @@ fn eval_lookup_define(
         }
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. Each variant
-    // emits its declaration form via the matching helper; SpecialForm
-    // is structurally present (slice 2 will populate the registry).
+    // emits its declaration form via the matching helper. SpecialForm is
+    // POPULATED (arc 144 slice 2) — reachable today, not a future arm.
     match lookup_form(&name, sym) {
         Some(Binding::UserFunction { f, .. }) => {
             let ast = function_to_define_ast(f);
@@ -13307,10 +13153,10 @@ fn eval_lookup_define(
             ))))))
         }
         Some(Binding::SpecialForm { name: n, .. }) => {
-            // Slice 2 populates the SpecialForm registry; until then
-            // this arm is unreachable. Sentinel emission keeps the
-            // dispatch structurally complete.
-            let span = list_span.clone();
+            // Slice 2 populated the SpecialForm registry (special_forms.rs) —
+            // this arm is reachable today for every registered special form
+            // (`if`, `let`, `match`, …), not a placeholder for a future slice.
+            let span = name_ast.span().clone();
             let sentinel = WatAST::List(
                 vec![
                     WatAST::Keyword(":wat::core::__internal/special-form".into(), span.clone()),
@@ -13326,32 +13172,38 @@ fn eval_lookup_define(
     }
 }
 
-/// `(:wat::runtime::signature-of-defn <name :keyword>) -> (:Option :- [wat::holon::HolonAST])`
+/// `(:wat::runtime::signature-of-defn name) -> (:wat::core::Option :- [:wat::WatAST])`. Returns
+/// ONLY the signature HEAD: `(<name> :- [type_params] (param0 :Type0) (param1 :Type1) ... ->
+/// :Ret)`. Dispatches on the same uniform `Binding` enum as `lookup-define`: `UserFunction`
+/// reconstructs from the `Function`; `Primitive` synthesises from the `TypeScheme`; `Macro`
+/// reconstructs from the `MacroDef`; `Type` reconstructs the type's declaration head;
+/// `SpecialForm` lowers its pre-built (arc 144 slice 2) signature sketch to `:wat::WatAST`. An
+/// unregistered name returns `:None`.
 ///
-/// Arc 143 slice 1. Returns ONLY the signature HEAD:
-/// `(<name> :- [type_params] (param0 :Type0) (param1 :Type1) ... -> :Ret)`.
+/// Arc 143 slice 1.
 ///
-/// For user defines, reconstructs from the `Function`.
-/// For substrate primitives, synthesises from the `TypeScheme`.
-/// For unknown names, returns `:None`.
+/// ★ Doc correction (arc 255 Stone P6-c-W3): same stale return-type annotation `eval_lookup_define`
+/// carried (`(:Option :- [wat::holon::HolonAST])`) — arc 201/251/294.f retired that representation;
+/// the wrapped value is `:wat::WatAST` (confirmed against `check.rs`'s registered `TypeScheme`).
+/// The prior prose also named only the UserFunction/Primitive/unknown arms; Macro/Type/SpecialForm
+/// are real arms too (see the match below) — completed here.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     name_ast :wat::core::keyword the binding name whose signature head is reconstructed
+/// @ret     (:wat::core::Option :- [:wat::WatAST]) the signature head, or `:None` if unregistered
+/// @example (:wat::core::= (:wat::runtime::signature-of-defn :wat::core::if) (:wat::runtime::signature-of-defn :wat::core::if)) #=> true
+/// @see     :wat::runtime::lookup-define
+/// @see     :wat::runtime::extract-arg-names
+#[wat_intrinsic(":wat::runtime::signature-of-defn")]
 fn eval_signature_of_defn(
-    args: &[WatAST],
-    list_span: &Span,
+    name_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::signature-of-defn";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Arc 150 — mirror of the arc 166 pattern in `eval_lookup_define`:
     // when the argument is a literal keyword AST, use the keyword string
     // directly instead of going through `eval`. `eval_inner` on a keyword
@@ -13361,15 +13213,15 @@ fn eval_signature_of_defn(
     // the keyword literal directly avoids the unnamed-fn fallback.
     // The eval path remains correct for non-literal callers (e.g. a
     // variable holding a fn value with `name: Some(...)`).
-    let name = if let WatAST::Keyword(k, _) = &args[0] {
+    let name = if let WatAST::Keyword(k, _) = name_ast {
         k.clone()
     } else {
-        let v = eval_inner(&args[0], env, sym)?.value_owned();
+        let v = eval_inner(name_ast, env, sym)?.value_owned();
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
                 return Err(RuntimeError::new(
-                    args[0].span().clone(),
+                    name_ast.span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: ":wat::core::keyword or named function (e.g. :my::fn)",
@@ -13381,7 +13233,7 @@ fn eval_signature_of_defn(
         }
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. SpecialForm
-    // returns its pre-built signature directly (slice 2 populates).
+    // returns its pre-built signature directly (slice 2 populated it).
     match lookup_form(&name, sym) {
         Some(Binding::UserFunction { f, .. }) => {
             let ast = function_to_signature_ast(f);
@@ -13423,73 +13275,56 @@ fn eval_signature_of_defn(
     }
 }
 
-/// `(:wat::runtime::signature-of-fn <fn-value>) -> :wat::holon::HolonAST`
+/// `(:wat::runtime::signature-of-fn fn-expr) -> :wat::WatAST`. The fn-input sibling of
+/// `signature-of-defn` (which takes a NAME keyword and looks up a defined callable in the symbol
+/// table). This primitive operates on a FN VALUE — typically the result of evaluating an inline
+/// `(:wat::core::fn [...] -> :T body)` form at the call site, or a fn value bound to a local.
 ///
-/// Arc 201 slice 3. The fn-input sibling of `signature-of-defn` (which takes a
-/// NAME keyword and looks up a defined callable in the symbol table). This
-/// primitive operates on a FN VALUE — typically the result of evaluating an
-/// inline `(:wat::core::fn [...] -> :T body)` form at the call site, or a
-/// fn value bound to a local.
+/// Returns the structured signature AST in the SAME SHAPE `signature-of-defn` returns for named
+/// user defines (`function_to_signature_ast`'s output, shared directly — anonymous fn values
+/// carry the same `Function` struct as named defines, only `f.name` is `None`, so the signature
+/// head spells out as `:anonymous`): `(:anonymous (param0 type0) (param1 type1) ... -> ret-type)`,
+/// a `:wat::WatAST` `List`.
 ///
-/// Returns the structured signature HolonAST in the SAME SHAPE that
-/// `signature-of-defn` returns for named user defines (per
-/// `function_to_signature_ast`'s output, lowered via `watast_to_holon`):
+/// Unlike `signature-of-defn` (which can fail to find a name → `:None`), this primitive's input is
+/// a structurally-validated fn value — absence is impossible, so the return is the bare AST, not
+/// wrapped in `Option`. Type mismatches at the input slot surface as `RuntimeError::TypeMismatch`.
 ///
-/// ```text
-/// Bundle [
-///   Symbol(":anonymous"),
-///   Bundle [Symbol(param0-name), <type0-AST>],
-///   Bundle [Symbol(param1-name), <type1-AST>],
-///   ...
-///   Symbol("->"),
-///   <ret-type-AST>
-/// ]
-/// ```
+/// Arc 201 slice 3. Used by type-driven macros that receive a coordinator fn as a call-site
+/// argument and need to extract per-arg types structurally without symbol-table lookup
+/// (originating consumer was arc 170 Stone D2's `run-threads`, since retired — this primitive is
+/// shared infra, not run-threads-specific).
 ///
-/// Where `<typeN-AST>` follows slice 1's emission rules: `Bundle` for
-/// Parametric / Tuple / Fn types, `Symbol` (atomic) for Path / Var types.
+/// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header said "Return type is
+/// `:wat::holon::HolonAST` (NOT `(:Option :- [HolonAST])`)" — the parenthetical about `Option`
+/// wrapping was right, but the TYPE NAME was already wrong when it was written: the checker's own
+/// registered `TypeScheme` for this FQDN (`check.rs::register_builtins`) has always read
+/// `ret: TypeExpr::Path(":wat::WatAST".into())`, and its neighbouring comment even LABELS it
+/// "HolonAST" one line above that literal — the same stale terminology, corroborated twice over
+/// (this doc and that comment), never the actual registered type.
 ///
-/// REUSE: this primitive shares `function_to_signature_ast` directly with
-/// `signature-of-defn`'s UserFunction branch — anonymous fn values carry the
-/// same `Function` struct as named defines, only `f.name` is `None`. The
-/// signature head spells out as `:anonymous` per the existing convention
-/// at `function_to_signature_ast`'s line ~9107.
-///
-/// Return type is `:wat::holon::HolonAST` (NOT `(:Option :- [HolonAST])`).
-/// Unlike `signature-of-defn` (which can fail to find a name → `:None`), this
-/// primitive's input is a structurally-validated fn value — absence is
-/// impossible. Type mismatches at the input slot surface as
-/// `RuntimeError::TypeMismatch`, not `:None`.
-///
-/// Used by type-driven macros that receive a coordinator fn as a
-/// call-site argument and need to extract per-arg types structurally
-/// without symbol-table lookup (originating consumer was arc 170 Stone
-/// D2's `run-threads`, since retired — this primitive is shared infra,
-/// not run-threads-specific).
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     fn_expr :wat::core::fn the fn value whose signature is reconstructed
+/// @ret     :wat::WatAST the signature head `(:anonymous (param type)... -> ret-type)`
+/// @example (:wat::runtime::extract-arg-names (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1)))) #=> [:x]
+/// @see     :wat::runtime::signature-of-defn
+/// @see     :wat::runtime::return-type-of
+#[wat_intrinsic(":wat::runtime::signature-of-fn")]
 fn eval_signature_of_fn(
-    args: &[WatAST],
-    list_span: &Span,
+    fn_expr: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::signature-of-fn";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(fn_expr, env, sym)?.value_owned();
     let f = match v {
         Value::wat__core__fn(f) => f,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                fn_expr.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected:
@@ -13514,31 +13349,41 @@ fn eval_signature_of_fn(
 /// Motivating use (rete `query`): in the types-as-forms surface a bare type name
 /// (`:weather::ColdAndWindy`) evaluates to that type's CONSTRUCTOR fn, whose
 /// `ret_type` IS the record type. So `return-type-of` on the constructor yields
-/// the record's FQDN in ONE step — replacing a 5-step `signature-of-fn` HolonAST
-/// Bundle reflection. General-purpose: works on any fn value.
+/// the record's FQDN in ONE step — replacing a multi-step `signature-of-fn` +
+/// `extract-arg-types`-style AST walk. General-purpose: works on any fn value.
 ///
-/// Reads `Function.ret_type` directly. Path / Parametric return types yield their
-/// (head) FQDN; Tuple / Fn / Var return types have no single nominal name →
-/// `RuntimeError::TypeMismatch` (return-type-of names a nominal type).
+/// Reads `Function.ret_type` directly. Path / Parametric return types yield their (head) FQDN.
+/// Tuple / Fn / Var return types have no single nominal name → `RuntimeError::TypeMismatch`. A
+/// bare `wat::core::keyword` input (arc 278 query (a) de-mask: a type name whose positional
+/// constructor moved to the prime `:T'` evaluates to a plain keyword, not a ctor fn, when the
+/// prime is UNDEFINED — a defined prime resolves to its ctor fn and hits the `fn` arm instead)
+/// RAISES naming the unknown type, rather than echoing the keyword text back as if it were a
+/// resolved type (the pre-arc-278 behaviour, which masked a typo'd prime as a "successful" call).
+///
+/// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header's "5-step `signature-of-fn`
+/// HolonAST Bundle reflection" line named a representation (`HolonAST` `Bundle`) this surface
+/// stopped emitting at arc 201/251/294.f — `signature-of-fn` returns a `:wat::WatAST` `List`
+/// (see its own doc's correction). Reworded above to avoid repeating the stale name. The prior
+/// prose also omitted the `wat__core__keyword` de-mask arm entirely — added above.
+///
+/// Arc 278.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     fn_expr :wat::core::fn the fn value whose declared return type is read
+/// @ret     :wat::core::String the return type's FQDN, colon-free
+/// @example (:wat::runtime::return-type-of (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1))) #=> "wat::core::i64"
+/// @see     :wat::runtime::signature-of-fn
+#[wat_intrinsic(":wat::runtime::return-type-of")]
 fn eval_return_type_of(
-    args: &[WatAST],
-    list_span: &Span,
+    fn_expr: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::return-type-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(fn_expr, env, sym)?.value_owned();
     let f = match v {
         Value::wat__core__fn(f) => f,
         // Arc 278 query (a) de-mask — arc 294 item 9a's construction flip made a bare
@@ -13553,7 +13398,7 @@ fn eval_return_type_of(
         // see wat/rete.wat's `query`).
         Value::wat__core__keyword(k) => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                fn_expr.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
@@ -13565,7 +13410,7 @@ fn eval_return_type_of(
         }
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                fn_expr.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::core::fn value (e.g. a record constructor or an inline fn)",
@@ -13583,7 +13428,7 @@ fn eval_return_type_of(
         }
         _ => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                fn_expr.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "a fn with a nominal (Path/Parametric) return type",
@@ -13598,45 +13443,52 @@ fn eval_return_type_of(
 
 /// `(:wat::runtime::body-of <name :keyword>) -> (:Option :- [wat::holon::HolonAST])`
 ///
-/// Arc 143 slice 1. Returns the body AST only.
+/// Arc 143 slice 1. Returns the body AST only — the `wat` body of a `UserFunction` (`None` for a
+/// `FunctionBody::Native` builtin, per Stone 255.1a: it has no wat-level body) or the template
+/// body of a `Macro`. `Primitive`, `Type`, and `SpecialForm` bindings are ALL body-less in the wat
+/// sense (primitives are Rust-implemented; types declare shapes; special forms are semantic
+/// operations, not data with a body) and return `:None`, same as an unregistered name. (The
+/// sentinel `lookup-define` emits for these cases is for the FULL define structure only;
+/// `body-of` is honest about the absence of a body specifically.)
 ///
-/// For user defines, returns the `body` field's WatAST directly.
-/// For substrate primitives, returns `:None` — no wat-side body exists.
-/// (The sentinel from `lookup-define` is for the FULL define structure
-/// only; `body-of` is honest about absence.)
-/// For unknown names, returns `:None`.
+/// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header named only the UserFunction and
+/// Primitive arms ("For user defines... For substrate primitives... For unknown names") and the
+/// return-type annotation said `(:Option :- [wat::holon::HolonAST])` — stale on both counts. The
+/// `Macro` arm (a real `Some(body)` case, omitted entirely from the prior prose) is completed
+/// above, and the wrapped type is `:wat::WatAST` (arc 201/251/294.f; confirmed against
+/// `check.rs`'s registered `TypeScheme`, which returns `Option<:wat::WatAST>`).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     name_ast :wat::core::keyword the binding name whose body is read
+/// @ret     (:wat::core::Option :- [:wat::WatAST]) the wat body (function or macro template), or `:None` when body-less or unregistered
+/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::cond) ((:wat::core::Some ast) (:wat::core::ast-kind ast)) (:wat::core::None "none")) #=> "list"
+/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::if) ((:wat::core::Some _) true) (:wat::core::None false)) #=> false
+/// @see     :wat::runtime::lookup-define
+/// @see     :wat::runtime::signature-of-defn
+#[wat_intrinsic(":wat::runtime::body-of")]
 fn eval_body_of(
-    args: &[WatAST],
-    list_span: &Span,
+    name_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::body-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Mirror of eval_signature_of_defn (arc 150): when the argument is a literal keyword
     // AST, use the keyword string directly instead of going through `eval_inner`. Evaluating
     // a keyword that is a registered user define resolves to the fn VALUE stored in
     // `runtime_def_values` which carries `name: None` — `name_from_keyword_or_fn` would then
     // fail with the TypeMismatch below. The literal bypass preserves the name for lookup_form.
-    let name = if let WatAST::Keyword(k, _) = &args[0] {
+    let name = if let WatAST::Keyword(k, _) = name_ast {
         k.clone()
     } else {
-        let v = eval_inner(&args[0], env, sym)?.value_owned();
+        let v = eval_inner(name_ast, env, sym)?.value_owned();
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
                 return Err(RuntimeError::new(
-                    args[0].span().clone(),
+                    name_ast.span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: ":wat::core::keyword or named function (e.g. :my::fn)",
@@ -13677,10 +13529,13 @@ fn eval_body_of(
     }
 }
 
-/// `(:wat::runtime::metadata-of <name :keyword>) -> (:Option :- [(HashMap :- [Keyword HolonAST])])`
+/// `(:wat::runtime::metadata-of <name :keyword>) -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])])`
 ///
 /// Stone 241.7. Returns the binding's metadata-map as Option:
 /// - Some({:k1 v1 ...}) when metadata was attached at def time (Stone 241.6 storage)
+/// - Some(baseline-map) when `name` is a registered Rust intrinsic (arc 255.1b-iii): the
+///   auto-derived `:name`/`:kind`/`:defined-in`/`:layer`/`:arity`/`:purity`/`:determinism`/
+///   `:doc`/`:added`/`:ret`/`:category` fields
 /// - None when binding exists but no metadata
 /// - None when binding doesn't exist
 ///
@@ -13690,38 +13545,54 @@ fn eval_body_of(
 /// would resolve a `def :my::x 42` to `42`, losing the name). If the arg
 /// evaluates to a named fn value, `name_from_keyword_or_fn` recovers the
 /// name from the fn (supporting `(metadata-of my-fn-var)` call style).
+///
+/// ★ Doc correction (arc 255 Stone P6-c-W4): the prior header claimed a uniform
+/// `(:Option :- [(HashMap :- [Keyword HolonAST])])` — false on two counts, checked against the
+/// body below. First, the map's VALUES are never `HolonAST`: the intrinsic-baseline branch
+/// inserts plain scalar/enum `Value`s (`Value::String`, `Value::i64`, `Value::Enum` for
+/// `:kind`/`:defined-in`/`:layer`/`:purity`/`:determinism`/`:category` — see the `put` calls
+/// below, whose own comment already said "PLAIN wat Values (no HolonAST wrapping)"), while the
+/// user-metadata branch (`sym.binding_metadata`) wraps each value as `Value::wat__WatAST` —
+/// WatAST, not HolonAST (arc 201/251/294.f retired the HolonAST carrier on this whole
+/// reflection surface — the same finding W3 made for `lookup-define`/`body-of`). Second, the
+/// two branches are themselves heterogeneous with each other (plain values vs. WatAST-wrapped),
+/// so no single element type describes both; `:wat::core::Value` (this surface's existing
+/// convention for "any wat value", e.g. `edn::get-field`'s `@ret`) is what actually fits.
+/// `metadata-of` carries NO checker `TypeScheme` (absent from `register_builtins` — see the
+/// `FROZEN_CHECKER_DEBT_LEDGER` entry below), so this claim was never verified by anything; it
+/// is corrected here, not newly enforced.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     name_ast :wat::core::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
+/// @ret     (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])]) the metadata map, or `:None` when the binding is unregistered or carries no metadata
+/// @example (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::lookup-define) ((:wat::core::Some _) true) (:wat::core::None false)) #=> true
+/// @example (:wat::core::match (:wat::runtime::metadata-of :probe::totally-unknown-xyz) ((:wat::core::Some _) true) (:wat::core::None false)) #=> false
+/// @see     :wat::runtime::lookup-define
+/// @see     :wat::runtime::field-names-of
+#[wat_intrinsic(":wat::runtime::metadata-of")]
 #[allow(clippy::mutable_key_type)]
 fn eval_metadata_of(
-    args: &[WatAST],
-    list_span: &Span,
+    name_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::metadata-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Extract the binding name. Prefer the keyword string directly from
     // the WatAST (avoids runtime_def_values resolution that would lose the
     // name for non-fn defs). Fall back to eval + name_from_keyword_or_fn
     // for the fn-value case (e.g. a fn passed via a symbol binding).
-    let name: String = match &args[0] {
+    let name: String = match name_ast {
         WatAST::Keyword(k, _) => k.clone(),
         _ => {
-            let v = eval_inner(&args[0], env, sym)?.value_owned();
+            let v = eval_inner(name_ast, env, sym)?.value_owned();
             match name_from_keyword_or_fn(&v) {
                 Some(n) => n,
                 None => {
                     return Err(RuntimeError::new(
-                        args[0].span().clone(),
+                        name_ast.span().clone(),
                         RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: ":wat::core::keyword or named function",
@@ -13856,49 +13727,54 @@ fn require_ast_children<'a>(
     }
 }
 
-/// `(:wat::runtime::rename-callable-name head from to) -> :wat::holon::HolonAST`
+/// `(:wat::runtime::rename-callable-name head from to) -> :wat::WatAST`. Takes a signature head
+/// AST (a `List`/`Vector` `:wat::WatAST` whose first `Keyword` child is the bare callable name —
+/// the shape `signature-of-defn`/`signature-of-fn` return) and returns a new head with the
+/// function-name part replaced.
 ///
-/// Arc 143 slice 3. Takes a signature head AST (a `Bundle` whose first
-/// `Keyword` child is `"<name><type-params>"` per arc 221 doctrine) and returns
-/// a new head with the function-name part replaced.
+/// Arc 143 slice 3.
 ///
-/// Arc 221 Stone 221.4b — children[0] is now `HolonAST::Keyword` (not Symbol).
-/// `watast_to_holon` converts `WatAST::Keyword → HolonAST::Keyword` (Stone 221.4b);
-/// function-name content has NO leading colon in the stored Keyword payload.
-/// `from_str` (from `name_from_keyword_or_fn`) includes the leading colon
-/// (stored in `Value::wat__core__keyword`); strip it before comparing to `base`.
+/// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header called the head a `Bundle`
+/// (`HolonAST`'s compound variant) and the return type `:wat::holon::HolonAST`. Both are stale:
+/// arc 294.f moved reflection signature heads to plain `:wat::WatAST` `List`/`Vector` nodes —
+/// `require_ast_children` below destructures exactly those two variants, never `HolonAST::Bundle`
+/// — and the checker's registered `TypeScheme` for this FQDN (`check.rs::register_builtins`,
+/// `watast_ty()`) has params/ret of `:wat::WatAST` throughout, not `HolonAST`.
 ///
 /// Steps:
 /// 1. Eval all three args; verify arg types.
-/// 2. Destructure head into Bundle children (error if not Bundle).
+/// 2. Destructure `head` into its `List`/`Vector` children (error if neither).
 /// 3. Verify children[0] is a Keyword — the bare name (STONE reap-the-angle-machinery,
 ///    arc 109: a generic head's type params are `children[1..]`, the `:- [T ...]` binder
 ///    siblings `binder_head_nodes` emits; children[0] never carries a suffix).
-/// 4. Verify children[0] == `from` keyword string (colon stripped from from_str). On
+/// 4. Verify children[0] == `from` keyword string. On
 ///    mismatch, error "rename-callable-name: head name does not match `from`".
-/// 5. Construct new first keyword: `to` via `HolonAST::keyword()`.
-/// 6. Rebuild Bundle with [new_keyword, children[1..]] — the `:- [...]` binder, if any,
-///    rides along unchanged.
+/// 5. Construct new first keyword: `to`.
+/// 6. Rebuild the head (same compound kind — List stays List, Vector stays Vector) with
+///    [new_keyword, children[1..]] — the `:- [...]` binder, if any, rides along unchanged.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     head :wat::WatAST the signature head whose name is replaced
+/// @arg     from :wat::core::keyword the expected current name (verified against `head`'s own name)
+/// @arg     to   :wat::core::keyword the replacement name
+/// @ret     :wat::WatAST the rebuilt head, same compound kind as `head`, name replaced
+/// @example (:wat::core::ast-name (:wat::core::first (:wat::runtime::rename-callable-name (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1))) :anonymous :probe::renamed))) #=> ":probe::renamed"
+/// @see     :wat::runtime::signature-of-fn
+/// @see     :wat::runtime::extract-arg-names
+#[wat_intrinsic(":wat::runtime::rename-callable-name")]
 fn eval_rename_callable_name(
-    args: &[WatAST],
-    list_span: &Span,
+    head: &WatAST,
+    from: &WatAST,
+    to: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::rename-callable-name";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Eval all three args.
-    let head_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let head_val = eval_inner(head, env, sym)?.value_owned();
     // Arc 166 — mirror the literal-keyword shortcut from `eval_lookup_define`:
     // when the `from`/`to` arg is a literal keyword AST (e.g. `:user::my-double`
     // passed directly as a keyword literal), use the keyword string as the name
@@ -13906,15 +13782,15 @@ fn eval_rename_callable_name(
     // defn-bound fn has `name: None` (eval_fn writes no name) causes
     // `name_from_keyword_or_fn` to return None → spurious TypeMismatch.
     // The eval path remains the fallback for non-literal callers.
-    let from_val = if let WatAST::Keyword(k, _) = &args[1] {
+    let from_val = if let WatAST::Keyword(k, _) = from {
         Value::wat__core__keyword(Arc::new(k.clone()))
     } else {
-        eval_inner(&args[1], env, sym)?.value_owned()
+        eval_inner(from, env, sym)?.value_owned()
     };
-    let to_val = if let WatAST::Keyword(k, _) = &args[2] {
+    let to_val = if let WatAST::Keyword(k, _) = to {
         Value::wat__core__keyword(Arc::new(k.clone()))
     } else {
-        eval_inner(&args[2], env, sym)?.value_owned()
+        eval_inner(to, env, sym)?.value_owned()
     };
 
     // Extract WatAST from head arg (arc 294.f — signature heads are now WatAST).
@@ -13922,7 +13798,7 @@ fn eval_rename_callable_name(
         Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                head.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::WatAST (signature head)",
@@ -13940,7 +13816,7 @@ fn eval_rename_callable_name(
         Some(n) => n,
         None => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                from.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::core::keyword or named function (from name)",
@@ -13954,7 +13830,7 @@ fn eval_rename_callable_name(
         Some(n) => n,
         None => {
             return Err(RuntimeError::new(
-                args[2].span().clone(),
+                to.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::core::keyword or named function (to name)",
@@ -13968,10 +13844,10 @@ fn eval_rename_callable_name(
     // Destructure the signature head; children[0] is the name Keyword.
     // Preserve the compound kind (List for fn/primitive signatures, Vector for
     // macro argspecs) so the rebuilt head round-trips faithfully.
-    let children = require_ast_children(OP, &ast_arc, args[0].span())?;
+    let children = require_ast_children(OP, &ast_arc, head.span())?;
     if children.is_empty() {
         return Err(RuntimeError::new(
-            args[0].span().clone(),
+            head.span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "compound WatAST with at least one Keyword child (the function name)",
@@ -13996,7 +13872,7 @@ fn eval_rename_callable_name(
         s.as_str()
     } else {
         return Err(RuntimeError::new(
-            args[0].span().clone(),
+            head.span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Keyword as first child (the function name)",
@@ -14010,7 +13886,7 @@ fn eval_rename_callable_name(
     // Value::wat__core__keyword) carry the leading colon; compare them directly.
     if base != from_str.as_str() {
         return Err(RuntimeError::new(
-            args[1].span().clone(),
+            from.span().clone(),
             RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
@@ -14043,51 +13919,53 @@ fn eval_rename_callable_name(
     Ok(Value::wat__WatAST(Arc::new(rebuilt)))
 }
 
-/// `(:wat::runtime::extract-arg-names head) -> (:wat::core::Vector :- [wat::core::keyword])`
+/// `(:wat::runtime::extract-arg-names head) -> (:wat::core::Vector :- [:wat::core::keyword])`.
+/// Takes a signature head AST (the `:wat::WatAST` `List`/`Vector` `signature-of-fn`/
+/// `signature-of-defn` return) and returns a `Vector` of the arg-name keywords (`:_a0`, `:_a1`,
+/// ... for a substrate primitive, or the user-declared names for a `defn`/macro).
 ///
-/// Arc 143 slice 3. Takes a signature head AST and returns a `Vec` of
-/// the arg-name keywords (`:_a0`, `:_a1`, ... or user-defined names).
+/// Arc 143 slice 3.
 ///
-/// TYPE-reflection HolonAST eviction (post arc-201): the intermediate
-/// signature AST this walks (`head`, produced by `signature-of-fn`/
-/// `signature-of-defn`) still carries the internal HolonAST
-/// representation — that machinery is untouched. But the OUTPUT of this
-/// primitive is now a plain keyword per arg name (e.g. bare name `logger`
-/// -> `:logger`), matching `field-names-of`'s sibling shape. HolonAST no
-/// longer leaks out of this intrinsic.
+/// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header's "Algorithm" step 1 said "destructure
+/// head as Bundle" — stale (`HolonAST::Bundle`, not what this walks). The code below has always
+/// destructured via [`require_ast_children`], which matches `WatAST::List`/`WatAST::Vector`
+/// exclusively; there is no `Bundle` anywhere on this path (arc 294.f retired that representation
+/// here). Reworded below to match what the body actually does.
 ///
 /// Algorithm:
-/// 1. Eval and destructure head as Bundle.
-/// 2. Skip children[0] (the function name Keyword — arc 221 Stone 221.4b).
+/// 1. Eval `head`; destructure into its `List`/`Vector` children.
+/// 2. Skip children[0] (the function name Keyword — arc 221 Stone 221.4b) and peel a `:- [T
+///    U…]` generic binder, if present (`peel_param_spec` — STONE-defservice-emits-the-binder;
+///    without this, a binder Vector's own contents can misread as an arg-name pair).
 /// 3. For each remaining child:
-///    - Symbol("->"): STOP collecting (return-type sentinel; bare symbol, honest).
-///    - Bundle([Symbol(arg_name), _]): collect arg_name (bare-ident Symbol; honest).
-///    - Anything else: skip.
-/// 4. Return Vec<Value::wat__core__keyword> — one keyword per arg name.
+///    - `Symbol("->")`: STOP collecting (return-type sentinel).
+///    - a bare `Symbol` (e.g. `&` variadic marker): skip.
+///    - a 2-element `List`/`Vector` `(arg_name <type>)`: collect `arg_name` as `:arg_name`.
+///    - anything else: skip.
+/// 4. Return the collected keywords as a `Vector`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     head :wat::WatAST the signature head walked
+/// @ret     (:wat::core::Vector :- [:wat::core::keyword]) one keyword per declared arg name, in order
+/// @example (:wat::runtime::extract-arg-names (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1)))) #=> [:x]
+/// @see     :wat::runtime::extract-arg-types
+/// @see     :wat::runtime::signature-of-fn
+#[wat_intrinsic(":wat::runtime::extract-arg-names")]
 fn eval_extract_arg_names(
-    args: &[WatAST],
-    list_span: &Span,
+    head: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-names";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let head_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let head_val = eval_inner(head, env, sym)?.value_owned();
     let ast_arc = match head_val {
         Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                head.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::WatAST (signature head)",
@@ -14097,7 +13975,7 @@ fn eval_extract_arg_names(
             .into());
         }
     };
-    let children = require_ast_children(OP, &ast_arc, args[0].span())?;
+    let children = require_ast_children(OP, &ast_arc, head.span())?;
 
     let mut names: Vec<Value> = Vec::new();
     // Skip children[0] (function name keyword); walk from index 1. STONE-defservice-
@@ -14139,68 +14017,54 @@ fn eval_extract_arg_names(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::extract-arg-types head) -> (:wat::core::Vector :- [wat::WatAST])`
+/// `(:wat::runtime::extract-arg-types head) -> (:wat::core::Vector :- [:wat::WatAST])`. Direct
+/// sibling of `extract-arg-names` (arc 143 slice 3) — same walk, collecting pair[1] (the type AST)
+/// instead of pair[0] (the name keyword) from each 2-element arg-pair child.
 ///
-/// Arc 201 slice 5. Direct sibling of `eval_extract_arg_names` (arc 143 slice 3).
-/// Given a signature HolonAST (the shape `signature-of-defn` and `signature-of-fn`
-/// return), walks the head Bundle and collects the TYPE AST (pair[1]) from each
-/// arg-pair Bundle.
+/// Arc 201 slice 5.
 ///
-/// TYPE-reflection canonical-form rewire (post arc-251): `head` is still the
-/// internal HolonAST signature (`signature-of-fn`/`signature-of-defn`'s
-/// form-reflection output is untouched — that's a separate later strike).
-/// The original `TypeExpr` each arg type came from is NOT reachable from
-/// here: `head` is an arbitrary already-evaluated `Value::holon__HolonAST`
-/// at this call site (e.g. `(extract-arg-types (signature-of-fn f))`, but
-/// also a variable holding a previously-computed signature, or a
-/// hand-built Bundle) — decoupled from whichever `Function`/`TypeScheme`
-/// it may have been rendered from, per `signature-of-fn`/`signature-of-defn`'s
-/// HolonAST-carrier contract. So each type AST is instead rendered directly
-/// to the canonical arc-251 `wat.type/` `WatAST` form via
-/// `holon_type_ast_to_wat_type_form` — a structural mirror of
-/// [`crate::edn::render::type_expr_to_clojure_form`] operating on the HolonAST
-/// shapes `type_expr_to_ast` emits (rather than on `TypeExpr` directly), so
-/// parametric types (e.g. `(Peer' :- [A B])`) render to a decomposable
-/// `(wat.kernel/Peer' probe.A probe.B)` list instead of a mangled keyword.
+/// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header described an elaborate
+/// HolonAST-carrier pipeline — `head` as `Value::holon__HolonAST`, a "hand-built Bundle", and a
+/// render step through a named helper `holon_type_ast_to_wat_type_form` — that does not exist in
+/// this codebase (`grep` finds the name only in comments: this one, a `check.rs` comment, and a
+/// test-file comment — never a function definition). The body below has never called anything by
+/// that name; it destructures via [`require_ast_children`] (`List`/`Vector` only) and returns
+/// `pair[1].clone()` VERBATIM — no re-canonicalization, no HolonAST bridge, matching the inline
+/// comment already sitting at the call site (arc 294.f: "the signature already carries canonical
+/// `wat.type/` WatAST type nodes... we RETURN the sub-node verbatim"). Reworded below to match.
 ///
 /// Algorithm:
-/// 1. Eval and destructure head as Bundle.
-/// 2. Skip children[0] (the function name symbol).
+/// 1. Eval `head`; destructure into its `List`/`Vector` children.
+/// 2. Skip children[0] (the function name Keyword) and peel a `:- [T U…]` generic binder, if
+///    present (`peel_param_spec`, same as `extract-arg-names`).
 /// 3. For each remaining child:
-///    - Symbol("->"): STOP collecting (everything after is return type).
-///    - Bundle([_, type_ast]) (2 children): render type_ast to the
-///      canonical `wat.type/` WatAST form.
-///    - Anything else: skip.
-/// 4. Return Vec<Value::wat__WatAST>.
+///    - `Symbol("->")`: STOP collecting (everything after is return type).
+///    - a 2-element `List`/`Vector` `(arg_name type_ast)`: collect `type_ast` verbatim.
+///    - anything else: skip.
+/// 4. Return the collected type ASTs as a `Vector`.
 ///
-/// Parallel to `eval_extract_arg_names` — same walker logic, extract pair[1]
-/// (type AST) instead of pair[0] (name keyword). Per `feedback_simple_is_uniform_composition`:
-/// two near-identical handlers with one-character difference are cleaner than
-/// a shared walker parameterised on slot index.
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     head :wat::WatAST the signature head walked
+/// @ret     (:wat::core::Vector :- [:wat::WatAST]) one type AST per declared arg, in order
+/// @example (:wat::core::ast->source (:wat::core::first (:wat::runtime::extract-arg-types (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1)))))) #=> "wat.type/i64"
+/// @see     :wat::runtime::extract-arg-names
+/// @see     :wat::runtime::signature-of-fn
+#[wat_intrinsic(":wat::runtime::extract-arg-types")]
 fn eval_extract_arg_types(
-    args: &[WatAST],
-    list_span: &Span,
+    head: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-types";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let head_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let head_val = eval_inner(head, env, sym)?.value_owned();
     let ast_arc = match head_val {
         Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                head.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::WatAST (signature head)",
@@ -14210,7 +14074,7 @@ fn eval_extract_arg_types(
             .into());
         }
     };
-    let children = require_ast_children(OP, &ast_arc, args[0].span())?;
+    let children = require_ast_children(OP, &ast_arc, head.span())?;
 
     let mut types: Vec<Value> = Vec::new();
     // Skip children[0] (function name keyword); walk from index 1. STONE-defservice-
@@ -14241,7 +14105,7 @@ fn eval_extract_arg_types(
     Ok(Value::Vec(Arc::new(types)))
 }
 
-/// `(:wat::runtime::field-names-of type-kw) -> (:wat::core::Vector :- [wat::core::Keyword])`
+/// `(:wat::runtime::field-names-of type-kw) -> (:wat::core::Vector :- [:wat::core::keyword])`
 ///
 /// Arc 170 Strike B — struct-field reflection, the type-direction sibling
 /// of `extract-arg-names` (which reflects a *callable's* argspec; this
@@ -14274,26 +14138,30 @@ fn eval_extract_arg_types(
 /// `eval_inner` would make every struct/record type keyword fail this
 /// primitive. The eval fallback remains for non-literal callers (a var
 /// holding a keyword).
+///
+/// ★ Doc read against body (arc 255 Stone P6-c-W4): the prior informal return-type shorthand
+/// (`wat::core::Keyword`, capitalized, colonless) named the right element type — matched, only
+/// reformatted to the canonical `:wat::core::keyword` spelling this stone's structured `@ret`
+/// requires; not a lie.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field names are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @ret     (:wat::core::Vector :- [:wat::core::keyword]) each field name as a keyword, in declaration order
+/// @example (:wat::runtime::field-names-of :wat::program::Env) #=> [:started-at :peer-started-at :process-id :os-thread-id :peer-kind :cpu-count :user-data]
+/// @see     :wat::runtime::field-types-of
+/// @see     :wat::runtime::extract-arg-names
+#[wat_intrinsic(":wat::runtime::field-names-of")]
 fn eval_field_names_of(
-    args: &[WatAST],
-    list_span: &Span,
+    type_kw_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::field-names-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let type_kw = resolve_type_keyword_arg(OP, &args[0], env, sym)?;
-    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, args[0].span(), sym)?;
+    let type_kw = resolve_type_keyword_arg(OP, type_kw_ast, env, sym)?;
+    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, type_kw_ast.span(), sym)?;
 
     let names: Vec<Value> = agg
         .fields
@@ -14303,7 +14171,7 @@ fn eval_field_names_of(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::field-types-of type-kw) -> (:wat::core::Vector :- [wat::WatAST])`
+/// `(:wat::runtime::field-types-of type-kw) -> (:wat::core::Vector :- [:wat::WatAST])`
 ///
 /// Arc 170 Strike B — direct sibling of `eval_field_names_of` above (same
 /// resolution: `type-kw` → runtime type registry → `AggregateDef`).
@@ -14321,26 +14189,30 @@ fn eval_field_names_of(
 /// is plain-EDN and decomposable: an atomic type renders to
 /// `WatAST::Symbol("wat.type/i64")`; a parametric type renders to a
 /// `WatAST::List`, e.g. `(wat.kernel/Peer' probe.Kv/Op probe.Kv/Reply)`.
+///
+/// ★ Doc read against body (arc 255 Stone P6-c-W4): the prior informal return-type shorthand
+/// (`wat::WatAST`, colonless) named the right element type — matched, only reformatted to the
+/// canonical `:wat::WatAST` spelling this stone's structured `@ret` requires; not a lie.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field types are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @ret     (:wat::core::Vector :- [:wat::WatAST]) each field's type, rendered as a canonical `wat.type/` WatAST node, in declaration order (positionally aligned with `field-names-of`)
+/// @example (:wat::core::ast->source (:wat::core::first (:wat::runtime::field-types-of :wat::program::Env))) #=> "wat.time/Instant"
+/// @see     :wat::runtime::field-names-of
+/// @see     :wat::runtime::extract-arg-types
+#[wat_intrinsic(":wat::runtime::field-types-of")]
 fn eval_field_types_of(
-    args: &[WatAST],
-    list_span: &Span,
+    type_kw_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::field-types-of";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let type_kw = resolve_type_keyword_arg(OP, &args[0], env, sym)?;
-    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, args[0].span(), sym)?;
+    let type_kw = resolve_type_keyword_arg(OP, type_kw_ast, env, sym)?;
+    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, type_kw_ast.span(), sym)?;
 
     let mut types: Vec<Value> = Vec::with_capacity(agg.fields.len());
     for (_, ty) in agg.fields.iter() {
@@ -14480,6 +14352,22 @@ fn resolve_aggregate_def_for_reflection<'a>(
 /// pattern grammar at expansion. The runtime trusts that input —
 /// grammar errors at this layer are bugs in the type checker, not
 /// user errors.
+///
+/// Homed to `#[wat_intrinsic]` arc 255 Stone P6-c-1 (one of the two proof verbs — the
+/// ORDER shape: this handler declares its context tail `(list_span, env, sym)`, NOT the
+/// 100-arm `(env, sym, span)` order the macro used to hardcode). `check.rs`'s own
+/// `:wat::form::matches?` grammar check (line ~3933, `infer_form_matches`) matches on the
+/// literal FQDN string ahead of any generic-apply/TypeScheme lookup and is untouched by
+/// this move — the registry gains a dispatch entry, nothing about type-checking changes.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Probe
+/// @arg     args… :wat::core::Value SUBJECT (evaluated) followed by the pattern `(:TYPE-NAME clause ...)` (never evaluated — walked structurally)
+/// @ret     :wat::core::bool whether SUBJECT structurally matches the pattern (Clara semantics: a non-matching class, non-Struct value, or `:None` subject is `false`, never an error)
+/// @example (:wat::core::do (:wat::core::defstruct :probe::FormMatchSubject [amount <- :wat::core::i64]) (:wat::form::matches? (:probe::FormMatchSubject :amount 3) (:probe::FormMatchSubject (= ?a :amount)))) #=> true
+#[wat_intrinsic(":wat::form::matches?")]
 fn eval_form_matches(
     args: &[WatAST],
     list_span: &Span,
@@ -19931,40 +19819,11 @@ pub(crate) fn host_cpu_count() -> i64 {
         .unwrap_or(1)
 }
 
-/// `(:wat::program::env)` — nullary; returns the calling thread's ambient
-/// `:wat::program::Env` record (or subtype).
-///
-/// Arc 259 — The Forced Hand. The env is installed into the `PROGRAM_ENV`
-/// thread-local by `install_program_env` at the post-bootstrap /
-/// pre-`:user::main` seam. Returns a clone of the current value, or a
-/// clean `MalformedForm` error if no env has been installed (e.g. a test
-/// that calls `eval_in_frozen` without calling `install_program_env`).
-fn eval_program_env(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::program::env";
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    crate::services::current_program_env().ok_or_else(|| {
-        RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: "no program env installed on this thread — call install_program_env \
-                         before invoking (:wat::program::env)"
-                    .into(),
-            },
-        )
-        .into()
-    })
-}
+// `eval_program_env` that used to live here (`:wat::program::env`) moved to
+// `src/intrinsic/program.rs` — arc 255 Stone P6-c-W2, the P6-c campaign's second wave. It
+// was declaring a variadic `&[WatAST]` used only to reject (a hand-rolled length check);
+// homing it meant declaring the real arity (0) so `#[wat_intrinsic]`'s generated shim owns
+// the check.
 
 /// `(:wat::program::self-peer :S :R)` — returns the calling thread's self-peer
 /// (the spawned process child's owner-link as a unified `(Peer' :- [S R])`).
@@ -20027,6 +19886,25 @@ fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// `std::thread::available_parallelism()` directly — no installed program env
 /// required. Mirrors `(:wat::time::now)`: a live host fact available in ANY eval
 /// context. Used by the brackets pool to size its default runner count.
+///
+/// Homed to `#[wat_intrinsic]` arc 255 Stone P6-c-1 (the second proof verb — the SUBSET
+/// shape: this handler declares ONLY `list_span` in its context tail, no `env`/`sym`).
+/// The leading `args: &[WatAST]` param predates the later true-nullary convention
+/// (contrast `:wat::time::now`'s zero-param shape) — kept exactly as declared (this
+/// stone's whole claim is that homing a verb never edits its parameter list), so the
+/// shim still forwards the whole slice and this fn keeps its own arity check below.
+/// `check.rs` already carries a hand-registered generic `TypeScheme` for this FQDN
+/// (`(:wat::program::cpu-count) -> :wat::core::i64`, near line 18703) — untouched by
+/// this move, same as every other pre-existing intrinsic.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Category      Ambient
+/// @arg     args… :wat::core::Value must be empty — this verb takes no wat-level arguments
+/// @ret     :wat::core::i64 the host's available parallelism (`std::thread::available_parallelism()`), sampled at call time
+/// @example-norun (:wat::program::cpu-count) #=> 8
+#[wat_intrinsic(":wat::program::cpu-count")]
 fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::program::cpu-count";
     if !args.is_empty() {
@@ -20043,28 +19921,27 @@ fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
     Ok(Value::i64(host_cpu_count()))
 }
 
-/// `(:wat::runtime::argv)` — nullary; returns the process-wide argv
-/// ambient as `(:wat::core::Vector :- [wat::core::String])`.
+/// `(:wat::runtime::argv)` — nullary; returns the process-wide argv ambient as `(:wat::core::Vector
+/// :- [:wat::core::String])`.
 ///
-/// Arc 170 slice 1e (REALIZATIONS pass 7). The four-arg `:user::main`
-/// shape (stdin/stdout/stderr/argv) retires; argv moves to ambient.
-/// Wat-cli (or any embedder) calls [`crate::runtime::set_argv`]
-/// before `:user::main` runs; subsequent reads from any depth in the
-/// program return the same Vec. Empty Vec when no embedder set it
-/// (in-process tests, library bridges that bypass wat-cli) — the
-/// ambient is "always available."
-fn eval_runtime_argv(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::runtime::argv".into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
+/// Arc 170 slice 1e (REALIZATIONS pass 7). The four-arg `:user::main` shape
+/// (stdin/stdout/stderr/argv) retires; argv moves to ambient. Wat-cli (or any embedder) calls
+/// [`crate::runtime::set_argv`] before `:user::main` runs, committing `ARGV` (a `OnceLock`) once;
+/// every subsequent read, from any depth in the program, for the rest of THIS run returns the
+/// identical `Vec` — the same install-once/read-many shape `:wat::program::env`'s ambient
+/// thread-local has, not a live per-call OS query (contrast `:wat::runtime::current-thread`,
+/// below, which IS a live per-call query). Empty Vec when no embedder set it (in-process tests,
+/// library bridges that bypass wat-cli) — the ambient is "always available."
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Ambient
+/// @ret     (:wat::core::Vector :- [:wat::core::String]) the process argv, fixed for this run's duration (empty if never set)
+/// @example (:wat::core::= (:wat::runtime::argv) (:wat::runtime::argv)) #=> true
+/// @see     :wat::program::env
+#[wat_intrinsic(":wat::runtime::argv")]
+fn eval_runtime_argv() -> Result<Value, EvalBreak> {
     let argv = argv();
     let values: Vec<Value> = argv
         .iter()
@@ -20073,26 +19950,32 @@ fn eval_runtime_argv(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBre
     Ok(Value::Vec(Arc::new(values)))
 }
 
-/// `(:wat::runtime::current-thread)` — nullary; returns the calling
-/// thread's id as `:wat::core::String`.
+/// `(:wat::runtime::current-thread)` — nullary; returns the calling thread's id as
+/// `:wat::core::String`.
 ///
-/// Arc 170 slice 1e (REALIZATIONS pass 7). For slice 1e this is the
-/// main thread's representation; slice 1g extends to spawned threads
-/// via thread-locals populated at spawn-time. Implemented against
-/// `std::thread::current().id()` which is meaningful on every thread
-/// the substrate creates today.
-fn eval_runtime_current_thread(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::runtime::current-thread".into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
+/// Arc 170 slice 1e (REALIZATIONS pass 7). For slice 1e this is the main thread's representation;
+/// slice 1g extends to spawned threads via thread-locals populated at spawn-time. Implemented
+/// against `std::thread::current().id()` directly — a LIVE query, not read from an install-once
+/// cell — which is meaningful on every thread the substrate creates today.
+///
+/// ★ Purity grounding (arc 255 Stone P6-c-W3, per the brief's explicit call-out): unlike the eight
+/// symbol-table/AST readers in this wave, this verb takes no wat-level args and answers
+/// `std::thread::current().id()` fresh on every call — the SAME live-host-fact shape
+/// `:wat::program::cpu-count` was ruled on (`@Determinism Nondeterministic`, "a live host fact...
+/// not a committed value"), for the identical reason: the answer depends on WHICH thread is
+/// calling, an ambient fact no argument captures, not on a value fixed once and read many times
+/// (contrast `argv`, above, which IS install-once via a `OnceLock`). No side effect is possible
+/// (`@Purity Pure`), but the result is not a deterministic function of the call's arguments.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Category      Ambient
+/// @ret     :wat::core::String the calling thread's id, `{:?}`-formatted
+/// @example-norun (:wat::runtime::current-thread) #=> "ThreadId(1)"
+/// @see     :wat::program::cpu-count
+#[wat_intrinsic(":wat::runtime::current-thread")]
+fn eval_runtime_current_thread() -> Result<Value, EvalBreak> {
     let id = std::thread::current().id();
     Ok(Value::String(Arc::new(format!("{:?}", id))))
 }
@@ -20175,86 +20058,13 @@ pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span)
     Ok(ctx.dim_count)
 }
 
-fn check_nullary(op: &'static str, args: &[WatAST], list_span: &Span) -> Result<(), EvalBreak> {
-    if !args.is_empty() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 0,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    Ok(())
-}
-
-/// `(:wat::config::dim-count)` -> `:i64`. The program's encoding dim,
-/// set once at startup via `(:wat::config::set-dim-count! n)`;
-/// defaults to [`crate::config::DEFAULT_DIMS`] (10000) when no
-/// encoding ctx is attached (test harnesses bypassing the freeze
-/// pipeline).
-fn eval_config_dim_count(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::dim-count", args, list_span)?;
-    match sym.encoding_ctx() {
-        Some(ctx) => Ok(Value::i64(ctx.dim_count as i64)),
-        None => Ok(Value::i64(crate::config::DEFAULT_DIM_COUNT as i64)),
-    }
-}
-
-/// `(:wat::config::dim-capacity)` -> `:i64`. Hologram-slot count for
-/// this program: `floor(sqrt(dim-count))`. Cached at freeze; reads
-/// from `EncodingCtx`. Falls back to the default-derived value when
-/// no encoding ctx is attached.
-fn eval_config_dim_capacity(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::dim-capacity", args, list_span)?;
-    match sym.encoding_ctx() {
-        Some(ctx) => Ok(Value::i64(ctx.capacity as i64)),
-        None => {
-            let d = crate::config::DEFAULT_DIM_COUNT;
-            // Arc 294.c.2a — the ONE capacity formula (no recompute).
-            let cap = crate::holon::hologram::kanerva_capacity(d);
-            Ok(Value::i64(cap as i64))
-        }
-    }
-}
-
-/// `(:wat::config::noise-floor)` — `1/sqrt(dim-count)` at the
-/// program's d. Held for legacy callers; per-d noise-floor is also
-/// computed internally by presence? / coincident? against the same
-/// program-d.
-fn eval_config_noise_floor_default_shim(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::noise-floor", args, list_span)?;
-    let d = match sym.encoding_ctx() {
-        Some(ctx) => ctx.dim_count,
-        None => crate::config::DEFAULT_DIM_COUNT,
-    };
-    Ok(Value::f64(1.0 / (d as f64).sqrt()))
-}
-
-/// `(:wat::config::global-seed)` — committed atom-seeding seed as `:i64`.
-fn eval_config_global_seed(
-    args: &[WatAST],
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    check_nullary(":wat::config::global-seed", args, list_span)?;
-    let ctx = require_encoding_ctx(":wat::config::global-seed", sym, list_span)?;
-    Ok(Value::i64(ctx.config.global_seed as i64))
-}
+// `check_nullary` and the four `eval_config_*` handlers that used to live here
+// (`:wat::config::dim-count`/`dim-capacity`/`global-seed`/`noise-floor`) moved to
+// `src/intrinsic/config.rs` — arc 255 Stone P6-c-W1, the P6-c campaign's first wave.
+// All four were declaring a variadic `&[WatAST]` they used only to reject (a
+// hand-rolled `check_nullary` arity guard); homing them meant DELETING that
+// fiction and declaring the real arity (0) so `#[wat_intrinsic]`'s generated shim
+// owns the check and `metadata-of` reports the true arity instead of a lie.
 
 /// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a
 /// `(:wat::kernel::listener host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
@@ -23673,6 +23483,33 @@ fn step_list(
 /// `string.rs`'s `declare-acronyms` (Stone HOME-4), which had the honest
 /// escape hatch of a genuinely side-effect-free body at eval time, these
 /// verbs do not: reclassifying them `Pure` would be the dishonest fix.
+///
+/// `:wat::stream::` joined this list at arc 255 Stone P6-c-W2, for the identical reason:
+/// `:wat::stream::next` (`src/intrinsic/stream.rs`) is honestly `@Purity Effectful` — forcing
+/// a thunk calls `apply_function` on a captured wat closure (or runs a native closure for the
+/// lazy `map`/`filter`/`take`/`drop` family), which can run arbitrary code. No escape hatch:
+/// `next`'s body genuinely can have a side effect, so `Pure` would be the dishonest fix, the
+/// same non-choice `:wat::holon::`'s effectful members faced. `:wat::stream::empty`/`cons`
+/// (same wave, same file) stay `Pure` and simply add two more entries to this census's
+/// tolerated Pure-declared-under-an-effectful-prefix inventory — the same shape
+/// `:wat::config::*` (four rows) already established below.
+///
+/// `:wat::rete::` joined this list at arc 255 Stone P6-c-W5b, for six verbs that mutate a
+/// rete session: `arm-session`/`release-session` (`src/rete/kernel/arm.rs`) take/drop a lease
+/// on the thread-local `ARM_TABLE` intern cache; `export`/`import` (`src/rete/export.rs`)
+/// touch the same table on a build-and-intern MISS; `eval-insert`/`eval-test`
+/// (`src/rete/eval_insert.rs`, `src/rete/eval_test.rs`) can run a caller-supplied expression
+/// via `eval_inner`/`apply_function` — arbitrary code this verb has no way to bound, the same
+/// shape `:wat::stream::next` is effectful for. All six are honestly `@Purity Effectful`; no
+/// escape hatch, `Pure` would be the dishonest fix. ⚠ Unlike `:wat::stream::`'s two tolerated
+/// Pure rows, this widening also puts W5a's NINE already-homed PURE `:wat::rete::` verbs
+/// (`pure?`/`deterministic?`/`total?`/`primitive?`/`vocabulary-admitted?`/
+/// `cond-has-deferred-constraint?`/`alpha-match`/`alpha-match-local`/`alpha-match-under`)
+/// under this prefix — legal (the census's surviving assertion is one-directional, `Effectful
+/// ⇒ effectful_by_prefix`; `prefix ⇒ Effectful` is a counted census, not a rule), but it is
+/// the reason `declared_purity_vs_effectful_by_prefix_census`'s disagreement count rises by
+/// about nine at this stone: those nine now disagree (declared Pure, prefix says effectful)
+/// the same way `:wat::config::`'s four Pure rows already did.
 pub(crate) fn effectful_by_prefix(head: &str) -> bool {
     head.starts_with(":wat::kernel::")
         || head.starts_with(":wat::io::")
@@ -23680,6 +23517,8 @@ pub(crate) fn effectful_by_prefix(head: &str) -> bool {
         || head.starts_with(":wat::eval-")
         || head.starts_with(":wat::load")
         || head.starts_with(":wat::config::")
+        || head.starts_with(":wat::stream::")
+        || head.starts_with(":wat::rete::")
 }
 
 /// Effectful-op classifier — the registry is the authority (arc 255.1c). A

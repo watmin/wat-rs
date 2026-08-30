@@ -123,7 +123,7 @@
 
 ;; ── the two payloads, differing in ONE form ───────────────────────────────────────────────
 (:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :wat::WatAST
+  (:wat::core::Vector :- [:wat::WatAST]
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
     (:wat::core::quote
@@ -135,7 +135,7 @@
         :then [(:usr::Hot :c ?c)]))))
 
 (:wat::core::defn :probe::payload-missing-helper [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :wat::WatAST
+  (:wat::core::Vector :- [:wat::WatAST]
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
     (:wat::core::quote

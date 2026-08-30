@@ -249,9 +249,11 @@ pub(crate) struct IntrinsicSubmission {
     pub determinism: wat_doc::Determinism,
     /// `@Category <Variant>` — functional category.
     pub category: wat_doc::Category,
-    /// `@yields <type> <desc>` type token — the type handed into the fn-arg callback.
-    /// `None` when the intrinsic does not yield to a callback.
-    pub yields_type: Option<&'static str>,
+    /// `@yields <argname> <desc>` pairs, in source order — arc 255 Stone P5-b. One pair per
+    /// value-carrying fn-shaped `@arg`; empty when the intrinsic yields to no callback. The
+    /// TYPE is not carried here — it is derived from the named `@arg`'s own canonical
+    /// bracket-form type at render time (`reflect.rs`'s `fn_arg_param_type`).
+    pub yields: &'static [(&'static str, &'static str)],
 }
 
 inventory::collect!(IntrinsicSubmission);
@@ -385,11 +387,10 @@ pub(crate) struct IntrinsicEntry {
     /// `@Category <Variant>` — functional category.
     /// Consumed by `metadata-of`'s intrinsic branch and `eval_render_doc`.
     pub category: wat_doc::Category,
-    /// `@yields <type>` type token — the element type handed to the fn-arg callback.
-    /// `None` when the intrinsic does not yield to a callback.
-    /// Consumed by `yields_type_matches_fn_arg_param` (cfg(test)) and `eval_render_doc`.
-    #[allow(dead_code)] // read by yields_type_matches_fn_arg_param (cfg(test)) + render-doc
-    pub yields_type: Option<&'static str>,
+    /// `@yields <argname> <desc>` pairs, in source order — arc 255 Stone P5-b. Consumed by
+    /// `eval_render_doc` (the `Yields:` section, N lines, type DERIVED per-line from the
+    /// matching `@arg`'s canonical bracket-form type via `fn_arg_param_type`).
+    pub yields: &'static [(&'static str, &'static str)],
     /// Arc 255 Stone P6-a — the gathered `#[wat_special_form_impl]` submissions for this form,
     /// (role, source) pairs in whatever order `inventory` handed them back (NOT necessarily
     /// check→eval→tail; a reader that cares about order — `show-source` — sorts at read time).
@@ -473,7 +474,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 purity: submission.purity,
                 determinism: submission.determinism,
                 category: submission.category,
-                yields_type: submission.yields_type,
+                yields: submission.yields,
                 impls: Vec::new(),
             });
         }
@@ -525,7 +526,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 purity: submission.purity,
                 determinism: submission.determinism,
                 category: submission.category,
-                yields_type: None,
+                yields: &[],
                 impls: impls_by_fqdn.remove(submission.name).unwrap_or_default(),
             });
         }
@@ -541,6 +542,9 @@ mod ast;
 mod bigint;
 mod bytes;
 mod char;
+// Arc 255 Stone P6-c-W1 — the campaign's first wave. Four nullary `:wat::config::` readers,
+// moved verbatim out of `runtime.rs`'s giant match with their real (0) arity declared.
+mod config;
 // Arc 255 Stone HOME-11 — the EDN registry home. Pure re-registration (HOME-5 already carved
 // the file home, `src/edn/`); nothing renamed, no `.wat` corpus touch.
 mod edn;
@@ -559,11 +563,24 @@ mod map;
 // (HOME-9 already renamed these off `:wat::std::`); shim-only, three files, no
 // `src/math/`/`src/stat/`/`src/seq/` directory (STOP-1 — no algebra worth naming).
 mod math;
+// Arc 255 Stone P6-c-W2 — the campaign's second wave. One nullary `:wat::program::env`
+// reader, moved verbatim out of `runtime.rs`'s giant match with its real (0) arity
+// declared. `:wat::program::self-peer`/`cpu-count` are neighbours, not this wave's verbs.
+mod program;
 mod rational;
 mod reflect;
 mod regex;
+// Arc 255 Stone P6-c-W5a — the P6-c campaign's fifth wave (5a): the nine READ-ONLY
+// `:wat::rete::` verbs (the six `?` predicates + the three alpha-matchers), moved verbatim out
+// of `runtime.rs`'s giant match with their real arities declared. The other 19 `:wat::rete::`
+// verbs (session-mutating) stay in `src/rete/` and the giant match — not this wave.
+mod rete;
 mod seq;
 mod stat;
+// Arc 255 Stone P6-c-W2 — the campaign's second wave. `:wat::stream::{empty,cons,next}`,
+// moved verbatim out of `runtime.rs`'s giant match with their real (0/2/1) arities
+// declared. `:wat::stream::lazy` is a SPECIAL FORM and stays in the giant match.
+mod stream;
 // Arc 255 Stone F — reverted to the default-private shape of its siblings. The
 // `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) that needed
 // `pub(crate)` to call four of these handlers directly (bypassing the registry) are retired;
@@ -576,6 +593,32 @@ mod witness;
 mod special;
 mod time;
 
+/// Arc 255 Stone P5-b — derive the single callback parameter type from a canonical
+/// fn-shaped `@arg` type string, for `reflect.rs`'s `Yields:` render. `ty` is the
+/// bracket-form `typeexpr_to_doc_string` emits for a `TypeExpr::Fn` (P5-a): `[ARG :-> RET]`
+/// (one param) or `[:-> RET]` (nullary — `None`, since a nullary callback hands nothing in
+/// and P5-b's mandate forbids a `@yields` there). The split point is the FIRST `:->` found
+/// at bracket depth 0 relative to the OUTER `[...]` (i.e. depth 0 inside it) — depth-tracked
+/// (across both `(` / `[`) so a nested parametric arg type
+/// (`[(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]`) does not confuse the split on its
+/// own internal `:-`/`[…]`.
+pub(crate) fn fn_arg_param_type(ty: &str) -> Option<&str> {
+    let inner = ty.strip_prefix('[')?.strip_suffix(']')?;
+    let mut depth = 0i32;
+    for (i, c) in inner.char_indices() {
+        match c {
+            '(' | '[' => depth += 1,
+            ')' | ']' => depth -= 1,
+            ':' if depth == 0 && inner[i..].starts_with(":->") => {
+                let param = inner[..i].trim();
+                return if param.is_empty() { None } else { Some(param) };
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 // ─── Arc 255.1b-v: @see registry-check + firm-doc tests ──────────────────────
 //
 // Consumer-side tests: every `@see` FQDN must resolve; doc arg/ret types must
@@ -584,14 +627,16 @@ mod time;
 // inline in the tests below.
 #[cfg(test)]
 mod tests {
-    /// Arc 255 Stone P4 — the frozen DEBT LEDGER for the silent skip shared by
-    /// `doc_arg_ret_types_match_checker_scheme` (`None => continue` above, "not yet in
-    /// checker — skip") and `yields_type_matches_fn_arg_param`'s second `None => continue`
-    /// (same reason). Both gates build `CheckEnv::with_builtins_and_types(&TypeEnv::new())`
-    /// and call `check_env.get(entry.name)`; for every name below that returns `None`, so
-    /// **neither gate verifies anything about that entry's `@arg`/`@ret` doc strings against
-    /// the checker.** A registration whose doc types are pure fiction passes both gates today
-    /// by being absent from `register_builtins` (`src/check.rs`) — not by being correct.
+    /// Arc 255 Stone P4 — the frozen DEBT LEDGER for the silent skip in
+    /// `doc_arg_ret_types_match_checker_scheme` (`None => continue` below, "not yet in
+    /// checker — skip"). (Arc 255 Stone P5-b: `yields_type_matches_fn_arg_param` used to
+    /// share this same `None => continue` and this same ledger; it is DELETED, not
+    /// rewritten — see the note where it stood, below.) This gate builds
+    /// `CheckEnv::with_builtins_and_types(&TypeEnv::new())` and calls
+    /// `check_env.get(entry.name)`; for every name below that returns `None`, so **it
+    /// verifies nothing about that entry's `@arg`/`@ret` doc strings against the checker.**
+    /// A registration whose doc types are pure fiction passes today by being absent from
+    /// `register_builtins` (`src/check.rs`) — not by being correct.
     ///
     /// ⚠ THIS LIST IS A DEBT LEDGER, NOT AN EXEMPTION LIST. Every name on it is an intrinsic
     /// or special form whose declared types are checked by nothing. It is not an accusation —
@@ -602,9 +647,22 @@ mod tests {
     /// `register_builtins`) is a separate, larger stone; this test only measures and freezes
     /// the population so it cannot grow silently.
     ///
-    /// Measured 2026-08-28 against `check_env.get(entry.name)` over `registry().all_entries()`
-    /// — the SAME construction and SAME method both gates use, so this measurement cannot
-    /// disagree with what the gates actually skip. 49 of 382 registered entries, by namespace:
+    /// Measured 2026-08-28, re-measured 2026-08-29 (arc 255 Stone P6-c-W4 adds the
+    /// `:wat::runtime::` row below) against `check_env.get(entry.name)` over
+    /// `registry().all_entries()` — the SAME construction and SAME method both gates use, so
+    /// this measurement cannot disagree with what the gates actually skip. 53 of 405
+    /// registered entries (2026-08-29 count, post-W4; the prior "384" total had already
+    /// drifted stale before this stone from unrelated homing — not re-audited here beyond
+    /// this stone's own +3).
+    ///
+    /// ★ `registry().all_entries().count()` (405) is NOT the same instrument as the anchored
+    /// `#[wat_intrinsic]`-attribute grep (403 post-W4) — the +2 gap is not noise, it is a fixed
+    /// identity: `:wat::core::if` (`src/intrinsic/special/control_flow.rs:20`) and
+    /// `:wat::core::let` (`src/intrinsic/special/binding.rs:15`) register into this SAME
+    /// registry via the DIFFERENT `#[wat_special_form(...)]` attribute, which an
+    /// `#[wat_intrinsic` grep cannot see. So `all_entries().count()` == the anchored intrinsic
+    /// grep + 2, always — recorded here after three separate riders each independently
+    /// rediscovered this gap and reported it as unexplained drift.
     /// - `:wat::kernel::` 23 of 46 — accept, address-wire?, after, allow, close, connect, deny,
     ///   fn-forms, listener, peer-pid, peer-process, peer-wire?, poll, recv,
     ///   require-wire-address, retag-op, select, send, serve-dispatch-op, signal,
@@ -613,10 +671,21 @@ mod tests {
     ///   simhash, to-record
     /// - `:wat::core::` 6 of 18 — List, fresh-symbol, if, let, type-equal?, type-params-used-in
     /// - `:wat::linkedlist::` 5 of 5 — WHOLLY ABSENT: conj, contains?, empty?, get, length
+    /// - `:wat::runtime::` 3 of 13 (arc 255 Stone P6-c-W4) — field-names-of, field-types-of,
+    ///   metadata-of. NOT UNIFORM: field-names-of/field-types-of ARE type-checked, by
+    ///   hand-written special-case inference inside `infer_list` (`src/check.rs:2543`;
+    ///   `field-names-of` at `:3570`, `field-types-of` at `:3596`) — they lack a `TypeScheme`
+    ///   but are not unverified in the sense the other rows on this ledger are. `metadata-of`
+    ///   has neither a scheme nor inference — 0 mentions in `check.rs` outside comments — and
+    ///   is the only one of the three genuinely unchecked.
     /// - `:wat::seq::` 3 of 3 — WHOLLY ABSENT: remove-at, window, zip
     /// - `:wat::string::` 2 of 20 — declare-acronyms, interpolate
     /// - `:wat::time::` 2 of 41 — +, -
     /// - `:wat::edn::` 1 of 13 — validate
+    /// - `:wat::form::` 1 of 1 — WHOLLY ABSENT: matches? (arc 255 Stone P6-c-1 — homed to
+    ///   `#[wat_intrinsic]`; `check.rs::infer_form_matches` type-checks it via its own
+    ///   FQDN-keyed special-case grammar, never via a generic `TypeScheme`, so `CheckEnv`
+    ///   was never going to have it — this gate's job is only to notice and freeze that fact)
     const FROZEN_CHECKER_DEBT_LEDGER: &[&str] = &[
         ":wat::core::List",
         ":wat::core::fresh-symbol",
@@ -625,6 +694,7 @@ mod tests {
         ":wat::core::type-equal?",
         ":wat::core::type-params-used-in",
         ":wat::edn::validate",
+        ":wat::form::matches?",
         ":wat::holon::coincident-explain",
         ":wat::holon::coincident?",
         ":wat::holon::cosine",
@@ -660,6 +730,13 @@ mod tests {
         ":wat::linkedlist::empty?",
         ":wat::linkedlist::get",
         ":wat::linkedlist::length",
+        // arc 255 Stone P6-c-W4 — field-names-of/field-types-of ARE typed (infer_list
+        // special-case, check.rs:3570/3596); metadata-of has neither scheme nor inference.
+        // All three are absent from `CheckEnv` (this ledger's actual criterion), so all three
+        // belong here — but they are NOT identically "unchecked"; see the header note above.
+        ":wat::runtime::field-names-of",
+        ":wat::runtime::field-types-of",
+        ":wat::runtime::metadata-of",
         ":wat::seq::remove-at",
         ":wat::seq::window",
         ":wat::seq::zip",
@@ -675,9 +752,8 @@ mod tests {
         use crate::types::TypeEnv;
 
         let type_env = TypeEnv::new();
-        // The exact construction both `doc_arg_ret_types_match_checker_scheme` and
-        // `yields_type_matches_fn_arg_param` use — a measurement that cannot disagree with
-        // the thing it measures.
+        // The exact construction `doc_arg_ret_types_match_checker_scheme` uses — a
+        // measurement that cannot disagree with the thing it measures.
         let check_env = CheckEnv::with_builtins_and_types(&type_env);
 
         let mut measured: Vec<&'static str> = super::registry()
@@ -700,14 +776,13 @@ mod tests {
             "checker-skip DEBT LEDGER drifted from the measured population.\n\
              \n\
              NEW — registered but absent from `CheckEnv` (`check_env.get` returns `None`), \
-             NOT on the frozen ledger — `doc_arg_ret_types_match_checker_scheme` and \
-             `yields_type_matches_fn_arg_param` are silently skipping these and verifying \
-             nothing about their `@arg`/`@ret` docs. Add each to `FROZEN_CHECKER_DEBT_LEDGER` \
-             (or register it in `register_builtins`, `src/check.rs`, to remove it from the \
-             ledger entirely): {:?}\n\
+             NOT on the frozen ledger — `doc_arg_ret_types_match_checker_scheme` is silently \
+             skipping these and verifying nothing about their `@arg`/`@ret` docs. Add each to \
+             `FROZEN_CHECKER_DEBT_LEDGER` (or register it in `register_builtins`, \
+             `src/check.rs`, to remove it from the ledger entirely): {:?}\n\
              \n\
              STALE — on the frozen ledger but now resolved (`check_env.get` returns `Some` for \
-             these), i.e. `register_builtins` now covers them and both gates verify them for \
+             these), i.e. `register_builtins` now covers them and the gate verifies them for \
              real — delete each from `FROZEN_CHECKER_DEBT_LEDGER`: {:?}\n",
             newly_unverified, no_longer_unverified,
         );
@@ -954,59 +1029,28 @@ mod tests {
         );
     }
 
-    /// Arc 255 spec-complete: for entries with `@yields`, the declared type must match
-    /// the fn-arg's (Fn(P)->R) param type P in the checker's TypeScheme.
-    /// A mismatch is a doc lie — the user reads one callback-param type, the checker
-    /// enforces another.
-    #[test]
-    fn yields_type_matches_fn_arg_param() {
-        use crate::check::CheckEnv;
-        use crate::types::TypeEnv;
-
-        let type_env = TypeEnv::new();
-        let check_env = CheckEnv::with_builtins_and_types(&type_env);
-
-        for entry in super::registry().all_entries() {
-            let yields_type = match entry.yields_type {
-                Some(yt) => yt,
-                None => continue, // no @yields — skip
-            };
-
-            let scheme = match check_env.get(entry.name) {
-                Some(s) => s,
-                None => continue, // not yet in checker — skip
-            };
-
-            // Find the arg whose scheme type is Fn(P)->R; assert @yields type == P.
-            // The Fn arg is identified by TypeExpr::Fn in scheme.params.
-            let mut found_fn_param = false;
-            for param_ty in &scheme.params {
-                if let crate::types::TypeExpr::Fn { args: fn_args, .. } = param_ty {
-                    // @yields type must match the first (and only) Fn param.
-                    let param_ty_str = if fn_args.len() == 1 {
-                        typeexpr_to_doc_string(&fn_args[0])
-                    } else {
-                        continue;
-                    };
-                    assert_eq!(
-                        yields_type, param_ty_str.as_str(),
-                        "doc `@yields` type for `{}` says `{}`, \
-                         but the fn-arg's scheme Fn(P)->R param P says `{}`",
-                        entry.name, yields_type, param_ty_str
-                    );
-                    found_fn_param = true;
-                    break;
-                }
-            }
-            if !found_fn_param {
-                panic!(
-                    "intrinsic `{}` declares `@yields {}` but its TypeScheme has \
-                     no Fn(P)->R param — register a Fn param in check.rs",
-                    entry.name, yields_type
-                );
-            }
-        }
-    }
+    // Arc 255 Stone P5-b — `yields_type_matches_fn_arg_param` is DELETED, not rewritten.
+    // It asserted TWO declarations of one fact agreed: the doc's `@yields <type>` token
+    // against the checker's `Fn(P)->R` param `P`. P5-b drops the first declaration
+    // entirely — `@yields` no longer carries a type, only a subject (`@yields <argname>
+    // <desc>`) — so there is no longer a second spelling to disagree with the first, and a
+    // gate whose whole job was catching that drift has nothing left to catch.
+    //
+    // Coverage held elsewhere, not lost:
+    //   - "the @yields type matches the fn-arg's declared type" — this test's FIRST job —
+    //     is now trivially true BY CONSTRUCTION: the type is derived FROM that `@arg`'s own
+    //     string (`reflect.rs`'s `fn_arg_param_type`), not re-typed by hand, so there is no
+    //     drift possible any more, not merely no drift found.
+    //   - "the doc's `@arg` type matches the checker's real `TypeScheme` param type" — this
+    //     test's SECOND, independent claim (via `check_env.get`) — is `doc_arg_ret_types_
+    //     match_checker_scheme`'s job (below), already covers every `@arg` including
+    //     fn-typed ones, for every entry the checker knows about, and skips exactly the same
+    //     `FROZEN_CHECKER_DEBT_LEDGER` entries this test's `None => continue` always skipped
+    //     — same construction, same population, same debt, unchanged.
+    //   - "declares `@yields` but has no Fn param to attach it to" — this test's runtime
+    //     `panic!` — becomes `wat_intrinsic.rs`'s expand-time mandate: a `@yields` naming a
+    //     non-fn-shaped or missing `@arg` is now a `compile_error!` before the crate exists,
+    //     strictly earlier and unconditional (not gated on `check_env.get` returning `Some`).
 
     /// Arc 255 Stone P1 — two homes claiming the same FQDN is a silent
     /// `HashMap::insert` overwrite inside `IntrinsicRegistry::register` (see its
@@ -1078,6 +1122,87 @@ mod tests {
             "special form(s) registered via #[wat_special_form] but missing a required \
              #[wat_special_form_impl] check or eval annotation:\n{}",
             missing.join("\n")
+        );
+    }
+
+    /// Arc 255 Stone P5-a's frozen ledger for `source.rs`'s `f :wat::core::Fn` `@arg` on
+    /// `:wat::kernel::fn-forms`. `:wat::core::Fn` there is `ANON_FN_SYMBOL`
+    /// (`crate::value::frame::ANON_FN_SYMBOL`) — the string an anonymous fn VALUE renders
+    /// as, standing in a type position with no backing `TypeExpr::Fn` to derive a canonical
+    /// bracket spelling from. Its own prose accepts two shapes ("the fn value to reify (or a
+    /// keyword naming a registered fn)") and wat has no union type to name that with, so this
+    /// is named on a ledger — like `FROZEN_CHECKER_DEBT_LEDGER` above — rather than guessed
+    /// or fixed with a type-system feature.
+    const FN_ARG_ANON_SYMBOL_LEDGER: &[(&str, &str)] = &[(":wat::kernel::fn-forms", "f")];
+
+    /// Every `->` in a fn-type `@arg` string must be spelled `:->` (the renderer's arrow),
+    /// i.e. every occurrence of the two-byte substring `->` is immediately preceded by `:`.
+    fn arrow_correctly_spelled(ty: &str) -> bool {
+        let bytes = ty.as_bytes();
+        let mut idx = 0;
+        while let Some(pos) = ty[idx..].find("->") {
+            let abs = idx + pos;
+            if abs == 0 || bytes[abs - 1] != b':' {
+                return false;
+            }
+            idx = abs + 2;
+        }
+        true
+    }
+
+    /// ★ Arc 255 Stone P5-a's WALL — built and shown RED before any correction
+    /// (`NISI FRANGAS, NIHIL PROBAS`).
+    ///
+    /// A function type has ONE spelling in an `@arg`: whatever
+    /// `typeexpr_to_doc_string` emits for `TypeExpr::Fn` — `[:-> RET]` (nullary) or
+    /// `[ARGS :-> RET]` — bracket-delimited, arrow spelled `:->`. Walking
+    /// `registry().all_entries()`'s `entry.args`, a declared type is a fn-type CLAIM if it
+    /// contains `->` or equals `ANON_FN_SYMBOL` (the value-rendering standing in a type
+    /// position, `source.rs:158` — ledgered above, never elsewhere). Every other fn-type
+    /// claim must be bracket-delimited with the arrow spelled `:->`; `ANON_FN_SYMBOL` must
+    /// never appear as a type outside the frozen ledger.
+    #[test]
+    fn fn_typed_arg_has_one_canonical_spelling() {
+        let mut violations: Vec<String> = Vec::new();
+
+        for entry in super::registry().all_entries() {
+            for &(arg_name, ty, _desc, _is_rest) in entry.args.iter() {
+                let is_fn_type_claim = ty.contains("->") || ty == crate::value::frame::ANON_FN_SYMBOL;
+                if !is_fn_type_claim {
+                    continue;
+                }
+
+                if ty == crate::value::frame::ANON_FN_SYMBOL {
+                    if FN_ARG_ANON_SYMBOL_LEDGER.contains(&(entry.name, arg_name)) {
+                        continue; // STOP-1's single ledgered site — a value rendering, not a TypeExpr::Fn.
+                    }
+                    violations.push(format!(
+                        "{}'s `@arg {}` types as `{}` — ANON_FN_SYMBOL (a fn VALUE's \
+                         rendering) used as a type, and not on FN_ARG_ANON_SYMBOL_LEDGER",
+                        entry.name, arg_name, ty
+                    ));
+                    continue;
+                }
+
+                let bracket_delimited = ty.starts_with('[') && ty.ends_with(']');
+                let arrow_ok = arrow_correctly_spelled(ty);
+                if !bracket_delimited || !arrow_ok {
+                    violations.push(format!(
+                        "{}'s `@arg {}` types as `{}` — not the canonical bracket form \
+                         `[ARGS :-> RET]` that `typeexpr_to_doc_string` emits for \
+                         `TypeExpr::Fn` (bracket_delimited={}, arrow_spelled_correctly={})",
+                        entry.name, arg_name, ty, bracket_delimited, arrow_ok
+                    ));
+                }
+            }
+        }
+
+        violations.sort();
+        assert!(
+            violations.is_empty(),
+            "fn-typed @arg(s) not in the ONE canonical spelling `[ARGS :-> RET]` \
+             (arc 255 Stone P5-a):\n{}",
+            violations.join("\n")
         );
     }
 }

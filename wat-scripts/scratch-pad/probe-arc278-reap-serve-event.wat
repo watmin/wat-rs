@@ -75,7 +75,7 @@
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])]
               -> :wat::core::nil
-              (:se::serve self l (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])))))
+              (:se::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))
      c    (:wat::core::match (:wat::kernel::connect a)
             ((:wat::kernel::ConnectOutcome::Connected p) p)
             ((:wat::kernel::ConnectOutcome::Refused _f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))

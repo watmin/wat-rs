@@ -17,10 +17,10 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [nums (:wat::core::Vector :wat::core::i64 1 2 3)
+    [nums (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      pr   (:wat::bracket::map (:wat::spawn::process) nums :probe::double)
      _    (:wat::kernel::println (:wat::edn::write pr))
-     expected (:wat::core::Vector :wat::core::i64 2 4 6)
+     expected (:wat::core::Vector :- [:wat::core::i64] 2 4 6)
      _    (:wat::core::if (:wat::core::= pr expected)
              nil
             (:wat::kernel::assertion-failed! "surface-ships result mismatch" :wat::core::None :wat::core::None))]

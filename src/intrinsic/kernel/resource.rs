@@ -324,8 +324,10 @@ pub(crate) fn eval_kernel_pipe(
 /// @Determinism   Deterministic
 /// @Category      Resource
 /// @arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the self-peer program body, run once on the new thread
-/// @arg     init_fn :wat::core::Fn()->wat::core::Record 0-arg fn run at peer-start; its return becomes the peer's user-data
-/// @arg     post_spawn_fn :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil runs owner-side after spawn
+/// @arg     init_fn [:-> :wat::core::Record] 0-arg fn run at peer-start; its return becomes the peer's user-data
+/// @arg     post_spawn_fn [:wat::spawn::ThreadLaunch :-> :wat::core::nil] runs owner-side after spawn
+/// @yields  prog the new thread's own self-peer handle — a `(Peer' :- [S R])` — handed to prog when the thread starts running it
+/// @yields  post_spawn_fn the just-spawned thread's ThreadLaunch record, handed to post_spawn_fn owner-side after spawn
 /// @ret     (:wat::kernel::Thread :- [R S]) the new thread's peer handle
 /// @example-norun (:wat::kernel::spawn-thread prog init-fn post-fn) #=> #wat.kernel/Thread{}
 // No registered `TypeScheme` — `check.rs`'s `infer_spawn_thread_prime`
@@ -376,7 +378,8 @@ pub(crate) fn eval_kernel_spawn_thread_prime(
 /// @Determinism   Deterministic
 /// @Category      Resource
 /// @arg     forms (:wat::core::Vector :- [:wat::WatAST]) the forms-server program to run in the child
-/// @arg     post_spawn_fn :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil runs owner-side after fork, with the child pid
+/// @arg     post_spawn_fn [:wat::spawn::ProcessLaunch :-> :wat::core::nil] runs owner-side after fork, with the child pid
+/// @yields  post_spawn_fn the just-forked child's ProcessLaunch record (including its pid), handed to post_spawn_fn owner-side after fork
 /// @arg     env_fn :wat::core::String source string the child evals to produce user-data
 /// @arg     max_message_bytes :wat::core::i64 per-receiver frame-size budget
 /// @arg     identity (:wat::core::Option :- [:wat::core::Record]) optional ps-visible identity label

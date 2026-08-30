@@ -14,9 +14,9 @@
 ;;   MISS  => `:None` for a key that IS in the map  -> a silent failure in the destructure
 ;;   HIT   => `Some "v"`                            -> the rider's diagnosis is wrong
 
-(:wat::core::defn :probe::string-keyed [] -> (:wat::core::HashMap :wat::core::String :wat::core::String)
+(:wat::core::defn :probe::string-keyed [] -> (:wat::core::HashMap :- [:wat::core::String :wat::core::String])
   (:wat::hashmap::assoc
-    (:wat::core::HashMap :wat::core::String :wat::core::String)
+    (:wat::core::HashMap :- [:wat::core::String :wat::core::String])
     "edn" "the-value"))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -30,7 +30,7 @@
 (:wat::core::defn :bench::stream-drain
   [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::length
-    (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
       (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) v))))
 
 ;; EAGER path — the native PersistentVector/concat arm, same n elements materialized.
@@ -46,13 +46,13 @@
 (:wat::core::defn :bench::drain-only
   [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::length
-    (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
       (:wat::core::Seqable/seq v))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [n  200000
-     v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 n))
+     v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 n))
      a0 (:wat::time::now) ra (:bench::stream-drain v)  a1 (:wat::time::now)
      b0 (:wat::time::now) rb (:bench::native-concat v) b1 (:wat::time::now)
      c0 (:wat::time::now) rc (:bench::native-concat v) c1 (:wat::time::now)

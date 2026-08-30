@@ -6,6 +6,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
+use wat_macros::wat_intrinsic;
+
 use crate::ast::WatAST;
 use crate::rete::alpha_tree::AlphaTree;
 use crate::rete::compiled_cond::{CompiledCond, Op};
@@ -1587,25 +1589,32 @@ fn map_str<V>(m: &HashMap<String, V>, mut f: impl FnMut(&V) -> Value) -> Value {
 
 // ── public mouths ────────────────────────────────────────────────────────────
 
-/// `(:wat::rete::export <session>) -> :wat::rete::Export`
+/// `(:wat::rete::export session) -> :wat::rete::Export`
+///
+/// Packs the session's compiled program (topology, compiled conds/drivers/wheres/folds/rhs,
+/// stratify deps, class ABI) into one self-describing `#wat.rete/Export` EDN value — no facts,
+/// no memories, no source forms, native fire only. The pack door (`rete_arm_get_or_build`)
+/// reuses the compile lease on a HIT; on a MISS it builds AND interns
+/// (`DESIGN-STONE-intern-eviction`) — the same thread-local `ARM_TABLE` `arm-session` leases.
+///
+/// Arc 255 Stone P6-c-W5b — moved verbatim into `#[wat_intrinsic]` with its real (1) arity
+/// declared; the hand-rolled `args.len() != 1` guard this wave retired lived right here.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Deterministic
+/// @Category      Resource
+/// @arg     session :wat::rete::Session the compiled session to serialize
+/// @ret     :wat::rete::Export the packed, self-describing program value
+/// @example-norun (:wat::rete::export (:wat::rete::compile (:dc::build-rules 2)))
+#[wat_intrinsic(":wat::rete::export")]
 pub(crate) fn eval_export(
-    args: &[WatAST],
+    session: &WatAST,
     list_span: &Span,
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(session, env, sym)?.value_owned();
     let (network, rules) = session_network_rules(&session, list_span)?;
     // Pack door: MISS intern's (`DESIGN-STONE-intern-eviction`); HIT reuses the compile lease.
     let arm = rete_arm_get_or_build(network, rules, sym)?;
@@ -1703,28 +1712,33 @@ fn unpack_deps(v: &Value, span: &Span) -> Result<Vec<RuleDep>, EvalBreak> {
     Ok(out)
 }
 
-/// `(:wat::rete::import <export>) -> :wat::rete::Session`
+/// `(:wat::rete::import export) -> :wat::rete::Session`
 ///
 /// Slim topology, interned arm, empty facts. Fire does not lower.
 /// Stratify schedule is `:deps` (produced / negated / consumed / exists-and-from class names).
+/// Interns the reconstructed `InternedNetwork` unconditionally (`rete_arm_intern` — an
+/// `arm-session` equivalent: MISS leases=1, HIT increments, `DESIGN-STONE-intern-eviction`) so
+/// a later `fire-rules`/`export` on the imported session gets a cache hit; drop without
+/// `release-session` leaks until thread end.
+///
+/// Arc 255 Stone P6-c-W5b — moved verbatim into `#[wat_intrinsic]` with its real (1) arity
+/// declared; the hand-rolled `args.len() != 1` guard this wave retired lived right here.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Deterministic
+/// @Category      Resource
+/// @arg     export :wat::rete::Export the packed program value to reconstruct a session from
+/// @ret     :wat::rete::Session a slim session over the reconstructed, interned network
+/// @example-norun (:wat::rete::import (:wat::rete::export (:wat::rete::compile (:dc::build-rules 2))))
+#[wat_intrinsic(":wat::rete::import")]
 pub(crate) fn eval_import(
-    args: &[WatAST],
+    export: &WatAST,
     list_span: &Span,
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: IMPORT_OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let export = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let export = crate::runtime::eval_inner(export, env, sym)?.value_owned();
     import_export(&export, list_span, sym)
 }
 

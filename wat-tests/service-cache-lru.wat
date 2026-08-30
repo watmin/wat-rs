@@ -81,7 +81,7 @@
                                    res <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
                     -> (:wat::core::Vector :- [:wat::core::String])
                     (:wat::core::conj acc (:wat-tests::cache-svc/result-label res)))
-                  (:wat::core::Vector :wat::core::String)
+                  (:wat::core::Vector :- [:wat::core::String])
                   results))
               "]")))
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
@@ -128,7 +128,7 @@
      put-batch (:wat-tests::cache-svc/put-label
                  (:wat::cache::lru-svc/put a
                    (:wat::cache::Cache::PutRequest
-                     :entries (:wat::core::Vector (:wat::cache::Entry :- [:wat::core::String :wat::core::i64])
+                     :entries (:wat::core::Vector :- [(:wat::cache::Entry :- [:wat::core::String :wat::core::i64])]
                                 (:wat::cache::Entry :key "k1" :value 100)
                                 (:wat::cache::Entry :key "k2" :value 200)))))
      ;; ★ INDEX ALIGNMENT — ONE `get` round trip, THREE probes, DELIBERATELY JUMBLED: k2 (a hit,
@@ -140,25 +140,25 @@
      get-jumbled (:wat-tests::cache-svc/get-label
                    (:wat::cache::lru-svc/get b
                      (:wat::cache::Cache::GetRequest
-                       :probes (:wat::core::Vector :wat::core::String "k2" "missing" "k1"))))
+                       :probes (:wat::core::Vector :- [:wat::core::String] "k2" "missing" "k1"))))
      ;; BATCH-OF-ONE put — the degenerate case, still meaningful: overflows capacity 2; k2 is LRU.
      ;; `PutResponse` carries nothing back (file-header departure note) — eviction is provable only
      ;; via a later `get` miss, which is exactly the next probe.
      put-k3 (:wat-tests::cache-svc/put-label
               (:wat::cache::lru-svc/put a
                 (:wat::cache::Cache::PutRequest
-                  :entries (:wat::core::Vector (:wat::cache::Entry :- [:wat::core::String :wat::core::i64])
+                  :entries (:wat::core::Vector :- [(:wat::cache::Entry :- [:wat::core::String :wat::core::i64])]
                              (:wat::cache::Entry :key "k3" :value 300)))))
      ;; BATCH-OF-ONE get + EVICTION IS OBSERVABLE THROUGH THE ACTOR — k2 was evicted by the put
      ;; above; a batch-of-one get names it a Miss, not an error.
      get-k2-miss (:wat-tests::cache-svc/get-label
                    (:wat::cache::lru-svc/get b
                      (:wat::cache::Cache::GetRequest
-                       :probes (:wat::core::Vector :wat::core::String "k2"))))
+                       :probes (:wat::core::Vector :- [:wat::core::String] "k2"))))
      ;; EMPTY PROBE VECTOR — `Ok` with an empty results Vector, not an error.
      get-empty (:wat-tests::cache-svc/get-label
                  (:wat::cache::lru-svc/get b
-                   (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :wat::core::String))))
+                   (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::core::String]))))
      _ (:wat::cache::lru-svc/stop h)]
     (:wat::string::concat put-batch
       (:wat::string::concat " | " (:wat::string::concat get-jumbled

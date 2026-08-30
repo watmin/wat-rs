@@ -40,7 +40,7 @@
              :id      1
              :result  (:probe::Result
                         :content (:wat::core::conj
-                                   (:wat::core::Vector :probe::Content)
+                                   (:wat::core::Vector :- [:probe::Content])
                                    (:probe::Content :type "text" :text "42"))
                         :isError false))]
     (:wat::core::do

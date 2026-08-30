@@ -17,13 +17,13 @@
 
 (:wat::core::defn :p::hashmap-assoc-key-present [] -> :wat::core::bool
   (:wat::core::let
-    [m  (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m  (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m2 (:wat::core::assoc m "answer" 42)]
     (:wat::hashmap::contains-key? m2 "answer")))
 
 (:wat::core::defn :p::hashmap-assoc-type-preserving [] -> :wat::core::bool
   (:wat::core::let
-    [m  (:wat::core::HashMap :wat::core::String :wat::core::i64)
+    [m  (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
      m2 (:wat::core::assoc m "k" 1)]
     (:wat::hashmap::contains-key? m2 "k")))
 
@@ -65,12 +65,12 @@
 
 ;; ── Record get ──
 
-(:wat::core::defn :p::record-get-existing-field [] -> (:wat::core::Option :wat::core::Value)
+(:wat::core::defn :p::record-get-existing-field [] -> (:wat::core::Option :- [:wat::core::Value])
   (:wat::core::let
     [s (:probe::rgal::Sensor :id 42 :label "temp")]
     (:wat::core::get s :id)))
 
-(:wat::core::defn :p::record-get-missing-field [] -> (:wat::core::Option :wat::core::Value)
+(:wat::core::defn :p::record-get-missing-field [] -> (:wat::core::Option :- [:wat::core::Value])
   (:wat::core::let
     [s (:probe::rgal::Sensor2 :id 7)]
     (:wat::core::get s :no-such-field)))

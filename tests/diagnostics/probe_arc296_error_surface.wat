@@ -34,7 +34,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [e    (:probe::BadInput :message "port must be > 0" :location (:wat::kernel::here)
-             :causes (:wat::core::Vector :wat::core::Error) :field "port")
+             :causes (:wat::core::Vector :- [:wat::core::Error]) :field "port")
      msg  (:probe::describe e)
      s    (:wat::edn::write e)
      back (:wat::edn::read s)]

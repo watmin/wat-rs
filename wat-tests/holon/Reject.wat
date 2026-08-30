@@ -30,7 +30,7 @@
 ;; small-arity bundles where capacity is never exceeded.
 (:wat::core::defn :wat-tests::holon::Reject::bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
   (:wat::core::match
-         (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
+         (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] a b))
 
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) (:wat::holon::leaf 0))))
@@ -49,7 +49,7 @@
 
 (:wat::core::defn :wat-tests::holon::Reject::project-bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
   (:wat::core::match
-         (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
+         (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] a b))
 
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) (:wat::holon::leaf 0))))

@@ -42,16 +42,16 @@
   (as-vec [self] -> (:wat::core::Vector :- [T]) self))
 
 (:wat::core::extend-type :wat::core::PersistentVector (:sq::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :T) self)))
+  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :- [:T]) self)))
 
 (:wat::core::extend-type :wat::core::List (:sq::Seqable :- [T])
   (as-vec [self] -> (:wat::core::Vector :- [T])
     (:wat::core::foldl (:wat::core::fn [acc <- (:wat::core::Vector :- [T]) x <- :T] -> (:wat::core::Vector :- [T])
                          (:wat::core::conj acc x))
-                       (:wat::core::Vector :T) self)))
+                       (:wat::core::Vector :- [:T]) self)))
 
 (:wat::core::extend-type :wat::stream::Stream (:sq::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :T) self)))
+  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :- [:T]) self)))
 
 ;; THE PAYOFF — one generic fn over ANY (Seqable :- [T])
 (:wat::core::defn :sq::count-of :- [T] [s <- (:sq::Seqable :- [T])] -> :wat::core::i64
@@ -63,8 +63,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
     (:wat::string::join ","
-      (:wat::core::Vector :wat::core::i64
-        (:sq::count-of (:wat::core::Vector :wat::core::i64 1 2 3))
+      (:wat::core::Vector :- [:wat::core::i64]
+        (:sq::count-of (:wat::core::Vector :- [:wat::core::i64] 1 2 3))
         (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))
         (:sq::count-of (:wat::core::List 1 2 3 4 5))
         (:sq::count-of (:wat::stream::cons 1

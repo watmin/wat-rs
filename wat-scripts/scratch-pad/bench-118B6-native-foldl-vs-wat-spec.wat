@@ -34,7 +34,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [n  200000
-     v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 n))
+     v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 n))
      a0 (:wat::time::now) ra (:bench::spec v)   a1 (:wat::time::now)
      b0 (:wat::time::now) rb (:bench::native v) b1 (:wat::time::now)
      c0 (:wat::time::now) rc (:bench::native v) c1 (:wat::time::now)

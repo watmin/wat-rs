@@ -15,12 +15,12 @@
     [jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
                :record (:wat::telemetry::journal::Record) :store-addr store-addr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      m       (:wat::telemetry::Metric
                :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :time-ns 123
                :start-time-ns 100 :name :requests :value (:wat::telemetry::Numeric::I64 7)
                :unit :wat::telemetry::Unit::Count)
-     batch   (:wat::core::Vector :wat::telemetry::Metric m)
+     batch   (:wat::core::Vector :- [:wat::telemetry::Metric] m)
      _wr     (:wat::telemetry::Journal/write-metrics journal
                (:wat::telemetry::Journal::WriteMetricsRequest batch))
      client  (:wat::core::match (:wat::kernel::connect store-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -44,7 +44,7 @@
      maddr      (:wat::query::mem-store::Handle/addr msh)
      ssh        (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
                   :record (:wat::query::sqlite-store::Record
-                            :path ":memory:" :index-names (:wat::core::Vector :wat::core::String "by-uuid")))
+                            :path ":memory:" :index-names (:wat::core::Vector :- [:wat::core::String] "by-uuid")))
      saddr      (:wat::query::sqlite-store::Handle/addr ssh)
      mem-data   (:user::journal-roundtrip maddr)
      sqlite-data (:user::journal-roundtrip saddr)]

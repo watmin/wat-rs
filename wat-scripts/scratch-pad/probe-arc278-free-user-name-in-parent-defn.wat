@@ -36,10 +36,10 @@
   (:wat::core::let
     [closure  (:wat::kernel::fn-forms :probe::uses-free :user::entry)
      ;; The launcher's job, done by hand: prepend the rendezvous def the child resolves.
-     rendez   (:wat::core::Vector :wat::WatAST
+     rendez   (:wat::core::Vector :- [:wat::WatAST]
                 `(:wat::core::def :user::rendezvous::N 41))
-     prefix   (:wat::core::if with-def? rendez (:wat::core::Vector :wat::WatAST))
-     main     (:wat::core::Vector :wat::WatAST
+     prefix   (:wat::core::if with-def? rendez (:wat::core::Vector :- [:wat::WatAST]))
+     main     (:wat::core::Vector :- [:wat::WatAST]
                 `(:wat::core::defn :user::main [] -> :wat::core::nil
                    (:wat::kernel::println (:user::entry :user::rendezvous::N))))
      forms    (:wat::core::concat (:wat::core::concat prefix closure) main)

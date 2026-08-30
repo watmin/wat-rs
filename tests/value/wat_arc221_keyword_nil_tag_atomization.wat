@@ -64,7 +64,7 @@
 
 (:wat::core::defn :t::p4-a-val [] -> :wat::core::i64
   (:wat::core::let
-    [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+    [m   (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
      m2  (:wat::hashmap::assoc m :tag-a 10)
      m3  (:wat::hashmap::assoc m2 :tag-b 20)]
     (:wat::core::match (:wat::hashmap::get m3 :tag-a) 
@@ -73,7 +73,7 @@
 
 (:wat::core::defn :t::p4-b-val [] -> :wat::core::i64
   (:wat::core::let
-    [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+    [m   (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
      m2  (:wat::hashmap::assoc m :tag-a 10)
      m3  (:wat::hashmap::assoc m2 :tag-b 20)]
     (:wat::core::match (:wat::hashmap::get m3 :tag-b) 
@@ -82,7 +82,7 @@
 
 (:wat::core::defn :t::p4-len [] -> :wat::core::i64
   (:wat::core::let
-    [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+    [m   (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
      m2  (:wat::hashmap::assoc m :tag-a 10)
      m3  (:wat::hashmap::assoc m2 :tag-b 20)]
     (:wat::hashmap::length m3)))
@@ -91,23 +91,23 @@
 
 (:wat::core::defn :t::p5-has-foo [] -> :wat::core::bool
   (:wat::core::let
-    [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
+    [tags (:wat::core::HashSet :- [:wat::core::keyword] :foo :bar :baz)]
     (:wat::core::contains? tags :foo)))
 
 (:wat::core::defn :t::p5-has-bar [] -> :wat::core::bool
   (:wat::core::let
-    [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
+    [tags (:wat::core::HashSet :- [:wat::core::keyword] :foo :bar :baz)]
     (:wat::core::contains? tags :bar)))
 
 (:wat::core::defn :t::p5-no-unknown [] -> :wat::core::bool
   (:wat::core::let
-    [tags  (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)
+    [tags  (:wat::core::HashSet :- [:wat::core::keyword] :foo :bar :baz)
      found (:wat::core::contains? tags :unknown)]
     (:wat::core::not found)))
 
 (:wat::core::defn :t::p5-len [] -> :wat::core::i64
   (:wat::core::let
-    [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
+    [tags (:wat::core::HashSet :- [:wat::core::keyword] :foo :bar :baz)]
     (:wat::hashset::length tags)))
 
 ;; ─── Probe 6 — (HashMap :- [Uuid String]) insert + lookup — closes arc 207 ────────
@@ -116,7 +116,7 @@
   (:wat::core::let
     [ns   (:wat::uuid::nil)
      u1   (:wat::uuid::v5 ns "hello")
-     m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
+     m    (:wat::core::HashMap :- [:wat::core::Uuid :wat::core::String])
      m2   (:wat::hashmap::assoc m u1 "world-entry")]
     (:wat::core::match (:wat::hashmap::get m2 u1) 
       ((:wat::core::Some v) v)
@@ -127,7 +127,7 @@
     [ns   (:wat::uuid::nil)
      u1   (:wat::uuid::v5 ns "hello")
      u2   (:wat::uuid::v5 ns "world")
-     m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
+     m    (:wat::core::HashMap :- [:wat::core::Uuid :wat::core::String])
      m2   (:wat::hashmap::assoc m u1 "hello-entry")]
     (:wat::core::match (:wat::hashmap::get m2 u2) 
       ((:wat::core::Some v) v)

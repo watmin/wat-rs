@@ -43,7 +43,7 @@
   [node <- :wat::WatAST]
   -> :wat::core::bool
   (:wat::core::let [k       (:wat::core::ast-kind node)
-                    kinds   (:wat::core::HashSet :wat::core::String
+                    kinds   (:wat::core::HashSet :- [:wat::core::String]
                               "list" "vector" "map" "set")]
     (:wat::core::contains? kinds k)))
 
@@ -67,7 +67,7 @@
 (:wat::core::defn :wat::deporder::is-def-head?
   [nm <- :wat::core::String]
   -> :wat::core::bool
-  (:wat::core::let [heads (:wat::core::HashSet :wat::core::String
+  (:wat::core::let [heads (:wat::core::HashSet :- [:wat::core::String]
                              ":wat::core::defn"
                              ":wat::core::defmacro"
                              ":wat::core::defenum"
@@ -132,16 +132,16 @@
   [node <- :wat::WatAST]
   -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::if (:wat::deporder::qual-keyword? node)
-    (:wat::core::Vector :wat::core::String (:wat::core::ast-name node))
+    (:wat::core::Vector :- [:wat::core::String] (:wat::core::ast-name node))
     (:wat::core::if (:wat::deporder::structural? node)
       (:wat::core::foldl
         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
                          child <- :wat::WatAST]
           -> (:wat::core::Vector :- [:wat::core::String])
           (:wat::core::concat acc (:wat::deporder::collect-kwds child)))
-        (:wat::core::Vector :wat::core::String)
+        (:wat::core::Vector :- [:wat::core::String])
         (:wat::core::ast->children node))
-      (:wat::core::Vector :wat::core::String))))
+      (:wat::core::Vector :- [:wat::core::String]))))
 
 ;; collect-form-refs — collect keyword references from a single form,
 ;; excluding the defined-name (child[1]) if the form is a definition form.
@@ -154,7 +154,7 @@
     (:wat::core::let [ch (:wat::core::ast->children form)
                       ;; child[0] = the head keyword (e.g. :wat::core::defn) — collect it
                       head-refs (:wat::core::if (:wat::core::empty? ch)
-                                  (:wat::core::Vector :wat::core::String)
+                                  (:wat::core::Vector :- [:wat::core::String])
                                   (:wat::deporder::collect-kwds
                                     (:wat::core::first ch)))
                       ;; skip child[1] (the defined name); collect from child[2..] (the body)
@@ -165,7 +165,7 @@
                                                    c <- :wat::WatAST]
                                     -> (:wat::core::Vector :- [:wat::core::String])
                                     (:wat::core::concat acc (:wat::deporder::collect-kwds c)))
-                                  (:wat::core::Vector :wat::core::String)
+                                  (:wat::core::Vector :- [:wat::core::String])
                                   body-ch)]
       (:wat::core::concat head-refs body-refs))
     (:wat::deporder::collect-kwds form)))
@@ -200,7 +200,7 @@
   -> (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
   (:wat::core::foldl
     :wat::deporder::build-file-syms
-    (:wat::core::HashMap :wat::core::String :wat::deporder::SymDef)
+    (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
     files))
 
 ;; ─── Pass 2: detect violations ────────────────────────────────────────
@@ -217,7 +217,7 @@
         (:wat::core::let [file (:wat::core::Option/expect  
                                   (:wat::core::get files i) "build-pos-map: get")]
           (:wat::hashmap::assoc m (:wat::source::File/path file) i)))
-      (:wat::core::HashMap :wat::core::String :wat::core::i64)
+      (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
       (:wat::core::range 0 n))))
 
 ;; check-file-violations — for one file at position ref-pos, collect all
@@ -239,7 +239,7 @@
                                                 form <- :wat::WatAST]
                                  -> (:wat::core::Vector :- [:wat::core::String])
                                  (:wat::core::concat acc (:wat::deporder::collect-form-refs form)))
-                               (:wat::core::Vector :wat::core::String)
+                               (:wat::core::Vector :- [:wat::core::String])
                                forms)]
     ;; for each ref, check if it creates a violation
     (:wat::core::foldl
@@ -265,10 +265,10 @@
                       ;; violation: definer loads AFTER referencer
                       (:wat::core::if (:wat::i64::> def-pos ref-pos)
                         (:wat::core::concat viols
-                          (:wat::core::Vector :wat::deporder::Violation
+                          (:wat::core::Vector :- [:wat::deporder::Violation]
                             (:wat::deporder::Violation :referencer path :referencer-pos ref-pos :definer def-path :definer-pos def-pos :symbol kwd)))
                         viols))))))))))
-      (:wat::core::Vector :wat::deporder::Violation)
+      (:wat::core::Vector :- [:wat::deporder::Violation])
       all-refs)))
 
 ;; ─── verify — the main pure function ─────────────────────────────────
@@ -287,7 +287,7 @@
                                   (:wat::core::get files i) "verify: get file")]
           (:wat::core::concat viols
             (:wat::deporder::check-file-violations file i sym-map pos-map))))
-      (:wat::core::Vector :wat::deporder::Violation)
+      (:wat::core::Vector :- [:wat::deporder::Violation])
       (:wat::core::range 0 n))))
 
 ;; ─── stdlib surface ───────────────────────────────────────────────────
@@ -311,9 +311,9 @@
                           source (:wat::core::Option/expect  
                                     (:wat::core::get pair 1) "stdlib-sources: get source")]
           (:wat::core::concat acc
-            (:wat::core::Vector :wat::source::File
+            (:wat::core::Vector :- [:wat::source::File]
               (:wat::source::File :path path :source source)))))
-      (:wat::core::Vector :wat::source::File)
+      (:wat::core::Vector :- [:wat::source::File])
       (:wat::core::range 0 n))))
 
 ;; verify-stdlib — the two-line surface: wrap intrinsic then verify.

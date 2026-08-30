@@ -42,25 +42,25 @@
     pv (:cx::build-pv n)
 
     ;; (a) cross-container agreement for several delegating verbs.
-    keep-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::keep :cx::pos? v))
-    keep-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::keep :cx::pos? l))
-    keep-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::keep :cx::pos? pv))
+    keep-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::keep :cx::pos? v))
+    keep-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::keep :cx::pos? l))
+    keep-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::keep :cx::pos? pv))
 
-    dedupe-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::dedupe v))
-    dedupe-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::dedupe l))
-    dedupe-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::dedupe pv))
+    dedupe-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::dedupe v))
+    dedupe-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::dedupe l))
+    dedupe-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::dedupe pv))
 
-    distinct-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::distinct v))
-    distinct-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::distinct l))
-    distinct-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::distinct pv))
+    distinct-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::distinct v))
+    distinct-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::distinct l))
+    distinct-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::distinct pv))
 
-    map-idx-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) v))
-    map-idx-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) l))
-    map-idx-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) pv))
+    map-idx-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) v))
+    map-idx-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) l))
+    map-idx-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) pv))
 
-    take-nth-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::take-nth 3 v))
-    take-nth-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::take-nth 3 l))
-    take-nth-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::take-nth 3 pv))
+    take-nth-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::take-nth 3 v))
+    take-nth-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::take-nth 3 l))
+    take-nth-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::take-nth 3 pv))
 
     ;; cond over negated pairwise tests — short-circuits to false at the first disagreement,
     ;; terminal :else is the last pairwise test (cleaner than a nested-if pyramid).

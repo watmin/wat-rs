@@ -81,7 +81,7 @@
                 ;; Tuple wrapper (unify recurses into tuple elements without re-entering
                 ;; assignable) — so an empty vector built at the widened surface type no
                 ;; longer round-trips once `clients`' element is (Tuple :- [i64 (Peer :- […])]).
-                (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:my::Counter::Reply :my::counter::Op])]))
+                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:my::Counter::Reply :my::counter::Op])])])
                 0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

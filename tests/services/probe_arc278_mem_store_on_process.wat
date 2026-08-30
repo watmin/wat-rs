@@ -17,10 +17,10 @@
     [h          (:wat::query::mem-store/start :locus (:wat::spawn::process)
                   :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      store      (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     empty-ik   (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
-     ik-a       (:wat::core::HashMap :wat::core::String :wat::query::IndexKey
+     empty-ik   (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])
+     ik-a       (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
                   "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
-     input-rows (:wat::core::Vector :wat::query::StoredRow
+     input-rows (:wat::core::Vector :- [:wat::query::StoredRow]
                   (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
                   (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik))
      _put       (:wat::query::Store/put store (:wat::query::Store::PutRequest input-rows))

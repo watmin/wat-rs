@@ -24,7 +24,7 @@
 
 ;; bracketed tuple as a RETURN type, with a nested parametric inside it
 (:wat::core::defn :user::nested [] -> (wat.type/Tuple [(wat.type/Vector [wat.type/i64]) wat.type/String])
-  (:wat::core::Tuple (:wat::core::Vector [:wat::core::i64] 1 2) "s"))
+  (:wat::core::Tuple (:wat::core::Vector :- [:wat::core::i64] 1 2) "s"))
 
 ;; EMPTY bracketed tuple — `(wat.type/Tuple [])`. This is LEGAL, WRITABLE source: the form surface
 ;; can spell the empty tuple even though the keyword surface `:()` is retired. Today it is still the
@@ -52,7 +52,7 @@
 
 ;; bracketed tuple as a RETURN type, with a nested `:-`-marked parametric inside it
 (:wat::core::defn :user::nested-colon [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
-  (:wat::core::Tuple (:wat::core::Vector [:wat::core::i64] 1 2) "s"))
+  (:wat::core::Tuple (:wat::core::Vector :- [:wat::core::i64] 1 2) "s"))
 
 ;; EMPTY `:-`-marked bracketed tuple — `(wat.type/Tuple :- [])`. The empty rung is a first-class
 ;; member of the arity ladder, not a defensive branch — and, unlike the unmarked

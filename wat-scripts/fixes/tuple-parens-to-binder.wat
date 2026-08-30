@@ -114,13 +114,13 @@
       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) a <- :wat::core::String]
         -> (:wat::core::Vector :- [:wat::core::String])
         (:wat::core::conj acc (:user::render-one-arg a)))
-      (:wat::core::Vector :wat::core::String)
+      (:wat::core::Vector :- [:wat::core::String])
       args)))
 
 (:wat::core::defn :user::render-tuple
   [kw-text <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [inner         (:wat::string::subs kw-text 2 (:wat::i64::- (:wat::string::length kw-text) 1))
-                    args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))
+                    args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :- [:wat::core::String]))
                     rendered-args (:user::render-args args)]
     (:wat::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args)))
 
@@ -142,7 +142,7 @@
 ;; Reuses split-top-level: more than one segment means a real separator fired.
 (:wat::core::defn :user::has-top-level-comma?
   [inner <- :wat::core::String] -> :wat::core::bool
-  (:wat::i64::> (:wat::core::count (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))) 1))
+  (:wat::i64::> (:wat::core::count (:user::split-top-level inner 0 0 0 (:wat::core::Vector :- [:wat::core::String]))) 1))
 
 ;; scan — the walk. `text` never mutates; `edits` accumulates in ASCENDING offset order (the walk
 ;; is strictly left-to-right), reversed once at the top level before `fix-text-apply` (which wants
@@ -200,7 +200,7 @@
 (:wat::core::defn :user::convert
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [all-edits (:user::scan src 0 (:wat::string::length src) false
-                                 (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))
+                                 (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
 

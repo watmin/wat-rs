@@ -38,9 +38,9 @@
      sk-late  (:user::mk-sk 2000000000)   ;; 1970-01-01T00:00:02.000000000Z (boundary)
      sk-early (:user::mk-sk 1000000000)   ;; 1970-01-01T00:00:01.000000000Z (boundary)
      sk-mid   (:user::mk-sk 1000000001)   ;; 1970-01-01T00:00:01.000000001Z (1ns after early)
-     ik    (:wat::core::HashMap :wat::core::String :wat::query::IndexKey
+     ik    (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
              "by-uuid" (:wat::query::IndexKey :ipk u1 :isk sk-early))
-     rows  (:wat::core::Vector :wat::query::StoredRow
+     rows  (:wat::core::Vector :- [:wat::query::StoredRow]
              (:wat::query::StoredRow :pk pk :sk sk-late  :data "{:v 3}" :index-keys ik)
              (:wat::query::StoredRow :pk pk :sk sk-early :data "{:v 1}" :index-keys ik)
              (:wat::query::StoredRow :pk pk :sk sk-mid   :data "{:v 2}" :index-keys ik))
@@ -52,10 +52,10 @@
         ;; return the scanned sks as an EDN vector (ORDERED) — the .rs golden-compares it.
         (:wat::edn::write
           (:wat::core::foldl
-            (:wat::core::fn [acc <- (:wat::core::Vector :wat::core::String) r <- :wat::query::Row]
-              -> (:wat::core::Vector :wat::core::String)
+            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) r <- :wat::query::Row]
+              -> (:wat::core::Vector :- [:wat::core::String])
               (:wat::core::conj acc (:wat::query::Row/sk r)))
-            (:wat::core::Vector :wat::core::String)
+            (:wat::core::Vector :- [:wat::core::String])
             out)))
       (_ "SCAN-FAILED"))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
@@ -72,13 +72,13 @@
      ska   (:user::mk-sk 1000000000)
      skb   (:user::mk-sk 1000000001)
      skc   (:user::mk-sk 2000000000)
-     ik1a  (:wat::core::HashMap :wat::core::String :wat::query::IndexKey
+     ik1a  (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
              "by-uuid" (:wat::query::IndexKey :ipk u1 :isk ska))
-     ik1b  (:wat::core::HashMap :wat::core::String :wat::query::IndexKey
+     ik1b  (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
              "by-uuid" (:wat::query::IndexKey :ipk u1 :isk skb))
-     ik2   (:wat::core::HashMap :wat::core::String :wat::query::IndexKey
+     ik2   (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
              "by-uuid" (:wat::query::IndexKey :ipk u2 :isk skc))
-     rows  (:wat::core::Vector :wat::query::StoredRow
+     rows  (:wat::core::Vector :- [:wat::query::StoredRow]
              (:wat::query::StoredRow :pk pk :sk ska :data "{:v 1}" :index-keys ik1a)
              (:wat::query::StoredRow :pk pk :sk skb :data "{:v 2}" :index-keys ik1b)
              (:wat::query::StoredRow :pk pk :sk skc :data "{:v 3}" :index-keys ik2))

@@ -52,10 +52,15 @@
 //! merely effect-free and referentially transparent? `first`/`i64::/`/`i64::mod` are all pure AND
 //! deterministic — yet all three are **partial** (undefined on an empty vector / a zero divisor),
 //! so a rule using a core-spelled one would compile clean and then abort `fire-rules` the first
-//! time a poisoned token reaches it. `is_total_expr`/`eval_total_predicate` mirror the two
-//! siblings exactly (same walk, same `OpMeta` shape, same default-deny). **`compile-condition`
+//! time a poisoned token reaches it. `is_total_expr` mirrors its two siblings
+//! (`is_pure_expr`/`is_deterministic_expr`) exactly — same walk, same `OpMeta` shape, same
+//! default-deny; its wat entry point is `#[wat_intrinsic]`-homed in `src/intrinsic/rete.rs`
+//! (arc 255 Stone P6-c-W5a), not a hand-rolled dispatch fn in this file any more.
+//! **`compile-condition`
 //! consults `total?`** as the third conjunct of the four-axis fence (pure ∧ det ∧ total ∧ rete).
 //! Partial core ops enter rete only as `OpClass::Fallback` + a mandatory `:undefined`.
+
+use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::runtime::{
@@ -408,6 +413,86 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // `KNOWN_UNREVIEWED`: the gate's own remedy says parking "is the LAST resort and is only
     // honest for a verb whose ruling is genuinely open", and this one's is not.
     if head == ":wat::core::type-equal?" {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
+    }
+    // Arc 255 Stone P6-c-W2 — `:wat::stream::empty`/`cons` are pure constructors
+    // (`src/intrinsic/stream.rs`): `empty` allocates the fixed `Stream::Empty` terminator from
+    // nothing; `cons` stores exactly what it is handed as a new `Stream::Cons` cell and never
+    // enters `tail` to look inside (forcing is `next`'s job, not this one's). Neither can raise
+    // on a well-typed call (`cons`'s only error path is a checker-impossible non-Stream `tail`,
+    // per `:wat::stream::empty`/`cons`'s own `///` doc), so both are also `total`. RULED here,
+    // same shape as `type-params-used-in`/`type-equal?` immediately above, rather than parked in
+    // `KNOWN_UNREVIEWED` — the gate's own remedy names that "the LAST resort", and these two
+    // rulings are not open.
+    if matches!(head, ":wat::stream::empty" | ":wat::stream::cons") {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
+    }
+    // Arc 255 Stone P6-c-W2 — `:wat::stream::next` (`src/intrinsic/stream.rs`) FORCES a thunk:
+    // `crate::stream::realize` calls `apply_function` on a captured wat closure (a `Thunk`, the
+    // body of `(:wat::stream::lazy <body>)`) or runs a Rust closure (a `NativeThunk`, backing
+    // the lazy `map`/`filter`/`take`/`drop` family) — either can run ARBITRARY code this verb has
+    // no way to bound: I/O, a clock read, randomness, a raise, another `next` on an unrelated
+    // stream. Declaring it `pure`/`deterministic` here would be exactly the lie `apply`/`eval`
+    // are deliberately left UNCLASSIFIED to avoid (see this fn's own doc, "purity is the form's,
+    // like apply") — so this is a RULING of `false`/`false`/`false`, not a placeholder: someone
+    // read the body and the answer is "no, on all three axes", which is why it is CLASSIFIED
+    // (removed from `KNOWN_UNREVIEWED`) rather than left unreviewed. Independent corroboration:
+    // `src/macros/eval.rs`'s `is_pure_total` expand-time-safe allowlist already listed
+    // `cons`/`empty`/`lazy` and already did NOT list `next`, before this stone touched either
+    // file — the same conclusion, reached by an unrelated mechanism built for an unrelated
+    // reason.
+    if head == ":wat::stream::next" {
+        return Some(OpMeta { pure: false, deterministic: false, total: false });
+    }
+    // Arc 255 Stone P6-c-W5a — the six `?` predicates in `:wat::rete::`'s read-only half
+    // (`src/intrinsic/rete.rs`). Each evaluates its one call argument via `eval_inner` first
+    // (standard call-by-value — the SAME thing `:wat::stream::cons`'s `head`/`tail` params do
+    // above, not itself an effect this verb's own body performs) and then runs a read-only
+    // structural walk over the resulting `WatAST` + a `&SymbolTable` reference:
+    //   - `pure?`/`deterministic?`/`total?`/`primitive?` all delegate to `classify_expr` (this
+    //     file, `is_pure_expr`/`is_deterministic_expr`/`is_total_expr`/`is_rete_primitive_expr`)
+    //     with a FRESH `seen: HashSet` per call — the same cycle-guard `find_axis_violation`
+    //     already relies on for `axis-violation` (unhomed, this wave). No IO, no mutation
+    //     outside that local set, and the `seen` bound guarantees termination even over a
+    //     mutually-recursive user fn body, so all three axes hold: Pure, Deterministic, Total.
+    //   - `vocabulary-admitted?` (`rete_vocabulary_admitted`, `src/rete/vocabulary.rs`) is
+    //     `RETE_MODULES.iter().any(|m| head.starts_with(m))` — a fixed prefix-table lookup on a
+    //     string, nothing else.
+    //   - `cond-has-deferred-constraint?` (`cond_has_deferred_constraint`, `src/rete/matcher.rs`)
+    //     walks the already-evaluated condition's clauses (`collect_bind_vars` +
+    //     `clause_has_unbound_qvar`), a finite structural recursion with no cycle risk (a
+    //     condition form is a tree, not a symbol-table graph) and no unwraps/panics.
+    if matches!(
+        head,
+        ":wat::rete::pure?"
+            | ":wat::rete::deterministic?"
+            | ":wat::rete::total?"
+            | ":wat::rete::primitive?"
+            | ":wat::rete::vocabulary-admitted?"
+            | ":wat::rete::cond-has-deferred-constraint?"
+    ) {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
+    }
+    // Arc 255 Stone P6-c-W5a — the three alpha-matchers (`src/intrinsic/rete.rs`, delegating to
+    // `eval_alpha_match_kind`/`eval_alpha_match_under` in `src/rete/matcher.rs`). Each evaluates
+    // its `cond`/`fact`(/`bindings`) call arguments via `eval_inner` (ordinary call-by-value, not
+    // itself an effect — see the six predicates above) and then hands the ALREADY-EVALUATED
+    // `WatAST` + fact fields to `alpha_match_inner`/`alpha_match_inner_local`/
+    // `alpha_match_inner_seeded` — each documented on itself as "the pure core: no `Environment`,
+    // no `eval_inner`" — which reads the condition's clauses and the fact's field slice
+    // structurally and either returns a binding array or `None` (Clara no-error: a
+    // non-matching/malformed condition is a miss, never a raise; the lone `unreachable!()` in
+    // `eval_clauses` guards an invariant `classify_rete_clause` itself enforces, not a reachable
+    // input). The one non-obvious call inside that core, `crate::rete::kernel::census_count`, is
+    // a `#[cfg(test)]`-only thread-local counter INCREMENT gated further by an explicit
+    // `with_count_census` opt-in — under `#[cfg(not(test))]` (every release build) it is a
+    // literal empty-body no-op, so it changes no observable behavior or return value on any
+    // input, in test or release: not the kind of effect `apply`/`:wat::stream::next` are left
+    // unclassified for. Pure, Deterministic, Total on all three.
+    if matches!(
+        head,
+        ":wat::rete::alpha-match" | ":wat::rete::alpha-match-local" | ":wat::rete::alpha-match-under"
+    ) {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
     // Pure ∧ deterministic explicit `:wat::core::` ops.
@@ -1964,78 +2049,17 @@ fn walk_rete_defn_callees(
 }
 
 // ─── WAT surfaces ───────────────────────────────────────────────────────────────
-
-/// Shared body for the two single-arg WatAST predicates: arity 1, eval `args[0]` to a quoted
-/// `WatAST`, apply `classify`. Pattern copied from `eval_alpha_match` in `matcher.rs`.
-fn eval_axis_predicate(
-    op: &'static str,
-    classify: fn(&WatAST, &SymbolTable) -> bool,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch { op: op.into(), expected: 1, got: args.len() })
-        .into());
-    }
-    let val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let ast = match val {
-        Value::wat__WatAST(ref a) => (**a).clone(),
-        other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                })
-            .into());
-        }
-    };
-    Ok(Value::bool(classify(&ast, sym)))
-}
-
-/// `(:wat::rete::pure? <quoted-expr>) -> :bool` — effect-free?
-pub(crate) fn eval_pure_predicate(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_axis_predicate(":wat::rete::pure?", is_pure_expr, args, list_span, env, sym)
-}
-
-/// `(:wat::rete::deterministic? <quoted-expr>) -> :bool` — referentially transparent?
-pub(crate) fn eval_deterministic_predicate(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_axis_predicate(":wat::rete::deterministic?", is_deterministic_expr, args, list_span, env, sym)
-}
-
-/// `(:wat::rete::total? <quoted-expr>) -> :bool` — domain-total (defined on all its inputs)?
-/// ARMED: `compile-condition` consults this as the third fence conjunct.
-pub(crate) fn eval_total_predicate(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_axis_predicate(":wat::rete::total?", is_total_expr, args, list_span, env, sym)
-}
-
-/// `(:wat::rete::primitive? <quoted-expr>) -> :bool` — is the expression composed ONLY of rete
-/// primitives (law A)? The verb is `primitive?` rather than `rete-primitive?` because the
-/// namespace already says rete, exactly as `pure?` is not `rete-pure?`.
-pub(crate) fn eval_rete_primitive_predicate(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    eval_axis_predicate(":wat::rete::primitive?", is_rete_primitive_expr, args, list_span, env, sym)
-}
+//
+// Arc 255 Stone P6-c-W5a — `eval_pure_predicate`/`eval_deterministic_predicate`/
+// `eval_total_predicate`/`eval_rete_primitive_predicate` (the `:wat::rete::pure?` /
+// `deterministic?` / `total?` / `primitive?` dispatch entry points) and their shared
+// `eval_axis_predicate` helper (the hand-rolled `args.len() != 1` arity guard + the
+// `WatAST` type-check) are DELETED — moved to `#[wat_intrinsic]` handlers in
+// `src/intrinsic/rete.rs`, each taking a typed `expr: &WatAST` leading param (arity 1,
+// shim-owned) and calling `is_pure_expr`/`is_deterministic_expr`/`is_total_expr`/
+// `is_rete_primitive_expr` (below) directly. `eval_axis_predicate` had exactly these four
+// callers (`grep -n "eval_axis_predicate(" src/rete/purity.rs` at pre-image), so nothing
+// else goes dead by its removal.
 
 ::wat_source_derive::wat_field_names_from!(AXIS_VIOLATION_FIELDS, "wat/rete/compile.wat", ":wat::rete::AxisViolation");
 fn axis_violation_names() -> crate::rete::kernel::FieldNames {
@@ -2043,8 +2067,7 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
     N.get_or_init(|| crate::value::value::names_arc_from_static(AXIS_VIOLATION_FIELDS)).clone()
 }
 
-/// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
-/// (:wat::core::Option :- [wat::rete::AxisViolation])`
+/// `(:wat::rete::axis-violation expr axis) -> (:wat::core::Option :- [wat::rete::AxisViolation])`
 ///
 /// The SAME walk `pure?`/`deterministic?`/`total?`/`primitive?` run, surfacing the
 /// violation instead of discarding it: `:wat::core::None` ⟺ `(pure? e)` / `(deterministic? e)` would
@@ -2056,27 +2079,44 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
 /// `:wat::rete::Axis` enum (a `defenum` in `wat/rete/compile.wat`), decoded/encoded here directly as a
 /// `Value::Enum` — no keyword string map. `pure?`/`deterministic?` are UNCHANGED by this addition
 /// (STOP-1) — this is purely additive.
+///
+/// Arc 255 Stone P6-c-W5c — moved verbatim into `#[wat_intrinsic]` with its real (2) arity
+/// declared; the hand-rolled `args.len() != 2` guard this wave retires lived right here.
+///
+/// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an effect).
+/// `find_axis_violation` → `classify_expr` is the exact same read-only structural walk that
+/// `is_pure_expr`/`is_deterministic_expr`/`is_total_expr`/`is_rete_primitive_expr` run (W5a,
+/// `Pure`/`Deterministic`) — no `eval_inner`/`apply_function` on `expr`, only a transitive AST
+/// walk with a per-call `gray`/`black` `HashSet` (local, dropped on return) for cycle detection.
+/// The one `OnceLock` here (`axis_violation_names`) caches a fixed, compile-time-constant
+/// field-name table process-wide, the same boilerplate every record constructor in this file uses
+/// — infrastructure, not a per-call effect. The `Option<AxisViolation>` returned is freshly built
+/// and handed to the caller; nothing outlives the call beyond that one constant cache.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Probe
+/// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
+/// @arg     axis :wat::rete::Axis which of the four fence axes to check (`Pure`/`Deterministic`/`Total`/`RetePrimitive`)
+/// @ret     (:wat::core::Option :- [:wat::rete::AxisViolation]) `None` if `expr` satisfies `axis`; `Some(v)` naming the offending head, the axis, and its span otherwise
+/// @example (:wat::rete::axis-violation (:wat::core::quote (:wat::rete::i64::> ?c 5)) :wat::rete::Axis::Pure) #=> :None
+#[wat_intrinsic(":wat::rete::axis-violation")]
 pub(crate) fn eval_axis_violation(
-    args: &[WatAST],
-    list_span: &Span,
+    expr: &WatAST,
+    axis: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::axis-violation";
     const AXIS_TYPE: &str = ":wat::rete::Axis";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-        })
-        .into());
-    }
-    let val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let expr_span = expr.span().clone();
+    let axis_span = axis.span().clone();
+    let val = crate::runtime::eval_inner(expr, env, sym)?.value_owned();
     let ast = match val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(expr_span, RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
                 got: Box::new(ValueSnapshot::of(&other)),
@@ -2084,7 +2124,7 @@ pub(crate) fn eval_axis_violation(
             .into());
         }
     };
-    let axis_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let axis_val = crate::runtime::eval_inner(axis, env, sym)?.value_owned();
     // ONE DOOR (`Axis::from_variant_name`) — never a second, hand-spelled variant list here.
     // See `Axis::variant_name`'s doc for the 39-test failure the old duplicate decode caused.
     let axis = match &axis_val {
@@ -2092,7 +2132,7 @@ pub(crate) fn eval_axis_violation(
         _ => None,
     };
     let Some(axis) = axis else {
-        return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError::new(axis_span, RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             // Leaked deliberately: the accepted set is DERIVED from `Axis::ALL`, so this message
             // cannot again name fewer variants than the decode accepts.
@@ -2355,7 +2395,10 @@ mod completeness_gate {
     ":wat::core::type",
     ":wat::core::use!",
     ":wat::core::variant",
-    ":wat::form::matches?",
+    // `:wat::form::matches?` DELETED from this ledger 2026-08-28 (arc 255 Stone P6-c-1):
+    // homing it into the intrinsic registry gave it `intrinsic_meta` purity, so it is no longer
+    // unreviewed. This gate went RED demanding the deletion — the ratchet shrinking as the debt
+    // is paid, exactly as designed. Every verb the P6-c campaign homes will do the same.
     ":wat::holon::Atom",
     ":wat::holon::Bind",
     ":wat::holon::Bind/left",
@@ -2472,19 +2515,27 @@ mod completeness_gate {
     ":wat::math::pi",
     ":wat::math::sin",
     ":wat::math::sqrt",
-    ":wat::rete::alpha-match",
-    ":wat::rete::alpha-match-local",
-    ":wat::rete::alpha-match-under",
-    ":wat::rete::arm-session",
-    ":wat::rete::release-session",
-    ":wat::rete::cond-has-deferred-constraint?",
-    ":wat::rete::axis-violation",
-    ":wat::rete::collect-rules",
-    ":wat::rete::export",
-    ":wat::rete::import",
-    ":wat::rete::deterministic?",
-    ":wat::rete::eval-insert",
-    ":wat::rete::eval-test",
+    // Arc 255 Stone P6-c-W5a — the nine read-only rete predicates/matchers (the six `?`
+    // predicates + the three alpha-matchers) are HOMED (`src/intrinsic/rete.rs`) and
+    // CLASSIFIED (`intrinsic_meta`, below) — deleted from this ledger, not carried forward.
+    // Arc 255 Stone P6-c-W5b — six more: `arm-session`/`release-session` (`src/rete/kernel/
+    // arm.rs`), `export`/`import` (`src/rete/export.rs`), and `eval-insert`/`eval-test`
+    // (`src/rete/eval_insert.rs`/`src/rete/eval_test.rs`) are HOMED (`#[wat_intrinsic]`, in
+    // place — not relocated to `src/intrinsic/`) and CLASSIFIED `@Purity Effectful` — deleted
+    // from this ledger, not carried forward.
+    // Arc 255 Stone P6-c-W5c — the four remaining readers are HOMED (`#[wat_intrinsic]`, in
+    // place) and CLASSIFIED — deleted from this ledger, not carried forward: `lower`
+    // (`src/rete/expr_ir.rs`, `Pure`/`Deterministic` — a static compile pass, no `eval_inner` on
+    // user code), `step-payload` (`src/rete/step_payload.rs`, `Pure`/`Deterministic` — reads an
+    // already-compiled network structurally), `axis-violation` (`src/rete/purity.rs`, same file,
+    // `Pure`/`Deterministic` — the same walk `pure?`/`deterministic?`/`total?`/`primitive?` run),
+    // and `collect-rules` (`src/rete/collect.rs`, `Effectful`/`Nondeterministic` — its reflection
+    // filter is shape-only (zero-arg + ret-type `Rule`) and does not verify the discovered fn's
+    // body came from `defrule`'s always-quoted expansion, so it invokes arbitrary already-defined
+    // code via `eval_inner`, unbounded, the same shape `eval-test`/`eval-insert` were ruled
+    // `Effectful` for in W5b). The remaining `:wat::rete::` verbs (the firing family — fire-*,
+    // insert-*, the $native twins) are unaffected and remain on this ledger under `RULES`'s
+    // `:wat::rete::` Unreviewed disposition.
     ":wat::rete::fire-once",
     ":wat::rete::fire-once$native",
     ":wat::rete::fire-rules",
@@ -2495,12 +2546,6 @@ mod completeness_gate {
     ":wat::rete::insert$native",
     ":wat::rete::insert-all",
     ":wat::rete::insert-all$native",
-    ":wat::rete::lower",
-    ":wat::rete::primitive?",
-    ":wat::rete::pure?",
-    ":wat::rete::step-payload",
-    ":wat::rete::total?",
-    ":wat::rete::vocabulary-admitted?",
     // Arc 255 Stone HOME-9 — `:wat::std::list::{zip,window,remove-at}` moved to
     // `:wat::seq::*` (and became Seqable-generic in the same motion — a runtime/check
     // concern, not a purity ruling; they carry forward the SAME open ruling under the new
@@ -2515,16 +2560,17 @@ mod completeness_gate {
     ":wat::stat::mean",
     ":wat::stat::stddev",
     ":wat::stat::variance",
+    // `:wat::stdlib::sources` STAYS — arc 255 Stone P6-c-W2 (STOP-A) dropped it from that
+    // wave's homing: its handler (`crate::io::eval_stdlib_sources`) returns `Result<Value,
+    // RuntimeError>`, and `#[wat_intrinsic]` rejects any return type other than
+    // `Result<Value, EvalBreak>` — homing it as-written would not compile. Untouched, still
+    // dispatched from the giant match, still genuinely unreviewed.
     ":wat::stdlib::sources",
-    ":wat::stream::cons",
-    ":wat::stream::empty",
+    // `:wat::stream::cons`/`empty`/`next` RULED and CLASSIFIED — arc 255 Stone P6-c-W2
+    // (`intrinsic_meta`, above: `cons`/`empty` pure∧det∧total; `next` false on all three —
+    // forcing a thunk runs arbitrary user code). `:wat::stream::lazy` is unaffected (SPECIAL
+    // FORM, stays in the giant match, stays unreviewed — no ruling made here).
     ":wat::stream::lazy",
-    // Arc 118.11a — mint next/NextOutcome. Same open question as its three siblings just
-    // above (RULES: ":wat::stream::" is Disp::Unreviewed, "laziness — a Stream's purity is
-    // its producer's") — `next` forces the SAME cell `first`/`rest` already force, so it
-    // inherits exactly their unreviewed status, not a fresh one. Ruling purity is out of
-    // scope for this stone (additive: mint the verb, change nothing else).
-    ":wat::stream::next",
 
         // ── ADDED 2026-08-27 (HOME-12, the AST registry home). These ten were ALWAYS
         // dispatched and ALWAYS unreviewed; the gate simply could not SEE them. Its scan

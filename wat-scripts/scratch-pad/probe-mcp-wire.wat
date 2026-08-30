@@ -36,6 +36,6 @@
     (:wat::kernel::println
       (:wat::edn::write-json
         (:wat::hashmap::assoc
-          (:wat::core::HashMap :wat::core::String :wat::core::String)
+          (:wat::core::HashMap :- [:wat::core::String :wat::core::String])
           "edn" "#some.edn/Thing {:whatever 42}")))
     (:probe::show-frame)))

@@ -29,7 +29,7 @@
         (:wat::core::let [head (:wat::core::first ch)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
             (:wat::fix::str-in? (:wat::core::ast-name head)
-              (:wat::core::Vector :wat::core::String
+              (:wat::core::Vector :- [:wat::core::String]
                 ":wat::test::deftest"
                 ":wat::test::deftest'"
                 ":wat::test::deftest-hermetic"
@@ -57,7 +57,7 @@
   (:wat::core::if (:user::deftest-head? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::count ch) 4)
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
         (:wat::core::let [prelude (:wat::core::nth ch 2)]
           (:wat::core::if (:user::empty-list? prelude)
             ;; delete ONLY the `()` token span (prelude-start .. prelude-end); surrounding
@@ -68,10 +68,10 @@
                                          (:wat::core::ast-span prelude)
                                          (:wat::core::ast-end-span prelude)
                                          lines src)]
-              (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
                 (:wat::core::Tuple off old-text "")))
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
 
 ;; scan — collect edits across every top-level form (ascending offset order).
 (:wat::core::defn :user::scan
@@ -80,7 +80,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     (:wat::core::concat
       (:user::form-edits (:wat::core::first forms) src lines)
       (:user::scan (:wat::core::rest forms) src lines))))

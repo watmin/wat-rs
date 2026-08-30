@@ -91,7 +91,7 @@
                                  (:wat::core::None 0))]
           (:wat::hashmap::assoc acc kind (:wat::i64::+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
-      (:wat::core::HashMap :wat::core::String :wat::core::i64)
+      (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
       keys)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -59,7 +59,7 @@
                 ;; ── serve loop: Work arm invokes via the COMPANION :key val call ──
                 (:wat::core::defn :probe::serve
                   [self <- (:wat::kernel::Peer :- [:wat::core::String :probe::Msg])
-                   held <- (:wat::core::Option (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]))]
+                   held <- (:wat::core::Option :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])])]
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv self)
                     ((:wat::kernel::RecvOutcome::Message m)

@@ -22,7 +22,7 @@
 
 ;; ROW 1 — the container fed DIRECTLY. B1a's guarantee.
 (:wat::core::defn :my::direct [] -> :wat::core::i64
-  (:my::eats-concrete (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:my::eats-concrete (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 
 ;; ROW 2 — a POLYMORPHIC consumer swallows the `(Stream :- [T])` result without complaint.
 (:wat::core::defn :my::eats-polymorphic :- [T]
@@ -30,4 +30,4 @@
   (:wat::core::length (:wat::core::into [] s)))
 
 (:wat::core::defn :my::via-surface-method-into-polymorphic [] -> :wat::core::i64
-  (:my::eats-polymorphic (:wat::core::Seqable/seq (:wat::core::Vector :wat::core::i64 1 2 3))))
+  (:my::eats-polymorphic (:wat::core::Seqable/seq (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))

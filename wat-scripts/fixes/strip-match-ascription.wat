@@ -25,7 +25,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::fix::strip-arrow-ascription src
-    (:wat::core::Vector :wat::core::String ":wat::core::match")))
+    (:wat::core::Vector :- [:wat::core::String] ":wat::core::match")))
 
 (:wat::core::defn :user::apply-each
   [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil

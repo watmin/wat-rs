@@ -5,22 +5,22 @@
 
 ;; TIER A — empty? (∀T -> bool)
 (:wat::core::defn :user::empty-q-vector [] -> :wat::core::bool
-  (:wat::core::empty? (:wat::core::Vector :wat::core::i64)))
+  (:wat::core::empty? (:wat::core::Vector :- [:wat::core::i64])))
 
 (:wat::core::defn :user::empty-q-hashset-false [] -> :wat::core::bool
-  (:wat::core::empty? (:wat::core::HashSet :wat::core::i64 1 2)))
+  (:wat::core::empty? (:wat::core::HashSet :- [:wat::core::i64] 1 2)))
 
 ;; TIER A — contains? ((coll, elem) -> bool)
 (:wat::core::defn :user::contains-q-vector-hit [] -> :wat::core::bool
-  (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) 2))
+  (:wat::core::contains? (:wat::core::Vector :- [:wat::core::i64] 1 2 3) 2))
 
 ;; TIER B — get ((coll, key) -> (Option :- [element]))
 (:wat::core::defn :user::get-vector-precise [] -> :wat::core::i64
-  (:wat::core::match (:wat::core::get (:wat::core::Vector :wat::core::i64 10 20 30) 1)
+  (:wat::core::match (:wat::core::get (:wat::core::Vector :- [:wat::core::i64] 10 20 30) 1)
                      
                      ((:wat::core::Some x) (:wat::i64::+ x 5))
                      (:wat::core::None -1)))
 
 ;; TIER B — conj ((coll, elem) -> coll)
 (:wat::core::defn :user::conj-vector-preserves [] -> :wat::core::i64
-  (:wat::core::length (:wat::core::conj (:wat::core::Vector :wat::core::i64 1 2) 3)))
+  (:wat::core::length (:wat::core::conj (:wat::core::Vector :- [:wat::core::i64] 1 2) 3)))

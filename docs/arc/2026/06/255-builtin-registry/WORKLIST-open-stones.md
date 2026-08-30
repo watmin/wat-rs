@@ -1,4 +1,13 @@
-# WORKLIST — arc 255's open stones, ordered. As of 2026-08-28, HEAD `9dd09045a` (P7 struck).
+# WORKLIST — arc 255's open stones, ordered. As of 2026-08-28, P6-c-0 struck.
+
+> ⛔ **P6-c IS A CAMPAIGN, NOT A ROW** — 136 arms, 148 FQDNs, six dispositions. Sized in
+> `NOTE-p6c-is-a-campaign-not-a-stone.md`. Its census is struck; the next thing to draw is NOT a
+> wave but a MEASUREMENT (P6-c-1), because 129 of the 148 fail for one reason that may be a single
+> macro change rather than ~120 hand reorders.
+>
+> And one finding OUTSIDE the arc that outranks all of it —
+> a top-level `def` launders a restricted verb past its capability wall. See
+> `NOTE-restricted-call-fires-on-mention-not-call.md`. **Builder's call, not drawn.**
 
 > Builder: *"it sounds like we've got a build list... get them on disk and we begin working on them"*
 >
@@ -23,7 +32,14 @@ O-iv-c-2 holon sweep, atom.rs             ✅ STRUCK — 15 migrated; a FOURTH d
 O-iv-d  the remainder sweep               ✅ STRUCK — 1 of 14; found a GENERATOR GAP
 P7      sniff_kind cannot see a NULLARY   ✅ STRUCK — 11 of 11; 25 runes retired; the axis is
         ALGEBRA handler                          now ENTIRELY PERMANENT
-P5  @yields becomes mandatory at expand time ← NEXT: the top rung; biggest change
+P5-a  ONE spelling for a fn type          ✅ STRUCK — 3 corrected, a wall built FIRST and shown
+                                             RED, and the wall is the strings' FIRST EVER READER
+P5-b  @yields gains a SUBJECT             ✅ STRUCK — repeatable, TYPE DROPPED, mandate at
+                                             expand time, and the redundant gate DELETED
+P6-c  ⛔ NOT A STONE — A CAMPAIGN. 136 arms · 148 FQDNs · SIX dispositions.
+      P6-c-0  the disposition census        ✅ STRUCK — instrument committed, wave plan out
+      P6-c-1  ← NEXT, and it is NOT a wave: measure whether ONE macro change (the context-tail
+              ORDER) retires 129 of the 148. If it does, the campaign is far smaller.
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
 ```
@@ -50,9 +66,12 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~O-iv-c-2~~ | ~~holon sweep, `atom.rs`~~ | | | ✅ **STRUCK** — 15 of 60; UNEVALUATED-ARGS found |
 | ~~O-iv-d~~ | ~~the remainder~~ | | | ✅ **STRUCK** — 1 of 14 (`core::List`, variadic) |
 | ~~P7~~ | ~~`sniff_kind` cannot classify a NULLARY ALGEBRA handler~~ | | | ✅ **STRUCK** — 11 of 11 |
-| **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | — **READY to draw** |
+| ~~P5-a~~ | ~~one spelling for a fn type in an `@arg`~~ | | | ✅ **STRUCK** — 3 sites + the wall |
+| ~~P5-b~~ | ~~`@yields` gains a SUBJECT, repeatable, mandatory~~ | | | ✅ **STRUCK** — and the TYPE dropped |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |
-| **P6-c** | the eval and tail matches collapse into registry lookups | 111 eval arms + 8 tail arms | *not drawn* | P6-a's mechanism + its row-0 census |
+| ~~P6-c-0~~ | ~~the disposition census~~ | | | ✅ **STRUCK** — 148 FQDNs, six dispositions |
+| **P6-c-1** | does the context-tail ORDER explain 129 of 148? one `sniff_args`/`emit` change vs ~120 callee reorders | macro-side measurement, no sweep | *not drawn* | — **READY to draw** |
+| **P6-c-2+** | the waves — config (6) · eval-cluster+small (18) · runtime (13) · rete (28) · core (82, split 5a–5e) | ~148 FQDNs | *not drawn* | P6-c-1's answer changes the size |
 
 ## What each row is FOR — one line, so a fresh reader does not need the NOTE
 
@@ -68,7 +87,12 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 - **P4** — two gates skip every entry absent from the checker, silently, at `mod.rs:512` and `:742`.
   Nobody knows how many. The ward said 96/384 against my anchored 382 — two instruments, two
   populations, so the number is open.
-- **P5** — the `@yields` gate's only measured subject is the fixture written to exercise it.
+- **P5** — the `@yields` gate's only measured subject is the fixture written to exercise it, and it
+  is ONE-DIRECTIONAL: `None => continue` means it checks that a declared `@yields` is right and can
+  never see a callback that declared none. ⚠ **`@yields` is a parsed SINGLETON** (`DuplicateSingleton`)
+  while `spawn-thread` has THREE fn-shaped args — which is why P5 split: the directive must gain a
+  SUBJECT before it can be made mandatory. Measured population: 5 entries, 7 fn-typed args, 1 with
+  `@yields` (the fixture).
 - **P7** — eleven verbs were unreachable through `apply` for a reason that was never about them:
   the generator could not classify a handler with no parameters. ✅ struck.
 
@@ -94,4 +118,8 @@ on `if`, buried since arc 258.4) · `P2` (the special-form entry — show-source
 sites deleted, −556 lines) · `P1` (the collision gate —
 proven by planting a real duplicate and watching the floor run 5065/5065 GREEN past it) ·
 `P7` (the nullary door — 11 of 11, both shapes exercised, 25 lint exemptions retired, and the
-disposition axis left with NO fixable entry: every remaining refusal is a property of the verb).
+disposition axis left with NO fixable entry: every remaining refusal is a property of the verb) ·
+`P5-a` (one spelling for a fn type — and the discovery that an `@arg`'s type string had NO READER
+AT ALL: render-doc drops the field, and its only gate skips every entry on P4's debt ledger) ·
+`P5-b` (`@yields` gains a subject and LOSES ITS TYPE — the type was redundant, and the proof was a
+test whose whole job was asserting two declarations of one fact agree; that test is now deleted).

@@ -13,7 +13,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      m1    (:wat::telemetry::Metric :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :start-time-ns 0 :name :a
              :value (:wat::telemetry::Numeric::I64 1) :unit :wat::telemetry::Unit::Count)
@@ -21,7 +21,7 @@
              :time-ns 2000000000 :start-time-ns 0 :name :b
              :value (:wat::telemetry::Numeric::I64 2) :unit :wat::telemetry::Unit::Count)
      _wr   (:wat::telemetry::Journal/write-metrics journal
-             (:wat::telemetry::Journal::WriteMetricsRequest (:wat::core::Vector :wat::telemetry::Metric m1 m2)))
+             (:wat::telemetry::Journal::WriteMetricsRequest (:wat::core::Vector :- [:wat::telemetry::Metric] m1 m2)))
      bq    (:wat::telemetry::Journal/query-metrics journal
              (:wat::telemetry::Journal::QueryMetricsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::None))

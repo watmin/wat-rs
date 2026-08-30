@@ -24,7 +24,7 @@
         (:wat::core::PersistentVector 7 8 9) :undefined -1))             ;; expect 7
     (:wat::kernel::println
       (:wat::rete::core::Vector/first
-        (:wat::core::Vector :wat::core::i64 7 8 9) :undefined -1))       ;; expect 7
+        (:wat::core::Vector :- [:wat::core::i64] 7 8 9) :undefined -1))       ;; expect 7
     (:wat::kernel::println
       (:wat::rete::core::List/first
         (:wat::core::List 7 8 9) :undefined -1))                      ;; expect 7
@@ -35,7 +35,7 @@
         (:wat::core::PersistentVector) :undefined -1))                  ;; expect -1
     (:wat::kernel::println
       (:wat::rete::core::Vector/first
-        (:wat::core::Vector :wat::core::i64) :undefined -1))            ;; expect -1
+        (:wat::core::Vector :- [:wat::core::i64]) :undefined -1))            ;; expect -1
     (:wat::kernel::println
       (:wat::rete::core::List/first
         (:wat::core::List) :undefined -1))                           ;; expect -1

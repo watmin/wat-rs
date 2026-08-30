@@ -28,8 +28,8 @@
 ;; the uuid correlation GSI's index-keys for a scope uuid + the row's sk.
 (:wat::core::defn :wat::telemetry::uuid-index-keys
   [uuid <- :wat::core::Uuid  sk <- :wat::core::String]
-  -> (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
-  (:wat::core::HashMap :wat::core::String :wat::query::IndexKey
+  -> (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])
+  (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
     "by-uuid" (:wat::query::IndexKey :ipk (:wat::edn::write uuid) :isk sk)))
 
 ;; Metric -> StoredRow (pk = namespace+:Metric; sk = #inst; data = the tagged Metric EDN).
@@ -94,7 +94,7 @@
              _es   (:wat::query::Store/ensure-schema store
                      (:wat::query::Store::EnsureSchemaRequest
                        :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-                       :indexes (:wat::core::Vector :wat::query::IndexSchema
+                       :indexes (:wat::core::Vector :- [:wat::query::IndexSchema]
                                   (:wat::query::IndexSchema
                                     :name "by-uuid" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))]
             (:wat::telemetry::journal::State :durable record :store store)))
@@ -104,11 +104,11 @@
        [store (:wat::telemetry::journal::State/store s)
         batch (:wat::telemetry::Journal::WriteMetricsRequest/batch req)
         rows  (:wat::core::foldl
-                (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::StoredRow)
+                (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::StoredRow])
                                  m   <- :wat::telemetry::Metric]
-                  -> (:wat::core::Vector :wat::query::StoredRow)
+                  -> (:wat::core::Vector :- [:wat::query::StoredRow])
                   (:wat::core::conj acc (:wat::telemetry::metric->row m)))
-                (:wat::core::Vector :wat::query::StoredRow)
+                (:wat::core::Vector :- [:wat::query::StoredRow])
                 batch)
         put-resp (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
         wresp (:wat::core::match put-resp
@@ -148,11 +148,11 @@
        [store (:wat::telemetry::journal::State/store s)
         batch (:wat::telemetry::Journal::WriteLogsRequest/batch req)
         rows  (:wat::core::foldl
-                (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::StoredRow)
+                (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::StoredRow])
                                  l   <- :wat::telemetry::Log]
-                  -> (:wat::core::Vector :wat::query::StoredRow)
+                  -> (:wat::core::Vector :- [:wat::query::StoredRow])
                   (:wat::core::conj acc (:wat::telemetry::log->row l)))
-                (:wat::core::Vector :wat::query::StoredRow)
+                (:wat::core::Vector :- [:wat::query::StoredRow])
                 batch)
         put-resp (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
         wresp (:wat::core::match put-resp
@@ -208,10 +208,10 @@
                     ((:wat::query::Store::ScanResponse::Success rows next-cur)
                       (:wat::telemetry::Journal::QueryMetricsResponse::Success
                         (:wat::core::foldl
-                          (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Metric) row <- :wat::query::Row]
-                            -> (:wat::core::Vector :wat::telemetry::Metric)
+                          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::telemetry::Metric]) row <- :wat::query::Row]
+                            -> (:wat::core::Vector :- [:wat::telemetry::Metric])
                             (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
-                          (:wat::core::Vector :wat::telemetry::Metric)
+                          (:wat::core::Vector :- [:wat::telemetry::Metric])
                           rows)
                         next-cur))
                     ((:wat::query::Store::ScanResponse::Transient err)
@@ -259,10 +259,10 @@
                     ((:wat::query::Store::ScanResponse::Success rows next-cur)
                       (:wat::telemetry::Journal::QueryLogsResponse::Success
                         (:wat::core::foldl
-                          (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Log) row <- :wat::query::Row]
-                            -> (:wat::core::Vector :wat::telemetry::Log)
+                          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::telemetry::Log]) row <- :wat::query::Row]
+                            -> (:wat::core::Vector :- [:wat::telemetry::Log])
                             (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
-                          (:wat::core::Vector :wat::telemetry::Log)
+                          (:wat::core::Vector :- [:wat::telemetry::Log])
                           rows)
                         next-cur))
                     ((:wat::query::Store::ScanResponse::Transient err)
@@ -324,13 +324,13 @@
                            ((:wat::query::Store::ScanResponse::Success rows next-cur)
                              (:wat::telemetry::Journal::SiftLogsResponse::Success
                                (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Log) row <- :wat::query::Row]
-                                   -> (:wat::core::Vector :wat::telemetry::Log)
+                                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::telemetry::Log]) row <- :wat::query::Row]
+                                   -> (:wat::core::Vector :- [:wat::telemetry::Log])
                                    (:wat::core::let [log (:wat::edn::read (:wat::query::Row/data row))]
                                      (:wat::core::if (:wat::core::apply  pfn log [])
                                        (:wat::core::conj acc log)
                                        acc)))
-                                 (:wat::core::Vector :wat::telemetry::Log)
+                                 (:wat::core::Vector :- [:wat::telemetry::Log])
                                  rows)
                                next-cur))
                            ((:wat::query::Store::ScanResponse::Transient err)
@@ -390,13 +390,13 @@
                            ((:wat::query::Store::ScanResponse::Success rows next-cur)
                              (:wat::telemetry::Journal::SiftMetricsResponse::Success
                                (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Metric) row <- :wat::query::Row]
-                                   -> (:wat::core::Vector :wat::telemetry::Metric)
+                                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::telemetry::Metric]) row <- :wat::query::Row]
+                                   -> (:wat::core::Vector :- [:wat::telemetry::Metric])
                                    (:wat::core::let [m (:wat::edn::read (:wat::query::Row/data row))]
                                      (:wat::core::if (:wat::core::apply  pfn m [])
                                        (:wat::core::conj acc m)
                                        acc)))
-                                 (:wat::core::Vector :wat::telemetry::Metric)
+                                 (:wat::core::Vector :- [:wat::telemetry::Metric])
                                  rows)
                                next-cur))
                            ((:wat::query::Store::ScanResponse::Transient err)

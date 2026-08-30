@@ -22,7 +22,7 @@
   (:wat::core::let
     [src "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))"
      sf  (:wat::source::File :path "t.wat" :source src)
-     files (:wat::core::Vector :wat::source::File sf)
+     files (:wat::core::Vector :- [:wat::source::File] sf)
      findings (:wat::lint::lint-source files)]
     (:wat::core::do
       ;; must find at least 1 finding
@@ -52,7 +52,7 @@
      ;; c: 2-deep chain over same var — below >=3 threshold
      src-c "(:wat::core::if (:wat::core::= z \"a\") true (:wat::core::if (:wat::core::= z \"b\") true false))"
      sf-c  (:wat::source::File :path "c.wat" :source src-c)
-     files (:wat::core::Vector :wat::source::File sf-a sf-b sf-c)
+     files (:wat::core::Vector :- [:wat::source::File] sf-a sf-b sf-c)
      findings (:wat::lint::lint-source files)]
     (:wat::test::assert-eq (:wat::core::length findings) 0)))
 
@@ -113,7 +113,7 @@
   (:wat::core::let
     [a     (:wat::source::File :path "a.wat" :source "(:t::caller (:t::f))")
      b     (:wat::source::File :path "b.wat" :source "(:wat::core::defn :t::f [] -> :wat::core::i64 1)")
-     files (:wat::core::Vector :wat::source::File a b)
+     files (:wat::core::Vector :- [:wat::source::File] a b)
      viols (:wat::deporder::verify files)
      rule-zero-findings (:wat::lint::violations->findings viols)]
     (:wat::core::do
@@ -138,7 +138,7 @@
   (:wat::core::let
     [src "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::string::concat \"x: \" a \" of \" b))"
      sf  (:wat::source::File :path "t.wat" :source src)
-     files (:wat::core::Vector :wat::source::File sf)
+     files (:wat::core::Vector :- [:wat::source::File] sf)
      findings (:wat::lint::lint-source files)]
     (:wat::core::do
       ;; must find at least 1 finding
@@ -169,7 +169,7 @@
      ;; b: all-value — both args are symbols (non-literals)
      src-b "(:wat::string::concat a b)"
      sf-b  (:wat::source::File :path "b.wat" :source src-b)
-     files (:wat::core::Vector :wat::source::File sf-a sf-b)
+     files (:wat::core::Vector :- [:wat::source::File] sf-a sf-b)
      findings (:wat::lint::lint-source files)]
     (:wat::test::assert-eq (:wat::core::length findings) 0)))
 

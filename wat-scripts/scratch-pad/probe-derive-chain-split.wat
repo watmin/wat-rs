@@ -119,7 +119,7 @@
                               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::Out/k f)))
                               q)
                     q2      (:wat::time::now)
-                    vec     (:wat::core::into (:wat::core::Vector :wat::core::i64) mapped)
+                    vec     (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) mapped)
                     q3      (:wat::time::now)
                     sorted  (:wat::core::sort vec)
                     q4      (:wat::time::now)

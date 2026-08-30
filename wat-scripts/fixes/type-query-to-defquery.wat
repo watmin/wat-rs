@@ -135,7 +135,7 @@
 ;; ── collect types / existing defquery names / compile presence ───────────────
 
 (:wat::core::defn :user::node-type
-  [node <- :wat::WatAST] -> (:wat::core::Option :wat::core::String)
+  [node <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:user::type-query? node)
     (:wat::core::Some
       (:user::strip-colon
@@ -328,7 +328,7 @@
       ;; old-text = (ast-name arg) — arg is a KEYWORD LEAF (type-query? verified
       ;; ast-kind=="keyword"), so this is a RENAME, not a whole-list replace; NEVER
       ;; span text here (span-edit's own sanctioned use is for List nodes only).
-      (:wat::core::Vector :wat::fix::Edit
+      (:wat::core::Vector :- [:wat::fix::Edit]
         (:wat::core::Tuple (:wat::fix::node-start-offset arg lines) (:wat::core::ast-name arg) (:user::q-call ty))))
     (:wat::core::if (:user::qbts? node)
       (:wat::core::let [ch (:wat::core::ast->children node)
@@ -344,11 +344,11 @@
                                 (:user::node-text sess src lines)
                                 (:wat::string::concat " "
                                   (:user::q-call ty))))]
-        (:wat::core::Vector :wat::fix::Edit
+        (:wat::core::Vector :- [:wat::fix::Edit]
           (:user::span-edit node
             (:wat::string::concat new ")")
             src lines)))
-      (:wat::core::Vector :wat::fix::Edit))))
+      (:wat::core::Vector :- [:wat::fix::Edit]))))
 
 (:wat::core::defn :user::compile-edit
   [node  <- :wat::WatAST
@@ -366,11 +366,11 @@
                               (:user::node-text rules src lines)
                               (:wat::string::concat " "
                                 (:user::q-vec-text types))))]
-      (:wat::core::Vector :wat::fix::Edit
+      (:wat::core::Vector :- [:wat::fix::Edit]
         (:user::span-edit node
           (:wat::string::concat new ")")
           src lines)))
-    (:wat::core::Vector :wat::fix::Edit)))
+    (:wat::core::Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
@@ -379,7 +379,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::quoted? node)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::let [this (:wat::core::concat
                              (:user::call-edit node src lines)
                              (:user::compile-edit node types src lines))]
@@ -396,7 +396,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :wat::fix::Edit)
+    (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::walk-edits (:wat::core::first items) types src lines)
       (:user::walk-seq-edits (:wat::core::into [] (:wat::core::rest items)) types src lines))))
@@ -415,9 +415,9 @@
                  :wat::core::None :wat::core::None)))
      forms (:wat::core::ast->children tree)
      types (:user::collect-types-seq forms
-             (:wat::core::Vector :wat::core::String))
+             (:wat::core::Vector :- [:wat::core::String]))
      existing (:user::collect-qnames-seq forms
-                (:wat::core::Vector :wat::core::String))]
+                (:wat::core::Vector :- [:wat::core::String]))]
     (:wat::core::if (:wat::core::empty? types)
       src
       (:wat::core::let
@@ -429,13 +429,13 @@
          inserted (:user::needed-texts types existing)
          ins-edits
            (:wat::core::if (:wat::core::= inserted "")
-             (:wat::core::Vector :wat::fix::Edit)
+             (:wat::core::Vector :- [:wat::fix::Edit])
              (:wat::core::let [off (:user::last-decl-end forms lines)
                                at  (:wat::core::if (:wat::core::= off 0)
                                      (:wat::fix::node-end-offset
                                        (:wat::core::first forms) lines)
                                      off)]
-               (:wat::core::Vector :wat::fix::Edit
+               (:wat::core::Vector :- [:wat::fix::Edit]
                  (:wat::core::Tuple at "" inserted))))
          call-edits (:user::walk-seq-edits forms types src lines)
          all (:wat::core::concat ins-edits call-edits)]

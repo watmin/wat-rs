@@ -3,7 +3,7 @@
 (:wat::core::defn :my::compute-discrete-dims-labels [] -> :wat::core::String
   (:wat::core::let
     [labels
-      (:wat::core::Vector :wat::holon::HolonAST
+      (:wat::core::Vector :- [:wat::holon::HolonAST]
         (:wat::holon::to-holon "up")
         (:wat::holon::to-holon "down"))
      r
@@ -18,7 +18,7 @@
 (:wat::core::defn :my::compute-observe-predict [] -> :wat::core::String
   (:wat::core::let
     [labels
-      (:wat::core::Vector :wat::holon::HolonAST
+      (:wat::core::Vector :- [:wat::holon::HolonAST]
         (:wat::holon::to-holon "up")
         (:wat::holon::to-holon "down"))
      r

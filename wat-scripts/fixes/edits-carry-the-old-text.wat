@@ -69,9 +69,9 @@
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:user::i64i64string-vec? n)
     (:wat::core::let [mid (:wat::core::nth (:wat::core::ast->children n) 1)]
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
         (:wat::core::Tuple (:user::start-off mid lines) (:wat::string::length ":wat::core::i64") ":wat::core::String")))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
 ;; ── RULE 2: literal 0 (pure insert) → "" ─────────────────────────────────────
 (:wat::core::defn :user::value-tuple? [n <- :wat::WatAST] -> :wat::core::bool
@@ -92,10 +92,10 @@
   (:wat::core::if (:user::value-tuple? n)
     (:wat::core::let [b (:wat::core::nth (:wat::core::ast->children n) 2)]
       (:wat::core::if (:user::zero-lit? b src lines)
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
           (:wat::core::Tuple (:user::start-off b lines) 1 "\"\""))
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
 ;; ── RULE 2b: a value-tuple whose 2nd arg is DIRECTLY (:wat::string::length SUBJECT),
 ;;    no intermediate let-binding — unwrap in place to SUBJECT's own text. ─────
@@ -106,10 +106,10 @@
       (:wat::core::if (:user::length-call? b)
         (:wat::core::let [subj      (:wat::core::nth (:wat::core::ast->children b) 1)
                           subj-text (:user::node-text subj src lines)]
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
             (:wat::core::Tuple (:user::start-off b lines) (:wat::i64::- (:user::end-off b lines) (:user::start-off b lines)) subj-text)))
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
 ;; ── RULE 3: let-scoped (:wat::string::length SUBJECT) unwrap ────────────────
 (:wat::core::defn :user::length-call? [n <- :wat::WatAST] -> :wat::core::bool
@@ -197,11 +197,11 @@
                           subj-text (:user::node-text subj src lines)
                           off       (:user::start-off val-node lines)
                           len       (:wat::i64::- (:user::end-off val-node lines) off)]
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
             (:wat::core::Tuple off len subj-text)))
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]))
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
 (:wat::core::defn :user::binding-pairs-edits
   [bpairs <- (:wat::core::Vector :- [:wat::WatAST])
@@ -210,7 +210,7 @@
    lines  <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::< (:wat::core::length bpairs) 2)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
     (:wat::core::let [nm         (:wat::core::nth bpairs 0)
                       val        (:wat::core::nth bpairs 1)
                       rest-pairs (:wat::core::into [] (:wat::core::drop bpairs 2))
@@ -227,9 +227,9 @@
 ;; rest-pair-values — every VALUE slot (odd index) from a binding-pairs vector.
 (:wat::core::defn :user::rest-pair-values [bpairs <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::< (:wat::core::length bpairs) 2)
-    (:wat::core::Vector :wat::WatAST)
+    (:wat::core::Vector :- [:wat::WatAST])
     (:wat::core::concat
-      (:wat::core::Vector :wat::WatAST (:wat::core::nth bpairs 1))
+      (:wat::core::Vector :- [:wat::WatAST] (:wat::core::nth bpairs 1))
       (:user::rest-pair-values (:wat::core::into [] (:wat::core::drop bpairs 2))))))
 
 (:wat::core::defn :user::let-edits
@@ -241,7 +241,7 @@
                       bpairs  (:wat::core::ast->children bindvec)
                       bodies  (:wat::core::into [] (:wat::core::drop ch 2))]
       (:user::binding-pairs-edits bpairs bodies src lines))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
 ;; ── the generic walk: RULE 1 + RULE 2 + RULE 3, every node, every file ──────
 (:wat::core::defn :user::node-edits
@@ -254,7 +254,7 @@
      e3 (:user::let-edits node src lines)
      e4 (:wat::core::if (:wat::fix::structural? node)
           (:user::seq-edits (:wat::core::ast->children node) src lines)
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]))]
     (:wat::core::concat e1 (:wat::core::concat e2 (:wat::core::concat e2b (:wat::core::concat e3 e4))))))
 
 (:wat::core::defn :user::seq-edits
@@ -264,7 +264,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it src lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
     items))
 
 ;; old-fix-text-apply — a FROZEN COPY of the pre-282 (offset, old-len, new-text) splicer, kept

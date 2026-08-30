@@ -58,7 +58,7 @@
 
 ;; ── SUBJECT payload — the helper is named, so it ships ─────────────────────────────────
 (:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :wat::WatAST
+  (:wat::core::Vector :- [:wat::WatAST]
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
     (:wat::core::quote
@@ -71,7 +71,7 @@
 
 ;; ── CONTROL payload — byte-identical except `:usr::big?` is NOT named ──────────────────
 (:wat::core::defn :probe::payload-missing-helper [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :wat::WatAST
+  (:wat::core::Vector :- [:wat::WatAST]
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
     (:wat::core::quote

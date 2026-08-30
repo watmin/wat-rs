@@ -27,7 +27,7 @@
      jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
                :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr   (:wat::telemetry::journal::Handle/addr jh)
-     tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      ;; two (log …) on ADJACENT lines — the whole point; keep them consecutive (a line between → diff 2 → RED).
      _ws     (:wat::telemetry::with-span span jaddr "probe-ns" tags
                (:wat::core::do

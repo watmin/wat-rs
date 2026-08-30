@@ -79,7 +79,7 @@
    env-fn           <- :wat::core::String
    max-message-bytes <- :wat::core::i64
    runner-count      <- :wat::core::i64
-   label             <- (:wat::core::Option :wat::core::Record)])
+   label             <- (:wat::core::Option :- [:wat::core::Record])])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
 ;; in `edn::render` (src/edn/render.rs).  Do NOT scatter the literal: change it here and there
@@ -473,7 +473,7 @@
 (:wat::core::defn :wat::kernel::message-only-failure [msg <- :wat::core::String] -> :wat::kernel::Failure
   (:wat::kernel::Failure
     :error (:wat::core::Fault/of msg)
-    :frames (:wat::core::Vector :wat::kernel::Frame)
+    :frames (:wat::core::Vector :- [:wat::kernel::Frame])
     :actual :wat::core::None
     :expected :wat::core::None))
 
@@ -521,7 +521,7 @@
                 ;; pure state from here; a hand-rolled serve ignoring it is unaffected).
                 (:wat::core::apply  serve self-peer
                   (:wat::spawn::Bound/listener b)
-                  (:wat::core::Vector (:wat::kernel::Peer :- [R S]))
+                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [R S])])
                   0
                   st []))))
        ;; Crash-aware readiness barrier: value discarded (the parent already holds the address).
@@ -640,4 +640,4 @@
 (:wat::core::defn :wat::kernel::recv-all :- [I O]
   [p <- (:wat::kernel::Peer :- [I O])]
   -> (:wat::core::Result :- [(:wat::core::Vector :- [O]) :wat::kernel::LociDiedError])
-  (:wat::kernel::recv-all-loop p (:wat::core::Vector :O)))
+  (:wat::kernel::recv-all-loop p (:wat::core::Vector :- [:O])))

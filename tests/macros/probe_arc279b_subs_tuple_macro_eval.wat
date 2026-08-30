@@ -15,7 +15,7 @@
      chars (:wat::core::foldl
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                (:wat::core::conj acc (:wat::string::subs str i (:wat::i64::+ i 1))))
-             (:wat::core::Vector :wat::core::String)
+             (:wat::core::Vector :- [:wat::core::String])
              (:wat::core::range 0 len))
      final (:wat::core::foldl
              (:wat::core::fn [acc <- :wat::core::Tuple

@@ -58,7 +58,7 @@
                 atoms (:wat::core::foldl
                         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::holon::HolonAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::holon::HolonAST])
                           (:wat::core::conj acc (:wat::holon::to-holon i)))
-                        (:wat::core::Vector :wat::holon::HolonAST)
+                        (:wat::core::Vector :- [:wat::holon::HolonAST])
                         (:wat::core::range 0 n))
                 _bundle (:wat::holon::Bundle atoms)]
                nil))))]

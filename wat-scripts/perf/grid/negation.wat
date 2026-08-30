@@ -87,7 +87,7 @@
 ;; derived-vector fired — every derived Ok fact's key, sorted ascending. This IS the accuracy
 ;; witness: a missing/extra Ok anywhere shows up in the byte-for-byte compare.
 (:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
+  (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
                             (:wat::core::map
                               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
                               (:wat::rete::query fired (:neg::q-Ok))))]

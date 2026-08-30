@@ -46,7 +46,7 @@
 
 (:wat::core::defn :t::probe-3 [] -> :wat::core::String
   (:wat::core::let
-    [v   (:wat::core::Vector :wat::core::i64 1 2 3)
+    [v   (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
      r1  (:wat::core::length v)
      r2  (:t::my-length v)]
     (:wat::string::concat

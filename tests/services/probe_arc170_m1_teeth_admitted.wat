@@ -69,7 +69,7 @@
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
-             (:probe::echo/grant eh (:wat::core::Vector :wat::core::i64 p)))
+             (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p)))
            (:wat::core::None
              (:wat::kernel::assertion-failed! "peer-pid returned None on a process prober"
                :wat::core::None :wat::core::None)))

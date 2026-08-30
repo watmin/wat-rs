@@ -129,7 +129,7 @@
   [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:nsh::vec->pvec
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :wat::core::i64)
+      (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
         (:wat::core::map
           (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:nsh::Out/k f)))
           (:wat::rete::query fired (:nsh::q-Out)))))))

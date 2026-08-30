@@ -151,7 +151,7 @@
   ;; fold step here becomes `:wat::core::reduce` (same 3-arg shape, Stream-aware) instead —
   ;; `map` stays lazy (consumed exactly once by the fold; no materializer needed).
   (:wat::core::let
-    [xs      (:wat::core::Vector :wat::core::i64 1 2 3 4 5)
+    [xs      (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)
      threaded
        (:wat::core::->> xs
          (:wat::core::map :wat-tests::core::core-threading::square)

@@ -31,7 +31,7 @@
                           (:wat::kernel::ReadlnOutcome::Stopped
                             (:wat::kernel::assertion-failed! "unexpected stop" :wat::core::None :wat::core::None)))]
                      (:wat::kernel::println
-                       (:wat::core::Vector :wat::core::bool (:wat::kernel::sigusr2?) (:wat::kernel::sighup?)))))))]
+                       (:wat::core::Vector :- [:wat::core::bool] (:wat::kernel::sigusr2?) (:wat::kernel::sighup?)))))))]
       (:wat::core::match (:wat::kernel::signal child :wat::kernel::Signal::User2)
         (:wat::kernel::SignalOutcome::Delivered
           (:wat::core::match (:wat::kernel::send child 0)
@@ -52,4 +52,4 @@
               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
         ((:wat::kernel::SignalOutcome::Failed cause)
           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
-    (:wat::core::Vector :wat::core::bool true false)))
+    (:wat::core::Vector :- [:wat::core::bool] true false)))

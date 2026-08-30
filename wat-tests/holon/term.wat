@@ -90,7 +90,7 @@
   (:wat::core::let
     [bundled
       (:wat::holon::Bundle
-        (:wat::core::Vector :wat::holon::HolonAST
+        (:wat::core::Vector :- [:wat::holon::HolonAST]
           (:wat::holon::Thermometer 70.0 0.0 100.0)
           (:wat::holon::Thermometer 0.25 -1.0 1.0)))
      form
@@ -108,7 +108,7 @@
   (:wat::core::let
     [bundled
       (:wat::holon::Bundle
-        (:wat::core::Vector :wat::holon::HolonAST
+        (:wat::core::Vector :- [:wat::holon::HolonAST]
           (:wat::holon::Thermometer 70.0 0.0 100.0)
           (:wat::holon::Thermometer 0.25 -1.0 1.0)))
      form

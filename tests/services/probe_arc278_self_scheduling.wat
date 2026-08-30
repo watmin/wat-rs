@@ -66,7 +66,7 @@
 (:wat::core::defn :probe::nap [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::select
-      (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])
+      (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
         (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
     
     ((:wat::spawn::ServiceEvent::Message _i _m) nil)

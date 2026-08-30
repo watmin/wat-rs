@@ -1137,7 +1137,7 @@
   (:wat::core::let [init-state (:wat::rete::CompileState
                                   :network (:wat::core::PersistentMap)
                                   :next-id 0
-                                  :dedup (:wat::core::HashMap :wat::core::String :wat::core::i64))
+                                  :dedup (:wat::core::HashMap :- [:wat::core::String :wat::core::i64]))
                     after-rules (:wat::core::foldl :wat::rete::compile-rule init-state rules)
                     final-state (:wat::core::foldl :wat::rete::compile-query after-rules queries)
                     network  (:wat::rete::CompileState/network final-state)

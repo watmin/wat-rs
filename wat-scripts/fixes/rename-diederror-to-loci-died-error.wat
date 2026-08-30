@@ -86,7 +86,7 @@
   ;; leaf, STOP-1 territory).
   (:wat::core::let [head (:wat::core::first (:wat::core::ast->children node))
                     h0   (:user::start-off head lines)]
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::kernel::LociDiedError/message"))))
 
 ;; node-edits — scope-threading walk. `lost-var` is the RecvOutcome::Lost-bound var currently in
@@ -99,7 +99,7 @@
      scope    (:wat::core::if (:wat::core::= this-var "") lost-var this-var)
      this     (:wat::core::if (:user::fm-call-on? node lost-var)
                 (:user::fm-head-edit node lines)
-                (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
+                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) scope lines))
       this)))
@@ -111,7 +111,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lost-var lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

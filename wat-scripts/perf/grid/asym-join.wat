@@ -87,12 +87,12 @@
 
 ;; b-codes / c-codes — every derived fact of each type, canonically encoded.
 (:wat::core::defn :asym::b-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
-  (:wat::core::into (:wat::core::Vector :wat::core::i64)
+  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
     (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:asym::encode 0 (:asym::B/k f))))
       (:wat::rete::query fired (:asym::q-B)))))
 
 (:wat::core::defn :asym::c-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
-  (:wat::core::into (:wat::core::Vector :wat::core::i64)
+  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
     (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:asym::encode 1 (:asym::C/k f))))
       (:wat::rete::query fired (:asym::q-C)))))
 

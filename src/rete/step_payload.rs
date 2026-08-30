@@ -1,5 +1,7 @@
 //! Explain `DerivationStep` payload — `eval_step_payload`.
 
+use wat_macros::wat_intrinsic;
+
 use crate::ast::WatAST;
 use crate::rete::kernel::{alpha_cond_of, session_network};
 use crate::rete::clause::{classify_constraint_head, classify_rete_clause, ReteClauseShape};
@@ -30,41 +32,70 @@ use std::sync::Arc;
 /// (STOP-1), not `alpha_match_inner` (the oracle). Substituted values still cannot drift
 /// from the classifier's spelling of what matched.
 ///
-/// Arguments:
-///   - `session`    — `:wat::rete::Session` (network via `session_network`)
-///   - `alpha-id`   — `:wat::core::i64` (the AlphaNode id for this condition)
-///   - `bindings`   — `:wat::core::PersistentMap` (the token's accumulated bindings)
-///   - `sfact`      — `:wat::core::Record` (the supporting fact for this edge)
-///   - `supporting` — `:wat::rete::DerivationNode` (the pre-computed recursive node)
+/// Arc 255 Stone P6-c-W5c — moved verbatim into `#[wat_intrinsic]` with its real (5) arity
+/// declared; the hand-rolled `args.len() != 5` guard this wave retires lived right here.
 ///
-/// Returns a `:wat::rete::DerivationStep` record.
+/// **Purity ground:** all five args are evaluated by ordinary call-by-value (not itself an
+/// effect — the same shape `alpha-match`'s wrapper is Pure for). Past that, the body only reads
+/// already-evaluated values: `session_network`/`alpha_cond_of` read the session's compiled
+/// network, `classify_rete_clause`/`resolve_operand` are pure structural walks (the same ones
+/// `step-payload`'s own doc calls "faithfulness by construction"), and the two `OnceLock`s
+/// (`STEP_CLASS_FQDN`, `derivation_step_names`) cache a fixed, compile-time-constant class name
+/// and field-name table process-wide — the same boilerplate pattern already used by `export.rs`
+/// (Effectful) and `purity.rs`'s pure axis predicates alike, so it is infrastructure, not a
+/// per-call effect. No `eval_inner`/`apply_function` on caller-supplied code anywhere in this
+/// body. The built `DerivationStep` record is freshly allocated and returned to the caller;
+/// nothing outlives the call beyond the two process-wide constant caches.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Transform
+/// @arg     session :wat::rete::Session the compiled session (network read via `session_network`)
+/// @arg     alpha_id :wat::core::i64 the AlphaNode id for this condition
+/// @arg     bindings :wat::core::PersistentMap the token's accumulated bindings
+/// @arg     sfact :wat::core::Record the supporting fact for this edge
+/// @arg     supporting :wat::rete::DerivationNode the pre-computed recursive node for `sfact`
+/// @ret     :wat::rete::DerivationStep the per-edge explain payload (pattern, per-step bindings, substituted constraints, supporting)
+/// @example (:wat::core::do (:wat::core::defrecord :probe::StepPayloadExampleTemp [celsius <- :wat::core::i64]) (:wat::core::defrecord :probe::StepPayloadExampleResult [celsius <- :wat::core::i64]) (:wat::rete::defrule :probe::step-payload-example-rule :when [(:probe::StepPayloadExampleTemp (?c <- :celsius) (:wat::rete::i64::< ?c 20))] :then [(:probe::StepPayloadExampleResult ?c)]) (:wat::core::let [rules (:wat::rete::collect-rules :probe) session (:wat::rete::compile rules) session (:wat::rete::insert session (:probe::StepPayloadExampleTemp :celsius 10)) ex (:wat::rete::fire-rules-explain session) support (:wat::rete::Explained/support ex) result (:probe::StepPayloadExampleResult :celsius 10) sv (:wat::core::Option/expect (:wat::map::get support result) "sv") tok (:wat::rete::Support/token sv) matches (:wat::rete::Token/matches tok) bindings (:wat::rete::Token/bindings tok) m0 (:wat::core::Option/expect (:wat::core::get matches 0) "m0") sfact (:wat::core::first m0) alpha-id (:wat::core::second m0) sess (:wat::rete::Explained/session ex) supporting (:wat::rete::explain ex sfact)] (:wat::rete::step-payload sess alpha-id bindings sfact supporting))) #=> (:wat::rete::DerivationStep :supporting (:wat::rete::DerivationNode :fact (:probe::StepPayloadExampleTemp :celsius 10) :rule :wat::core::None :via (:wat::core::PersistentVector)) :pattern "probe::StepPayloadExampleTemp" :bindings (:wat::core::PersistentMap "?c" 10) :constraints (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::i64::< 10 20))))
+#[wat_intrinsic(":wat::rete::step-payload")]
+// arc 255 Stone P6-c-W5c — the SECOND 5-arg verb the registry has carved, and the same
+// arithmetic as the first: 5 wat args + the `env`/`sym`/`list_span` context tail = 8, over
+// clippy's 7. `#[expect]`, not `#[allow]`, so it goes RED the moment it stops being needed —
+// see `src/intrinsic/kernel/resource.rs:411` (`spawn-process`), whose comment carries the full
+// derivation and calls itself "the first"; it is now one of two. EARNED, not unfinished: the
+// count is imposed by the `#[wat_intrinsic]` ABI, and the alternatives are changing that ABI or
+// declining to register verbs above arity 4 — which would mean keeping the fictional variadic
+// arity this whole campaign exists to retire.
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn eval_step_payload(
-    args: &[WatAST],
+    session: &WatAST,
+    alpha_id: &WatAST,
+    bindings: &WatAST,
+    sfact: &WatAST,
+    supporting: &WatAST,
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::step-payload"; 
-
-    if args.len() != 5 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 5,
-            got: args.len(),
-        }).into());
-    }
+    const OP: &str = ":wat::rete::step-payload";
 
     // ── Evaluate all 5 arguments ──────────────────────────────────────────────
-    let session_val  = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let alpha_id_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-    let bindings_val = crate::runtime::eval_inner(&args[2], env, sym)?.value_owned();
-    let sfact_val    = crate::runtime::eval_inner(&args[3], env, sym)?.value_owned();
-    let supporting   = crate::runtime::eval_inner(&args[4], env, sym)?.value_owned();
+    let session_span  = session.span().clone();
+    let alpha_id_span = alpha_id.span().clone();
+    let bindings_span = bindings.span().clone();
+    let sfact_span    = sfact.span().clone();
+
+    let session_val  = crate::runtime::eval_inner(session, env, sym)?.value_owned();
+    let alpha_id_val = crate::runtime::eval_inner(alpha_id, env, sym)?.value_owned();
+    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?.value_owned();
+    let sfact_val    = crate::runtime::eval_inner(sfact, env, sym)?.value_owned();
+    let supporting   = crate::runtime::eval_inner(supporting, env, sym)?.value_owned();
 
     // ── Extract alpha_id ──────────────────────────────────────────────────────
     let alpha_id = match alpha_id_val {
         Value::i64(n) => n,
-        other => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(alpha_id_span, RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::i64 (alpha-id)",
             got: Box::new(ValueSnapshot::of(&other)),
@@ -77,7 +108,7 @@ pub(crate) fn eval_step_payload(
     // materialisation on either path.
     let token_bindings: crate::value::pmap::PMap = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
-        other => return Err(RuntimeError::new(args[2].span().clone(), RuntimeErrorKind::TypeMismatch {
+        other => return Err(RuntimeError::new(bindings_span, RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::PersistentMap (token bindings)",
             got: Box::new(ValueSnapshot::of(&other)),
@@ -87,7 +118,7 @@ pub(crate) fn eval_step_payload(
     // ── Extract the supporting fact (sfact) + its field names ────────────────
     let sfact = match fact_from_value(&sfact_val) {
         Some(f) => f,
-        None => return Err(RuntimeError::new(args[3].span().clone(), RuntimeErrorKind::TypeMismatch {
+        None => return Err(RuntimeError::new(sfact_span, RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record (supporting fact)",
             got: Box::new(ValueSnapshot::of(&sfact_val)),
@@ -97,7 +128,7 @@ pub(crate) fn eval_step_payload(
 
     let network = match session_network(&session_val) {
         Some(n) => n,
-        None => return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+        None => return Err(RuntimeError::new(session_span, RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::rete::Session (named network field)",
             got: Box::new(ValueSnapshot::of(&session_val)),

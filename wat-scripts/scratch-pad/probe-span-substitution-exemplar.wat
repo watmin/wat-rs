@@ -24,5 +24,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [r (:wat::core::foldl :probe::boom 0 (:wat::core::Vector :wat::core::i64 1 2 3))] ;; <<foldl-call>>
+    [r (:wat::core::foldl :probe::boom 0 (:wat::core::Vector :- [:wat::core::i64] 1 2 3))] ;; <<foldl-call>>
     (:wat::kernel::println r)))

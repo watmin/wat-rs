@@ -45,7 +45,7 @@
 ;; p6: tuple containing (HashSet :- [i64]) round-trip
 (:wat::core::defn :t::p6-rt-with-set [] -> (:wat::core::Tuple :- [(:wat::core::HashSet :- [:wat::core::i64]) :wat::core::String])
   (:wat::core::let
-    [s  (:wat::core::HashSet :wat::core::i64 1 2)
+    [s  (:wat::core::HashSet :- [:wat::core::i64] 1 2)
      t  (:wat::core::Tuple s "label")
      h  (:wat::holon::to-holon t)
      rt (:wat::holon::from-holon h)]

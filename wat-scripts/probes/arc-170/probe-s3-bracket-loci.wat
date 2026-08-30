@@ -8,7 +8,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [nums (:wat::core::Vector :wat::core::i64 1 2 3 4 5)
+    [nums (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)
      ;; a thread pool of 2 (shared memory — runs the fn directly)
      tr (:wat::bracket::map (:wat::spawn::thread/runner-count 2) nums :my::double)
      ;; the SAME call on a process pool of 2 (not-shared — fn-forms the work, ships forms)

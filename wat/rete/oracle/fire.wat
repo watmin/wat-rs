@@ -151,7 +151,7 @@
                     ;; oracle-derived changed every run, sometimes []. Native sorts
                     ;; (sorted_node_ids); the spec must too.
                     node-ids (:wat::core::sort
-                                (:wat::core::into (:wat::core::Vector :wat::core::i64)
+                                (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
                                   (:wat::map::keys network)))
                     new-amem (:wat::rete::walk-alpha-ids facts network node-ids 0
                                  (:wat::core::PersistentMap))

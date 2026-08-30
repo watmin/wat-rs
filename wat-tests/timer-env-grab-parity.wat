@@ -37,7 +37,7 @@
      (:wat::core::let
        [m (:wat::core::match
             (:wat::kernel::select
-              (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])
+              (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
                 (:wat::kernel::after
                   (:wat::program::Env/peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
                   (:wat::time::Millisecond 50)

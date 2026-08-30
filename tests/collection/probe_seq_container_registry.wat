@@ -4,7 +4,7 @@
 ;; ── Indexable ✓ : first → element 0, across every ordered container ──
 
 (:wat::core::defn :p::first-vector [] -> :wat::core::i64
-  (:wat::core::first (:wat::core::Vector :wat::core::i64 10 20 30)))
+  (:wat::core::first (:wat::core::Vector :- [:wat::core::i64] 10 20 30)))
 
 (:wat::core::defn :p::first-persistent-vector [] -> :wat::core::i64
   (:wat::core::first (:wat::core::PersistentVector 10 20 30)))
@@ -21,10 +21,10 @@
 ;; ── index variants on a Vector (second/third) ──
 
 (:wat::core::defn :p::second-vector [] -> :wat::core::i64
-  (:wat::core::second (:wat::core::Vector :wat::core::i64 10 20 30)))
+  (:wat::core::second (:wat::core::Vector :- [:wat::core::i64] 10 20 30)))
 
 (:wat::core::defn :p::third-vector [] -> :wat::core::i64
-  (:wat::core::third (:wat::core::Vector :wat::core::i64 10 20 30)))
+  (:wat::core::third (:wat::core::Vector :- [:wat::core::i64] 10 20 30)))
 
 ;; ── seq-1b: measurable (length/empty?) ──
 
@@ -69,20 +69,20 @@
 
 ;; ── seq-1b: gettable (get → Option) ──
 
-(:wat::core::defn :p::list-get-found [] -> (:wat::core::Option :wat::core::i64)
+(:wat::core::defn :p::list-get-found [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::get (:wat::core::List 10 20 30) 1))
 
-(:wat::core::defn :p::list-get-oob [] -> (:wat::core::Option :wat::core::i64)
+(:wat::core::defn :p::list-get-oob [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::get (:wat::core::List 10 20 30) 99))
 
-(:wat::core::defn :p::watastlist-get-found [] -> (:wat::core::Option :wat::WatAST)
+(:wat::core::defn :p::watastlist-get-found [] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::get (:wat::core::quote (a b c)) 1))
 
-(:wat::core::defn :p::watastlist-get-oob [] -> (:wat::core::Option :wat::WatAST)
+(:wat::core::defn :p::watastlist-get-oob [] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::get (:wat::core::quote (a b c)) 99))
 
-(:wat::core::defn :p::hashset-get-found [] -> (:wat::core::Option :wat::core::i64)
-  (:wat::core::get (:wat::core::HashSet :wat::core::i64 10 20 30) 20))
+(:wat::core::defn :p::hashset-get-found [] -> (:wat::core::Option :- [:wat::core::i64])
+  (:wat::core::get (:wat::core::HashSet :- [:wat::core::i64] 10 20 30) 20))
 
-(:wat::core::defn :p::hashset-get-not-found [] -> (:wat::core::Option :wat::core::i64)
-  (:wat::core::get (:wat::core::HashSet :wat::core::i64 10 20 30) 99))
+(:wat::core::defn :p::hashset-get-not-found [] -> (:wat::core::Option :- [:wat::core::i64])
+  (:wat::core::get (:wat::core::HashSet :- [:wat::core::i64] 10 20 30) 99))

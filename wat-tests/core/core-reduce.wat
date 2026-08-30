@@ -20,7 +20,7 @@
 (:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-sum-i64
   
   (:wat::core::let
-    [xs (:wat::core::Vector :wat::core::i64 1 2 3 4)
+    [xs (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)
      result
       (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64
@@ -37,7 +37,7 @@
 (:wat::test::deftest :wat-tests::core::core-reduce::reduce-2-arity-sum-i64
   
   (:wat::core::let
-    [xs (:wat::core::Vector :wat::core::i64 1 2 3 4)
+    [xs (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)
      result
       (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64
@@ -53,7 +53,7 @@
 (:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-over-stream
   
   (:wat::core::let
-    [xs      (:wat::core::Vector :wat::core::i64 1 2 3 4)
+    [xs      (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)
      doubled (:wat::core::map
                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
                  (:wat::i64::* n 2))

@@ -30,7 +30,7 @@
 
 (:wat::core::extend-type :wat::core::PersistentVector :sq::Seqable
   (as-vec [self] -> (:wat::core::Vector :- [:wat::core::i64])
-    (:wat::core::into (:wat::core::Vector :wat::core::i64) self)))
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) self)))
 
 ;; the payoff: ONE function over ANY Seqable — what join/map/filter want
 (:wat::core::defn :sq::count-of [s <- :sq::Seqable] -> :wat::core::i64
@@ -39,6 +39,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
     (:wat::string::join ","
-      (:wat::core::Vector :wat::core::i64
-        (:sq::count-of (:wat::core::Vector :wat::core::i64 10 20 30))
+      (:wat::core::Vector :- [:wat::core::i64]
+        (:sq::count-of (:wat::core::Vector :- [:wat::core::i64] 10 20 30))
         (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))))))

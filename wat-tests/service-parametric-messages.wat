@@ -163,14 +163,14 @@
   (:wat::core::let
     [h (:wat-tests::pcache-svc/start :locus locus
          :record (:wat-tests::pcache-svc::Record
-                   :fills (:wat::core::Vector :wat::core::i64 11 22)))
+                   :fills (:wat::core::Vector :- [:wat::core::i64] 11 22)))
      c (:wat-tests::pcache/dial (:wat-tests::pcache-svc::Handle/addr h))
      ;; (1) THE ROUND TRIP — a well-formed parametric request, real K-typed Strings out,
      ;;     real V-typed i64s back.
      good (:wat-tests::pcache/label
             (:wat-tests::pcache-svc/get c
               (:wat-tests::PCache::GetRequest
-                :probes (:wat::core::Vector :wat::core::String "alpha" "beta")
+                :probes (:wat::core::Vector :- [:wat::core::String] "alpha" "beta")
                 :limit  7)))
      ;; (2) THE CONCRETE FIELD IS STILL ENFORCED — a wrong-typed `limit` under the correct tag
      ;;     is REFUSED by the request-shape wall, on both tiers. This is what stops the
