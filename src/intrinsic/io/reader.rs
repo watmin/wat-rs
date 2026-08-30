@@ -169,7 +169,7 @@ pub(crate) fn eval_ioreader_from_string(
 ///
 /// @added         1.0.0
 /// @Purity        Effectful
-/// @Determinism   Deterministic
+/// @Determinism   Nondeterministic
 /// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     path :wat::core::String the path to open for reading
@@ -184,10 +184,17 @@ pub(crate) fn eval_ioreader_from_string(
 // `kernel/resource.rs`'s `pipe` (same reasoning: this is not merely a
 // wat-level construction; the body's first move is a real `open(2)`).
 //
-// Deciding line for `@Purity Effectful` / `@Determinism Deterministic`: a
-// real syscall with an observable OS-level effect (a new open fd); no
-// external actor's timing is awaited, so the outcome is deterministic given
-// an openable path — the same reasoning `resource.rs` gives `pipe`.
+// SUPERSEDES the earlier `@Determinism Deterministic` reasoning ("no external actor's timing is
+// awaited, so the outcome is deterministic given an openable path") — the builder overturned that
+// by argument, and it is decisive: create a file, open it, delete it, open it again — the SAME
+// path (the same input this axis measures) now returns a DIFFERENT outcome (miss vs. hit), and a
+// hit's own content can differ between calls too. "Deterministic given an openable path" is a
+// PRECONDITION smuggled into the ruling, not a property of the op — the identical move this file
+// refuses for `i64::/` ("deterministic given a nonzero divisor" is not `total`, and is not
+// `deterministic` either by the same logic once the precondition can fail on ambient state, not
+// just the arguments). The return value depends on filesystem state EXTERNAL to `path` — the same
+// reason `:wat::uuid::v4`/`:wat::time::now` are nondeterministic: same input, output can vary with
+// world state the arguments don't carry. `@Purity Effectful` is unaffected by this correction.
 #[wat_intrinsic(":wat::io::IOReader/open-file")]
 pub(crate) fn eval_ioreader_open_file(
     path: &WatAST,

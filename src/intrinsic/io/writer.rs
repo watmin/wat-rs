@@ -166,7 +166,7 @@ pub(crate) fn eval_iowriter_new(
 ///
 /// @added         1.0.0
 /// @Purity        Effectful
-/// @Determinism   Deterministic
+/// @Determinism   Nondeterministic
 /// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     path :wat::core::String the path to open (create+truncate) for writing
@@ -180,11 +180,14 @@ pub(crate) fn eval_iowriter_new(
 // fd and wraps it in an `OwnedFd`-backed `PipeWriter`. A syscall resource
 // ACQUISITION — the write-side mirror of `reader.rs`'s `open-file`.
 //
-// Deciding line for `@Purity Effectful` / `@Determinism Deterministic`: a
-// real syscall with an observable OS-level effect (a new open fd, and for
-// this verb a truncated/created file); no external actor's timing is
-// awaited, so the outcome is deterministic given an openable path — the
-// same reasoning `reader.rs` gives `open-file`.
+// SUPERSEDES the earlier `@Determinism Deterministic` reasoning ("no external actor's timing is
+// awaited, so the outcome is deterministic given an openable path") — same correction as
+// `reader.rs`'s `open-file`, and the builder's argument applies identically here: the same `path`
+// can succeed one call and panic the next (parent directory removed, permissions changed, disk
+// full — this verb's own doc already names disk-full as a possible open error), which is a
+// DIFFERENT outcome on the SAME input, driven by filesystem state the argument doesn't carry.
+// "Deterministic given an openable path" is a precondition smuggled into the ruling, not a
+// property of the op — the same move refused for `i64::/`. `@Purity Effectful` is unaffected.
 #[wat_intrinsic(":wat::io::IOWriter/open-file")]
 pub(crate) fn eval_iowriter_open_file(
     path: &WatAST,

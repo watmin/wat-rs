@@ -495,6 +495,40 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     ) {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
+    // ── arc 255 Stone total-T5 — THE REGISTRY ANSWERS ALL THREE AXES ────────────────────────────
+    //
+    // Every `#[wat_intrinsic]`-registered verb ALREADY declares `@Purity`/`@Determinism`/`@Total`
+    // at its registration site (mandatory on the first two since long before this campaign; T4b
+    // armed the third). For any such verb, consult the registry directly instead of re-answering
+    // via a second, hand-transcribed copy of the same fact — the exact shape `total-T4b` already
+    // uses for the `total` axis alone (see this fn's own `total-T4b` comment below the `pure_det`
+    // list), now extended to all three axes.
+    //
+    // `Purity::Preserving`/`Determinism::Preserving`/`Totality::Preserving` all satisfy their axis
+    // — "I contribute no impurity/nondeterminism/partiality of my own; my sub-forms carry theirs" —
+    // the same reading `intrinsic/mod.rs:1038`'s `purity_mandated_examples` already gives
+    // `Purity`/`Determinism`, and `total-T4b` already gave `Totality`.
+    //
+    // ORDER MATTERS: this sits AFTER `rete_op_for` and every early-return special case above (each
+    // already verified to agree with its own registration — retiring them is a follow-up, not this
+    // stone), and BEFORE the residual `pure_det`/`total` hand-rulings below, which now answer ONLY
+    // for a head this lookup misses (`lookup_entry(head) == None` — unregistered, not a name-list).
+    //
+    // DESIGN-STONE-total-t5-the-registry-answers-all-three-axes.md measured this change moves 275
+    // verdicts (unregistered-by-this-fn's-old-reckoning verbs go from `None` to a declared ruling)
+    // and that ZERO of them also pass `total` — every one carries `@Total Unreviewed` — so the
+    // four-axis `where` fence (pure ∧ det ∧ total ∧ primitive) admits exactly none of them.
+    if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
+        return Some(OpMeta {
+            pure: matches!(e.purity, wat_doc::Purity::Pure | wat_doc::Purity::Preserving),
+            deterministic: matches!(
+                e.determinism,
+                wat_doc::Determinism::Deterministic | wat_doc::Determinism::Preserving
+            ),
+            total: matches!(e.totality, wat_doc::Totality::Total | wat_doc::Totality::Preserving),
+        });
+    }
+
     // Pure ∧ deterministic explicit `:wat::core::` ops.
     let pure_det = matches!(
         head,
@@ -2176,54 +2210,6 @@ mod completeness_gate {
         // population and their debt is visible again. Nothing here is classified; 255.3 owns
         // that. [[feedback_a_gate_freezes_names_never_a_count]] — the gate froze the names
         // correctly; the DISPOSITION of its red is what went wrong.
-        ":wat::core::Bytes::from-hex",
-        ":wat::core::Bytes::to-hex",
-        ":wat::core::render-doc",
-        ":wat::core::show-source",
-        ":wat::intrinsic::examples",
-        ":wat::intrinsic::variadic-args-measurement",
-        ":wat::intrinsic::yields-witness",
-        ":wat::time::+",
-        ":wat::time::-",
-        ":wat::time::Day",
-        ":wat::time::Hour",
-        ":wat::time::Microsecond",
-        ":wat::time::Millisecond",
-        ":wat::time::Minute",
-        ":wat::time::Nanosecond",
-        ":wat::time::Second",
-        ":wat::time::ago",
-        ":wat::time::at",
-        ":wat::time::at-millis",
-        ":wat::time::at-nanos",
-        ":wat::time::days",
-        ":wat::time::days-ago",
-        ":wat::time::days-from-now",
-        ":wat::time::epoch-millis",
-        ":wat::time::epoch-nanos",
-        ":wat::time::epoch-seconds",
-        ":wat::time::from-iso8601",
-        ":wat::time::from-now",
-        ":wat::time::hours",
-        ":wat::time::hours-ago",
-        ":wat::time::hours-from-now",
-        ":wat::time::microseconds",
-        ":wat::time::microseconds-ago",
-        ":wat::time::microseconds-from-now",
-        ":wat::time::milliseconds",
-        ":wat::time::milliseconds-ago",
-        ":wat::time::milliseconds-from-now",
-        ":wat::time::minutes",
-        ":wat::time::minutes-ago",
-        ":wat::time::minutes-from-now",
-        ":wat::time::nanoseconds",
-        ":wat::time::nanoseconds-ago",
-        ":wat::time::nanoseconds-from-now",
-        ":wat::time::now",
-        ":wat::time::seconds",
-        ":wat::time::seconds-ago",
-        ":wat::time::seconds-from-now",
-        ":wat::time::to-iso8601",
     ":wat::core::Option/expect",
     ":wat::core::Option/try",
     ":wat::core::Record/assoc",
@@ -2235,7 +2221,6 @@ mod completeness_gate {
     ":wat::core::ann-form",
     ":wat::core::apply",
     ":wat::core::assoc",
-    ":wat::core::char",
     ":wat::core::conforms?",
     ":wat::core::conj",
     ":wat::core::def",
@@ -2267,97 +2252,6 @@ mod completeness_gate {
     // homing it into the intrinsic registry gave it `intrinsic_meta` purity, so it is no longer
     // unreviewed. This gate went RED demanding the deletion — the ratchet shrinking as the debt
     // is paid, exactly as designed. Every verb the P6-c campaign homes will do the same.
-    ":wat::holon::Atom",
-    ":wat::holon::Bind",
-    ":wat::holon::Bind/left",
-    ":wat::holon::Bind/right",
-    ":wat::holon::Blend",
-    ":wat::holon::Bundle",
-    ":wat::holon::Bundle/children",
-    ":wat::holon::Bundle/first",
-    ":wat::holon::Engram/eigenvalue-signature",
-    ":wat::holon::Engram/n",
-    ":wat::holon::Engram/name",
-    ":wat::holon::Engram/residual",
-    ":wat::holon::EngramLibrary/add",
-    ":wat::holon::EngramLibrary/contains",
-    ":wat::holon::EngramLibrary/len",
-    ":wat::holon::EngramLibrary/match-vec",
-    ":wat::holon::EngramLibrary/names",
-    ":wat::holon::EngramLibrary/new",
-    ":wat::holon::Hologram/capacity",
-    ":wat::holon::Hologram/find",
-    ":wat::holon::Hologram/get",
-    ":wat::holon::Hologram/len",
-    ":wat::holon::Hologram/make",
-    ":wat::holon::Hologram/put",
-    ":wat::holon::Hologram/remove",
-    ":wat::holon::List",
-    ":wat::holon::Map",
-    ":wat::holon::OnlineSubspace/dim",
-    ":wat::holon::OnlineSubspace/eigenvalues",
-    ":wat::holon::OnlineSubspace/k",
-    ":wat::holon::OnlineSubspace/n",
-    ":wat::holon::OnlineSubspace/new",
-    ":wat::holon::OnlineSubspace/project",
-    ":wat::holon::OnlineSubspace/reconstruct",
-    ":wat::holon::OnlineSubspace/residual",
-    ":wat::holon::OnlineSubspace/threshold",
-    ":wat::holon::OnlineSubspace/update",
-    ":wat::holon::Permute",
-    ":wat::holon::Reckoner/curve",
-    ":wat::holon::Reckoner/dims",
-    ":wat::holon::Reckoner/labels",
-    ":wat::holon::Reckoner/new-continuous",
-    ":wat::holon::Reckoner/new-discrete",
-    ":wat::holon::Reckoner/observe",
-    ":wat::holon::Reckoner/predict",
-    ":wat::holon::Reckoner/resolve",
-    ":wat::holon::Set",
-    ":wat::holon::Thermometer",
-    ":wat::holon::Tuple",
-    ":wat::holon::Vector",
-    ":wat::holon::bytes-vector",
-    ":wat::holon::coincident-explain",
-    ":wat::holon::coincident-floor",
-    ":wat::holon::encode",
-    ":wat::holon::eval-coincident?",
-    ":wat::holon::eval-digest-coincident?",
-    ":wat::holon::eval-digest-string-coincident?",
-    ":wat::holon::eval-edn-coincident?",
-    ":wat::holon::eval-signed-coincident?",
-    ":wat::holon::eval-signed-string-coincident?",
-    ":wat::holon::extract-classifier",
-    ":wat::holon::from-holon",
-    ":wat::holon::from-wat",
-    ":wat::holon::is-Keyword?",
-    ":wat::holon::is-List?",
-    ":wat::holon::is-Map?",
-    ":wat::holon::is-Nil?",
-    ":wat::holon::is-Set?",
-    ":wat::holon::is-Symbol?",
-    ":wat::holon::is-Tag?",
-    ":wat::holon::is-Tuple?",
-    ":wat::holon::is-Vector?",
-    ":wat::holon::is?",
-    ":wat::holon::leaf",
-    ":wat::holon::literal",
-    ":wat::holon::presence-floor",
-    ":wat::holon::simhash",
-    ":wat::holon::statement-length",
-    ":wat::holon::term::matches?",
-    ":wat::holon::term::ranges",
-    ":wat::holon::term::slots",
-    ":wat::holon::term::template",
-    ":wat::holon::therm-form",
-    ":wat::holon::to-holon",
-    ":wat::holon::to-record",
-    ":wat::holon::to-wat",
-    ":wat::holon::vector-bind",
-    ":wat::holon::vector-blend",
-    ":wat::holon::vector-bundle",
-    ":wat::holon::vector-bytes",
-    ":wat::holon::vector-permute",
     // Arc 255 Stone E-iv — `keyword` gets its home. `to-string`/`from-string` carry forward
     // the SAME open ruling under their OLD spelling (this ledger never classified them
     // either); `to-symbol`/`to-type-form`/`to-type-form-colon` are newly VISIBLE to this scan
@@ -2368,21 +2262,10 @@ mod completeness_gate {
     // (`macros/eval.rs`) already treats all five as pure/deterministic, but ruling on THIS
     // axis (RETE-fireability) for a verb nothing forces into a `where` is out of this stone's
     // scope — same restraint as E-iii's refused `RETE_MODULES` entry.
-    ":wat::keyword::from-string",
-    ":wat::keyword::to-string",
-    ":wat::keyword::to-symbol",
-    ":wat::keyword::to-type-form",
-    ":wat::keyword::to-type-form-colon",
     // Arc 255 Stone HOME-9 — `:wat::std::math::*` moved to `:wat::math::*`. Carries forward
     // the SAME open ruling under the new spelling (this ledger never classified them either);
     // `log` (the seventh old verb) is DELETED, not moved, so it drops out of this ledger
     // rather than being renamed.
-    ":wat::math::cos",
-    ":wat::math::exp",
-    ":wat::math::ln",
-    ":wat::math::pi",
-    ":wat::math::sin",
-    ":wat::math::sqrt",
     // Arc 255 Stone P6-c-W5a — the nine read-only rete predicates/matchers (the six `?`
     // predicates + the three alpha-matchers) are HOMED (`src/intrinsic/rete.rs`) and
     // CLASSIFIED (`intrinsic_meta`, below) — deleted from this ledger, not carried forward.
@@ -2420,14 +2303,8 @@ mod completeness_gate {
     // spelling). `map-with-index` (the fourth old verb) is DELETED, not moved, so it drops
     // out of this ledger; its replacement `:wat::core::map-indexed` was already classified
     // (or already unreviewed under its own name) before this stone and is unaffected.
-    ":wat::seq::remove-at",
-    ":wat::seq::window",
-    ":wat::seq::zip",
     // Arc 255 Stone HOME-9 — `:wat::std::stat::*` moved to `:wat::stat::*`. Carries forward
     // the SAME open ruling under the new spelling.
-    ":wat::stat::mean",
-    ":wat::stat::stddev",
-    ":wat::stat::variance",
     // `:wat::stdlib::sources` STAYS — arc 255 Stone P6-c-W2 (STOP-A) dropped it from that
     // wave's homing: its handler (`crate::io::eval_stdlib_sources`) returns `Result<Value,
     // RuntimeError>`, and `#[wat_intrinsic]` rejects any return type other than
@@ -2465,16 +2342,6 @@ mod completeness_gate {
         //                 two calls in ONE process returned `scopes [1069]` then `[1070]`.
         //                 (Two calls in two PROCESSES both return [1069] — an instrument that
         //                 cannot see the defect it is pointed at.)
-        ":wat::core::ast->children",
-        ":wat::core::ast->source",
-        ":wat::core::ast-end-span",
-        ":wat::core::ast-kind",
-        ":wat::core::ast-name",
-        ":wat::core::ast-span",
-        ":wat::core::fresh-symbol",
-        ":wat::core::keyword-node",
-        ":wat::core::read-string",
-        ":wat::core::symbol-node",
 
         // ── ADDED (STONE meter-1, the recursive-walk scan). `dispatch_verbs`'s
         // `#[wat_intrinsic]`-home scan used to `read_dir` only `src/intrinsic` (files plus one
@@ -2494,46 +2361,35 @@ mod completeness_gate {
         //
         // `:wat::form::matches?`      (`src/runtime.rs`)             @Purity Pure       @Determinism Deterministic — a structural Clara-semantics
         //                             walk over an already-evaluated subject and a never-evaluated pattern; total is unreviewed.
-        ":wat::form::matches?",
         // `:wat::rete::arm-session`   (`src/rete/kernel/arm.rs`)     @Purity Effectful  @Determinism Deterministic — takes an intern
         //                             lease on the thread-local `ARM_TABLE`; the return value is unchanged, only the table's state moves.
-        ":wat::rete::arm-session",
         // `:wat::rete::release-session` (`src/rete/kernel/arm.rs`)   @Purity Effectful  @Determinism Deterministic — drops one intern
         //                             lease on `ARM_TABLE`; same shape as `arm-session`, the opposite direction.
-        ":wat::rete::release-session",
         // `:wat::rete::collect-rules` (`src/rete/collect.rs`)        @Purity Effectful  @Determinism Nondeterministic — the doc's own
         //                             "purity ground" flags that its reflection filter is shape-only (zero-arg, ret-type `Rule`) and
         //                             does not verify the discovered fn's body came from `defrule`'s always-quoted expansion, so it
         //                             invokes arbitrary already-defined code via `eval_inner`, unbounded.
-        ":wat::rete::collect-rules",
         // `:wat::rete::eval-insert`   (`src/rete/eval_insert.rs`)    @Purity Effectful  @Determinism Nondeterministic — falls through
         //                             to `eval_rhs_expr`, which runs `eval_inner` then `apply_function` on a caller-supplied `List`
         //                             this verb has no way to bound.
-        ":wat::rete::eval-insert",
         // `:wat::rete::eval-test`     (`src/rete/eval_test.rs`)      @Purity Effectful  @Determinism Nondeterministic — evaluates a
         //                             caller-supplied expression in a fresh child `Environment` via `eval_inner`; the compile-time
         //                             fence that bounds `where`/`:test` clauses does not apply when this verb is called directly.
-        ":wat::rete::eval-test",
         // `:wat::rete::export`        (`src/rete/export.rs`)         @Purity Effectful  @Determinism Deterministic — packs the
         //                             session via `rete_arm_get_or_build`, which on a MISS builds AND interns into the same
         //                             thread-local `ARM_TABLE` as `arm-session`.
-        ":wat::rete::export",
         // `:wat::rete::import`        (`src/rete/export.rs`)         @Purity Effectful  @Determinism Deterministic — interns the
         //                             reconstructed network into `ARM_TABLE` unconditionally; a session dropped without
         //                             `release-session` leaks until thread end.
-        ":wat::rete::import",
         // `:wat::rete::lower`         (`src/rete/expr_ir.rs`)        @Purity Pure       @Determinism Deterministic — a pure static
         //                             compile pass (`lower()`) that reads the symbol table and never calls `eval_inner`/
         //                             `apply_function`; the built `Program` is discarded, nothing outlives the call.
-        ":wat::rete::lower",
         // `:wat::rete::step-payload`  (`src/rete/step_payload.rs`)   @Purity Pure       @Determinism Deterministic — a read-only
         //                             structural walk over an already-compiled network, the same shape as the W5a axis predicates;
         //                             its two `OnceLock`s cache fixed, compile-time-constant tables, not per-call state.
-        ":wat::rete::step-payload",
         // `:wat::rete::axis-violation` (`src/rete/purity.rs`)        @Purity Pure       @Determinism Deterministic — the same
         //                             read-only `classify_expr` walk `is_pure_expr`/`is_deterministic_expr`/`is_total_expr` run,
         //                             never evaluating `expr`.
-        ":wat::rete::axis-violation",
     ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the
@@ -2707,4 +2563,3 @@ mod completeness_gate {
         );
     }
 }
-
