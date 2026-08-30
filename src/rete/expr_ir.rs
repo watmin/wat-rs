@@ -1186,11 +1186,26 @@ pub(crate) fn exec(
             )
             .into()),
         },
-        // ⛔ THIS ARM CARRIED A DEAD ACCUMULATOR. It read `let mut acc = true; … acc = acc && b`,
-        // which cannot ever be false: the `!b` case returns early, so `b` is `true` every time
-        // that line runs and the final `Ok(bool(acc))` was `Ok(bool(true))` unconditionally. It
-        // LOOKED like it was folding the operands and was not — the short-circuit above it had
-        // already done the work. Removed, leaving the two arms obvious mirrors of each other.
+        // THIS ARM CARRIED A DEAD ACCUMULATOR — ⚠ AND IT WAS NOT A DEFECT. Say that plainly,
+        // because "removed a dead accumulator" reads like a bug was fixed and none was.
+        //
+        // It was `let mut acc = true; … acc = acc && b`. The `!b` case returns early, so `b` is
+        // `true` every time that line runs and `Ok(bool(acc))` was `Ok(bool(true))`
+        // unconditionally — which is the CORRECT answer at that point, since no operand was
+        // false. Old and new agree on every input; it was driven both ways to check, and the two
+        // gates that redden for a genuinely broken `and` (`reachability_shard_2_of_6` and
+        // `spec_equals_native_on_every_where_family`) stayed green across the change.
+        //
+        // What it cost was comprehension: the code CLAIMED to fold the operands and did not, so a
+        // reader had to derive that `acc` cannot be false before trusting it. That is worth
+        // removing and is worth nothing more than that.
+        //
+        // ⛔ NO TEST WAS MISSING HERE, and the reason generalises: a dead-but-correct expression
+        // is invisible to every behavioural check by construction, and clippy cannot see it either
+        // (`acc` is written AND read; its constancy is semantic, not syntactic). The only tool that
+        // finds this class is MUTATION APPLIED TO THE IMPLEMENTATION — replace `acc` with `true`,
+        // and if nothing goes red, `acc` was dead. This codebase already runs that discipline on
+        // its gates; turning it inward on values is a known, unbuilt blind spot.
         //
         // Empty `xs` still yields `true` here and `false` in `Or`, which is the vacuous reading
         // and is what the old code did.
