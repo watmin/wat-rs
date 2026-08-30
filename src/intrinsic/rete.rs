@@ -337,9 +337,9 @@ fn eval_alpha_match_kind_impl(
     let field_names = class_field_names(sym, f.class_fqdn);
 
     let matched = if local {
-        alpha_match_inner_local(&cond_ast, f.class_fqdn, f.fields, &field_names)
+        alpha_match_inner_local(Some(sym), &cond_ast, f.class_fqdn, f.fields, &field_names)
     } else {
-        alpha_match_inner(&cond_ast, f.class_fqdn, f.fields, &field_names)
+        alpha_match_inner(Some(sym), &cond_ast, f.class_fqdn, f.fields, &field_names)
     };
     let result = matched.map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
     pack_alpha_match_option(result)
@@ -477,7 +477,7 @@ pub(crate) fn eval_rete_alpha_match_under_intrinsic(
 
     let field_names = class_field_names(sym, f.class_fqdn);
 
-    let result = alpha_match_inner_seeded(&cond_ast, f.class_fqdn, f.fields, &field_names, &seed)
+    let result = alpha_match_inner_seeded(Some(sym), &cond_ast, f.class_fqdn, f.fields, &field_names, &seed)
         .map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
     pack_alpha_match_option(result)
 }
