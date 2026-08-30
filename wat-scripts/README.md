@@ -1,159 +1,46 @@
-# `wat-scripts/` — interrogation scripts for telemetry `.db` files
+# `wat-scripts/` — live wat programs (fixes, demos, pipeline)
 
-> ⚠️ **The telemetry/ping-pong/pipeline scripts below are DISABLED** (renamed
-> `*.wat.disabled`, 2026-06-21). They were written ~arc 103 and never migrated;
-> they use retired type-position forms (`:i64`/`:()` → arc 109/153,
-> `:wat::core::define` → Stone 241.11, the `(stdin :IOReader)(stdout :IOWriter)`
-> main signature → ambient `:wat::kernel::*` I/O) and **fail at the type-check
-> phase** — every command in this file is therefore historical, not runnable as
-> written. Re-enable one by migrating it to current syntax and dropping the
-> `.disabled` suffix.
+> 2026-08-30 revival (wat-revival): the ten mothballed `*.wat.disabled`
+> programs from ~arc 103 were either re-enabled under the
+> `every_wat_scripts_file_loads` gate or deleted with a reason. Deleted
+> (API gone / capability-walled — not a syntax pass): `count-logs`,
+> `metrics-summary`, `seed-fixture` (telemetry sqlite stream/auto-spawn
+> removed), `ping-pong`, `ping-pong-fork`, `dispatch` (`spawn-program`
+> restricted to `:wat::spawn::`/`:wat::test::`; `fork-program-ast`
+> retired). Revived: the Unix-pipe trio `router` / `aggregator` / `sink`
+> plus `pong`.
 >
-> **For current syntax, read a LIVE file** — never one of the disabled ones:
-> the `fixes/*.wat` codemods (run every migration) and `intrinsic-metadata.wat`
-> are the up-to-date exemplars. `perf/deep-cascade.wat` is kept `.wat` on purpose
-> (broken, but in active rework).
-
-Pry/gdb-style ad-hoc scripts that operate on the sqlite-backed
-telemetry `.db` files arc 091's writer + arc 093's reader path
-ship. Each script is a standalone wat program with a
-`:user::main` that:
-
-1. Reads a `.db` path from stdin (one line via
-   `:wat::io::IOReader/read-line`).
-2. Opens the path with `:wat::sqlite::open-readonly`.
-3. Runs queries via `:wat::telemetry::sqlite/stream-{logs,metrics}`
-   + `:wat::stream::*` combinators.
-4. Prints results to stdout.
+> `demos/aggregates/showcase.wat.disabled` is not one of the ten; left
+> mothballed. `perf/deep-cascade.wat` is kept `.wat` on purpose (broken,
+> but in active rework). The `fixes/*.wat` codemods remain the
+> up-to-date exemplars for current syntax.
 
 The scripts run against the bundled batteries-included `wat`
-binary (`crates/wat-cli/`, arc 099) — no per-script build step
-needed. A consumer treats wat-rs like ruby for the duration of
-this session.
-
-## Running
-
-Direct shell-pipe:
-
-```bash
-echo /path/to/run.db | cargo wat ./wat-scripts/count-logs.wat
-```
-
-Or via the convenience wrapper at `scripts/query-db.sh` (handles
-abs-path resolution + auto-builds the binary on first invocation):
-
-```bash
-./scripts/query-db.sh /path/to/run.db ./wat-scripts/count-logs.wat
-```
+binary — no per-script build step needed. A consumer treats wat-rs
+like ruby for the duration of this session.
 
 ## Scripts
 
-### Telemetry interrogation (arc 093)
+### Deleted — telemetry interrogation (arc 093)
 
-| Script | Purpose |
-|---|---|
-| `seed-fixture.wat` | Write 5 sample Event::Log rows to the path on stdin (use this once to create a `.db` you can query with the other scripts). |
-| `count-logs.wat` | Count Event::Log rows; print `logs: N`. |
-| `metrics-summary.wat` | Count both Event::Log and Event::Metric rows in one script; print a one-line summary. Proves multiple streams can run sequentially off the same ReadHandle. |
+`seed-fixture.wat`, `count-logs.wat`, `metrics-summary.wat` — deleted
+2026-08-30. They called `:wat::telemetry::sqlite/stream-logs`,
+`Sqlite/auto-spawn`, and `null-metrics-cadence`, which no longer
+exist. `:wat::sqlite::open-readonly` remains, but there is no
+stream combinator over Event::Log rows. Reviving them needs a
+substrate API that was removed (STOP-2).
 
-### Bidirectional ping-pong (arc 103a in operational form)
+### Deleted — hologram spawn (arc 103a/103c)
 
-A wat program spawns a wat program. They exchange `:demo::Ping` /
-`:demo::Pong` messages over kernel pipes for N round trips; both
-shut down cleanly when the conversation ends. The mini-TCP
-discipline from `docs/ZERO-MUTEX.md` §"Mini-TCP via paired
-channels" — same shape, transported over `pipe(2)` instead of
-crossbeam channels.
+`ping-pong.wat`, `ping-pong-fork.wat`, `dispatch.wat` — deleted
+2026-08-30. `:wat::kernel::spawn-program` is restricted to
+`[:wat::spawn:: :wat::test::]` and its signature is now
+`(locus prog)`, not `(src None)`. `:wat::kernel::fork-program-ast`
+is retired (`BareLegacyForkProgram`). A `:user::`/`:demo::`
+application cannot spawn without a substrate change (STOP-2).
+`pong.wat` survived as a pipe stage (no spawn).
 
-| Script | Purpose |
-|---|---|
-| `ping-pong.wat` | Parent. Spawns `pong.wat` via `:wat::kernel::spawn-program` (thread). Sends Ping, reads Pong, repeats 5 times, closes child stdin, joins. |
-| `pong.wat` | Child responder for ping-pong.wat. Reads each Ping, mirrors the n in a Pong, recurses. EOF → exit. |
-| `ping-pong-fork.wat` | Same shape as ping-pong.wat but the child runs in a **real OS process** via `:wat::kernel::fork-program-ast` instead of a thread. Inline child forms (no separate file). De-risks the always-fork wat-cli rewrite by exercising fork-program-ast under bidirectional traffic. |
-
-```bash
-$ cargo wat ./wat-scripts/ping-pong.wat
-round 1: ping → pong
-round 2: ping → pong
-round 3: ping → pong
-round 4: ping → pong
-round 5: ping → pong
-done — 5 round trips
-
-$ cargo wat ./wat-scripts/ping-pong-fork.wat
-round 1: ping → pong (forked)
-round 2: ping → pong (forked)
-round 3: ping → pong (forked)
-round 4: ping → pong (forked)
-round 5: ping → pong (forked)
-done — 5 round trips (real OS fork)
-```
-
-Two shapes, two depths of containment:
-
-```
-ping-pong.wat (thread containment):
-  wat-cli (OS process A)
-    └─ ping-pong.wat (frozen world A, main thread)
-         └─ :wat::kernel::spawn-program ──std::thread──┐
-                                                        ↓
-                                               pong.wat (frozen world B,
-                                                        thread inside A)
-
-ping-pong-fork.wat (OS process containment):
-  wat-cli (OS process A)
-    └─ ping-pong-fork.wat (frozen world A, main thread of A)
-         └─ :wat::kernel::fork-program-ast ──fork(2)──┐
-                                                     ↓
-                                            OS process B (separate
-                                            address space, separate
-                                            fd table, separate _exit)
-                                              └─ inline pong loop
-                                                 (frozen world B)
-```
-
-Two wat programs, two frozen worlds, three OS pipes. Neither side
-can reach into the other's bindings; both share the binary's Rust
-shims; communication only crosses the pipe surface. Bidirectional
-back-pressure paces every round-trip.
-
-### EDN-stdin dispatcher (arc 103c)
-
-The hologram-nesting pattern from arc 103a, made operational. The
-dispatcher reads one `#demo/Job` EDN line from stdin, reads the
-named query-program's source via `:wat::io::read-file`, spawns it
-via `:wat::kernel::spawn-program` with the db-path piped in as the
-inner's stdin, forwards the inner's stdout to the dispatcher's own
-stdout. Two wat programs, two frozen worlds, three OS pipes
-between them.
-
-| Script | Purpose |
-|---|---|
-| `dispatch.wat` | Read `#demo/Job {:db-path :query-program}`, spawn the named program, mediate IO. |
-
-```bash
-$ echo /tmp/dispatch-demo.db | cargo wat ./wat-scripts/seed-fixture.wat
-seeded 5 logs to: /tmp/dispatch-demo.db
-
-$ echo '#demo/Job {:db-path "/tmp/dispatch-demo.db" :query-program "./wat-scripts/count-logs.wat"}' \
-    | cargo wat ./wat-scripts/dispatch.wat
-logs: 5
-
-$ echo '#demo/Job {:db-path "/tmp/dispatch-demo.db" :query-program "./wat-scripts/metrics-summary.wat"}' \
-    | cargo wat ./wat-scripts/dispatch.wat
-logs: 5  metrics: 0
-```
-
-The inner programs (`count-logs.wat`, `metrics-summary.wat`) run
-in their own frozen worlds — they cannot see the dispatcher's
-bindings or symbol table. They share the binary's Rust shims
-(`:wat::sqlite::*`, etc.) but otherwise communicate only through
-the three OS pipes the dispatcher allocated.
-
-See `docs/arc/2026/04/103-kernel-spawn/HOLOGRAM.md` for the
-framing — this is the hologram model in operational form.
-
-### Pipeline composition (arc 103a)
+### Pipeline composition (arc 103a) — live
 
 A four-stage Unix-pipe demo that proves the EDN+newline protocol
 composes across N independent wat processes. Each stage reads one
@@ -191,8 +78,10 @@ current shape (the old `(stdin :IOReader)…` signature above is RETIRED):
 1. Drop a new `.wat` file in this directory.
 2. Define a nullary main: `(:wat::core::defn :user::main [] -> :wat::core::nil …)`.
    It takes no I/O params — I/O is ambient.
-3. Read stdin (EDN-typed) with `(:wat::kernel::readln -> :T)`; read a file
-   with `(:wat::io::read-file path)`. Pattern-match `:Option<…>` for absent input.
+3. Read stdin with `(:wat::kernel::readln)` — no `-> :T` ascription (illegal
+   on readln'; the decoded type flows from the consumer). Match
+   `ReadlnOutcome::{Datum, Eof, Stopped}`. Read a file with
+   `(:wat::io::read-file path)`.
 4. Write with `(:wat::kernel::println v)` / `(:wat::kernel::eprintln v)` — both
    EDN-encode their argument. Open + stream + print; the substrate handles the rest.
 
@@ -204,14 +93,9 @@ extension, so any path under `:wat::telemetry::*` /
 ## Demo
 
 ```bash
-# 1) Seed a fixture .db.
-echo /tmp/demo.db | cargo wat ./wat-scripts/seed-fixture.wat
-#   → seeded 5 logs to: /tmp/demo.db
-
-# 2) Query it.
-./scripts/query-db.sh /tmp/demo.db ./wat-scripts/count-logs.wat
-#   → logs: 5
-
-./scripts/query-db.sh /tmp/demo.db ./wat-scripts/metrics-summary.wat
-#   → logs: 5  metrics: 0
+cat wat-scripts/events.edn \
+  | cargo wat ./wat-scripts/router.wat \
+  | cargo wat ./wat-scripts/aggregator.wat \
+  | cargo wat ./wat-scripts/sink.wat
+#   → #demo/Total {:total 6}
 ```
