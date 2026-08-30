@@ -32,7 +32,7 @@ total, no ceiling reaches wat as a raise, a lint keeps it so), the termination v
 
 **⛔ AND HERE IS THE MEASUREMENT THAT SAYS WE ARE NOT THERE.** Normalised, `src/rete` is behind its
 siblings — this is the gap the initiative has to close. **Re-derive it, do not quote it:**
-`scripts/doc-coverage.sh <dir>` (add `--list` for file:line). It is committed precisely because the
+`scripts/doc-coverage.sh <dir> --exclude /tests/` (add `--list` for file:line). It is committed precisely because the
 previous version of this table was measured by a script that no longer existed:
 
 | | `src/rete` | `src/process` | `src/channel` |
@@ -54,7 +54,9 @@ carries that incident in its header; it is anchored and mutation-proven, and it 
 
 **THE NEXT WORK, in the order I would take it:**
 1. ✅ **DONE — `src/rete` IS AT ZERO undocumented non-`#[test]` functions ≥15 lines** (was 111).
-   Re-derive with `scripts/doc-coverage.sh src/rete --exclude tests.rs`; do not quote this line.
+   Re-derive with `scripts/doc-coverage.sh src/rete --exclude /tests/`; do not quote this line.
+   ⛔ The flag takes a PATH FRAGMENT, not a basename — `--exclude tests.rs` was correct until the
+   split made it a directory, at which point it matched nothing and the figure moved silently.
    `pm_to_query_memory` is still the deepest function in rete at nesting 10 — and its doc now
    argues that the DEPTH IS THE DIAGNOSTICS (three nested levels, each with its own located
    `TypeMismatch`). If you reduce the nesting, preserve that.

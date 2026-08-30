@@ -21,12 +21,12 @@
 #   scripts/doc-coverage.sh src/rete                # summary + per-file undocumented counts
 #   scripts/doc-coverage.sh src/rete --min 15       # only functions >= 15 lines (default 15)
 #   scripts/doc-coverage.sh src/rete --list         # every undocumented function, file:line
-#   scripts/doc-coverage.sh src/rete --exclude tests.rs   # skip a basename (see NOTE below)
+#   scripts/doc-coverage.sh src/rete --exclude /tests/    # skip any PATH containing this
 #
 # NOTE on comparing directories. The summary also reports total lines and comment density, so
 # the whole "is this dir an exemplar" table is derivable from ONE committed instrument. When
 # comparing a dir against a sibling, say what you excluded: `src/rete` carries a 10k-line
-# `kernel/tests.rs` that its siblings have no equivalent of, so an unqualified line count
+# `kernel/tests/` module that its siblings have no equivalent of, so an unqualified line count
 # compares test bulk rather than code. An earlier recorded table used that exclusion silently,
 # and the number could not be reproduced until someone guessed it.
 set -euo pipefail
@@ -85,7 +85,11 @@ tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
 files="$(mktemp)"; trap 'rm -f "$tmp" "$files"' EXIT
 if [ -d "$root" ]; then
   if [ -n "$exclude" ]; then
-    find "$root" -name '*.rs' ! -name "$exclude" | sort > "$files"
+    # PATH-fragment match, deliberately not `find -name`. A basename filter silently stops
+    # matching the moment the target becomes a directory: `--exclude tests.rs` was written when
+    # `kernel/tests.rs` was one file, and when it became `kernel/tests/*.rs` (2026-08-30) the
+    # flag matched NOTHING and the reported figure moved with no error and no warning.
+    find "$root" -name '*.rs' | grep -v -- "$exclude" | sort > "$files"
   else
     find "$root" -name '*.rs' | sort > "$files"
   fi
