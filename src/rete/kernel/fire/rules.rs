@@ -230,7 +230,7 @@ pub(crate) fn fire_rules_stratified(
     }
 
     // Pack derived facts into production-memory {0: acc_derived} (mirrors fire-stratified's
-    // `fprod-m`, oracle/fire.wat) and reset facts = input (mirrors fire-rules$oracle's outer
+    // `fprod-m`, `wat/rete/oracle/fire.wat`) and reset facts = input (mirrors fire-rules$oracle's outer
     // wrap). network/rules/next-id preserved from the ORIGINAL input
     // session; alpha-memory/beta-memory reset to empty (mirrors fire-stratified's Session
     // constructor, wat/rete/oracle/fire.wat).

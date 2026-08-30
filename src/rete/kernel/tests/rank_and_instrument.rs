@@ -5,6 +5,54 @@
 
 use super::*;
 
+// Moved here from `tests/mod.rs` (2026-08-30): `intueri` found it was the one fixture in the
+// parent with exactly ONE consumer — this file — which broke the parent's own placement
+// rule ("a helper used by exactly one child lives in that child"). A rule advertised as
+// mechanical is falsified by a single exception.
+/// Group/Reading plus two accumulators and an exists, all keyed on the shared `?g`.
+const ACCUM_GATHER_WORLD: &str = "\
+(:wat::core::defrecord :agc::Group   [g <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::Reading [g <- :wat::core::i64  v <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::CountF  [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
+(:wat::core::defrecord :agc::ExistsF [g <- :wat::core::i64])\n\
+\n\
+(:wat::rete::defrule :agc::count-rule\n\
+  :when\n\
+  [(:agc::Group (?g <- :g))\n\
+   (?n <- (:wat::rete::acc::count) :from (:agc::Reading (?g <- :g)))]\n\
+  :then\n\
+  [(:agc::CountF ?g ?n)])\n\
+\n\
+(:wat::rete::defrule :agc::sum-rule\n\
+  :when\n\
+  [(:agc::Group (?g <- :g))\n\
+   (?n <- (:wat::rete::acc::sum ?v) :from (:agc::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then\n\
+  [(:agc::SumF ?g ?n)])\n\
+\n\
+(:wat::rete::defrule :agc::exists-rule\n\
+  :when\n\
+  [(:agc::Group (?g <- :g))\n\
+   (:wat::rete::exists (:agc::Reading (?g <- :g)))]\n\
+  :then\n\
+  [(:agc::ExistsF ?g)])\n\
+\n\
+(:wat::core::defn :agc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::core::match (:wat::rete::insert s (:agc::Reading :g g :v j)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
+    session\n\
+    (:wat::core::range 0 w)))\n\
+\n\
+(:wat::core::defn :agc::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:agc::seed-readings (:wat::core::match (:wat::rete::insert s (:agc::Group g)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) g w))\n\
+    session\n\
+    (:wat::core::range 0 gs)))\n\
+";
+
 /// Fire the gather world at `g` groups × `w` readings and return the gather-visit count.
 fn accum_gather_visits(g: i64, w: i64) -> u64 {
     let world = startup_from_source(ACCUM_GATHER_WORLD, None, Arc::new(InMemoryLoader::new()))
@@ -185,6 +233,19 @@ fn alpha_match_cost_per_binding() {
         "alpha recorded nothing — the instrument never fired"
     );
 
+    // ⛔ `probare` classed this test hollow — the guard above is liveness on two clocks.
+    // `bind_world_alpha_ns(ONE|TWO, n)` fires a world of n facts under 1 vs 2 bindings, and the
+    // per-fact delta is the whole finding, so the two arms must run the SAME workload.
+    assert_eq!(n, 40_000, "the per-binding delta is reported per fact over 40,000; got {n}");
+
+    // ⚠ NOT ASSERTED, DELIBERATELY: this test measures 2 binds as FASTER than 1 bind
+    // (delta -1.12 ms, -28 ns/fact, 2026-08-30). That sign is impossible for strictly more work,
+    // and it is the THIRD impossible-signed reading in this suite — `accum_alpha_*` reports
+    // isolated micro-benches running 6x slower than the full operation they decompose, giving
+    // `A-M` and `H-M` deltas of -87 and -98 ms. Encoding the anomaly as an assertion would
+    // FREEZE a broken instrument. It is recorded here instead, and belongs to an
+    // instrument-validity strike, not to this one.
+
     println!(
             "\nalpha cost per BINDING — {n} facts, mean of {RUNS}\n                 1 bind : alpha {:>7.2} ms\n                 2 binds: alpha {:>7.2} ms\n                 delta  : alpha {:>7.2} ms ({:>4.0} ns/fact)\n",
             a1 / 1e6,
@@ -267,6 +328,12 @@ fn cell_rank_after_fanout() {
     ];
 
     fn fire_and_top(rows: &[(&'static str, u64, u64)]) -> (f64, &'static str, f64) {
+        // ⛔ `probare` classed the callers of this helper hollow — they ranked cells by a number
+        // and asserted only that the number was positive. THIS is where the number is built, and
+        // it is a SUM OVER `TOP`. A missing top-level phase does not fail: it silently shrinks
+        // `fire`, and a smaller `fire` ranks the cell CHEAPER. So the lossy reading is the
+        // flattering one, exactly as in the other comparison benchmarks in this suite.
+        super::assert_phases_present(rows.iter().map(|r| r.0), &TOP, "");
         let fire: u64 = TOP
             .iter()
             .filter_map(|n| {
@@ -351,6 +418,12 @@ fn cell_rank_after_grid() {
     ];
 
     fn fire_and_top(rows: &[(&'static str, u64, u64)]) -> (f64, &'static str, f64) {
+        // ⛔ `probare` classed the callers of this helper hollow — they ranked cells by a number
+        // and asserted only that the number was positive. THIS is where the number is built, and
+        // it is a SUM OVER `TOP`. A missing top-level phase does not fail: it silently shrinks
+        // `fire`, and a smaller `fire` ranks the cell CHEAPER. So the lossy reading is the
+        // flattering one, exactly as in the other comparison benchmarks in this suite.
+        super::assert_phases_present(rows.iter().map(|r| r.0), &TOP, "");
         let fire: u64 = TOP
             .iter()
             .filter_map(|n| {
@@ -610,6 +683,29 @@ fn n3_leaf_set_vs_occupancy() {
     println!("{out}");
     assert!(
         !diffs.is_empty(),
-        "leaf occ census recorded 0 fires:{out}"
+        "no strata were compared — the leaf-set/occupancy comparison is vacuous:{out}"
     );
+
+    // ⛔ THE LINE ABOVE ONLY SAYS THE LOOP RAN. This test's entire subject is whether the
+    // leaf-set PREDICTION matches ACTUAL occupancy, and it printed that comparison without
+    // asserting it — `probare` classed it hollow. Measured 2026-08-30 over the fixed three-insert
+    // N3 world: every stratum has predicted == actual with no extras and no missing.
+    //
+    // This is an ENGINE claim, not a harness one. If the predictor and the occupancy it predicts
+    // ever diverge, that is the defect this test exists to detect, and it now fails instead of
+    // printing the divergence into a table nobody reads.
+    for (i, d) in diffs.iter().enumerate() {
+        assert_eq!(
+            d.predicted, d.actual,
+            "stratum {i}: leaf-set predicted {} occupants, actual {} — the predictor and the \
+             network disagree, which is precisely what this test measures:{out}",
+            d.predicted, d.actual
+        );
+        assert!(
+            d.extra.is_empty() && d.missing.is_empty(),
+            "stratum {i}: predicted set differs from actual — extra {:?}, missing {:?}:{out}",
+            d.extra, d.missing
+        );
+    }
+    assert_eq!(diffs.len(), 3, "the N3 world has three strata; found {}", diffs.len());
 }

@@ -827,7 +827,8 @@ pub(crate) fn build_rete_arm(
         );
     }
 
-    // ONE RECIPE — see `derive_indices`. Both arm builders derive the same ten indices;
+    // ONE RECIPE — see `derive_indices` (and its ⛔ note: a THIRD site, `import_export`,
+    // bypasses this recipe). The two ARM BUILDERS derive the same ten indices;
     // the only difference is WHICH NETWORK they are handed, and that is the difference
     // that must not be gettable wrong.
     let DerivedIndices {
@@ -897,10 +898,21 @@ pub(crate) fn build_rete_arm(
 /// under stratified fire, which is the same "wrong only in a configuration nothing
 /// exercises" shape as this arc's other silent defects.
 ///
-/// This makes that unrepresentable rather than merely discouraged: the function is handed
-/// a network and cannot reach a prior arm, so every field it produces is derived from the
-/// one source it was given. Adding a derived index means adding it HERE, once, and both
-/// callers get it from the right network by construction.
+/// The MECHANISM is sound: `derive_indices` is handed a network and has no `arm` parameter, so
+/// it cannot reach a prior arm and every field it produces is derived from the source it was
+/// given. A caller that uses it cannot make the stale-index mistake.
+///
+/// ⛔ **BUT ITS COVERAGE IS NOT TOTAL, AND AN EARLIER VERSION OF THIS DOC CLAIMED IT WAS.** It
+/// said the mistake is "unrepresentable" and that "both callers" get it right. There are THREE
+/// construction sites, not two, and the third does not use this recipe: `import_export`
+/// (`rete/export.rs`) hand-rolls all eight derivations inline and never calls `derive_indices`.
+/// `NetworkEdges` two hundred lines up has always named all three — "`build_rete_arm`,
+/// `subset_rete_arm`, and Export import share this walk" — so the file contradicted itself.
+///
+/// **So: adding a derived index here reaches two of three sites, and leaves import stale.** Add
+/// it to `import_export` too, or route that site through this function. `intueri` found this
+/// 2026-08-30; the mechanism was verified sound the same day by `probare`, which is why the two
+/// halves are stated separately above.
 pub(crate) struct DerivedIndices {
     pub(crate) kind_ids: KindIdLists,
     pub(crate) where_tree: crate::rete::where_tree::WhereTree,
@@ -1076,7 +1088,8 @@ pub(crate) fn subset_rete_arm(
         .collect();
     let alpha_tree = arm.alpha_tree.restrict(active_ids);
 
-    // ONE RECIPE — see `derive_indices`. Both arm builders derive the same ten indices;
+    // ONE RECIPE — see `derive_indices` (and its ⛔ note: a THIRD site, `import_export`,
+    // bypasses this recipe). The two ARM BUILDERS derive the same ten indices;
     // the only difference is WHICH NETWORK they are handed, and that is the difference
     // that must not be gettable wrong.
     let DerivedIndices {

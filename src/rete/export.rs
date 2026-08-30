@@ -9,19 +9,35 @@
 //! `pack_*`/`unpack_*` pairs plus the walls that guard the seam. Read these three laws and
 //! every function's signature tells you the rest.
 //!
-//! **1. `pack` is total; `unpack` is partial — and the return type says so, without exception.**
-//! Every `pack_*` returns a bare `Value`: it consumes a structure this process already built and
+//! **1. `pack` is total; `unpack` is partial — and the return type says so.** Every `pack_*` that
+//! packs a tagged FORM returns a bare `Value` (`pack_children` is the one exception: it emits a
+//! flat tail of child ids as an iterator, not a form): it consumes a structure this process already built and
 //! type-checked, so there is nothing left to refuse. Every `unpack_*` returns
 //! `Result<_, EvalBreak>`: it consumes bytes some *other* process wrote, and every one of them
 //! can be a lie. The asymmetry holds across all ten pairs (`cmp`, `pat`, `expr`, `prog`,
-//! `cond_op`, `compiled_cond`, `driver`, `fold`, `rhs_op`, `rhs`) and is the fastest way to see
-//! which side of the trust boundary a function is standing on.
+//! `cond_op`, `compiled_cond`, `driver`, `fold`, `rhs_op`, `rhs`) — and across the two the list
+//! above omits, `node` and `deps`, which are pairs too. Twelve in all. The asymmetry is the
+//! fastest way to see which side of the trust boundary a function is standing on.
 //!
-//! Round-trip is therefore SEMANTIC, not literal, and exactly one field makes that distinction
-//! real: `RhsOp::Bind`'s `Debug`-rendered `WatAST` is dropped by `pack_rhs_op` and reconstructed
-//! from the key on the way back. It names a source form for a fire-time error message, and the
-//! source it names does not exist on the importing disk. Spans are restamped at the import site
-//! for the same reason. Nothing else is lossy — see `pack_rhs_op`.
+//! ⛔ **Round-trip is SEMANTIC, not literal, and FOUR things are dropped — not one.** An earlier
+//! version of this header said "exactly one field … nothing else is lossy". `intueri` falsified
+//! it the same day. What actually does not survive:
+//!
+//! - `RhsOp::Bind`'s `Debug`-rendered `WatAST` (`pack_rhs_op`) — reconstructed from the key.
+//! - The alpha's condition AST — `unpack_node` writes `empty_pv()` into the `tests` slot.
+//! - `TestNode`'s `expr` — `unpack_node` writes `dummy_ast(span)`.
+//! - `AccumulateNode`'s `acc-form` — likewise `dummy_ast(span)`.
+//!
+//! ⛔ **AND THE LAST THREE ARE LOAD-BEARING, WHICH IS WHY THIS MATTERS.** They are exactly the
+//! fields `arm.rs` reads to build an arm FROM A NETWORK: `alpha_cond_from_node`,
+//! `node_named_ast("expr")`, `node_named_ast("acc-form")`. An imported session runs only because
+//! `import_export` interns a PREBUILT arm (`rete_arm_intern`, at the end of this file). Put an
+//! imported network through `build_rete_arm` instead and `build_alpha_index` finds no readable
+//! pattern, skips every alpha, and yields an arm with an EMPTY alpha index — no refusal, no
+//! diagnostic, just a network that matches nothing.
+//!
+//! So: **an imported network may be FIRED, but it may not be RE-ARMED from its own nodes.** If
+//! you ever need that, these three fields have to travel.
 //!
 //! **2. The wire shape is a tagged vector — `[:tag operand …]` — and an unknown tag is a
 //! refusal, never a default.** The leading keyword is the discriminant, and every reader refuses
@@ -1384,7 +1400,8 @@ fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
 
 /// `RhsOp` → `[:rbind key]` · `[:rlit v]` · `[:rexpr prog]`.
 ///
-/// ⚠ **This is the one place the codec is deliberately lossy**, and it is not a defect: the
+/// ⚠ **One of four places the codec is deliberately lossy** (module header lists them), and this
+/// one is not a defect: the
 /// second field of `RhsOp::Bind` is a `Debug` rendering of the original `WatAST`, kept only to
 /// name the form in a fire-time unbound-variable error. It is SOURCE, not residual — the
 /// imported program does not need it to run, and the source it renders does not exist on the
@@ -1455,8 +1472,10 @@ fn pack_rhs(r: &CompiledRhs) -> Value {
 }
 
 /// Inverse of `pack_rhs`. The `:rec` arm reads its ops from index 3 to the end — the flat-tail
-/// shape `pack_rhs` chose — so a truncated vector yields a record with fewer ops rather than a
-/// read past the end; the arity that matters (class, names) is checked through `expect_at`.
+/// shape `pack_rhs` chose — so a short read cannot run past the end of the vector. A truncated
+/// tail is then REFUSED, not accepted: the names/ops length check below raises
+/// `rhs names length {} != ops length {}`. (An earlier version of this doc said a truncated
+/// vector "yields a record with fewer ops"; it does not, and the check is fifteen lines down.)
 fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)? {

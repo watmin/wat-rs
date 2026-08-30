@@ -904,7 +904,8 @@ fn is_declaration_derived_construction(items: &[WatAST], sym: &SymbolTable) -> b
 /// identically for the two sites, so each needed its OWN wall:
 ///
 /// **Aggregate site** — closed by TWO new/widened freeze-time walls, both in
-/// `src/rete/validate.rs`, plus one runtime wiring fix (`src/runtime.rs`):
+/// `src/rete/validate/` (then one file; split three ways 2026-08-30), plus one runtime wiring
+/// fix (`src/runtime.rs`):
 ///   1. (#1, the one WIRED rather than rejected) A nested surface aggregate constructor (an
 ///      operand's VALUE, not the `:then` item's own head — e.g. `:then [(:usr::Outer :inner
 ///      (:usr::Inner :x 1))]`) used to compile clean and die at FIRE time with

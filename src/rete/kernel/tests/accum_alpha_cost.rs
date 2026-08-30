@@ -130,9 +130,17 @@ fn accum_alpha_leftover_split() {
         _ => panic!("seeded session facts are a PersistentVector"),
     };
     let facts: Vec<Value> = input_pv.iter().cloned().collect();
-    assert!(
-        !facts.is_empty(),
-        "compile+seed produced 0 facts — isolated loops would be vacuous"
+    // ⛔ WAS ONLY `!facts.is_empty()` — a liveness guard. `probare` classed the tests using it
+    // hollow: fixed workload, timed arms, printed table, and nothing asserting WHAT was measured.
+    // `[200 200]` yields exactly 40,200 facts (200 Groups + 40,000 Readings). Pin it: a drift
+    // makes every millisecond below a figure for a different workload, and the split this test is
+    // named for is then not the split it reports.
+    assert_eq!(
+        facts.len(),
+        40_200,
+        "workload drifted to {} facts, not the 40,200 the [200 200] accum axis produces — every \
+         timing below is measuring something other than this test's subject",
+        facts.len()
     );
 
     let reset = |wm: &mut super::FireSession, d_alpha: &mut AlphaDelta| {
@@ -364,6 +372,14 @@ fn accum_alpha_seed_after_fold_split() {
         "compile+seed produced 0 facts — isolated loops would be vacuous"
     );
     let n_facts = input_pv.len();
+    // ⛔ `probare` classed this test hollow — the guard above is liveness and `n_facts` was
+    // computed, printed, and never checked. Same fixed `[200 200]` axis as its siblings in this
+    // file: 40,200 facts (200 Groups + 40,000 Readings). A drift makes every seed/fold timing
+    // below a figure for a different workload.
+    assert_eq!(
+        n_facts, 40_200,
+        "workload drifted to {n_facts} facts, not the 40,200 the [200 200] accum axis produces"
+    );
 
     let reset = |wm: &mut super::FireSession, d_alpha: &mut AlphaDelta| {
         wm.alpha.clear();
@@ -636,9 +652,17 @@ fn accum_alpha_tree_walk_split() {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => panic!("seeded session facts are a PersistentVector"),
     };
-    assert!(
-        !facts.is_empty(),
-        "compile+seed produced 0 facts — isolated loops would be vacuous"
+    // ⛔ WAS ONLY `!facts.is_empty()` — a liveness guard. `probare` classed the tests using it
+    // hollow: fixed workload, timed arms, printed table, and nothing asserting WHAT was measured.
+    // `[200 200]` yields exactly 40,200 facts (200 Groups + 40,000 Readings). Pin it: a drift
+    // makes every millisecond below a figure for a different workload, and the split this test is
+    // named for is then not the split it reports.
+    assert_eq!(
+        facts.len(),
+        40_200,
+        "workload drifted to {} facts, not the 40,200 the [200 200] accum axis produces — every \
+         timing below is measuring something other than this test's subject",
+        facts.len()
     );
 
     let mut e = 0.0;
@@ -772,6 +796,21 @@ fn accum_alpha_class_lookup_split() {
     }
     let n_types = unique.len();
 
+    // ⛔ THE LIVENESS CHECK ABOVE IS NOT THE CLAIM. `probare` classed this test hollow: it built a
+    // 40,200-fact workload, timed three map implementations, printed a table, and asserted only
+    // that the clock moved. Everything below is fixed by the workload and was already computed.
+    assert_eq!(
+        n_types, 2,
+        "the accum axis declares exactly two fact types; a change here means the fixture drifted \
+         and the class-lookup cost this test reports is for a different shape of network"
+    );
+    assert_eq!(
+        unique,
+        vec!["apx::Group".to_string(), "apx::Reading".to_string()],
+        "the two types are the axis's own, in first-seen order — if these are not them, the \
+         lookup being measured is not the one the accum axis performs"
+    );
+
     let mut std_map: HashMap<String, u8> = HashMap::with_capacity(n_types);
     let mut fx_map: FxHashMap<String, u8> = FxHashMap::default();
     fx_map.reserve(n_types);
@@ -861,9 +900,17 @@ fn accum_alpha_push_split() {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => panic!("seeded session facts are a PersistentVector"),
     };
-    assert!(
-        !facts.is_empty(),
-        "compile+seed produced 0 facts — isolated loops would be vacuous"
+    // ⛔ WAS ONLY `!facts.is_empty()` — a liveness guard. `probare` classed the tests using it
+    // hollow: fixed workload, timed arms, printed table, and nothing asserting WHAT was measured.
+    // `[200 200]` yields exactly 40,200 facts (200 Groups + 40,000 Readings). Pin it: a drift
+    // makes every millisecond below a figure for a different workload, and the split this test is
+    // named for is then not the split it reports.
+    assert_eq!(
+        facts.len(),
+        40_200,
+        "workload drifted to {} facts, not the 40,200 the [200 200] accum axis produces — every \
+         timing below is measuring something other than this test's subject",
+        facts.len()
     );
 
     let reset = |wm: &mut super::FireSession, d_alpha: &mut AlphaDelta| {

@@ -66,49 +66,6 @@ fn eval_in(world: &crate::freeze::FrozenWorld, src: &str) -> Value {
 // Two AccumulateNodes and one ExistsNode over `Reading`, joined to `Group` on `?g` — the
 // `accum` grid axis's shape, reduced to the two node kinds whose gather is under test.
 
-/// Group/Reading plus two accumulators and an exists, all keyed on the shared `?g`.
-const ACCUM_GATHER_WORLD: &str = "\
-(:wat::core::defrecord :agc::Group   [g <- :wat::core::i64])\n\
-(:wat::core::defrecord :agc::Reading [g <- :wat::core::i64  v <- :wat::core::i64])\n\
-(:wat::core::defrecord :agc::CountF  [g <- :wat::core::i64  n <- :wat::core::i64])\n\
-(:wat::core::defrecord :agc::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
-(:wat::core::defrecord :agc::ExistsF [g <- :wat::core::i64])\n\
-\n\
-(:wat::rete::defrule :agc::count-rule\n\
-  :when\n\
-  [(:agc::Group (?g <- :g))\n\
-   (?n <- (:wat::rete::acc::count) :from (:agc::Reading (?g <- :g)))]\n\
-  :then\n\
-  [(:agc::CountF ?g ?n)])\n\
-\n\
-(:wat::rete::defrule :agc::sum-rule\n\
-  :when\n\
-  [(:agc::Group (?g <- :g))\n\
-   (?n <- (:wat::rete::acc::sum ?v) :from (:agc::Reading (?g <- :g) (?v <- :v)))]\n\
-  :then\n\
-  [(:agc::SumF ?g ?n)])\n\
-\n\
-(:wat::rete::defrule :agc::exists-rule\n\
-  :when\n\
-  [(:agc::Group (?g <- :g))\n\
-   (:wat::rete::exists (:agc::Reading (?g <- :g)))]\n\
-  :then\n\
-  [(:agc::ExistsF ?g)])\n\
-\n\
-(:wat::core::defn :agc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
-  (:wat::core::foldl\n\
-    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::core::match (:wat::rete::insert s (:agc::Reading :g g :v j)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
-    session\n\
-    (:wat::core::range 0 w)))\n\
-\n\
-(:wat::core::defn :agc::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
-  (:wat::core::foldl\n\
-    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:agc::seed-readings (:wat::core::match (:wat::rete::insert s (:agc::Group g)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) g w))\n\
-    session\n\
-    (:wat::core::range 0 gs)))\n\
-";
 
 // ── Where does the accum fire actually spend its time? ────────────────────────────────────
 //
@@ -265,6 +222,37 @@ mod arm_lease;
 mod alpha_discrimination;
 mod binding_repr_bench;
 
+/// Assert a phase census contains every phase the workload must exercise.
+///
+/// ⛔ ONE DEFINITION, MANY CALLERS — deliberately. Five census tests make this same claim, and
+/// `probare` found 26 tests in this suite whose only assertion was a liveness guard that had
+/// been COPY-PASTED between them (`"compile+seed produced 0 facts"` appeared verbatim six
+/// times). A guard duplicated is a guard whose blindness is duplicated, which is the same defect
+/// `complectens` found in the instrument itself — 37 hand-rolled `ms` closures. Fixing hollow
+/// assertions by writing a new one per test would rebuild the thing being fixed.
+///
+/// The claim is ENGINE-facing: a phase's absence means marks were lost or the fixture changed
+/// shape. It does not mean the phase became free — a phase that costs nothing still emits a row.
+pub(super) fn assert_phases_present<'a>(
+    have: impl IntoIterator<Item = &'a str>,
+    want: &[&str],
+    ctx: &str,
+) {
+    let have: Vec<&str> = have.into_iter().collect();
+    assert!(
+        !have.is_empty(),
+        "the census recorded no phases at all — nothing below describes a fire{ctx}"
+    );
+    for w in want {
+        assert!(
+            have.iter().any(|h| h == w),
+            "phase `{w}` is absent from the census. A fire of this shape MUST exercise it, so its \
+             absence means marks were lost or the fixture changed shape — not that the phase \
+             became free. present: {have:?}{ctx}"
+        );
+    }
+}
+
 // ── Timing primitives — ONE name per contract ─────────────────────────────────
 //
 // These replace 22 nested copies of a single name, `time_ns`, that carried TWO contracts: a
@@ -274,7 +262,9 @@ mod binding_repr_bench;
 // test against a figure from another had nothing to warn them.
 //
 // ⛔ The cure is not this comment. It is that NEITHER NAME CAN BE READ AS THE OTHER, and that
-// there is now one definition of each instead of twenty-two.
+// there is now one definition of each instead of twenty-two — WITHIN `kernel::tests`. Two 2-ary
+// `time_ns` definitions with the same ambiguous name and the same elapsed/n contract still live
+// at `src/rete/compiled_rhs.rs:540` and `:720`; the sweep did not reach them.
 
 /// Nanoseconds PER ITERATION — runs `body` `n` times and divides by `n`.
 pub(super) fn ns_per_iter(n: usize, mut body: impl FnMut()) -> f64 {
@@ -305,9 +295,17 @@ pub(super) fn ms(ns: f64) -> f64 {
 // are the helpers used by MORE THAN ONE cost module — the same placement rule as everything
 // else in this file, applied one level down.
 //
-// ⛔ `calibrate_mark_ns` LIVED 9,089 LINES BELOW ITS FIRST CALLER and was `complectens`' top
-// finding. Here that cannot recur: a parent module is above every child by construction, so the
-// forward reference is not fixed, it is UNREPRESENTABLE.
+// ⛔ `calibrate_mark_ns` LIVED 9,089 LINES BELOW ITS FIRST CALLER — `complectens`' top finding.
+//
+// The first repair moved it here and claimed the class was "UNREPRESENTABLE" because a parent
+// module is above every child. `intueri` falsified that the same day: the argument is about
+// CROSS-file ordering, and the original defect was INTRA-file — the function sat 193 lines below
+// `render_phase_table`, still forward, in this very file. A claim of impossibility that leaves
+// its own instance standing is worse than no claim.
+//
+// It is now defined immediately above its first caller, which is a real fix and a smaller one.
+// Nothing structural prevents the next helper from landing below its callers; if you add one,
+// put it above them.
 
 // ── Arc 278 A8 — the node-share fire-path census ─────────────────────────────
 //
@@ -396,6 +394,35 @@ fn accum_phase_census(g: i64, w: i64) -> Vec<(&'static str, u64, u64)> {
     ));
     rows
 }
+/// Cost of one `phase_start`/`phase_end` pair, in ns — the constant every
+/// census harness subtracts.
+///
+/// TAKE THE MINIMUM OF SEVERAL BATCHES, not one. A single 200k batch reads
+/// anywhere from ~105 to ~155 ns depending on what else the box is doing, and a
+/// row with 40 000 pairs multiplies that spread into a **±2 ms swing** — enough
+/// that `prod:compiled-rhs` was seen at 2.541 and 4.826 ms for identical code.
+/// The minimum is the right estimator for a tight loop: the true cost cannot be
+/// lower, and everything above it is interference.
+fn calibrate_mark_ns() -> f64 {
+    const BATCHES: usize = 5;
+    const PER_BATCH: u64 = 200_000;
+    let mut best = f64::INFINITY;
+    for _ in 0..BATCHES {
+        let t0 = std::time::Instant::now();
+        super::with_phase_census(|| {
+            for _ in 0..PER_BATCH {
+                let m = super::phase_start();
+                super::phase_end("cal", m);
+            }
+        });
+        let ns = t0.elapsed().as_nanos() as f64 / PER_BATCH as f64;
+        if ns < best {
+            best = ns;
+        }
+    }
+    best
+}
+
 /// Render an instrument-subtracted phase table for ANY axis.
 ///
 /// Extracted 2026-08-01 when node-share needed the same table accum already had. Copying it
@@ -597,34 +624,6 @@ fn fanout_phase_census(keys: i64, fanout: i64) -> Vec<(&'static str, u64, u64)> 
             .value_owned()
     });
     rows
-}
-/// Cost of one `phase_start`/`phase_end` pair, in ns — the constant every
-/// census harness subtracts.
-///
-/// TAKE THE MINIMUM OF SEVERAL BATCHES, not one. A single 200k batch reads
-/// anywhere from ~105 to ~155 ns depending on what else the box is doing, and a
-/// row with 40 000 pairs multiplies that spread into a **±2 ms swing** — enough
-/// that `prod:compiled-rhs` was seen at 2.541 and 4.826 ms for identical code.
-/// The minimum is the right estimator for a tight loop: the true cost cannot be
-/// lower, and everything above it is interference.
-fn calibrate_mark_ns() -> f64 {
-    const BATCHES: usize = 5;
-    const PER_BATCH: u64 = 200_000;
-    let mut best = f64::INFINITY;
-    for _ in 0..BATCHES {
-        let t0 = std::time::Instant::now();
-        super::with_phase_census(|| {
-            for _ in 0..PER_BATCH {
-                let m = super::phase_start();
-                super::phase_end("cal", m);
-            }
-        });
-        let ns = t0.elapsed().as_nanos() as f64 / PER_BATCH as f64;
-        if ns < best {
-            best = ns;
-        }
-    }
-    best
 }
 
 mod accum_alpha_cost;
