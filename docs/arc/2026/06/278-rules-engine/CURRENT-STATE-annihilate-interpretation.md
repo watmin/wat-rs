@@ -5,18 +5,27 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-30 (third) — supersedes every earlier stamp and every dated block below
-it. Written against HEAD `259c590f5`; the commit carrying this stamp lands on top, so a
-ONE-COMMIT gap at your wake is expected. Run `git diff --stat 259c590f5..HEAD` and check it
-against this rule: that commit is a `curare:` commit — `docs/` plus, at most, COMMENT-ONLY edits
-to files it describes. MORE than one commit, or any substantive `src/` change in the gap, IS
-staleness.**
+**CURRENT STAMP 2026-08-30 (fourth). Supersedes every earlier stamp and every dated block below.**
 
-> Why the rule is worded that way: the previous stamp promised "`docs/` ONLY" and its own commit
-> then touched `src/rete/kernel/tests/mod.rs` — a comment, but the probe could not tell, so it
-> would have fired a false alarm. A probe that false-alarms teaches its reader to ignore it,
-> which is worse than no probe. It cannot name its own hash (that hash does not exist until the
-> commit does), so it names the PARENT and describes what the one commit is allowed to contain.
+**THE FRESHNESS PROBE — run it, it is two commands:**
+
+```
+git log --oneline f98226353..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat f98226353..HEAD        # what they touched
+```
+
+**PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
+comment-only edits. **STALE:** anything else in the range — a `rete:`/`fix:`/`feat:` commit, or a
+substantive `src/` diff. Then trust the log and the source over every line below, and re-read
+before you move.
+
+> ⚠ This is the probe's THIRD wording today and the first two were both wrong, which is the
+> lesson worth more than the probe: version 1 promised the gap would be `docs/` ONLY and its own
+> commit touched a `src/` comment; version 2 tried to name its own commit hash, which cannot
+> exist until the commit does; version 3 said "expect ONE commit" and was invalidated by the next
+> curare commit. **A probe pinned to a COUNT rots on every subsequent write.** This one pins to a
+> KIND — "everything since the last substantive commit is curare" — which stays true no matter
+> how many wrap-up commits land on top, and still screams the moment real work lands unread.
 
 **⛔⛔ START HERE. THE INITIATIVE IS: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures
 against.** Correctness is done; the exemplar work is not.
