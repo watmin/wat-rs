@@ -1050,6 +1050,55 @@ fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> 
     })
 }
 
+/// One operand of `and`/`or`, required to be a `bool`.
+///
+/// Both arms need the identical refusal and differ only in the op they name, so it lives here
+/// rather than twice: the two were near-verbatim copies, and a copy is where a fix lands on one
+/// side only.
+fn expect_bool(v: Value, op: &'static str, span: &Span) -> Result<bool, EvalBreak> {
+    match v {
+        Value::bool(b) => Ok(b),
+        other => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::core::bool",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )
+        .into()),
+    }
+}
+
+/// Evaluate a lowered [`Expr`] against a frame — the interpreter every rete expression runs
+/// through, in both positions (an inline constraint and a `where` fence) and on both engines.
+///
+/// ── THE FRAME CONTRACT ───────────────────────────────────────────────────────────────────────
+///
+/// `frame` is slot-indexed and `names` is its parallel debug spelling: `frame[i]` is the value
+/// bound to slot `i`, `names[i]` the source name it came from. **`names` is never read on a
+/// successful path** — it exists so an unbound slot can say *which* symbol was unbound instead of
+/// `slot 7`. Keeping them separate is what lets the hot path carry `Option<Value>` and nothing else.
+///
+/// `span` is the WHOLE form's span, reused for every diagnostic raised in here: a lowered `Expr`
+/// carries no span of its own (the same trade `exec_dim` makes in `where_tree.rs`). A reader
+/// chasing an error to a character offset will land on the form, not the sub-expression.
+///
+/// ── WHAT DIVERTS BEFORE THE ARGUMENTS ARE EVALUATED ──────────────────────────────────────────
+///
+/// ⚠ `Expr::Call` matches four op names — `foldl`, `reduce`, `mapv`, `filterv` — and returns
+/// early, BEFORE the loop that evaluates arguments into values. That is not an optimisation: those
+/// four take a FUNCTION operand and apply it per element, so there is no single value to evaluate
+/// it into. Every other op is strict, and the eager loop below is correct for exactly that reason.
+/// Adding a fifth higher-order op means adding it to that match; missing it means its function
+/// operand gets evaluated as a value and the failure will not look like a missing arm.
+///
+/// ── WHAT IT RAISES ───────────────────────────────────────────────────────────────────────────
+///
+/// Program errors only — an unbound slot, an unknown field, a non-bool where a bool was required,
+/// whatever a primitive refuses. It is NOT a door where a session ceiling can surface: those are
+/// bounds the caller can act on and they became matchable values at the verbs (arc 278, the
+/// outcome wall). Nothing here should learn to raise one.
 pub(crate) fn exec(
     e: &Expr,
     frame: &mut [Option<Value>],
@@ -1137,47 +1186,26 @@ pub(crate) fn exec(
             )
             .into()),
         },
+        // ⛔ THIS ARM CARRIED A DEAD ACCUMULATOR. It read `let mut acc = true; … acc = acc && b`,
+        // which cannot ever be false: the `!b` case returns early, so `b` is `true` every time
+        // that line runs and the final `Ok(bool(acc))` was `Ok(bool(true))` unconditionally. It
+        // LOOKED like it was folding the operands and was not — the short-circuit above it had
+        // already done the work. Removed, leaving the two arms obvious mirrors of each other.
+        //
+        // Empty `xs` still yields `true` here and `false` in `Or`, which is the vacuous reading
+        // and is what the old code did.
         Expr::And(xs) => {
-            let mut acc = true;
             for x in xs.iter() {
-                match exec(x, frame, names, sym, span)? {
-                    Value::bool(b) => {
-                        if !b {
-                            return Ok(Value::bool(false));
-                        }
-                        acc = acc && b;
-                    }
-                    other => {
-                        return Err(RuntimeError::new(
-                            span.clone(),
-                            RuntimeErrorKind::TypeMismatch {
-                                op: ":wat::rete::core::and".into(),
-                                expected: ":wat::core::bool",
-                                got: Box::new(ValueSnapshot::of(&other)),
-                            },
-                        )
-                        .into());
-                    }
+                if !expect_bool(exec(x, frame, names, sym, span)?, ":wat::rete::core::and", span)? {
+                    return Ok(Value::bool(false));
                 }
             }
-            Ok(Value::bool(acc))
+            Ok(Value::bool(true))
         }
         Expr::Or(xs) => {
             for x in xs.iter() {
-                match exec(x, frame, names, sym, span)? {
-                    Value::bool(true) => return Ok(Value::bool(true)),
-                    Value::bool(false) => {}
-                    other => {
-                        return Err(RuntimeError::new(
-                            span.clone(),
-                            RuntimeErrorKind::TypeMismatch {
-                                op: ":wat::rete::core::or".into(),
-                                expected: ":wat::core::bool",
-                                got: Box::new(ValueSnapshot::of(&other)),
-                            },
-                        )
-                        .into());
-                    }
+                if expect_bool(exec(x, frame, names, sym, span)?, ":wat::rete::core::or", span)? {
+                    return Ok(Value::bool(true));
                 }
             }
             Ok(Value::bool(false))
