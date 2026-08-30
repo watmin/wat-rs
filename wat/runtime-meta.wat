@@ -223,3 +223,44 @@
 ;; than admitted. Shrinks to zero as the census runs; a migration state, and the
 ;; only variant expected to disappear.
   :Unreviewed)
+
+;; ExpandTime — may this verb be CALLED from inside a `defmacro` body while that
+;; macro is being expanded?
+;;
+;; ⛔ INDEPENDENT OF THE OTHER THREE AXES, and arc 255 Stone expand-1's audit of all
+;; 202 entries in `macros/eval.rs`'s allow-list produced a witness for each:
+;;
+;;   `:wat::i64::/`             is @Total PARTIAL          and legal — a zero divisor
+;;                              at expand time is a COMPILE-time failure, strictly
+;;                              better than a runtime one.
+;;   `:wat::core::fresh-symbol` is @Determinism NONDETERMINISTIC and legal — minting a
+;;                              different gensym per call is what makes hygienic
+;;                              expansion possible.
+;;   `:wat::hashmap::keys`      is NONDETERMINISTIC and legal — a pure projection of
+;;                              pure data whose ORDER alone is unspecified.
+;;   every @Purity Effectful verb is NOT legal — zero exceptions across 202 entries.
+;;
+;; So no combination of purity, determinism and totality predicts membership. The
+;; LOCKED RECORD MODEL's Layer-1 baseline reserved `expand_time_legal` on 2026-06-21
+;; and it was never built; a hand-curated allow-list carried it instead, and grew a
+;; measured 174-verb gap that nothing could see — a false refusal only surfaces when
+;; some macro body happens to call the verb.
+(:wat::core::defenum :wat::runtime::ExpandTime :wat::enum::Pure
+;; May be called inside a `defmacro` body during expansion. Says nothing about
+;; purity, determinism or totality — a partial or nondeterministic verb can be
+;; perfectly legal here, and three of them are.
+  :Legal
+;; Needs state that does not exist yet at expand time — IO, spawning, entropy, a
+;; clock, a signal, or the evaluation of arbitrary submitted forms. Named for what
+;; the verb IS rather than for being refused, the same way `Effectful` and `Partial`
+;; name their poles.
+  :RuntimeOnly
+;; A form whose expand-time legality is its SUB-FORMS' rather than its own: `if` is
+;; legal at expand time exactly when its branches are. Mirrors `Purity`,
+;; `Determinism` and `Totality`, which all carry this variant.
+  :Preserving
+;; NOBODY HAS MEASURED THIS VERB YET. Not a pole, not a guess. DEFAULT-DENY: it does
+;; NOT satisfy the expand-time gate, so an unreviewed verb is refused rather than
+;; admitted into a macro body. Shrinks to zero as the census runs; the only variant
+;; expected to disappear.
+  :Unreviewed)

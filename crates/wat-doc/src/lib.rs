@@ -1635,3 +1635,34 @@ mod probe_totality_axis {
         assert!(matches!(partial, Totality::Partial));
     }
 }
+
+::wat_source_derive::wat_enum_from!(
+    pub enum ExpandTime,
+    "../../wat/runtime-meta.wat",
+    ":wat::runtime::ExpandTime"
+);
+
+#[cfg(test)]
+mod probe_expand_time_axis {
+    use super::ExpandTime;
+    /// FM 2-bis probe — the axis carries all FOUR variants by name and the match is
+    /// exhaustive (a variant added in the `.wat` without an arm here is `E0004`).
+    #[test]
+    fn expand_time_has_four_named_variants() {
+        for v in [ExpandTime::Legal, ExpandTime::RuntimeOnly, ExpandTime::Preserving, ExpandTime::Unreviewed] {
+            let name = match v {
+                ExpandTime::Legal => "Legal",
+                ExpandTime::RuntimeOnly => "RuntimeOnly",
+                ExpandTime::Preserving => "Preserving",
+                ExpandTime::Unreviewed => "Unreviewed",
+            };
+            assert!(!name.is_empty());
+        }
+    }
+    /// `RuntimeOnly` is the pole the allow-list's default-deny produces, and
+    /// `Unreviewed` is distinct from it — an unmeasured verb is NOT a measured refusal.
+    #[test]
+    fn unreviewed_is_not_runtime_only() {
+        assert_ne!(ExpandTime::Unreviewed, ExpandTime::RuntimeOnly);
+    }
+}
