@@ -35,14 +35,10 @@ fn delete_differential_mem_and_sqlite_agree() {
         Ok(other) => panic!(":user::compute returned non-String: {other:?}"),
         Err(e) => panic!("delete differential raised: {e:?}"),
     };
-    assert!(
-        !stored.starts_with("DIFFERENTIAL-MISMATCH"),
-        "mem-store' and sqlite-store' DISAGREED on delete — the disagreement IS the deliverable \
-         (do not edit either backend). payload: {stored}"
-    );
     assert_eq!(
         stored, AGREED_SUMMARY,
-        "backends agreed with each other but not with the STOP-2 claim \
-         (surviving base {{a,c}}, surviving GSI {{v1,v3}}, duplicate ack Success)"
+        "delete differential: expected STOP-2 summary (base {{a,c}}, GSI {{v1,v3}}, \
+         duplicate-ack Success). A DIFFERENTIAL-MISMATCH prefix means mem and sqlite \
+         disagreed — that disagreement IS the deliverable, do not edit either backend. got: {stored}"
     );
 }
