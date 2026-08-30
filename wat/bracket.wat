@@ -940,7 +940,7 @@
          (:wat::bracket::map-worker ~locus ~items
            (:wat::bracket::const-worker-init ~work-fn)
            ~handles-sym ~grant-fn-kw ~revoke-fn-kw
-           (:wat::core::Vector ~coords-ty-kw ~coords-sym))))))
+           (:wat::core::Vector :- [~coords-ty-kw] ~coords-sym))))))
 
 ;; ── each — the SAME pool verb, side-effecting (Ruby's Parallel.each) ───────────────────────
 ;;
@@ -1023,4 +1023,4 @@
          (:wat::bracket::each-worker ~locus ~items
            (:wat::bracket::const-worker-init ~work-fn)
            ~handles-sym ~grant-fn-kw ~revoke-fn-kw
-           (:wat::core::Vector ~coords-ty-kw ~coords-sym))))))
+           (:wat::core::Vector :- [~coords-ty-kw] ~coords-sym))))))

@@ -2111,24 +2111,30 @@ pub(crate) fn infer(
         // route through `infer_list_constructor` with `:wat::type::Infer`
         // synthesized as the type-arg. T is inferred from the first element;
         // subsequent elements unify against T. This is the unified path shared
-        // with `(:wat::core::Vector :wat::type::Infer x y z)` explicit form.
+        // with `(:wat::core::Vector :- [:wat::type::Infer] x y z)` explicit form.
         //
         // The parser keeps `WatAST::Vector` for expression-position literals
         // (not rewritten to a verb-call form). Here we synthesize the
-        // `:wat::type::Infer` keyword node and prepend it to the items slice
-        // so `infer_list_constructor` sees the uniform `[T, x1, x2, ...]`
-        // argument layout it expects.
+        // `:- [:wat::type::Infer]` param-spec (Arc 109 stone 3 — the ONLY
+        // legal spelling; the bare-keyword synthesis this used to build is
+        // structurally UNREPRESENTABLE now, in source and in synthesis alike)
+        // and prepend it to the items slice so `infer_list_constructor` sees
+        // the uniform `[:- [T], x1, x2, ...]` argument layout it expects.
         //
         // Binder-position `WatAST::Vector` uses (let binder, fn params, match
         // patterns) are handled by their own arms and are not affected here.
         WatAST::Vector(items, span) => {
-            // Synthesize `:wat::type::Infer` as the first arg (type-position).
+            // Synthesize the `:- [:wat::type::Infer]` param-spec (marker +
+            // one-element bracket) as the first two args (type-position).
+            let marker = WatAST::Keyword(":-".to_string(), span.clone());
             let infer_kw = WatAST::Keyword(
                 crate::types::INFER_TYPE_PATH.to_string(),
                 span.clone(),
             );
-            let mut args: Vec<WatAST> = Vec::with_capacity(1 + items.len());
-            args.push(infer_kw);
+            let bracket = WatAST::Vector(vec![infer_kw], span.clone());
+            let mut args: Vec<WatAST> = Vec::with_capacity(2 + items.len());
+            args.push(marker);
+            args.push(bracket);
             args.extend_from_slice(items);
             // 236.2: infer_list_constructor now returns CheckResult; drain into local_errors.
             match infer_list_constructor(&args, span, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -3005,10 +3011,12 @@ fn infer_list(
                 };
             }
             ":wat::core::Vector" => {
-                // Arc 109 step ① — accept `(Vector [T] …)` alongside the existing
-                // positional `(Vector :T …)`; see `unwrap_type_param_bracket`.
-                let spliced_args = unwrap_type_param_bracket(args);
-                let (val, mut errs) = infer_list_constructor(&spliced_args, head_span, env, locals, fresh, subst).into_parts();
+                // Arc 109 stone 3 (THE WALL) — `infer_list_constructor` now peels
+                // its own `:- [T]` param-spec (un-spliced), so this call site no
+                // longer routes args through `unwrap_type_param_bracket` — doing so
+                // would collapse `:- [T]` and a bare `T` into the same shape before
+                // the constructor could reject the bare one.
+                let (val, mut errs) = infer_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -3151,10 +3159,9 @@ fn infer_list(
                 };
             }
             ":wat::core::HashMap" => {
-                // Arc 109 step ① — accept `(HashMap [K V] …)` alongside the existing
-                // positional `(HashMap :K :V …)`; see `unwrap_type_param_bracket`.
-                let spliced_args = unwrap_type_param_bracket(args);
-                let (val, mut errs) = infer_hashmap_constructor(&spliced_args, head_span, env, locals, fresh, subst).into_parts();
+                // Arc 109 stone 3 (THE WALL) — `infer_hashmap_constructor` now peels
+                // its own `:- [K V]` param-spec (un-spliced); see the Vector arm above.
+                let (val, mut errs) = infer_hashmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -3213,10 +3220,9 @@ fn infer_list(
             // this match. Per-Type impls (`:wat::core::Vector/length`
             // etc.) reach the standard scheme path via env.get.
             ":wat::core::HashSet" => {
-                // Arc 109 step ① — accept `(HashSet [T] …)` alongside the existing
-                // positional `(HashSet :T …)`; see `unwrap_type_param_bracket`.
-                let spliced_args = unwrap_type_param_bracket(args);
-                let (val, mut errs) = infer_hashset_constructor(&spliced_args, head_span, env, locals, fresh, subst).into_parts();
+                // Arc 109 stone 3 (THE WALL) — `infer_hashset_constructor` now peels
+                // its own `:- [T]` param-spec (un-spliced); see the Vector arm above.
+                let (val, mut errs) = infer_hashset_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -12105,6 +12111,15 @@ fn process_let_binding(
     CheckResult::errs(binding_errors)
 }
 
+/// ⚠ Arc 109 stone 3 (THE WALL) update: `check.rs`'s three call sites this
+/// comment describes below (Vector/HashMap/HashSet's dispatch arms) no
+/// longer call this helper — those three constructors now peel `:- [...]`
+/// themselves, un-spliced, so the bare-keyword and `:-`-marked forms never
+/// collapse to the same internal shape before the constructor can tell them
+/// apart. This helper's only remaining callers are the three `runtime.rs`
+/// eval dispatch arms (Room 3), where the splice is still correct — types
+/// are erased at eval time. The rest of this doc comment is Room-2 history.
+///
 /// Arc 109 step ① — accept the bracketed type-param group `(Head [K V …] …)`
 /// in VALUE position and re-present it as the positional leading type args
 /// `(Head K V … …)` every constructor already understands. Splices `args[0]`'s
@@ -12150,21 +12165,18 @@ fn process_let_binding(
 /// at the three runtime dispatch arms follows that existing idiom: the splice logic
 /// is written once here and reused, not duplicated, across the check/runtime boundary.
 pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
-    // Arc 109 Stone ②-i-b — BOTH spellings, `[T…]` and `:- [T…]`.
-    //
-    // ⚠ Filed as a scoring gap on ②-i-b: that stone gave the `:-` operator to the three
-    // CONDITIONAL heads (Tuple / PersistentMap / PersistentVector, via
-    // `split_type_param_bracket`) and left these three — Vector / HashMap / HashSet — accepting
-    // only the unmarked bracket. Measured symptom, and it is a confusing one because the `:-`
-    // reads as a VALUE: `(:wat::core::HashSet :- [:wat::core::i64] 1 2)` →
-    // "HashSet: parameter element #1 expects :-; got …". Six constructors, one operator: a form
-    // that works on `Tuple` and not on `Vector` is the two-ways-to-say-one-thing defect this
-    // whole campaign exists to remove.
-    //
-    // No content sniffing on the `:-` arm and no `!inner.is_empty()` guard, for the same reason
-    // as `split_type_param_bracket`: under `:-` the bracket is a param-spec BY DECLARATION, and
-    // the position was never allowed to hold data. The unmarked arm is unchanged (dual-read;
-    // ③ deletes it).
+    // Arc 109 Stone 3 (THE WALL) — the unmarked-bracket arm this doc comment's
+    // own predecessor flagged "③ deletes it" is now GONE. `:- [T…]` is the
+    // ONE spelling this helper still peels; anything else (including a bare
+    // leading type keyword, and the now-dead unmarked `[T…]` bracket) is
+    // left untouched by this helper — `check.rs`'s own three call sites for
+    // Vector/HashMap/HashSet were removed this stone (those constructors now
+    // peel `:-` themselves, un-spliced, so the bare-vs-`:-` distinction
+    // survives into their own arg-matching instead of being erased here
+    // before they ever see it). This helper's remaining callers are the
+    // three `src/runtime.rs` eval dispatch arms below, where types are
+    // erased at eval time regardless of spelling — splicing a confirmed `:-`
+    // bracket out of the value stream is still the right shape there.
     let (peeled, rest) = crate::types::peel_param_spec(args);
     if let Some(inner) = peeled {
         let mut spliced = Vec::with_capacity(inner.len() + rest.len());
@@ -12172,15 +12184,7 @@ pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
         spliced.extend(rest.iter().cloned());
         return Cow::Owned(spliced);
     }
-    match args {
-        [WatAST::Vector(inner, _), rest @ ..] => {
-            let mut spliced = Vec::with_capacity(inner.len() + rest.len());
-            spliced.extend(inner.iter().cloned());
-            spliced.extend(rest.iter().cloned());
-            Cow::Owned(spliced)
-        }
-        _ => Cow::Borrowed(args),
-    }
+    Cow::Borrowed(args)
 }
 
 /// Arc 109 step ①b — whether a `WatAST::Vector`'s CONTENTS look like a
@@ -12294,10 +12298,61 @@ fn parse_bracket_type_keyword(
     }
 }
 
-/// Type-check `(:wat::core::HashSet :T x1 x2 ...)`. First arg is a
-/// type keyword; remaining args are elements, each unifying with T.
-/// Explicit typing required (matches the vec/list / make-queue
-/// resource-constructor discipline — shape never depends on context).
+/// Arc 109 stone 3 (THE WALL) — parse one slot of a `:- [...]` param-spec
+/// bracket into a `TypeExpr`. `Vector` / `HashMap` / `HashSet`'s ONE type
+/// slot (or, for `HashMap`, each of its two: K and V), reached only after
+/// `peel_param_spec` has confirmed the `:-` marker is present — the bare
+/// keyword and unmarked-bracket doors this stone closes never reach this
+/// helper at all.
+///
+/// Unlike `parse_bracket_type_keyword` above (bare keyword only — Tuple /
+/// PersistentMap / PersistentVector's bracket slots), this routes through
+/// `parse_type_node`, the substrate's one door reading every type-node
+/// shape (Keyword, namespaced Symbol, parametric `List` reference, and the
+/// `[args :-> ret]` function-type bracket) — so a nested parametric element
+/// type (`:- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]`)
+/// parses the same as a bare type keyword slot does. `:wat::type::Infer`
+/// routes to a fresh type variable (T is inferred from the elements),
+/// matching `parse_bracket_type_keyword`'s special case.
+fn parse_param_spec_slot(
+    head: &str,
+    node: &WatAST,
+    fresh: &mut InferCtx,
+    local_errors: &mut Vec<CheckError>,
+) -> TypeExpr {
+    if let WatAST::Keyword(k, _) = node {
+        if k == crate::types::INFER_TYPE_PATH {
+            return fresh.fresh();
+        }
+    }
+    match crate::types::parse_type_node(node) {
+        Ok(t) => t,
+        Err(e) => {
+            local_errors.push(CheckError { span: e.span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: head.into(),
+                reason: e.to_string(),
+                remedies: vec![],
+            } });
+            fresh.fresh()
+        }
+    }
+}
+
+/// Type-check `(:wat::core::HashSet :- [T] x1 x2 ...)`. The ONLY legal
+/// param-spec spelling (Arc 109 stone 3, THE WALL) is the `:-`-marked
+/// bracket, peeled via `peel_param_spec`; remaining args are elements, each
+/// unifying with T. Explicit typing required (matches the vec/list /
+/// make-queue resource-constructor discipline — shape never depends on
+/// context).
+///
+/// Arc 109 stone 3 — a bare leading type keyword
+/// (`(:wat::core::HashSet :wat::core::i64 1 2)`) and an unmarked bracket
+/// (`(:wat::core::HashSet [:wat::core::i64] 1 2)`) are BOTH now rejected:
+/// `peel_param_spec` requires the literal `:-` marker, so neither shape can
+/// reach `parse_param_spec_slot` at all. This function no longer sees
+/// `args[0]` pre-spliced (see `unwrap_type_param_bracket`'s stone-3 update);
+/// the bare-vs-`:-` distinction survives to this match, which is the whole
+/// point of the wall.
 fn infer_hashset_constructor(
     args: &[WatAST],
     head_span: &Span,
@@ -12320,54 +12375,28 @@ fn infer_hashset_constructor(
         // HARVEST (236.2): existing diagnostic; partial — return HashSet placeholder.
         return CheckResult::partial_with(ty, local_errors);
     }
-    let t_ty = match &args[0] {
-        WatAST::Keyword(k, _) => {
-            // Arc 215 stone 1 — :wat::type::Infer means "infer T from
-            // the elements." Route to a fresh type variable; the
-            // unification loop below concretizes it from the first element.
-            if k == crate::types::INFER_TYPE_PATH {
-                fresh.fresh()
-            } else {
-                match crate::types::parse_type_expr(k) {
-                    Ok(t) => t,
-                    Err(_) => {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                            head: ":wat::core::HashSet".into(),
-                            reason: format!("first argument {} is not a valid type keyword", k),
-                            remedies: vec![],
-                        } });
-                        fresh.fresh()
-                    }
-                }
-            }
+    let (t_ty, rest): (TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
+        (Some(inner), rest) if inner.len() == 1 => {
+            (parse_param_spec_slot(":wat::core::HashSet", &inner[0], fresh, &mut local_errors), rest)
         }
-        // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
-        // too, routed through `parse_type_node` (the substrate's one door reading
-        // all four type node shapes, src/types/surface.rs:345) — the check-time
-        // twin of the identical widening in `collection/eval.rs`'s
-        // `eval_hashset_ctor`. Additive only — the `Keyword` arm above is
-        // untouched, so the keyword path stays byte-identical.
-        list @ WatAST::List(_, _) => match crate::types::parse_type_node(list) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: e.span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::HashSet".into(),
-                    reason: e.to_string(),
-                    remedies: vec![],
-                } });
-                fresh.fresh()
-            }
-        },
-        _ => {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+        (Some(inner), rest) => {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashSet".into(),
-                reason: "first argument must be a `(Head :- [T …])` type form".into(),
+                reason: format!("type param-spec `:- [...]` must declare exactly one type (T); got {}", inner.len()),
                 remedies: vec![],
             } });
-            fresh.fresh()
+            (fresh.fresh(), rest)
+        }
+        (None, _) => {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: ":wat::core::HashSet".into(),
+                reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
+                remedies: vec![],
+            } });
+            (fresh.fresh(), &args[1..])
         }
     };
-    for (i, arg) in args[1..].iter().enumerate() {
+    for (i, arg) in rest.iter().enumerate() {
         if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&ty, &t_ty, subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -12407,8 +12436,11 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         TypeEnv::new()
     }
 
-    /// Row 1 — `vec` (`:wat::core::Vector`'s check-time inference) takes a form
-    /// first-arg: `(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])`.
+    /// Row 1 — `vec` (`:wat::core::Vector`'s check-time inference) takes a `:-`-marked
+    /// form first-arg: `(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64
+    /// :wat::core::i64])] ...)`. Arc 109 stone 3 (THE WALL) — a nested compound type
+    /// reference is only reachable through the ONE param-spec spelling now; unlike the
+    /// pre-wall version of this test, the type-arg is wrapped in the `:-` marker + bracket.
     #[test]
     fn row1_infer_list_constructor_accepts_parametric_form_first_arg() {
         let types = env_and_types();
@@ -12416,11 +12448,12 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
-        let ty_node = crate::parse_one!("(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])")
-            .expect("parse the parametric form first-arg");
+        let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
+        let bracket = crate::parse_one!("[(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]")
+            .expect("parse the param-spec bracket");
         let one = crate::parse_one!("(:wat::core::Tuple 1 2)").expect("parse element 1");
         let two = crate::parse_one!("(:wat::core::Tuple 3 4)").expect("parse element 2");
-        let args = vec![ty_node, one, two];
+        let args = vec![marker, bracket, one, two];
         let result: CheckResult<TypeExpr> = infer_list_constructor(
             &args,
             &crate::rust_caller_span!(),
@@ -12430,7 +12463,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
             &mut subst,
         );
         let (ty, errors) = result.into_parts();
-        assert!(errors.is_empty(), "form first-arg must check clean, got: {errors:?}");
+        assert!(errors.is_empty(), "canonical form first-arg must check clean, got: {errors:?}");
         assert_eq!(
             ty,
             Some(TypeExpr::Parametric {
@@ -12443,15 +12476,49 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         );
     }
 
-    /// Row 3 (the row that decides the stone) — the KEYWORD path is untouched.
+    /// Row 3 (the row that decides the stone) — the CANONICAL `:-`-marked atomic keyword
+    /// still works: `(:wat::core::Vector :- [:wat::core::i64] 1)`.
     #[test]
-    fn row3_infer_list_constructor_keyword_first_arg_unchanged() {
+    fn row3_infer_list_constructor_canonical_keyword_first_arg_works() {
         let types = env_and_types();
         let env = CheckEnv::with_builtins_and_types(&types);
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
-        let kw = crate::parse_one!(":wat::core::i64").expect("parse keyword first-arg");
+        let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
+        let bracket = crate::parse_one!("[:wat::core::i64]").expect("parse the param-spec bracket");
+        let one = crate::parse_one!("1").expect("parse element 1");
+        let args = vec![marker, bracket, one];
+        let result = infer_list_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (ty, errors) = result.into_parts();
+        assert!(errors.is_empty(), "canonical keyword first-arg must check clean, got: {errors:?}");
+        assert_eq!(
+            ty,
+            Some(TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::core::i64".into())]
+            })
+        );
+    }
+
+    /// Row 1/2 (the wall) — the BARE keyword first-arg this test used to prove
+    /// "unchanged" is now the retired spelling: `(:wat::core::Vector :wat::core::i64 1)`
+    /// must be REJECTED, structurally, with the wall's own diagnostic.
+    #[test]
+    fn row1_infer_list_constructor_bare_keyword_first_arg_now_rejected() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let kw = crate::parse_one!(":wat::core::i64").expect("parse bare keyword first-arg");
         let one = crate::parse_one!("1").expect("parse element 1");
         let args = vec![kw, one];
         let result = infer_list_constructor(
@@ -12462,20 +12529,24 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
             &mut fresh,
             &mut subst,
         );
-        let (ty, errors) = result.into_parts();
-        assert!(errors.is_empty(), "keyword first-arg must still check clean, got: {errors:?}");
+        let (_ty, errors) = result.into_parts();
+        assert_eq!(errors.len(), 1, "expected exactly one MalformedForm error, got: {errors:?}");
         assert_eq!(
-            ty,
-            Some(TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::core::i64".into())]
-            })
+            format!("{:?}", errors[0].kind),
+            format!(
+                "{:?}",
+                CheckErrorKind::MalformedForm {
+                    head: ":wat::core::vec".into(),
+                    reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
+                    remedies: vec![],
+                }
+            )
         );
     }
 
-    /// Row 3 negative control — a first arg that was rejected BEFORE the widening
-    /// (neither `Keyword` nor now `List` — an int literal) must still be rejected,
-    /// with the SAME diagnostic shape (structured comparison, not `.contains()` —
+    /// Row 3 negative control — a first arg that was rejected before AND after the wall
+    /// (not even a `:-` marker at all — an int literal) must still be rejected, with the
+    /// SAME diagnostic shape (structured comparison, not `.contains()` —
     /// `no_loose_string_assert`'s own remedy).
     #[test]
     fn row3_infer_list_constructor_still_rejects_non_type_first_arg() {
@@ -12502,14 +12573,14 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
                 "{:?}",
                 CheckErrorKind::MalformedForm {
                     head: ":wat::core::vec".into(),
-                    reason: "first argument must be a `(Head :- [T …])` type form".into(),
+                    reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
                     remedies: vec![],
                 }
             )
         );
     }
 
-    /// Row 1 — `HashSet` takes a form first-arg.
+    /// Row 1 — `HashSet` takes a `:-`-marked form first-arg.
     #[test]
     fn row1_infer_hashset_constructor_accepts_parametric_form_first_arg() {
         let types = env_and_types();
@@ -12517,11 +12588,12 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
-        let ty_node = crate::parse_one!("(:wat::core::Vector :- [:wat::core::i64])")
-            .expect("parse the parametric form first-arg");
-        let one = crate::parse_one!("(:wat::core::Vector :wat::core::i64 1 2)")
+        let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
+        let bracket = crate::parse_one!("[(:wat::core::Vector :- [:wat::core::i64])]")
+            .expect("parse the param-spec bracket");
+        let one = crate::parse_one!("(:wat::core::Vector :- [:wat::core::i64] 1 2)")
             .expect("parse element 1");
-        let args = vec![ty_node, one];
+        let args = vec![marker, bracket, one];
         let result = infer_hashset_constructor(
             &args,
             &crate::rust_caller_span!(),
@@ -12531,7 +12603,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
             &mut subst,
         );
         let (ty, errors) = result.into_parts();
-        assert!(errors.is_empty(), "form first-arg must check clean, got: {errors:?}");
+        assert!(errors.is_empty(), "canonical form first-arg must check clean, got: {errors:?}");
         assert_eq!(
             ty,
             Some(TypeExpr::Parametric {
@@ -12544,15 +12616,47 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         );
     }
 
-    /// Row 3 — the KEYWORD path is untouched.
+    /// Row 3 — the CANONICAL `:-`-marked atomic keyword still works.
     #[test]
-    fn row3_infer_hashset_constructor_keyword_first_arg_unchanged() {
+    fn row3_infer_hashset_constructor_canonical_keyword_first_arg_works() {
         let types = env_and_types();
         let env = CheckEnv::with_builtins_and_types(&types);
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
-        let kw = crate::parse_one!(":wat::core::i64").expect("parse keyword first-arg");
+        let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
+        let bracket = crate::parse_one!("[:wat::core::i64]").expect("parse the param-spec bracket");
+        let one = crate::parse_one!("1").expect("parse element 1");
+        let args = vec![marker, bracket, one];
+        let result = infer_hashset_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (ty, errors) = result.into_parts();
+        assert!(errors.is_empty(), "canonical keyword first-arg must check clean, got: {errors:?}");
+        assert_eq!(
+            ty,
+            Some(TypeExpr::Parametric {
+                head: "wat::core::HashSet".into(),
+                args: vec![TypeExpr::Path(":wat::core::i64".into())]
+            })
+        );
+    }
+
+    /// The BARE keyword first-arg this test used to prove "unchanged" is now the retired
+    /// spelling and must be REJECTED.
+    #[test]
+    fn row1_infer_hashset_constructor_bare_keyword_first_arg_now_rejected() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let kw = crate::parse_one!(":wat::core::i64").expect("parse bare keyword first-arg");
         let one = crate::parse_one!("1").expect("parse element 1");
         let args = vec![kw, one];
         let result = infer_hashset_constructor(
@@ -12563,14 +12667,18 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
             &mut fresh,
             &mut subst,
         );
-        let (ty, errors) = result.into_parts();
-        assert!(errors.is_empty(), "keyword first-arg must still check clean, got: {errors:?}");
+        let (_ty, errors) = result.into_parts();
+        assert_eq!(errors.len(), 1, "expected exactly one MalformedForm error, got: {errors:?}");
         assert_eq!(
-            ty,
-            Some(TypeExpr::Parametric {
-                head: "wat::core::HashSet".into(),
-                args: vec![TypeExpr::Path(":wat::core::i64".into())]
-            })
+            format!("{:?}", errors[0].kind),
+            format!(
+                "{:?}",
+                CheckErrorKind::MalformedForm {
+                    head: ":wat::core::HashSet".into(),
+                    reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
+                    remedies: vec![],
+                }
+            )
         );
     }
 
@@ -12600,7 +12708,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
                 "{:?}",
                 CheckErrorKind::MalformedForm {
                     head: ":wat::core::HashSet".into(),
-                    reason: "first argument must be a `(Head :- [T …])` type form".into(),
+                    reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
                     remedies: vec![],
                 }
             )
@@ -14357,10 +14465,12 @@ fn infer_polymorphic_holon_to_i64(
 // above: Dispatch entity routes the polymorphic surface name to
 // per-Type rank-1 impls.
 
-/// Type-check `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)`. First two
-/// args are separate type-keywords `:K` and `:V` (one per type parameter);
-/// arc 214 P1 retired the earlier `:(K,V)` tuple-keyword form in favor of
-/// this Vector-symmetric shape (Vector takes `:T`; HashMap takes `:K :V`).
+/// Type-check `(:wat::core::HashMap :- [K V] k1 v1 k2 v2 ...)`. Arc 109
+/// stone 3 (THE WALL) — `:- [K V]` is the ONE legal param-spec spelling;
+/// the bare `:K :V` positional pair this doc comment used to describe (arc
+/// 214 P1's Vector-symmetric shape) and the unmarked `[K V]` bracket are
+/// both retired, peeled via `peel_param_spec` which requires the literal
+/// `:-` marker.
 ///
 /// Remaining args are alternating key/value pairs. Keys unify with K,
 /// values with V. K and V must be declared explicitly — the checker
@@ -14387,69 +14497,40 @@ fn infer_hashmap_constructor(
             args: vec![fresh.fresh(), fresh.fresh()],
         }, local_errors);
     }
-    let k_ty = match &args[0] {
-        WatAST::Keyword(k, _) if k == crate::types::INFER_TYPE_PATH => {
-            // Arc 215 stone 1 — :wat::type::Infer means "infer K from
-            // the keys." Route to a fresh type variable; the unification
-            // loop below concretizes it from the first key.
-            fresh.fresh()
+    // Arc 109 stone 3 (THE WALL) — the ONLY legal param-spec spelling is the
+    // `:-`-marked bracket `:- [K V]`, peeled via `peel_param_spec`. A bare
+    // leading `:K :V` pair and an unmarked `[K V]` bracket are BOTH now
+    // rejected — `peel_param_spec` requires the literal `:-` marker, so
+    // neither shape reaches `parse_param_spec_slot`.
+    let (k_ty, v_ty, pairs): (TypeExpr, TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
+        (Some(inner), rest) if inner.len() == 2 => {
+            let k = crate::types::expand_alias(
+                &parse_param_spec_slot(":wat::core::HashMap", &inner[0], fresh, &mut local_errors),
+                env.types(),
+            );
+            let v = crate::types::expand_alias(
+                &parse_param_spec_slot(":wat::core::HashMap", &inner[1], fresh, &mut local_errors),
+                env.types(),
+            );
+            (k, v, rest)
         }
-        // Arc 109 ③ — widen to accept the `:-` reference FORM `(Head :- [args])` too
-        // (a `WatAST::List`), routed through `parse_type_node` — the same widening
-        // `infer_list_constructor` (Vector's ctor) already carries. Additive only: the
-        // Keyword arm above is untouched.
-        node @ (WatAST::Keyword(_, _) | WatAST::List(_, _)) => {
-            match crate::types::parse_type_node(node) {
-                Ok(parsed) => crate::types::expand_alias(&parsed, env.types()),
-                Err(e) => {
-                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                        head: ":wat::core::HashMap".into(),
-                        reason: format!("first type argument is not a valid type: {e}"),
-                        remedies: vec![],
-                    } });
-                    fresh.fresh()
-                }
-            }
+        (Some(inner), rest) => {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                head: ":wat::core::HashMap".into(),
+                reason: format!("type param-spec `:- [...]` must declare exactly two types (K V); got {}", inner.len()),
+                remedies: vec![],
+            } });
+            (fresh.fresh(), fresh.fresh(), rest)
         }
-        _ => {
+        (None, _) => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashMap".into(),
-                reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); first argument is not one".into(),
+                reason: "first two arguments must be a `(Head :- [K V])` type param-spec".into(),
                 remedies: vec![],
             } });
-            fresh.fresh()
+            (fresh.fresh(), fresh.fresh(), &args[2..])
         }
     };
-    let v_ty = match &args[1] {
-        WatAST::Keyword(v, _) if v == crate::types::INFER_TYPE_PATH => {
-            // Arc 215 stone 1 — :wat::type::Infer means "infer V from
-            // the values." Route to a fresh type variable; the unification
-            // loop below concretizes it from the first value.
-            fresh.fresh()
-        }
-        node @ (WatAST::Keyword(_, _) | WatAST::List(_, _)) => {
-            match crate::types::parse_type_node(node) {
-                Ok(parsed) => crate::types::expand_alias(&parsed, env.types()),
-                Err(e) => {
-                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                        head: ":wat::core::HashMap".into(),
-                        reason: format!("second type argument is not a valid type: {e}"),
-                        remedies: vec![],
-                    } });
-                    fresh.fresh()
-                }
-            }
-        }
-        _ => {
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::HashMap".into(),
-                reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); second argument is not one".into(),
-                remedies: vec![],
-            } });
-            fresh.fresh()
-        }
-    };
-    let pairs = &args[2..];
     if !pairs.len().is_multiple_of(2) {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
@@ -14938,14 +15019,17 @@ fn infer_list_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // :wat::core::vec / :wat::core::list — `(vec :T x1 x2 ...) -> (Vector :- [T])`.
-    // First arg is a type keyword (read, not inferred); remaining args
-    // must unify with T.
+    // :wat::core::vec / :wat::core::list — `(vec :- [T] x1 x2 ...) -> (Vector :- [T])`.
+    // Arc 109 stone 3 (THE WALL) — `:- [T]` is the ONE legal param-spec
+    // spelling, peeled via `peel_param_spec`; remaining args must unify
+    // with T.
     //
     // Arc 215 stone 2 — also accepts `:wat::type::Infer` for T.
     // When T is :wat::type::Infer, elem_ty is a fresh type variable;
     // the unification loop below concretizes it from the first element.
-    // This is the path used by `[...]` expression-position literals.
+    // This is the path used by `[...]` expression-position literals (via
+    // the `:- [:wat::type::Infer]` param-spec synthesized in `infer`'s
+    // `WatAST::Vector` arm).
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::core::vec".into(),
@@ -14959,56 +15043,36 @@ fn infer_list_constructor(
             args: vec![t],
         }, local_errors);
     }
-    let elem_ty = match &args[0] {
-        WatAST::Keyword(k, _) => {
-            // Arc 215 stone 2 — :wat::type::Infer means "infer T from
-            // the elements." Route to a fresh type variable; the unification
-            // loop below concretizes it from the first element.
-            if k == crate::types::INFER_TYPE_PATH {
-                fresh.fresh()
-            } else {
-                match crate::types::parse_type_expr(k) {
-                    Ok(t) => t,
-                    Err(_) => {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                            head: ":wat::core::vec".into(),
-                            reason: format!("first argument {} is not a valid type keyword", k),
-                            remedies: vec![],
-                        } });
-                        fresh.fresh()
-                    }
-                }
-            }
+    // Arc 109 stone 3 — a bare leading type keyword
+    // (`(:wat::core::Vector :wat::core::i64 1 2 3)`) and an unmarked bracket
+    // (`(:wat::core::Vector [:wat::core::i64] 1 2 3)`) are BOTH now rejected:
+    // `peel_param_spec` requires the literal `:-` marker, so neither shape
+    // reaches `parse_param_spec_slot`. This function no longer sees `args[0]`
+    // pre-spliced (see `unwrap_type_param_bracket`'s stone-3 update) — the
+    // bare-vs-`:-` distinction survives to this match, which is the whole
+    // point of the wall.
+    let (elem_ty, rest): (TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
+        (Some(inner), rest) if inner.len() == 1 => {
+            (parse_param_spec_slot(":wat::core::vec", &inner[0], fresh, &mut local_errors), rest)
         }
-        // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
-        // too, routed through `parse_type_node` (the substrate's one door reading
-        // all four type node shapes, src/types/surface.rs:345) — the check-time
-        // twin of the identical widening in `collection/eval.rs`'s
-        // `eval_vector_ctor` (found by the orchestrator's re-grep, arc 109's fifth
-        // "a slot with two implementations is two slots"). Additive only — the
-        // `Keyword` arm above is untouched, so the keyword path stays
-        // byte-identical.
-        list @ WatAST::List(_, _) => match crate::types::parse_type_node(list) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: e.span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::vec".into(),
-                    reason: e.to_string(),
-                    remedies: vec![],
-                } });
-                fresh.fresh()
-            }
-        },
-        _ => {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+        (Some(inner), rest) => {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::vec".into(),
-                reason: "first argument must be a `(Head :- [T …])` type form".into(),
+                reason: format!("type param-spec `:- [...]` must declare exactly one type (T); got {}", inner.len()),
                 remedies: vec![],
             } });
-            fresh.fresh()
+            (fresh.fresh(), rest)
+        }
+        (None, _) => {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: ":wat::core::vec".into(),
+                reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
+                remedies: vec![],
+            } });
+            (fresh.fresh(), &args[1..])
         }
     };
-    for (i, arg) in args[1..].iter().enumerate() {
+    for (i, arg) in rest.iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
             // Arc 296 — when the declared element type is a Surface, route through
@@ -21910,8 +21974,8 @@ mod tests {
 
     #[test]
     fn list_same_type_passes() {
-        assert!(check("(:wat::core::Vector :wat::core::i64 1 2 3)").is_ok());
-        assert!(check(r#"(:wat::core::Vector :wat::core::String "a" "b")"#).is_ok());
+        assert!(check("(:wat::core::Vector :- [:wat::core::i64] 1 2 3)").is_ok());
+        assert!(check(r#"(:wat::core::Vector :- [:wat::core::String] "a" "b")"#).is_ok());
     }
 
     #[test]
@@ -21927,7 +21991,7 @@ mod tests {
         // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
         // to-holon for integer literals (the polymorphic UP verb).
         assert!(check(
-            r#"(:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
+            r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST]
                  (:wat::holon::to-holon 1)
                  (:wat::holon::to-holon 2)))"#
         )
