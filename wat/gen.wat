@@ -673,7 +673,7 @@
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  _i <- :wat::core::i64]
                              -> (:wat::core::Vector :- [:wat::WatAST])
                (:wat::core::conj acc (:wat::core::fresh-symbol "gen")))
-             (:wat::core::Vector :wat::WatAST)
+             (:wat::core::Vector :- [:wat::WatAST])
              (:wat::core::range 0 n))
      ;; the `let` binder vector, flat: sym expr sym expr ...
      binds (:wat::core::foldl
@@ -683,14 +683,14 @@
                  (:wat::core::conj acc
                    (:wat::core::Option/expect (:wat::core::get syms i) "record: sym index"))
                  (:wat::core::Option/expect (:wat::core::get gens i) "record: gen index")))
-             (:wat::core::Vector :wat::WatAST)
+             (:wat::core::Vector :- [:wat::WatAST])
              (:wat::core::range 0 n))
      ;; both `card` and `at` now reference the BINDING, never the expression
      cards (:wat::core::foldl
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  g <- :wat::WatAST]
                              -> (:wat::core::Vector :- [:wat::WatAST])
                (:wat::core::conj acc `(:wat::gen::Gen/card ~g)))
-             (:wat::core::Vector :wat::WatAST)
+             (:wat::core::Vector :- [:wat::WatAST])
              syms)
      args  (:wat::core::foldl
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  i <- :wat::core::i64]
@@ -698,7 +698,7 @@
                (:wat::core::conj acc
                  `((:wat::gen::Gen/at ~(:wat::core::Option/expect (:wat::core::get syms i) "record: sym index"))
                    (:wat::gen::nth ~cv ~i))))
-             (:wat::core::Vector :wat::WatAST)
+             (:wat::core::Vector :- [:wat::WatAST])
              (:wat::core::range 0 n))]
     `(:wat::core::let [~@binds]
        (:wat::gen::fmap

@@ -3,9 +3,9 @@
 ;; passes for the wrong reason. Measured here, in host wat, before any generator change.
 
 (:wat::core::defn :probe::alpha [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 (:wat::core::defn :probe::beta [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:wat::core::Vector :wat::core::i64 7 8 9)))
+  (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::i64] 7 8 9)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

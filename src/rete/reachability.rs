@@ -740,10 +740,10 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
         // element's comparator — the row's `Var("T")` return resolved by the field declaration.
         ":wat::rete::vector::length" => (1, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 1 2)", "(:wat::core::PersistentVector 9)", "", Some((":wat::rete::i64::=", "2"))),
         ":wat::rete::vector::get" => (4, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 7)", "(:wat::core::PersistentVector 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::vec::get" => (4, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :wat::core::i64 7)", "(:wat::core::Vector :wat::core::i64 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::vec::get" => (4, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :- [:wat::core::i64] 7)", "(:wat::core::Vector :- [:wat::core::i64] 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
         ":wat::rete::linkedlist::get" => (4, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List 7)", "(:wat::core::List 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
         ":wat::rete::core::PersistentVector/first" => (3, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 7)", "(:wat::core::PersistentVector 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::core::Vector/first" => (3, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :wat::core::i64 7)", "(:wat::core::Vector :wat::core::i64 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::core::Vector/first" => (3, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :- [:wat::core::i64] 7)", "(:wat::core::Vector :- [:wat::core::i64] 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
         ":wat::rete::core::List/first" => (3, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List 7)", "(:wat::core::List 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
 
         _ => return None,
@@ -1695,9 +1695,9 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 #[test]
 fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
     const HOLON_DECLS: &str = r#"(:wat::core::defn :probe::alpha [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:wat::core::Vector :wat::core::i64 1 2 3)))
+  (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 (:wat::core::defn :probe::beta [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:wat::core::Vector :wat::core::i64 7 8 9)))
+  (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::i64] 7 8 9)))
 
 (:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::holon::HolonAST  w <- :wat::holon::HolonAST])
 (:wat::core::defrecord :probe::Out [k <- :wat::core::String])

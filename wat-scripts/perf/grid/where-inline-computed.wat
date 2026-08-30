@@ -231,7 +231,7 @@
 (:wat::core::defn :wic::derived-ints [fired <- :wat::rete::Session]
   -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :wat::core::i64)
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
       (:wat::core::map
         (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
           (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]

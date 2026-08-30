@@ -241,7 +241,7 @@
   (:wat::core::let
     [a  (:wat::gen::nth c 0)
      b  (:wat::gen::nth c 1)
-     s0 (:wat::core::HashSet :wat::core::i64)
+     s0 (:wat::core::HashSet :- [:wat::core::i64])
      ab (:wat::hashset::conj (:wat::hashset::conj s0 a) b)
      ba (:wat::hashset::conj (:wat::hashset::conj s0 b) a)
      ;; idempotence: adding `a` twice adds nothing the second time
