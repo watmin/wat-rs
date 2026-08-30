@@ -125,4 +125,82 @@ and the meter is what six waves of this campaign have been steering by.**
 
 ---
 
+## ★ ADDENDUM 2026-08-29 — THE SCAN ROOT IS THE WRONG RUNG. THE GATE SHOULD NOT HAVE A LIST AT ALL.
+
+The remedy above (widen the scan root) closes the hole. It is still the **check** rung, and after
+walking one level further I do not think it is where this should stop — because the gate's real
+defect is not *where it looks for names*. It is **that it keeps its own copy of an answer the
+registry already holds.**
+
+**Measured:** all **25** invisible verbs already carry `@Purity` AND `@Determinism` in the registry.
+Zero exceptions — the macro *refuses to compile* a `#[wat_intrinsic]` without them
+(`wat_intrinsic.rs:562`, `MissingPurity`). **The registry answers for every one of the 25 today.
+The gate simply never asks it.**
+
+What the gate asks instead is `intrinsic_meta` (`purity.rs:244`) — **758 lines, 177 verbs, hand
+written, and it never touches `registry()` even once** (verified: zero `registry`/`all_entries`/
+`entry.` references in its whole body). Of its three axes, **two are verbatim restatements of
+mandatory registry fields.** So the population hole and the duplicate table are one defect seen
+twice: a verb is "unaccounted for" only because the accounting is kept somewhere other than where
+the truth is declared.
+
+★ **Arc 255.1c already ruled exactly this class, one gate over.** `intrinsic/mod.rs:988` retired a
+biconditional because, once `is_effectful_op` consulted the registry, comparing them was *"a gate
+reading a copy of the truth, unable to fail for a registered row ever again"* —
+`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`. **`intrinsic_meta` is that same shape and
+did not get the ruling.**
+
+### And the blocker is ONE FIELD, already diagnosed, on a LOCKED model
+
+`NOTE-the-registry-asserts-properties-nothing-verifies.md` (2026-08-26) reached this from the other
+direction and named the obstruction exactly — its INSTANCE 4-bis. Arc 278's fence is **four** axes:
+
+```
+(and (pure? f) (deterministic? f) (total? f) (primitive? f))
+```
+
+The Layer-1 BASELINE of `DESIGN.md`'s **LOCKED RECORD MODEL (2026-06-21)** is:
+
+```
+name · arity · kind · pure · deterministic · expand_time_legal · defined_in · layer
+```
+
+`pure` ✓ · `deterministic` ✓ · **`total` ✗** — and `@Total` does not exist in `wat-doc` (measured:
+0 occurrences). Totality is the one axis with **nowhere else to live**, which is precisely why it
+lives in a hand-curated list carrying per-op prose (*`f64::*` is not total — it overflows to ±Inf;
+`f64::>` is — its output is a bool*). The two designs never met: 255's model was locked
+2026-06-21; 278 invented the fourth axis afterwards, in the only place available.
+
+**So `intrinsic_meta` cannot derive until the registry can hold `total`, and the registry cannot
+hold `total` until one field is added to a model explicitly marked LOCKED.** That prior NOTE says
+plainly whose call that is: *"a deliberate act on a locked model and the builder's ruling, not a
+rider's."*
+
+★ **And the locked model makes the addition self-enforcing.** Layer 1 is specified as *required
+fields, enum-typed not bool, **no `Default`** → struct-literal completeness = compile error if any
+is unanswered.* Adding `total` therefore **breaks every construction site until every one answers
+it** — impose the check, read the screams, built into the model's own design.
+`[[feedback_impose_the_check_and_read_the_screams]]`
+
+### What this reorders
+
+The scan-root widening is still correct and still cheap, and it can ship first — but it should be
+understood as **a bandage on a gate that ought to be deleted**, not as the fix. If `total` lands in
+Layer 1, then:
+
+```
+  @Total mintable at the registration site (the shape is proven: @Purity 290 uses, @Determinism 282)
+  → intrinsic_meta DERIVES all four axes instead of restating two and hoarding one
+  → the 25-verb hole closes BY CONSTRUCTION (they already declare what the gate wants)
+  → macros::is_pure_total deletes; 255.3 can finally land
+  → the registry stops being one of six tables and becomes THE table
+```
+
+That last line is the arc's whole thesis, and it is one field away.
+
+⛔ **Still not drawn.** The ruling required is narrow and specific: **add `total` to the Layer-1
+baseline of the LOCKED RECORD MODEL.** Everything downstream is mechanical.
+
+---
+
 `DERIVAMVS NE MENTIAMVR.` · `NISI FRANGAS, NIHIL PROBAS.`
