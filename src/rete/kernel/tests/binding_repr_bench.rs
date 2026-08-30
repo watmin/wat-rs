@@ -83,8 +83,22 @@ fn bind_key_construction_vs_map_operation() {
 /// `Value::i64` stands in for an interned symbol id (hash of an i64, compare by value) — the
 /// floor an interning scheme could reach, not a proposal for the key type itself.
 ///
+/// ⛔ NOT ON THE RELEASE FLOOR — `#[ignore]`, and the reason is measured, not assumed.
+///
+/// To gate this we would have to assert the direction it exists to show: that an interned-id
+/// key beats a fresh `String` key. Measured over three runs (2026-08-30), the effect is too
+/// small to carry a threshold — **lookup ratio 1.0–1.1x, build ratio 1.1–1.9x, with the
+/// minimum touching 1.0**. Any floor tight enough to catch a regression sits inside the noise,
+/// and this repo bans known flakes absolutely; a threshold here would manufacture the very
+/// thing that ban exists to prevent.
+///
+/// So it stays a diagnostic and leaves the floor, rather than being counted as a passing test
+/// that cannot fail. Run it with:
+///     cargo nextest run --release --run-ignored=only --no-capture -E 'test(binding_key_cost)'
+///
 /// Diagnostic. Read with `--no-capture`.
 #[test]
+#[ignore = "diagnostic microbenchmark: measured effect (1.0-1.9x) is too small to gate without flaking"]
 fn binding_key_cost() {
     use std::hint::black_box;
     use std::time::Instant;
@@ -190,8 +204,19 @@ fn binding_key_cost() {
 /// Keys are real `Value::String(Arc<str>)` — hashing/comparing a wat String is the actual cost,
 /// and an integer-keyed benchmark would flatter the HAMT.
 ///
+/// ⛔ NOT ON THE RELEASE FLOOR — `#[ignore]`. Its own doc already said "not a gate"; it was on
+/// the floor anyway, counted among the passing tests while asserting nothing at all.
+///
+/// It compares FIVE operations across two representations at four cardinalities, so there is no
+/// single ordering to assert — and the sibling `binding_key_cost` measurement showed effects in
+/// this family run at 1.0–1.9x, which is inside runner noise. Gating it would mean inventing a
+/// threshold for a comparison nobody currently depends on.
+///
+///     cargo nextest run --release --run-ignored=only --no-capture -E 'test(binding_repr_microbench)'
+///
 /// Diagnostic, not a gate. Read with `--no-capture`.
 #[test]
+#[ignore = "diagnostic microbenchmark: five-way comparison with no single assertable ordering"]
 fn binding_repr_microbench() {
     use std::hint::black_box;
     use std::time::Instant;

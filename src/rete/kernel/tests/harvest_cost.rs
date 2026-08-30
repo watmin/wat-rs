@@ -267,7 +267,33 @@ fn harvest_wrap_split() {
     s /= runs;
     w /= runs;
     h /= runs;
+    // ⛔ WAS ONLY `assert!(h > 0.0)` — liveness. The split this test exists to APPORTION is
+    // scan (s) vs wrap (w) vs both (h), so the assertable claim is the apportionment itself.
     assert!(h > 0.0, "harvest wrap recorded 0 ns — the loop never ran");
+
+    // NON-VACUITY: the timed closures must have walked the whole 40k bag. If the class filter
+    // stopped matching, every timing above would fall toward zero and still pass a liveness
+    // check — the reading would look like a speedup and be a broken filter.
+    let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
+    assert_eq!(
+        collected.len(),
+        N,
+        "the class filter matched {} of {N} `{CLASS}` facts — every timing above is measuring a \
+         different, smaller workload than the one this split is named for",
+        collected.len()
+    );
+
+    // APPORTIONMENT: scan and wrap are the two halves of the combined pass, so they must
+    // roughly account for it. Bounds are deliberately loose (0.5x–2x) because these are wall
+    // clocks on a shared runner; what they catch is a phase silently dropping out of the
+    // combined measurement, which is what would make the "split" stop being a split.
+    assert!(
+        h >= (s + w) * 0.5 && h <= (s + w) * 2.0,
+        "combined harvest ({:.2} ms) is not accounted for by scan ({:.2} ms) + wrap ({:.2} ms) \
+         — the apportionment this test reports no longer adds up, so one of the three closures \
+         is measuring something other than what its name says",
+        ms(h), ms(s), ms(w)
+    );
 
     println!(
         "\nharvest wrap split — {N} one-entry maps, mean of {RUNS}\n\

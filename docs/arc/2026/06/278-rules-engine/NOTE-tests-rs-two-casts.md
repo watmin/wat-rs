@@ -66,11 +66,18 @@ part of that module by any reading**, and it is `include!`d into `kernel::tests`
 claimed *"roughly 63 are measurement instruments: their assertion is a liveness check on the
 instrument itself."* Measured over all 89:
 
-| | count |
-|---|---:|
-| assertions ALL liveness (`> 0`, "never ran") | **5** |
-| no assertion at all | 2 |
-| at least one SUBSTANTIVE assertion | **82** |
+| | count (2026-08-30, pre-split) | RE-MEASURED post-split |
+|---|---:|---:|
+| assertions ALL liveness (`> 0`, "never ran") | **5** | **8** |
+| no assertion at all | 2 | 2 |
+| at least one SUBSTANTIVE assertion | **82** | 79 |
+
+⛔ **THE 5 WAS ALSO LOW.** Re-measured with a classifier that recognises every liveness SHAPE
+(`x > 0`, `x >= 0`, `!x.is_empty()`, `x != 0`, `is_finite`), the count is **8**, not 5 — so ten
+tests could not fail, not seven. Three hand-verified at their true extents. Two were worse than
+"cannot fail": `probe_gap_cost_split` guarded **1 of its 6** measured components and
+`probe_extend_cost_split` **1 of 5**, while both headers say "treat the RATIO as the finding" —
+a ratio against an unguarded zero term is not a finding.
 
 **The fair version survives: 14 tests are ≥100 lines with ≤2 assertions**, led by
 `probe_gap_cost_split` at 282 lines / 1 assertion. That is a real assertion-density concern. It is
@@ -108,11 +115,18 @@ the `*_split` family, `calibrate_mark_ns`, `render_phase_table`, and the zero-as
 woven. Splitting does not fix the 22 `time_ns` copies; fixing the weave does not stop instruments
 from sitting on the correctness floor. Whoever takes this takes both.
 
-**⏭ STILL OPEN after the split — `partire`'s own practitioner's-call, and the split did NOT
-address it:** give the instruments a run profile (`#[ignore]` or a `census` feature) so the release
-floor counts GATES. It still counts all 89, and 5 of them cannot fail. Moving a test to a new file
-does not change whether it can fail; that is a separate strike, and it is the one with real value
-left in it.
+✅ **CLOSED 2026-08-30 — `partire`'s practitioner's-call is DONE, and not the way it proposed.**
+It suggested a run profile for all the instruments. Measurement said otherwise: only TWO are
+genuinely un-gateable (`binding_key_cost`, `binding_repr_microbench` — measured effects of
+1.0–1.9x, inside runner noise, and this repo bans flakes absolutely, so a threshold there would
+manufacture the very thing that ban forbids). Those two are `#[ignore]`d with the numbers recorded
+as the reason.
+
+The other EIGHT did not need a run profile and did not need a performance threshold either —
+**every one had deterministic structure sitting unasserted beside its liveness check**: exact
+census counts, index agreement, phase presence, per-component non-vacuity, apportionment. All
+eight are now real gates, each mutation-proven. Floor: 89 -> 87 running + 2 ignored, and the 87
+all test something.
 
 **⏭ ALSO STILL OPEN — the weave, untouched by the split:** `time_ns` carries two contracts under
 one name (7 sites `elapsed/n`, 15 sites `elapsed`) and `let ms = |ns: f64| ns / 1e6;` is written

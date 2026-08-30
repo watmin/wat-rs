@@ -389,7 +389,24 @@ fn drop_memories_cost_split() {
     m /= r;
     t /= r;
     d /= r;
+    // ⛔ WAS `assert!(d > 0.0)` — a LIVENESS check that passes on nanoseconds even when every
+    // printed millisecond figure is 0.00, which is exactly what this test reports today.
+    //
+    // ★ THE MEASUREMENT IS THE POINT: `round:drop-memories` was recorded at 41 ms
+    // (`binding_repr_microbench`'s doc, which still cites that figure). It is now UNDER 5
+    // MICROSECONDS for the same 40,200-element workload — the cost this test exists to split
+    // no longer exists. A liveness assert cannot notice that, in either direction.
+    //
+    // So the gate LOCKS IN THE WIN instead: drop stays cheap. 1 ms is ~40x below the historical
+    // figure and ~200x above the current one, so it cannot flake on a loaded runner and still
+    // fires if clearing these four structures ever becomes expensive again.
     assert!(d > 0.0, "drop-all recorded 0 ns — the loop never ran");
+    assert!(
+        ms(d) < 1.0,
+        "round:drop-memories regressed to {:.2} ms for {N} elements — it was 41 ms historically \
+         and is ~0.00 ms today; anything approaching 1 ms means clear() stopped being O(1)",
+        ms(d)
+    );
 
     println!(
         "\ndrop-memories split — {N} Elements / pairs / matches, mean of {RUNS}\n\
@@ -605,7 +622,49 @@ fn gather_val_id_split() {
     u /= r;
     iarm /= r;
     b /= r;
+    // ⛔ WAS ONLY `assert!(iarm > 0.0)` — liveness. This test COMPARES two indexes over the same
+    // 40,200 elements: one keyed by `Value`, one by interned id. The comparison is only
+    // meaningful if both index the SAME THING, and nothing checked that.
     assert!(iarm > 0.0, "vid insert recorded 0 ns — the loop never ran");
+
+    // Rebuild both outside the timing loop and prove they agree structurally. `g = i / 200` over
+    // 0..40_200 yields 201 distinct groups, so both indexes must have exactly 201 buckets
+    // holding all N elements between them. If they diverge, the two timings above are measuring
+    // different work and the "split" is comparing apples to oranges — which a liveness assert
+    // cannot see, and which would most likely show up as the interned side looking FASTER.
+    let mut idx_v: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
+    for (i, el) in els.iter().enumerate() {
+        let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
+        if let Some(val) = Bindings::get(&pairs, &gkey) {
+            idx_v.entry(val.clone()).or_default().push(i);
+        }
+    }
+    let mut idx_i: FxHashMap<u32, Vec<usize>> = FxHashMap::default();
+    for (i, el) in els.iter().enumerate() {
+        let pairs = super::pool_slice(&pool, el.binds);
+        if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
+            idx_i.entry(*vid).or_default().push(i);
+        }
+    }
+    assert_eq!(
+        idx_v.len(),
+        201,
+        "the Value-keyed index should hold 201 groups (g = i/200 over 0..{N}); it holds {}",
+        idx_v.len()
+    );
+    assert_eq!(
+        idx_i.len(),
+        idx_v.len(),
+        "the interned-id index ({}) and the Value index ({}) disagree on bucket count — they \
+         are not indexing the same elements, so the timings above compare different work",
+        idx_i.len(),
+        idx_v.len()
+    );
+    assert_eq!(
+        idx_v.values().map(Vec::len).sum::<usize>(),
+        N,
+        "the Value index lost elements: every one of the {N} readings binds ?g"
+    );
     println!(
         "\ngather val-id split — {N} Readings, join_keys=[?g], mean of {RUNS}\n\
              unscaled (one build; the cell pays two)\n\
@@ -768,7 +827,24 @@ fn probe_extend_cost_split() {
     e /= runs;
     kk /= runs;
     h /= runs;
-    assert!(e > 0.0, "extend_token recorded 0 ns — the loop never ran");
+    // ⛔ WAS ONE liveness check on `e` alone — so FOUR of the five measured components could
+    // read zero and this still passed. The test's own header says "treat the RATIO as the
+    // finding", and a ratio against a zero component is not a finding.
+    for (name, v) in [("b", b), ("m", m), ("e", e), ("kk", kk), ("h", h)] {
+        assert!(
+            v > 0.0,
+            "component `{name}` recorded 0 ns — its loop never ran, so every ratio this test \
+             reports that involves it is meaningless rather than fast"
+        );
+    }
+    // APPORTIONMENT: the parts must account for the combined measurement. Loose bounds (0.5x–2x)
+    // because these are wall clocks; what this catches is a component dropping out of `h`.
+    assert!(
+        h >= (b + m + e) * 0.5,
+        "combined ({h:.0} ns) is far below its parts b+m+e ({:.0} ns) — the combined closure is \
+         no longer doing the work the parts describe",
+        b + m + e
+    );
 
     let scale_e = |ns: f64| ns * EXTENDS / 1e6;
     let scale_l = |ns: f64| ns * LEFTS / 1e6;
@@ -985,7 +1061,16 @@ fn probe_gap_cost_split() {
     e /= runs;
     j /= runs;
     g /= runs;
-    assert!(j > 0.0, "join_extend recorded 0 ns — the loop never ran");
+    // ⛔ WAS ONE liveness check on `j` alone, out of SIX measured components. Same reasoning as
+    // `probe_extend_cost_split` above: this test's finding is a ratio, and five of its six terms
+    // were unguarded.
+    for (name, v) in [("r", r), ("s", s), ("p", p), ("e", e), ("j", j), ("g", g)] {
+        assert!(
+            v > 0.0,
+            "component `{name}` recorded 0 ns — its loop never ran, so the gap apportionment \
+             below is dividing by work that did not happen"
+        );
+    }
 
     let scale = |ns: f64| ns * EXTENDS / 1e6;
     let g_ms = g / 1e6;

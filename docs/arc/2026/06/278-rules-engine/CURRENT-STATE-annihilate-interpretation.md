@@ -72,13 +72,15 @@ carries that incident in its header; it is anchored and mutation-proven, and it 
 2. ✅ **DONE — `kernel/tests.rs` 10,189 lines → 13 files, largest 1,676** (`f98226353`). The
    builder lifted the NOT NOW. Do not re-cast: `NOTE-tests-rs-two-casts.md` holds both verdicts
    AND the three ward numbers that failed on grounding.
-   ⛔ **What the split did NOT do, and is the remaining value here:** the floor still counts all
-   89 of these as gates and **5 of them cannot fail** (assertions are pure liveness; 2 more assert
-   nothing at all). Moving a test to a new file does not change whether it can fail. Give the
-   instruments a run profile (`#[ignore]` or a `census` feature) so the floor counts GATES — that
-   is `partire`'s own practitioner's-call and it is still open. The `time_ns` two-contracts problem
-   and the 37 hand-rolled `ms` closures are likewise untouched; both are recorded at the top of
-   `src/rete/kernel/tests/mod.rs` where the instrument now lives.
+   ✅ **AND THE R59 WORK IS DONE TOO.** The count was **10**, not the 5+2 recorded — re-measured
+   with a classifier that knows every liveness SHAPE. Two were genuinely un-gateable
+   (`binding_key_cost`, `binding_repr_microbench`: measured 1.0–1.9x effects, inside runner noise;
+   a threshold there would manufacture the flake this repo bans) and are `#[ignore]`d with the
+   numbers as the reason. The other EIGHT became real gates — and **none needed a performance
+   threshold**: each had deterministic structure sitting unasserted beside its liveness check.
+   All eight mutation-proven. Floor 89 → **87 running + 2 ignored, and the 87 all test something**.
+   ✅ The `time_ns` two-contracts problem and the 37 `ms` closures are also cured (`d17d1fc23`):
+   one definition each, in `tests/mod.rs`, under names that cannot be read as one another.
 3. **`IntegerOverflow` / `DivisionByZero`** — 10 sites, the next totality candidates toward
    *"panics are essentially illegal at runtime"*.
 
