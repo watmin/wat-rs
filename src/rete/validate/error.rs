@@ -222,6 +222,12 @@ pub enum ReteCheckErrorKind {
 }
 
 impl fmt::Display for ReteCheckErrorKind {
+    /// Render one check error kind as the sentence a user reads.
+    ///
+    /// Every arm names the RULE and the FACT TYPE before the fault, because a check error with
+    /// no such context sends the reader hunting for which of a dozen rules produced it. The arms
+    /// are spelled out per kind rather than templated, for the same reason `into_eval` is: the
+    /// kinds exist because the advice differs.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ReteCheckErrorKind::UnknownFactType { rule, fact_type } => write!(
@@ -348,6 +354,11 @@ impl std::error::Error for ReteCheckErrors {}
 // ─── ToEdn + WatError impls (mirrors src/check/error_edn.rs) ─────────────────────────────────
 
 impl crate::to_edn::ToEdn for ReteCheckError {
+    /// The machine-readable form, splicing the SPAN into the kind's own map.
+    ///
+    /// A kind that renders as a non-map body is wrapped under `body` rather than dropped, so the
+    /// span can always be attached — an error whose EDN form silently lost its location would be
+    /// unusable by exactly the tooling this representation exists for.
     fn to_edn(&self) -> OwnedValue {
         use crate::to_edn::edn_kw;
         let kind_val = self.kind.to_edn();

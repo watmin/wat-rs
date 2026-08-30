@@ -1782,6 +1782,14 @@ fn rete_defn_cycle(root_name: &str, body: &WatAST, sym: &SymbolTable) -> Option<
     walk_rete_defn_callees(body, &mut gray, &mut black, sym)
 }
 
+/// Walk a rete definition's callees for purity, returning the first impure one with its span.
+///
+/// `gray`/`black` are the classic cycle-safe colouring: gray is the current path (re-entering it
+/// is recursion, not a second visit), black is settled. Without them a mutually recursive pair
+/// of pure functions would not just be slow — it would not terminate.
+///
+/// Returning the FIRST offender rather than collecting all of them is deliberate: purity is a
+/// yes/no property of the definition, and one located counterexample is the whole proof.
 fn walk_rete_defn_callees(
     ast: &WatAST,
     gray: &mut HashSet<String>,

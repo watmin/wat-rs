@@ -605,9 +605,11 @@ enum OperandLowering {
     Refused,
 }
 
-/// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes the
-/// oracle's `resolve_operand` distinguishes at RUNTIME (`?var` from the scope-so-far, `:field`
-/// from the class's declared fields, or a bare literal). `:field` is prologue (a Bind into a
+/// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes
+/// [`crate::rete::matcher::resolve_operand`] distinguishes at RUNTIME, on every fact (`?var`
+/// from the scope-so-far, `:field` from the class's declared fields, or a bare literal). That
+/// function is the thing this module exists to stop calling per-fact; the shapes are identical,
+/// only the WHEN differs. `:field` is prologue (a Bind into a
 /// slot, reused if this condition already bound that field), so the Cmp itself only sees an
 /// [`Expr`].
 ///

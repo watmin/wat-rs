@@ -650,6 +650,14 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
     Some(t)
 }
 
+/// The per-op row: arity, field type, a hitting value, a missing value, and the expression
+/// text that exercises the op.
+///
+/// A TABLE rather than a rule, and the comment inside says why it has to be: `<` needs its hit
+/// and miss values SWAPPED relative to `>` against the same literal. Any scheme that derived
+/// operands from the op's shape would get that pair backwards and the probe would still pass —
+/// it would just be proving the wrong direction. `special_for` handles the ops whose expression
+/// cannot be generated at all and is checked first.
 fn operands_for(rete_name: &'static str) -> Option<Cell> {
     if let Some((field_ty, hit, miss, expr, extra)) = special_for(rete_name) {
         return Some(Cell {
@@ -1444,6 +1452,8 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
 /// that admits everything, which is strictly worse than the denial it replaced.
 #[test]
 fn every_provably_boolean_form_is_admitted_inline() {
+    /// Test helper: a complete two-record rule program with `predicate` spliced into the
+    /// condition, so a test states only the predicate under study.
     fn src(predicate: &str) -> String {
         format!(
             r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
@@ -1691,6 +1701,9 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 /// message carries the available fields because the ruin must teach.
 #[test]
 fn a_match_hash_destructure_binds_fields_in_both_positions() {
+    /// Test helper: like `src`, but splices a whole CONDITION rather than a predicate, and
+    /// declares a nested `Point` record — for the cases that need structure inside the fact
+    /// rather than a comparison on a flat field.
     fn program(condition: &str) -> String {
         format!(
             r#"(:wat::core::defrecord :probe::Point [x <- :wat::core::i64  y <- :wat::core::i64])

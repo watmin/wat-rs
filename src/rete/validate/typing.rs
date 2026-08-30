@@ -66,6 +66,11 @@ pub(crate) fn check_field(
     check_field_at(field, clause.span().clone(), rule_name, fact_type, field_names, errors);
 }
 
+/// Record an `UnknownField` unless `field` is one the fact type declares.
+///
+/// Takes the span of the FIELD rather than the clause so the caret lands on the offending
+/// keyword. The error carries the available field names alongside the bad one — a
+/// did-you-mean the reader can act on without going to look up the record definition.
 fn check_field_at(
     field: &str,
     span: Span,

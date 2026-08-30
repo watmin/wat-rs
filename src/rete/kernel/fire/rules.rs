@@ -835,6 +835,11 @@ fn synthetic_rule(name: &str) -> Value {
     )))
 }
 
+/// Fire from a stratify schedule alone, synthesising a rule per dependency row.
+///
+/// This is the IMPORTED-program path: an export carries its schedule but not its source forms
+/// (`export.rs`'s `pack_deps`), so there are no rules to walk — the names and views in `deps`
+/// are the whole input, and `synthetic_rule` stands in for the form that is not on this disk.
 fn fire_rules_from_deps(
     session: &Value,
     deps: &[RuleDep],

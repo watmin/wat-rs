@@ -214,6 +214,12 @@ fn disc_contains(n: &AlphaDiscNode, id: i64) -> bool {
         || n.children.values().any(|c| disc_contains(c, id))
 }
 
+/// Rebuild one subtree keeping only the leaves in `keep`, or `None` if nothing survives.
+///
+/// Returning `None` for a fully-pruned subtree is what makes the prune actually shrink the tree:
+/// a node kept with no leaves, no children and no wildcard is a level the walk still has to
+/// descend to learn it holds nothing. The recursion prunes bottom-up, so an interior node
+/// disappears exactly when all of its descendants did.
 fn restrict_node(n: &AlphaDiscNode, keep: &HashSet<i64>) -> Option<Arc<AlphaDiscNode>> {
     let leaves: Vec<i64> = n.leaves.iter().copied().filter(|id| keep.contains(id)).collect();
     let children: EqChildren = n

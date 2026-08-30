@@ -333,6 +333,13 @@ fn validate_plain_condition(
     }
 }
 
+/// Check every clause of one condition against the fact type's DECLARED fields.
+///
+/// Resolving the type's field names and types happens once, here, and is then threaded into
+/// each clause — a clause-level lookup would re-resolve the same type per clause and, worse,
+/// could disagree with itself if the environment changed mid-walk. A type with no readable
+/// fields is an error recorded and carried on from, not a bail: the point of a validator is to
+/// report every fault in one pass, so the user fixes them together rather than one per run.
 fn validate_typed_clauses(
     cond: &WatAST,
     fact_type: &str,
@@ -387,6 +394,12 @@ pub(crate) struct ClauseCtx<'a> {
     types: &'a TypeEnv,
 }
 
+/// Check one clause, dispatching on its `ReteClauseShape`.
+///
+/// The destructure takes only what THIS function reads — the rest travel onward inside `ctx`.
+/// That is deliberate and the comment below records why: destructuring all of them and then not
+/// using them produced three `unused_variable` warnings, and the fix is to TAKE LESS rather than
+/// to `_`-prefix, which would silence the very gate that caught it (task #67).
 fn validate_clause(
     clause: &WatAST,
     ctx: &ClauseCtx<'_>,
@@ -999,6 +1012,12 @@ fn validate_then_form(
     }
 }
 
+/// Rewrite a kwargs-style fact form into positional field order, in place.
+///
+/// `fact_items.truncate(1)` keeps the head and drops the arguments before re-extending, so the
+/// rewrite is a replacement rather than an append — re-running it cannot accumulate duplicates.
+/// An unknown field name is reported against ITS OWN span (`bad.span`), not the fact's, so the
+/// caret lands on the offending keyword rather than the whole form.
 fn reorder_then_kwargs(
     fact_items: &mut Vec<WatAST>,
     field_names: &[String],
@@ -1101,6 +1120,11 @@ mod tests {
     use super::*;
     use crate::freeze::env::build_env;
 
+    /// Test helper: find the first `:wat::rete::make-rule` form anywhere in a parse tree.
+    ///
+    /// Recurses into every list rather than checking the top level, because the tests that use it
+    /// build rules nested inside `let`/`do` wrappers and should not have to know the nesting
+    /// depth their fixture happens to produce.
     fn find_make_rule(forms: &[WatAST]) -> Option<&Vec<WatAST>> {
         for f in forms {
             if let WatAST::List(items, _) = f {

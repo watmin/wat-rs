@@ -25,6 +25,12 @@ pub(super) struct AccView<'a> {
     col_fields: &'a [u8],
 }
 
+/// Borrow the session fields an accumulator reads, plus the two column slices that vary per
+/// call.
+///
+/// The same field-level split-borrow `FireCtx` uses in `fire/mod.rs`, for the same reason: an
+/// accumulator reads across the session while other parts of it are mutably held, and naming the
+/// fields is Rust's only spelling for that disjointness.
 pub(super) fn acc_view<'a>(
     wm: &'a FireSession,
     col_keys: &'a [Value],
@@ -137,6 +143,11 @@ pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, 
     }
 }
 
+/// Sum `i64`s, raising `IntegerOverflow` with BOTH operands rather than wrapping.
+///
+/// `checked_add` per element, not a `sum()` — a wrapped total is a plausible-looking wrong
+/// answer, which is the worst thing an accumulator can return. The error carries `a` and `b` so
+/// the report names the pair that overflowed instead of just the fold.
 fn checked_i64_sum(vals: impl Iterator<Item = i64>) -> Result<i64, EvalBreak> {
     let mut acc = 0i64;
     for v in vals {
@@ -259,6 +270,12 @@ pub(super) fn project_group_keys<B: Bindings + ?Sized>(
         .collect()
 }
 
+/// Run one `AccFold` over the gathered elements, producing the accumulator's value.
+///
+/// `Count` alone ignores the element values and takes the length; the numeric folds share
+/// `fold_i64s` so overflow behaviour is decided in ONE place rather than per fold. A fold
+/// returning `None` means "no value from this group", which is distinct from an error and is
+/// what lets an empty accumulation stay silent instead of raising.
 pub(super) fn accumulate_value(
     fold: &AccFold,
     gathered: &[&Element],

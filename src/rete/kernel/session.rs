@@ -822,6 +822,11 @@ pub(crate) fn to_transient_for_fire(session: &Value) -> Result<FireSession, Eval
     to_transient_inner(session, false)
 }
 
+/// Decode a wat `Session` value into the mutable `FireSession` the fire loop works on.
+///
+/// `decode_memories` is the one axis: a fresh fire rebuilds alpha and beta from scratch and can
+/// skip decoding them, while a continuing session must carry them across. One body rather than
+/// two so the dozen non-memory fields cannot be decoded differently by the two callers.
 fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSession, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient";
     let agg = match session {
@@ -948,6 +953,18 @@ fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSess
     })
 }
 
+/// Decode a wat `PersistentMap` into `QueryMemory` — `{query-name: [bindings…]}` — validating
+/// every level.
+///
+/// ⚠ This is the DEEPEST function in rete, and the depth is the DIAGNOSTICS, not the logic. The
+/// shape has three nested levels (map → `String` key → vector value → `PersistentMap` item) and
+/// each one gets its own located `TypeMismatch` naming what it expected: "query-name String",
+/// "binding PersistentMap". Flattening the walk into helpers would either thread `op` and the
+/// span through every one of them or collapse three distinct diagnoses into one "malformed query
+/// memory", which is the message that tells a user nothing about which level went wrong.
+///
+/// The logic underneath is a plain two-level copy. If you are here to reduce nesting, the thing
+/// to preserve is that each `expected:` string still names its own level.
 pub(crate) fn pm_to_query_memory(op: &'static str, pm: &Value) -> Result<QueryMemory, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
@@ -1308,6 +1325,11 @@ pub(crate) fn pool_slice(pool: &[(u32, u32)], span: BindSpan) -> &[(u32, u32)] {
     &pool[o..o + span.len as usize]
 }
 
+/// Push `(key, value)` pairs into the bind pool and return the span covering them.
+///
+/// Keys and values intern through different tables — `intern_key` and `intern_val` — because a
+/// binding key is a small closed set of names while a value is arbitrary; one shared table would
+/// give up the key table's density for nothing.
 pub(crate) fn span_from_pairs(
     intern: &mut BindIntern<'_>,
     pairs: impl IntoIterator<Item = (Value, Value)>,

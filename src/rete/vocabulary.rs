@@ -191,6 +191,11 @@ pub(crate) enum ParamType {
 }
 
 impl ParamType {
+    /// Expand a table row's `ParamType` into the checker's `TypeExpr`.
+    ///
+    /// This is the bridge that lets the vocabulary table stay terse — one enum variant per shape
+    /// — while the checker still receives fully-spelled paths and parametric heads. `Var` becomes
+    /// a bare path so a row can name a type variable without the table needing a second column.
     pub(crate) fn to_type_expr(self) -> TypeExpr {
         match self {
             ParamType::I64 => TypeExpr::Path(":wat::core::i64".into()),

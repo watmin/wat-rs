@@ -36,6 +36,11 @@ pub(crate) struct AlphaActivateCx<'a> {
     pub(crate) bind_only: &'a BindOnlyFields,
 }
 
+/// Push one fact through the alpha tree, writing matches into the round's alpha delta.
+///
+/// A non-record value returns `Ok(())` rather than raising: the fact bag is filtered at the
+/// insert door, so anything else reaching here is not a user error to report but a value this
+/// pass has nothing to say about.
 pub(crate) fn alpha_activate_fact(
     fact: &Value,
     fact_idx: u32,

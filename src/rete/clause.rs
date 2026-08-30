@@ -288,6 +288,18 @@ fn expr_is_provably_boolean(ast: &WatAST) -> bool {
     }
 }
 
+/// THE grammar: one clause form → one `ReteClauseShape`. The single parser every rete consumer
+/// shares.
+///
+/// Compilation, validation, stratification and purity all route through here rather than
+/// re-deriving "what shape is this form" from the raw `WatAST` — that is the point of the shape
+/// enum, and a second parser anywhere would be two grammars that can disagree about the same
+/// program.
+///
+/// A non-list or empty form is `Unrecognized` rather than a panic or a guess. That arm is
+/// load-bearing: a bare keyword is exactly the injected-`:celsius` corruption the wall exists to
+/// catch, and classifying it as "not a shape" is what lets the caller report it instead of
+/// matching it as something.
 pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
     let items = match clause {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),

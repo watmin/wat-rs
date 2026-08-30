@@ -218,6 +218,11 @@ impl LowerError {
         }
     }
 
+    /// Convert a lowering failure into the runtime error the caller raises, preserving the span.
+    ///
+    /// Each `LowerErrorKind` maps to its own `RuntimeErrorKind` rather than to one generic
+    /// "lowering failed": the kinds exist precisely because the causes are different, and
+    /// collapsing them here would undo that at the last step, where the user actually reads it.
     pub(crate) fn into_eval(self) -> EvalBreak {
         match self.kind {
             LowerErrorKind::Unsupported { reason } => RuntimeError::new(
