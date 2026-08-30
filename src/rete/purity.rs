@@ -530,6 +530,19 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     }
 
     // Pure ∧ deterministic explicit `:wat::core::` ops.
+    //
+    // arc 255 Stone total-T6 — this list used to carry ~103 additional names (per-type
+    // arithmetic/comparison, the map/hashmap/vec/vector/linkedlist/hashset `/`-verb families,
+    // uuid readers, the holon:: VSA seam, …) that `total-T5`'s registry consult (above) had
+    // already made UNREACHABLE: every one of those names is `#[wat_intrinsic]`-registered, so
+    // the registry branch answers before this `matches!` is ever reached. DERIVED and DELETED —
+    // `registry().lookup_entry(name).is_some()` for every deleted name, verified against every
+    // verb's `intrinsic_meta` verdict before and after (identical). What remains below is the
+    // genuine backlog: dispatched verbs with NO registration yet, so this hand-list is still the
+    // only place carrying their ruling. `:wat::core::when` — a ruling for a verb the language
+    // does not have (`unknown function: :wat::core::when`) — was deleted in the same stone, by
+    // name, not by this derivation (`lookup_entry` returns `None` for it too, same as every
+    // survivor, but it resolves to nothing at all).
     let pure_det = matches!(
         head,
         // Arithmetic
@@ -537,59 +550,6 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::-"
             | ":wat::core::*"
             | ":wat::core::/"
-            // Arc 255 Stone C — `:wat::i64::*` is the i64 home (the old
-            // `:wat::core::i64::*` spelling is retired); every one of these forwards
-            // straight to `crate::runtime::eval_i64_arith` /
-            // `crate::runtime::eval_i64_to_{string,f64}` (see `src/intrinsic/i64.rs`'s
-            // module doc — "No arithmetic is re-implemented here").
-            | ":wat::i64::+"
-            | ":wat::i64::-"
-            | ":wat::i64::*"
-            | ":wat::i64::/"
-            | ":wat::i64::to-string"
-            | ":wat::i64::to-f64"
-            // Arc 300 stone C1 — bigint arithmetic + conversions. Arc 255
-            // Stone D — `:wat::bigint::*` is the bigint home (the old
-            // `:wat::core::bigint::*` spelling is retired); every one of
-            // these forwards straight to `crate::runtime::eval_bigint_arith` /
-            // `crate::runtime::eval_bigint_to_{f64,rational}` (see
-            // `src/intrinsic/bigint.rs`'s module doc).
-            | ":wat::bigint::+"
-            | ":wat::bigint::-"
-            | ":wat::bigint::*"
-            | ":wat::bigint::/"
-            | ":wat::bigint::to-f64"
-            | ":wat::bigint::to-rational"
-            // Arc 255 Stone C — i64→bigint promotion, i64 home spelling.
-            | ":wat::i64::to-bigint"
-            // Arc 300 stone C2 — rational arithmetic + conversions. Arc 255
-            // Stone D — `:wat::rational::*` is the rational home (the old
-            // `:wat::core::rational::*` / `:wat::core::rational/*` spellings
-            // are retired). Every one of these forwards straight to
-            // `crate::runtime::eval_rational_arith` /
-            // `crate::runtime::eval_rational_{to_f64,numerator,denominator}`
-            // (see `src/intrinsic/rational.rs`'s module doc).
-            | ":wat::rational::+"
-            | ":wat::rational::-"
-            | ":wat::rational::*"
-            | ":wat::rational::/"
-            | ":wat::rational::to-f64"
-            | ":wat::rational::numerator"
-            | ":wat::rational::denominator"
-            // Arc 255 Stone C — i64→rational promotion, i64 home spelling.
-            | ":wat::i64::to-rational"
-            // Arc 255 Stone C — `:wat::f64::*` is the f64 home (the old
-            // `:wat::core::f64::*` spelling is retired); every one of these forwards
-            // straight to `crate::runtime::eval_f64_arith` / `crate::runtime::eval_f64_unary`
-            // (see `src/intrinsic/f64.rs`'s module doc — the six arithmetic ops share the
-            // named `f64_*_op` fns, `abs`/`max`/`min` share the same engine fn).
-            | ":wat::f64::+"
-            | ":wat::f64::-"
-            | ":wat::f64::*"
-            | ":wat::f64::/"
-            | ":wat::f64::abs"
-            | ":wat::f64::max"
-            | ":wat::f64::min"
             | ":wat::core::u8"
             // Comparison
             | ":wat::core::="
@@ -602,99 +562,39 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::not"
             | ":wat::core::and"
             | ":wat::core::or"
-            // Control flow whose sub-items are ALL plain exprs (or symbol/expr binding vectors)
-            // — safe to recurse element-wise. (`cond`/`match` are handled with dedicated
-            // clause-aware arms in classify_expr, NOT here, because their clauses are not calls.)
-            | ":wat::core::if"
-            | ":wat::core::let"
+            // Control flow whose sub-items are ALL plain exprs — safe to recurse element-wise.
+            // (`cond`/`match` are handled with dedicated clause-aware arms in classify_expr, NOT
+            // here, because their clauses are not calls. `if`/`let` are registered — Stone
+            // total-T6 deleted them from here; `when` never existed as a verb and was deleted by
+            // name, not derivation.)
             | ":wat::core::do"
-            | ":wat::core::when"
-            // Collection/map/vector readers and predicates
+            // Collection/map/vector readers and predicates — UNHOMED (no registration): the
+            // 118.B4/B5/P6-c-W6 promotions (`nth`/`last`/`rest`/`reverse`/`range`/`length`/
+            // `empty?`/`stream->vec`/`stream->pvec`) all moved to the registry and were deleted
+            // from here this stone; these five have not been promoted/homed yet.
             | ":wat::core::get"
-            | ":wat::core::length"
-            | ":wat::core::empty?"
             | ":wat::core::contains?"
             | ":wat::core::first"
             | ":wat::core::second"
             | ":wat::core::third"
-            // Stone 118.B4-0 — `nth` promoted from a wat `defclause` (which carried no purity
-            // ruling of its own; `intrinsic_meta` only judges DISPATCHED verbs) to a Rust
-            // intrinsic, which does. Same ruling as its siblings immediately above: it reads an
-            // already-evaluated collection + an already-evaluated i64 index, performs no IO, no
-            // entropy, no mutation — pure ∧ deterministic. NOT added to the `total` list below:
-            // like `first`/`second`/`third`, it raises on out-of-range (verified `eval_nth`,
-            // runtime.rs) — a genuinely partial function, exactly the reason this axis exists.
-            | ":wat::core::nth"
-            // Arc 255 Stone P6-c-W6 — `last`/`rest`/`reverse`/`range` homed to
-            // `#[wat_intrinsic]` (`src/intrinsic/collection.rs`), same shape as `nth`
-            // immediately above: `intrinsic_meta` only judges DISPATCHED verbs, and these four
-            // sat in `KNOWN_UNREVIEWED` until this stone gave them a real ruling instead of a
-            // parked line. Each reads an already-evaluated receiver (`last`/`rest`/`reverse`)
-            // or two already-evaluated i64s (`range`) through a `StreamContainer` capability
-            // gate (`has_tail()`/`ordered()`) or `require_vec`/`require_i64` — no `eval_inner`/
-            // `apply_function` on caller-supplied code, no thunk ever forced (Stone 118.B4-iii
-            // — THE WALL — already set every relevant gate `false` for `Stream`). Pure ∧
-            // deterministic, all four. `rest` is NOT added to the `total` list below: it raises
-            // `MalformedForm` on an empty receiver (verified `eval_rest`,
-            // `intrinsic/collection.rs`) — genuinely partial, same axis `nth` is excluded for.
-            // `last`/`reverse`/`range` ARE added there: `last` always returns `Option` (never
-            // raises), `reverse` always returns a same-kind collection for any accepted
-            // receiver, and `range` always returns a `Vector` (empty when `start >= end`) for
-            // any two i64s — none has a domain hole.
-            | ":wat::core::last"
-            | ":wat::core::rest"
-            | ":wat::core::reverse"
-            | ":wat::core::range"
-            // Stone 118.B5 — `stream->vec`/`stream->pvec` promoted from wat `defn` (also
-            // unruled here; same reason `nth`'s comment gives — `intrinsic_meta` only judges
-            // DISPATCHED verbs, and a wat `defn` is not one) to Rust intrinsics, which are.
-            // Discovered by going red on `rete::purity::completeness_gate::
-            // every_dispatched_verb_is_classified_or_disposed` — a SEPARATE gate from
-            // `is_pure_total` (`macros/eval.rs`), no link between them. Same ruling as `nth`
-            // immediately above: each reads an already-evaluated receiver + an
-            // already-evaluated Stream and realizes it one cell at a time
-            // (`eval_stream_to_vec`/`eval_stream_to_pvec`, `collection/transform.rs`) — no IO,
-            // no entropy, no mutation of anything the caller can observe — pure ∧
-            // deterministic. NOT added to the `total` list below: the walk forces the
-            // producer, and the producer can raise (a `lazy-seq` body is arbitrary user code) —
-            // genuinely partial, same axis this exists to catch.
             | ":wat::core::stream->vec"
             | ":wat::core::stream->pvec"
             | ":wat::core::record?"
             | ":wat::core::str"
-            // PersistentVector ops — bare TYPE constructor unmoved (STOP-3); the 5 `/`-verbs
-            // below moved to `:wat::vector::*` this stone (arc 255 Stone E-ii).
+            // Bare TYPE constructors — the numerics/container HOME campaigns (arc 255 Stones
+            // C/D/E-i/E-ii/E-iii) moved every `/`-verb OP to its own per-type namespace and
+            // registered it (`:wat::vec::*`, `:wat::vector::*`, `:wat::linkedlist::*`,
+            // `:wat::hashset::*`, `:wat::map::*`, `:wat::hashmap::*`, `:wat::uuid::*`) — those
+            // are all deleted from here this stone (the registry answers them now). The bare
+            // constructor keyword for each type (STOP-3 in each of those stones) stays unhomed.
+            // `:wat::core::List` (the bare type, no `?`) IS registered and was deleted; `List?`
+            // (the predicate) is not.
             | ":wat::core::PersistentVector"
-            | ":wat::vector::length"
-            | ":wat::vector::empty?"
-            | ":wat::vector::contains?"
-            | ":wat::vector::get"
-            | ":wat::vector::conj"
-            // PersistentMap / HashMap TYPE constructors — bare, no rename this stone
-            // (arc 255 Stone E-i moved only the `/`-verb ops; the type constructors are a
-            // separate future stone, per the numerics type/ops split precedent).
             | ":wat::core::PersistentMap"
             | ":wat::core::HashMap"
-            // Arc 255 Stone E-i — the maps get their homes. `:wat::core::{PersistentMap,
-            // HashMap}/*` retired this stone; `keys`/`values` excluded here (classified
-            // non-deterministic by the special-case block earlier in this fn).
-            | ":wat::map::length"
-            | ":wat::map::empty?"
-            | ":wat::map::contains-key?"
-            | ":wat::map::get"
-            | ":wat::map::assoc"
-            | ":wat::map::dissoc"
-            | ":wat::hashmap::length"
-            | ":wat::hashmap::empty?"
-            | ":wat::hashmap::contains-key?"
-            | ":wat::hashmap::get"
-            | ":wat::hashmap::assoc"
-            | ":wat::hashmap::dissoc"
-            // Deterministic Uuid ops (v5 = SHA1(ns,name); from-string/to-string/nil)
-            | ":wat::uuid::v5"
-            | ":wat::uuid::from-string"
-            | ":wat::uuid::to-string"
-            | ":wat::uuid::nil"
+            | ":wat::core::Vector"
+            | ":wat::core::List?"
+            | ":wat::core::HashSet"
             // Higher-order fold combinators — CONDITIONALLY pure∧det: the combinator itself is
             // referentially transparent + effect-free; its purity/determinism falls out of the
             // arg-recursion over its fn-argument (classify_expr recurses every arg, incl. the
@@ -705,105 +605,9 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::mapv"
             | ":wat::core::filter"
             | ":wat::core::reduce"
-            // ── 2026-08-01: the EXPRESSIVITY GAP, closed by hand ──────────────────────────────
-            //
-            // Found by measuring the fence against what a USER MAY WRITE rather than against our
-            // own corpus (the builder: "do not optimize for our code — optimize for the users we
-            // have not encountered yet"). Diffing `dispatch_keyword_head_value`'s arms against this
-            // list: 221 dispatch arms, 96 classified. Our rulesets happened to use only the
-            // classified subset — generic `>` everywhere, never a String verb in a `where` — so
-            // nothing ever tripped it.
-            //
-            // The cost was real and hard: `compile-condition` PANICS on `pure? = false`
-            // (`wat/rete/compile.wat`), so `(:wat::rete::where (:wat::core::i64::> ?bytes 10000))` and
-            // `(:wat::rete::where (:wat::core::String/starts-with? ?path "/adm"))` were BOTH
-            // uncompilable — and the same gate fences the sift `Sieve::Predicate` form, so this
-            // constrained the chaos engine's server-side filter too, not just rete rules. It also
-            // propagates: a user's own `defn` predicate inherits the gap invisibly through its body.
-            //
-            // Each entry below is a value operation over already-evaluated arguments: no IO, no
-            // entropy, no mutation, same inputs → same output. Grouped by the family whose ABSENCE
-            // was the actual defect — the transcription had added the per-Type ARITHMETIC leaves
-            // and the Persistent* containers, then stopped.
-
-            // Per-Type COMPARISON leaves. `i64::+ - * /` were here; `i64::< > <= >=` were not —
-            // an inconsistency inside one family, and the single most common thing a rule says.
-            // Arc 255 Stone C — `:wat::i64::*` / `:wat::f64::*` is the i64/f64 home (the old
-            // `:wat::core::{i64,f64}::*` spelling is retired). Each forwards to the same
-            // `crate::runtime::eval_compare` / `eval_i64_arith` / `eval_f64_compare` fns
-            // (`src/intrinsic/{i64,f64}.rs`).
-            | ":wat::i64::<"  | ":wat::i64::<=" | ":wat::i64::>" | ":wat::i64::>="
-            | ":wat::f64::<"  | ":wat::f64::<=" | ":wat::f64::>" | ":wat::f64::>="
-            // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`/`f64::=`/
-            // `f64::not=`, restored beside their ordering twins above (237.8d's cut
-            // reversed). Same shape: a value operation over already-evaluated
-            // arguments, no IO, no entropy, no mutation, same inputs -> same output.
-            | ":wat::i64::=" | ":wat::i64::not="
-            | ":wat::f64::=" | ":wat::f64::not="
-            // Per-Type integer division family (`i64::/` was already here; its siblings were not).
-            | ":wat::i64::mod" | ":wat::i64::quot" | ":wat::i64::rem"
-            // f64 numeric readers/roundings — total functions of their argument. `round` /
-            // `clamp` / `to-i64` / `to-string` forward to the SAME
-            // `crate::runtime::eval_f64_{round,clamp,to_i64,to_string}` fns; `max-of` /
-            // `min-of` are variadic (bare args, not a single `Vector`) but reduce with the
-            // literal same `f64::max`/`f64::min` fn pointer — see
-            // `src/intrinsic/f64.rs`'s module doc.
-            | ":wat::f64::round" | ":wat::f64::clamp"
-            | ":wat::f64::max-of" | ":wat::f64::min-of"
-            | ":wat::f64::to-i64" | ":wat::f64::to-string"
-            // Arc 255 Stone F — the `:wat::core::String/{concat,contains?,empty?,starts-with?,
-            // ends-with?}` entries that lived HERE are DELETED, not migrated: their replacement
-            // (`:wat::string::*`) is already covered by the `:wat::string::` prefix whitelist
-            // above (this stone added the five verbs to ITS small `total` list), so a
-            // hand-list entry here would be redundant the moment the verbs moved — a hand-list
-            // deleted beats a hand-list migrated. `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`
-            // `Vector/`, `List/`, `HashSet/` — the value containers. `PersistentVector/`,
-            // `PersistentMap/` and `HashMap/` were classified; these three were skipped.
-            // Arc 255 Stone E-ii — the bare TYPE `:wat::core::Vector` is unmoved (STOP-3); the
-            // 7 `/`-verbs moved to `:wat::vec::*` this stone.
-            | ":wat::core::Vector"      | ":wat::vec::length"   | ":wat::vec::get"
-            | ":wat::vec::conj"         | ":wat::vec::contains?" | ":wat::vec::empty?"
-            | ":wat::vec::concat"       | ":wat::vec::extend"
-            // Arc 255 Stone E-iii — the bare TYPE `:wat::core::List` (and `List?`) is unmoved
-            // (STOP-3); the 5 `/`-verbs moved to `:wat::linkedlist::*` this stone.
-            | ":wat::core::List?"         | ":wat::core::List"            | ":wat::linkedlist::length"
-            | ":wat::linkedlist::get"     | ":wat::linkedlist::conj"      | ":wat::linkedlist::contains?"
-            | ":wat::linkedlist::empty?"
-            // Arc 255 Stone E-iii — the bare TYPE `:wat::core::HashSet` is unmoved (STOP-3);
-            // the 4 `/`-verbs moved to `:wat::hashset::*` this stone.
-            | ":wat::core::HashSet"       | ":wat::hashset::length"  | ":wat::hashset::conj"
-            | ":wat::hashset::contains?" | ":wat::hashset::empty?"
-            // The persistent sibling the `into` stone minted; its `Vector/extend` twin is above.
-            // Arc 255 Stone E-ii — moved to `:wat::vector::concat`.
-            | ":wat::vector::concat"
             // Scalar conversions — total, same-in-same-out.
             | ":wat::core::bool::to-string"
             | ":wat::core::i64/to-f64" | ":wat::core::i64/to-string"
-            // Uuid READERS (contrast `Uuid/v4`, which is pure but NON-deterministic and is handled
-            // by its own arm at the top): these read bits out of a value already in hand.
-            | ":wat::uuid::version" | ":wat::uuid::rfc4122-variant?"
-
-            // ── The VSA SEAM — `:wat::holon::` (builder-ruled, 2026-08-01: these four) ─────────
-            //
-            // ZERO of the 105 `:wat::holon::` verbs were classified, so R4's designed seam — *"swap
-            // RETE's exact test for COINCIDENCE, similarity over a floor, so rules fire on
-            // resemblance, not equality"* — was welded shut: a rule doing a VSA op mid-fire could
-            // not compile. `DESIGN-sift-server-side-filter.md` calls for exactly this ("a holon
-            // fact carries its Hologram → a rule can do a VSA op mid-fire"), and the same fence
-            // gates the sift `Sieve::Predicate`, so it was shut on both paths.
-            //
-            // All four READ two values already in hand and return a scalar or a bool — no IO, no
-            // entropy, no mutation. `coincident?`/`presence?` are the bool predicates a `where`
-            // can use directly; `cosine`/`dot` are measurements, so at the RETE surface they carry
-            // a mandatory `:undefined` fallback (DESIGN-STONE-the-vsa-seam-opens.md, 2026-08-05,
-            // ruled by the builder) rather than handing back their outcome enum unwrapped —
-            // `(:wat::rete::f64::> (:wat::rete::holon::cosine ?a ?b :undefined 0.0) 0.9)` now
-            // composes, where before BOTH halves were unclassified. (This comment previously named
-            // a stale motivating expression that could not type-check, since `cosine` returns
-            // `CosineOutcome`, not a bare f64 — the exact guarded-`0.0`-as-confident-no-match
-            // fabrication the cosine outcome wall exists to prevent.)
-            | ":wat::holon::cosine" | ":wat::holon::dot"
-            | ":wat::holon::coincident?" | ":wat::holon::presence?"
     );
 
     // ── `total` — arc 255 total-T4b: DERIVED from the registry, an 11-name backlog left ────────
