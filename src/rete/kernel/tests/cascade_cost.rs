@@ -284,7 +284,6 @@ fn cascade_query_harvest_split() {
     with.round /= r;
     with.harvest /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\ncascade query harvest split — [50 100], mean of {RUNS}\n\
              \n\
@@ -355,7 +354,6 @@ fn cascade_setup_leftover_split() {
     seen_raw /= r;
     arm_raw /= r;
     let remainder_raw = setup_raw - seen_raw - arm_raw;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\ncascade SETUP leftover split — [50 100], mean of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\

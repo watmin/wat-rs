@@ -116,7 +116,6 @@ fn strat_neg_query_harvest_split() {
     with.fire /= r;
     with.harvest /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\nstrat-neg query harvest split — [6 2000], mean of {RUNS}\n\
              \n\
@@ -232,7 +231,6 @@ fn strat_merge_present_parts() {
 
     let r = RUNS as f64;
     let (a, b) = (a / r, b / r);
-    let ms = |ns: f64| ns / 1e6;
 
     let table = format!(
         "\nstrat merge present — [{STRATA} {ITEMS}], mean of {RUNS}\n\
@@ -334,7 +332,6 @@ fn strat_acc_derived_clone_parts() {
 
     let r = RUNS as f64;
     let (a, b) = (a / r, b / r);
-    let ms = |ns: f64| ns / 1e6;
     let total = STRATA * PER_STRATUM as usize;
 
     let table = format!(
@@ -430,7 +427,6 @@ fn strat_neg_stratum_split() {
     }
 
     let r = RUNS as f64;
-    let ms = |ns: f64| ns / 1e6;
     let strat_sum: f64 = net.iter().sum::<f64>() / r;
 
     let mut body = String::new();
@@ -608,7 +604,6 @@ fn strat_merge_cow_parts() {
 
     let r = RUNS as f64;
     let (a, b) = (a / r, b / r);
-    let ms = |ns: f64| ns / 1e6;
 
     let table = format!(
         "\nstrat merge copy-on-write — [{STRATA} {SEED}], mean of {RUNS}\n\

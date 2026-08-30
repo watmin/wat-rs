@@ -8,7 +8,6 @@ use super::*;
 #[test]
 fn out_production_cost_split() {
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_000;
     const RUNS: usize = 3;
@@ -24,13 +23,6 @@ fn out_production_cost_split() {
         })
         .collect();
 
-    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        for _ in 0..n {
-            body();
-        }
-        t0.elapsed().as_nanos() as f64 / n as f64
-    }
 
     black_box(facts.clone());
     {
@@ -51,22 +43,22 @@ fn out_production_cost_split() {
     let mut h = 0.0;
     let mut i = 0.0;
     for _ in 0..RUNS {
-        c += time_ns(1, || {
+        c += ns_per_iter(1, || {
             black_box(facts.clone());
         });
-        v += time_ns(1, || {
+        v += ns_per_iter(1, || {
             let mut pv = rpds::VectorSync::new_sync();
             for val in facts.clone() {
                 pv.push_back_mut(val);
             }
             black_box(pv);
         });
-        h += time_ns(1, || {
+        h += ns_per_iter(1, || {
             let mut map: ProductionMemory = HashMap::new();
             map.insert(1, facts.clone());
             black_box(super::production_to_pm(map));
         });
-        i += time_ns(1, || {
+        i += ns_per_iter(1, || {
             let collected: rpds::VectorSync<Value> = facts.clone().into_iter().collect();
             black_box(collected);
         });
@@ -81,7 +73,6 @@ fn out_production_cost_split() {
         "production_to_pm recorded 0 ns — the loop never ran"
     );
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\nout:production split — {N} Pair records, mean of {RUNS}\n\
              unscaled (the cell is 40k); C is the Arc-bump clone fire does not pay\n\
@@ -110,7 +101,6 @@ fn out_production_cost_split() {
 fn out_query_cost_split() {
     use std::collections::HashMap;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_000;
     const RUNS: usize = 3;
@@ -128,13 +118,6 @@ fn out_query_cost_split() {
         })
         .collect();
 
-    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        for _ in 0..n {
-            body();
-        }
-        t0.elapsed().as_nanos() as f64 / n as f64
-    }
 
     black_box(maps.clone());
     {
@@ -159,22 +142,22 @@ fn out_query_cost_split() {
     let mut h = 0.0;
     let mut i = 0.0;
     for _ in 0..RUNS {
-        c += time_ns(1, || {
+        c += ns_per_iter(1, || {
             black_box(maps.clone());
         });
-        v += time_ns(1, || {
+        v += ns_per_iter(1, || {
             let mut pv = rpds::VectorSync::new_sync();
             for m in maps.clone() {
                 pv.push_back_mut(Value::wat__core__PersistentMap(m));
             }
             black_box(pv);
         });
-        h += time_ns(1, || {
+        h += ns_per_iter(1, || {
             let mut q: QueryMemory = HashMap::new();
             q.insert("q-Pair".to_string(), maps.clone());
             black_box(super::query_memory_to_pm(q));
         });
-        i += time_ns(1, || {
+        i += ns_per_iter(1, || {
             let collected: rpds::VectorSync<Value> = maps
                 .clone()
                 .into_iter()
@@ -193,7 +176,6 @@ fn out_query_cost_split() {
         "query_memory_to_pm recorded 0 ns — the loop never ran"
     );
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\nout:query split — {N} one-entry PMaps, mean of {RUNS}\n\
              unscaled (the cell is 40k); C is the Arc-bump clone fire does not pay\n\
@@ -221,7 +203,6 @@ fn out_query_cost_split() {
 #[test]
 fn harvest_wrap_split() {
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_000;
     const RUNS: usize = 3;
@@ -245,13 +226,6 @@ fn harvest_wrap_split() {
         _ => false,
     };
 
-    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        for _ in 0..n {
-            body();
-        }
-        t0.elapsed().as_nanos() as f64 / n as f64
-    }
 
     // Warm the same shapes the timed loops will run.
     {
@@ -268,19 +242,19 @@ fn harvest_wrap_split() {
     let mut w = 0.0;
     let mut h = 0.0;
     for _ in 0..RUNS {
-        s += time_ns(1, || {
+        s += ns_per_iter(1, || {
             let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
             black_box(collected);
         });
         let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
-        w += time_ns(1, || {
+        w += ns_per_iter(1, || {
             let maps: Vec<crate::value::pmap::PMap> = collected
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
                 .collect();
             black_box(maps);
         });
-        h += time_ns(1, || {
+        h += ns_per_iter(1, || {
             let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
             let maps: Vec<crate::value::pmap::PMap> = collected
                 .iter()
@@ -295,7 +269,6 @@ fn harvest_wrap_split() {
     h /= runs;
     assert!(h > 0.0, "harvest wrap recorded 0 ns — the loop never ran");
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\nharvest wrap split — {N} one-entry maps, mean of {RUNS}\n\
              unscaled (the cell is 40k)\n\
@@ -317,7 +290,6 @@ fn harvest_wrap_split() {
 fn harvest_wrap_parts() {
     use std::hint::black_box;
     use std::sync::atomic::{AtomicU64, Ordering};
-    use std::time::Instant;
 
     const N: usize = 40_000;
     const RUNS: usize = 3;
@@ -348,13 +320,6 @@ fn harvest_wrap_parts() {
         .map(|f| (var.clone(), (*f).clone()))
         .collect();
 
-    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        for _ in 0..n {
-            body();
-        }
-        t0.elapsed().as_nanos() as f64 / n as f64
-    }
 
     {
         black_box(pairs.clone());
@@ -376,26 +341,26 @@ fn harvest_wrap_parts() {
     let mut i = 0.0;
     let mut w = 0.0;
     for _ in 0..RUNS {
-        c += time_ns(1, || {
+        c += ns_per_iter(1, || {
             let cloned: Vec<(Value, Value)> = collected
                 .iter()
                 .map(|f| (var.clone(), (*f).clone()))
                 .collect();
             black_box(cloned);
         });
-        r += time_ns(1, || {
+        r += ns_per_iter(1, || {
             for p in &pairs {
                 let a: Arc<[(Value, Value)]> = Arc::from([p.clone()]);
                 black_box(a);
             }
         });
-        i += time_ns(1, || {
+        i += ns_per_iter(1, || {
             let intern = AtomicU64::new(1);
             for _ in 0..N {
                 black_box(intern.fetch_add(1, Ordering::Relaxed));
             }
         });
-        w += time_ns(1, || {
+        w += ns_per_iter(1, || {
             let maps: Vec<crate::value::pmap::PMap> = collected
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
@@ -410,7 +375,6 @@ fn harvest_wrap_parts() {
     w /= runs;
     assert!(w > 0.0, "from_pairs wrap recorded 0 ns — the loop never ran");
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\nharvest wrap parts — {N} one-entry maps, mean of {RUNS}\n\
              scan paid outside; pairs pre-cloned for R\n\
@@ -565,7 +529,6 @@ fn harvest_bag_copy_parts() {
 
     let r = RUNS as f64;
     let (a, b) = (a / r, b / r);
-    let ms = |ns: f64| ns / 1e6;
     let pmap_bytes = std::mem::size_of::<crate::value::pmap::PMap>();
 
     let table = format!(

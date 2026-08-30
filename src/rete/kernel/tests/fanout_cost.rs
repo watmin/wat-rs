@@ -398,7 +398,6 @@ fn fanout_production_leftover_split() {
     let remainder_raw = prod_raw - rhs_raw - dedup_raw;
     let tax_in_parent = (rhs_pairs + dedup_pairs) as f64 * cal;
     let naive = prod_net - rhs_net - dedup_net;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\nproduction leftover split — fanout [100 20], mean of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
@@ -600,7 +599,6 @@ fn fanout_three_leftover_split() {
     with.rhs_net /= r;
     with.out_prod /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     let a_harvest = with.harvest + with.out_query;
     let delta = with.wall - without.wall;
     let table = format!(
@@ -723,7 +721,6 @@ fn fanout_honest_fire_rank() {
     let tax_in_parent = (rhs_pairs + dedup_pairs) as f64 * cal;
     let honest_prod = rhs_net + dedup_net;
     let honest_fire = fire - remainder_raw - tax_in_parent;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\nhonest FIRE rank — fanout [100 20], mean of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
@@ -820,7 +817,6 @@ fn fanout_phase_dump() {
     }
 
     let r = RUNS as f64;
-    let ms = |ns: f64| ns / 1e6;
 
     // NESTING TAX. A parent's span CONTAINS its children's mark pairs, and the
     // per-row calibration only removes a row's OWN pairs. `prod:compiled-rhs`
