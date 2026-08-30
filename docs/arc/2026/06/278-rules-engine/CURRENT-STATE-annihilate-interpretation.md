@@ -6,45 +6,43 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-29 (LATEST — supersedes every earlier stamp and every dated block below
-it). Written against HEAD `701cf473a`; the commit carrying this stamp lands on top, so a
+it). Written against HEAD `5ec2f6bb8`; the commit carrying this stamp lands on top, so a
 ONE-COMMIT gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/`
 or `tests/` IS staleness, whatever its size.**
 
-**⛔⛔ START HERE: TOTALITY — THREE VERBS OF FOUR ARE DONE. `insert` IS THE LAST ONE.**
-Builder: *"let's impose session's strict limits via totality."*
+**✅✅ THE OUTCOME WALL IS COMPLETE. Items 9, 10 and 11 are all CLOSED.**
+Builder: *"the session is the boundary"* → *"let's impose session's strict limits via totality."*
+Both are done, in four strikes plus a wall:
 
-- ✅ **S1 ENFORCEMENT** · ✅ **S2a `fire-once`** · ✅ **S2b `fire-rules` + `fire-rules-explain`**
-- ⛔ **S2c — `insert` / `insert-all` (640 sites) with `InsertOutcome`. NEXT.**
-- ⛔ **S2d — the lint wall** (a ceiling breach may not be constructed as a raise anywhere in rete).
+| | |
+|---|---|
+| `fire-rules`, `fire-once` | `(FireOutcome :- [Session])` |
+| `fire-rules-explain` | `(FireOutcome :- [Explained])` |
+| `insert`, `insert-all` | `InsertOutcome` |
 
-**Read `DESIGN-STONE-the-session-is-the-boundary.md` § S2 before touching a call site.** It carries
-the pinned contract, the measured sweep sizes, and the ORDER below — all of it paid for once.
+**No rete ceiling reaches wat as a raise**, across all six `$oracle`/`$native` spellings, and
+`tests/lint/no_ceiling_raise_in_rete.rs` makes a new raising door a RED BUILD. Floor 5162/5162.
 
-**⚠ THE ORDER FOR S2c, PAID FOR TWICE ALREADY — do NOT rediscover it:**
-1. **Hand-face the STDLIB sites FIRST.** The codemod is a wat program; it cannot load while the
-   stdlib is red.
-2. **`cargo build` after ANY `.wat` edit** — the stdlib is `include_str!`'d (`stdlib.rs:41`).
-3. **Dry-run the codemod on a `/tmp` copy and `diff` it**, then sweep, then re-run for idempotency.
-4. **Then chase the cascade** for what no `.wat` tree-walk can see. All six classes are listed in
-   the design stone's S2b table: wat inside Rust `format!`s, verbs as `{placeholder}`s or template
-   tokens, verbs passed as first-class `Fn` params, `wat-scripts/fixes/` (excluded by design), and
-   harnesses that TEXT-SUBSTITUTE the call.
+⚠ **What still raises, correctly:** `RuleSetMayNotTerminate` — the termination verifier's refusal at
+`compile-all`. A COMPILE-time refusal of a program that cannot be proven to terminate (eBPF's
+load-time "no"), not a runtime bound on one that can.
 
-**⛔ `InsertOutcome` IS A SEPARATE ENUM, NOT `FireOutcome` PARAMETRISED.** `insert` runs no rounds,
-so it has no `RoundCapExceeded` arm. Parametricity solved a different problem in S2b (one payload
-TYPE varying across verbs); it does not merge two different ARM SETS. An arm that cannot occur is
-the two-facts defect this arc has now paid for four times.
+**⛔ WHAT TO READ BEFORE ANY NEW RETE WORK:** `DESIGN-STONE-the-session-is-the-boundary.md` § S2. It
+carries the pinned contract, the four recorded wat-fix codemods, and — the part that will save you
+a day — **the SIX classes a `.wat` tree-walk structurally CANNOT see**: wat inside Rust `format!`s,
+verbs as `{placeholder}`s or template tokens, verbs passed as first-class `Fn` params,
+`wat-scripts/fixes/` (excluded by design), and harnesses that TEXT-SUBSTITUTE the call.
 
-**★ WHAT S2b COST, IN ONE LINE EACH — the cascade went 94 → 59 → 38 → 23 → 2 → 0:**
-- **My own transformer had a RAW-STRING bug the diff caught.** 12 of 38 Rust sites are `r#"…"#`
-  where `\"` is a literal backslash-quote; the other 26 need the escape. A blanket choice either
-  way was wrong. **Read the diff of any blanket edit** (FM 21).
-- **Totality changed what the ceiling GATES can see.** A breach no longer raises, so the program
-  EXITS 0 and there is no EDN on stderr to parse. The codemod's generic arms would have made both
-  gates green while discarding the `limit`/`used`/`rounds` they exist to assert. Both are now
-  hand-faced to match the arm and print its fields — **a stronger gate than before.**
-- **`with-overlay` pushes totality through rather than swallowing it**, because a stdlib
-  convenience wrapper hiding a partiality is the exact defect this wall removes.
+**★★ THE TWO DEFECTS THAT MATTERED, AND THEY BOTH CAME FROM THE `.rs` SIDE:**
+1. **Raw strings.** 12 of 38 embedded sites are `r#"…"#` where `\"` is a literal backslash-quote;
+   the other 26 need the escape. A blanket choice either way was wrong. Caught by reading the diff.
+2. **Nested calls skipped.** My scan advanced PAST each wrapper, so the inner call of
+   `(insert (insert s A) B)` was never visited. **wat-fix recurses into children and got this
+   right; a linear scan has to be told.**
+
+**⛔ THIS IS THE ARGUMENT FOR A RUST-FIX — builder's want, explicitly NOT NOW.** Recorded, with what
+would justify it, at `RETE-OPEN-WORK.md` § "A rust-fix". Until it exists: **read the diff of every
+blanket edit**, and expect raw-vs-normal string escaping to differ WITHIN one file.
 
 **★★ ITEM 11'S CLASS IS DEAD — killed by its own FIFTH occurrence, on this very work.** 36 lines of
 derives moved `runtime.rs`'s `rust_caller_span!` sentinel and reddened five goldens at once. Four
