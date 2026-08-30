@@ -6,43 +6,49 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-29 (LATEST — supersedes every earlier stamp and every dated block below
-it). Written against HEAD `5ec2f6bb8`; the commit carrying this stamp lands on top, so a
+it). Written against HEAD `ab82872f5`; the commit carrying this stamp lands on top, so a
 ONE-COMMIT gap at your wake is expected. That commit touches `docs/` ONLY — a gap containing `src/`
 or `tests/` IS staleness, whatever its size.**
 
-**✅✅ THE OUTCOME WALL IS COMPLETE. Items 9, 10 and 11 are all CLOSED.**
-Builder: *"the session is the boundary"* → *"let's impose session's strict limits via totality."*
-Both are done, in four strikes plus a wall:
+**✅✅ EVERY RETE REFUSAL A CALLER CAN ACT ON IS NOW A VALUE. Items 9, 10, 11 CLOSED.**
 
-| | |
+| verb | answers |
 |---|---|
+| `compile`, `compile-all`, `arm-session` | `CompileOutcome` |
+| `insert`, `insert-all` | `InsertOutcome` |
 | `fire-rules`, `fire-once` | `(FireOutcome :- [Session])` |
 | `fire-rules-explain` | `(FireOutcome :- [Explained])` |
-| `insert`, `insert-all` | `InsertOutcome` |
 
-**No rete ceiling reaches wat as a raise**, across all six `$oracle`/`$native` spellings, and
-`tests/lint/no_ceiling_raise_in_rete.rs` makes a new raising door a RED BUILD. Floor 5162/5162.
+**⛔ THE RULE THIS ARC CONVERGED ON — do not re-derive it for the next verb:**
+> **A bound, ceiling or verdict the caller can ACT ON becomes a matchable value.
+> A malformed program stays a raise.**
 
-⚠ **What still raises, correctly:** `RuleSetMayNotTerminate` — the termination verifier's refusal at
-`compile-all`. A COMPILE-time refusal of a program that cannot be proven to terminate (eBPF's
-load-time "no"), not a runtime bound on one that can.
+`arm-session`'s `ArityMismatch`/`TypeMismatch` stay raises under exactly that rule: they are bugs
+the checker should have caught, not judgements about the caller's data. `tests/lint/no_ceiling_raise_in_rete.rs`
+makes a new raising door a RED BUILD. Floor 5162/5162.
 
-**⛔ WHAT TO READ BEFORE ANY NEW RETE WORK:** `DESIGN-STONE-the-session-is-the-boundary.md` § S2. It
-carries the pinned contract, the four recorded wat-fix codemods, and — the part that will save you
-a day — **the SIX classes a `.wat` tree-walk structurally CANNOT see**: wat inside Rust `format!`s,
-verbs as `{placeholder}`s or template tokens, verbs passed as first-class `Fn` params,
-`wat-scripts/fixes/` (excluded by design), and harnesses that TEXT-SUBSTITUTE the call.
+**★ THE HONEST READ ON "ALL OF WAT IS TOTAL" (builder's stated direction).** Measured across
+`src/rete/`: **136** raises are `TypeMismatch`/`MalformedForm`/`ArityMismatch` — statically
+preventable program bugs, NOT totality candidates. **10 are `IntegerOverflow`/`DivisionByZero` —
+and those ARE the next honest candidates**, data-dependent exactly as the ceilings were: the same
+program on different input either overflows or does not, and the caller can act. Table in
+`DESIGN-STONE-the-session-is-the-boundary.md` § "What still raises".
 
-**★★ THE TWO DEFECTS THAT MATTERED, AND THEY BOTH CAME FROM THE `.rs` SIDE:**
-1. **Raw strings.** 12 of 38 embedded sites are `r#"…"#` where `\"` is a literal backslash-quote;
-   the other 26 need the escape. A blanket choice either way was wrong. Caught by reading the diff.
-2. **Nested calls skipped.** My scan advanced PAST each wrapper, so the inner call of
-   `(insert (insert s A) B)` was never visited. **wat-fix recurses into children and got this
-   right; a linear scan has to be told.**
+**⛔⛔ BEFORE ANY NEW SWEEP — the six classes a `.wat` tree-walk CANNOT see**, and the three defects
+my `.rs` script shipped, are in the design stone. Read them; they cost a day across five strikes:
+1. **Raw strings** — `r#"…"#` needs `"`, normal strings need `\"`, and both occur IN ONE FILE.
+2. **Nested calls** — a linear scan that advances past its own wrapper never visits the inner call.
+   **wat-fix recurses into children and got this right.**
+3. **A wat form SPLIT ACROSS SEVERAL Rust statements** — `(` in one literal, `)` in a later
+   `format!`. A paren-balancer walks out of the string and into Rust. **Only a parser can see it.**
 
-**⛔ THIS IS THE ARGUMENT FOR A RUST-FIX — builder's want, explicitly NOT NOW.** Recorded, with what
-would justify it, at `RETE-OPEN-WORK.md` § "A rust-fix". Until it exists: **read the diff of every
-blanket edit**, and expect raw-vs-normal string escaping to differ WITHIN one file.
+**⚠ AND `ugrep` IS NOT GNU grep.** It ignored `^\./` in one exclusion and `\|` alternation in
+another — twice this session a pattern silently matched less than intended, and once it swept the
+stdlib by mistake. **Use `-E` and verify the file list length.**
+
+**⛔ THIS IS THE STANDING ARGUMENT FOR A RUST-FIX — builder's want, explicitly NOT NOW.** Recorded
+with what would justify it at `RETE-OPEN-WORK.md` § "A rust-fix". Until it exists: read the diff of
+every blanket `.rs` edit.
 
 **★★ ITEM 11'S CLASS IS DEAD — killed by its own FIFTH occurrence, on this very work.** 36 lines of
 derives moved `runtime.rs`'s `rust_caller_span!` sentinel and reddened five goldens at once. Four

@@ -1509,9 +1509,18 @@ field. Reachable, but not constructible inside a fence.
     (S2a `fire-once` 31 sites · S2b `fire-rules` 529 · S2c `insert` 640 · S2d the wall), the four
     recorded wat-fix codemods, and the SIX classes a `.wat` tree-walk structurally cannot see.
 
-    ⚠ **What still raises, and correctly:** `RuleSetMayNotTerminate`, the termination verifier's
-    refusal at `compile-all`. That is a COMPILE-time refusal of a program that cannot be proven to
-    terminate — eBPF's load-time "no" — not a runtime bound on one that can.
+    ✅ **AND `RuleSetMayNotTerminate` JOINED THE WALL 2026-08-29** (builder: *"how could we make
+    RuleSetMayNotTerminate total…?"*). `compile`/`compile-all`/`arm-session` answer
+    `(:wat::rete::CompileOutcome)`. It qualifies because rules built at RUNTIME make the verdict
+    DATA-dependent; declared rules are still refused at freeze, where no call site can observe it.
+
+    **The rule this arc converged on:** *a bound, ceiling or verdict the caller can ACT ON becomes a
+    matchable value; a malformed program stays a raise.* `arm-session`'s `ArityMismatch`/
+    `TypeMismatch` stay raises under exactly that rule.
+
+    **Next honest candidates toward "all of wat is total":** `IntegerOverflow` and `DivisionByZero`
+    — 10 sites in `src/rete/`, data-dependent in the same way. The other 136 raises are
+    statically-preventable program bugs and are NOT candidates. Table in the design stone.
 
 11. ~~**A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER**~~ · ✅ **CLASS KILLED 2026-08-29** (the
     cure is at the end of this item). FIVE false reds, across THREE source files, none of them
