@@ -101,6 +101,14 @@ fb0cdb192  HOME-8 strike 2(255): the VSA surface is registered — 95 verbs
 a88f5d634  DRAWN(255): HOME-12 — the AST surface gets a registry home
 ```
 
+> ⚠ **CORRECTED 2026-08-29 (second correction to this note).** The paragraph below argued
+> main was "still relocating" the seam because HOME-12 was DRAWN. **It had already landed**
+> (`eb790da4a`), as had HOME-13, and the last HOME stone sits 98 commits back while main works
+> arc 109 ONE PARAM-SPEC. The campaign is DONE and the module tree is settled. The reason to
+> wait is NOT main; it is that **grok-rete has not taken main's module tree**, so the port must
+> be redone at every refresh until it does. Same three-way-sync trigger as the sibling note,
+> and the trigger sits on grok-rete's side.
+
 HOME-11 gave EDN a registry home AFTER HOME-8, and HOME-12 is drawn. Porting the `Result` API
 onto `src/edn/render.rs` today ports it onto a target main is still relocating — the work
 would be done twice, and the second time against a hand-port that rerere cannot replay.

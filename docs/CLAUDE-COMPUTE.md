@@ -113,3 +113,34 @@ run the codemods, restore, rebuild.
 - **`wat::cli retirement_table_reachable`** — 18.7s alone, TIMEOUTs at the 30s cap under full
   floor load. Attributed: main alone touched `src/remedy/retirement.rs` and that test since
   the merge-base. Main's, and it will intermittently red main's floor on a loaded box.
+
+## Current state — grok-rete is HELD (2026-08-29)
+
+`claude-compute` carries main to its tip and grok-rete only to `1facc1f94` (2026-08-28).
+**A green floor right now means MAIN is green — NOT that the union is.** That distinction is
+the whole reason this branch exists, so it is stated rather than implied.
+
+**Why:** arc 255's HOME campaign relocated main's flat module tree into directory homes
+(`string_ops`→`string/`, `wat_edn_bridge`+`edn_shim`→`edn/`, `hologram`+`sigma`→`holon/`,
+`stdlib`→`host/`). grok-rete's commits are built against the layout main replaced. Measured:
+keeping grok-rete's tree = 160 build errors; keeping main's = 327. Neither is a repoint — every
+error is a hand decision about where a function lives and what API it exposes. No codemod
+reaches this class, which is why `wat-drift` reports clean while the merge is unbuildable.
+
+**The trigger is grok-rete taking main's module tree** — not main finishing, which it already
+has (HOME-9..13 all landed, the last 98 commits back; main is on arc 109 now). Until grok-rete
+moves, the port would be redone at every refresh.
+
+`wat-sync.sh` honours this via `HOLD_GROK_RETE=1` and will SKIP the grok-rete merge with a
+warning rather than blunder into a 300-error tree. Clear the flag when the hold lifts.
+
+### ⚠ rerere replays BAD resolutions as faithfully as good ones
+
+Measured here: a throwaway probe branch resolved `src/lib.rs` by taking grok-rete's side
+wholesale. rerere recorded it, and on the NEXT merge silently auto-applied it — a
+`git checkout --ours -- src/lib.rs` then no-opped (the path was no longer unmerged) and the
+measurement that followed was against the wrong tree, unnoticed for two rounds.
+
+**Never resolve crudely on a branch that shares `.git` with the real one.** If you already
+have: `git merge <branch>` to re-trigger, `git rerere forget <path>`, `git merge --abort`.
+Check afterwards that the file is what you think — `rerere` leaves no trace in `git status`.
