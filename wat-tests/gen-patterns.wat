@@ -1,9 +1,11 @@
 ;; wat-tests/gen-patterns.wat — THE PATTERN CORPUS for `:wat::gen::`.
 ;;
 ;; ⚠ THIS FILE IS DOCUMENTATION THAT RUNS. Its job is not to test `wat/gen.wat` —
-;; `wat-tests/gen.wat` does that, one law per verb. Its job is to be the thing a future
-;; self COPIES: seven recognizable shapes of generative test, each against REAL
-;; SUBSTRATE.
+;; `wat-tests/gen.wat` does that. ⚠ CORRECTION (2026-08-29): previously "one law per
+;; verb". Counted: 27 `deftest` and 27 exported verbs (26 `defn` + `record` the macro);
+;; the counts match and the mapping does not (`test-witness` is not a verb; `nth` has
+;; no namesake law). Its job is to be the thing a future self COPIES: seven recognizable
+;; shapes of generative test, each against REAL SUBSTRATE.
 ;;
 ;; WHY IT EXISTS. The law suite proves the machinery and every one of its spaces is
 ;; `ints 0 3` or `elements ["a" "b" "c"]`. Builder, on reading it: *"i think i saw
@@ -24,16 +26,23 @@
 ;;   P6 DOMAIN         your problem is not integers      a record of bespoke pools
 ;;   P7 PARAMETERIC    the same property, many domains   take the Gen as an argument
 ;;
-;; AND THE SIXTH, WHICH IS NOT HERE BECAUSE IT ALREADY SHIPS: DIFFERENTIAL — two
-;; implementations of one contract must agree. `wat-tests/rete/differential-fuzz.wat`
-;; is the worked example, and it is the pattern that has actually paid: three live rete
-;; defects, all silent, none reachable by the 57-query hand-written corpus. If you have
-;; a reference implementation, reach for that one FIRST — it is the only one of the six that has
-;; actually found a defect here (three, in rete), because it needs no oracle you had to invent:
-;; the oracle is the other implementation. The five below are GREEN against the substrate, which
-;; is evidence the substrate is sound on those paths and NOT evidence that they are powerful.
+;; ⚠ CORRECTION (2026-08-29). This paragraph previously said "AND THE SIXTH", "the only
+;; one of the six", and "The five below are GREEN" — arithmetic for five patterns plus
+;; differential, true at `fddedc205`. `6d96ce127` added P6 and P7, updated "five
+;; recognizable shapes" to "seven", and left these three sentences. Counted now: seven
+;; patterns in this file (P1–P7). DIFFERENTIAL is not here because it already ships
+;; (`wat-tests/rete/differential-fuzz.wat`); it is the eighth shape, and still the only
+;; one that has found a defect here (three rete defects: RETE-FIX-LIST A/B/C, closed
+;; 2026-08-26 — "live" is the finding, not the present tense), none reachable by the
+;; 57-query hand-written corpus. If you have a reference
+;; implementation, reach for that one FIRST — it needs no oracle you had to invent:
+;; the oracle is the other implementation. The seven below are GREEN against the
+;; substrate, which is evidence the substrate is sound on those paths and NOT evidence
+;; that they are powerful.
 ;;
-;; ⛔ WHEN NOT TO REACH FOR THIS — see the last section of `docs/GENERATIVE-TESTING.md`.
+;; ⛔ WHEN NOT TO REACH FOR THIS — see `docs/GENERATIVE-TESTING.md` § *When generative
+;; testing is the WRONG tool*. ⚠ CORRECTION (2026-08-29): previously "the last section";
+;; that file's last section is now *Provenance*.
 ;; A generator here is FINITE and TOTAL over a product. If your inputs cannot be bounded,
 ;; if the interesting case is sparse rather than small, if the bug is a SCHEDULE rather
 ;; than a value, or if one worked example states the contract more clearly — a plain
@@ -49,9 +58,11 @@
 
 ;; DELETED: a `gen-path` helper lived here, defined and never called — P1 and P2 build the
 ;; vector space directly because they assert over the PARTS, not the joined string. A doc-review
-;; vigilia caught it against this library's own rule, quoted at the top of `wat/gen.wat`:
-;; a verb with no caller is a claim, not a capability. In the file that exists to be copied,
-;; an uncalled helper is the first thing a reader would copy and the last thing they need.
+;; vigilia caught it against this library's own rule, quoted at `wat/gen.wat` on `bools`
+;; (not the banner): a verb with no caller is a claim, not a capability.
+;; ⚠ CORRECTION (2026-08-29): previously "quoted at the top of wat/gen.wat". In the file
+;; that exists to be copied, an uncalled helper is the first thing a reader would copy
+;; and the last thing they need.
 
 
 ;; ── P1 · ROUND-TRIP — `decode(encode(x)) == x` ──────────────────────────────
