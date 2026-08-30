@@ -38,6 +38,39 @@ fn main() {
     // Re-run if this script changes.
     println!("cargo:rerun-if-changed=build.rs");
 
+    // ── wat-tests/ discovery — a NEW .wat file must not be invisible ──────────────
+    //
+    // `wat::test! {}` (crates/wat-macros) globs `wat-tests/` at EXPANSION time and emits
+    // an `include_bytes!` per discovered file, which makes Cargo recompile the test binary
+    // when a known file's CONTENTS change. It cannot catch an ADDITION: a file that did not
+    // exist when the macro last ran has no `include_bytes!` pointing at it, so Cargo has no
+    // edge to it and never re-expands. Measured 2026-08-29: dropping in a new wat-tests file
+    // and running `cargo build --release --tests -p wat` finished in 0.08 s with the deftest
+    // NOT registered, and reads as "my test did not register" — sending you after the deftest
+    // name or the macro instead of the build graph.
+    //
+    // The cure is the idiom this file already uses for `tests/<group>` below: watch the
+    // DIRECTORY. Linux bumps a directory's mtime when a child is added or removed, so a
+    // directory edge catches exactly the case the file edges cannot. Subdirectories are
+    // walked because `wat-tests/edn/x.wat` bumps `wat-tests/edn`, not `wat-tests`.
+    fn watch_wat_dirs(dir: &Path) {
+        if let Some(s) = dir.to_str() {
+            println!("cargo:rerun-if-changed={s}");
+        }
+        if let Ok(entries) = fs::read_dir(dir) {
+            for e in entries.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    watch_wat_dirs(&p);
+                }
+            }
+        }
+    }
+    let wat_tests_dir = Path::new(&manifest).join("wat-tests");
+    if wat_tests_dir.is_dir() {
+        watch_wat_dirs(&wat_tests_dir);
+    }
+
     let entries = match fs::read_dir(&tests_dir) {
         Ok(e) => e,
         Err(_) => return, // no tests/ dir → nothing to generate

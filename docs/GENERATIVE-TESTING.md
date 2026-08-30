@@ -104,6 +104,27 @@ paid for the third one twice:
 If your space is large enough to want a raised budget, raise it in both places or the wat-side
 annotation is decoration.
 
+4. **A new `.wat` file used to be invisible. FIXED 2026-08-29 — you no longer touch anything.**
+   Recorded because the symptom is silent and the cause is not where you would look.
+
+   `wat::test! {}` globs `wat-tests/` at EXPANSION time and emits an `include_bytes!` per
+   discovered file. That makes Cargo recompile when a KNOWN file's contents change — but it
+   cannot catch an ADDITION, because a file that did not exist at the last expansion has no
+   `include_bytes!` pointing at it and Cargo has no edge to reach it. The macro's own comment
+   claimed "including adding/removing deftests", which held only for deftests inside files it
+   already knew.
+
+   Measured before the fix: dropping in a new test and running
+   `cargo build --release --tests -p wat` finished in **0.08 s** with the deftest **not
+   registered** — reading as "my test did not register", which sends you after the deftest name
+   or the macro rather than the build graph.
+
+   The cure was the idiom `build.rs` already used one block down for `tests/<group>`: watch the
+   DIRECTORY, because Linux bumps a directory's mtime when a child is added or removed — exactly
+   the case a per-file edge cannot see. `build.rs` now walks `wat-tests/` recursively (subdirs
+   matter: `wat-tests/edn/x.wat` bumps `wat-tests/edn`, not `wat-tests`). Verified both ways: a
+   new file in a subdir registers and passes with no `touch`, and a deletion de-registers.
+
 ### The surface
 
 **Types.** `Gen :- [T]` · `Coord` and `Bases` (both `PV<i64>` — see *Aliases are transparent*
