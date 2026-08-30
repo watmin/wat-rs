@@ -883,12 +883,19 @@ Two things follow:
 
 ## THE HUNT AS OF 2026-08-24 — theater is done; the exemplar hunt is not
 
-The theater list above is closed **except T7**: **T1/T3/T5 struck**, **T8 cleared
-as not theater**, **T2/T6 struck 2026-08-24** (one defect, two hats — see their
-entries), **T4 was already landed and this list was stale about it**. **T7 alone
-remains, and it is COLD** — no grid axis reaches it, so it needs its own probe
-before anyone claims a win. The perf campaign is at
-the floor on every measured axis.
+⛔ **THIS PARAGRAPH WAS STALE AND IS CORRECTED 2026-08-29 — the SEVENTH inherited row in this arc
+found stale on audit.** It read *"T7 alone remains, and it is COLD"*, written 2026-08-24. **T7 was
+CLOSED 2026-08-25** (`Op::Or` hoisted, `Not` affirmed — its own entry at the top of this file says
+so, one day later). A reader trusting this summary would have gone hunting for a strike that had
+already landed, exactly as the note about T4 in this same paragraph warns.
+
+**The theater list is CLOSED, all of it.** T1/T3/T5 struck · T8 cleared as not theater · T2/T6
+struck 2026-08-24 (one defect, two hats) · T4 already landed and this list was stale about it ·
+**T7 closed 2026-08-25**. The perf campaign is at the floor on every measured axis.
+
+**The lesson is the one this file keeps teaching: a SUMMARY of a list rots faster than the list.**
+The per-item entries above were correct throughout; only the paragraph that counted them was wrong.
+When you close a row, strike it in BOTH places or do not write the second one.
 
 What replaced it is a different question — *is this code the exemplar the rest
 of wat's subsystems should copy?* — and it is measured differently: **code
