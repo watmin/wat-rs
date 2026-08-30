@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-30 (fourth). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-30 (fifth). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline c898713de..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat c898713de..HEAD        # what they touched
+git log --oneline b7d9d8e90..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat b7d9d8e90..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -70,11 +70,17 @@ disk finding by finding):
 - **`intueri` CONVICTED the self-description** — six false claims, ALL about the tree's own layout,
   all trivially checkable, none checked. Both gates below exist because of it.
 
-**⛔ SO THE ANSWER TO "IS IT AN EXEMPLAR" IS: ONE ITEM SHORT, AND THE GAP IS NAMED RATHER THAN
-HIDDEN.** Everything mechanically checkable is green or retired with reasons; both wards were cast
-and everything they found is fixed or gated; the instrument that measures this subsystem was
-root-caused and swept. **The single remaining item is #3 below** — one ordering, measured on the
-broken estimator, needing three runs on the fixed one.
+**⛔ SO THE ANSWER TO "IS IT AN EXEMPLAR" IS: THE NAMED LIST IS EMPTY — AND CLOSING ITS LAST ROW
+FOUND A DEFECT NOTHING ON THE LIST PREDICTED.** Everything mechanically checkable is green or
+retired with reasons; both wards were cast and everything they found is fixed or gated; the
+instrument that measures this subsystem was root-caused and swept; item #3 closed at `b7d9d8e90`.
+
+⚠ **READ THAT AS A STATEMENT ABOUT THE LIST, NOT A CERTIFICATE.** #3 was written as "assert an
+ordering — three runs settles it." The ordering held in six. What it actually surfaced was a
+benchmark row that had named the wrong data structure "the engine" for eleven days, under a green
+test, in a file the wards had already swept. **An empty work list is evidence about how hard we
+have looked, and this arc's last item found a defect on its way out.** The next hand should expect
+the same and should not read "empty" as "clean."
 
 ⚠ **AND AN EXEMPLAR CLAIM IS ITSELF A CLAIM ABOUT THE TREE.** This session is a long argument for
 not believing those without a check: SIX of my own instruments returned confident wrong numbers
@@ -114,11 +120,35 @@ first-execution cost (CPU ramp / page faults / lazy init) was never isolated.
 ⛔ **2 — `IntegerOverflow`/`DivisionByZero` IS NOT A RETE GAP. STRUCK** — see the block below; kept
 struck so nobody re-files it.
 
-⏭ **3 — THE LAST OPEN ITEM: the `linear Vec` 2.8x ordering** in `accum_alpha_class_lookup_split`.
-`linear Vec` beat `FxHashMap` 2.8x and `std::HashMap` 6x at 2 types — plausibly the structural
-finding that test exists to demonstrate, and NOT asserted because one sample is not a measurement.
-⚠ **It was measured on the BROKEN estimator.** Re-measure on the minimum: the ratio may hold,
-shrink, or invert. Three runs settles it. This is the whole remaining exemplar list.
+✅ **3 — CLOSED (`b7d9d8e90`). THE ORDERING HOLDS — AND THE TABLE WAS CALLING THE WRONG ARM THE
+ENGINE.** Re-measured on the minimum, six independent process runs: **F/L 2.38–2.83** (recorded as
+2.8x) and **S/L 4.88–5.44** (recorded as 6x). It shrinks; it does not invert.
+
+⛔ **But the row `S std HashMap (engine)` was FALSE, and had been for eleven days.**
+`DESIGN-STONE-alpha-class-lookup` SHIPPED: `AlphaRoots` is a `Vec<(String, Arc<AlphaDiscNode>)>`
+and `root_for` is a `.find()`, so **arm `L` is the production path** `candidates_into` takes on
+every fact. The label was true the day the stone was DRAFTED (2026-08-19) and false the moment it
+shipped — *shipping it is what turned `roots` into a Vec.* **Third instance this arc of a label
+naming a prior state** (with `H−V`'s claimed decomposition and `alloc_counter.rs`'s "NOTHING READS
+THESE COUNTERS YET"), and a benchmark row is the worst host for it: nobody re-derives a table's
+row names, and the number beside it is right, which makes the row look checked.
+
+★ **THE SPLIT THAT MATTERS: what can rot on a clock, and what cannot.** The ordering is asserted
+in the test; **the STRUCTURE is asserted off the clock** in `tests/lint/`— `AlphaRoots` is still a
+`Vec`, `root_for` still walks it, exact `assert_eq!` (not `contains`; neither value qualified for
+`no_loose_string_assert`'s rune). A structure swapped back to a map is a compile-time fact and
+should not need a stopwatch to notice.
+
+★ **AND RATIOS, NOT THE STONE'S ABSOLUTE 1 ms CUT — measured, not preferred.** Between a cold and
+a warm machine *in this one session* the absolute times moved **2.4x** (L 0.23 → 0.55 ms) while
+**F/L moved under 2%** (2.63 → 2.38). An absolute-millisecond floor would have been a coin flip.
+The floors are ~60% of each ratio's own tightest observed sample (1.5/2.38, 3.0/4.88). `S−F` is
+affirmatively NOT asserted: it compares two structures the engine does not use.
+
+⚠ **I RE-MINTED THE HOLLOW-TEST DEFECT WHILE CLOSING THE SWEEP THAT REMOVED IT.** An
+`assert_eq!(winner, "L")` stood in the test for about a minute: `f >= 1.5 * l` implies `f > l`,
+which IS `winner == "L"` by its own definition three lines up. It would have read as the headline
+claim and could not fail. Struck. **The 26-test R59 sweep's own last row nearly shipped a 27th.**
 
 📤 **`purity.rs` (2,598 lines, never assessed by `partire`) is being taken by MAIN** — builder,
 2026-08-30. Not this branch's work; do not duplicate it.
