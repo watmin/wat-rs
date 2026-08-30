@@ -1,5 +1,5 @@
 //! Arc 301 stone 2c — re-put of an existing `(pk, sk)` is a replace, not an
-//! append. Promoted from `docs/arc/2026/08/301-sns-sqs/PROBE-reput-divergence.wat`
+//! append. Promoted from `docs/excursus/2026/08/001-sns-sqs/PROBE-reput-divergence.wat`
 //! (standalone `:user::main` dropped; this harness drives `:user::compute`).
 //!
 //! Put `(q#1, a)` projecting `v1`, then the same key projecting `v9`. Both

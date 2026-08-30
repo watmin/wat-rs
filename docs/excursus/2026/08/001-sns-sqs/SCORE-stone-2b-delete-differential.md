@@ -1,4 +1,4 @@
-# SCORE — arc 301 stone 2b: the delete differential
+# SCORE — excursus 001 stone 2b: the delete differential
 
 **STRUCK. The backends AGREE.** Graded 2026-08-30 against my own re-run. Executor: grok.
 
@@ -16,7 +16,7 @@ d1=Success;base=2:a,c;gsi=2:v1,v3;d2=Success;base2=2:a,c;gsi2=2:v1,v3
 
 | # | what | **measured by me** |
 |---|---|---|
-| 1 | differential in the floor | ✅ `PASS (456/5096) probe_arc301_delete_differential::delete_differential_mem_and_sqlite_agree` |
+| 1 | differential in the floor | ✅ `PASS (456/5096) probe_ex001_delete_differential::delete_differential_mem_and_sqlite_agree` |
 | 2 | both backends ran | ✅ `mem-store` + `sqlite-store :path ":memory:" :index-names ["by-v"]` |
 | 3 | blast radius | ✅ **0 files under `wat/` or `src/`** — measured, not reported |
 | 4 | ★ GSI declared, deleted row projects | ✅ `IndexSchema :name "by-v"`; row `b` carries `ik-b → by-v → isk "v2"` |
@@ -63,7 +63,7 @@ Summary [ 302.109s] 5096 tests run: 5095 passed (3 slow), 1 failed, 17 skipped
 FAIL [0.082s] (77/5096) wat::lint no_loose_string_assert::tests_carry_no_loose_string_assert
 ```
 
-The arm was named (`probe_arc301_delete_differential.rs:39`, a `starts_with` assertion the lint
+The arm was named (`probe_ex001_delete_differential.rs:39`, a `starts_with` assertion the lint
 forbids), the log kept, and **the red was not re-run** — a lint-only harness change was made and
 a *new* run taken. I verified the fix is genuinely lint-only: it deletes the `starts_with`
 assert and folds its message into the existing `assert_eq!`, which still fails on a mismatch
@@ -77,8 +77,8 @@ assertion style, never the measurement.
 `ffd1af14b` — my `NOTE(301)` commit about record accessors — also added:
 
 ```
-tests/rete/probe_arc301_delete_differential.rs     +48
-tests/rete/probe_arc301_delete_differential.wat   +150
+tests/rete/probe_ex001_delete_differential.rs     +48
+tests/rete/probe_ex001_delete_differential.wat   +150
 ```
 
 I ran `git add -A` for a documentation commit **while the executor's in-flight fixture sat

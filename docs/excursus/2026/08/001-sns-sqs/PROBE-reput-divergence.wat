@@ -1,4 +1,4 @@
-;; Co-located fixture for probe_arc301_delete_differential.rs — arc 301 stone 2b.
+;; Co-located fixture for probe_ex001_delete_differential.rs — excursus 001 stone 2b.
 ;;
 ;; THE DIFFERENTIAL: the SAME delete sequence over mem-store' (oracle) and
 ;; sqlite-store' (:memory:). Shape copied from
@@ -106,7 +106,7 @@
   (:wat::core::match
     (:wat::query::Store/scan-index store
       (:wat::query::Store::ScanIndexRequest
-        :index "by-v" :ipk "q#1" :isk-lo "v1" :isk-hi "v3" :limit 10 :cursor :wat::core::None))
+        :index "by-v" :ipk "q#1" :isk-lo "v0" :isk-hi "vz" :limit 10 :cursor :wat::core::None))
     ((:wat::kernel::RecvOutcome::Message __recv)
       (:wat::core::match __recv
         ((:wat::query::Store::ScanIndexResponse::Success rows _c)
@@ -116,35 +116,40 @@
         (_ "FAIL")))
     (_ "FAIL")))
 
-(:wat::core::defn :user::delete-roundtrip
-  [store-addr <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])]
+
+;; ── THE QUESTION: is `put` of an EXISTING (pk,sk) a REPLACE or an APPEND? ───────
+;; Stone 3's queue design would make a message invisible by RE-PUTTING its row with a
+;; new visible-at index-key. sqlite's put-one-row is DELETE->clear->INSERT->reindex, i.e.
+;; a replace that MOVES the projection. mem's put is a bare `conj`. If they differ, the
+;; design is unbuildable as written.
+(:wat::core::defn :user::reput-roundtrip
+  [addr <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])]
   -> :wat::core::String
   (:wat::core::let
-    [store (:user::connect-store store-addr)
+    [store (:user::connect-store addr)
      _es   (:user::ensure-schema-with-gsi store)
-     _p    (:user::put-rows store (:user::three-rows))
-     d1    (:user::delete-b-outcome store)
+     ik1   (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
+             "by-v" (:wat::query::IndexKey :ipk "q#1" :isk "v1"))
+     ik9   (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
+             "by-v" (:wat::query::IndexKey :ipk "q#1" :isk "v9"))
+     _p1   (:user::put-rows store (:wat::core::Vector :- [:wat::query::StoredRow]
+              (:wat::query::StoredRow :pk "q#1" :sk "a" :data "{:v 1}" :index-keys ik1)))
+     _p2   (:user::put-rows store (:wat::core::Vector :- [:wat::query::StoredRow]
+              (:wat::query::StoredRow :pk "q#1" :sk "a" :data "{:v 1}" :index-keys ik9)))
      base  (:user::render-scan store)
-     gsi   (:user::render-gsi store)
-     d2    (:user::delete-b-outcome store)
-     base2 (:user::render-scan store)
-     gsi2  (:user::render-gsi store)]
-    (:wat::string::interpolate
-      "d1={d1};base={base};gsi={gsi};d2={d2};base2={base2};gsi2={gsi2}"
-      :d1 d1 :base base :gsi gsi :d2 d2 :base2 base2 :gsi2 gsi2)))
+     gsi   (:user::render-gsi store)]
+    (:wat::string::interpolate "base={b};gsi={g}" :b base :g gsi)))
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     maddr (:wat::query::mem-store::Handle/addr msh)
      ssh   (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::sqlite-store::Record
-                       :path        ":memory:"
+             :record (:wat::query::sqlite-store::Record :path ":memory:"
                        :index-names (:wat::core::Vector :- [:wat::core::String] "by-v")))
-     saddr (:wat::query::sqlite-store::Handle/addr ssh)
-     mem   (:user::delete-roundtrip maddr)
-     sql   (:user::delete-roundtrip saddr)]
-    (:wat::core::if (:wat::core::= mem sql)
-      mem
-      (:wat::string::interpolate "DIFFERENTIAL-MISMATCH mem={m} sqlite={s}" :m mem :s sql))))
+     mem   (:user::reput-roundtrip (:wat::query::mem-store::Handle/addr msh))
+     sql   (:user::reput-roundtrip (:wat::query::sqlite-store::Handle/addr ssh))]
+    (:wat::string::interpolate "MEM[{m}]  SQLITE[{s}]" :m mem :s sql)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println (:user::compute)))

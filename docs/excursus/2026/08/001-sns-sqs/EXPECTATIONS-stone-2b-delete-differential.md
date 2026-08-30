@@ -1,4 +1,4 @@
-# EXPECTATIONS — arc 301 stone 2b: the delete differential
+# EXPECTATIONS — excursus 001 stone 2b: the delete differential
 
 **Written BEFORE the strike, 2026-08-30.**
 
@@ -23,16 +23,16 @@ produces a passing test that proves nothing.
 
 | # | what | command | expected |
 |---|---|---|---|
-| 1 | the differential runs at all | it appears in the floor as a `wat::rete probe_arc301_delete_differential::…` arm | present, not skipped |
+| 1 | the differential runs at all | it appears in the floor as a `wat::rete probe_ex001_delete_differential::…` arm | present, not skipped |
 | 2 | both backends actually ran | the fixture starts `mem-store` AND `sqlite-store` with `:path ":memory:"` | both, read from the fixture source |
-| 3 | blast radius, per the BRIEF | `git status --porcelain` | exactly `tests/rete/probe_arc301_delete_differential.wat` + `.rs`, plus this arc's SCORE. **Zero files under `wat/`.** |
+| 3 | blast radius, per the BRIEF | `git status --porcelain` | exactly `tests/rete/probe_ex001_delete_differential.wat` + `.rs`, plus this arc's SCORE. **Zero files under `wat/`.** |
 | 4 | ★ a GSI is actually declared | the fixture's `EnsureSchemaRequest` carries a non-empty `:indexes`, and rows carry `index-keys` | non-empty — an empty index set makes this stone vacuous |
 | 5 | ★ `scan-index` is driven AFTER the delete | the fixture calls `scan-index` post-delete on both backends | present — this is the only thing that tests `clear-index-projections` |
 | 6 | duplicate ack | deleting the same key twice returns `:Success` both times on both backends | agree (finding 2 closes) |
 | 7 | the verdict is a SUMMARY, not a bool | the fixture returns a rendered string, not `true` | a string — two identically-broken backends must not pass |
 | 8 | floor | `./scripts/floor.sh; echo "FLOOR=$?"` | `FLOOR=0` **if** the backends agree; a named red arm if they do not |
 | 9 | test count | floor total vs 5095 | 5095 + 1 = **5096** if one test is added; any other number needs explaining |
-| 10 | stone 2 not disturbed | `probe_arc301_store_delete::store_delete_removes_exactly_the_named_row` | still PASS |
+| 10 | stone 2 not disturbed | `probe_ex001_store_delete::store_delete_removes_exactly_the_named_row` | still PASS |
 
 ## Runtime prediction
 

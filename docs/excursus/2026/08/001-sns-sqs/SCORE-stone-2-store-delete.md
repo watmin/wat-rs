@@ -1,4 +1,4 @@
-# SCORE — arc 301 stone 2: Store gains `delete`
+# SCORE — excursus 001 stone 2: Store gains `delete`
 
 **STRUCK.** Graded 2026-08-30 against the orchestrator's OWN re-run, never the executor's
 report. Executor: grok (named per `examinare` — not a spawned rider, not Opus).
@@ -8,7 +8,7 @@ report. Executor: grok (named per `examinare` — not a spawned rider, not Opus)
 | # | what | expected | **measured by me** |
 |---|---|---|---|
 | 1 | probe GREEN, unedited | `CHECK=0` | ✅ `CHECK=0` |
-| 2 | assertion actually runs | pass, not skipped | ✅ `PASS [0.716s] (456/5095) wat::rete probe_arc301_store_delete::store_delete_removes_exactly_the_named_row` |
+| 2 | assertion actually runs | pass, not skipped | ✅ `PASS [0.716s] (456/5095) wat::rete probe_ex001_store_delete::store_delete_removes_exactly_the_named_row` |
 | 3 | probe not edited | empty diff | ✅ **0 bytes** |
 | 4 | blast radius | 3 files | ⚠️ 3 production files + 2 promoted test files — see *The contradiction was mine* |
 | 5 | floor | `FLOOR=0` | ✅ `Summary [ 294.592s] 5095 tests run: 5095 passed (2 slow), 17 skipped` |

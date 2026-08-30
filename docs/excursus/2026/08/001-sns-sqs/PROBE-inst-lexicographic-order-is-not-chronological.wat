@@ -1,4 +1,4 @@
-;; PROBE-inst-lexicographic-order-is-not-chronological.wat — arc 301 stone INST.
+;; PROBE-inst-lexicographic-order-is-not-chronological.wat — excursus 001 stone INST.
 ;;
 ;; RED AT HEAD. GREEN AFTER THE STONE, with no edit to this file.
 ;;

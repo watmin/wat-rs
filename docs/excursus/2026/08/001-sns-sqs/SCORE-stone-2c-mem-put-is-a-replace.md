@@ -1,4 +1,4 @@
-# SCORE — arc 301 stone 2c: mem's `put` becomes a replace
+# SCORE — excursus 001 stone 2c: mem's `put` becomes a replace
 
 **STRUCK on (a)(b)(c). STOP-1 FIRED. Floor is RED — not re-run.** Executor: grok, 2026-08-30.
 
@@ -22,11 +22,11 @@ Pre-fix: `MEM[base=2:a,a;gsi=2:v1,v9]  SQLITE[base=1:a;gsi=1:v9]`.
 
 | # | what | expected | **measured** |
 |---|---|---|---|
-| 1 | re-put differential exists and runs | present, PASS | ✅ `PASS [0.701s] (457/5097) wat::rete probe_arc301_reput_differential::reput_differential_mem_and_sqlite_agree` — same red floor |
+| 1 | re-put differential exists and runs | present, PASS | ✅ `PASS [0.701s] (457/5097) wat::rete probe_ex001_reput_differential::reput_differential_mem_and_sqlite_agree` — same red floor |
 | 2 | both backends agree on re-put | `base=1:a;gsi=1:v9` | ✅ pinned `AGREED_SUMMARY`; mismatch would be `DIFFERENTIAL-MISMATCH mem=… sqlite=…` |
 | 3 | mem drops the superseded row | reuse `key-hits-row?` | ✅ reused, not rewritten. `put` inner-fold calls the stone-2 predicate; `row-in-delete-batch?` untouched |
 | 4 | the GSI follows | `gsi=1:v9`, not `v1,v9` | ✅ `gsi=1:v9`. Mem derives projections from surviving rows; the old `v1` dies with the dropped StoredRow |
-| 5 | blast radius | mem + query comment + DESIGN:150 + two tests + SCORE; sqlite untouched | ✅ porcelain: `M wat/query/mem.wat`, `M wat/query.wat`, `M DESIGN-store-contract.md`, `?? tests/rete/probe_arc301_reput_differential.{rs,wat}`, this SCORE. `git diff -- wat/query/sqlite-store.wat` empty |
+| 5 | blast radius | mem + query comment + DESIGN:150 + two tests + SCORE; sqlite untouched | ✅ porcelain: `M wat/query/mem.wat`, `M wat/query.wat`, `M DESIGN-store-contract.md`, `?? tests/rete/probe_ex001_reput_differential.{rs,wat}`, this SCORE. `git diff -- wat/query/sqlite-store.wat` empty |
 | 6 | `put`'s signature unchanged | comment lines only | ✅ `wat/query.wat \| 7 +++++++` — seven comment lines, zero type/arity change |
 | 7 | the surface states the rule | `put`'s doc-comment names replace-by-`(pk,sk)` | ✅ `wat/query.wat:576–581` — REPLACE-BY-(pk,sk) / PutItem / later-wins / sqlite DELETE+clear+INSERT vs mem drop-StoredRow |
 | 8 | the design table is corrected | `:150` no longer plain INSERT | ✅ `replace-by-(pk,sk): DELETE+INSERT in BEGIN/COMMIT (PutItem; a duplicate key is unrepresentable)` / mysql `REPLACE` / mongo `replaceOne` upsert |
@@ -86,7 +86,7 @@ Header comment no longer says "`put` conj's the batch".
 
 ## (c) the differential
 
-Promoted `docs/arc/2026/08/301-sns-sqs/PROBE-reput-divergence.wat` → `tests/rete/probe_arc301_reput_differential.{wat,rs}`. Standalone `:user::main` dropped. Unused delete helpers from the 2b-copy dropped. `compute` returns the shared summary IFF equal, else `DIFFERENTIAL-MISMATCH mem=… sqlite=…`.
+Promoted `docs/excursus/2026/08/001-sns-sqs/PROBE-reput-divergence.wat` → `tests/rete/probe_ex001_reput_differential.{wat,rs}`. Standalone `:user::main` dropped. Unused delete helpers from the 2b-copy dropped. `compute` returns the shared summary IFF equal, else `DIFFERENTIAL-MISMATCH mem=… sqlite=…`.
 
 ## STOP triggers 2–4
 
@@ -107,9 +107,9 @@ Promoted `docs/arc/2026/08/301-sns-sqs/PROBE-reput-divergence.wat` → `tests/re
  M docs/arc/2026/06/278-rules-engine/DESIGN-store-contract.md
  M wat/query.wat
  M wat/query/mem.wat
-?? tests/rete/probe_arc301_reput_differential.rs
-?? tests/rete/probe_arc301_reput_differential.wat
-?? docs/arc/2026/08/301-sns-sqs/SCORE-stone-2c-mem-put-is-a-replace.md
+?? tests/rete/probe_ex001_reput_differential.rs
+?? tests/rete/probe_ex001_reput_differential.wat
+?? docs/excursus/2026/08/001-sns-sqs/SCORE-stone-2c-mem-put-is-a-replace.md
 ```
 
 Uncommitted. Not pushed. sqlite-store empty.

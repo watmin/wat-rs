@@ -1,4 +1,4 @@
-# ⛔ NOTE (arc 301) — a record accessor in VALUE position is typed `Record -> F`, so it cannot be passed where the CONCRETE record is expected
+# ⛔ NOTE (excursus 001) — a record accessor in VALUE position is typed `Record -> F`, so it cannot be passed where the CONCRETE record is expected
 
 **Found 2026-08-30, live, by probe.** Surfaced by grok mid-strike on stone 2b:
 
@@ -96,7 +96,7 @@ Give the accessor the concrete receiver: `R -> String`, not `Record -> String`. 
 site's subtype narrowing becomes redundant rather than load-bearing, and value position works
 without help.
 
-**Not drawn.** It is a type-system change, not an arc-301 change, and 301 has a working
+**Not drawn.** It is a type-system change, not an excursus-001 change, and 301 has a working
 one-line workaround (wrap the accessor in a `defn`). Recorded here because 301 surfaced it.
 
 **Filed to its home arc as

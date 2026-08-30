@@ -1,4 +1,4 @@
-# BRIEF — arc 301 stone 2b: the delete differential (mem vs sqlite)
+# BRIEF — excursus 001 stone 2b: the delete differential (mem vs sqlite)
 
 **This stone adds NO production code.** Stone 2 shipped `delete` in both backends; only
 mem-store is exercised. 54 of those 114 lines are covered by nothing. 2b closes that.
@@ -35,13 +35,13 @@ that is a real orphaned-index bug and exactly what this stone is for.
    Copy its shape: a helper parameterized on `store-addr`, run against both backends, compare,
    return a sentinel string on mismatch that the `.rs` catches. Note `sqlite-store/start` takes
    `:record (... :path ":memory:" :index-names [...])` — no temp file, no cleanup.
-2. **`tests/rete/probe_arc301_store_delete.wat`** — stone 2's mem probe. Its `three-rows`,
+2. **`tests/rete/probe_ex001_store_delete.wat`** — stone 2's mem probe. Its `three-rows`,
    `ensure-schema`, `put`, `scan-count` and `delete-b` helpers are the sequence to generalize;
    they currently hard-code `mem-store` at the call site only.
 3. **`wat/query.wat:26`** — `IndexKey` (`ipk`/`isk`), and `StoredRow.index-keys` at `:34`
    (`index-name -> IndexKey`). This is how a row declares its projection.
 4. **`wat/query/sqlite-store.wat:155`** — `clear-index-projections`, the code under test.
-5. **`docs/arc/2026/08/301-sns-sqs/SCORE-stone-2-store-delete.md`** — findings 1 and 2, which
+5. **`docs/excursus/2026/08/001-sns-sqs/SCORE-stone-2-store-delete.md`** — findings 1 and 2, which
    this stone closes.
 
 ## Also close finding 2 — the duplicate ack
@@ -73,7 +73,7 @@ they agreed *on*, and two identically-broken backends would pass it.
 
 ## Blast radius
 
-**`tests/rete/probe_arc301_delete_differential.wat` and `.rs` — NEW FILES ONLY.**
+**`tests/rete/probe_ex001_delete_differential.wat` and `.rs` — NEW FILES ONLY.**
 No production file is touched. `build.rs` auto-generates the module list from sibling `*.rs`
 (`tests/rete/mod.rs` is an `include!` stub), so dropping the `.rs` in registers it — no
 `mod.rs` edit.

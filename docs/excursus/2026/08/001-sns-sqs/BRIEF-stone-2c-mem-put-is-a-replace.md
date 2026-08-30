@@ -1,4 +1,4 @@
-# BRIEF — arc 301 stone 2c: `mem-store`'s `put` becomes a replace-by-`(pk, sk)`
+# BRIEF — excursus 001 stone 2c: `mem-store`'s `put` becomes a replace-by-`(pk, sk)`
 
 **Builder's ruling 2026-08-30: `mem-store` is the bug; fix it.** Not a contract question —
 see `NOTE-mem-store-put-appends-where-sqlite-replaces.md`, including its ⛔ CORRECTED section.
@@ -45,9 +45,9 @@ contract that will be misread again** — it already was, by me. Also correct
 `docs/arc/2026/06/278-rules-engine/DESIGN-store-contract.md:150`, whose backend table maps `put`
 to a plain `INSERT` (which against `PRIMARY KEY(pk,sk)` would error, not replace).
 
-**(c) The differential covers re-put.** `docs/arc/2026/08/301-sns-sqs/PROBE-reput-divergence.wat`
+**(c) The differential covers re-put.** `docs/excursus/2026/08/001-sns-sqs/PROBE-reput-divergence.wat`
 is the fixture, already committed. Promote it into `tests/rete/` beside
-`probe_arc301_delete_differential`, **drop its standalone `:user::main`** (the harness drives
+`probe_ex001_delete_differential`, **drop its standalone `:user::main`** (the harness drives
 `:user::compute`), and add a `.rs` harness pinning the agreed summary. At HEAD it produces:
 
 ```
@@ -61,7 +61,7 @@ After the fix both sides must read `base=1:a;gsi=1:v9`.
 - `wat/query/mem.wat` — the `put` impl
 - `wat/query.wat` — `put`'s doc-comment only, **no signature or type change**
 - `docs/arc/2026/06/278-rules-engine/DESIGN-store-contract.md` — the one table row
-- `tests/rete/probe_arc301_reput_differential.{wat,rs}` — new
+- `tests/rete/probe_ex001_reput_differential.{wat,rs}` — new
 - this arc's SCORE
 
 **`wat/query/sqlite-store.wat` is NOT touched. It is already correct.**

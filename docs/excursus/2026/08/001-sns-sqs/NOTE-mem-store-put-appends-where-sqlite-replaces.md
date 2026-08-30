@@ -1,4 +1,4 @@
-# ⛔ NOTE (arc 301) — `mem-store`'s `put` APPENDS where `sqlite-store`'s REPLACES; the ORACLE admits a state the real backend cannot represent
+# ⛔ NOTE (excursus 001) — `mem-store`'s `put` APPENDS where `sqlite-store`'s REPLACES; the ORACLE admits a state the real backend cannot represent
 
 **Found 2026-08-30 by probe, while drawing stone 3.** Pre-existing — **not** introduced by
 stone 2 or 2b. Verified: `mem.wat`'s `put` was already a bare `conj` at `fe1e923d5^`.

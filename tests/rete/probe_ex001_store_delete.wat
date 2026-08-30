@@ -1,4 +1,4 @@
-;; PROBE-store-has-no-delete.wat — arc 301 stone 2, the DISCONFIRMING probe.
+;; PROBE-store-has-no-delete.wat — excursus 001 stone 2, the DISCONFIRMING probe.
 ;;
 ;; RED AT HEAD, on EXACTLY one thing: `:wat::query::Store/delete` does not exist.
 ;; GREEN AFTER THE STONE, with no other edit to this file.

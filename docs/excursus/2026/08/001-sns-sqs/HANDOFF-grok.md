@@ -1,4 +1,4 @@
-# HANDOFF → grok — arc 301 stone 2: Store gains `delete`
+# HANDOFF → grok — excursus 001 stone 2: Store gains `delete`
 
 Paste the block below to grok. Everything it needs is committed on `origin/sns-sqs`;
 nothing here is a copy that can drift from the repo.
@@ -10,14 +10,14 @@ You are striking one stone in the `wat-rs` repo. Work on branch `sns-sqs`
 
 **Read these two first, in full, before touching anything:**
 
-- `docs/arc/2026/08/301-sns-sqs/BRIEF-stone-2-store-delete.md`
-- `docs/arc/2026/08/301-sns-sqs/EXPECTATIONS-stone-2-store-delete.md`
+- `docs/excursus/2026/08/001-sns-sqs/BRIEF-stone-2-store-delete.md`
+- `docs/excursus/2026/08/001-sns-sqs/EXPECTATIONS-stone-2-store-delete.md`
 
 The BRIEF names five rooms as exact `file:line`, tells you why you are being sent to each,
 and carries an implementation sketch. Fill the sketch; do not invent the shape — each of the
 three files already contains the `put` it is mirrored on.
 
-**The gate.** `docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat` is RED at HEAD on
+**The gate.** `docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat` is RED at HEAD on
 exactly two errors (the second a cascade of the first). The stone is done when it is GREEN
 **with no edit to the probe**. Everything else in that file is copied from the green
 `tests/rete/probe_arc278_smem_roundtrip.wat` and type-checks clean today.
@@ -28,7 +28,7 @@ hands, not when a command is launched. Read the Summary line, never a piped exit
 produced a "green" report on a 41-failure floor in this repo on 2026-08-30.
 
 ```bash
-./target/release/wat --check docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat
+./target/release/wat --check docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat
 echo "CHECK=$?"
 ./scripts/floor.sh; echo "FLOOR=$?"
 ```
@@ -69,7 +69,7 @@ discarded.*
 
 1. `git diff --stat` — blast radius is `wat/query.wat`, `wat/query/mem.wat`,
    `wat/query/sqlite-store.wat`, and nothing else.
-2. `git diff -- docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat` — **must be empty.**
+2. `git diff -- docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat` — **must be empty.**
    A moved gate is not a passed gate.
 3. Re-run the probe and the floor yourself. Read the Summary line.
 4. `./target/release/wat wat-scripts/demos/sns/sns-fanout.wat` — still `"3 3"`.
@@ -84,8 +84,8 @@ Then write `SCORE-stone-2-store-delete.md` beside this file.
 
 Same branch, `sns-sqs`. Read in full before touching anything:
 
-- `docs/arc/2026/08/301-sns-sqs/BRIEF-stone-2b-delete-differential.md`
-- `docs/arc/2026/08/301-sns-sqs/EXPECTATIONS-stone-2b-delete-differential.md`
+- `docs/excursus/2026/08/001-sns-sqs/BRIEF-stone-2b-delete-differential.md`
+- `docs/excursus/2026/08/001-sns-sqs/EXPECTATIONS-stone-2b-delete-differential.md`
 
 **This stone is different from every other one here.** It adds NO production code, and its
 outcome is genuinely unknown — the sqlite `delete` path has never executed. **If mem and
@@ -112,11 +112,11 @@ brief did not cover.
 
 Same branch, `sns-sqs`. Read in full:
 
-- `docs/arc/2026/08/301-sns-sqs/NOTE-mem-store-put-appends-where-sqlite-replaces.md`
+- `docs/excursus/2026/08/001-sns-sqs/NOTE-mem-store-put-appends-where-sqlite-replaces.md`
   — **including its ⛔ CORRECTED section.** The first version of that NOTE called this a tie
   between two defensible readings. It is not. Do not inherit that framing.
-- `docs/arc/2026/08/301-sns-sqs/BRIEF-stone-2c-mem-put-is-a-replace.md`
-- `docs/arc/2026/08/301-sns-sqs/EXPECTATIONS-stone-2c-mem-put-is-a-replace.md`
+- `docs/excursus/2026/08/001-sns-sqs/BRIEF-stone-2c-mem-put-is-a-replace.md`
+- `docs/excursus/2026/08/001-sns-sqs/EXPECTATIONS-stone-2c-mem-put-is-a-replace.md`
 
 **This one is a bug fix with a settled referent.** `:wat::query::Store` is DynamoDB-shaped
 (`wat/query.wat:7`); `PutItem` replaces; `sqlite-store` already does that and its DDL enforces
@@ -125,7 +125,7 @@ differential so it cannot come back.
 
 **Do not touch `wat/query/sqlite-store.wat`** — it is the reference (STOP-3).
 
-The fixture already exists at `docs/arc/2026/08/301-sns-sqs/PROBE-reput-divergence.wat`. Promote
+The fixture already exists at `docs/excursus/2026/08/001-sns-sqs/PROBE-reput-divergence.wat`. Promote
 it, drop its standalone `:user::main`, add a `.rs` harness. At HEAD it prints
 `MEM[base=2:a,a;gsi=2:v1,v9]  SQLITE[base=1:a;gsi=1:v9]`; after the fix both must read
 `base=1:a;gsi=1:v9`.
@@ -143,8 +143,8 @@ NOT re-run. Floor at HEAD is 5096.
 
 Same branch, `sns-sqs`. Read in full:
 
-- `docs/arc/2026/08/301-sns-sqs/BRIEF-stone-inst-renders-at-constant-width.md`
-- `docs/arc/2026/08/301-sns-sqs/EXPECTATIONS-stone-inst-renders-at-constant-width.md`
+- `docs/excursus/2026/08/001-sns-sqs/BRIEF-stone-inst-renders-at-constant-width.md`
+- `docs/excursus/2026/08/001-sns-sqs/EXPECTATIONS-stone-inst-renders-at-constant-width.md`
 
 **One token in the substrate.** `crates/wat-edn/src/writer.rs:227` uses
 `SecondsFormat::AutoSi` — chrono's "shortest representation that is a multiple of 3 digits" —
@@ -172,3 +172,37 @@ does churn, report it, because a wrong census matters more than the golden.
 
 Verify in the FOREGROUND; read the Summary line, never a piped exit code. On a NEW red: do NOT
 re-run, capture the arm whole, name the exact assertion.
+
+---
+
+# HANDOFF → grok — excursus 001 stone WRITE-OPTS
+
+⚠ **This work moved.** It was `docs/arc/2026/08/301-sns-sqs/` and is now
+`docs/excursus/2026/08/001-sns-sqs/`. It is NOT an arc — arc 301 does not exist; the number was
+minted unasked and retracted. Commit prefix is `EXCURSUS(001):`, never `STONE n(NNN):`. The six
+`probe_arc301_*` tests are now `probe_ex001_*`. See `docs/excursus/README.md`.
+
+Same branch, `sns-sqs`. Read in full:
+
+- `docs/excursus/2026/08/001-sns-sqs/BRIEF-stone-write-opts.md`
+- `docs/excursus/2026/08/001-sns-sqs/EXPECTATIONS-stone-write-opts.md`
+
+**The builder rejected three designs before this one.** Do not re-propose them:
+a global config knob (a footgun — one setting and every `StoredRow` written afterwards loses
+its range-scan ordering); a fixed default in `json.rs` (frozen from an assumption about a
+consumer nobody asked); and a bare `digits` parameter (a timestamp concern on a general
+serializer's signature — the wrong axis).
+
+**What ships: a `WriteOpts` VALUE the caller passes**, on the `ProcessOpts` precedent already in
+the tree at `wat/spawn.wat:77/122/130` — a struct, a zero-arg default constructor you never
+touch, and named single-field variants. This excursus's own SNS demo uses both halves of that
+pattern already.
+
+⛔ **`:wat::edn::write` (the 1-arg EDN verb) does not change.** 424 call sites, and it is the
+`Store` sort-key path — its width is a correctness invariant, not a preference. If opts cannot
+be added to the JSON verbs without touching it, that is a finding, not a licence.
+
+Verify in the FOREGROUND; read the Summary line, never a piped exit code. Floor here is **5103
+with ONE known failure** (`probe_arc278_span_macros`, the journal key-collision arm). **That red
+is expected and is not yours.** Two failures means you added one. On a NEW red: do NOT re-run,
+capture the arm whole, name the exact assertion.

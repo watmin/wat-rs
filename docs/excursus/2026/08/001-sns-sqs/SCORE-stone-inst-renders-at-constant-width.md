@@ -1,4 +1,4 @@
-# SCORE — arc 301 stone INST: `#inst` renders at constant nanosecond width
+# SCORE — excursus 001 stone INST: `#inst` renders at constant nanosecond width
 
 **STRUCK.** Executor: grok, 2026-08-30. One token. Floor is the expected one-failure shape.
 
@@ -32,7 +32,7 @@ AFTER: 9-digit=true   whole-second=true   6-digit=true   3-digit=true   control=
 | 9 | `to-iso8601` unaffected | `wat-tests/time.wat` still PASS | ✅ `test_iso8601_roundtrip_{3,9}_digits` PASS (`2904`, `2905/5103`) |
 | 10 | floor | exactly ONE failure, the span_macros arm | ✅ exactly that one. 5103 started = 5097 + 6 |
 | 11 | the json decision is STATED | SCORE says what and why | ✅ this section |
-| 12 | arc 301 stones undisturbed | store_delete, delete_differential, reput_differential | ✅ all PASS (`456`, `457`, `460/5103`) |
+| 12 | excursus 001 stones undisturbed | store_delete, delete_differential, reput_differential | ✅ all PASS (`456`, `457`, `460/5103`) |
 
 ## json.rs:170 — the decision
 
@@ -68,7 +68,7 @@ A fourth Instant renderer exists at `src/edn/render.rs:2907` (`SecondsFormat::Mi
 ```
  M crates/wat-edn/src/writer.rs
 ?? wat-tests/edn/inst-lexicographic-order-is-not-chronological.wat
-?? docs/arc/2026/08/301-sns-sqs/SCORE-stone-inst-renders-at-constant-width.md
+?? docs/excursus/2026/08/001-sns-sqs/SCORE-stone-inst-renders-at-constant-width.md
 ```
 
 Uncommitted. Not pushed. `json.rs` and `wat/telemetry/` empty.

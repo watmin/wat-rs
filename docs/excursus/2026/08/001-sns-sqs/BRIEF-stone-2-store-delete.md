@@ -1,4 +1,4 @@
-# BRIEF — arc 301 stone 2: `:wat::query::Store` gains `delete`
+# BRIEF — excursus 001 stone 2: `:wat::query::Store` gains `delete`
 
 **Builder's ruling 2026-08-30: option (a).** Add `delete` to the Store surface. Not tombstones.
 
@@ -38,7 +38,7 @@ one transaction, and the shared `:Success/:Constraint/:Transient/:Fatal/:Request
 
 ## The acceptance gate — it already exists and it is RED
 
-**`docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat`.**
+**`docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat`.**
 
 Run it at HEAD and it fails with exactly two errors, the second a cascade of the first:
 
@@ -107,7 +107,7 @@ runs it against both backends.
 ## Verify like this — never through a pipe
 
 ```bash
-./target/release/wat --check docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat
+./target/release/wat --check docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat
 echo "CHECK=$?"                  # 0 when the stone lands
 ./scripts/floor.sh; echo "FLOOR=$?"
 ```

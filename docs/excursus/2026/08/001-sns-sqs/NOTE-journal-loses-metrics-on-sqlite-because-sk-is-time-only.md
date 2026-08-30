@@ -1,4 +1,4 @@
-# ⛔ NOTE (arc 301) — `journal` SILENTLY LOSES METRICS on `sqlite-store`, because its sort key is time-only
+# ⛔ NOTE (excursus 001) — `journal` SILENTLY LOSES METRICS on `sqlite-store`, because its sort key is time-only
 
 **Found 2026-08-30 by measurement, while grading stone 2c.** **Pre-existing — untouched by
 this arc.** `put-one-row` is unchanged across every commit here (stone 2's 54 lines are pure

@@ -91,7 +91,14 @@ return type. Read it before adding or reclassifying a polymorphic op.
 ## Arc docs — dated slice design notes
 
 Living planning and postmortem notes for individual slices of work,
-organized as `arc/YYYY/MM/NNN-slug/`:
+organized as `arc/YYYY/MM/NNN-slug/`.
+
+**`excursus/YYYY/MM/NNN-slug/`** is the sibling tree for FREE EXPERIMENTATION — its own
+number space, same sortable scheme. An arc is commissioned and is opened only when the
+builder asks; an excursus is where exploration lives until it earns a number. Commit prefix
+`EXCURSUS(NNN):`. See `docs/excursus/README.md`.
+
+The arcs:
 
 - **`arc/2026/04/001-caching-stack/`** — the L1/L2 caching design
   (LocalCache + Cache program) and the deadlock postmortem where

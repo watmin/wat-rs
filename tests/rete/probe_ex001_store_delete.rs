@@ -1,5 +1,5 @@
 //! Arc 301 stone 2 — Store gains `delete`. Promoted from
-//! `docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat` (byte-identical copy;
+//! `docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat` (byte-identical copy;
 //! the arc-dir probe is the gate and is not edited).
 //!
 //! Puts 3 rows under one pk, deletes the middle one by `(pk, sk)`, asserts

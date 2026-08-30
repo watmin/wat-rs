@@ -1,4 +1,4 @@
-# BRIEF — arc 301 stone INST: `#inst` renders at constant nanosecond width
+# BRIEF — excursus 001 stone INST: `#inst` renders at constant nanosecond width
 
 **One token in the substrate. The value is that it makes a silent-data-loss class impossible.**
 
@@ -38,7 +38,7 @@ fine, which is the direction that matters.
 
 ## The gate — RED at HEAD, measured
 
-`docs/arc/2026/08/301-sns-sqs/PROBE-inst-lexicographic-order-is-not-chronological.wat`
+`docs/excursus/2026/08/001-sns-sqs/PROBE-inst-lexicographic-order-is-not-chronological.wat`
 
 At HEAD, driving its comparisons directly gives:
 

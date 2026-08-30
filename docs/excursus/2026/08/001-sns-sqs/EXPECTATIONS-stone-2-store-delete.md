@@ -1,4 +1,4 @@
-# EXPECTATIONS — arc 301 stone 2: Store gains `delete`
+# EXPECTATIONS — excursus 001 stone 2: Store gains `delete`
 
 **Written BEFORE the strike, 2026-08-30, so the result cannot move the goalposts.**
 Every row is a command and an outcome. The SCORE is written against the orchestrator's OWN
@@ -8,9 +8,9 @@ re-run of these, never against the executor's report.
 
 | # | what | command | expected |
 |---|---|---|---|
-| 1 | the probe goes GREEN, unedited | `./target/release/wat --check docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat; echo "CHECK=$?"` | `CHECK=0` |
+| 1 | the probe goes GREEN, unedited | `./target/release/wat --check docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat; echo "CHECK=$?"` | `CHECK=0` |
 | 2 | the probe's assertion actually runs | the deftest executes; scan count goes 3 → 2 | pass, not skipped |
-| 3 | the probe was NOT edited | `git diff --stat -- docs/arc/2026/08/301-sns-sqs/PROBE-store-has-no-delete.wat` | **empty** |
+| 3 | the probe was NOT edited | `git diff --stat -- docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat` | **empty** |
 | 4 | blast radius held | `git diff --name-only` | exactly `wat/query.wat`, `wat/query/mem.wat`, `wat/query/sqlite-store.wat` (+ the SCORE) |
 | 5 | the floor | `./scripts/floor.sh; echo "FLOOR=$?"` | `FLOOR=0`, Summary line read verbatim |
 | 6 | journal still works on BOTH backends | the existing `probe_arc278_journal_backend_differential` arm | green — it is the regression canary |

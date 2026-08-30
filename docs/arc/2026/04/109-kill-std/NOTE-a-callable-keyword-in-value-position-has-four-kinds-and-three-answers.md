@@ -1,6 +1,6 @@
 # NOTE — a CALLABLE keyword in value position has four kinds and three answers
 
-**Filed 2026-08-30.** Surfaced by an executor mid-strike on arc 301 (*"`mapv` won't take a
+**Filed 2026-08-30.** Surfaced by an executor mid-strike on excursus 001 (*"`mapv` won't take a
 record accessor as a function here"*); builder's read — *"that feels like a bug"*. Confirmed by
 measurement, then **scoped from the rule rather than the instance**, per
 `NOTE-a-function-type-prints-in-a-spelling-you-cannot-write.md`'s own lesson.
@@ -95,7 +95,7 @@ unifies. No runtime cost.
 
 - `2026/06/255-builtin-registry/NOTE-an-intrinsic-cannot-be-passed-as-a-value.md` — rows 3 and 4;
   same rule, different mechanism (no entry at all, rather than a wrong type).
-- `2026/08/301-sns-sqs/NOTE-a-record-accessor-in-value-position-loses-its-receiver-type.md` —
+- `excursus/2026/08/001-sns-sqs/NOTE-a-record-accessor-in-value-position-loses-its-receiver-type.md` —
   the discovery record, with the full three-probe measurement.
 - `NOTE-a-function-type-prints-in-a-spelling-you-cannot-write.md` — the census-from-the-rule
   discipline this NOTE followed, and the reason the table above has four rows instead of one.

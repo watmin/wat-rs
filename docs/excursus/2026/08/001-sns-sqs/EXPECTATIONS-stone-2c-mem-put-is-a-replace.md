@@ -1,4 +1,4 @@
-# EXPECTATIONS — arc 301 stone 2c: mem's `put` becomes a replace
+# EXPECTATIONS — excursus 001 stone 2c: mem's `put` becomes a replace
 
 **Written BEFORE the strike, 2026-08-30.** Blast radius below is **derived from the BRIEF's
 (a)/(b)/(c)**, not written beside it.
@@ -7,7 +7,7 @@
 
 | # | what | command | expected |
 |---|---|---|---|
-| 1 | the re-put differential exists and runs | floor arm `wat::rete probe_arc301_reput_differential::…` | present, PASS |
+| 1 | the re-put differential exists and runs | floor arm `wat::rete probe_ex001_reput_differential::…` | present, PASS |
 | 2 | both backends now agree on re-put | the fixture's summary | `base=1:a;gsi=1:v9` on BOTH — was `MEM[base=2:a,a;gsi=2:v1,v9]` |
 | 3 | mem drops the superseded row | mem's `put` reuses `key-hits-row?` | reused, not re-written |
 | 4 | the GSI follows | mem's projection for the replaced row is the NEW one only | `gsi=1:v9`, not `v1,v9` |
