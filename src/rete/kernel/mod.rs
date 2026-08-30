@@ -41,6 +41,4 @@ mod insert;
 pub(crate) use insert::*;
 
 #[cfg(test)]
-mod tests {
-    include!("tests.rs");
-}
+mod tests;
