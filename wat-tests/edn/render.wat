@@ -66,13 +66,13 @@
   
   (:wat::core::let
     [v (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
-     s (:wat::edn::write-json v (:wat::edn::opts))]
+     s (:wat::edn::write-json v)]
     (:wat::test::assert-eq s "[1,2,3]")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-json-string
   
   (:wat::core::let
-    [s (:wat::edn::write-json "hi" (:wat::edn::opts))]
+    [s (:wat::edn::write-json "hi")]
     (:wat::test::assert-eq s "\"hi\"")))
 
 ;; ─── Pretty path — multi-line for nested vec ─────────────────────

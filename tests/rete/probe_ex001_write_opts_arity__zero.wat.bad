@@ -1,0 +1,3 @@
+;; WO-OPT — 0-arg write-json is a type error (the guard's lower bound).
+(:wat::core::defn :user::compute [] -> :wat::core::String
+  (:wat::edn::write-json))

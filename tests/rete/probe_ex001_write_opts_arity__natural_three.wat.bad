@@ -1,0 +1,3 @@
+;; WO-OPT — 3-arg write-json-natural is a type error (the guard's upper bound).
+(:wat::core::defn :user::compute [] -> :wat::core::String
+  (:wat::edn::write-json-natural 42 (:wat::edn::opts) (:wat::edn::opts)))

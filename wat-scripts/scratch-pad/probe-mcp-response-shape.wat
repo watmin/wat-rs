@@ -45,6 +45,6 @@
                         :isError false))]
     (:wat::core::do
       ;; the sentinel form — expected to carry #tag/body, shown for contrast
-      (:wat::kernel::println (:wat::edn::write-json reply (:wat::edn::opts)))
+      (:wat::kernel::println (:wat::edn::write-json reply))
       ;; the MCP candidate
-      (:wat::kernel::println (:wat::edn::write-json-natural reply (:wat::edn::opts))))))
+      (:wat::kernel::println (:wat::edn::write-json-natural reply)))))

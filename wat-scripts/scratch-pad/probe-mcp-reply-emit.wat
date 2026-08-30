@@ -29,4 +29,4 @@
     ;; the raw EDN, as `edn::write` would hand it back
     (:wat::kernel::println (:probe::edn-with-quotes))
     ;; the same string, escaped for JSON — the drop-in for the skeleton's text slot
-    (:wat::kernel::println (:wat::edn::write-json (:probe::edn-with-quotes) (:wat::edn::opts)))))
+    (:wat::kernel::println (:wat::edn::write-json (:probe::edn-with-quotes)))))

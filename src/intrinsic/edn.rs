@@ -39,6 +39,16 @@
 //! `TypeScheme` — `check.rs`'s special-cased match arm is the real authority", so
 //! `doc_arg_ret_types_match_checker_scheme` (`src/intrinsic/mod.rs`) finds no scheme for this name
 //! and skips it rather than firing a false mismatch.
+//!
+//! ## Gate coverage — eleven Exact, two optional-arity
+//!
+//! Eleven of the thirteen (every row but `write-json` and `write-json-natural`) are
+//! plain Exact-arity. The two JSON writers have BOTH a registered 1-arg `TypeScheme`
+//! (the omitted-opts default — nanos) AND a bespoke `infer_edn_write_json*` arm
+//! (`src/check.rs`) that intercepts first and accepts one OR two args. They are
+//! Variadic in the registry for the same reason `:wat::io::IOReader/read-frame`
+//! is (`src/intrinsic/io/reader.rs:80`): going Variadic loses the declared arity,
+//! so this note is what a future arity census reads instead of a missing Exact.
 
 use wat_macros::wat_intrinsic;
 
@@ -168,54 +178,59 @@ pub(crate) fn eval_edn_write_pretty_home(
     crate::edn::render::eval_edn_write_pretty(std::slice::from_ref(v), span, env, sym).map_err(Into::into)
 }
 
-/// `(:wat::edn::write-json v opts)` → `:wat::core::String`. JSON via wat-edn's round-trip-safe
-/// sentinel-tagged-object convention. `opts` is a `:wat::edn::WriteOpts` the caller mints.
+/// `(:wat::edn::write-json v)` → `:wat::core::String`. JSON via wat-edn's round-trip-safe
+/// sentinel-tagged-object convention. Optional second arg is a `:wat::edn::WriteOpts`;
+/// omitting it means `(:wat::edn::opts)` (nanos).
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     v :T the value rendered
-/// @arg     opts :wat::edn::WriteOpts render options (`(:wat::edn::opts)` for the default)
+/// @arg     xs… :T the value rendered (+ optional WriteOpts — see `infer_edn_write_json`)
 /// @ret     :wat::core::String the round-trip-safe JSON text
-/// @example (:wat::edn::write-json 42 (:wat::edn::opts)) #=> "42"
+/// @example (:wat::edn::write-json 42) #=> "42"
 /// @see     :wat::edn::write-json-natural
+// Registered 1-arg `TypeScheme` — `check.rs` write/write-pretty/json loop — AND a
+// bespoke `infer_edn_write_json` arm that intercepts first and accepts 1 OR 2 args.
+// Same split as `IOReader/read-frame`. The `@ret` is the registered scheme's; the
+// optional second arg is real but invisible to `doc_arg_ret_types_match_checker_scheme`
+// (`i < scheme.params.len()` is 1).
 #[wat_intrinsic(":wat::edn::write-json")]
 pub(crate) fn eval_edn_write_json_home(
-    v: &WatAST,
-    opts: &WatAST,
+    xs: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::edn::render::eval_edn_write_json(v, opts, span, env, sym).map_err(Into::into)
+    crate::edn::render::eval_edn_write_json(xs, span, env, sym).map_err(Into::into)
 }
 
-/// `(:wat::edn::write-json-natural v opts)` → `:wat::core::String`. Ingestion-tooling-friendly JSON:
+/// `(:wat::edn::write-json-natural v)` → `:wat::core::String`. Ingestion-tooling-friendly JSON:
 /// drops the `#tag`/`body` sentinel wrapping, drops the `:` prefix from keywords, renders
 /// Instants as bare ISO-8601 strings. Lossy — round-trip back to wat values is not preserved;
-/// use `write-json` for that. `opts` is a `:wat::edn::WriteOpts` the caller mints.
+/// use `write-json` for that. Optional second arg is a `:wat::edn::WriteOpts`; omitting it
+/// means `(:wat::edn::opts)` (nanos).
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     v :T the value rendered
-/// @arg     opts :wat::edn::WriteOpts render options (`(:wat::edn::opts)` for the default)
+/// @arg     xs… :T the value rendered (+ optional WriteOpts — see `infer_edn_write_json_natural`)
 /// @ret     :wat::core::String the natural (lossy) JSON text
-/// @example (:wat::edn::write-json-natural 42 (:wat::edn::opts)) #=> "42"
+/// @example (:wat::edn::write-json-natural 42) #=> "42"
 /// @see     :wat::edn::write-json
+// Same optional-arity split as `write-json` / `IOReader/read-frame`. See the module
+// header "eleven Exact, two optional-arity".
 #[wat_intrinsic(":wat::edn::write-json-natural")]
 pub(crate) fn eval_edn_write_json_natural_home(
-    v: &WatAST,
-    opts: &WatAST,
+    xs: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::edn::render::eval_edn_write_json_natural(v, opts, span, env, sym).map_err(Into::into)
+    crate::edn::render::eval_edn_write_json_natural(xs, span, env, sym).map_err(Into::into)
 }
 
 // ─── validate — a CheckGate, algorithm stays in runtime.rs ─────────────────

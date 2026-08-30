@@ -29,10 +29,8 @@
     ;; CONTROL — the struct. If this is not bare-keyed JSON, nothing below means anything.
     (:wat::kernel::println
       (:wat::edn::write-json-natural
-        (:probe::ContentS :type "text" :text "42")
-        (:wat::edn::opts)))
+        (:probe::ContentS :type "text" :text "42")))
     ;; SUBJECT — the identical shape as a record.
     (:wat::kernel::println
       (:wat::edn::write-json-natural
-        (:probe::ContentR :type "text" :text "42")
-        (:wat::edn::opts)))))
+        (:probe::ContentR :type "text" :text "42")))))

@@ -9,9 +9,9 @@
 //!   line-per-record logging).
 //! - `:wat::edn::write-pretty v` → multi-line indented EDN (debug /
 //!   diagnostic output).
-//! - `:wat::edn::write-json v opts` → JSON via wat-edn's sentinel-key
-//!   tagged-object convention. `opts` is a `:wat::edn::WriteOpts`.
-//!   Round-trip-safe with `:wat::edn::parse` (slice 2; not yet shipped).
+//! - `:wat::edn::write-json v [opts]` → JSON via wat-edn's sentinel-key
+//!   tagged-object convention. Omitting `opts` means `(:wat::edn::opts)`
+//!   (nanos). Round-trip-safe with `:wat::edn::parse` (slice 2; not yet shipped).
 //!
 //! # The walker
 //!
@@ -86,20 +86,19 @@ pub fn eval_edn_write_pretty(
     Ok(Value::String(Arc::new(wat_edn::write_pretty(&edn))))
 }
 
-/// `(:wat::edn::write-json v opts)` → `:String`. JSON via wat-edn's
-/// round-trip-safe sentinel-tagged-object convention. `opts` is a
-/// `:wat::edn::WriteOpts` the caller mints (`(:wat::edn::opts)` for the
-/// default; `(:wat::edn::opts/inst-digits n)` to choose).
+/// `(:wat::edn::write-json v)` or `(:wat::edn::write-json v opts)` → `:String`.
+/// JSON via wat-edn's round-trip-safe sentinel-tagged-object convention.
+/// One arg means `(:wat::edn::opts)` (nanos). Two means the caller's WriteOpts.
+/// Check-time arity lives in `infer_edn_write_json`; this runtime guard matches
+/// `eval_ioreader_read_frame` for calls that skip the checker.
 pub fn eval_edn_write_json(
-    v: &WatAST,
-    opts: &WatAST,
+    args: &[WatAST],
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json";
-    let value = eval(v, env, sym).map(|tv| tv.value_owned())?;
-    let write_opts = require_write_opts(OP, eval(opts, env, sym).map(|tv| tv.value_owned())?, list_span)?;
+    let (value, write_opts) = eval_json_value_and_opts(OP, args, list_span, env, sym)?;
     let edn = value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(wat_edn::to_json_string_with(&edn, &write_opts))))
 }
@@ -121,38 +120,69 @@ pub(crate) fn require_one_arg(
     eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
 
-/// `(:wat::edn::write-json-natural v opts)` → `:String`. Ingestion-tooling-
-/// friendly JSON. Drops the `#tag`/`body` sentinel wrapping (so
-/// struct fields land at the top level of the JSON object), drops
-/// the `:` prefix from keywords (so they read as plain JSON strings),
-/// renders Instants as bare ISO-8601 strings (no `{"#inst": ...}`
-/// wrapper). Encodes enum tagged variants with a `_type`
-/// discriminator + the variant's named fields at the top level.
+/// `(:wat::edn::write-json-natural v)` or `(:wat::edn::write-json-natural v opts)`
+/// → `:String`. Ingestion-tooling-friendly JSON. Drops the `#tag`/`body`
+/// sentinel wrapping (so struct fields land at the top level of the JSON
+/// object), drops the `:` prefix from keywords (so they read as plain JSON
+/// strings), renders Instants as bare ISO-8601 strings (no `{"#inst": ...}`
+/// wrapper). Encodes enum tagged variants with a `_type` discriminator +
+/// the variant's named fields at the top level.
 ///
 /// Instant width comes from `opts` — this walker does NOT share
 /// `json.rs`'s Inst arm (it has already turned the Instant into a
-/// String before `to_json_string` sees it).
+/// String before `to_json_string` sees it). One arg means
+/// `(:wat::edn::opts)` (nanos).
 ///
 /// Lossy. Suitable for pumping logs into ELK / DataDog / CloudWatch
 /// Logs / etc. — formats that expect a "natural" JSON shape.
 /// Round-trip back to wat values is not preserved; use `write-json`
 /// for round-trip-safe JSON encoding.
 pub fn eval_edn_write_json_natural(
-    v: &WatAST,
-    opts: &WatAST,
+    args: &[WatAST],
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json-natural";
-    let value = eval(v, env, sym).map(|tv| tv.value_owned())?;
-    let write_opts = require_write_opts(OP, eval(opts, env, sym).map(|tv| tv.value_owned())?, list_span)?;
+    let (value, write_opts) = eval_json_value_and_opts(OP, args, list_span, env, sym)?;
     let edn = value_to_json_natural_with(
         &value,
         sym.types().map(|a| a.as_ref()),
         write_opts.inst_digits,
     );
     Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
+}
+
+fn eval_json_value_and_opts(
+    op: &str,
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<(Value, wat_edn::WriteOpts), RuntimeError> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "expected 1 or 2 args (value [opts :wat::edn::WriteOpts]); got {}",
+                    args.len()
+                ),
+            },
+        ));
+    }
+    let value = eval(&args[0], env, sym).map(|tv| tv.value_owned())?;
+    let write_opts = if args.len() == 2 {
+        require_write_opts(
+            op,
+            eval(&args[1], env, sym).map(|tv| tv.value_owned())?,
+            list_span,
+        )?
+    } else {
+        wat_edn::WriteOpts::DEFAULT
+    };
+    Ok((value, write_opts))
 }
 
 fn require_write_opts(

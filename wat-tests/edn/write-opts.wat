@@ -12,6 +12,23 @@
     (:wat::edn::WriteOpts/inst-digits (:wat::edn::opts))
     9))
 
+;; ★ the WO-OPT gate: omitted opts means (:wat::edn::opts), byte-identical,
+;; not merely "1-arg runs". assert-eq of the whole string — .contains? is
+;; banned on the rust side and would pass with a different default.
+(:wat::test::deftest :wat-tests::edn::write-json-one-arg-equals-two-arg-with-opts
+  (:wat::core::let
+    [inst (:wat::time::at-nanos 1200000000)
+     one (:wat::edn::write-json inst)
+     two (:wat::edn::write-json inst (:wat::edn::opts))]
+    (:wat::test::assert-eq one two)))
+
+(:wat::test::deftest :wat-tests::edn::write-json-natural-one-arg-equals-two-arg-with-opts
+  (:wat::core::let
+    [inst (:wat::time::at-nanos 1200000000)
+     one (:wat::edn::write-json-natural inst)
+     two (:wat::edn::write-json-natural inst (:wat::edn::opts))]
+    (:wat::test::assert-eq one two)))
+
 (:wat::test::deftest :wat-tests::edn::write-json-default-is-nine-digits
   (:wat::core::let
     [inst (:wat::time::at-nanos 1200000000)

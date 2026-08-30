@@ -2989,6 +2989,30 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // :wat::edn::write-json / write-json-natural accept 1 arg (value) or
+            // 2 args (value, WriteOpts). Omitting opts means (:wat::edn::opts)
+            // — nanos. The 1-arg scheme in register_builtins handles the default
+            // path via normal dispatch; we intercept both here for uniform handling.
+            ":wat::edn::write-json" => {
+                let (val, mut errs) = infer_edn_write_json(
+                    head_span, args, env, locals, fresh, subst,
+                ).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::edn::write-json-natural" => {
+                let (val, mut errs) = infer_edn_write_json_natural(
+                    head_span, args, env, locals, fresh, subst,
+                ).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::core::vec" => {
                 // Arc 109 slice 1f — :wat::core::vec retires; the
                 // canonical constructor is :wat::core::Vector
@@ -9311,6 +9335,81 @@ fn infer_ioreader_read_frame(
         CheckResult::ok(outcome_ty)
     } else {
         CheckResult::partial_with(outcome_ty, local_errors)
+    }
+}
+
+/// `(:wat::edn::write-json <value>)` or
+/// `(:wat::edn::write-json <value> <opts :wat::edn::WriteOpts>)`.
+///
+/// 1-arg form: omitted opts means `(:wat::edn::opts)` (nanos).
+/// 2-arg form: the caller's WriteOpts.
+///
+/// Return type: `:wat::core::String` in both cases. The registered scheme
+/// covers the 1-arg path; this arm intercepts both for uniform handling
+/// (same split as `infer_ioreader_read_frame`).
+fn infer_edn_write_json(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    infer_edn_json_verb(":wat::edn::write-json", head_span, args, env, locals, fresh, subst)
+}
+
+/// Twin of `infer_edn_write_json` for `:wat::edn::write-json-natural`.
+/// The two verbs do not share a renderer (natural stringifies Instant
+/// before `to_json_string`); they share this arity contract.
+fn infer_edn_write_json_natural(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    infer_edn_json_verb(
+        ":wat::edn::write-json-natural",
+        head_span,
+        args,
+        env,
+        locals,
+        fresh,
+        subst,
+    )
+}
+
+fn infer_edn_json_verb(
+    op: &str,
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.is_empty() || args.len() > 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+            head: op.into(),
+            reason: format!(
+                "expected 1 or 2 args (value [opts :wat::edn::WriteOpts]); got {}",
+                args.len()
+            ),
+            remedies: vec![],
+        } });
+        return CheckResult::errs(local_errors);
+    }
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if args.len() == 2 {
+        let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    }
+    let ret = TypeExpr::Path(":wat::core::String".into());
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
     }
 }
 
@@ -19095,28 +19194,20 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 079 — polymorphic value-to-EDN rendering. `write` / `write-pretty`
-    // stay 1-arg (EDN sort-key path; width is a correctness invariant).
-    // JSON verbs take a WriteOpts the caller mints.
-    for op in [":wat::edn::write", ":wat::edn::write-pretty"] {
+    // stay Exact(1) (EDN sort-key path; width is a correctness invariant).
+    // JSON verbs register the 1-arg (omitted-opts) scheme; a bespoke infer_
+    // arm intercepts 1-or-2 (see infer_edn_write_json*).
+    for op in [
+        ":wat::edn::write",
+        ":wat::edn::write-pretty",
+        ":wat::edn::write-json",
+        ":wat::edn::write-json-natural",
+    ] {
         env.register(
             op.into(),
             TypeScheme {
                 type_params: vec!["T".into()],
                 params: vec![t_var()],
-                ret: TypeExpr::Path(":wat::core::String".into()),
-                rest_param_type: None,
-            },
-        );
-    }
-    for op in [":wat::edn::write-json", ":wat::edn::write-json-natural"] {
-        env.register(
-            op.into(),
-            TypeScheme {
-                type_params: vec!["T".into()],
-                params: vec![
-                    t_var(),
-                    TypeExpr::Path(":wat::edn::WriteOpts".into()),
-                ],
                 ret: TypeExpr::Path(":wat::core::String".into()),
                 rest_param_type: None,
             },
