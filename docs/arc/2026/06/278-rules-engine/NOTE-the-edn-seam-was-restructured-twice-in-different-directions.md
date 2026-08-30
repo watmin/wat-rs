@@ -10,7 +10,15 @@ same trigger. Different disease, same moment.
 
 ## What collided
 
-23 of 26 conflicted files, one cause. Both branches restructured EDN rendering; neither
+> ⚠ **CORRECTED 2026-08-29, by probe rather than by reading.** This note first said "23 of 26
+> conflicts, ONE cause: the edn seam". That is wrong in SCOPE. A throwaway probe branch —
+> merge grok-rete, take its side on the seam, count the damage — produced 160 build errors of
+> which exactly ONE mentioned edn. The rest were E0603/E0433/E0583/E0432: module resolution.
+> The edn seam is the most legible instance of a much larger divergence, recorded below under
+> *The real scope*. The original framing survived a careful read of the conflict hunks and died
+> in ten minutes against a build, which is the argument for probing rather than reasoning.
+
+23 of 26 conflicted files, one VISIBLE cause. Both branches restructured EDN rendering; neither
 module exists on the other side:
 
 | | commit | change |
@@ -20,6 +28,28 @@ module exists on the other side:
 
 This is not one change under two names. Location and failure-behaviour are orthogonal, which
 is exactly why the merge cannot pick a side: taking either loses something real.
+
+## The real scope — main relocated its module tree; grok-rete built on the old one
+
+Arc 255's HOME campaign did not move one seam. It moved a flat module layout into directory
+homes, and grok-rete's 45 commits target the layout it replaced:
+
+```
+string_ops.rs                    ->  src/string/   (1 file)
+wat_edn_bridge.rs + edn_shim.rs  ->  src/edn/      (6 files)
+hologram.rs + sigma.rs           ->  src/holon/    (6 files)
+stdlib.rs                        ->  src/host/     (4 files)
+```
+
+main declares 45 modules, grok-rete 57. Four exist only on main (`edn`, `holon`, `host`,
+`string` — the new homes); sixteen only on grok-rete, and most of those are the OLD homes plus
+genuinely new work (`alloc_counter`, `sandbox`, `harness`, `compose`). A union of the two lists
+is NOT the resolution — it would declare both the old and new homes for the same code.
+
+**This is the same situation the builder named at the outset, one level up from names:**
+grok-rete is not yet ready to take main's renames, and the fight is necessary until everyone is
+on the new ones. It is now module TOPOLOGY, not spelling — which is why no codemod helps and
+why `wat-drift` reports clean while the merge is unbuildable.
 
 ## grok-rete's half is a defect fix, not a refactor
 
