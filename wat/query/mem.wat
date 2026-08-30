@@ -82,6 +82,23 @@
   (:wat::query::IndexRow :pk (:wat::query::StoredRow/pk r) :sk (:wat::query::StoredRow/sk r)
     :ipk (:wat::query::IndexKey/ipk ik) :isk (:wat::query::IndexKey/isk ik) :data (:wat::query::StoredRow/data r)))
 
+;; a Key names the same (pk, sk) a StoredRow occupies — used by `delete` to drop rows
+;; without a read. scan-index projects from remaining rows, so dropping the row drops
+;; its GSI projection (STOP-2: no separate index structure to clear).
+(:wat::core::defn :wat::query::key-hits-row?
+  [k <- :wat::query::Key r <- :wat::query::StoredRow] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::query::Key/pk k) (:wat::query::StoredRow/pk r))
+    (:wat::core::= (:wat::query::Key/sk k) (:wat::query::StoredRow/sk r))
+    false))
+
+(:wat::core::defn :wat::query::row-in-delete-batch?
+  [r <- :wat::query::StoredRow keys <- (:wat::core::Vector :- [:wat::query::Key])] -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool k <- :wat::query::Key] -> :wat::core::bool
+      (:wat::core::if acc true (:wat::query::key-hits-row? k r)))
+    false
+    keys))
+
 ;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
 ;; durable = one flat (PersistentVector :- [StoredRow]); `put` conj's the batch on (rete-style pure
 ;; threading: the `serve` loop rebinds `state` to the returned new State — see wat/service.wat's
@@ -117,6 +134,26 @@
        (:wat::service::Outcome::Reply
          (:wat::query::mem-store::State (:wat::query::mem-store::Record merged))
          (:wat::query::Store::PutResponse::Success))))
+
+   (delete [s ctx req]
+     ;; inverted put: fold the live table, keep rows whose (pk,sk) is not in the
+     ;; key batch. A missing key is a no-op (the fold just keeps every row) —
+     ;; PutResponse's arm list has no NotFound, so DeleteResponse cannot grow one;
+     ;; SQL DELETE of 0 rows is the same Success. Report, do not invent an arm.
+     (:wat::core::let
+       [keys (:wat::query::Store::DeleteRequest/keys req)
+        kept (:wat::core::foldl
+               (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+                                r   <- :wat::query::StoredRow]
+                 -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+                 (:wat::core::if (:wat::query::row-in-delete-batch? r keys)
+                   acc
+                   (:wat::vector::conj acc r)))
+               (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+               (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s)))]
+       (:wat::service::Outcome::Reply
+         (:wat::query::mem-store::State (:wat::query::mem-store::Record kept))
+         (:wat::query::Store::DeleteResponse::Success))))
 
    (scan [s ctx req]
      (:wat::core::let

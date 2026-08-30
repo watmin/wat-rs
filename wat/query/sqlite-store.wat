@@ -61,6 +61,19 @@
         ((:wat::sqlite::Error::Fatal f)
           (:wat::query::Store::PutResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))))
 
+(:wat::core::defn :wat::query::delete-response
+  [r <- (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])] -> :wat::query::Store::DeleteResponse
+  (:wat::core::match r
+    ((:wat::core::Ok _) (:wat::query::Store::DeleteResponse::Success))
+    ((:wat::core::Err e)
+      (:wat::core::match e
+        ((:wat::sqlite::Error::Transient f)
+          (:wat::query::Store::DeleteResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
+        ((:wat::sqlite::Error::Constraint f)
+          (:wat::query::Store::DeleteResponse::Constraint (:wat::query::Constraint :reason (:wat::query::lift-fault f))))
+        ((:wat::sqlite::Error::Fatal f)
+          (:wat::query::Store::DeleteResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))))
+
 (:wat::core::defn :wat::query::scan-response
   [r <- (:wat::core::Result :- [(:wat::core::Vector :- [:wat::query::Row]) :wat::sqlite::Error])
    limit <- :wat::core::i64]
@@ -232,6 +245,33 @@
       ((:wat::core::Err e) (:wat::core::Err e))
       ((:wat::core::Ok _) (:wat::query::put-rows conn index-names (:wat::core::rest rows))))))
 
+;; delete — same recursive batch as put-rows. GSI clear is `clear-index-projections`,
+;; which DELETEs each `index_<name>` by (pk, sk) — the columns those tables already
+;; carry. No read of the row, no index-keys on Key. A missing key is DELETE of 0
+;; rows then the same clear (also 0) — Success, same as put's clear-then-insert
+;; of a brand-new key.
+(:wat::core::defn :wat::query::delete-one-key
+  [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :- [:wat::core::String])
+   key <- :wat::query::Key]
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  (:wat::core::let
+    [pk (:wat::query::Key/pk key)
+     sk (:wat::query::Key/sk key)
+     key-params (:wat::core::Vector :- [:wat::sqlite::Param] (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk))]
+    (:wat::core::match (:wat::sqlite::execute conn "DELETE FROM main WHERE pk=? AND sk=?" key-params)
+      ((:wat::core::Err e) (:wat::core::Err e))
+      ((:wat::core::Ok _) (:wat::query::clear-index-projections conn index-names pk sk)))))
+
+(:wat::core::defn :wat::query::delete-rows
+  [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :- [:wat::core::String])
+   keys <- (:wat::core::Vector :- [:wat::query::Key])]
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  (:wat::core::if (:wat::core::empty? keys)
+    (:wat::core::Ok nil)
+    (:wat::core::match (:wat::query::delete-one-key conn index-names (:wat::core::first keys))
+      ((:wat::core::Err e) (:wat::core::Err e))
+      ((:wat::core::Ok _) (:wat::query::delete-rows conn index-names (:wat::core::rest keys))))))
+
 ;; ─── the sqlite-store' SERVICE — an actor owning a thread-local Connection ──────────────────────
 ;; durable = `path` + the declared `index-names` (the clear step needs the full GSI set — see the
 ;; header). ephemeral = the live `conn`, opened in :init from `path` + the WAL/NORMAL pragmas S2 set.
@@ -288,6 +328,20 @@
                 ((:wat::core::Err e) (:wat::core::Err e))
                 ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
        (:wat::service::Outcome::Reply s (:wat::query::put-response chained))))
+
+   (delete [s ctx req]
+     (:wat::core::let
+       [keys  (:wat::query::Store::DeleteRequest/keys req)
+        conn  (:wat::query::sqlite-store::State/conn s)
+        names (:wat::query::sqlite-store::Record/index-names (:wat::query::sqlite-store::State/durable s))
+        chained
+          (:wat::core::match (:wat::sqlite::begin conn)
+            ((:wat::core::Err e) (:wat::core::Err e))
+            ((:wat::core::Ok _)
+              (:wat::core::match (:wat::query::delete-rows conn names keys)
+                ((:wat::core::Err e) (:wat::core::Err e))
+                ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
+       (:wat::service::Outcome::Reply s (:wat::query::delete-response chained))))
 
    (scan [s ctx req]
      (:wat::core::let

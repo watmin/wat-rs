@@ -33,6 +33,10 @@
    data       <- :wat::core::String                          ;; the record's tagged EDN, opaque to the backend
    index-keys <- (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])]) ;; index-name -> (ipk,isk)
 
+(:wat::core::defrecord :wat::query::Key                      ;; the (pk, sk) a `delete` names — StoredRow without data/index-keys
+  [pk <- :wat::core::String
+   sk <- :wat::core::String])
+
 ;; ─── the read results — what scan / scan-index hand back ───────────────────────────────────
 (:wat::core::defrecord :wat::query::Row
   [pk   <- :wat::core::String
@@ -518,6 +522,17 @@
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
+   (:wat::core::defrecord :wat::query::Store::DeleteRequest
+     [keys <- (:wat::core::Vector :- [:wat::query::Key])])
+
+   (:wat::core::defenum :wat::query::Store::DeleteResponse :wat::enum::Pure
+     :Success        []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+
    (:wat::core::defrecord :wat::query::Store::ScanRequest         ;; a base-table page request
      [pk     <- :wat::core::String
       sk-lo  <- :wat::core::String
@@ -559,6 +574,14 @@
    ;; the backend cannot read `data`).
    (put [self <- :wat::query::Store  req <- :wat::query::Store::PutRequest]
      -> :wat::query::Store::PutResponse :max-request-bytes 10485760)
+
+   ;; remove a batch of (pk, sk) keys ATOMICALLY (one transaction). Mirrors `put`:
+   ;; batch-shaped, one txn, same max-request-bytes. GSI projections, if any, are
+   ;; addressed by (pk, sk) — sqlite's `clear-index-projections` already deletes
+   ;; that way; mem derives index rows from the StoredRow, so dropping the row
+   ;; drops the projection. A Key is sufficient; no read-before-delete.
+   (delete [self <- :wat::query::Store  req <- :wat::query::Store::DeleteRequest]
+     -> :wat::query::Store::DeleteResponse :max-request-bytes 10485760)
 
    ;; a PAGE on the base key: pk fixed, sk in a prefix/range, ordered ASC, after `cursor`.
    (scan [self <- :wat::query::Store  req <- :wat::query::Store::ScanRequest]
