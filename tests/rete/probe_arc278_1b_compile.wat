@@ -12,7 +12,7 @@
      c2b (:wat::core::quote (:Pressure    (= ?p :value)))
      rA  (:wat::rete::Rule :name "rA" :lhs (:wat::core::PersistentVector c1 c2a) :rhs (:wat::core::PersistentVector))
      rB  (:wat::rete::Rule :name "rB" :lhs (:wat::core::PersistentVector c1 c2b) :rhs (:wat::core::PersistentVector))
-     sess (:wat::rete::compile (:wat::core::PersistentVector rA rB))]
+     sess (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rA rB)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))]
     (:wat::rete::render-dag sess)))
 
 ;; One single-condition rule → alpha → root-join → production, fully connected.
@@ -20,5 +20,5 @@
   (:wat::core::let
     [c1 (:wat::core::quote (:Temperature (= ?t :value)))
      rC (:wat::rete::Rule :name "rC" :lhs (:wat::core::PersistentVector c1) :rhs (:wat::core::PersistentVector))
-     sess (:wat::rete::compile (:wat::core::PersistentVector rC))]
+     sess (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rC)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))]
     (:wat::rete::render-dag sess)))

@@ -1,6 +1,6 @@
 //! Arc 278 stone 1b — `compile` (rule-set → shared, CONNECTED network).
 //!
-//! `(:wat::rete::compile rules)` walks each rule's conditions left-to-right and builds the network with NODE
+//! `(:wat::core::match (:wat::rete::compile rules) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None)))` walks each rule's conditions left-to-right and builds the network with NODE
 //! SHARING (the non-redundancy DAG) AND wires the child edges (alpha→join, parent→join, join→production).
 //! A network without edges is not a compiled DAG — so this probe proves BOTH:
 //!   (1) SHARING — two rules with an identical FIRST condition share its AlphaNode + RootJoinNode

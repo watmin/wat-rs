@@ -22773,6 +22773,21 @@ pub(crate) fn no_field_names() -> Arc<Vec<String>> {
     ":wat::rete::InsertOutcome",
     "MemoryCeilingExceeded"
 );
+
+// `(:wat::rete::CompileOutcome)`'s variants — the termination verdict, matchable because a rule set
+// built from RUNTIME data cannot be judged before the program runs.
+::wat_source_derive::wat_enum_field_names_from!(
+    COMPILE_OUTCOME_COMPILED_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::CompileOutcome",
+    "Compiled"
+);
+::wat_source_derive::wat_enum_field_names_from!(
+    COMPILE_OUTCOME_MAY_NOT_TERMINATE_FIELDS,
+    "wat/rete.wat",
+    ":wat::rete::CompileOutcome",
+    "MayNotTerminate"
+);
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_CONNECTION_FIELDS,
     "wat/spawn.wat",
@@ -22900,6 +22915,14 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
         }
         (":wat::rete::InsertOutcome", "MemoryCeilingExceeded") => {
             return crate::value::value::names_arc_from_static(INSERT_OUTCOME_MEMORY_FIELDS)
+        }
+        (":wat::rete::CompileOutcome", "Compiled") => {
+            return crate::value::value::names_arc_from_static(COMPILE_OUTCOME_COMPILED_FIELDS)
+        }
+        (":wat::rete::CompileOutcome", "MayNotTerminate") => {
+            return crate::value::value::names_arc_from_static(
+                COMPILE_OUTCOME_MAY_NOT_TERMINATE_FIELDS,
+            )
         }
         _ => {}
     }

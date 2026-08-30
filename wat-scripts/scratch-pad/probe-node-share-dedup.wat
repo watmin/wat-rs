@@ -104,7 +104,7 @@
                     n       (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
                     rules   (:nsp::build-rules n)
                     ;; COMPILE ONLY — never seed, never fire. That is what makes this safe at any N.
-                    session (:wat::rete::compile rules)
+                    session (:wat::core::match (:wat::rete::compile rules) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     kinds   (:nsp::count-kinds session)
                     network (:wat::rete::Session/network session)
                     total   (:wat::core::length (:wat::core::PersistentMap/keys network))]

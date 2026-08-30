@@ -47,9 +47,9 @@
         (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))))))
 
 (:wat::core::defn :wjl::run [rule <- :wat::rete::Rule] -> :wat::rete::Session
-  (:wat::rete::compile-all
+  (:wat::core::match (:wat::rete::compile-all
     (:wat::core::PersistentVector rule)
-    (:wat::core::PersistentVector (:wjl::q-Hit))))
+    (:wat::core::PersistentVector (:wjl::q-Hit))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [inline (:wjl::run (:wjl::wind-above-temp-inline))

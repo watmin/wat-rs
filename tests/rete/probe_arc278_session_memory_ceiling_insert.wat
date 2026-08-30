@@ -45,7 +45,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :ins)
-     s     (:wat::rete::compile-all rules (:wat::core::PersistentVector))]
+     s     (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))]
     (:wat::core::match (:ins::seed s 200000)
       ;; Staging 200_000 facts under a 4096-byte ceiling must NOT reach here.
       ((:wat::rete::InsertOutcome::Inserted staged)

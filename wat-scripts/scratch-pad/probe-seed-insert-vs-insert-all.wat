@@ -26,12 +26,12 @@
 
 ;; an empty session — one rule so `compile` has something to chew, never fired here.
 (:wat::core::defn :seedp::fresh [] -> :wat::rete::Session
-  (:wat::rete::compile
+  (:wat::core::match (:wat::rete::compile
     (:wat::core::PersistentVector
       (:wat::rete::Rule
         :name "noop"
         :lhs (:wat::core::PersistentVector (:wat::core::quote (:seedp::Left (?k <- :key))))
-        :rhs (:wat::core::PersistentVector)))))
+        :rhs (:wat::core::PersistentVector)))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))
 
 ;; PATH A — the grid's current shape: N calls to the per-fact verb, threaded through a foldl.
 (:wat::core::defn :seedp::seed-per-fact [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session

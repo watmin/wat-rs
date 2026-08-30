@@ -126,7 +126,7 @@
                     n       (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
 
                     ;; The Session is compiled OUTSIDE every timed window — compile is not under test.
-                    session (:wat::rete::compile (:wat::rete::collect-rules :ins))
+                    session (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :ins)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
 
                     b0      (:wat::time::now)
                     bsum    (:ins::baseline n)

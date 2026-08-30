@@ -105,7 +105,7 @@
 ;; rung n — the three timings at one base size, plus the non-vacuity assertion.
 (:wat::core::defn :ovl::rung [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let
-    [staged    (:ovl::stage (:wat::rete::compile-all (:ovl::rules) (:wat::core::PersistentVector (:ovl::q-Hit))) 0 n)
+    [staged    (:ovl::stage (:wat::core::match (:wat::rete::compile-all (:ovl::rules) (:wat::core::PersistentVector (:ovl::q-Hit))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))) 0 n)
 
      ;; (1) COLD — fire an unfired base of n facts. The yardstick.
      c0        (:wat::time::now)

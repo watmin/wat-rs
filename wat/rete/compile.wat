@@ -1124,16 +1124,21 @@
       :dedup (:wat::rete::CompileState/dedup state2))))
 
 ;; compile — rules only (existing callers). Use compile-all to add queries.
+;; ⛔ ANSWERS `(:wat::rete::CompileOutcome)` — a pure pass-through of `compile-all`'s verdict.
 (:wat::core::defn :wat::rete::compile
   [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
-  -> :wat::rete::Session
+  -> :wat::rete::CompileOutcome
   (:wat::rete::compile-all rules (:wat::core::PersistentVector)))
 
 ;; compile-all — rules + queries (Clara mk-session mixes both).
+;; ⛔ ANSWERS `(:wat::rete::CompileOutcome)`, NOT a bare Session. `compile-all` is the one door
+;; every rule passes, so it is where the termination verifier runs — and for rules built at RUNTIME
+;; the verdict depends on data, which makes it a VALUE rather than a raise. A pure pass-through of
+;; `arm-session`'s answer; there is nothing to unwrap here.
 (:wat::core::defn :wat::rete::compile-all
   [rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
    queries <- (:wat::core::PersistentVector :- [:wat::rete::Query])]
-  -> :wat::rete::Session
+  -> :wat::rete::CompileOutcome
   (:wat::core::let [init-state (:wat::rete::CompileState
                                   :network (:wat::core::PersistentMap)
                                   :next-id 0

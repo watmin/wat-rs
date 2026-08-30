@@ -203,7 +203,7 @@
                     groups  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [groups readings]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [groups readings]")
                     rules   (:wat::rete::collect-rules :acc)
-                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acc::q-CountF) (:acc::q-SumF) (:acc::q-MinF) (:acc::q-MaxF) (:acc::q-ExistsF)))
+                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acc::q-CountF) (:acc::q-SumF) (:acc::q-MinF) (:acc::q-MaxF) (:acc::q-ExistsF))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     facts   (:acc::all-facts groups reads)
                     ;; protocol: insert + fire + query. Compile and fact-construct are setup.
                     p0      (:wat::time::now)

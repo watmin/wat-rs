@@ -24,7 +24,7 @@
      c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::rete::core::i64::> ?w 30)))
      rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))]
-    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))))
+    (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :test::compile-ab [] -> :wat::rete::Session
   (:wat::core::let
@@ -35,7 +35,7 @@
      cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))
      rhsB  (:wat::core::quote (:weather::WeatherAlert ?loc))
      ruleB (:wat::rete::Rule :name "alert" :lhs (:wat::core::PersistentVector cb1) :rhs (:wat::core::PersistentVector rhsB))]
-    (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))))
+    (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :test::seed-oslo [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert

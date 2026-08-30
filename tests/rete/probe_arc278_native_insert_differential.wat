@@ -25,7 +25,7 @@
 
 
 (:wat::core::defn :nin::base [] -> :wat::rete::Session
-  (:wat::rete::compile-all (:wat::rete::collect-rules :nin) (:wat::core::PersistentVector (:nin::q-Out))))
+  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :nin) (:wat::core::PersistentVector (:nin::q-Out))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))
 
 ;; ── the three seeders — identical but for the verb under test ────────────────
 

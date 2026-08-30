@@ -37,7 +37,7 @@
    queries <- (:wat::core::PersistentVector :- [:wat::rete::Query])
    body-fn <- [:wat::rete::Session :-> T]]
   -> T
-  (:wat::core::let [base   (:wat::rete::compile-all rules queries)
+  (:wat::core::let [base   (:wat::core::match (:wat::rete::compile-all rules queries) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     result (body-fn base)]
     (:wat::core::do
       (:wat::rete::release-session base)
@@ -59,7 +59,7 @@
 
 ;; kept for the base-untouched proof below
 (:wat::core::defn :user::build-base [] -> :wat::rete::Session
-  (:wat::rete::compile-all (:user::the-rules) (:user::the-queries)))
+  (:wat::core::match (:wat::rete::compile-all (:user::the-rules) (:user::the-queries)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))
 
 ;; ── ONE FILE: overlay its facts on the base, fire, report the user's query ────
 ;; `base` is the caller's; this returns a COUNT, never the session — so nothing leaks forward.

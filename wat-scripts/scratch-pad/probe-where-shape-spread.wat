@@ -182,8 +182,8 @@
         (:wat::rete::query
           (:wat::core::match (:wat::rete::fire-rules
             (:shape::seed
-              (:wat::rete::compile-all
+              (:wat::core::match (:wat::rete::compile-all
                 (:shape::build-rules)
-                (:wat::core::PersistentVector (:shape::q-Hit)))
+                (:wat::core::PersistentVector (:shape::q-Hit))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
               50)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
           (:shape::q-Hit))))))

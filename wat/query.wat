@@ -392,9 +392,20 @@
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                                ((:wat::kernel::ConnectOutcome::Failed c)
                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-                   :template (:wat::rete::compile-all
-                               (:wat::core::PersistentVector ~@rule-lits)
-                               (:wat::core::PersistentVector ~@query-lits))))
+                   ;; ⛔ HAND-FACED inside a MACRO TEMPLATE (arc 278) — no `.wat` tree-walk can
+                   ;; safely rewrite a quasiquoted body. These are `defrule`-DECLARED rule literals,
+                   ;; so the freeze-time wall has already judged them and `MayNotTerminate` is
+                   ;; unreachable here; it says so loudly rather than being swallowed into a
+                   ;; service that would then serve queries against a session it never got.
+                   :template (:wat::core::match
+                               (:wat::rete::compile-all
+                                 (:wat::core::PersistentVector ~@rule-lits)
+                                 (:wat::core::PersistentVector ~@query-lits))
+                               ((:wat::rete::CompileOutcome::Compiled __session) __session)
+                               ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type)
+                                 (:wat::kernel::assertion-failed!
+                                   "sift: the declared rule set may not terminate"
+                                   :wat::core::None :wat::core::None)))))
          ;; Hangup drops the intern lease `compile-all` took (`DESIGN-STONE-intern-eviction`).
          :stop (:wat::core::fn [~stop-s-sym <- ~state-ty-kw] -> ~record-ty-kw
                  (:wat::core::let [~rel-sym (:wat::rete::release-session (~state-template-kw ~stop-s-sym))]

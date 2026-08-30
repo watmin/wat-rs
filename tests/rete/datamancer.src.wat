@@ -109,7 +109,7 @@
     (:dm::Beat :t 6 :kind "root-failure")) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [s0    (:wat::rete::compile-all (:dm::rules) (:dm::queries))
+  (:wat::core::let [s0    (:wat::core::match (:wat::rete::compile-all (:dm::rules) (:dm::queries)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     fired (:wat::core::match (:wat::rete::fire-rules (:dm::seed-practice s0)) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
     (:wat::core::PersistentVector
       (:wat::core::length (:wat::rete::query fired (:dm::q-gap)))
@@ -122,10 +122,10 @@
 (:wat::core::defn :user::export-edn [] -> :wat::core::String
   (:wat::edn::write-pretty
     (:wat::rete::export
-      (:wat::rete::compile-all (:dm::rules) (:dm::queries)))))
+      (:wat::core::match (:wat::rete::compile-all (:dm::rules) (:dm::queries)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))))
 
 (:wat::core::defn :user::sizes [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [s0 (:wat::rete::compile-all (:dm::rules) (:dm::queries))
+  (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all (:dm::rules) (:dm::queries)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     exp (:wat::rete::export s0)]
     (:wat::core::PersistentVector
       (:wat::core::string::length (:wat::edn::write s0))

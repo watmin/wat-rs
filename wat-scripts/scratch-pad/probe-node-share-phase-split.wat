@@ -138,7 +138,7 @@
                     t0      (:wat::time::now)
                     rules   (:phase::build-rules rules-n)
                     t1      (:wat::time::now)
-                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:phase::q-Out)))
+                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:phase::q-Out))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     t2      (:wat::time::now)
                     staged  (:phase::seed session items)
                     t3      (:wat::time::now)

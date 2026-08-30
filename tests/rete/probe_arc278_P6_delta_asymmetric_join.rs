@@ -80,7 +80,7 @@ fn chain_expr(n: usize, query_type: &str) -> String {
          r2 (:wat::rete::Rule :name \"r2\" \
              :lhs (:wat::core::PersistentVector {r2c1} {r2c2}) \
              :rhs (:wat::core::PersistentVector {r2t}))\n\
-         s0 (:wat::rete::compile-all (:wat::core::PersistentVector r1 r2) (:wat::core::PersistentVector {q}))\n"
+         s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector r1 r2) (:wat::core::PersistentVector {q})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None)))\n"
     );
     let mut prev = 0usize;
     for i in 1..=n {
@@ -141,7 +141,7 @@ fn triple_expr(n: usize, query_type: &str) -> String {
                (:wat::core::quote (:tri::C (?k <- :k))) \
                (:wat::core::quote (:tri::B (?k <- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::D ?k))))\n\
-        s0 (:wat::rete::compile-all (:wat::core::PersistentVector r1 r2 r3) (:wat::core::PersistentVector {q}))\n"
+        s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector r1 r2 r3) (:wat::core::PersistentVector {q})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None)))\n"
     );
     let mut prev = 0usize;
     for i in 1..=n {
@@ -193,7 +193,7 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
                (:wat::core::quote (:xyz::X (?k <- :k))) \
                (:wat::core::quote (:xyz::Y (?k <- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:xyz::Z ?k))))\n\
-        s0 (:wat::rete::compile-all (:wat::core::PersistentVector r1) (:wat::core::PersistentVector {q}))\n";
+        s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector r1) (:wat::core::PersistentVector {q})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None)))\n";
     let q = q_call(query_type);
     let mut binds = rule.replace("{q}", &q);
     let mut prev = 0usize;

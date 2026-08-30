@@ -123,7 +123,7 @@
     [rules (:wat::core::PersistentVector
              (:arena::suspect-rule) (:arena::anomaly-rule) (:arena::breach-rule)
              (:arena::overflow-rule) (:arena::flagged-rule) (:arena::critical-rule))
-     template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:arena::q-Suspect) (:arena::q-Flagged) (:arena::q-Anomaly) (:arena::q-Breach) (:arena::q-Overflow) (:arena::q-Critical)))]
+     template (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:arena::q-Suspect) (:arena::q-Flagged) (:arena::q-Anomaly) (:arena::q-Breach) (:arena::q-Overflow) (:arena::q-Critical))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::string::concat "cat0 clean            (want 0): " (:arena::fire-one template (:arena::mk "US" 50 :arena::Method::GET 200 100000 10000 1000))))
       (:wat::kernel::println (:wat::core::string::concat "cat1 hot-wrong-country (want 0): " (:arena::fire-one template (:arena::mk "US" -10 :arena::Method::GET 200 6000000 10000 1000))))

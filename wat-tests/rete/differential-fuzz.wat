@@ -252,7 +252,7 @@
                     retr   (:wat-tests::rete::fuzz::Case/retr c)
                     q  (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector)
                          :lhs (:wat-tests::rete::fuzz::build-lhs prefix f fp wpos))
-                    s0 (:wat::rete::compile-all (:wat-tests::rete::fuzz::chain d) (:wat::core::PersistentVector q))
+                    s0 (:wat::core::match (:wat::rete::compile-all (:wat-tests::rete::fuzz::chain d) (:wat::core::PersistentVector q)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     ;; W_i = (W i), DISTINCT — not `dups` copies of one value. Until 2026-08-27
                     ;; every W was `(W 7)`, and that quietly made two dimensions vacuous: an
                     ;; accumulate's `max`/`min` cannot vary when every value is equal, and family
@@ -460,11 +460,11 @@
 (:wat::core::defn :wat-tests::rete::fuzz::nv-rows
   [emptied <- :wat::core::bool  q <- :wat::rete::Query] -> :wat::core::i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::insert
-                         (:wat::rete::compile-all
+                         (:wat::core::match (:wat::rete::compile-all
                            (:wat::core::PersistentVector)
                            (:wat::core::PersistentVector
                              (:wat-tests::rete::fuzz::nv-count-1) (:wat-tests::rete::fuzz::nv-count-0)
-                             (:wat-tests::rete::fuzz::nv-max-1)   (:wat-tests::rete::fuzz::nv-max-0)))
+                             (:wat-tests::rete::fuzz::nv-max-1)   (:wat-tests::rete::fuzz::nv-max-0))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                          (:wat-tests::rete::fuzz::W 0)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
                     fired (:wat::core::if emptied
                             (:wat::core::match (:wat::rete::fire-rules

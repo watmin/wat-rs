@@ -20,5 +20,5 @@
 (:wat::core::defn :user::run-compile [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::rete::compile rules)]
+     session (:wat::core::match (:wat::rete::compile rules) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))]
     (:wat::core::length (:wat::rete::Session/facts session))))

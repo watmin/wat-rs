@@ -22,7 +22,7 @@
 
 (:wat::core::defn :user::stage [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert
-    (:wat::rete::compile-all (:wat::rete::collect-rules :tw) (:wat::core::PersistentVector (:tw::q-ColdWindy)))
+    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :tw) (:wat::core::PersistentVector (:tw::q-ColdWindy))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
     (:tw::Temp :c 5 :loc "oslo")
     (:tw::Wind :kph 40 :loc "oslo")
     (:tw::Temp :c 22 :loc "rome")

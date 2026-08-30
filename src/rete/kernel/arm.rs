@@ -1005,7 +1005,10 @@ pub(crate) fn subset_rete_arm(
 
 // ── Public entry: intern the arm at compile-all ──────────────────────────────
 
-/// `(:wat::rete::arm-session <session>) -> :wat::rete::Session`
+/// `(:wat::rete::arm-session <session>) -> :wat::rete::CompileOutcome`
+///
+/// Arc 278 — it answers the termination VERDICT as a value. See `kernel::outcome` for why that
+/// one refusal converts while this function's ArityMismatch/TypeMismatch stay raises.
 ///
 /// Item 12's contract: compile puts the arm next to the network. WAT
 /// `compile-all` builds the Session and did not intern the rust `InternedNetwork`;
@@ -1062,14 +1065,20 @@ pub(crate) fn eval_arm_session(
     // Here rather than in the freeze-time `defrule` wall because `compile-all` is the one door
     // EVERY rule passes: rules built at runtime as `Rule` values (both differential fuzzers do
     // this) never see that wall. See `stratify::refuse_non_terminating`.
-    crate::rete::kernel::stratify::refuse_non_terminating(rules, sym)?;
+    // ⛔ THE WALL, at the wat boundary. The termination verdict becomes a matchable
+    // `(:wat::rete::CompileOutcome)` rather than a raise — see `kernel::outcome` for why THIS
+    // refusal converts while `arm-session`'s ArityMismatch/TypeMismatch do not. The `?` is gone
+    // deliberately: the verdict must reach the converter, not unwind past it.
+    if let Err(e) = crate::rete::kernel::stratify::refuse_non_terminating(rules, sym) {
+        return crate::rete::kernel::outcome::compile_result_to_outcome(Err(e));
+    }
     rete_arm_lease_or_build(network, rules, sym)?;
     // THE SESSION'S ZERO POINT. `compile-all` calls `arm-session` for every session it builds, so
     // this is the one door a session is born through — the same reason the termination verifier
     // runs here. Everything the session allocates from now on is charged to it, at BOTH doors it
     // can grow through (`insert` and the fixpoint), against `max-session-bytes`.
     crate::alloc_counter::mark_session_origin();
-    Ok(session)
+    crate::rete::kernel::outcome::compile_result_to_outcome(Ok(session))
 }
 
 /// `(:wat::rete::release-session <session>) -> :wat::rete::Session`

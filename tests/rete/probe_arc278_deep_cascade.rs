@@ -49,10 +49,19 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
              \n  rule{k} (:wat::rete::Rule :name \"r{k}\" :lhs (:wat::core::PersistentVector r{k}c1 r{k}c2) :rhs (:wat::core::PersistentVector r{k}t1 r{k}t2))\n"
         ));
     }
-    binds.push_str("  s0 (:wat::rete::compile-all (:wat::core::PersistentVector");
+    // ⛔ HAND-FACED, and the reason is worth keeping: this wat form is SPLIT ACROSS THREE Rust
+    // statements — the `(` of `compile-all` opens in one string literal and its `)` closes in a
+    // later `format!`. A textual paren-balancer walks straight out of the literal and into Rust
+    // syntax, which is exactly what happened here. No tool that treats a `.rs` file as text can
+    // see this form; only a rust-fix that parsed the file could.
+    binds.push_str("  s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector");
     for k in 1..=depth { binds.push_str(&format!(" rule{k}")); }
     binds.push_str(&format!(
-        ") (:wat::core::PersistentVector (:casc::q-Stage{depth})))\n"
+        ") (:wat::core::PersistentVector (:casc::q-Stage{depth})))\
+           ((:wat::rete::CompileOutcome::Compiled __session) __session)\
+           ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft)\
+             (:wat::kernel::assertion-failed! \"deep-cascade: rule set may not terminate\" \
+               :wat::core::None :wat::core::None)))\n"
     ));
     let mut idx = 1usize;
     let mut prev = 0usize;

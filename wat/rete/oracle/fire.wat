@@ -306,7 +306,15 @@
                                           (:wat::core::= (:wat::rete::rule-stratum r type-strata) current))
                                         rules))
                       ;; fresh compiled network for this stratum only — no shared-alpha edge
-                      sub-sess    (:wat::rete::compile stratum-rules)
+                      ;; HAND-FACED — stdlib. The stratum's rules are a SUBSET of a set already
+                      ;; admitted by the outer `compile-all`, so `MayNotTerminate` is unreachable
+                      ;; here; it says so loudly rather than being swallowed.
+                      sub-sess    (:wat::core::match (:wat::rete::compile stratum-rules)
+                                    ((:wat::rete::CompileOutcome::Compiled __session) __session)
+                                    ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type)
+                                      (:wat::kernel::assertion-failed!
+                                        "fire-stratified: the rule set may not terminate"
+                                        :wat::core::None :wat::core::None)))
                       ;; seed with ALL accumulated facts so negation sees complete prior strata
                       sub-sess2   (:wat::core::foldl
                                     (:wat::core::fn [s <- :wat::rete::Session

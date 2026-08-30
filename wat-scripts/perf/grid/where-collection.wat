@@ -345,7 +345,7 @@
 (:wat::core::defn :wc::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wc::build-rules row)
                     rule    (:wat::core::first rules)
-                    staged  (:wc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wc::q-Hit))) (:wc::items))
+                    staged  (:wc::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wc::q-Hit))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))) (:wc::items))
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     derived (:wc::derived-ints fired)
                     n       (:wat::core::Vector/length derived)]

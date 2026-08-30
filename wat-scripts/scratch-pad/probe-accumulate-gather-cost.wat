@@ -224,7 +224,7 @@
                     t0      (:wat::time::now)
                     rules   (:wat::rete::collect-rules :acp)
                     t1      (:wat::time::now)
-                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acp::q-CountF) (:acp::q-SumF) (:acp::q-MinF) (:acp::q-MaxF) (:acp::q-ExistsF)))
+                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acp::q-CountF) (:acp::q-SumF) (:acp::q-MinF) (:acp::q-MaxF) (:acp::q-ExistsF))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     t2      (:wat::time::now)
                     staged  (:acp::seed session groups reads)
                     t3      (:wat::time::now)

@@ -42,7 +42,7 @@ fn run_for(n: usize) {
             c2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
             rhs1 (:wat::core::quote (:weather::ColdAndWindy ?loc))\
             rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\
-            s0   (:wat::rete::compile (:wat::core::PersistentVector rule))\n",
+            s0   (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None)))\n",
     );
     let mut prev = 0usize;
     let mut idx = 1usize;
@@ -91,7 +91,7 @@ fn run_native(n: usize) {
             c2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
             rhs1 (:wat::core::quote (:weather::ColdAndWindy ?loc))\
             rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\
-            s0   (:wat::rete::compile (:wat::core::PersistentVector rule))\n",
+            s0   (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None)))\n",
     );
     let mut prev = 0usize;
     let mut idx = 1usize;

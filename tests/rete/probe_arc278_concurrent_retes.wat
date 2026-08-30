@@ -119,8 +119,8 @@
   -> :wat::core::i64
   (:wat::core::let [n     (:wat::core::+ 100 i)
                     rules (:wat::rete::collect-rules :cc)
-                    s0    (:wat::rete::compile-all rules
-                            (:wat::core::PersistentVector (:cc::q-Bad) (:cc::q-Warn) (:cc::q-Safe)))
+                    s0    (:wat::core::match (:wat::rete::compile-all rules
+                            (:wat::core::PersistentVector (:cc::q-Bad) (:cc::q-Warn) (:cc::q-Safe))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     s1    (:cc::seed s0 n)
                     fired (:wat::core::match (:wat::rete::fire-rules s1) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     bad   (:wat::core::length (:wat::rete::query fired (:cc::q-Bad)))
@@ -133,8 +133,8 @@
   -> :wat::core::i64
   (:wat::core::let [n     (:wat::core::+ 100 i)
                     rules (:wat::rete::collect-rules :dd)
-                    s0    (:wat::rete::compile-all rules
-                            (:wat::core::PersistentVector (:dd::q-Bad) (:dd::q-Ok)))
+                    s0    (:wat::core::match (:wat::rete::compile-all rules
+                            (:wat::core::PersistentVector (:dd::q-Bad) (:dd::q-Ok))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
                     s1    (:dd::seed s0 n)
                     fired (:wat::core::match (:wat::rete::fire-rules s1) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
                     bad   (:wat::core::length (:wat::rete::query fired (:dd::q-Bad)))

@@ -39,9 +39,9 @@
 
 
 (:wat::core::defn :test::compile-tf [] -> :wat::rete::Session
-  (:wat::rete::compile-all
+  (:wat::core::match (:wat::rete::compile-all
     (:wat::rete::collect-rules :tf)
-    (:wat::core::PersistentVector (:tf::q-Rate))))
+    (:wat::core::PersistentVector (:tf::q-Rate))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :test::seed-anchor-rate [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert

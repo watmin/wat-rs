@@ -58,7 +58,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::let [rules (:wat::core::PersistentVector (:usr::suspect) (:usr::anomaly))
-                      template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Suspect) (:usr::q-Anomaly)))]
+                      template (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Suspect) (:usr::q-Anomaly))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))]
       (:wat::core::do
         (:wat::kernel::println (:wat::core::string::concat "XX/-5/9e6/200 (want S=1 A=1): " (:usr::fire-one template (:usr::mk "XX" -5 9000000 200))))
         (:wat::kernel::println (:wat::core::string::concat "US/-5/9e6/200 (want S=0 A=0): " (:usr::fire-one template (:usr::mk "US" -5 9000000 200))))

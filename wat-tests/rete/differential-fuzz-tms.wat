@@ -131,10 +131,10 @@
     (:else               (:wat-tests::rete::tms::q-acc))))
 
 (:wat::core::defn :wat-tests::rete::tms::seed [] -> :wat::rete::Session
-  (:wat::rete::compile-all (:wat-tests::rete::tms::rules)
+  (:wat::core::match (:wat::rete::compile-all (:wat-tests::rete::tms::rules)
     (:wat::core::PersistentVector
       (:wat-tests::rete::tms::q-C) (:wat-tests::rete::tms::q-D)
-      (:wat-tests::rete::tms::q-notC) (:wat-tests::rete::tms::q-acc))))
+      (:wat-tests::rete::tms::q-notC) (:wat-tests::rete::tms::q-acc))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))
 
 ;; ── the case, and the four numbers ───────────────────────────────────────────
 (:wat::core::defrecord :wat-tests::rete::tms::Case

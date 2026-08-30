@@ -48,10 +48,10 @@
              (:wat::core::i64::to-string (:wat::core::length rule-forms))))
      ctl (:wat::core::PersistentVector (:usr::ok-rule))
      _a  (:wat::kernel::println "CONTROL rule built")
-     cs  (:wat::rete::compile ctl)
+     cs  (:wat::core::match (:wat::rete::compile ctl) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
      _b  (:wat::kernel::println "CONTROL compiled OK — the well-formed rule passes its own gate")
      bad (:wat::core::PersistentVector (:usr::bad-rule))
      _c  (:wat::kernel::println "BROKEN rule built — now compiling it")
-     bs  (:wat::rete::compile bad)]
+     bs  (:wat::core::match (:wat::rete::compile bad) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       "BROKEN COMPILED WITHOUT RAISING — the DSL did NOT diagnose the unbound variable; the claim is REFUTED")))

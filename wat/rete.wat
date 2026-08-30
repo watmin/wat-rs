@@ -276,6 +276,43 @@
                           used <- :wat::core::i64
                           staged <- :wat::core::i64])
 
+;; ─── CompileOutcome — the termination verdict, as a VALUE ────────────────────────────────────
+;;
+;; ⛔ WHY A COMPILE-TIME REFUSAL BECOMES A RUNTIME VALUE, which reads like a contradiction until
+;; you ask WHEN the rules exist. There are two paths into the verifier, and only one is static:
+;;
+;;   1. **Declared rules** (`defrule`) are checked at FREEZE. A non-terminating set means the
+;;      program never starts — a startup error, exactly like a type error, and no call site can
+;;      observe it. Totality has nothing to say about a program that does not run.
+;;   2. **Rules built at RUNTIME as `Rule` values** bypass that wall entirely (both differential
+;;      fuzzers do this; `stratify.rs` calls `compile-all` *"the one door every rule passes"*).
+;;      Here the verdict depends on DATA, so it cannot be settled before the program runs.
+;;
+;; Path 2 is the whole argument. A service that compiles a session from rules it was handed cannot
+;; know in advance whether they will be admitted, and a raise there unwinds past the caller and
+;; kills the process — the precise mute this wall exists to remove. The refusal is also ACTIONABLE
+;; in a way a malformed program is not: it names the rule and the fact type, and the fix is the
+;; author's (bound the derivation, copy rather than compute, or use a finitely-inhabited type).
+;;
+;; ⚠ THE OTHER THINGS `arm-session` CAN REFUSE STAY RAISES, and the line is the same one
+;; `kernel::outcome` draws for the ceilings: an `ArityMismatch`, or a `Session` argument that is
+;; not a Session, is a BUG IN THE PROGRAM — statically preventable, nothing the caller could
+;; branch on. Turning those into arms would hand every caller a match over failures they cannot
+;; act on. A judgement about the caller's DATA is a value; a malformed call is a raise.
+;;
+;;   :Compiled        [session]           — the armed session, ready to insert into.
+;;   :MayNotTerminate [rule fact-type]    — `rule` derives `fact-type` with a COMPUTED value inside
+;;                                          a cycle, so a round can mint a fact that did not exist
+;;                                          before and nothing bounds the rounds. The two fields
+;;                                          are what the diagnostic is built from, so a caller can
+;;                                          report as well as the substrate can.
+;;
+;; Pure: a Session and two Strings.
+(:wat::core::defenum :wat::rete::CompileOutcome :wat::enum::Pure
+  :Compiled        [session <- :wat::rete::Session]
+  :MayNotTerminate [rule <- :wat::core::String
+                    fact-type <- :wat::core::String])
+
 (:wat::core::typealias :wat::rete::GroupByMap
   (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])]))
 (:wat::core::typealias :wat::rete::ClassFields

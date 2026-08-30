@@ -41,7 +41,6 @@
 
 use std::path::Path;
 use std::process::{Command, Stdio};
-use wat_edn::{Keyword, OwnedValue, Tag};
 
 fn run(rel: &str) -> (bool, String, String) {
     let bin = env!("CARGO_BIN_EXE_wat");
@@ -58,6 +57,30 @@ fn run(rel: &str) -> (bool, String, String) {
     )
 }
 
+
+
+// ⛔ `rete_error` / `field_str` / `field_i64` ALL LIVED HERE AND ARE ALL GONE (arc 278). They read
+// fields off a RAISED EDN error on stderr. Every refusal this file gates — both ceilings and the
+// termination verdict — is now a matchable ARM, so the values arrive on stdout through `arm()` /
+// `arm_str()` and nothing in this file reads a corpse any more. Their disappearance IS the wall:
+// when the last reader of a raise goes, the raise did too.
+
+/// Read a printed `CompileOutcome::MayNotTerminate` arm: the name, then its two String fields.
+///
+/// The verifier's verdict is no longer a raise (arc 278) — a rule set built from RUNTIME data
+/// cannot be judged before the program runs, so `compile-all` answers a matchable
+/// `(:wat::rete::CompileOutcome)` and the fixture prints the arm it took. `println` renders a
+/// String with quotes, which is stripped here so the gates compare bare names.
+fn arm_str(stdout: &str) -> (String, Vec<String>) {
+    let mut lines = stdout.lines().map(str::trim).filter(|l| !l.is_empty());
+    let name = lines
+        .next()
+        .unwrap_or_else(|| panic!("the fixture must print the arm name first; got {stdout:?}"))
+        .trim_matches('"')
+        .to_string();
+    let fields = lines.map(|l| l.trim_matches('"').to_string()).collect();
+    (name, fields)
+}
 
 /// Read a printed `FireOutcome` arm: its name, then its i64 fields, one per line.
 ///
@@ -84,63 +107,6 @@ fn arm(stdout: &str) -> (String, Vec<i64>) {
         .collect();
     (name, fields)
 }
-
-/// The refusal, PARSED — tag pinned, named fields read exactly.
-///
-/// Not `contains`: `tests/lint/no_loose_string_assert.rs` refuses a substring check where an exact
-/// one belongs, and it is right here. This error is deterministic EDN, so a `contains("10000")`
-/// would pass on a reordered map, on appended garbage, and — worst — on the cap appearing in some
-/// unrelated field. The same call `validate.rs`'s own error tests make (*"a SUBSTRING search over
-/// it is a loose check the value does not deserve"*). The lint offers a per-site rune exemption;
-/// taking it would have been the easy road to a weaker test.
-///
-/// The wire shape is nested: the outer `LociDiedError/RuntimeError` carries a VECTOR OF STRINGS,
-/// each string being the EDN text of one error, so it is parsed twice.
-fn rete_error(stderr: &str, variant: &str) -> Vec<(OwnedValue, OwnedValue)> {
-    let outer = wat_edn::parse_owned(stderr.trim())
-        .unwrap_or_else(|e| panic!("the refusal must be EDN on stderr; got {stderr:?} ({e})"));
-    let inner_text = match outer {
-        OwnedValue::Vector(mut xs) if !xs.is_empty() => match xs.remove(0) {
-            OwnedValue::Tagged(_, body) => match *body {
-                OwnedValue::Vector(mut ss) if !ss.is_empty() => match ss.remove(0) {
-                    OwnedValue::String(s) => s.to_string(),
-                    other => panic!("expected the error as an EDN string; got {other:?}"),
-                },
-                other => panic!("expected a vector of error strings; got {other:?}"),
-            },
-            other => panic!("expected a tagged LociDiedError; got {other:?}"),
-        },
-        other => panic!("expected a vector at the top; got {other:?}"),
-    };
-    let parsed = wat_edn::parse_owned(&inner_text).expect("inner error must be EDN");
-    match parsed {
-        OwnedValue::Tagged(tag, body) => {
-            assert_eq!(
-                tag,
-                Tag::ns("wat.runtime", variant),
-                "the refusal must be the TYPED cap error — before the cap this was an allocator \
-                 abort with no tag at all"
-            );
-            match *body {
-                OwnedValue::Map(m) => m,
-                other => panic!("expected a map body; got {other:?}"),
-            }
-        }
-        other => panic!("expected a tagged error; got {other:?}"),
-    }
-}
-
-fn field_str(fields: &[(OwnedValue, OwnedValue)], name: &str) -> String {
-    let v = fields
-        .iter()
-        .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new(name)))
-        .map(|(_, v)| v)
-        .unwrap_or_else(|| panic!("the error must carry :{name}; got {fields:?}"));
-    match v {
-        OwnedValue::String(s) => s.to_string(),
-        other => panic!(":{name} must be a String; got {other:?}"),
-    }
-}
 // `field_i64` lived here and is GONE (arc 278 S2c). It read an i64 field off a raised EDN error;
 // both ceilings are now matchable ARMS, so their numbers arrive as `arm()`'s fields and nothing
 // reads them off stderr any more. `rete_error`/`field_str` STAY — `RuleSetMayNotTerminate` is a
@@ -158,20 +124,18 @@ fn field_str(fields: &[(OwnedValue, OwnedValue)], name: &str) -> String {
 #[test]
 fn a_non_terminating_rule_set_is_refused_at_compile_by_the_verifier() {
     let (ok, stdout, stderr) = run("tests/rete/probe_arc278_fixpoint_round_cap.wat");
-    assert!(
-        !ok,
-        "a rule set that cannot be proven to terminate must NOT compile\n{stdout}{stderr}"
-    );
+    // ⛔ THE VERDICT IS A VALUE NOW, so the program LIVES and reports. Before arc 278 this
+    // asserted `!ok` and read structured EDN off stderr; `compile-all` answers a matchable
+    // `(:wat::rete::CompileOutcome)`, so a refusal exits 0 with the arm on stdout. A gate still
+    // demanding a corpse would be asserting the absence of the feature.
+    assert!(ok, "a refusal is a VALUE now — the program must not die\n{stdout}{stderr}");
+    let a = arm_str(&stdout);
     assert_eq!(
-        stdout.trim(),
-        "",
-        "refusal is at COMPILE — nothing in the program body should have run. Output here means \
-         the rule set was armed and fired before being caught, which is the cap's job, not the \
-         verifier's.\n{stderr}"
+        a.0, "ARM MayNotTerminate",
+        "a rule set that cannot be proven to terminate must take the refusing arm\n{stdout}"
     );
-    let e = rete_error(&stderr, "RuleSetMayNotTerminate");
-    assert_eq!(field_str(&e, "rule"), "cap::grow");
-    assert_eq!(field_str(&e, "fact-type"), "cap::N");
+    assert_eq!(a.1[0], "cap::grow");
+    assert_eq!(a.1[1], "cap::N");
 }
 
 /// THE FN-HEADED EXPLOIT — the hole 4.2 shipped with, demonstrated and then closed.
@@ -192,20 +156,18 @@ fn a_non_terminating_rule_set_is_refused_at_compile_by_the_verifier() {
 #[test]
 fn a_mint_hidden_inside_a_rete_fn_body_is_refused() {
     let (ok, stdout, stderr) = run("tests/rete/probe_arc278_termination_fn_head.wat");
-    assert!(
-        !ok,
-        "a rete fn whose BODY constructs from a computed value, inside a derivation cycle, mints a \
-         novel fact every round — it must not compile\n{stdout}{stderr}"
+    // ⛔ THE VERDICT IS A VALUE NOW, so the program LIVES and reports. Before arc 278 this
+    // asserted `!ok` and read structured EDN off stderr; `compile-all` answers a matchable
+    // `(:wat::rete::CompileOutcome)`, so a refusal exits 0 with the arm on stdout. A gate still
+    // demanding a corpse would be asserting the absence of the feature.
+    assert!(ok, "a refusal is a VALUE now — the program must not die\n{stdout}{stderr}");
+    let a = arm_str(&stdout);
+    assert_eq!(
+        a.0, "ARM MayNotTerminate",
+        "a mint hidden inside a rete fn body must still take the refusing arm\n{stdout}"
     );
-    let e = rete_error(&stderr, "RuleSetMayNotTerminate");
-    assert_eq!(field_str(&e, "rule"), "fm::grow");
-    // `fm::N`, NOT `fm::bump`. This row was the whole reason the diagnostic could lie for as long
-    // as it did: the gate held the wrong value in its hand and only ever looked at `rule`. The
-    // message goes on to say this name "feeds back into this rule's own `:when`" — and the `:when`
-    // reads `:fm::N`, so naming the FUNCTION sent the reader hunting for a fact type that does not
-    // exist. Found by driving, 2026-08-28; `computed` was built from `fact_type_head` (the raw
-    // head) while `produced` beside it resolved through `sym`. One resolver now feeds both.
-    assert_eq!(field_str(&e, "fact-type"), "fm::N");
+    assert_eq!(a.1[0], "fm::grow");
+    assert_eq!(a.1[1], "fm::N");
 }
 
 /// ★ THE PER-SESSION MEMORY CEILING, AT THE **INSERT** DOOR — staging, with no fire at all.
@@ -370,13 +332,14 @@ fn a_finite_typed_computed_head_is_admitted_and_the_i64_axis_is_not() {
     // FINITE and, at the measured ~600 B/fact, ~630 MB. "Provably finite" is not "safe to admit",
     // and this row is where those two claims part company. Without it the constant could be set to
     // anything, or deleted, and every other row here would still pass.
-    let (ok_big, _o, e_big) = run("tests/rete/probe_arc278_termination_finite_domain_too_large.wat");
-    assert!(
-        !ok_big,
+    let (ok_big, o_big, e_big) = run("tests/rete/probe_arc278_termination_finite_domain_too_large.wat");
+    assert!(ok_big, "the verdict is a VALUE — the program must not die\n{o_big}{e_big}");
+    assert_eq!(
+        arm_str(&o_big).0,
+        "ARM MayNotTerminate",
         "a population past MAX_PROVABLE_FACT_POPULATION must be refused as too large to prove, \
-         not admitted because the arithmetic happens to be finite\n{e_big}"
+         not admitted because the arithmetic happens to be finite\n{o_big}"
     );
-    let _ = rete_error(&e_big, "RuleSetMayNotTerminate");
 
     // THE AXIS THAT MUST NOT MOVE. Each of these has a computed `i64` head; each is refused today
     // and must stay refused. `_guarded` terminates (at 501) and is refused anyway — that is the
@@ -387,10 +350,15 @@ fn a_finite_typed_computed_head_is_admitted_and_the_i64_axis_is_not() {
         "tests/rete/probe_arc278_termination_fn_head.wat",
         "tests/rete/probe_arc278_termination_guarded_counter.wat",
     ] {
-        let (ok, _out, err) = run(fixture);
-        assert!(!ok, "{fixture} must still be refused");
-        let e = rete_error(&err, "RuleSetMayNotTerminate");
-        let _ = e;
+        let (ok, out, err) = run(fixture);
+        // Refused means the REFUSING ARM, not a dead process — the verdict is a value (arc 278).
+        assert!(ok, "{fixture}: the verdict is a VALUE — it must not die\n{out}{err}");
+        assert_eq!(
+            arm_str(&out).0,
+            "ARM MayNotTerminate",
+            "{fixture} must still be refused — its head computes an `i64`, and the finite-domain \
+             admission reads the TYPE, never a `where` fence\n{out}"
+        );
     }
 }
 
@@ -409,19 +377,18 @@ fn a_finite_typed_computed_head_is_admitted_and_the_i64_axis_is_not() {
 #[test]
 fn a_bounded_counter_is_refused_too_and_the_message_does_not_claim_divergence() {
     let (ok, stdout, stderr) = run("tests/rete/probe_arc278_termination_guarded_counter.wat");
-    assert!(
-        !ok,
-        "the structural cyclicity test does not read the `where` fence, so a guarded counter is \
-         refused like any other computed head in a cycle\n{stdout}{stderr}"
-    );
+    // ⛔ THE VERDICT IS A VALUE NOW, so the program LIVES and reports. Before arc 278 this
+    // asserted `!ok` and read structured EDN off stderr; `compile-all` answers a matchable
+    // `(:wat::rete::CompileOutcome)`, so a refusal exits 0 with the arm on stdout. A gate still
+    // demanding a corpse would be asserting the absence of the feature.
+    assert!(ok, "a refusal is a VALUE now — the program must not die\n{stdout}{stderr}");
+    let a = arm_str(&stdout);
     assert_eq!(
-        stdout.trim(),
-        "",
-        "refusal is at COMPILE — nothing in the program body should have run.\n{stderr}"
+        a.0, "ARM MayNotTerminate",
+        "a guarded counter terminates but is not PROVABLY bounded, so it is still refused\n{stdout}"
     );
-    let e = rete_error(&stderr, "RuleSetMayNotTerminate");
-    assert_eq!(field_str(&e, "rule"), "gc::count-up");
-    assert_eq!(field_str(&e, "fact-type"), "gc::N");
+    assert_eq!(a.1[0], "gc::count-up");
+    assert_eq!(a.1[1], "gc::N");
 
     // THE RETRACTED CLAIM. The message used to assert "the fixpoint can never converge" — false of
     // the very program in front of the user, which converges at k=500. R29 `RVINA ERVDIT`: the

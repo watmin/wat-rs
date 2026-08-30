@@ -19,14 +19,26 @@
 (:wat::rete::defquery :cap::q :params [] :when [(?fact <- :cap::N)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println
+  ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
+  ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
+  ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to
+  ;; pin the verdict's `rule` and `fact-type`, and a message string throws both away.
+  (:wat::core::match (:wat::rete::compile-all
+                (:wat::core::PersistentVector (:cap::grow))
+                (:wat::core::PersistentVector (:cap::q)))
+    ((:wat::rete::CompileOutcome::Compiled __session)
+      (:wat::kernel::println
     (:wat::core::i64::to-string
       (:wat::core::length
         (:wat::rete::query
           (:wat::core::match (:wat::rete::fire-rules
             (:wat::core::match (:wat::rete::insert
-              (:wat::rete::compile-all
-                (:wat::core::PersistentVector (:cap::grow))
-                (:wat::core::PersistentVector (:cap::q)))
+              __session
               (:cap::N :k 0)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
           (:cap::q))))))
+    ((:wat::rete::CompileOutcome::MayNotTerminate rule fact-type)
+      (:wat::core::do
+        (:wat::kernel::println "ARM MayNotTerminate")
+        (:wat::kernel::println rule)
+        (:wat::kernel::println fact-type)))))
+

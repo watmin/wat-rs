@@ -1,4 +1,4 @@
-//! Arc 278 the outcome wall, S2d — **a session ceiling may not become a raise.**
+//! Arc 278 the outcome wall — **a rete refusal the caller can ACT ON may not become a raise.**
 //!
 //! ── THE CLASS ────────────────────────────────────────────────────────────────────────────────
 //!
@@ -32,6 +32,7 @@
 //! | `SessionMemoryCeilingExceededOnInsert` | `kernel/session.rs` (the shared insert check) |
 //! | `SessionMemoryCeilingExceeded` | `kernel/fire/delta.rs` (the fixpoint's round boundary) |
 //! | `FixpointRoundCapExceeded` | `kernel/fire/delta.rs` |
+//! | `RuleSetMayNotTerminate` | `kernel/stratify.rs` (the termination verifier) |
 //!
 //! `kernel/outcome.rs` is the one place allowed to MATCH them, because it is the one place that
 //! turns a breach into a value. A second converter is the drift this arc pulls out most often.
@@ -43,13 +44,18 @@ const CEILING_VARIANTS: &[&str] = &[
     "SessionMemoryCeilingExceededOnInsert",
     "SessionMemoryCeilingExceeded",
     "FixpointRoundCapExceeded",
+    // The termination VERDICT joined the wall for the same reason (arc 278): a rule set built from
+    // RUNTIME data cannot be judged before the program runs, so `compile-all` answers a matchable
+    // `CompileOutcome` rather than unwinding past its caller.
+    "RuleSetMayNotTerminate",
 ];
 
 /// Files under `src/rete/` permitted to name a ceiling variant, and why.
 const ALLOWED: &[(&str, &str)] = &[
     ("kernel/session.rs", "owns the shared insert-door check"),
     ("kernel/fire/delta.rs", "owns the fixpoint's round boundary"),
-    ("kernel/outcome.rs", "the ONE site that converts a breach into a matchable arm"),
+    ("kernel/stratify.rs", "owns the termination verifier's verdict"),
+    ("kernel/outcome.rs", "the ONE site that converts a refusal into a matchable arm"),
 ];
 
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -117,7 +123,7 @@ fn a_ceiling_breach_is_never_raised_outside_the_two_doors() {
     // ceilings were ever deleted, or moved to files not in ALLOWED, this gate would go quietly
     // green while guarding nothing — the exact failure mode of a control that outlives its subject.
     assert!(
-        allowed_hits >= 3,
+        allowed_hits >= 4,
         "the permitted doors name a ceiling variant only {allowed_hits} time(s) — the ceilings \
          have moved or gone, and this gate is now guarding an empty room. Re-point ALLOWED."
     );

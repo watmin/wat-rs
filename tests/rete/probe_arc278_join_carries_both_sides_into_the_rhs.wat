@@ -38,8 +38,8 @@
 (:wat::core::defn :jb::staged [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     (:wat::core::match (:wat::rete::insert-all
-      (:wat::rete::compile-all (:wat::rete::collect-rules :jb)
-                               (:wat::core::PersistentVector (:jb::q)))
+      (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :jb)
+                               (:wat::core::PersistentVector (:jb::q))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
       (:wat::core::PersistentVector (:jb::Temp :loc "MCI" :celsius 5))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
     (:wat::core::PersistentVector (:jb::Wind :loc "MCI" :kph 40))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
 

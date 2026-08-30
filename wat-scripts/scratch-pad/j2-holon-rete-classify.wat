@@ -41,9 +41,9 @@
    mystery <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
   -> :wat::core::String
   (:wat::core::let
-    [s0    (:wat::rete::compile-all
+    [s0    (:wat::core::match (:wat::rete::compile-all
              (:wat::core::PersistentVector (:j2::classify))
-             (:wat::core::PersistentVector (:j2::q-Guess)))
+             (:wat::core::PersistentVector (:j2::q-Guess))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
      s1    (:wat::core::match (:wat::rete::insert-all s0 (:j2::catalog)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      s2    (:wat::core::match (:wat::rete::insert s1 (:j2::Observation :obs (:j2::table-of mystery))) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      fired (:wat::core::match (fire s2) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! "fire: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "fire: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))

@@ -114,8 +114,8 @@
     [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos) (:fx::arrow-line))
      s0    (:wat::core::match (:wat::rete::insert-all
-             (:wat::rete::compile-all rules
-               (:wat::core::PersistentVector (:fx::q-IsArrow) (:fx::q-IsHeadKw) (:fx::q-IsTypePos) (:fx::q-ArrowLine)))
+             (:wat::core::match (:wat::rete::compile-all rules
+               (:wat::core::PersistentVector (:fx::q-IsArrow) (:fx::q-IsHeadKw) (:fx::q-IsTypePos) (:fx::q-ArrowLine))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
              (:wat::grep::Facts/nodes facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      s1    (:wat::core::match (:wat::rete::insert-all s0 (:wat::grep::Facts/named facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      s2    (:wat::core::match (:wat::rete::insert-all s1 (:wat::grep::Facts/spans facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
@@ -142,7 +142,7 @@
     [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::match-arrow))
      s0    (:wat::core::match (:wat::rete::insert-all
-             (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wat::grep::q-match)))
+             (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wat::grep::q-match))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
              (:wat::grep::Facts/nodes facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      s1    (:wat::core::match (:wat::rete::insert-all s0 (:wat::grep::Facts/spans facts)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
      ;; the ONE Source fact — the rule joins it for :file, so it must be inserted like any other.

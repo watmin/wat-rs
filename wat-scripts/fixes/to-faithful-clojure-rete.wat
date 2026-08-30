@@ -250,7 +250,14 @@
                     nodes   (:fix::collect-nodes-seq forms false lines)
                     ;; PURE rete: deduce the classification facts
                     rules   (:wat::rete::collect-rules :fix)
-                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
+                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
+        ;; ⛔ HAND-FACED (arc 278) — `wat-scripts/fixes/*.wat` is excluded from the corpus
+        ;; sweep, so a codemod that HAPPENS to drive rete pays for that exclusion by hand.
+        ((:wat::rete::CompileOutcome::Compiled __session) __session)
+        ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft)
+          (:wat::kernel::assertion-failed!
+            "to-faithful-clojure: the rule set may not terminate"
+            :wat::core::None :wat::core::None)))
                     staged  (:fix::insert-nodes session nodes)
                     ;; ⛔ ARC 278 the fire-outcome wall — HAND-FACED. This file lives under
                     ;; `wat-scripts/fixes/`, which the corpus sweep excludes on purpose: those are
