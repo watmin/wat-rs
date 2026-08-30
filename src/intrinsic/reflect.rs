@@ -561,11 +561,17 @@ fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>,
 /// leaf matches a param name against a token bounded by `<`, `,`, `>`, and the text's own
 /// start/end — never a bare substring, so `K` does not match inside `Key` or `KV`.
 ///
+/// **Expand-time ground —** same category as its `ast-*` siblings (pure, total, structural
+/// node walk; no IO): asks which of a set of type-param name nodes appear anywhere in an AST;
+/// `defservice` calls it at expand time to compute each generated companion type's own param
+/// subset. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a;
+/// arc 109 β-ii-c); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg params (:wat::core::Vector :- [:wat::WatAST]) the candidate type-param name nodes (Symbols, or Keywords), in declaration order
 /// @arg node :wat::WatAST the AST subtree to search — typically a field/member vector
@@ -657,11 +663,19 @@ pub(crate) fn eval_type_params_used_in(
 /// `TypeMismatch` shape [`eval_type_params_used_in`] already uses for a bad argument, immediately
 /// above.
 ///
+/// **Expand-time ground —** the missing door: `defservice` and its siblings live entirely in
+/// macro bodies and had no way to ask whether two declared type spellings are the same type;
+/// pure ∧ deterministic ∧ total structural comparison via `parse_type_node` (raises on a
+/// non-type node rather than returning a silently-wrong `false`), same category as
+/// `type-params-used-in`. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc
+/// 255 expand-T4a; arc 109, `BRIEF-STONE-type-equal-the-missing-door.md`); the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg a :wat::WatAST a type-expression node — keyword, `wat.type/` symbol, parametric form `(Head :- [args])`, or fn-type bracket `[arg… :-> ret]`
 /// @arg b :wat::WatAST the other type-expression node, same surface set

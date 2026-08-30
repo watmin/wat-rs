@@ -52,11 +52,16 @@ use crate::span::Span;
 /// falls to the `None`/`Some(_)` `TypeMismatch` arms below (teaching `:wat::stream::next`) rather
 /// than forcing any cell — no thunk is ever forced. Pure ∧ Deterministic.
 ///
+/// **Expand-time ground —** polymorphic collection op: reads no state, performs no effect.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Collections —
+/// polymorphic intrinsics" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
 /// @ret     :wat::core::i64 the element/entry count
@@ -99,11 +104,16 @@ pub(crate) fn eval_length(
 /// (teaching `:wat::stream::next`) like any other non-measurable container; no thunk is ever
 /// forced. Pure ∧ Deterministic.
 ///
+/// **Expand-time ground —** polymorphic collection op: reads no state, performs no effect.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Collections —
+/// polymorphic intrinsics" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
 /// @ret     :wat::core::bool whether the collection has zero elements/entries
@@ -149,11 +159,17 @@ pub(crate) fn eval_empty(
 /// same as `first`/`second`/`third`) but Pure ∧ Deterministic on the purity/determinism axes
 /// this registry's `@Purity`/`@Determinism` tags measure.
 ///
+/// **Expand-time ground —** now a Rust intrinsic (was a wat `defclause`); reads no state,
+/// performs no effect, and its out-of-range raise is a deterministic located abort — not
+/// disqualifying (same class as `i64::/`'s division-by-zero, admitted above). Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a; Stone 118.B4-0); the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the receiver — this call also accepts (PersistentVector :- [T]), (List :- [T]), or a WatAST list form (returning :wat::WatAST); a (Stream :- [T]) is refused (`nth_indexable()` gate excludes it — use (drop s i) then :wat::stream::next)
 /// @arg     idx :wat::core::i64 the zero-based index; raises "nth: index out of range" if out of bounds
@@ -191,11 +207,16 @@ pub(crate) fn eval_nth(
 /// raises `MalformedForm` on an empty receiver — genuinely partial, per `purity.rs`'s
 /// pure∧det entry for this family.)
 ///
+/// **Expand-time ground —** polymorphic collection op: reads no state, performs no effect.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Collections —
+/// polymorphic intrinsics" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the vector probed
 /// @ret     (:wat::core::Option :- [T]) the last element, or `None` if `xs` is empty
@@ -238,11 +259,16 @@ pub(crate) fn eval_vec_last(
 /// force one cell to discard it (the same cost as `next`, but the name hid the force); the wall
 /// deleted that path. Pure ∧ Deterministic.
 ///
+/// **Expand-time ground —** polymorphic collection op: reads no state, performs no effect.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Collections —
+/// polymorphic intrinsics" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the receiver; identity-preserving — this call also accepts (List :- [T]), (PersistentVector :- [T]), or a WatAST list form, each returning the same container kind; a (Stream :- [T]) is refused (`has_tail()` gate excludes it — see :wat::stream::next)
 /// @ret     (:wat::core::Vector :- [T]) every element after the first
@@ -274,11 +300,16 @@ pub(crate) fn eval_rest(
 /// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's, made
 /// by reading the implementation.
 ///
+/// **Expand-time ground —** bounded iteration over a finite list: pure. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Collections — HOFs (bounded
+/// iteration over finite lists)" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     xs (:wat::core::Vector :- [T]) the sequence reversed; this call also accepts (PersistentVector :- [T]) or (List :- [T]), each returning the same container kind — a (Stream :- [T]), Tuple, HashSet, or WatAST form is refused (`ordered()` gate excludes them)
 /// @ret     (:wat::core::Vector :- [T]) `xs`'s elements in reverse order
@@ -314,11 +345,16 @@ pub(crate) fn eval_vec_reverse(
 /// `total` sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
 /// implementation.
 ///
+/// **Expand-time ground —** bounded iteration over a finite list: pure. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Collections — HOFs (bounded
+/// iteration over finite lists)" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     start :wat::core::i64 the inclusive lower bound
 /// @arg     end :wat::core::i64 the exclusive upper bound

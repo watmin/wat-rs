@@ -92,11 +92,16 @@ use crate::value::{
 /// to `±Inf`, never an error — via the SAME shared op fn `:wat::f64::+`
 /// calls.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the left addend
 /// @arg     b :wat::core::f64 the right addend
@@ -126,11 +131,16 @@ fn eval_f64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// `(:wat::f64::- a b)` → `a` minus `b`, strict f64. Same shared op fn as
 /// `:wat::f64::-`.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the minuend
 /// @arg     b :wat::core::f64 the subtrahend
@@ -156,11 +166,16 @@ fn eval_f64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// `(:wat::f64::* a b)` → `a` times `b`, strict f64. Same shared op fn as
 /// `:wat::f64::*`.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the first factor
 /// @arg     b :wat::core::f64 the second factor
@@ -187,11 +202,16 @@ fn eval_f64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// produces `±Inf` or `NaN`, never a runtime error (only `:wat::i64::/`
 /// raises on division by zero). Same shared op fn as `:wat::f64::/`.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the dividend
 /// @arg     b :wat::core::f64 the divisor
@@ -224,11 +244,16 @@ fn eval_f64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// operand loses to a non-NaN one — IEEE 754 `maxNum`). Same shared op fn as
 /// `:wat::f64::max`.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -249,11 +274,16 @@ pub(crate) fn eval_f64_max(
 /// `(:wat::f64::min a b)` → the smaller of `a` and `b` (`f64::min`, IEEE 754
 /// `minNum`). Same shared op fn as `:wat::f64::min`.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -290,11 +320,15 @@ pub(crate) fn eval_f64_min(
 /// `f64::>`/`f64::<=`/`f64::>=` in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a);
 /// the verdict is that list's, made by reading the implementation.
 ///
+/// **Expand-time ground —** float comparison: pure, IEEE 754. Safe to evaluate at
+/// macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc
+/// 255 expand-T4a), from its "Float comparison" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -321,11 +355,15 @@ pub(crate) fn eval_f64_lt(
 /// sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
 /// implementation.
 ///
+/// **Expand-time ground —** float comparison: pure, IEEE 754. Safe to evaluate at
+/// macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc
+/// 255 expand-T4a), from its "Float comparison" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -352,11 +390,15 @@ pub(crate) fn eval_f64_lte(
 /// `f64::>=` in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that
 /// list's, made by reading the implementation.
 ///
+/// **Expand-time ground —** float comparison: pure, IEEE 754. Safe to evaluate at
+/// macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc
+/// 255 expand-T4a), from its "Float comparison" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -383,11 +425,15 @@ pub(crate) fn eval_f64_gt(
 /// sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
 /// implementation.
 ///
+/// **Expand-time ground —** float comparison: pure, IEEE 754. Safe to evaluate at
+/// macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc
+/// 255 expand-T4a), from its "Float comparison" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -414,11 +460,17 @@ pub(crate) fn eval_f64_gte(
 /// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's, made
 /// by reading the implementation.
 ///
+/// **Expand-time ground —** comparison over two same-category scalars; gap closure, not a
+/// rename (builder ruling 2026-08-26: "if we're missing logical stuff, we add it - we are
+/// cleaning up months of hacking"). Pure, and at least as total as `i64::/` (whose
+/// division-by-zero is blessed above as a deterministic located abort). Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -444,11 +496,17 @@ pub(crate) fn eval_f64_eq(
 /// `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's, made
 /// by reading the implementation.
 ///
+/// **Expand-time ground —** comparison over two same-category scalars; gap closure, not a
+/// rename (builder ruling 2026-08-26: "if we're missing logical stuff, we add it - we are
+/// cleaning up months of hacking"). Pure, and at least as total as `i64::/` (whose
+/// division-by-zero is blessed above as a deterministic located abort). Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
 /// @arg     b :wat::core::f64 the right operand
@@ -470,11 +528,16 @@ pub(crate) fn eval_f64_not_eq(
 
 /// `(:wat::f64::abs n)` → the absolute value of `n`.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     n :wat::core::f64 the f64 to take the absolute value of
 /// @ret     :wat::core::f64 the absolute value of `n`
@@ -496,11 +559,16 @@ pub(crate) fn eval_f64_abs(
 /// name the caller used (see this module's header) — a pre-existing
 /// property of the shared fn, not new here.
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :wat::core::f64 the value to round
 /// @arg     digits :wat::core::i64 the number of decimal places, non-negative
@@ -521,11 +589,18 @@ pub(crate) fn eval_f64_round(
 /// `n` is finite and in i64 range, `None` otherwise (NaN, ±Inf, or
 /// out-of-range). Same shared op fn as `:wat::f64::to-i64`.
 ///
+/// **Expand-time ground —** scalar conversions: pure, deterministic value-to-value
+/// conversion. Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Scalar
+/// conversions" group (whose header note explains the list also carries this verb's
+/// dual-spelled sibling, so either surface spelling is legal in a macro body); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::f64 the f64 to truncate
 /// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(n as i64)` when in range, `None` otherwise
@@ -550,11 +625,18 @@ pub(crate) fn eval_f64_to_i64(
 /// sub-list (arc 255 total-T4a); the verdict is that list's, made by reading the
 /// implementation.
 ///
+/// **Expand-time ground —** scalar conversions: pure, deterministic value-to-value
+/// conversion. Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Scalar
+/// conversions" group (whose header note explains the list also carries this verb's
+/// dual-spelled sibling, so either surface spelling is legal in a macro body); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::f64 the f64 to render
 /// @ret     :wat::core::String the rendering of `n`
@@ -586,11 +668,16 @@ pub(crate) fn eval_f64_to_string(
 /// `:wat::f64::clamp` (see this module's header re: its `:op`
 /// attribution).
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     v :wat::core::f64 the value to bound
 /// @arg     lo :wat::core::f64 the lower bound
@@ -658,11 +745,16 @@ fn f64_variadic_reduce(
 /// `:wat::f64::max-of`, which takes ONE `(Vector :- [f64])`; see this
 /// module's header).
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     args… :wat::core::f64 the values to reduce
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) the maximum, or `None` if no args given
@@ -683,11 +775,16 @@ pub(crate) fn eval_f64_max_of(
 /// `:wat::f64::min-of`, which takes ONE `(Vector :- [f64])`; see this
 /// module's header).
 ///
+/// **Expand-time ground —** float arithmetic: pure, IEEE 754. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Float arithmetic" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     args… :wat::core::f64 the values to reduce
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) the minimum, or `None` if no args given

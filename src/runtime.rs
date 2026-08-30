@@ -13270,11 +13270,16 @@ fn eval_signature_of_defn(
 /// "HolonAST" one line above that literal — the same stale terminology, corroborated twice over
 /// (this doc and that comment), never the actual registered type.
 ///
+/// **Expand-time ground —** shared infra for type-driven macros to reflect on fn signatures
+/// at macro expand time (arc 249 stone 249.2b-i); `fn → HolonAST`, pure — reads from the fn
+/// value, no IO. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "Runtime reflection" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     fn_expr :wat::core::fn the fn value whose signature is reconstructed
 /// @ret     :wat::WatAST the signature head `(:anonymous (param type)... -> ret-type)`
@@ -13921,11 +13926,16 @@ fn eval_rename_callable_name(
 ///    - anything else: skip.
 /// 4. Return the collected keywords as a `Vector`.
 ///
+/// **Expand-time ground —** shared infra for type-driven macros to reflect on fn signatures
+/// at macro expand time (arc 249 stone 249.2b-i); `HolonAST → Vector<Keyword>`, pure
+/// structural walk. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "Runtime reflection" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head walked
 /// @ret     (:wat::core::Vector :- [:wat::core::keyword]) one keyword per declared arg name, in order
@@ -14022,11 +14032,16 @@ fn eval_extract_arg_names(
 ///    - anything else: skip.
 /// 4. Return the collected type ASTs as a `Vector`.
 ///
+/// **Expand-time ground —** shared infra for type-driven macros to reflect on fn signatures
+/// at macro expand time (arc 249 stone 249.2b-i); `HolonAST → Vector<Keyword>`, pure
+/// structural walk. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "Runtime reflection" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head walked
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) one type AST per declared arg, in order
@@ -14125,11 +14140,17 @@ fn eval_extract_arg_types(
 /// reformatted to the canonical `:wat::core::keyword` spelling this stone's structured `@ret`
 /// requires; not a lie.
 ///
+/// **Expand-time ground —** type-kw → the frozen runtime type registry (`sym.types`,
+/// populated once at freeze time) → `AggregateDef.fields`; same category as `signature-of-fn`
+/// (read-only reflection off already-frozen registry state, no IO, no mutation, deterministic).
+/// Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a; arc 170
+/// Strike B); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field names are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
 /// @ret     (:wat::core::Vector :- [:wat::core::keyword]) each field name as a keyword, in declaration order
@@ -14177,11 +14198,17 @@ fn eval_field_names_of(
 /// (`wat::WatAST`, colonless) named the right element type — matched, only reformatted to the
 /// canonical `:wat::WatAST` spelling this stone's structured `@ret` requires; not a lie.
 ///
+/// **Expand-time ground —** type-kw → the frozen runtime type registry (`sym.types`,
+/// populated once at freeze time) → `AggregateDef.fields`; same category as `signature-of-fn`
+/// (read-only reflection off already-frozen registry state, no IO, no mutation, deterministic).
+/// Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a; arc 170
+/// Strike B); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field types are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) each field's type, rendered as a canonical `wat.type/` WatAST node, in declaration order (positionally aligned with `field-names-of`)

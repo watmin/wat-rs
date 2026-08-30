@@ -75,11 +75,16 @@ fn next_outcome_exhausted() -> Value {
 /// constructors take (unlike `time::now`, this one is also deterministic: there is no
 /// external source to sample).
 ///
+/// **Expand-time ground —** pure/total (no IO, no randomness, no channels): safe at
+/// macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc
+/// 255 expand-T4a; arc 118.2a), from its `:wat::stream::*` primitives group; the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @ret     (:wat::stream::Stream :- [T]) the Empty terminator
 /// @example (:wat::core::stream->vec [] (:wat::stream::empty)) #=> []
@@ -97,11 +102,16 @@ pub(crate) fn eval_stream_empty_intrinsic() -> Result<Value, EvalBreak> {
 /// handed and never enters `tail` to look inside — forcing (and whatever `tail` might do
 /// when forced) is `:wat::stream::next`'s job, not this one's.
 ///
+/// **Expand-time ground —** pure/total (no IO, no randomness, no channels): safe at
+/// macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc
+/// 255 expand-T4a; arc 118.2a), from its `:wat::stream::*` primitives group; the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     head :T the value prepended, evaluated strictly
 /// @arg     tail (:wat::stream::Stream :- [T]) the stream tail (may itself be an unforced Thunk)

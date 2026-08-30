@@ -124,11 +124,19 @@ pub(crate) fn eval_kernel_call_site(
 /// of `call-site`: valid only inside a macro body; returns the macro
 /// invocation's own source span as a SPLICEABLE `Frame'` constructor form.
 ///
+/// **Expand-time ground —** reads the expand-time `MACRO_CALL_SITE` thread-local (the current
+/// macro invocation's own source span, pushed by `expand_macro_call`) and returns a spliceable
+/// Frame-constructor form. Pure and deterministic per expansion (same invocation → same span,
+/// every time it's read during that invocation's expansion), and does no IO — the `log`
+/// macro's per-log-line `emitted-from` primitive needs it, so it must be permitted in a macro
+/// body. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a;
+/// originally arc 278 §4); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Reflection
 /// @ret     :wat::WatAST a spliceable `(:wat::kernel::Frame' file line symbol)` form
 /// @example-norun (:wat::kernel::macro-call-site) #=> #wat/WatAST{}

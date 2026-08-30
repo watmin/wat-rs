@@ -54,11 +54,15 @@ use crate::value::{EvalBreak, Value};
 
 /// `(:wat::vec::length v)` → the number of elements in `v`.
 ///
+/// **Expand-time ground —** `:wat::vec::*` is `:wat::core::Vector/*`'s replacement home (arc
+/// 255 Stone E-ii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @ret     :wat::core::i64 the number of elements in `v`
@@ -72,11 +76,15 @@ pub(crate) fn vector_length(v: &Value) -> Result<Value, EvalBreak> {
 
 /// `(:wat::vec::empty? v)` → whether `v` has zero elements.
 ///
+/// **Expand-time ground —** `:wat::vec::*` is `:wat::core::Vector/*`'s replacement home (arc
+/// 255 Stone E-ii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @ret     :wat::core::bool true iff `v` has zero elements
@@ -91,11 +99,15 @@ pub(crate) fn vector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// `(:wat::vec::contains? v item)` → whether `item` occurs as an element of
 /// `v`.
 ///
+/// **Expand-time ground —** `:wat::vec::*` is `:wat::core::Vector/*`'s replacement home (arc
+/// 255 Stone E-ii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @arg     item :T the candidate element
@@ -111,11 +123,15 @@ pub(crate) fn vector_contains_q(v: &Value, item: &Value) -> Result<Value, EvalBr
 /// `(:wat::vec::get v i)` → `Some` of the element at index `i` in `v`, or
 /// `None` on an out-of-range index. Safe: never raises on OOB.
 ///
+/// **Expand-time ground —** `:wat::vec::*` is `:wat::core::Vector/*`'s replacement home (arc
+/// 255 Stone E-ii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @arg     i :wat::core::i64 the index looked up
@@ -131,11 +147,15 @@ pub(crate) fn vector_get(v: &Value, i: &Value) -> Result<Value, EvalBreak> {
 /// `(:wat::vec::conj v item)` → a NEW `Vector` with `item` appended; the
 /// original `v` is UNCHANGED.
 ///
+/// **Expand-time ground —** `:wat::vec::*` is `:wat::core::Vector/*`'s replacement home (arc
+/// 255 Stone E-ii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v (:wat::core::Vector :- [T]) the vector transformed
 /// @arg     item :T the element appended
@@ -153,11 +173,15 @@ pub(crate) fn vector_conj(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
 /// `PersistentVector` mix is a `TypeMismatch` — see `:wat::vec::extend` for
 /// the widened-source sibling).
 ///
+/// **Expand-time ground —** `:wat::vec::*` is `:wat::core::Vector/*`'s replacement home (arc
+/// 255 Stone E-ii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     left (:wat::core::Vector :- [T]) the left half
 /// @arg     right (:wat::core::Vector :- [T]) the right half

@@ -111,11 +111,15 @@ fn arg_i64(
 /// `(:wat::string::contains? haystack needle)` → whether `needle` occurs
 /// anywhere in `haystack`.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string searched
 /// @arg     needle   :wat::core::String the substring sought
@@ -139,11 +143,15 @@ pub(crate) fn eval_string_contains(
 /// `(:wat::string::starts-with? haystack prefix)` → whether `haystack` begins
 /// with `prefix`.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
 /// @arg     prefix   :wat::core::String the prefix sought
@@ -167,11 +175,15 @@ pub(crate) fn eval_string_starts_with(
 /// `(:wat::string::ends-with? haystack suffix)` → whether `haystack` ends
 /// with `suffix`.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
 /// @arg     suffix   :wat::core::String the suffix sought
@@ -201,11 +213,16 @@ pub(crate) fn eval_string_ends_with(
 /// HashSet/List — String was never among them). Registered here first so the corpus
 /// migration has a live target to move onto.
 ///
+/// **Expand-time ground —** the home's missing twin
+/// (`intrinsic/string.rs::eval_string_empty`); `wat/core.wat`'s `format` macro calls it in its
+/// own body. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a; Stone F); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     s :wat::core::String the string to test
 /// @ret     :wat::core::bool true iff `s` has zero characters
@@ -228,11 +245,15 @@ pub(crate) fn eval_string_empty(
 /// "string length" for scripts using grapheme-sized characters, not UTF-8
 /// byte length. For byte length, encode through `:wat::core::Vector<u8>`.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to measure
 /// @ret     :wat::core::i64 the number of Unicode scalar values in `s`
@@ -251,11 +272,15 @@ pub(crate) fn eval_string_length(
 /// `(:wat::string::trim s)` → `s` with leading and trailing whitespace
 /// removed.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to trim
 /// @ret     :wat::core::String the string with leading and trailing whitespace removed
@@ -278,11 +303,15 @@ pub(crate) fn eval_string_trim(
 /// Arc 209 Stone C.3 — needed by the `defservice` macro to derive fn names
 /// from PascalCase op keywords.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to lowercase
 /// @ret     :wat::core::String `s` with every character lowercased
@@ -305,11 +334,15 @@ pub(crate) fn eval_string_to_lowercase(
 /// Arc 209 naming-conversion stone; needed by the `kebab->pascal` wat helper
 /// to capitalize each segment's first character.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to uppercase
 /// @ret     :wat::core::String `s` with every character uppercased
@@ -335,11 +368,17 @@ pub(crate) fn eval_string_to_uppercase(
 /// total on the disciplined subset (one uppercase letter per word, no
 /// consecutive-capital acronym runs) — `pascal->kebab-in` handles acronyms.
 ///
+/// **Expand-time ground —** the `defservice` macro calls this at expand time to derive names
+/// (fn names from PascalCase/kebab, or the surface's Op/Reply variant names from a namespace's
+/// declared acronyms); pure, deterministic, no IO. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a; naming-conversion arcs 209, 265, 278 #16.2, 293
+/// S2); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the PascalCase string to convert
 /// @ret     :wat::core::String the kebab-case rendering of `s`
@@ -374,11 +413,17 @@ pub(crate) fn eval_string_pascal_to_kebab(
 /// `defservice` macro at expand time to derive fn names from PascalCase op
 /// keywords using the namespace's declared acronyms (arc 265).
 ///
+/// **Expand-time ground —** the `defservice` macro calls this at expand time to derive names
+/// (fn names from PascalCase/kebab, or the surface's Op/Reply variant names from a namespace's
+/// declared acronyms); pure, deterministic, no IO. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a; naming-conversion arcs 209, 265, 278 #16.2, 293
+/// S2); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
 /// @arg     s  :wat::core::String  the PascalCase string to convert
@@ -409,11 +454,17 @@ pub(crate) fn eval_string_pascal_to_kebab_in(
 /// else capitalize (first char upper, rest as-is). No entry for `ns` → plain
 /// capitalize-every-segment behavior. Arc 265 acronym-registry stone.
 ///
+/// **Expand-time ground —** the `defservice` macro calls this at expand time to derive names
+/// (fn names from PascalCase/kebab, or the surface's Op/Reply variant names from a namespace's
+/// declared acronyms); pure, deterministic, no IO. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a; naming-conversion arcs 209, 265, 278 #16.2, 293
+/// S2); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
 /// @arg     s  :wat::core::String  the kebab-case string to convert
@@ -443,11 +494,18 @@ pub(crate) fn eval_string_kebab_to_pascal_in(
 /// 5)` → `"hello"`. `(subs "abc" 1 1)` → `""` (empty range). Out-of-range
 /// indices raise a clean diagnostic rather than panicking.
 ///
+/// **Expand-time ground —** the `format` macro walks its template character-by-character at
+/// expand time (`length` + `subs i (i+1)`) to collapse the `{{`/`}}` literal-brace escape;
+/// char-indexed and total-deterministic (an out-of-range index is a deterministic abort, like
+/// `split`'s empty-separator refusal) — a macro needs it. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a; arc 279.1); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s     :wat::core::String the string to slice
 /// @arg     start :wat::core::i64    the start index, inclusive
@@ -493,11 +551,15 @@ pub(crate) fn eval_string_subs(
 /// obvious what the caller wanted. Callers who genuinely want per-char
 /// iteration can encode through `Vec<u8>` via the IO layer.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     haystack :wat::core::String the string to split
 /// @arg     sep      :wat::core::String the separator; must not be empty
@@ -540,11 +602,15 @@ pub(crate) fn eval_string_split(
 /// uses (`render_str_total`, `string/mod.rs`, 279.3), so `join` and `str`
 /// cannot drift.
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     sep    :wat::core::String the separator
 /// @arg     pieces (:wat::core::Seqable :- [T]) the elements to render and join
@@ -622,11 +688,15 @@ pub(crate) fn eval_string_join(
 /// list errors (the empty string has no useful concat semantics worth
 /// special-casing).
 ///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "String ops" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args… :wat::core::String the strings to concatenate, in order
 /// @ret     :wat::core::String every argument, concatenated in order
@@ -687,11 +757,16 @@ pub(crate) fn eval_string_concat(
 /// RuntimeError). Repeated `{name}` against one `:name` is fine. A lone `{`
 /// or `}` in the template is a RuntimeError. Arc 284.
 ///
+/// **Expand-time ground —** pure-total interpolation: same `{name}` + `:name val` grammar as
+/// the `format` macro, but interpolates at call time — expand-time-legal in macro bodies.
+/// Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a; arc
+/// 284); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the template followed by `:name value` kwarg pairs
 /// @ret     :wat::core::String `tmpl` with each `{name}` replaced by its rendered `:name` kwarg
@@ -943,11 +1018,18 @@ pub(crate) fn eval_string_declare_acronyms(
 /// `(:wat::string::to-i64 s)` → `s` parsed as a base-10 `:i64`, or `None` if
 /// it does not parse.
 ///
+/// **Expand-time ground —** scalar conversions: pure, deterministic value-to-value
+/// conversion. Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Scalar
+/// conversions" group (whose header note explains the list also carries this verb's
+/// dual-spelled sibling, so either surface spelling is legal in a macro body); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(n)` on a valid base-10 i64 literal, `None` otherwise
@@ -969,11 +1051,18 @@ pub(crate) fn eval_string_to_i64(
 /// `(:wat::string::to-f64 s)` → `s` parsed as an `:f64`, or `None` if it does
 /// not parse.
 ///
+/// **Expand-time ground —** scalar conversions: pure, deterministic value-to-value
+/// conversion. Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Scalar
+/// conversions" group (whose header note explains the list also carries this verb's
+/// dual-spelled sibling, so either surface spelling is legal in a macro body); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some(x)` on a valid f64 literal, `None` otherwise
@@ -995,11 +1084,18 @@ pub(crate) fn eval_string_to_f64(
 /// `(:wat::string::to-bool s)` → `Some(true)` for `"true"`, `Some(false)` for
 /// `"false"`, `None` otherwise.
 ///
+/// **Expand-time ground —** scalar conversions: pure, deterministic value-to-value
+/// conversion. Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Scalar
+/// conversions" group (whose header note explains the list also carries this verb's
+/// dual-spelled sibling, so either surface spelling is legal in a macro body); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::bool]) `Some(b)` for exactly `"true"`/`"false"`, `None` otherwise

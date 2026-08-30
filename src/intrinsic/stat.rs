@@ -27,11 +27,17 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// slice 4 (Bollinger's RollingStddev). Universal enough to live in core
 /// stdlib.
 ///
+/// **Expand-time ground —** pure statistics over closed data. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Statistics" group (moved off the dead
+/// `:wat::std::` namespace to `:wat::stat::*`, arc 255 Stone HOME-9); the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to average
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population mean of `xs`, or `None` on empty input
@@ -50,11 +56,17 @@ pub(crate) fn eval_stat_mean_intrinsic(
 /// `n`; matches numpy's default `ddof=0`). `None` on empty input;
 /// single-point input returns `Some(0.0)` (no spread).
 ///
+/// **Expand-time ground —** pure statistics over closed data. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Statistics" group (moved off the dead
+/// `:wat::std::` namespace to `:wat::stat::*`, arc 255 Stone HOME-9); the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population variance of `xs`, or `None` on empty input
@@ -72,11 +84,17 @@ pub(crate) fn eval_stat_variance_intrinsic(
 /// `(:wat::stat::stddev xs)` → the square root of the population variance of
 /// `xs`.
 ///
+/// **Expand-time ground —** pure statistics over closed data. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Statistics" group (moved off the dead
+/// `:wat::std::` namespace to `:wat::stat::*`, arc 255 Stone HOME-9); the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some` the population standard deviation of `xs`, or `None` on empty input

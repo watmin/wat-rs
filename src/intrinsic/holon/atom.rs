@@ -122,11 +122,16 @@ use holon::{encode, HolonAST, Similarity};
 /// THE ONE PRODUCER in this file: stamps `Provenance::RuntimeBuilt` (see
 /// module doc).
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the HolonAST to decode, alone or with a `-> :T` type-hint suffix
 /// @ret     :T the decoded wat value
@@ -440,11 +445,16 @@ pub(crate) fn eval_holon_from_holon(
 /// classifier machinery — the escape hatch collection classifiers wrap
 /// their classifier name in.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST to wrap, alone
 /// @ret     :wat::holon::HolonAST an `Atom` wrapping the given HolonAST
@@ -466,11 +476,16 @@ pub(crate) fn eval_holon_atom_constructor(
 /// primitives). The general-purpose encoder; `leaf` is its primitive-only
 /// fast path.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :T the value to encode, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding `v`
@@ -492,11 +507,16 @@ pub(crate) fn eval_holon_to_holon(
 /// (`i64`/`f64`/`bool`/`String`/keyword/`nil`). Raises on anything else —
 /// use `Atom`/`from-wat`/`to-holon` instead.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :T the primitive value to wrap, alone
 /// @ret     :wat::holon::HolonAST the primitive leaf
@@ -543,11 +563,16 @@ pub(crate) fn eval_holon_leaf(
 /// `(:wat::holon::from-wat a)` -> a HolonAST composition lowering quoted
 /// wat form `a` (typically produced by `:wat::core::quote`) structurally.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     a :wat::WatAST the quoted form to lower, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding the form's structure
@@ -586,11 +611,16 @@ pub(crate) fn eval_holon_from_wat(
 /// `(:wat::holon::to-wat h)` -> the quoted wat form `h` lowers back to —
 /// the inverse of `from-wat`.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST to raise back to a form, alone
 /// @ret     :wat::WatAST the reconstructed quoted form
@@ -966,11 +996,16 @@ pub(crate) fn eval_algebra_tuple(
 /// VECTOR-level identity observable via `cosine`/`presence?`, not an
 /// AST-level rewrite this constructor performs.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Combine
 /// @arg     a :wat::holon::HolonAST the two operands bound together, in order
 /// @arg     b :wat::holon::HolonAST the two operands bound together, in order
@@ -1016,11 +1051,16 @@ pub(crate) fn eval_algebra_bind(
 /// capacity budget (`floor(sqrt(d))`); over budget, `Err` under
 /// `:error` capacity mode or a panic under `:panic` mode.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Combine
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs bundled, alone
 /// @ret     (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded]) `Ok` the Bundle composition, or `Err` a `CapacityExceeded`
@@ -1103,11 +1143,16 @@ pub(crate) fn eval_algebra_bundle(
 /// — `h` cyclically shifted by `k` positions at the vector level, used to
 /// encode sequence position / depth.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST permuted and the integer shift amount, in order
 /// @arg     k :wat::core::i64 the HolonAST permuted and the integer shift amount, in order
@@ -1159,11 +1204,16 @@ pub(crate) fn eval_algebra_permute(
 /// encoding scalar `v`, clamped to `[min, max]`, via a thermometer code —
 /// the raw form `therm-form` also builds, taking already-`f64` args.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :wat::core::f64 the value and its `[min, max]` range, in order
 /// @arg     min :wat::core::f64 the value and its `[min, max]` range, in order
@@ -1191,11 +1241,16 @@ pub(crate) fn algebra_thermometer(
 /// composition — a weighted vector-level average of `a` and `b`, unlike
 /// `Bundle`'s unweighted superposition.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Combine
 /// @arg     a :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
 /// @arg     b :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
@@ -1230,11 +1285,16 @@ pub(crate) fn algebra_blend(
 /// (from a `Map`/`Set`/`Vector`/`List`/`Tuple`-style `Bind(Atom(name),
 /// ...)` composition) may be absent, returned as an `Option`.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     x :wat::holon::HolonAST the HolonAST or Record probed, alone
 /// @ret     (:wat::core::Option :- [:wat::core::String]) the classifier name — a bare `String` (Record) or an `Option` (HolonAST)
@@ -1276,11 +1336,16 @@ pub(crate) fn eval_extract_classifier(
 /// `(:wat::holon::Bind/left h)` -> `(:Option :- [wat::holon::HolonAST])`,
 /// the left child of `h` if `h` is a `Bind` composition, else `None`.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) `h`'s left child, or `None`
@@ -1317,11 +1382,16 @@ pub(crate) fn eval_bind_left(
 /// `(:wat::holon::Bind/right h)` -> `(:Option :- [wat::holon::HolonAST])`,
 /// the right child of `h` if `h` is a `Bind` composition, else `None`.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) `h`'s right child, or `None`
@@ -1359,11 +1429,16 @@ pub(crate) fn eval_bind_right(
 /// the children of `h`, which must be a `Bundle` composition. Raises on
 /// any other shape.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [:wat::holon::HolonAST]) `h`'s children, in order
@@ -1405,11 +1480,16 @@ pub(crate) fn eval_bundle_children(
 /// be a non-empty `Bundle` composition. Raises on any other shape, or an
 /// empty Bundle.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     :wat::holon::HolonAST `h`'s first child
@@ -1457,11 +1537,16 @@ pub(crate) fn eval_bundle_first(
 /// `"Map"` (i.e. `(:wat::holon::is? x "Map")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Map`-classified HolonAST
@@ -1481,11 +1566,16 @@ pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `"Set"` (i.e. `(:wat::holon::is? x "Set")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Set`-classified HolonAST
@@ -1505,11 +1595,16 @@ pub(crate) fn holon_is_set_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `"Vector"` (i.e. `(:wat::holon::is? x "Vector")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Vector`-classified HolonAST
@@ -1529,11 +1624,16 @@ pub(crate) fn holon_is_vector_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `"List"` (i.e. `(:wat::holon::is? x "List")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `List`-classified HolonAST
@@ -1553,11 +1653,16 @@ pub(crate) fn holon_is_list_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `"Tuple"` (i.e. `(:wat::holon::is? x "Tuple")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Tuple`-classified HolonAST
@@ -1577,11 +1682,16 @@ pub(crate) fn holon_is_tuple_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `"Symbol"` (i.e. `(:wat::holon::is? x "Symbol")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Symbol`-classified HolonAST
@@ -1601,11 +1711,16 @@ pub(crate) fn holon_is_symbol_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `"Keyword"` (i.e. `(:wat::holon::is? x "Keyword")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Keyword`-classified HolonAST
@@ -1625,11 +1740,16 @@ pub(crate) fn holon_is_keyword_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `"Tag"` (i.e. `(:wat::holon::is? x "Tag")`). `false` for any
 /// non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Tag`-classified HolonAST
@@ -1648,11 +1768,16 @@ pub(crate) fn holon_is_tag_q(x: &Value) -> Result<Value, EvalBreak> {
 /// `(:wat::holon::is-Nil? x)` -> whether `x` is a HolonAST `nil`
 /// composition. `false` for any non-HolonAST value.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a nil-composition HolonAST
@@ -1671,11 +1796,16 @@ pub(crate) fn holon_is_nil_q(x: &Value) -> Result<Value, EvalBreak> {
 /// classifier equals `class`. The general form the eight `is-*?` shortcuts
 /// (`is-Map?` etc.) delegate the same check to.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed and the classifier name, in order
 /// @arg     class :wat::core::String the value probed and the classifier name, in order
@@ -2947,11 +3077,16 @@ pub(crate) fn eval_holon_vector_permute(
 /// primitive leaf (including Symbol/Keyword/Tag/Nil compositions), 2 for
 /// `Bind`/`Blend`, and the child count for `Bundle`.
 ///
+/// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Holon AST / form construction" group;
+/// the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ast :wat::holon::HolonAST the HolonAST measured, alone
 /// @ret     :wat::core::i64 the top-level form's structural size

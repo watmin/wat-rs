@@ -55,11 +55,15 @@ use crate::value::{EvalBreak, Value};
 
 /// `(:wat::hashset::length s)` → the number of elements in `s`.
 ///
+/// **Expand-time ground —** `:wat::hashset::*` is `:wat::core::HashSet/*`'s replacement home
+/// (arc 255 Stone E-iii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     s (:wat::core::HashSet :- [T]) the set probed
 /// @ret     :wat::core::i64 the number of elements in `s`
@@ -73,11 +77,15 @@ pub(crate) fn hashset_length(s: &Value) -> Result<Value, EvalBreak> {
 
 /// `(:wat::hashset::empty? s)` → whether `s` has zero elements.
 ///
+/// **Expand-time ground —** `:wat::hashset::*` is `:wat::core::HashSet/*`'s replacement home
+/// (arc 255 Stone E-iii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     s (:wat::core::HashSet :- [T]) the set probed
 /// @ret     :wat::core::bool true iff `s` has zero elements
@@ -93,11 +101,15 @@ pub(crate) fn hashset_empty_q(s: &Value) -> Result<Value, EvalBreak> {
 /// An unhashable `item` always returns `false` (it can never have been
 /// inserted).
 ///
+/// **Expand-time ground —** `:wat::hashset::*` is `:wat::core::HashSet/*`'s replacement home
+/// (arc 255 Stone E-iii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     s (:wat::core::HashSet :- [T]) the set probed
 /// @arg     item :T the candidate element
@@ -114,11 +126,15 @@ pub(crate) fn hashset_contains_q(s: &Value, item: &Value) -> Result<Value, EvalB
 /// the original `s` is UNCHANGED. Raises `TypeMismatch` if `item` is not a
 /// hashable value.
 ///
+/// **Expand-time ground —** `:wat::hashset::*` is `:wat::core::HashSet/*`'s replacement home
+/// (arc 255 Stone E-iii); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s (:wat::core::HashSet :- [T]) the set transformed
 /// @arg     item :T the element inserted

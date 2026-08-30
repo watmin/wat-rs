@@ -1063,9 +1063,17 @@ mod tests {
     /// WITNESS (`wat/runtime-meta.wat`'s `ExpandTime` doc names it explicitly):
     /// nondeterministic yet expand-time-legal — minting a different gensym per call
     /// is what makes hygienic macro expansion possible — so its `@ExpandTime Legal`
-    /// is a true, load-bearing claim rather than decoration. `:wat::i64::*` is the
-    /// other side: it declares `@Total` (required) but no `@ExpandTime`, so it must
-    /// read back the default.
+    /// is a true, load-bearing claim rather than decoration.
+    ///
+    /// ⚠ THE NEGATIVE CONTROL MUST BE A VERB THAT CANNOT DRIFT ONTO THE ALLOW-LIST.
+    /// This test originally used `:wat::i64::*`, and stone expand-T4a broke it — `i64::*`
+    /// is one of the 143 verbs the allow-list blesses, so transcribing that blessing
+    /// legitimately turned the control's "declares nothing" fixture into a `Legal`. A
+    /// control chosen from the pure-and-deterministic population is a control waiting to
+    /// be blessed. `:wat::kernel::println` is structurally stable instead: it is
+    /// `@Purity Effectful`, and expand-1's audit of all 202 entries found ZERO effectful
+    /// verbs blessed — default-deny's other half has held perfectly — so an effectful
+    /// verb cannot join the list without violating the list's own doctrine.
     #[test]
     fn expand_time_is_carried_from_the_doc_into_the_registry_entry() {
         let reg = super::registry();
@@ -1082,15 +1090,15 @@ mod tests {
 
         // The other side: a verb that declares NOTHING must read back the default. If this
         // also said `Legal`, the field would be hard-wired rather than carried.
-        let mul = reg
+        let effectful = reg
             .all_entries()
-            .find(|e| e.name == ":wat::i64::*")
-            .expect(":wat::i64::* must be registered");
+            .find(|e| e.name == ":wat::kernel::println")
+            .expect(":wat::kernel::println must be registered");
         assert_eq!(
-            mul.expand_time,
+            effectful.expand_time,
             wat_doc::ExpandTime::Unreviewed,
-            "`:wat::i64::*` declares no `@ExpandTime`; it must read the `Unreviewed` default, \
-             or the field is not being carried per-verb at all"
+            "`:wat::kernel::println` declares no `@ExpandTime`; it must read the `Unreviewed` \
+             default, or the field is not being carried per-verb at all"
         );
     }
 

@@ -52,11 +52,18 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// — never wrapped, never conflated with `DivisionByZero` — via the SAME
 /// shared op fn `:wat::i64::+` calls.
 ///
+/// **Expand-time ground —** integer arithmetic: pure, total, wrapping; `mod`/`rem`/`quot`
+/// route through the same `eval_i64_arith` dispatch as `/` — div-by-zero is a deterministic
+/// located abort (`RuntimeErrorKind::DivisionByZero`), never a panic, same as `/`. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Integer arithmetic" group; the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the left addend
 /// @arg     b :wat::core::i64 the right addend
@@ -97,11 +104,18 @@ fn eval_i64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// `(:wat::i64::- a b)` → `a` minus `b`, strict i64. Overflow raises
 /// `RuntimeErrorKind::IntegerOverflow`, same shared op fn as `:wat::i64::-`.
 ///
+/// **Expand-time ground —** integer arithmetic: pure, total, wrapping; `mod`/`rem`/`quot`
+/// route through the same `eval_i64_arith` dispatch as `/` — div-by-zero is a deterministic
+/// located abort (`RuntimeErrorKind::DivisionByZero`), never a panic, same as `/`. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Integer arithmetic" group; the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the minuend
 /// @arg     b :wat::core::i64 the subtrahend
@@ -132,11 +146,18 @@ fn eval_i64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// `(:wat::i64::* a b)` → `a` times `b`, strict i64. Overflow raises
 /// `RuntimeErrorKind::IntegerOverflow`, same shared op fn as `:wat::i64::*`.
 ///
+/// **Expand-time ground —** integer arithmetic: pure, total, wrapping; `mod`/`rem`/`quot`
+/// route through the same `eval_i64_arith` dispatch as `/` — div-by-zero is a deterministic
+/// located abort (`RuntimeErrorKind::DivisionByZero`), never a panic, same as `/`. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Integer arithmetic" group; the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the first factor
 /// @arg     b :wat::core::i64 the second factor
@@ -168,11 +189,18 @@ fn eval_i64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// raises `DivisionByZero`; `i64::MIN / -1` raises `IntegerOverflow` — the
 /// one division-overflow edge. Same shared op fn as `:wat::i64::/`.
 ///
+/// **Expand-time ground —** integer arithmetic: pure, total, wrapping; `mod`/`rem`/`quot`
+/// route through the same `eval_i64_arith` dispatch as `/` — div-by-zero is a deterministic
+/// located abort (`RuntimeErrorKind::DivisionByZero`), never a panic, same as `/`. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Integer arithmetic" group; the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Partial
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -208,11 +236,18 @@ fn eval_i64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// DIVISOR (clj's `mod`). `b = 0` raises `DivisionByZero`. Same shared op fn
 /// as `:wat::i64::mod`.
 ///
+/// **Expand-time ground —** integer arithmetic: pure, total, wrapping; `mod`/`rem`/`quot`
+/// route through the same `eval_i64_arith` dispatch as `/` — div-by-zero is a deterministic
+/// located abort (`RuntimeErrorKind::DivisionByZero`), never a panic, same as `/`. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Integer arithmetic" group; the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -253,11 +288,18 @@ fn eval_i64_mod_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// (clj's `quot`). `b = 0` raises `DivisionByZero`. Same shared op fn as
 /// `:wat::i64::quot`.
 ///
+/// **Expand-time ground —** integer arithmetic: pure, total, wrapping; `mod`/`rem`/`quot`
+/// route through the same `eval_i64_arith` dispatch as `/` — div-by-zero is a deterministic
+/// located abort (`RuntimeErrorKind::DivisionByZero`), never a panic, same as `/`. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Integer arithmetic" group; the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -293,11 +335,18 @@ fn eval_i64_quot_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> 
 /// follows the DIVIDEND (clj's `rem`). `b = 0` raises `DivisionByZero`. Same
 /// shared op fn as `:wat::i64::rem`.
 ///
+/// **Expand-time ground —** integer arithmetic: pure, total, wrapping; `mod`/`rem`/`quot`
+/// route through the same `eval_i64_arith` dispatch as `/` — div-by-zero is a deterministic
+/// located abort (`RuntimeErrorKind::DivisionByZero`), never a panic, same as `/`. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Integer arithmetic" group; the
+/// verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
 /// @arg     b :wat::core::i64 the divisor
@@ -345,11 +394,16 @@ fn eval_i64_rem_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
 /// made by reading the implementation.
 ///
+/// **Expand-time ground —** integer comparison: pure, deterministic, total over `i64`. Safe
+/// to evaluate at macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Integer comparison" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -376,11 +430,16 @@ pub(crate) fn eval_i64_lt(
 /// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
 /// made by reading the implementation.
 ///
+/// **Expand-time ground —** integer comparison: pure, deterministic, total over `i64`. Safe
+/// to evaluate at macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Integer comparison" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -407,11 +466,16 @@ pub(crate) fn eval_i64_lte(
 /// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
 /// made by reading the implementation.
 ///
+/// **Expand-time ground —** integer comparison: pure, deterministic, total over `i64`. Safe
+/// to evaluate at macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Integer comparison" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -438,11 +502,16 @@ pub(crate) fn eval_i64_gt(
 /// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
 /// made by reading the implementation.
 ///
+/// **Expand-time ground —** integer comparison: pure, deterministic, total over `i64`. Safe
+/// to evaluate at macro-expansion time. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Integer comparison" group; the verdict is that
+/// list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -469,11 +538,17 @@ pub(crate) fn eval_i64_gte(
 /// `i64::not=` in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is
 /// that list's, made by reading the implementation.
 ///
+/// **Expand-time ground —** comparison over two same-category scalars; gap closure, not a
+/// rename (builder ruling 2026-08-26: "if we're missing logical stuff, we add it - we are
+/// cleaning up months of hacking"). Pure, and at least as total as `i64::/` (whose
+/// division-by-zero is blessed above as a deterministic located abort). Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -500,11 +575,17 @@ pub(crate) fn eval_i64_eq(
 /// in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the verdict is that list's,
 /// made by reading the implementation.
 ///
+/// **Expand-time ground —** comparison over two same-category scalars; gap closure, not a
+/// rename (builder ruling 2026-08-26: "if we're missing logical stuff, we add it - we are
+/// cleaning up months of hacking"). Pure, and at least as total as `i64::/` (whose
+/// division-by-zero is blessed above as a deterministic located abort). Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
 /// @arg     b :wat::core::i64 the right operand
@@ -533,11 +614,16 @@ pub(crate) fn eval_i64_not_eq(
 /// `(:wat::i64::to-bigint n)` → `n` promoted to arbitrary-precision
 /// `:wat::core::bigint`. Infallible (bigint always holds i64's full range).
 ///
+/// **Expand-time ground —** `i64 -> BigInt`, a widening; no domain failure. Gap closure, not
+/// a rename (builder ruling 2026-08-26: "if we're missing logical stuff, we add it - we are
+/// cleaning up months of hacking"). Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
 /// @ret     :wat::core::bigint `n`, promoted to bigint
@@ -561,11 +647,18 @@ pub(crate) fn eval_i64_to_bigint(
 /// finite, never ±Inf. From `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the
 /// verdict is that list's, made by reading the implementation.
 ///
+/// **Expand-time ground —** scalar conversions: pure, deterministic value-to-value
+/// conversion. Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Scalar
+/// conversions" group (whose header note explains the list also carries this verb's
+/// dual-spelled sibling, so either surface spelling is legal in a macro body); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to cast
 /// @ret     :wat::core::f64 `n`, cast to f64
@@ -583,11 +676,16 @@ pub(crate) fn eval_i64_to_f64(
 /// `(:wat::i64::to-rational n)` → `n` promoted to `:wat::core::rational`.
 /// Infallible.
 ///
+/// **Expand-time ground —** `i64 -> Rational` (`n/1`); no domain failure. Gap closure, not a
+/// rename (builder ruling 2026-08-26: "if we're missing logical stuff, we add it - we are
+/// cleaning up months of hacking"). Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
 /// @ret     :wat::core::rational `n`, promoted to rational
@@ -610,11 +708,18 @@ pub(crate) fn eval_i64_to_rational(
 /// `bool::to-string` trio in `rete/purity.rs`'s `total` sub-list (arc 255 total-T4a); the
 /// verdict is that list's, made by reading the implementation.
 ///
+/// **Expand-time ground —** scalar conversions: pure, deterministic value-to-value
+/// conversion. Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated
+/// from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Scalar
+/// conversions" group (whose header note explains the list also carries this verb's
+/// dual-spelled sibling, so either surface spelling is legal in a macro body); the verdict is
+/// that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Total
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to render
 /// @ret     :wat::core::String the base-10 rendering of `n`

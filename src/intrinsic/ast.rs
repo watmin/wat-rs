@@ -62,11 +62,18 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue};
 /// `ReadOutcome::Malformed[cause]`, never a raise: wat has no try/catch, so a raise here would be
 /// unsurvivable by construction, and at a REPL one stray control byte used to end the session.
 ///
+/// **Expand-time ground —** the read→walk→rebuild→write spine: parse, decompose,
+/// kind-preserving rebuild, serialize — all deterministic, errors-as-values, no IO.
+/// Pure-total node walk/build (arc 251.5a), admitted after the arc-249 whitelist was written
+/// because no defmacro needed to walk a binder Vector node until arc 209 Stone C.1's
+/// `defservice`. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "Homoiconic WatAST bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the wat source text parsed
 /// @ret     :wat::core::ReadOutcome `Forms[ast]` on success, `Malformed[cause]` otherwise
@@ -91,11 +98,17 @@ pub(crate) fn eval_read_string_home(
 /// `::` → `.`) — `(read-string (ast->source form))` reproduces the SAME form, `::` notation
 /// surviving round-trip untranslated.
 ///
+/// **Expand-time ground —** the sift `Predicate`'s `sieve-pred` capture macro calls this at
+/// expand time (captures the user's `(fn …)` form, prints it verbatim into the
+/// `Sieve::Predicate` String field); pure and deterministic, same category as its siblings
+/// (`write-forms`/`ast-name`/`ast->children`). Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a; arc 278 Stone 2); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ast :wat::WatAST the node serialized
 /// @ret     :wat::core::String the verbatim `::`-faithful source text
@@ -119,11 +132,16 @@ pub(crate) fn eval_ast_to_source_home(
 /// applies for free. A List/Vector/Set node yields its items; a Map yields its keys and values
 /// interleaved; a leaf (Symbol/Keyword/literal) yields the empty vector.
 ///
+/// **Expand-time ground —** pure-total node walk/build over `WatAST` (arc 251.5a); no IO.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ast :wat::WatAST the node decomposed
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) `ast`'s children, in order (empty for a leaf)
@@ -147,11 +165,16 @@ pub(crate) fn eval_ast_children_home(
 /// 251.5a-v): one of `"int"`, `"float"`, `"rational"`, `"bigint"`, `"char"`, `"bool"`,
 /// `"string"`, `"nil"`, `"keyword"`, `"symbol"`, `"list"`, `"vector"`, `"set"`, `"map"`.
 ///
+/// **Expand-time ground —** pure-total node walk/build over `WatAST` (arc 251.5a); no IO.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     ast :wat::WatAST the node probed
 /// @ret     :wat::core::String `ast`'s kind discriminant
@@ -172,11 +195,16 @@ pub(crate) fn eval_ast_kind_home(
 /// node (arc 251.5a-v), or the unquoted string VALUE of a StringLit node (arc 279 — the `format`
 /// macro needs a template's literal text at expand time). Raises on any other node kind.
 ///
+/// **Expand-time ground —** pure-total node walk/build over `WatAST` (arc 251.5a); no IO.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     ast :wat::WatAST the Symbol, Keyword, or StringLit node probed
 /// @ret     :wat::core::String `ast`'s verbatim name/text
@@ -198,11 +226,16 @@ pub(crate) fn eval_ast_name_home(
 /// intentionally excluded — the single-file codemod consumer holds its own path and threads it
 /// directly, not because file is unknowable.
 ///
+/// **Expand-time ground —** pure-total node walk/build over `WatAST` (arc 251.5a); no IO.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     ast :wat::WatAST the node probed
 /// @ret     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) `{:line N :col N}`, `ast`'s start location
@@ -222,11 +255,16 @@ pub(crate) fn eval_ast_span_home(
 /// Source END location of any node (arc 281) — the position ONE char past the node's last char
 /// (for `(a b c)`, col 8, just after the `)`). Symmetric twin of `ast-span`.
 ///
+/// **Expand-time ground —** pure-total node walk/build over `WatAST` (arc 251.5a); no IO.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     ast :wat::WatAST the node probed
 /// @ret     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) `{:line N :col N}`, `ast`'s end location
@@ -250,11 +288,16 @@ pub(crate) fn eval_ast_end_span_home(
 /// (`angle_type_head_in_name`) — arc 109 annihilated the angle bracket at the lexer, so no legal
 /// program can produce that token; this door refuses to mint one out-of-band.
 ///
+/// **Expand-time ground —** pure-total node walk/build over `WatAST` (arc 251.5a); no IO.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the bare symbol text
 /// @ret     :wat::WatAST a Symbol node carrying `s`
@@ -275,11 +318,16 @@ pub(crate) fn eval_symbol_node_home(
 /// carrying `s`'s text; `s` MUST start with `:`. Raises on a missing `:` prefix or on an
 /// angle-bracketed generic-looking name (`angle_type_head_in_name`), same door as `symbol-node`.
 ///
+/// **Expand-time ground —** pure-total node walk/build over `WatAST` (arc 251.5a); no IO.
+/// Safe to evaluate while a `defmacro` body is being expanded. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" group; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the `:`-prefixed keyword text
 /// @ret     :wat::WatAST a Keyword node carrying `s`

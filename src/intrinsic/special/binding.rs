@@ -14,12 +14,17 @@ use wat_macros::wat_special_form;
 /// satisfies the axis exactly as `Total` does — see `intrinsic/mod.rs:1038`'s
 /// `matches!(purity, Pure | Preserving)` convention), which is what makes the correction
 /// safe to land alongside the derivation rather than needing its own stone.
+///
+/// **Expand-time ground —** control flow: safe to evaluate while a `defmacro` body is being
+/// expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "Control flow" group; the verdict is that list's.
+///
 /// @added 1.0.0
 /// @Category Binding
 /// @Purity Preserving
 /// @Determinism Preserving
 /// @Total       Preserving
-/// @ExpandTime  Unreviewed
+/// @ExpandTime  Legal
 /// @syntax (let [<binder> <expr> ...] <body>+)
 /// @ret :T the value of the final body form
 /// @example (:wat::core::let [x 1 y 2] (:wat::i64::+ x y)) #=> 3

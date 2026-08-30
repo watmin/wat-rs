@@ -25,11 +25,16 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
 /// `(:wat::math::ln x)` → the natural logarithm of `x`.
 ///
+/// **Expand-time ground —** pure, deterministic math function. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Math" group (moved off the dead `:wat::std::`
+/// namespace to `:wat::math::*`, arc 255 Stone HOME-9); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the value to take the natural log of
 /// @ret     :wat::core::f64 the natural logarithm of `x`
@@ -46,11 +51,16 @@ pub(crate) fn eval_math_ln_intrinsic(
 
 /// `(:wat::math::exp x)` → `e` raised to the power `x`.
 ///
+/// **Expand-time ground —** pure, deterministic math function. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Math" group (moved off the dead `:wat::std::`
+/// namespace to `:wat::math::*`, arc 255 Stone HOME-9); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the exponent
 /// @ret     :wat::core::f64 `e` raised to the power `x`
@@ -67,11 +77,16 @@ pub(crate) fn eval_math_exp_intrinsic(
 
 /// `(:wat::math::sqrt x)` → the non-negative square root of `x`.
 ///
+/// **Expand-time ground —** pure, deterministic math function. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Math" group (moved off the dead `:wat::std::`
+/// namespace to `:wat::math::*`, arc 255 Stone HOME-9); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the value to take the square root of
 /// @ret     :wat::core::f64 the non-negative square root of `x`
@@ -88,11 +103,16 @@ pub(crate) fn eval_math_sqrt_intrinsic(
 
 /// `(:wat::math::sin x)` → the sine of `x` (radians).
 ///
+/// **Expand-time ground —** pure, deterministic math function. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Math" group (moved off the dead `:wat::std::`
+/// namespace to `:wat::math::*`, arc 255 Stone HOME-9); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the angle in radians
 /// @ret     :wat::core::f64 the sine of `x`
@@ -109,11 +129,16 @@ pub(crate) fn eval_math_sin_intrinsic(
 
 /// `(:wat::math::cos x)` → the cosine of `x` (radians).
 ///
+/// **Expand-time ground —** pure, deterministic math function. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Math" group (moved off the dead `:wat::std::`
+/// namespace to `:wat::math::*`, arc 255 Stone HOME-9); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     x :wat::core::f64 the angle in radians
 /// @ret     :wat::core::f64 the cosine of `x`
@@ -131,11 +156,16 @@ pub(crate) fn eval_math_cos_intrinsic(
 /// `(:wat::math::pi)` — the mathematical constant π as `:wat::core::f64`.
 /// Nullary. Backing: `std::f64::consts::PI`.
 ///
+/// **Expand-time ground —** pure, deterministic math function. Safe to evaluate while a
+/// `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a), from its "Math" group (moved off the dead `:wat::std::`
+/// namespace to `:wat::math::*`, arc 255 Stone HOME-9); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @ret     :wat::core::f64 the mathematical constant π
 /// @example (:wat::math::pi) #=> 3.141592653589793

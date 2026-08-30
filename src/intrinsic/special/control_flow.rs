@@ -16,12 +16,17 @@ use wat_macros::wat_special_form;
 /// (`Preserving` satisfies the axis exactly as `Total` does — see `intrinsic/mod.rs:1038`'s
 /// `matches!(purity, Pure | Preserving)` convention), which is what makes the correction
 /// safe to land alongside the derivation rather than needing its own stone.
+///
+/// **Expand-time ground —** control flow: safe to evaluate while a `defmacro` body is being
+/// expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "Control flow" group; the verdict is that list's.
+///
 /// @added 1.0.0
 /// @Category ControlFlow
 /// @Purity Preserving
 /// @Determinism Preserving
 /// @Total       Preserving
-/// @ExpandTime  Unreviewed
+/// @ExpandTime  Legal
 /// @arg cond :wat::core::Bool the condition to branch on
 /// @arg then :T returned when cond is :true (the taken branch)
 /// @arg else :T returned when cond is :false (the taken branch)

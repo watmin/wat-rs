@@ -607,14 +607,25 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::hashmap::get"
         | ":wat::hashmap::assoc"
         | ":wat::hashmap::dissoc"
-        // Arc 255 Stone expand-1 — `:wat::hashmap::keys` / `:wat::hashmap::values` REMOVED.
-        // Both were classified Nondeterministic (`afc9f776b`, corrected from an earlier
-        // DETERMINISTIC misclassification this list never swept) — hash iteration order is
-        // deliberately NOT part of the contract (src/rete/purity.rs, src/value/pmap.rs). A
-        // macro body folding over them would emit different code on different runs; expansion
-        // must be reproducible. Nondeterminism alone does not disqualify a verb from this list
-        // (see `fresh-symbol` / `macro-call-site` below) — what disqualifies these two
-        // specifically is that their nondeterminism varies the EXPANSION itself.
+        // ⛔ Arc 255 Stone expand-1 — `:wat::hashmap::keys` / `:wat::hashmap::values` STAY,
+        // and this comment used to claim they had been REMOVED. That claim was written when
+        // the stone removed them, the removal was RETRACTED before it shipped, and the
+        // header's bullet was corrected while THIS comment was missed — a second copy of the
+        // same paperwork, left asserting an act that never happened. Found by expand-T4a's
+        // rider, which refused to transcribe a blessing the code gave and a comment denied.
+        // `[[feedback_a_walls_paperwork_can_claim_a_door_it_did_not_close]]`
+        //
+        // Why they belong: a `HashMap` is pure data and `keys` is a pure PROJECTION of it —
+        // the same map yields the same SET every time, and only the ORDER is unspecified.
+        // They are `@Determinism Nondeterministic` (`afc9f776b`) and that label is honest,
+        // but this list decides expand-time legality, not determinism. The hazard people
+        // reach for here is a macro whose EXPANSION varies — a property of a USE, not of a
+        // verb, which a verb-level gate cannot see. Removing them refused every
+        // order-INDEPENDENT use too: `:wat::core::format` (wat/core.wat:1939) folds over
+        // `keys` with a discarded `nil` accumulator and emits code that never references
+        // them, and the removal still took 247 tests red by making `format` undefinable.
+        // The honest instrument for order-dependence is EXPANDING A MACRO TWICE AND
+        // COMPARING THE OUTPUT, not a determinism gate on the verb.
         // Arc 255 Stone E-iii — `:wat::core::HashSet/*` retired this stone;
         // `:wat::hashset::*` is its replacement (List was never on this list — that
         // asymmetry predates this stone and is not this stone's to fix; `:wat::linkedlist::*`

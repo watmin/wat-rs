@@ -43,11 +43,15 @@ use crate::value::{EvalBreak, Value};
 
 /// `(:wat::hashmap::length m)` → the number of key/value entries in `m`.
 ///
+/// **Expand-time ground —** `:wat::hashmap::*` is `:wat::core::HashMap/*`'s replacement home
+/// (arc 255 Stone E-i); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @ret     :wat::core::i64 the number of entries in `m`
@@ -60,11 +64,15 @@ pub(crate) fn hashmap_length(m: &Value) -> Result<Value, EvalBreak> {
 
 /// `(:wat::hashmap::empty? m)` → whether `m` has zero entries.
 ///
+/// **Expand-time ground —** `:wat::hashmap::*` is `:wat::core::HashMap/*`'s replacement home
+/// (arc 255 Stone E-i); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @ret     :wat::core::bool true iff `m` has zero entries
@@ -77,11 +85,15 @@ pub(crate) fn hashmap_empty_q(m: &Value) -> Result<Value, EvalBreak> {
 
 /// `(:wat::hashmap::contains-key? m k)` → whether `k` is a key in `m`.
 ///
+/// **Expand-time ground —** `:wat::hashmap::*` is `:wat::core::HashMap/*`'s replacement home
+/// (arc 255 Stone E-i); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @arg     k :K the candidate key
@@ -96,11 +108,15 @@ pub(crate) fn hashmap_contains_key_q(m: &Value, k: &Value) -> Result<Value, Eval
 /// `(:wat::hashmap::get m k)` → `Some` of the value at key `k` in `m`, or
 /// `None` on a miss.
 ///
+/// **Expand-time ground —** `:wat::hashmap::*` is `:wat::core::HashMap/*`'s replacement home
+/// (arc 255 Stone E-i); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @arg     k :K the key looked up
@@ -115,11 +131,15 @@ pub(crate) fn hashmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// `(:wat::hashmap::assoc m k v)` → `m` with key `k` bound to value `v`
 /// (inserted or overwritten).
 ///
+/// **Expand-time ground —** `:wat::hashmap::*` is `:wat::core::HashMap/*`'s replacement home
+/// (arc 255 Stone E-i); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
 /// @arg     k :K the key inserted or overwritten
@@ -135,11 +155,15 @@ pub(crate) fn hashmap_assoc(m: &Value, k: &Value, v: &Value) -> Result<Value, Ev
 /// `(:wat::hashmap::dissoc m k)` → `m` with key `k` removed (a no-op if `k`
 /// is absent).
 ///
+/// **Expand-time ground —** `:wat::hashmap::*` is `:wat::core::HashMap/*`'s replacement home
+/// (arc 255 Stone E-i); pure, no IO. Ruling relocated from `macros/eval.rs`'s expand-time
+/// allow-list (arc 255 expand-T4a); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
 /// @arg     k :K the key removed

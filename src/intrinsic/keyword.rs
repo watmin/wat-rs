@@ -54,11 +54,16 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 
 /// `(:wat::keyword::to-string k)` → the text of keyword `k`, without its leading colon sigil.
 ///
+/// **Expand-time ground —** keyword ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
+/// expand-T4a), from its "Keyword / symbol ops" group (arc 255 Stone E-iv: `keyword` got its
+/// home here after `:wat::core::keyword/to-string` retired); the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     k :wat::core::keyword the keyword probed
 /// @ret     :wat::core::String the text of `k`, without the leading colon
@@ -79,11 +84,16 @@ pub(crate) fn eval_keyword_to_string_home(
 /// with `:` (the sigil, not part of the payload) — raises a diagnostic naming the offending
 /// input otherwise. Round-trips with `to-string`: `(from-string (to-string k)) == k`.
 ///
+/// **Expand-time ground —** a pure constructor, routed via the intrinsic registry. Safe to
+/// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time allow-list (arc 255 expand-T4a), from its "Keyword / symbol ops" group, carrying
+/// that verb's own inline note; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the colon-free keyword text
 /// @ret     :wat::core::keyword a keyword built from `s`
@@ -105,11 +115,17 @@ pub(crate) fn eval_keyword_from_string_home(
 /// inversion: a call head is a symbol in Clojure, never a keyword). Raises if `kw-node` is not a
 /// convertible head/reference keyword (a bare data keyword or a namespace-prefix marker).
 ///
+/// **Expand-time ground —** pure keyword/symbol transform. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" section's arc 255 Stone E-iv note:
+/// `:wat::core::keyword/{to-symbol,to-type-form,to-type-form-colon}` retired this stone;
+/// `:wat::keyword::*` is their replacement; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the Keyword form node converted
 /// @ret     :wat::WatAST a Symbol form node carrying the faithful-Clojure spelling
@@ -130,11 +146,17 @@ pub(crate) fn eval_keyword_to_symbol_home(
 /// (`:wat::core::Vector<wat::core::i64>`) into the faithful-Clojure type FORM
 /// (`(wat.type/Vector [wat.type/i64])`).
 ///
+/// **Expand-time ground —** pure keyword/symbol transform. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" section's arc 255 Stone E-iv note:
+/// `:wat::core::keyword/{to-symbol,to-type-form,to-type-form-colon}` retired this stone;
+/// `:wat::keyword::*` is their replacement; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the type Keyword form node rendered
 /// @ret     :wat::WatAST the faithful-Clojure type form
@@ -155,11 +177,17 @@ pub(crate) fn eval_keyword_to_type_form_home(
 /// parse+render pipeline, the rust-ish `:wat::core::` head spelling instead of the Clojure
 /// `wat.type/` flip (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector :- [:wat::core::i64])`).
 ///
+/// **Expand-time ground —** pure keyword/symbol transform. Ruling relocated from
+/// `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a), from its "Homoiconic WatAST
+/// bridge" section's arc 255 Stone E-iv note:
+/// `:wat::core::keyword/{to-symbol,to-type-form,to-type-form-colon}` retired this stone;
+/// `:wat::keyword::*` is their replacement; the verdict is that list's.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
-/// @ExpandTime    Unreviewed
+/// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the type Keyword form node rendered
 /// @ret     :wat::WatAST the Colon-mode type form
