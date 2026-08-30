@@ -20,20 +20,37 @@ claude-compute = origin/main + origin/grok-rete + integration fixups
 Both live OUTSIDE the repo on purpose, so this branch stays a pure merge-of-both plus
 recorded fixups. `rerere` is enabled (`rerere.enabled`, `rerere.autoupdate`).
 
-## The one failure class, and the evidence for it
+## The failure class — DRIFT, and it is not only names
 
-**Across two full refreshes, every single failure resolved to name drift. Not one was a
-semantic conflict between the two branches' logic.** They have composed cleanly every time.
+**The branches' LOGIC has composed cleanly at every refresh. Not one failure has ever been a
+semantic conflict.** Every one has been drift: main changes the corpus-wide truth, grok-rete
+writes against the truth main replaced, and a **textually clean merge** ships it broken.
 
-| | 2026-08-28 first refresh | 2026-08-28 second refresh |
-|---|---|---|
-| floor cycles to green | 6 — 3182 → 63 → 57 → 39 → 10 → 8 → 0 | **1** |
-| conflicts | 13, all hand-resolved | 13 → **6** (rerere replayed the rest) |
-| stale names | found a family at a time, over hours | **33, before the first build** |
+| | 2026-08-28 first | 2026-08-28 second | 2026-08-30 third |
+|---|---|---|---|
+| floor cycles to green | 6 — 3182 → 63 → 57 → 39 → 10 → 8 → 0 | **1** | 3 — 41 → 38 → **0** |
+| conflicts | 13, all hand-resolved | 13 → **6** (rerere replayed the rest) | **0** |
+| what drifted | retired NAMES | retired NAMES | a retired **FORM** |
 
-The mechanism: main renames across 1000+ files; grok-rete writes new code against the old
-names; a **textually clean merge** ships the result broken. `git merge-tree` reported CLEAN
-for the first union and it took 3182 of 5103 tests red on ONE panic.
+⛔ **CORRECTED 2026-08-30. This section used to read "across two full refreshes, every single
+failure resolved to NAME drift", and the gate was built to exactly that shape.** The third
+refresh's 41 reds were one cause and it was not a name: arc 109's ONE PARAM-SPEC wall
+(`284cd7c93`) made the bare `(Head T)` param-spec unrepresentable, and grok-rete's files were
+written against it. `wat-drift` reported **clean** — correctly, by its own terms, because it
+reads a table of retired NAMES and a retired FORM has no row in it.
+
+Read the generalisation, not the instance: **the drifting thing is whatever main last made
+corpus-wide-illegal.** Twice that was a name. Once it was a form. Next time assume it is
+neither, and go and look.
+
+### The hole this leaves, and the shape of the fix (NOT DRAWN)
+
+`wat-drift` cannot be taught forms one at a time without becoming the hand-kept list it exists
+to avoid. The root fix is to stop enumerating and let the migrations BE the gate: there are 80
+recorded codemods in `wat-scripts/fixes/`, the CLI already carries a `--grep` census mode
+(`src/distribution/argv.rs:109`), and **any recorded migration that would still emit an edit on
+this branch's files IS drift, by construction.** That closes names and forms and everything
+after them, and it cannot go stale, because a new migration arrives already gated.
 
 ## What `wat-drift` knows that a careful reader does not
 
@@ -89,8 +106,21 @@ run the codemods, restore, rebuild.
 - **Rust conflicts** — resolve as (grok-rete's LOGIC) × (main's NAMES), per builder ruling.
   Never pick a side wholesale.
 
-## Two traps that cost real time here
+## Traps that have cost real time here
 
+- **A NARROW CENSUS IS A FALSE ALL-CLEAR — and the narrow one is the one you write.**
+  2026-08-30: grepped `Vector|vec` for bare param-specs, found zero, reported "no bare form
+  remaining in code". `one-param-spec.wat`'s arity table covers SEVEN parametric heads; the
+  survivors were `HashSet`, and the floor said so by going 41 → 38 instead of 41 → 0.
+  **Run the codemod over the whole corpus as both CONTEXT and TARGET and read ITS report.**
+  It is idempotent, its table is the authority, and it reports what it deliberately skips
+  (`tuple-ambiguous`, `bracket-unknown-head`). A hand-grep of heads is a guess wearing a
+  census's clothes.
+- **A codemod cannot reach wat source held in a Rust string literal.** It walks the FORM TREE
+  of `.wat` files. 2026-08-30: four sites in `src/rete/reachability.rs` (a grok-rete-only file)
+  held `.wat` snippets that `format!` into `<entry>` programs. They are invisible to every
+  recorded migration and must be swept by hand, line-scoped. When an error's span reads
+  `:file "<entry>"`, the source is Rust, not the corpus — go grep `.rs`.
 - **Backgrounding a build hides its verdict.** `nohup cargo … &` returns the wrapper's exit
   code, not cargo's; a "build succeeded" that was really `echo` succeeding produced one wrong
   claim. Likewise `cmd | grep -c '^error' && next` — `grep -c` exits 1 on zero matches, so
@@ -98,6 +128,12 @@ run the codemods, restore, rebuild.
 - **"is not pure" is a documented lie.** `src/rete/purity.rs:89` says so outright: the op IS
   pure — it is refused only because the name is not a registered *rete* name. Read it as
   "not from rete", or you will chase purity for an hour.
+- **`wat-sync.sh` used to exit 0 on a RED floor — FIXED 2026-08-30.** Its last line was
+  `./scripts/floor.sh 2>&1 | tail -20`, whose status is `tail`'s, and the script's final
+  command was an `echo`. `set -o pipefail` did not save it: the status was never consulted.
+  A 41-failure floor reported `SYNC_EXIT=0`. The floor's status is now the script's status,
+  so no path exits 0 on red. This is FM 20 in `docs/COMPACTION-AMNESIA-RECOVERY.md`, committed
+  by the person who wrote the gate.
 
 ## Deferred, and where the reasoning lives
 
@@ -114,11 +150,14 @@ run the codemods, restore, rebuild.
   floor load. Attributed: main alone touched `src/remedy/retirement.rs` and that test since
   the merge-base. Main's, and it will intermittently red main's floor on a loaded box.
 
-## Current state — grok-rete is HELD (2026-08-29)
+## Current state — grok-rete is HELD (refreshed 2026-08-30)
 
-`claude-compute` carries main to its tip and grok-rete only to `1facc1f94` (2026-08-28).
+`claude-compute` @ `76b807231` carries main to `9d4976f1d` and grok-rete only to `1facc1f94`
+(2026-08-28). Floor GREEN: `5201 tests run: 5201 passed (9 slow), 17 skipped`.
 **A green floor right now means MAIN is green — NOT that the union is.** That distinction is
-the whole reason this branch exists, so it is stated rather than implied.
+the whole reason this branch exists, so it is stated rather than implied — and it is exactly
+why the 41 reds this refresh were arc-109 form drift and NOT the 160-error module-tree port
+the hold is actually about. That port has still never been attempted.
 
 **Why:** arc 255's HOME campaign relocated main's flat module tree into directory homes
 (`string_ops`→`string/`, `wat_edn_bridge`+`edn_shim`→`edn/`, `hologram`+`sigma`→`holon/`,
