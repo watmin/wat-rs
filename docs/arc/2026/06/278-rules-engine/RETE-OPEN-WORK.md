@@ -1490,60 +1490,28 @@ field. Reachable, but not constructible inside a fence.
    picked (1/4/16 MiB refuse; 64/256 MiB complete). Both gates are mutation-proven and INDEPENDENT:
    disarming either door reddens exactly its own gate and leaves the other green.
 
-10. **`fire-rules` IS PARTIAL AND ITS SIGNATURE DOES NOT SAY SO — the outcome wall, not yet applied
-   to rete.** Builder: *"when do these 'raise'?… can we make them total?… the user must deal with
-   their consequences?… how can we force the user's code into totality for handling these?"*
+10. ~~**`fire-rules` IS PARTIAL AND ITS SIGNATURE DOES NOT SAY SO**~~ · ✅ **CLOSED 2026-08-29 —
+    THE OUTCOME WALL IS COMPLETE.** Builder: *"let's impose session's strict limits via totality."*
 
-   **MEASURED: a ceiling breach kills the program.** Both ceilings raise inside `fire-rules` at a
-   round boundary; a probe printing before and after gets only the "before". `fire-rules` is
-   declared `Session -> Session` and **cannot always produce a Session** — the signature lies, and
-   this session added a SECOND way for it to lie.
+    Every wat-facing rete verb answers a matchable outcome, across all six `$oracle`/`$native`
+    spellings (dual-impl contract):
 
-   ⛔ **AND THIS IS THE ARGUMENT'S REAL FORCE: because we CANNOT do what eBPF does, the failure
-   must become a value.** eBPF refuses an unbounded program at LOAD — static, total, no runtime
-   failure to handle. We measured that we cannot: the guarded counter's bound is its SEED, an
-   input. So the failure is irreducibly dynamic — and a dynamic failure in this substrate is a
-   VALUE, not a raise. The two are the same commitment seen from either side.
+    | verb | answers |
+    |---|---|
+    | `fire-rules`, `fire-once` | `(:wat::rete::FireOutcome :- [:wat::rete::Session])` |
+    | `fire-rules-explain` | `(:wat::rete::FireOutcome :- [:wat::rete::Explained])` |
+    | `insert`, `insert-all` | `(:wat::rete::InsertOutcome)` |
 
-   **THE ARC ALREADY BUILT THIS, ONE LAYER OVER.** `wat/bracket.wat:36` — *"arc 278 the
-   recv'-outcome wall — recv' returns a matchable `(RecvOutcome :- [I])`"* — and `SendOutcome::Sent`
-   / `::Stopped` are matched in the runner loop. Comms failures became closed matchable enums.
-   Capacity `:error` returns a `Result` the type system forces you to handle. **`fire-rules` is the
-   odd one out**, and it is the one with two ceilings.
+    **No rete ceiling reaches wat as a raise, and `tests/lint/no_ceiling_raise_in_rete.rs` keeps it
+    that way** — a new door that raises is a red build, mutation-proven in both directions.
 
-   **THE SHAPE, and one thing about it is unusually clean:**
-   `(FireOutcome :- [...])` with `Fired <session>` · `RoundCapExceeded` · `MemoryCeilingExceeded`.
-   **The failure arms need carry NO session** — `Session` is an immutable VALUE, so the caller still
-   holds the pre-fire one. Nothing half-fired escapes, and there is no question of handing back a
-   mid-fixpoint session with inconsistent memories. That is the objection this design would
-   normally founder on, and the value semantics dissolve it.
+    Full record: **`DESIGN-STONE-the-session-is-the-boundary.md` § S2**, including the four strikes
+    (S2a `fire-once` 31 sites · S2b `fire-rules` 529 · S2c `insert` 640 · S2d the wall), the four
+    recorded wat-fix codemods, and the SIX classes a `.wat` tree-walk structurally cannot see.
 
-   **COST, measured: 494 `fire-rules` call sites** across `wat/`, `tests/`, `wat-tests/`,
-   `wat-scripts/` (389 native, 99 `$oracle`, 6 primed). Large — and exactly what `wat-fix` is for
-   (R21: *"we use wat-fix to unfuck the farm — do not fear refactors, they are one-to-three shot"*).
-   The `$oracle` must return the same TYPE by the dual-impl contract, but needs no ceilings of its
-   own: it always answers `Fired`, and the existing accepted asymmetry (*"the `$oracle` is the
-   reference an embedder never runs"*) covers why.
-
-   ⛔ **`insert` IS PART OF THIS — the ruling above was MINE and the builder overturned it.** It
-   read: *"a session grows by insertion one user decision at a time, and by derivation without one;
-   the ceiling is about the growth the user did not ask for."* **A fold is ONE user decision making
-   a million calls**, which item 9 then measured at 4.0 GB. So the migration DOES double, and that
-   cost is accepted — the same acceptance `DESIGN-recv-outcome-wall.md` records for its own 160
-   sites: *"i do not care about how wide the blast radius is — the cost of never seeing a fucking
-   masked error is worth it."*
-
-   ✅ **DESIGNED AND PINNED 2026-08-29 — `DESIGN-STONE-the-session-is-the-boundary.md` § S2.**
-   Builder: *"let's impose session's strict limits via totality."* The contract decision, the two
-   enum shapes, why NOT one shared enum and NOT `Result`, the verified construction mechanism
-   (`wat_enum_from!` + `builtin_enum_variant_names`'s wat-declared arm), and the MEASURED sweep
-   size are all there. **`fire-once` and `fire-rules-explain` are in scope** — both route through
-   `fire/delta.rs`, so both can breach today, and a wall with one unmatched door is not a wall.
-
-   **Sweep size, counted 2026-08-29 (not inherited):** `fire-rules` 529 · `insert` 530 ·
-   `insert-all` 110 · `fire-once` 31. wat-fix codemod, never hand edits (R21).
-
-   **NOT STARTED — this is the next work.**
+    ⚠ **What still raises, and correctly:** `RuleSetMayNotTerminate`, the termination verifier's
+    refusal at `compile-all`. That is a COMPILE-time refusal of a program that cannot be proven to
+    terminate — eBPF's load-time "no" — not a runtime bound on one that can.
 
 11. ~~**A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER**~~ · ✅ **CLASS KILLED 2026-08-29** (the
     cure is at the end of this item). FIVE false reds, across THREE source files, none of them
