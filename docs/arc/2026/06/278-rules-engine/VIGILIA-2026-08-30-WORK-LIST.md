@@ -122,6 +122,50 @@ Introduced by `c449cd24d` and missed by both that rider and this orchestrator. S
 Class E5 (`conformare`: `refuse_export_without_arm` gets a synthetic span at both call sites while
 the real one is a frame up). If that span is load-bearing anywhere, it is a strike.
 
+### ⏭ NEW — `docs/**` IS A GRAVEYARD BY CONSTRUCTION, and it already has a body
+
+**Found 2026-08-31 by the builder asking one question of a file I had just banked: *"where does
+this file live such that it does not run?"***
+
+`wat-rs/CLAUDE.md` kills this class for scratch `.wat` — they go under `wat-scripts/` **because**
+`every_wat_scripts_file_loads` parses and type-checks every file there, *"so a scratch program that
+rots goes RED and cannot become a graveyard that reads like live code."*
+
+**The escape hatch from that gate is a directory with no gate.** `docs/arc/2026/06/278-rules-engine/`
+holds 8 orphaned `.wat` plus 7 `.rs.txt` / `.wat.txt`. Driven on the current runtime:
+
+| file | verdict |
+|---|---|
+| `probes/enum-holds-record.wat` | runs, prints — alive |
+| `probes/red-send-cause-is-not-matchable.wat` | runs, prints — alive |
+| `probes/red-owner-signals-child.wat` | fails — **declares itself RED BY DESIGN in its header** |
+| `probes/surface-field-dispatch.wat` | fails — **ROTTED, silently, ~8 WEEKS** |
+| `harness-experiri/*.wat` (4) | 3 refuse by design, 1 fires — alive |
+
+`surface-field-dispatch.wat` (2026-07-05) says in its own header *"PROVES the storage-abstraction
+model — **prints 142**. Run: `cargo wat <this>`."* It now dies at startup: `defsurface` gained a
+required `:nature` and the probe was never migrated. **Nothing has noticed since the grammar
+changed.**
+
+⚠ **AND `red-owner-signals-child.wat` STATES THE EXACT REASONING I USED**, months earlier: *"It
+lives under `docs/…/probes/` (NOT `wat-scripts/`) precisely because `every_wat_scripts_file_loads`
+walks `wat-scripts` only — a deliberately-failing probe parked there would break that gate."* The
+reasoning is sound; the consequence is that deliberately-red and genuinely-rotted files now sit in
+one directory, indistinguishable.
+
+**FIX — the gate must be able to tell the two apart, which is the whole point.** Walk
+`docs/arc/**/probes/` and `docs/arc/**/harness-*/`, and require every `.wat` to EITHER load on the
+current runtime OR carry an explicit red-by-design marker in its header. Then
+`surface-field-dispatch` reddens today, `red-owner-signals-child` passes on its declaration, and the
+next grammar change cannot kill a probe in silence. **Do not simply move them under `wat-scripts/`
+— that is what the prior hand correctly refused, and it would break the existing gate.**
+
+⚠ My own 7 banked `.rs.txt` / `.wat.txt` are in the same unchecked place. They are short-lived by
+design (a rider lands them within hours), but `harness-experiri/positions-3-4.rs.txt` has now sat
+since 2026-08-30 and **its README claimed it was a working gate when it holds ONE assertion across
+EIGHT tests** — see that file's own CORRECTION block. A `println!` of a correct matrix looks exactly
+like a proof.
+
 ---
 
 ## CLASS B — resource lifetime
