@@ -26,7 +26,21 @@ Measured against `IntrinsicEntry` (`src/intrinsic/mod.rs`) on 2026-08-30:
 
 ---
 
-## ⬜ 1. `defined_in` · `layer` — cheap, but ⛔ **DO NOT BUILD YET: it would be a CONSTANT**
+## ⚠ 1. `defined_in` · `layer` — ⛔ DO NOT BUILD **and already SHIPPED as a lie**
+
+> **CORRECTED 2026-08-30.** This entry was right that they are not entry FIELDS and right that a
+> field would be constant. It **missed that the reflection surface already publishes them**:
+> `src/runtime.rs:13617-13624` splices `DefinedIn::Rust` and `Layer::Substrate` as literal
+> constants into every `metadata-of` record, right beside `:kind`, which IS derived from the entry.
+> So a reader cannot tell which fields are data and which are decoration — and the constant is only
+> accidentally true, because the registry knows nothing but Rust. **The moment one wat verb
+> registers, `metadata-of` lies in the one field whose whole job is provenance.**
+>
+> Not built, and already shipped. See `DESIGN-SEAM-the-registry-must-know-what-wat-ships.md`, whose
+> closing section says this fix should NOT wait for that seam's ruling: either the value is derived,
+> or it is not published.
+
+### the original entry, for the record
 
 **`:wat::runtime::DefinedIn` (`:Wat | :Rust`) and `:wat::runtime::Layer`
 (`:Substrate | :Userland`) ALREADY EXIST in `wat/runtime-meta.wat`** — minted for
