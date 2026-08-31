@@ -1,0 +1,35 @@
+;; Count changes 1 -> 2 across rounds. If an engine lacks truth maintenance it keeps BOTH tallies.
+(:wat::core::defrecord :t2::Seed [y <- :wat::core::i64])
+(:wat::core::defrecord :t2::Out  [y <- :wat::core::i64])
+(:wat::core::defrecord :t2::D    [y <- :wat::core::i64])
+(:wat::core::defrecord :t2::Tally [n <- :wat::core::i64])
+(:wat::rete::defrule :t2::a :when [(:t2::Seed (?y <- :y))] :then [(:t2::Out :y ?y)])
+(:wat::rete::defrule :t2::b :when [(:t2::Out (?y <- :y))
+                                   (:wat::rete::where (:wat::rete::core::i64::= ?y 1))]
+                            :then [(:t2::D :y 2)])
+(:wat::rete::defrule :t2::c :when [(:t2::D (?y <- :y))] :then [(:t2::Out :y ?y)])
+(:wat::rete::defrule :t2::tally
+  :when [(:t2::Seed (?s <- :y))
+         (?n <- (:wat::rete::acc::count) :from (:t2::Out))]
+  :then [(:t2::Tally :n ?n)])
+(:wat::rete::defquery :t2::q :params [] :when [(?f <- :t2::Tally)])
+(:wat::core::defn :t2::go [f <- :wat::rete::Session] -> :wat::core::i64
+  (:wat::core::length (:wat::rete::query f (:t2::q))))
+(:wat::core::defn :t2::mk [] -> :wat::rete::Session
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t2) (:wat::core::PersistentVector (:t2::q)))
+      ((:wat::rete::CompileOutcome::Compiled __s) __s)
+      ((:wat::rete::CompileOutcome::MayNotTerminate __r __f) (:wat::kernel::assertion-failed! "t" :wat::core::None :wat::core::None)))
+    (:t2::Seed :y 1))
+    ((:wat::rete::InsertOutcome::Inserted __st) __st)
+    ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __a __b __c) (:wat::kernel::assertion-failed! "c" :wat::core::None :wat::core::None))))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::kernel::println (:t2::go (:wat::core::match (:wat::rete::fire-rules (:t2::mk))
+      ((:wat::rete::FireOutcome::Fired __f) __f)
+      ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! "m" :wat::core::None :wat::core::None))
+      ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "r" :wat::core::None :wat::core::None)))))
+    (:wat::kernel::println (:t2::go (:wat::core::match (:wat::rete::fire-rules$oracle (:t2::mk))
+      ((:wat::rete::FireOutcome::Fired __f) __f)
+      ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! "m" :wat::core::None :wat::core::None))
+      ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "r" :wat::core::None :wat::core::None)))))))
