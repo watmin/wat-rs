@@ -146,9 +146,29 @@ which is precisely the value that makes the hard-coded constant above start disc
        static REGISTRY: std::sync::OnceLock<IntrinsicRegistry> = …    // built ONCE from inventory
    ```
 
-   **`registry()` is a `&'static OnceLock`** — built once at first touch, immutable after, and
-   **shared by every program**. Putting user defs in *it* would mean mutating a shared static at
-   load time: it breaks the sharing property and runs straight into the ZERO-MUTEX doctrine.
+   **`registry()` is a `&'static OnceLock`** — `get_or_init`, built once at first touch, and
+   **shared by every program**.
+
+   ⛔ **CORRECTED — I first wrote that putting user defs there "runs into the ZERO-MUTEX doctrine".
+   That was the wrong mechanism, and the builder was right to reject it:** *"source code is loaded
+   single file... its frozen before any code runs... what contention could there be?"* **None.** Load
+   is single-threaded and completes before execution; `OnceLock` is built for precisely that shape.
+
+   The real constraint is **isolation + write-once**, and neither is a lock:
+
+   - **`get_or_init` writes ONCE PER PROCESS.** A second program's load would not contend — it would
+     be **silently ignored**. The first program's defs frozen in forever, everyone else's dropped.
+     Worse than a race: a race is loud, this is a wrong answer with no symptom.
+   - **The scope is the process; a program's defs belong to a program.** FM 7-ter's canonical fact,
+     which the substrate already enforces one layer up for config: *"Threads share the parent's
+     address space, RUNTIME, and fd 0/1/2."* `run-thread` is `deftest`'s default, so a process-global
+     def store makes test A's defs visible to test B — across 5109 tests in one process.
+
+   ★ **So two stores is the right shape, not a compromise.** `FrozenWorld` is per-program *because
+   programs need isolation*; `registry()` is process-global *because intrinsics genuinely are* —
+   compile-time facts, identical for every program. The query layer unifies them without merging the
+   lifetimes. Put another way: a process-global def store would need every read to answer **"which
+   program's defs?"**, and at process scope that question has no answer.
 
    ★ **But there are already TWO stores with two correct lifetimes, and the second one already holds
    every wat def:**
