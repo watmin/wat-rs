@@ -858,7 +858,7 @@ pub fn register_defclause(
     // (check.rs) RED. Verified by hand, 2026-07-28, in both directions.
     if let Some(meta) = &cs.metadata {
         if !meta.is_empty() {
-            sym.binding_metadata.insert(name.clone(), meta.clone());
+            record_binding_metadata(sym, name.clone(), meta.clone(), form.span())?;
         }
     }
 
@@ -975,7 +975,7 @@ pub fn register_defines(
                 },
             )?;
             if let Some(meta) = metadata_opt {
-                sym.binding_metadata.insert(path, meta);
+                record_binding_metadata(sym, path, meta, &form_span)?;
             }
             rest.push(form);
         // Stone 241.14 — def-restricted fn-shape pre-registration arm DELETED.
@@ -1417,6 +1417,53 @@ fn meta_has_doc_axis_key(meta: &std::collections::HashMap<String, WatAST>) -> bo
     AXIS_DECLARATION_KEYS.iter().any(|k| meta.contains_key(*k))
 }
 
+/// Arc 255 Stone "a declaration cannot be STORED unvalidated" — the ONE and ONLY door into
+/// `sym.binding_metadata`. Storing and validating a binding's `{...}` metadata map become a
+/// single operation, so a map that claims substrate axis properties (any key in
+/// [`AXIS_DECLARATION_KEYS`]) has no way to reach the symbol table without first passing
+/// `wat_doc::from_metadata` — the same gate `register_stdlib_defines` alone used to run before
+/// this stone, now absorbed here so all six former direct-insert sites share it.
+///
+/// `span` MUST be the DECLARATION's own span — the `def`/`defn`/`defclause` form the author
+/// wrote — never a later reader's call site. That substitution is the exact defect this stone
+/// removes: before, only one of six sites validated, so a bad map written at one line surfaced
+/// its error at whatever line first called `metadata-of`, arbitrarily far away. Every caller
+/// below hands in the span of the form it just parsed, so the diagnostic lands on the author's
+/// own line.
+///
+/// A capability-only map (no key in `AXIS_DECLARATION_KEYS`, e.g. `{:restricted-to […]}`) is not
+/// a doc declaration and is stored exactly as before, unvalidated — `meta_has_doc_axis_key` is
+/// the SAME predicate `eval_metadata_of`'s read side uses, so the two can never disagree on what
+/// counts as one.
+fn record_binding_metadata(
+    sym: &mut SymbolTable,
+    name: String,
+    meta: std::collections::HashMap<String, WatAST>,
+    span: &Span,
+) -> Result<(), RuntimeError> {
+    if meta_has_doc_axis_key(&meta) {
+        let map_ast = WatAST::Map(
+            meta.iter()
+                .map(|(k, v)| (WatAST::Keyword(k.clone(), v.span().clone()), v.clone()))
+                .collect(),
+            span.clone(),
+        );
+        if let Err(e) = wat_doc::from_metadata(&map_ast) {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: name,
+                    reason: format!(
+                        "metadata-map doc contract violation (wat_doc::from_metadata): {e:?}"
+                    ),
+                },
+            ));
+        }
+    }
+    sym.binding_metadata.insert(name, meta);
+    Ok(())
+}
+
 /// Stdlib-registration variant of [`register_defines`] that bypasses
 /// the reserved-prefix check. Called by the startup pipeline on the
 /// baked stdlib sources; user source still goes through
@@ -1445,17 +1492,9 @@ pub fn register_stdlib_defines(
                 // (`wat_doc::parse`): `wat_doc::from_metadata` reads the map
                 // directly (no docstring exists to feed the text grammar — see
                 // the DESIGN doc's finding) and enforces the SAME required set
-                // with the SAME `DocError`s. This is the validation gate; the
-                // STORAGE and the READ side (`sym.binding_metadata`,
-                // `:wat::runtime::metadata-of`) are both unchanged — they
-                // already carry any def/defn metadata map today (Stone 241.6/
-                // 241.7). Reconstructing a `WatAST::Map` from the already-
-                // peeled `meta` pairs (rather than threading the original map
-                // node through `ParsedFnShapeDef`) keeps this a single call
-                // site; the span is the whole form's, since `DocError` itself
-                // carries no span for a diagnostic to prefer.
+                // with the SAME `DocError`s.
                 //
-                // ⛔ GATED on `:doc`'s presence, NOT unconditional — a corpus
+                // ⛔ GATED on an axis key's presence, NOT unconditional — a corpus
                 // check (2026-08-30) found THREE pre-existing stdlib `defn`s
                 // (`wat/kernel/services/stdio.wat`: `write-fd-raw`,
                 // `flood-stdout-raw`, `str-double`) whose metadata-map carries
@@ -1465,46 +1504,15 @@ pub fn register_stdlib_defines(
                 // unconditional, `from_metadata` would raise `MissingProse` on
                 // ALL THREE and fail stdlib startup — exactly the "migrate the
                 // 409" breadth this stone's own DESIGN rejects, done by
-                // accident to verbs nobody asked to move. `:doc` is this
-                // stone's OWN key (nothing pre-existing ever wrote it), so its
-                // presence is the author's opt-in signal: "this metadata map
-                // declares doc-contract properties" — exactly the ONE verb
-                // this stone walks through the door. A capability-only map is
-                // read and stored exactly as before, untouched.
-                // ⚠ AMENDED by the orchestrator: the gate was `contains_key(":doc")`
-                // alone, which SILENTLY SKIPPED a partial declaration. Measured:
-                // `(defn :probe::half {:purity …} [x] -> :i64 x)` ran clean, exit 0
-                // — a map that declares `:purity` and nothing else was never
-                // validated, so a declaration that does not declare passes. That is
-                // the silent-skip class Stone P4 killed at `intrinsic/mod.rs:512`
-                // and `:742`, and it is worse than a missing feature: the author
-                // wrote a property expecting it to mean something.
+                // accident to verbs nobody asked to move.
                 //
-                // The gate is now ANY doc-axis key ⇒ validate the FULL required set,
-                // so a partial declaration is an ERROR naming what is missing. A
-                // capability-only `{:restricted-to […]}` map still carries no
-                // doc-axis key and is read and stored exactly as before — which is
-                // what keeps the three pre-existing stdlib verbs above untouched.
-                if meta_has_doc_axis_key(&meta) {
-                    let map_ast = WatAST::Map(
-                        meta.iter()
-                            .map(|(k, v)| (WatAST::Keyword(k.clone(), v.span().clone()), v.clone()))
-                            .collect(),
-                        form.span().clone(),
-                    );
-                    if let Err(e) = wat_doc::from_metadata(&map_ast) {
-                        return Err(RuntimeError::new(
-                            form.span().clone(),
-                            RuntimeErrorKind::MalformedForm {
-                                head: path.clone(),
-                                reason: format!(
-                                    "metadata-map doc contract violation (wat_doc::from_metadata): {e:?}"
-                                ),
-                            },
-                        ));
-                    }
-                }
-                sym.binding_metadata.insert(path, meta);
+                // Arc 255 Stone "a declaration cannot be STORED unvalidated" — the
+                // validate-then-gate logic that used to live inline here (and only
+                // here, of six insert sites) is now `record_binding_metadata`, the
+                // ONE door every insert site routes through. The span passed is
+                // this form's own — the stdlib `defn`'s declaration — so a bad map
+                // is blamed on the line that wrote it, not on a later reader.
+                record_binding_metadata(sym, path, meta, form.span())?;
             }
             rest.push(form);
         } else if let Some((path, func)) = try_parse_variadic_def_fn_form(&form) {
@@ -2845,7 +2853,7 @@ fn register_runtime_defs_form(
             // their metadata here so metadata-of can read binding_metadata uniformly.
             if let Some(meta) = metadata_opt {
                 if !meta.is_empty() {
-                    sym.binding_metadata.insert(name.clone(), meta);
+                    record_binding_metadata(sym, name.clone(), meta, form.span())?;
                 }
             }
             sym.register_def_value(name, value);
@@ -4004,7 +4012,7 @@ fn preregister_fn_defs_in_do(
                 },
             )?;
             if let Some(meta) = metadata_opt {
-                sym.binding_metadata.insert(path, meta);
+                record_binding_metadata(sym, path, meta, child.span())?;
             }
         // Stone 241.14 — def-restricted fn-shape arm DELETED from do-preregister.
         // def-restricted is HARD CUT; forms reaching this path are rejected
@@ -4079,7 +4087,7 @@ fn preregister_fn_defs_in_let(
                 },
             )?;
             if let Some(meta) = metadata_opt {
-                sym.binding_metadata.insert(path, meta);
+                record_binding_metadata(sym, path, meta, child.span())?;
             }
         // Stone 241.14 — def-restricted fn-shape arm DELETED from let-preregister.
         // def-restricted is HARD CUT; forms reaching this path are rejected

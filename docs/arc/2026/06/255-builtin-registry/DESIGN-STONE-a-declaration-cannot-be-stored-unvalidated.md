@@ -85,6 +85,37 @@ disappears because the state that produced it cannot exist.
 - **leave-it Honest? NO** — the read-side error blames the reader for the author's mistake, which is
   worse than no check at all: it teaches the wrong lesson to the wrong person.
 
+## ✅ SHIPPED 2026-08-31
+
+```
+binding_metadata.insert sites     6 -> 1        the chokepoint is the only door
+the bad map on line 2 reports at  line 8 -> 1   the reader -> the AUTHOR
+and it fires at                   read -> LOAD  the program never runs
+```
+
+**No call site lacked a span** — STOP-2 did not fire; every one already had a form/child reference
+in scope. That also closes the rider's one open uncertainty (whether `defn`'s macro expansion
+propagates a real span): it lands on the declaration form.
+
+### ⚠ One behaviour widening worth naming
+
+`register_defclause` (the former site 861) had **never** been validated even conceptually — its own
+comment calls the insert *"load-bearing and PROVEN"* for the `{:restricted-to […]}` case and says
+nothing about axis keys. Routing it through the one door means a `defclause` declaring an axis key is
+now validated too. **Correct per "one door for all six", and beyond what any prior stone's comments
+anticipated for defclauses.** Named here so it is not discovered as a surprise later.
+
+### ⚠ Why the committed probe cannot exercise the refusal
+
+`record_binding_metadata` fires during freeze/registration, **before `main` runs** — and `def` at
+expression position is a hard `DeclarationInExpressionPosition` refusal, so `eval-ast!` cannot reach
+it either. Meanwhile `every_wat_scripts_file_loads` fully loads every scratch `.wat`, so **a
+committed probe containing a failing declaration would be a floor regression by construction.**
+
+The probe therefore covers the two *unaffected* shapes, and the refusal was demonstrated once
+out-of-tree. ★ That is a real limit of this repo's own gates, not an omission — and it is written
+into the probe's header so a future reader does not read the missing row as an oversight.
+
 ## Acceptance
 
 | what | command | expected |
