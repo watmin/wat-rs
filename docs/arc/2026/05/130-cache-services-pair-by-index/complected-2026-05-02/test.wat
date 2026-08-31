@@ -118,3 +118,13 @@
      ((_ :wat::core::unit) (:wat::test::assert-contains stderr-blob "T1: about-to-put"))
      ((_ :wat::core::unit) (:wat::test::assert-contains stderr-blob "T2: put-acked")))
     (:wat::test::assert-contains stderr-blob "T3: get-returned")))
+
+;; rune:lint(historical) — preserves the arc 130 slice 1 sonnet sweep's monolithic test in its
+;;   FAILED state: ~30 anonymous sequential let* bindings in one deftest body, written against
+;;   arc-109's retired angle-bracket type syntax. It is the "before" half of the complectēns
+;;   calibration set — the cured "after" is the live compositional rewrite named in README.md
+;;   beside it. Migrating it would destroy the contrast that is its entire purpose. Kept at the
+;;   builder's verbatim instruction: "we must not forget what bad looks like."
+;;
+;; ⚠ FOOT, NOT HEADER — same reason as substrate.wat: the preserved bodies' line numbering is part
+;;   of the record and a header insertion would shift every line of it.

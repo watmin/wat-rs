@@ -6,9 +6,16 @@
 ;;   - existential/runtime dispatch behind the surface type (src/runtime.rs:5339)
 ;;   - 293.W containment: the surface field is impure -> holder MUST be a struct (:ephemeral), never a
 ;;     pure record / durable / wire (a live connection cannot cross the boundary) — correct by construction.
+;;
+;; MIGRATED 2026-08-30 (strike-docs-graveyard): the defsurface below said `:holder`; `defsurface`
+;; gained a REQUIRED `:nature` and this file was not migrated with the corpus, so it died at
+;; startup — silently, for ~8 weeks, because docs/arc/** was exempt from every wat-loads gate.
+;; It is rot, NOT design: re-driven after the one-keyword swap it prints 142 again, exactly as
+;; line 4 promises. That is why it carries NO lint rune of any kind — one here would have been rot
+;; wearing a declaration. `docs_wat_loads_or_declares_why_not` now walks this directory.
 
 ;; a methods-bearing surface (the "Store")
-(:wat::core::defsurface :probe::Store :holder :wat::core::Struct
+(:wat::core::defsurface :probe::Store :nature :wat::core::Struct
   :features [(put [self <- :probe::Store  x <- :wat::core::i64] -> :wat::core::i64)])
 
 ;; a concrete satisfier (a struct — impure, like a real connection holding a resource)

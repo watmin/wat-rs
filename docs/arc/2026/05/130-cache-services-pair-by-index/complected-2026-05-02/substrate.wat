@@ -548,3 +548,14 @@
           (:wat::lru::loop
             capacity driver-pairs reporter metrics-cadence)))))
     (:wat::core::Tuple pool driver)))
+
+;; rune:lint(historical) — preserves the arc 130 slice 1 sonnet sweep in its FAILED state, written
+;;   against arc-109's retired angle-bracket type syntax (`Reply<V>`, `Vector<Option<V>>`). That
+;;   syntax is exactly what it is a photograph of; migrating it to `:-` would destroy the record it
+;;   exists to be. Kept at the builder's verbatim instruction, quoted in README.md beside it:
+;;   "we need to know what bad looks like to make good - keep it here - we'll rebuild from it…
+;;   we must not forget what bad looks like." Checkable: the lex error names the retired syntax.
+;;
+;; ⚠ THIS RUNE IS AT THE FOOT, NOT THE HEADER, DELIBERATELY. README.md cites "the original line 64
+;;   of substrate.wat" for the bare-symbol `(PutAck))` mistake, and line 64 of THIS file is still
+;;   that line. A header insertion would shift it and silently falsify the README's own citation.

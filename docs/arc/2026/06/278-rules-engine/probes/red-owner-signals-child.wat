@@ -4,6 +4,21 @@
 ;;    because `every_wat_scripts_file_loads` walks `wat-scripts` only — a deliberately-failing probe
 ;;    parked there would break that gate.
 ;;
+;; ⛔ CORRECTION 2026-08-30 — P2 HAS LANDED AND THIS FILE'S RED MOVED PHASE. Two claims in the
+;;    prose below are now FALSE, kept only as the record of what was measured on 2026-08-03:
+;;    (a) "the owner->child signal verb does not exist" — `:wat::kernel::signal` is minted
+;;    (`src/check.rs:4133`, `src/check.rs:11103`); (b) "THE ARBITER IS THE RUNTIME, NOT `--check`"
+;;    — the arbiter is now the CHECK phase. The header's LAST paragraph ("TURNS GREEN AT P2")
+;;    predicted exactly this, and it is the live claim.
+;;
+;; rune:lint(red-by-design) — the refusal PROVES the peer-lifecycle OUTCOME WALL bites on the bare
+;;    `_` discard door: a SignalOutcome dropped in statement/discard position is a CHECK-phase
+;;    error. The binding at the foot is deliberately un-faced — it is what a caller writes BEFORE
+;;    the wall exists. A reader can check the sentence by running the file: startup raises
+;;    `#wat.check/MalformedForm` on `:wat::core::let`, "unhandled :wat::kernel::SignalOutcome in
+;;    statement/discard position — … the peer-lifecycle OUTCOME WALL (Phase 3)". FACE the binding
+;;    (match Delivered/Failed) and the file goes green, which is precisely why it must not be.
+;;
 ;; WHAT IT PROVES: the owner->child signal verb does not exist, and NOTHING ELSE is missing. The
 ;; spawn tooling, the Process handle, the child program, the forms quoting — all work. Execution
 ;; reaches the signal call and dies on exactly one head.

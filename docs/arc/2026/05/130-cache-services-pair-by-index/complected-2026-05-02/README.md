@@ -107,3 +107,18 @@ into entanglement).
   here at the original line 64 of `substrate.wat`.
 - Commit `98fa7c9` — REALIZATIONS + compositional rewrite of the
   live test file.
+
+## The `rune:lint(historical)` declaration — and why it sits at the FOOT of each file
+
+Added 2026-08-30. `tests/lint/docs_wat_loads_or_declares_why_not.rs` walks every `.wat` under
+`docs/arc/` and requires each to load on the current runtime **or** declare, in a closed
+two-category rune, why it does not. These two cannot load — they are written against arc 109's
+retired angle-bracket type syntax, which is part of what they are a photograph of — so each
+carries `;; rune:lint(historical) — …` naming the past state it preserves.
+
+The rune is appended at the **foot**, not the header, on purpose: this README cites *"the original
+line 64 of `substrate.wat`"* for the bare-symbol `(PutAck))` mistake, and line 64 of the preserved
+file is still that line. A header insertion would shift every body line and silently falsify that
+citation. The gate reads the rune wherever it appears in the file.
+
+⛔ Neither file may be migrated. Migrating them destroys the record they exist to be.
