@@ -1,10 +1,19 @@
 # DESIGN — STONE: the bare-symbol shorthand dies
 
-> ⛔ **THIS DESIGN SAID "BOTH FAMILIES". THERE ARE THREE.** Corrected in place 2026-08-30 after the
-> rider found a third live door and the orchestrator verified it. **Two doors are closed; the heresy
-> is NOT dead.** Read `## ⛔ THE THIRD DOOR` before treating this stone as complete.
+> ⛔ **THIS DESIGN SAID "BOTH FAMILIES". THERE WERE THREE.** Corrected in place 2026-08-30 after the
+> rider found a third live door and the orchestrator verified it.
+>
+> ✅ **ALL THREE ARE NOW CLOSED — the heresy is dead.** Verified post-rebuild:
+> ```
+> (Some 1) constructor           -> retirement error naming :wat::core::Some
+> ((Some v) …) pattern           -> the SAME retirement error
+> eval-ast! '(Some 99)           -> unbound symbol: Some
+> eval::walk '(match (Some 5) …) -> no-step-rule for op: symbol-head:Some
+> :wat::core::Some everywhere    -> unchanged, works
+> ```
+> The bare spelling now behaves exactly like a made-up head (`Zorble`) at every door.
 
-## ⛔ THE THIRD DOOR — the CEK stepper, still live after this stone
+## ✅ THE THIRD DOOR — the CEK stepper. Found by the rider, CLOSED 2026-08-30
 
 `:wat::eval::walk` / `:wat::eval-step!` (arc 068/070, `is_match_canonical` + `try_match_pattern_ast`,
 `src/runtime.rs:~23689,23725`) carries its **own** bare-symbol recognition, structurally separate

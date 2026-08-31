@@ -23694,22 +23694,32 @@ fn is_match_canonical(form: &WatAST) -> bool {
         | WatAST::StringLit(_, _)
         | WatAST::Keyword(_, _) => true,
         WatAST::List(items, _) => {
-            match items.first() {
-                Some(WatAST::Symbol(ident, _)) => {
-                    let n = ident.as_str();
-                    if matches!(n, "Some" | "Ok" | "Err") && items.len() >= 2 {
-                        return items[1..].iter().all(is_match_canonical);
-                    }
+            // One arm since the bare-symbol arm's removal (below): only the canonical
+            // FQDN keyword head names a matchable constructor form.
+            if let Some(WatAST::Keyword(k, _)) = items.first() {
+                // THE THIRD DOOR of the bare-symbol shorthand, closed 2026-08-30.
+                //
+                // A `Some(WatAST::Symbol(..))` arm used to bless a bare-symbol constructor form
+                // (`(Some 5)`) as canonical matchable data here, which is what kept the retired
+                // shorthand evaluable through the CEK stepper (`:wat::eval::walk` /
+                // `:wat::eval-step!`) long after arc 109 slice 1h closed the constructor door and
+                // this session closed the pattern door. Measured live before removal:
+                // `(:wat::eval::walk '(match (Some 5) ((Some n) n) …) …)` returned `Ok [[5 2]]`.
+                //
+                // It was the SHORTHAND, not generic structural matching — discriminated with a
+                // made-up head, which returned `no-step-rule for op: symbol-head:Zorble` while
+                // `Some` evaluated. With the arm gone, `Some` behaves exactly like `Zorble`.
+                //
+                // The Keyword arm below carries the canonical FQDN spelling and is untouched.
+                // `try_match_pattern_ast`'s head comparison stays generic (Symbol-vs-Symbol by
+                // name) — it was never the heresy; it only ever reached these forms because THIS
+                // arm blessed them as scrutinees.
+                let s = k.as_str();
+                if matches!(s, ":wat::core::Some" | ":wat::core::Ok" | ":wat::core::Err")
+                    && items.len() >= 2
+                {
+                    return items[1..].iter().all(is_match_canonical);
                 }
-                Some(WatAST::Keyword(k, _)) => {
-                    let s = k.as_str();
-                    if matches!(s, ":wat::core::Some" | ":wat::core::Ok" | ":wat::core::Err")
-                        && items.len() >= 2
-                    {
-                        return items[1..].iter().all(is_match_canonical);
-                    }
-                }
-                _ => {}
             }
             false
         }
