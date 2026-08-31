@@ -892,11 +892,12 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
 }
 
 /// Arc 278 S4c WALL 2 — walk a `:messages` type-decl form (`recordtype`/`defenum`, post-expansion)
-/// and collect every type it references in a FIELD position. A field type is written `name <- :Type`
-/// (both record fields and enum tagged-variant fields use this triple), so every `:Type` keyword
-/// IMMEDIATELY following a `<-` symbol is a referenced type. Each is parsed via `parse_type_expr` and
-/// its leaves collected with `collect_user_type_paths` (so `(:wat::core::Vector :- [my::ns::Thing])` yields
-/// both the stdlib head and the user arg). Type NAMES (slot-1 keyword), enum variant keywords, and the
+/// and collect every type it references in a FIELD position. A field type is written `name <- Type`
+/// (both record fields and enum tagged-variant fields use this triple). The node IMMEDIATELY
+/// following a `<-` is the referenced type: a Keyword (`:p::Item`) is parsed via `parse_type_expr`;
+/// a parametric List (`(:wat::core::Vector :- [:p::Item])`) via `parse_type_node`. Both paths feed
+/// `collect_user_type_paths` (so a Vector of a user type yields both the stdlib head and the user
+/// arg). Type NAMES (slot-1 keyword), enum variant keywords, and the
 /// `:wat::enum::*` purity marker are NOT `<-`-preceded, so they are correctly skipped. Recurses into
 /// every nested List/Vector so enum variant vectors are reached.
 /// Arc 294 item 9a — a `:messages` decl is a defrecord/defstruct/defenum, and after the
@@ -927,10 +928,21 @@ fn collect_message_form_type_refs(form: &WatAST, out: &mut Vec<String>) {
     for (i, child) in children.iter().enumerate() {
         if let WatAST::Symbol(s, _) = child {
             if s.as_str() == "<-" {
-                if let Some(WatAST::Keyword(k, _)) = children.get(i + 1) {
-                    if let Ok(te) = super::parse_type_expr(k) {
-                        collect_user_type_paths(&te, out);
+                match children.get(i + 1) {
+                    Some(WatAST::Keyword(k, _)) => {
+                        if let Ok(te) = super::parse_type_expr(k) {
+                            collect_user_type_paths(&te, out);
+                        }
                     }
+                    Some(ty @ WatAST::List(_, _)) => {
+                        // Parametric field type — `(:wat::core::Vector :- [:p::Item])`.
+                        // `parse_type_node` is the existing door for a List in a type slot;
+                        // `collect_user_type_paths` already descends the resulting TypeExpr.
+                        if let Ok(te) = super::parse_type_node(ty) {
+                            collect_user_type_paths(&te, out);
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -1211,5 +1223,122 @@ mod tests {
             }
             other => panic!("expected a MalformedDecl for an undeclared message; got {other:?}"),
         }
+    }
+
+    // ── WALL 2 reach — a field type after `<-` that is a parametric List ─────────────────────
+    //
+    // Excursus 001 stone 5. The Keyword arm above has fired since arc 278; a field typed
+    // `(:wat::core::Vector :- [:p::Item])` is a WatAST::List after `<-` and was skipped, so
+    // `collect_user_type_paths` (which descends parametrics correctly) was never called.
+    // The two repros under docs/excursus/2026/08/001-sns-sqs/repro/ differ by that one field.
+    // Byte-identical reason, not `.contains(` — a loose check would pass on a wall that named
+    // the WRONG type (no_loose_string_assert; same rationale as
+    // `base_normalization_does_not_weaken_the_wall` above).
+
+    const WALL2_UNDECLARED_ITEM: &str = "surface :p::Src :messages type references :p::Item which is not declared in \
+         this surface's :messages — a peer surface that owns :messages must \
+         declare EVERY non-stdlib type reachable from its protocol \
+         records/enums (a response enum's variant payload record, a request \
+         record's non-primitive field type, …), so a :satisfies service \
+         ships them ALL across a process fork (arc 278 S4c). Add a \
+         (defrecord :p::Item …) to :messages, or remove the reference.";
+
+    fn assert_wall2_names_item(err: TypeError) {
+        match err.kind() {
+            TypeErrorKind::MalformedDecl { head, reason } => {
+                assert_eq!(head, HEAD);
+                assert_eq!(reason, WALL2_UNDECLARED_ITEM);
+            }
+            other => panic!(
+                "expected a MalformedDecl naming :p::Item as an undeclared :messages field type; got {other:?}"
+            ),
+        }
+    }
+
+    #[test]
+    fn wall2_direct_field_type_still_refuses_undeclared_user_type() {
+        // repro/direct-field-type.wat — `:Ok [item <- :p::Item]`. Keyword path; must keep firing
+        // so the List branch is a widening, not a rewrite of the `<-` handler.
+        let err = parse_surface(
+            "(:wat::core::defsurface :p::Src :nature :wat::kernel::Peer \
+               :messages \
+               [(:wat::core::defrecord :p::Src::GetRequest []) \
+                (:wat::core::defenum :p::Src::GetResponse :wat::enum::Pure \
+                  :Ok [item <- :p::Item] \
+                  :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])] \
+               :features \
+               [(get [self <- :p::Src  req <- :p::Src::GetRequest] -> :p::Src::GetResponse \
+                  :max-request-bytes 524288)])",
+        )
+        .expect_err(
+            "a :messages field typed as an undeclared user type (Keyword after <-) must still be a located error",
+        );
+        assert_wall2_names_item(err);
+    }
+
+    #[test]
+    fn wall2_parametric_field_type_refuses_undeclared_user_type() {
+        // repro/parametric-field-type.wat — `:Ok [items <- (Vector :- [:p::Item])]`.
+        // This is wat-queue's shape (`ReceiveResponse::Ok` carries Vector of Envelope).
+        let err = parse_surface(
+            "(:wat::core::defsurface :p::Src :nature :wat::kernel::Peer \
+               :messages \
+               [(:wat::core::defrecord :p::Src::GetRequest []) \
+                (:wat::core::defenum :p::Src::GetResponse :wat::enum::Pure \
+                  :Ok [items <- (:wat::core::Vector :- [:p::Item])] \
+                  :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])] \
+               :features \
+               [(get [self <- :p::Src  req <- :p::Src::GetRequest] -> :p::Src::GetResponse \
+                  :max-request-bytes 524288)])",
+        )
+        .expect_err(
+            "a :messages field typed as Vector of an undeclared user type must now be a located error",
+        );
+        assert_wall2_names_item(err);
+    }
+
+    #[test]
+    fn wall2_nested_parametric_field_type_refuses_undeclared_user_type() {
+        // `(Vector :- [(Option :- [:p::Item])])` — collect_user_type_paths recurses, so this
+        // must come free once the List after `<-` is parsed. One assertion so the reach is
+        // proven real, not one level deep.
+        let err = parse_surface(
+            "(:wat::core::defsurface :p::Src :nature :wat::kernel::Peer \
+               :messages \
+               [(:wat::core::defrecord :p::Src::GetRequest []) \
+                (:wat::core::defenum :p::Src::GetResponse :wat::enum::Pure \
+                  :Ok [items <- (:wat::core::Vector :- [(:wat::core::Option :- [:p::Item])])] \
+                  :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])] \
+               :features \
+               [(get [self <- :p::Src  req <- :p::Src::GetRequest] -> :p::Src::GetResponse \
+                  :max-request-bytes 524288)])",
+        )
+        .expect_err(
+            "a nested parametric field type carrying an undeclared user type must be a located error",
+        );
+        assert_wall2_names_item(err);
+    }
+
+    #[test]
+    fn wall2_parametric_of_a_declared_user_type_still_freezes() {
+        // The guard must not start rejecting valid code: Vector of a type that IS in :messages
+        // is the queue's correct shape after Envelope moves in (stone 6). Type-var exemption
+        // `(Vector :- [K])` is already the payload of `parametric_message_is_recognized_as_declared`.
+        let surf = parse_surface(
+            "(:wat::core::defsurface :p::Src :nature :wat::kernel::Peer \
+               :messages \
+               [(:wat::core::defrecord :p::Item [id <- :wat::core::String]) \
+                (:wat::core::defrecord :p::Src::GetRequest []) \
+                (:wat::core::defenum :p::Src::GetResponse :wat::enum::Pure \
+                  :Ok [items <- (:wat::core::Vector :- [:p::Item])] \
+                  :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])] \
+               :features \
+               [(get [self <- :p::Src  req <- :p::Src::GetRequest] -> :p::Src::GetResponse \
+                  :max-request-bytes 524288)])",
+        )
+        .expect(
+            "a :messages field typed as Vector of a DECLARED user type must still freeze",
+        );
+        assert_eq!(surf.name, ":p::Src");
     }
 }
