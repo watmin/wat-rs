@@ -903,8 +903,10 @@ mod tests {
         );
     }
 
-    /// Arc 255.1b-v: every `@see` FQDN in the intrinsic corpus must resolve
-    /// to a registered intrinsic. A dangling @see is a broken cross-reference
+    /// Arc 255.1b-v: every `@see` FQDN in the intrinsic corpus must resolve —
+    /// to a registered Rust intrinsic OR (arc 255 STONE "`@see` can cross the
+    /// boundary") a wat verb that DECLARES (carries an axis-declaration key
+    /// in its `binding_metadata`). A dangling @see is a broken cross-reference
     /// in the doc system → fail loud.
     #[test]
     fn all_see_fqdns_resolve_to_registered_intrinsics() {
@@ -914,6 +916,67 @@ mod tests {
             "Found {} dangling @see reference(s) in the intrinsic corpus:\n{}",
             dangling.len(),
             dangling.join("\n")
+        );
+    }
+
+    /// Arc 255 STONE "`@see` can cross the boundary" — the negative that makes the stone
+    /// falsifiable (STOP-3). `all_see_fqdns_resolve_to_registered_intrinsics` alone cannot
+    /// distinguish "the gate correctly checks declaration" from "the gate accepts anything in
+    /// the symbol table": both are green today, because nothing in the live corpus currently
+    /// carries a dangling `@see`. This test exercises `see_target_resolves` directly, on three
+    /// constructed FQDNs, so the rule's actual behaviour is on the record rather than merely
+    /// implied by an empty `dangling` list:
+    ///
+    ///   1. `:wat::core::sort` — the wat verb this stone declares — MUST now resolve. The
+    ///      positive control: proves the new wat-store path fires at all, not just that the
+    ///      negative below happens to fail for an unrelated reason (e.g. a broken `startup_bare`).
+    ///   2. `:wat::kernel::spawn-program` — a REAL wat verb, present in `binding_metadata` today
+    ///      (`wat/spawn.wat`), whose ONLY metadata is `{:restricted-to […]}` — a capability map
+    ///      with no axis-declaration key. STOP-1's exact scenario: `contains_key` alone would
+    ///      accept it (it *is* in the table); `meta_has_doc_axis_key` correctly does not. Proves
+    ///      the gate is declaration-gated, not presence-gated.
+    ///   3. A wholly fabricated FQDN naming no verb in either store at all — the baseline "this
+    ///      names nothing" case, kept alongside (2) so a reader can tell "undeclared" and
+    ///      "nonexistent" apart; both must dangle, for different reasons.
+    #[test]
+    fn undeclared_wat_target_still_dangles() {
+        let reg = super::registry();
+        let world = super::reflect::bare_stdlib_world();
+        let wat_binding_metadata = &world.symbols().binding_metadata;
+
+        assert!(
+            super::reflect::see_target_resolves(":wat::core::sort", reg, wat_binding_metadata),
+            "positive control failed: `:wat::core::sort` carries an axis-declaration metadata \
+             map (wat/core.wat) and MUST resolve — if this assertion fails, the wat-store path \
+             itself is broken, and the negative cases below prove nothing."
+        );
+
+        assert!(
+            wat_binding_metadata.contains_key(":wat::kernel::spawn-program"),
+            "test's own premise is stale: `:wat::kernel::spawn-program` (wat/spawn.wat) no \
+             longer has a `binding_metadata` entry at all — pick another capability-only verb \
+             to carry STOP-1's `contains_key`-alone-is-not-the-test case."
+        );
+        assert!(
+            !super::reflect::see_target_resolves(
+                ":wat::kernel::spawn-program",
+                reg,
+                wat_binding_metadata
+            ),
+            "STOP-1: `:wat::kernel::spawn-program`'s ONLY metadata is `{{:restricted-to […]}}` \
+             — a capability map, not a doc declaration. `contains_key` alone would accept it; \
+             the gate must not. A dead link into an undocumented verb is exactly the failure \
+             `declared` (not `exists`) exists to forbid."
+        );
+
+        assert!(
+            !super::reflect::see_target_resolves(
+                ":wat::core::this-fqdn-names-no-verb-in-either-store",
+                reg,
+                wat_binding_metadata
+            ),
+            "STOP-3: an @see target naming nothing in either store must still be flagged \
+             dangling — a gate that accepts everything is indistinguishable from no gate."
         );
     }
 

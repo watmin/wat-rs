@@ -448,13 +448,7 @@ pub(crate) fn eval_vec_range(
 /// @ret     (:wat::core::Vector :- [T]) a new vector holding `xs`'s elements ordered by `cmp`
 /// @yields  cmp two elements of `xs` at a time — the pair being ordered; `cmp` returns whether the first sorts before the second. Called up to twice per comparison (the two-sided test that distinguishes Equal from Less/Greater — see `eval_vec_sort_by`), which is why an EFFECTFUL comparator leaks an implementation detail into observable output and is refused at the door
 /// @example (:wat::core::sort$native (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool (:wat::core::< a b)) (:wat::core::Vector 3 1 2)) #=> (:wat::core::Vector 1 2 3)
-/// ⚠ NO `@see :wat::core::sort` — and the reason is a real limit worth knowing.
-/// `all_see_fqdns_resolve_to_registered_intrinsics` requires every `@see` to name a REGISTERED
-/// INTRINSIC, and `sort`/`sort-by` are wat `defclause`s in `wat/core.wat`, not intrinsics. So a
-/// Rust primitive cannot cite its own wat-level public wrapper through `@see`, even though that is
-/// the single most useful cross-reference it has. The relationship is carried in the prose above
-/// instead. (Measured: the gate went red on exactly this, `@see` is optional, and pointing it at
-/// some other registered verb to satisfy the gate would be a worse lie than omitting it.)
+/// @see :wat::core::sort
 #[wat_intrinsic(":wat::core::sort$native")]
 pub(crate) fn eval_sort_native(
     cmp: &WatAST,

@@ -1413,7 +1413,13 @@ const AXIS_DECLARATION_KEYS: &[&str] = &[
 /// is an unambiguous claim to be declaring a substrate property** — which is the only honest
 /// discriminator between a declaration and a comment. Both earlier predicates were wrong in
 /// opposite directions; this one asks what the map CLAIMS, not what shape it happens to have.
-fn meta_has_doc_axis_key(meta: &std::collections::HashMap<String, WatAST>) -> bool {
+///
+/// `pub(crate)`, not module-private — BRIEF-STONE-see-can-cross-the-boundary (arc 255) makes
+/// `intrinsic::reflect::check_see_refs` a THIRD consumer (storage door here + the `metadata-of`
+/// reflection surface below it + now the `@see` gate), and it must call this SAME fn rather than
+/// restate the five keys — a second key list is exactly how the three drift apart. No other
+/// change to this fn or to `AXIS_DECLARATION_KEYS` itself.
+pub(crate) fn meta_has_doc_axis_key(meta: &std::collections::HashMap<String, WatAST>) -> bool {
     AXIS_DECLARATION_KEYS.iter().any(|k| meta.contains_key(*k))
 }
 

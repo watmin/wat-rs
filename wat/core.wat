@@ -1515,7 +1515,40 @@
 ;; Dispatch is purely by arity (sort: 1 vs 2; sort-by: 2 vs 3).
 ;; All clauses auto-generalize over bare type-vars T and K (Arc 256 / Stone 251.7).
 
+;; Arc 255 STONE "@see can cross the boundary" — `sort`/`sort-by` declare a metadata map,
+;; the shape copied from `:wat::string::capitalize` (`wat/string.wat`). Read, not copied,
+;; against `sort$native`'s own `@Purity`/`@Determinism`/`@Totality`/`@ExpandTime` block
+;; (`src/intrinsic/collection.rs`):
+;;   - `:purity`/`:determinism` ARE the same values (Pure/Deterministic), and for the SAME
+;;     reason `sort$native` gives — `eval_vec_sort_by` refuses any comparator not proven Pure
+;;     ∧ Deterministic BEFORE running a single comparison, and both clauses here only ever
+;;     hand it either a fixed literal `<`-comparator (1-ary/2-ary-keyfn) or a caller's `cmp`
+;;     forwarded straight through (2-ary/3-ary) — the SAME door stands in front of every path
+;;     out of this defclause, so the gate protects `sort`/`sort-by` exactly as it protects
+;;     `sort$native` itself. Traced, not assumed.
+;;   - `:totality`/`:expand-time` are DELIBERATELY LEFT `Unreviewed`, NOT copied as `Total`/
+;;     `Legal`. `sort$native`'s own comment says its measured `Total` verdict is grounded
+;;     entirely on ITS OWN merits (a well-formed output for any comparator, raise-propagation
+;;     not counted against it) — and, in the same breath, that the corpus's own totality
+;;     census currently fails `sort/1`'s literal comparator body, because the polymorphic
+;;     `:wat::core::<` it calls is itself `Unreviewed`. No comparable "measured directly"
+;;     pass exists yet for the WAT layer (`sort`/`sort-by` themselves, as opposed to
+;;     `sort$native`), and `<`'s own `@ExpandTime` standing is not established from what this
+;;     stone read either — `Unreviewed` is the honest, default-deny answer until that census
+;;     runs, not a guess (`wat/runtime-meta.wat`'s own `:Unreviewed` doc: "not a pole, not a
+;;     guess").
+;;   - `:category Transform` matches `sort$native`'s — both genuinely are "reorders a
+;;     collection", the same descriptive bucket regardless of the axes above.
 (:wat::core::defclause :wat::core::sort
+  {:doc "Sort a vector: ascending by the default comparator `<` (1-ary), or by a caller-supplied `less?` comparator (2-ary, fn-first, Clojure idiom)."
+   :added "1.0.0"
+   :ret [:wat::core::Vector "a new vector holding coll's elements in sorted order"]
+   :purity :wat::runtime::Purity::Pure
+   :determinism :wat::runtime::Determinism::Deterministic
+   :totality :wat::runtime::Totality::Unreviewed
+   :expand-time :wat::runtime::ExpandTime::Unreviewed
+   :category :wat::runtime::Category::Transform
+   :examples [["(:wat::core::sort [3 1 2])" "[1 2 3]"]]}
   ;; 1-ary: natural ascending — default comparator is <
   ;; T auto-generalizes (bare uppercase type-var, Arc 256 / Stone 251.7).
   ([coll <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
@@ -1530,6 +1563,15 @@
     (:wat::core::sort$native cmp coll)))
 
 (:wat::core::defclause :wat::core::sort-by
+  {:doc "Sort a vector by a key function: ascending on the key by the default comparator `<` (2-ary), or by a caller-supplied comparator over the keys (3-ary)."
+   :added "1.0.0"
+   :ret [:wat::core::Vector "a new vector holding coll's elements ordered by keyfn (and cmp, when supplied)"]
+   :purity :wat::runtime::Purity::Pure
+   :determinism :wat::runtime::Determinism::Deterministic
+   :totality :wat::runtime::Totality::Unreviewed
+   :expand-time :wat::runtime::ExpandTime::Unreviewed
+   :category :wat::runtime::Category::Transform
+   :examples [["(:wat::core::sort-by (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) [3 1 2])" "[1 2 3]"]]}
   ;; 2-ary: key function only — default comparator is < on the keys.
   ;; Keyfn is a bare type-var that unifies with the caller's [T :-> K].
   ([keyfn <- :Keyfn

@@ -154,20 +154,77 @@ pub(crate) fn eval_intrinsic_examples(
 
 // ─── Arc 255.1b-v: @see registry cross-check ─────────────────────────────────
 
-/// Walk the intrinsic registry and collect dangling `@see` references —
-/// FQDNs listed in an entry's `@see` doc that do NOT resolve to any registered
-/// intrinsic. An empty result means the corpus is internally consistent.
+/// Does a single `@see` target resolve? Extracted out of [`check_see_refs`] so the negative
+/// case (an *undeclared* wat target must still be flagged dangling — STOP-3) can be exercised
+/// directly, on a single constructed FQDN, without needing a real corpus entry that carries a
+/// dangling `@see` (there is none — the whole point is that the gate is green).
 ///
-/// Lives in `#[cfg(test)]` — only consumed by the @see cross-check test in
+/// Arc 255 STONE "`@see` can cross the boundary" — a target resolves against **both** stores,
+/// per the DESIGN's pinned contract
+/// (`docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-see-can-cross-the-boundary.md`):
+///   - a **registered Rust intrinsic** (`registry().lookup_entry`, as before), OR
+///   - a **declared wat verb** — present in the frozen stdlib's `binding_metadata`
+///     AND carrying an axis-declaration key. `contains_key` alone is NOT the
+///     test: a capability-only map (e.g. `{:restricted-to […]}`) is stored in
+///     `binding_metadata` and declares nothing, so accepting it on presence
+///     alone would point a reader at a verb with no documentation — the exact
+///     dead link this rule forbids. `crate::runtime::meta_has_doc_axis_key` is
+///     the SAME predicate the storage door (`record_binding_metadata`) and the
+///     `metadata-of` reflection surface already use — reused here, not
+///     restated, so the three cannot drift apart on what counts as "declared".
+///
+/// `reg` and `wat_binding_metadata` are threaded in rather than re-fetched, so a caller walking
+/// many targets (`check_see_refs`) builds the `FrozenWorld` once and this fn does no I/O of its
+/// own.
+#[cfg(test)]
+pub(crate) fn see_target_resolves(
+    target: &str,
+    reg: &crate::intrinsic::IntrinsicRegistry,
+    wat_binding_metadata: &crate::value::symbol_table::BindingMetadata,
+) -> bool {
+    let is_registered_intrinsic = reg.lookup_entry(target).is_some();
+    let is_declared_wat_verb =
+        wat_binding_metadata.get(target).is_some_and(crate::runtime::meta_has_doc_axis_key);
+    is_registered_intrinsic || is_declared_wat_verb
+}
+
+/// Build the ONE bare `FrozenWorld` (`crate::freeze::startup_bare` — stdlib loaded, no user
+/// program) `check_see_refs` and its direct-target test siblings check `@see` targets against.
+/// The wat store (`binding_metadata`) does not exist until the stdlib has loaded, so this must
+/// run once before any `@see` is resolved, never once per target.
+#[cfg(test)]
+pub(crate) fn bare_stdlib_world() -> crate::freeze::FrozenWorld {
+    crate::freeze::startup_bare().unwrap_or_else(|e| {
+        panic!("check_see_refs: startup_bare() failed to freeze the stdlib: {e:?}")
+    })
+}
+
+/// Walk the intrinsic registry and collect dangling `@see` references —
+/// FQDNs listed in an entry's `@see` doc that do NOT resolve to either
+/// store (see [`see_target_resolves`] for what "resolve" means). An empty
+/// result means the corpus is internally consistent.
+///
+/// The wat store does not exist until the stdlib has loaded (`check_see_refs`
+/// runs as a bare `#[test]`, outside any program), so [`bare_stdlib_world`] is
+/// called ONCE for the whole walk, not once per `@see`.
+///
+/// Lives in `#[cfg(test)]` — only consumed by the @see cross-check tests in
 /// `intrinsic/mod.rs`. The `see` field is also read by `eval_render_doc`'s
 /// "See also:" section (non-test code), so there is no dead-code issue.
 #[cfg(test)]
 pub(crate) fn check_see_refs() -> Vec<String> {
     let reg = crate::intrinsic::registry();
+
+    // Build the second store ONCE — a bare frozen world carries no user
+    // program, only the loaded stdlib, so `world.symbols().binding_metadata`
+    // is exactly the wat-declaration store `@see` needs to check against.
+    let world = bare_stdlib_world();
+    let wat_binding_metadata = &world.symbols().binding_metadata;
+
     let mut dangling: Vec<String> = Vec::new();
     for entry in reg.all_entries() {
         for &see_fqdn in entry.see {
-            if reg.lookup_entry(see_fqdn).is_none() {
+            if !see_target_resolves(see_fqdn, reg, wat_binding_metadata) {
                 dangling.push(format!(
                     "dangling @see `{}` on `{}`",
                     see_fqdn, entry.name
