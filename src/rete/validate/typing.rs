@@ -203,19 +203,36 @@ fn is_non_field_keyword(operand: &WatAST, field_names: &[String]) -> bool {
     }
 }
 
-/// The rete type a bare keyword CONSTANT carries: `enum` when its prefix names a registered enum,
-/// else `keyword`.
+/// The rete type a bare keyword CONSTANT carries: `enum` when it names a UNIT variant that
+/// EXISTS, else `keyword`.
 ///
-/// `:probe::E::A` -> prefix `:probe::E` -> a `TypeDef::Enum` -> `enum`. Note this keyword could
-/// never have been a field reference in the first place: it carries `::`, and a field name is a
-/// bare identifier (`available fields: [k, v]`). The engine refused it as an unknown field anyway.
+/// ⚠ **THIS TYPED BY PREFIX ALONE AND NEVER CHECKED THE VARIANT EXISTED** (vigilia Class D1,
+/// driven 2026-08-31). `rsplit_once("::")` + "is that path a `TypeDef::Enum`" typed `:evt::G::Hii`
+/// — a variant the enum does not declare — as `"enum"`, the checker saw enum-vs-enum and passed,
+/// and the RUNTIME then resolved the same keyword through `expr_ir::keyword_value` ->
+/// `sym.unit_variant`, an EXACT lookup, got `None`, and fell back to a plain keyword. `enum::=`
+/// compared Enum vs keyword: always false. **The rule compiled, fired, and matched nothing, with
+/// no diagnostic** — while CORE refuses the identical expression at check time
+/// (`:wat::core::=: parameter #2 expects :wat::core::keyword; got :evt::G`). Agreement with core
+/// is the contract; "it didn't match" is the easiest wrong answer to ship.
+///
+/// TWO conditions, and the second is the one the obvious fix misses:
+///   1. `matcher::enum_variant_ctor` — the ONE resolution, the same one the lowerer, the purity
+///      classifier and `walk_nested_constructors` already use. `typing.rs` was the fourth,
+///      hand-written, site and the only one that disagreed with the runtime.
+///   2. **arity == 0.** `enum_variant_ctor` resolves Unit **and** Tagged; `sym.unit_variant` is
+///      UNIT-ONLY. A tagged variant has no bare value form — `(:tg::P::Hi 7)` is the only way to
+///      write one, which is why core refuses that too (`expects [:wat::core::i64 :-> :tg::P]`) —
+///      so resolving is not enough. Without this clause the tagged arm stays broken.
+///
+/// Everything else falls to `keyword`, where the existing `UnknownField` /
+/// `ConstraintTypeMismatch` machinery produces the located diagnostic. Note such a keyword could
+/// never have been a field reference: it carries `::`, and a field name is a bare identifier.
 fn keyword_constant_segment(k: &str, types: &TypeEnv) -> &'static str {
-    if let Some((type_path, _variant)) = k.rsplit_once("::") {
-        if matches!(types.get(type_path), Some(TypeDef::Enum(_))) {
-            return "enum";
-        }
+    match crate::rete::matcher::enum_variant_ctor(types, k) {
+        Some((_, _, 0)) => "enum",
+        _ => "keyword",
     }
-    "keyword"
 }
 
 /// LAW A + the per-type type check for an inline alpha constraint
