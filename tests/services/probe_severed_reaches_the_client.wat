@@ -65,6 +65,10 @@
 
 ;; the owner: starts the service, hands back a connected peer, and lets its `Handle` go at return.
 ;; The caller below holds a live, authorized channel to a service that now has no owner.
+;;
+;; rune:check(handle-lifetime-creation-escape) — this gate must construct an ownerless
+;; service on purpose so the client observes LociDiedError::Severed rather than mute Closed.
+;; The wall would refuse this function; the construction is the proof, not a bug.
 (:wat::core::defn :sev::dial-and-drop [] -> (:wat::kernel::Peer :- [:sev::Echo::Op :sev::Echo::Reply])
   (:wat::core::let
     [h (:sev::echo/start :locus (:wat::spawn::thread) :record (:sev::echo::Record :n 0))

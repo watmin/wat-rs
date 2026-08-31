@@ -122,17 +122,16 @@
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
 
-;; THE REAL CASE-1 ESCAPE, and the wall's true acceptance criterion. `h` is CREATED here by
-;; `/start`, so this scope owns it; returning the peer hands the caller a live channel to a service
-;; that dies the moment this function returns. Legal today, type-checks today. When the stone lands
-;; THIS must stop compiling while `:hs::conn-is-safe-the-caller-owns-the-handle` above keeps
-;; compiling — a wall that cannot separate those two is too blunt to ship.
-(:wat::core::defn :hs::dial-and-drop-is-the-real-escape
-  [] -> (:wat::kernel::Peer :- [:hs::Alpha::Op :hs::Alpha::Reply])
-  (:wat::core::let
-    [h (:hs::alpha/start :locus (:wat::spawn::thread) :record (:hs::alpha::Record :n 0))
-     c (:hs::conn-is-safe-the-caller-owns-the-handle h)]
-    c))
+;; THE REAL CASE-1 ESCAPE has MOVED, and its location was a specification error worth recording.
+;; It lived here, in wat-scripts/, while EXPECTATIONS row 1 demanded this file be REJECTED — but
+;; `every_wat_scripts_file_loads` type-checks every .wat under wat-scripts/, so those two
+;; requirements contradict each other by construction and the floor went red the moment the wall
+;; started working. The repo already had the home for a must-be-rejected file:
+;; `docs/arc/2026/06/278-rules-engine/probes/red-*.wat`.
+;;
+;; It now lives at `docs/excursus/2026/08/002-handle-lifetime-wall/probes/red-creation-escape.wat`,
+;; driven by `tests/services/probe_ex002_creation_escape.rs`. What stays HERE is the GREEN
+;; feasibility half — the Handle -> surface-type relation — which the loader gate keeps proving.
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println "handle->surface relation: both services annotate precisely"))

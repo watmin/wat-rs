@@ -372,6 +372,18 @@ pub enum CheckErrorKind {
         variant: String,
         op_type: String,
     },
+    /// Excursus 002 stone 1 — a `Peer` escaped a scope that CREATED its service's
+    /// `Handle` (a call that returns a Handle and does not take one). Outer span
+    /// is the escape site (the let value, or the function body). `created_at` is
+    /// the creating call. No remedy string: the fix is context-dependent (thread
+    /// the Handle, or return it too).
+    HandleCreationEscape {
+        function: String,
+        service: String,
+        /// Source location of the Handle-creating call (`<svc>/start` or equivalent).
+        #[to_edn(key = "created-at")]
+        created_at: Span,
+    },
 }
 
 /// Arc 296 S7 — the 5 structural failure modes for `:ensure :fn` validation.
@@ -807,6 +819,19 @@ impl CheckErrorKind {
                     prefix, variant, op_type,
                 )
             }
+            CheckErrorKind::HandleCreationEscape {
+                function,
+                service,
+                created_at,
+            } => write!(
+                f,
+                "{}function {}: a peer of {} escapes the scope that created its Handle at {} — \
+                 the Handle dies when this scope ends, leaving a live channel to nothing",
+                prefix,
+                function,
+                service,
+                created_at,
+            ),
         }
     }
 }

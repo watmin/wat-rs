@@ -55,7 +55,7 @@ pub mod error_edn;
 use crate::ast::WatAST;
 use crate::runtime::{Function, FunctionBody, SymbolTable};
 use crate::span::Span;
-use crate::types::{TypeError, TypeErrorKind, TypeEnv, TypeExpr};
+use crate::types::{TypeDef, TypeError, TypeErrorKind, TypeEnv, TypeExpr};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use wat_macros::wat_special_form_impl;
@@ -480,6 +480,7 @@ pub(crate) fn clause_attempts_to_edn(v: &[(usize, Vec<String>)]) -> wat_edn::Own
 pub(crate) struct InferCtx {
     next: u64,
     enclosing_rets: Vec<TypeExpr>,
+    enclosing_fns: Vec<String>,
 }
 
 impl InferCtx {
@@ -505,6 +506,22 @@ impl InferCtx {
     /// function body (top-level `check_form` invocations).
     pub(crate) fn enclosing_ret(&self) -> Option<&TypeExpr> {
         self.enclosing_rets.last()
+    }
+
+    /// Push the FQDN of a named function whose body we are about to check.
+    /// Paired with [`pop_enclosing_fn`]. Used by the handle-creation-escape
+    /// wall (excursus 002) so a `let` inside the body knows which function
+    /// to name, and whether that function carries the wall's rune.
+    pub(crate) fn push_enclosing_fn(&mut self, path: String) {
+        self.enclosing_fns.push(path);
+    }
+
+    pub(crate) fn pop_enclosing_fn(&mut self) {
+        self.enclosing_fns.pop();
+    }
+
+    pub(crate) fn enclosing_fn(&self) -> Option<&str> {
+        self.enclosing_fns.last().map(|s| s.as_str())
     }
 }
 
@@ -1769,6 +1786,202 @@ fn collect_process_stdin_and_joins(
 }
 
 
+/// Excursus 002 stone 1 — the rune a deliberate witness carries so the wall
+/// does not refuse a gate that must construct the forbidden state. Comment
+/// form, immediately above the `defn`:
+/// `rune:check(handle-lifetime-creation-escape)`.
+const HANDLE_CREATION_ESCAPE_RUNE: &str = "rune:check(handle-lifetime-creation-escape)";
+
+/// A Handle-creating call found in a scope: the callee returns a service
+/// Handle and does not take one, so THIS scope owns the new Handle.
+struct HandleCreation {
+    span: Span,
+    op: TypeExpr,
+    reply: TypeExpr,
+}
+
+fn type_head_path(ty: &TypeExpr) -> Option<String> {
+    match ty {
+        TypeExpr::Path(p) => Some(p.clone()),
+        TypeExpr::Parametric { head, .. } => Some(format!(":{head}")),
+        _ => None,
+    }
+}
+
+/// A service Handle is the generated aggregate with fields `handle` (a Peer)
+/// and `addr` (an Address of the client protocol). Returns that protocol's
+/// `(Op, Reply)`. Matching a bare Path misses every `(Handle :- [Shared])`.
+fn service_handle_protocol(ty: &TypeExpr, env: &CheckEnv) -> Option<(TypeExpr, TypeExpr)> {
+    let path = type_head_path(ty)?;
+    let TypeDef::Aggregate(agg) = env.types().get(&path)? else {
+        return None;
+    };
+    let mut has_handle_field = false;
+    let mut addr_ty: Option<&TypeExpr> = None;
+    for (name, fty) in &agg.fields {
+        if name == "handle" {
+            has_handle_field = true;
+        }
+        if name == "addr" {
+            addr_ty = Some(fty);
+        }
+    }
+    if !has_handle_field {
+        return None;
+    }
+    match addr_ty {
+        Some(TypeExpr::Parametric { head, args })
+            if head == "wat::kernel::Address" && args.len() >= 2 =>
+        {
+            Some((args[0].clone(), args[1].clone()))
+        }
+        _ => None,
+    }
+}
+
+fn scheme_takes_service_handle(scheme: &TypeScheme, env: &CheckEnv) -> bool {
+    scheme
+        .params
+        .iter()
+        .any(|p| service_handle_protocol(p, env).is_some())
+}
+
+/// Collect `(Op, Reply)` protocols of every `Peer` inside `ty`.
+fn collect_peer_protocols(ty: &TypeExpr, out: &mut Vec<(TypeExpr, TypeExpr)>) {
+    match ty {
+        TypeExpr::Parametric { head, args } => {
+            if head == "wat::kernel::Peer" && args.len() >= 2 {
+                out.push((args[0].clone(), args[1].clone()));
+            }
+            for a in args {
+                collect_peer_protocols(a, out);
+            }
+        }
+        TypeExpr::Tuple(ts) => {
+            for t in ts {
+                collect_peer_protocols(t, out);
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                collect_peer_protocols(a, out);
+            }
+            collect_peer_protocols(ret, out);
+        }
+        TypeExpr::Path(_) | TypeExpr::Var(_) => {}
+    }
+}
+
+fn call_head_keyword(head: &WatAST) -> Option<&str> {
+    match head {
+        WatAST::Keyword(k, _) => Some(k.as_str()),
+        _ => None,
+    }
+}
+
+/// Walk `node` for Handle-creating calls. Does not descend into nested
+/// `fn`/`lambda`/`defn` bodies (those are separate scopes). Creation is
+/// decided from the callee's scheme — return is a service Handle, and no
+/// parameter is — not from an FQDN suffix.
+fn collect_handle_creations(node: &WatAST, env: &CheckEnv, out: &mut Vec<HandleCreation>) {
+    if let WatAST::List(items, span) = node {
+        if let Some(name) = items.first().and_then(call_head_keyword) {
+            match name {
+                ":wat::core::fn" | ":wat::core::lambda" | ":wat::core::defn" => return,
+                _ => {
+                    if let Some(scheme) = env.get(name) {
+                        if !scheme_takes_service_handle(scheme, env) {
+                            if let Some((op, reply)) =
+                                service_handle_protocol(&scheme.ret, env)
+                            {
+                                out.push(HandleCreation {
+                                    span: span.clone(),
+                                    op,
+                                    reply,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for child in node.children().iter() {
+        collect_handle_creations(child, env, out);
+    }
+}
+
+fn surface_from_op(op: &TypeExpr) -> String {
+    match op {
+        TypeExpr::Path(p) if p.ends_with("::Op") => p[..p.len() - 4].to_string(),
+        other => format_type(other),
+    }
+}
+
+fn function_has_creation_escape_rune(span: &Span, function_path: &str) -> bool {
+    let Ok(src) = std::fs::read_to_string(span.file.as_ref()) else {
+        return false;
+    };
+    let lines: Vec<&str> = src.lines().collect();
+    for (i, line) in lines.iter().enumerate() {
+        if !(line.contains("defn") && line.contains(function_path)) {
+            continue;
+        }
+        let mut j = i;
+        while j > 0 {
+            j -= 1;
+            let t = lines[j].trim();
+            if t.is_empty() {
+                continue;
+            }
+            if t.starts_with(';') {
+                if t.contains(HANDLE_CREATION_ESCAPE_RUNE) {
+                    return true;
+                }
+                continue;
+            }
+            break;
+        }
+    }
+    false
+}
+
+fn push_handle_creation_escape(
+    errors: &mut Vec<CheckError>,
+    env: &CheckEnv,
+    scope: &WatAST,
+    escape_ty: &TypeExpr,
+    escape_span: &Span,
+    function: &str,
+) {
+    let mut peers = Vec::new();
+    collect_peer_protocols(escape_ty, &mut peers);
+    if peers.is_empty() {
+        return;
+    }
+    let mut creations = Vec::new();
+    collect_handle_creations(scope, env, &mut creations);
+    if creations.is_empty() {
+        return;
+    }
+    for c in &creations {
+        if peers.iter().any(|(op, reply)| op == &c.op && reply == &c.reply) {
+            if function_has_creation_escape_rune(escape_span, function) {
+                return;
+            }
+            errors.push(CheckError {
+                span: escape_span.clone(),
+                kind: CheckErrorKind::HandleCreationEscape {
+                    function: function.to_string(),
+                    service: surface_from_op(&c.op),
+                    created_at: c.span.clone(),
+                },
+            });
+            return;
+        }
+    }
+}
+
 fn check_function_body(
     path: &str,
     func: &Function,
@@ -1801,6 +2014,7 @@ fn check_function_body(
         FunctionBody::Wat(ast) => ast,
         FunctionBody::Native => return,
     };
+    fresh.push_enclosing_fn(path.to_string());
     fresh.push_enclosing_ret(scheme.ret.clone());
     let body_ty = infer(body_ast, env, &locals, fresh, &mut subst).drain_errors_into(errors);
     fresh.pop_enclosing_ret();
@@ -1822,7 +2036,19 @@ fn check_function_body(
                 remedies,
             } });
         }
+        // Excursus 002 stone 1b — a Peer must not escape a function that
+        // created its Handle. `locals` and `scheme.ret` are co-present here.
+        let resolved_ret = apply_subst(&scheme.ret, &subst);
+        push_handle_creation_escape(
+            errors,
+            env,
+            body_ast,
+            &resolved_ret,
+            body_ast.span(),
+            path,
+        );
     }
+    fresh.pop_enclosing_fn();
 }
 
 /// Stone 241.10 — variant-constructor typo remediation for ReturnTypeMismatch.
@@ -7878,6 +8104,30 @@ fn infer_let(
     }
 
     let val = infer(&body_ast, env, &extended, fresh, subst).drain_errors_into(&mut local_errors);
+    if let Some(ref ty) = val {
+        // Excursus 002 stone 1a — a Peer must not escape a `let` that created
+        // its Handle. `cumulative` has the bindings; the body type is the
+        // escaping value.
+        let mut let_scope_for_wall: Vec<WatAST> = Vec::new();
+        for pair in &bindings_pairs {
+            if let WatAST::List(items, _) = pair {
+                if items.len() == 2 {
+                    let_scope_for_wall.push(items[1].clone());
+                }
+            }
+        }
+        let_scope_for_wall.push(body_ast.clone());
+        let wall_scope = WatAST::List(let_scope_for_wall, body_ast.span().clone());
+        let resolved = apply_subst(ty, subst);
+        push_handle_creation_escape(
+            &mut local_errors,
+            env,
+            &wall_scope,
+            &resolved,
+            body_ast.span(),
+            fresh.enclosing_fn().unwrap_or(""),
+        );
+    }
     match val {
         Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
         // HARVEST (236.2): silent-by-intent — body inference failed; propagate errors.
