@@ -26,6 +26,21 @@
 //! rather than this wave's read-only motive), but needing the identical `#[wat_intrinsic]`
 //! file-scan visibility the header above explains, so it lives here rather than opening a file
 //! for one verb.
+//!
+//! Arc 255 Stone the-collection-readers added four more: `assoc`/`conj`/`drop`/`take` — thin
+//! delegates over `crate::runtime::eval_assoc`/`eval_conj` and
+//! `crate::collection::transform::eval_vec_take`/`eval_vec_drop` (all four in place, unmoved).
+//! None of the four runs code it did not write. `@Totality` is measured PER VERB here, not
+//! copied: `assoc`/`conj` reach a container-capability gate
+//! (`MapContainer::can_assoc()`/`StreamContainer::has_append()`) that admits more than one
+//! receiver kind and then finds a VALUE-level hole within it (an unknown Record field, an
+//! unhashable map key or set element) — `Partial`, per
+//! `docs/arc/2026/06/255-builtin-registry/RULING-a-raise-is-not-an-outcome-so-a-raising-verb-
+//! is-partial.md`. `drop`/`take` touch no such gate — their one receiver check
+//! (`crate::stream::value_as_stream`) defines the domain, and past it they only construct a
+//! lazy `Stream` thunk (arithmetic on `n`, no failure path) — `Total`. Constructing a thunk is
+//! not running one: nothing is forced, which is what keeps both in scope while
+//! `seqable->stream` (which forces) stays W7 and out of scope — see the STONE's DESIGN.
 
 // ─── THE DELEGATE TEMPLATE — one gotcha, twice paid for ────────────────────────
 //
@@ -458,4 +473,264 @@ pub(crate) fn eval_sort_native(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     crate::collection::transform::eval_vec_sort_by(&[cmp.clone(), xs.clone()], call_span, env, sym)
+}
+
+// ─── Arc 255 Stone the-collection-readers ───────────────────────────────────
+//
+// `assoc`/`conj`/`drop`/`take` get homes. All four run no caller code (verified below,
+// per verb, in pre-flight) — the two verbs that DO (`find-last-index`, `seqable->stream`)
+// are W7 and stay out of scope; see the STONE's DESIGN. `@Totality` is measured
+// SEPARATELY for each of the four, from its own body, never copied across them: `assoc`/
+// `conj` reach a container-CAPABILITY gate (`MapContainer::can_assoc()` /
+// `StreamContainer::has_append()`) that admits more than one concrete container kind, and
+// within that admitted domain each finds a further VALUE-level hole (not a receiver-TYPE
+// hole — the domain-defining gate is not what's counted, exactly as `last`/`reverse`/
+// `range` above establish) — so both are `Partial`. `drop`/`take` never touch a
+// `MapContainer`/`StreamContainer` capability gate at all: `value_as_stream` is the one
+// receiver check, defines the domain, and once past it the body only builds a lazy
+// `Stream` thunk — arithmetic on `n`, no failure path — so both are `Total`.
+
+/// `(:wat::core::assoc coll key new-value) -> coll's own type` — arc 237 Stone 237.7c.
+///
+/// Polymorphic write verb spanning two heterogeneous collection families:
+/// - `(HashMap :- [K V])` / `(PersistentMap :- [K V])` → functional clone-insert.
+/// - `:wat::core::Record` (base or holonic) → rebuilds the field (holonic rebuilds the
+///   hologram in parity too — the PARITY invariant).
+/// - else → teaching `RuntimeError::TypeMismatch`.
+///
+/// Arc 255 Stone the-collection-readers — moved into a thin `#[wat_intrinsic]` delegate over
+/// `crate::runtime::eval_assoc` (in place, unmoved — `pub(crate)` now so this delegate can
+/// reach it) with its real (3) arity declared; the hand-rolled `args.len() != 3` guard that
+/// fn carried retires there.
+///
+/// **Purity ground:** all three args are evaluated by ordinary call-by-value (not itself an
+/// effect). Past that, the body classifies the already-evaluated receiver via
+/// `MapContainer::of_value`/`can_assoc()` and rebuilds/inserts a same-kind collection — no
+/// `eval_inner`/`apply_function` on caller-supplied code anywhere. Pure ∧ Deterministic.
+///
+/// **Totality ground — measured `Partial`, and NOT by copying `last`/`reverse`'s `Total`.**
+/// `can_assoc()` is the domain-defining gate (admits HashMap/PersistentMap/Record; a Vector or
+/// HashSet receiver is outside the declared domain, same non-counting class as `require_vec`
+/// elsewhere in this file). WITHIN that admitted domain the body still raises on a VALUE it
+/// cannot place, not a type it does not recognize:
+/// - a Record receiver + a key naming no such field →
+///   `RuntimeErrorKind::UnknownField` (`src/runtime.rs`, `record_assoc_inner`'s
+///   `record_def.field_names().position(...)` miss, the `None` arm).
+/// - a HashMap/PersistentMap receiver + a key that fails `value_is_key_hashable` →
+///   `RuntimeErrorKind::TypeMismatch` (`src/collection/eval.rs`, `hashmap_assoc_inner`'s
+///   `if !value_is_key_hashable(k)` guard).
+///
+/// Both are exactly the shape `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-
+/// partial.md` calls out: a raise on a value inside the declared domain, not a matchable
+/// outcome — the verb's own `@Totality` tag, not `nth`'s (which stays `Unreviewed` above
+/// despite its doc text naming the same class of hole — that ruling is this stone's to make,
+/// not to backport).
+///
+/// **Expand-time ground —** reads no state, performs no effect (past ordinary call-by-value
+/// arg evaluation). Safe to evaluate while a `defmacro` body is being expanded. Ruling
+/// relocated from `macros/eval.rs`'s expand-time residue `matches!` (the pre-registry
+/// fallback), whose `:wat::core::assoc` arm is now a shadowed dead arm — `registry().
+/// lookup_entry` answers first, same shape `sort$native`'s homing already produced for that
+/// list; the verdict carries forward unchanged.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     coll :T the receiver — (HashMap :- [K V]), (PersistentMap :- [K V]), or :wat::core::Record; any other container is refused (`can_assoc()` gate excludes it)
+/// @arg     key :T the key/field written — the registered scheme has ONE type param, so K flattens to :T here; the K/V relation lives in this prose, not in the scheme.
+///           — a hashable K for a map receiver (raises a TypeMismatch if unhashable), or a :wat::core::keyword field name for a Record (raises UnknownField if the Record has no such field)
+/// @arg     new_value :T the value written at `key` (V, flattened to the scheme's single :T)
+/// @ret     :T the same-kind collection with `key` bound to `new-value`
+/// @example (:wat::hashmap::get (:wat::core::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Some 1)
+/// @see     :wat::core::conj
+#[wat_intrinsic(":wat::core::assoc")]
+pub(crate) fn eval_assoc(
+    coll: &WatAST,
+    key: &WatAST,
+    new_value: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_assoc(&[coll.clone(), key.clone(), new_value.clone()], list_span, env, sym)
+}
+
+/// `(:wat::core::conj coll elem) -> coll's own type` — arc 237 Stone 237.7b-iii.
+///
+/// Polymorphic type-preserving append/insert: ∀T. ((coll :- [T]), T) -> (coll :- [T]).
+/// Delegates to the existing per-type inner helpers for correct semantics:
+/// - `(Vector :- [T])` → append (clone + push; functional, not mutating).
+/// - `(HashSet :- [T])` → insert (clone + insert; functional).
+/// - `(PersistentVector :- [T])` → append (`push_back_mut`, stays Array).
+/// - `(List :- [T])` → PREPEND (Clojure `cons` convention, distinct from Vector's APPEND).
+///
+/// HashMap excluded — HashMap insertion requires a key+value pair (`assoc`).
+/// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+///
+/// Arc 255 Stone the-collection-readers — moved into a thin `#[wat_intrinsic]` delegate over
+/// `crate::runtime::eval_conj` (in place, unmoved — `pub(crate)` now so this delegate can
+/// reach it) with its real (2) arity declared; the hand-rolled `args.len() != 2` guard that
+/// fn carried retires there.
+///
+/// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an
+/// effect). Past that, the body classifies the already-evaluated receiver via
+/// `StreamContainer::of_value`/`has_append()` and rebuilds a same-kind collection with the
+/// element appended/prepended — no `eval_inner`/`apply_function` on caller-supplied code
+/// anywhere. Pure ∧ Deterministic.
+///
+/// **Totality ground — measured `Partial`, same class as `assoc` above, NOT copied from it.**
+/// `has_append()` is the domain-defining gate (admits Vector/HashSet/PersistentVector/List;
+/// Tuple/WatAstList/Stream are outside the declared domain — the `unreachable!` arms below are
+/// the compiler-forced witness that `has_append()` already excludes them, not a runtime path).
+/// WITHIN that admitted domain, the HashSet arm still raises on a value it cannot place: an
+/// `elem` that fails `value_is_set_hashable` → `RuntimeErrorKind::TypeMismatch`
+/// (`src/collection/eval.rs`, `hashset_conj_inner`'s `if !value_is_set_hashable(item)` guard).
+/// The Vector/PersistentVector/List arms never fail — `push`/`push_back_mut`/`push_front`
+/// cannot raise — so the hole is real but narrow: `Partial` because ONE admitted receiver kind
+/// has one, not because all four do.
+///
+/// **Expand-time ground —** reads no state, performs no effect (past ordinary call-by-value
+/// arg evaluation). Safe to evaluate while a `defmacro` body is being expanded. Ruling
+/// relocated from `macros/eval.rs`'s expand-time residue `matches!` (the pre-registry
+/// fallback), whose `:wat::core::conj` arm is now a shadowed dead arm — `registry().
+/// lookup_entry` answers first; the verdict carries forward unchanged.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     coll :T the receiver — polymorphic, matching the registered scheme (`params: vec![t_var(), t_var()]`): accepts (Vector :- [T]), (HashSet :- [T]), (PersistentVector :- [T]), or (List :- [T]); a (HashMap :- [K V]) or (Stream :- [T]) is refused (`has_append()` gate excludes them — use `assoc` for a map)
+/// @arg     elem :T the element added — for a HashSet receiver, raises a TypeMismatch if `elem` is not hashable
+/// @ret     :T the same-kind collection with `elem` added (List: prepended; the rest: appended)
+/// @example (:wat::core::conj (:wat::core::Vector 1 2) 3) #=> (:wat::core::Vector 1 2 3)
+/// @see     :wat::core::assoc
+#[wat_intrinsic(":wat::core::conj")]
+pub(crate) fn eval_conj(
+    coll: &WatAST,
+    elem: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_conj(&[coll.clone(), elem.clone()], list_span, env, sym)
+}
+
+/// `(:wat::core::take xs n) -> (:wat::stream::Stream :- [T])` — arc 118.2a.
+///
+/// Lazily yields at most the first `n` elements of `xs` (any seqable: `(Vector :- [T])` |
+/// `(List :- [T])` | `(PersistentVector :- [T])` | `(Stream :- [T])`) — pulling element `n+1`
+/// never happens, so `take` composed with an upstream lazy stage (e.g. `map`) never forces
+/// past what it needs. Negative `n` clamps to 0 (empty).
+///
+/// Arc 255 Stone the-collection-readers — moved into a thin `#[wat_intrinsic]` delegate over
+/// `crate::collection::transform::eval_vec_take` (in place, unmoved) with its real (2) arity
+/// declared; the hand-rolled `args.len() != 2` guard that fn carried retires there.
+///
+/// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an
+/// effect). Past that, the body classifies the receiver via `crate::stream::value_as_stream`
+/// and returns a lazily-CONSTRUCTED `Stream` — **constructing a thunk is not running one**:
+/// nothing is forced, no caller code executes, and the deferred work belongs to whoever forces
+/// it later (that is what keeps `take` in scope here while `seqable->stream`, which forces,
+/// is W7 and out of scope — see the STONE's DESIGN). No `eval_inner`/`apply_function` on
+/// caller-supplied code anywhere. Pure ∧ Deterministic.
+///
+/// **Totality ground — measured `Total`, NOT copied from `assoc`/`conj` above.**
+/// `value_as_stream` is the ONE receiver check this body makes; it defines the domain
+/// (Vector/PersistentVector/List/Stream — anything else is refused before this body's own
+/// logic runs at all, same non-counting class as `require_vec` elsewhere in this file). Past
+/// that gate there is no further check: building `lazy_take_stream` is pure arithmetic on `n`
+/// (`n <= 0` → `Stream::Empty`, else defer) with no receiver left to reclassify and no value it
+/// could reject — every `(admitted xs, any i64 n)` pair produces a `Stream` value, unconditionally.
+/// No domain hole.
+///
+/// **Expand-time ground —** reads no state, performs no effect (past ordinary call-by-value
+/// arg evaluation and constructing — never forcing — the returned thunk). Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time residue `matches!` (the pre-registry fallback), whose `:wat::core::take` arm is
+/// now a shadowed dead arm — `registry().lookup_entry` answers first; the verdict carries
+/// forward unchanged.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     xs (:wat::core::Vector :- [T]) the source seqable — this call also accepts (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T]); any other receiver is refused (`value_as_stream` gate excludes it)
+/// @arg     n :wat::core::i64 the maximum count yielded; negative clamps to 0
+/// @ret     (:wat::stream::Stream :- [T]) a lazy stream of at most the first `n` elements of `xs`
+/// @example (:wat::core::stream->vec [] (:wat::core::take (:wat::core::Vector 1 2 3) 2)) #=> [1 2]
+/// @see     :wat::core::drop
+#[wat_intrinsic(":wat::core::take")]
+pub(crate) fn eval_vec_take(
+    xs: &WatAST,
+    n: &WatAST,
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::collection::transform::eval_vec_take(&[xs.clone(), n.clone()], call_span, env, sym)
+}
+
+/// `(:wat::core::drop xs n) -> (:wat::stream::Stream :- [T])` — arc 118.2a.
+///
+/// Lazily skips the first `n` elements of `xs` (any seqable), returning the remainder — still
+/// lazy beyond the drop point (a further `Stream` tail stays deferred). Negative `n` clamps to
+/// 0 (returns everything).
+///
+/// Arc 255 Stone the-collection-readers — moved into a thin `#[wat_intrinsic]` delegate over
+/// `crate::collection::transform::eval_vec_drop` (in place, unmoved) with its real (2) arity
+/// declared; the hand-rolled `args.len() != 2` guard that fn carried retires there.
+///
+/// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an
+/// effect). Past that, the body classifies the receiver via `crate::stream::value_as_stream`
+/// and returns a lazily-CONSTRUCTED `Stream` — **constructing a thunk is not running one**:
+/// the `lazy_drop_stream` closure, once forced, walks (and may force) up to `n` upstream cells,
+/// but building the closure itself forces nothing, and this fn returns before any forcing
+/// happens (the same distinction that keeps `take` above in scope while `seqable->stream` is
+/// W7 and out of scope — see the STONE's DESIGN). No `eval_inner`/`apply_function` on
+/// caller-supplied code anywhere. Pure ∧ Deterministic.
+///
+/// **Totality ground — measured `Total`, NOT copied from `assoc`/`conj` above, same shape as
+/// `take`'s.** `value_as_stream` is the ONE receiver check this body makes; it defines the
+/// domain. Past that gate there is no further check: `lazy_drop_stream` builds a closure
+/// unconditionally over `source`/`n` — no receiver left to reclassify, no value it could reject
+/// at construction time. (The closure's OWN body, once forced, has an `unreachable!` on
+/// `Thunk`/`NativeThunk` — a compiler-forced witness that `crate::stream::realize`'s
+/// postcondition already excludes those, the same defensive-arm class as `record_assoc_inner`'s
+/// "guarded above" arms, not a reachable domain hole.) Every `(admitted xs, any i64 n)` pair
+/// produces a `Stream` value, unconditionally. No domain hole.
+///
+/// **Expand-time ground —** reads no state, performs no effect (past ordinary call-by-value
+/// arg evaluation and constructing — never forcing — the returned thunk). Safe to evaluate
+/// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
+/// expand-time residue `matches!` (the pre-registry fallback), whose `:wat::core::drop` arm is
+/// now a shadowed dead arm — `registry().lookup_entry` answers first; the verdict carries
+/// forward unchanged.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     xs (:wat::core::Vector :- [T]) the source seqable — this call also accepts (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T]); any other receiver is refused (`value_as_stream` gate excludes it)
+/// @arg     n :wat::core::i64 the count skipped; negative clamps to 0
+/// @ret     (:wat::stream::Stream :- [T]) a lazy stream of `xs` with the first `n` elements skipped
+/// @example (:wat::core::stream->vec [] (:wat::core::drop (:wat::core::Vector 1 2 3) 1)) #=> [2 3]
+/// @see     :wat::core::take
+#[wat_intrinsic(":wat::core::drop")]
+pub(crate) fn eval_vec_drop(
+    xs: &WatAST,
+    n: &WatAST,
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::collection::transform::eval_vec_drop(&[xs.clone(), n.clone()], call_span, env, sym)
 }

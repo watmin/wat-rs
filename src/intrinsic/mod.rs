@@ -818,6 +818,19 @@ mod tests {
         // `field-names-of`/`field-types-of`/`metadata-of`.
         ":wat::core::nth",
         ":wat::core::reverse",
+        // Arc 255 Stone the-collection-readers — `drop`/`take` are checked for real (the
+        // hand-written `check_call` arms `infer_drop`/`infer_take`, `src/check.rs`), but
+        // NEITHER carries an `env.register()` TypeScheme — same shape as `nth`/`reverse` just
+        // above (`checker_skip_debt_is_named_and_frozen`'s criterion is exactly
+        // `check_env.get().is_none()`, "no TypeScheme", not "unchecked"). `assoc`/`conj`,
+        // homed in the SAME stone, are NOT on this ledger: both DO carry an `env.register()`
+        // TypeScheme (`src/check.rs`, the `contains?`/`get`/`conj`/`assoc` fingerprint block)
+        // — a deliberately MIXED prediction, falsifiable in both directions, and it held both
+        // ways: `check_env.get(":wat::core::assoc")`/`get(":wat::core::conj")` return `Some`,
+        // `get(":wat::core::drop")`/`get(":wat::core::take")` return `None`. `check.rs` stays
+        // untouched (STOP-4); the ledger grows by two, the same shape W6 used for `nth`/`reverse`.
+        ":wat::core::drop",
+        ":wat::core::take",
         ":wat::core::type-equal?",
         ":wat::core::type-params-used-in",
         ":wat::edn::validate",

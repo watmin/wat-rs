@@ -5496,20 +5496,15 @@ fn dispatch_keyword_head_value(
         // Polymorphic membership predicate: (Vector :- [T]) / (HashSet :- [T]) / (HashMap :- [K V]) → bool.
         // Tier B: element-typing enforced at check by infer_contains (src/check.rs); behavior-preserving.
         ":wat::core::contains?" => eval_contains(args, list_span, env, sym),
-        // Arc 237 Stone 237.7b-iii — `:wat::core::conj` ∀T intrinsic with custom inference arm.
-        // Polymorphic append/insert: (Vector :- [T]) / (HashSet :- [T]) → same collection type (type-preserving).
-        // Tier B: element-typing enforced at check by infer_conj (src/check.rs); behavior-preserving.
-        // HashMap excluded — HashMap insertion is `assoc` (key+value pair required).
-        ":wat::core::conj" => eval_conj(args, list_span, env, sym),
         // Arc 237 Stone 237.7b-iv — `:wat::core::get` ∀T intrinsic with custom inference arm.
         // Polymorphic indexed/keyed lookup: (Vector :- [T]) + i64 → (Option :- [T]); (HashMap :- [K V]) + K → (Option :- [V]).
         // Tier B: (Option :- [element]) precision enforced at check by infer_get (src/check.rs); behavior-preserving.
         // NO HashSet arm — HashSet has no positional get.
         ":wat::core::get" => eval_get(args, list_span, env, sym),
-        // Arc 237 Stone 237.7c — `:wat::core::assoc` ∀T intrinsic spanning HashMap + Record.
-        // Records-doctrine slice: (HashMap :- [K V])+K+V → (HashMap :- [K V]); :wat::core::Record+:keyword+∀T → :wat::core::Record.
-        // Routes to hashmap_assoc_inner (HashMap) or eval_record_assoc (base + holonic).
-        ":wat::core::assoc" => eval_assoc(args, list_span, env, sym),
+        // Arc 255 Stone the-collection-readers — `:wat::core::conj`/`assoc` moved into
+        // `#[wat_intrinsic]` handlers (`src/intrinsic/collection.rs`), thin delegates over
+        // `eval_conj`/`eval_assoc` (in place, unmoved); the pre-match registry check above
+        // (arc 255.1c-guard) intercepts both names before reaching here.
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
@@ -6130,12 +6125,11 @@ fn dispatch_keyword_head_value(
         // handlers (`src/collection/transform.rs`, in place) with their real (1/2) arities
         // declared; the pre-match registry check above (arc 255.1c-guard) intercepts both
         // names before reaching here.
-        ":wat::core::take" => {
-            crate::collection::transform::eval_vec_take(args, list_span, env, sym)
-        }
-        ":wat::core::drop" => {
-            crate::collection::transform::eval_vec_drop(args, list_span, env, sym)
-        }
+        // Arc 255 Stone the-collection-readers — `:wat::core::take`/`drop` moved into
+        // `#[wat_intrinsic]` handlers (`src/intrinsic/collection.rs`), thin delegates over
+        // `eval_vec_take`/`eval_vec_drop` (`src/collection/transform.rs`, in place, unmoved);
+        // the pre-match registry check above (arc 255.1c-guard) intercepts both names before
+        // reaching here.
         // Arc 255 Stone A-2-ii-b — `:wat::core::sort$native` moved into a `#[wat_intrinsic]`
         // handler (`src/intrinsic/collection.rs`), a thin delegate over
         // `crate::collection::transform::eval_vec_sort_by` (in place, unmoved — the gate this
@@ -11999,24 +11993,18 @@ pub fn value_is_key_hashable(v: &Value) -> bool {
 ///   rebuilds BOTH fields + hologram in parity — the PARITY invariant).
 ///   Flavor is preserved: base → base, holonic → holonic.
 /// - else → teaching `RuntimeError::TypeMismatch`.
-fn eval_assoc(
+///
+/// Arc 255 Stone the-collection-readers — homed into a thin `#[wat_intrinsic]` delegate
+/// (`src/intrinsic/collection.rs`) with its real (3) arity declared; the shim's own arity
+/// check makes this fn's hand-rolled `args.len() != 3` guard dead, so it retires here. `pub(crate)`
+/// so the delegate can call it.
+pub(crate) fn eval_assoc(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::assoc";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     let arg2_val = eval_inner(&args[2], env, sym)?.value_owned();
@@ -16733,24 +16721,18 @@ fn eval_contains(
 ///
 /// HashMap excluded — HashMap insertion requires key+value pair (`assoc`).
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
-fn eval_conj(
+///
+/// Arc 255 Stone the-collection-readers — homed into a thin `#[wat_intrinsic]` delegate
+/// (`src/intrinsic/collection.rs`) with its real (2) arity declared; the shim's own arity
+/// check makes this fn's hand-rolled `args.len() != 2` guard dead, so it retires here. `pub(crate)`
+/// so the delegate can call it.
+pub(crate) fn eval_conj(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::conj";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     // Arc-278 strike 2 — classify via the registry (StreamContainer::of_value + has_append()).

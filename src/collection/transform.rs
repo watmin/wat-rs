@@ -129,24 +129,17 @@ pub(crate) fn eval_vec_range(
 /// reason (`:wat::core::defn`'s own macro body calls `take` at macro-expansion time; a
 /// wat-defined `take` would make `defn` itself unbootstrappable). See
 /// [`crate::stream::NativeLazyCell`] for the full writeup.
+///
+/// Arc 255 Stone the-collection-readers — homed into a thin `#[wat_intrinsic]` delegate
+/// (`src/intrinsic/collection.rs`) with its real (2) arity declared; the shim's own arity
+/// check makes this fn's hand-rolled `args.len() != 2` guard dead, so it retires here.
 pub(crate) fn eval_vec_take(
     args: &[WatAST],
-    call_span: &Span,
+    _call_span: &Span, // rune:lint(unused-span) — the only consumer was the hand-rolled `args.len() != 2` guard, retired when this verb was homed (arc 255: the generated shim enforces arity BEFORE the body runs). Every remaining error path locates at its own node: `value_as_stream`'s TypeMismatch uses the receiver's span, not the call's.
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::take";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
     let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -193,24 +186,17 @@ fn lazy_take_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::st
 /// **Stays a Rust intrinsic** — see [`eval_vec_map`]'s doc for the bootstrap-circularity
 /// reason (`:wat::core::defn`'s own macro body calls `drop` at macro-expansion time). See
 /// [`crate::stream::NativeLazyCell`] for the full writeup.
+///
+/// Arc 255 Stone the-collection-readers — homed into a thin `#[wat_intrinsic]` delegate
+/// (`src/intrinsic/collection.rs`) with its real (2) arity declared; the shim's own arity
+/// check makes this fn's hand-rolled `args.len() != 2` guard dead, so it retires here.
 pub(crate) fn eval_vec_drop(
     args: &[WatAST],
-    call_span: &Span,
+    _call_span: &Span, // rune:lint(unused-span) — the only consumer was the hand-rolled `args.len() != 2` guard, retired when this verb was homed (arc 255: the generated shim enforces arity BEFORE the body runs). Every remaining error path locates at its own node: `value_as_stream`'s TypeMismatch uses the receiver's span, not the call's.
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::drop";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
     let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
