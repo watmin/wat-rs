@@ -72,7 +72,7 @@ discarded.*
 2. `git diff -- docs/excursus/2026/08/001-sns-sqs/PROBE-store-has-no-delete.wat` — **must be empty.**
    A moved gate is not a passed gate.
 3. Re-run the probe and the floor yourself. Read the Summary line.
-4. `./target/release/wat wat-scripts/demos/sns/sns-fanout.wat` — still `"3 3"`.
+4. `./target/release/wat wat-scripts/topic/sns-fanout.wat` — still `"3 3"`.
 5. Read the diff for content integrity, not just green: did anything outside the targeted
    additions move?
 
@@ -334,7 +334,7 @@ found mem/sqlite diverging), `ack` needs a delete (which the Store lacked). All 
 is **5121, FULLY GREEN.**
 
 ⛔ **ONE DECISION IS NOT YOURS AND NOT MINE:** stdlib or demo. Build it as
-`wat-scripts/demos/sqs/`, matching SNS. **If you conclude it belongs in `wat/queue.wat`, say so
+`wat-scripts/queue/`, matching SNS. **If you conclude it belongs in `wat/queue.wat`, say so
 and STOP — do not put it there.** Promoting an experiment into the stdlib is the builder's
 call, the same way opening an arc is.
 

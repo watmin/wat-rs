@@ -1,22 +1,31 @@
 # BRIEF — excursus 001 stone 3: SQS in userland
 
 **The thing this excursus was opened to build.** SNS shipped at stone 1
-(`wat-scripts/demos/sns/sns-fanout.wat`, `"3 3"`). Everything since has been substrate debt
+(`wat-scripts/topic/sns-fanout.wat`, `"3 3"`). Everything since has been substrate debt
 that drawing *this* stone uncovered — see the ⛔ section below.
 
-## ⛔ ONE DECISION IS NOT MINE AND IS NOT MADE HERE
+## ⛔ THIS IS `wat-queue`, AND IT LIVES IN USERLAND UNTIL THE BUILDER PROMOTES IT
 
-`wat/queue.wat` (stdlib) or `wat-scripts/demos/sqs/` (userland demo)?
+Build it in **`wat-scripts/queue/`**, on the `wat-grep` / `wat-gen` precedent.
 
-- **SNS shipped as a demo.** `journal` and `query` are stdlib (`src/load/stdlib.rs:444`).
-- Adding to `wat/` means `include_str!` into the binary, frozen at build time, and the
-  BOOTSTRAP/stash-dance doctrine applies from then on.
-- **This is an excursus.** Promoting an experiment into the stdlib is at least as consequential
-  as minting an arc number, and that was ruled to be the builder's call.
+> Builder, arc 278 (`349a2ea52`): *"grep moves out of wat-scripts, that's where we host our
+> repo's scripts, **wat-grep is maturing into a wat feature**."*
+>
+> Builder, this excursus: *"we build in userland and promote to kernel … **we promote them to
+> stdlib once they demonstrate excellence**."*
 
-**Build it as `wat-scripts/demos/sqs/sqs-queue.wat`, matching SNS.** If it earns promotion to
-`wat/queue.wat`, that is a separate act and the builder's to make. **If you think it belongs in
-the stdlib, say so and STOP — do not put it there.**
+`wat-scripts/topic/` (**wat-topic**, the SNS half) is its sibling and moved out of
+`wat-scripts/demos/` in the same pass — a proto-feature is not a demo. Both READMEs record the
+promotion criterion.
+
+**Promotion to `wat/queue.wat` is the builder's ruling, never a side effect of the work.**
+Adding to `wat/` means `include_str!` into the binary, frozen at build time, with the
+BOOTSTRAP/stash-dance doctrine applying from then on. **If you think it belongs in the stdlib,
+say so and STOP — do not put it there.**
+
+When it is promoted, the grep precedent sets the standard for the move itself: *"mostly a MOVE
+of proven code, and **the counts are the proof it moved intact**"* — same numbers before and
+after, re-run rather than reported.
 
 ## The design — every primitive already exists and is proven
 
@@ -52,7 +61,7 @@ All of it has landed. Floor is **5121, FLOOR=0**. Nothing blocks this stone.
 
 ## Read in order — exact sites
 
-1. **`wat-scripts/demos/sns/sns-fanout.wat`** — the demo shape: `defsurface :nature
+1. **`wat-scripts/topic/sns-fanout.wat`** — wat-topic, the sibling's shape: `defsurface :nature
    :wat::kernel::Peer`, a `defservice` satisfying it, `:user::main` running BOTH loci and
    printing both results so the differential is the artifact. **Copy this structure.**
    ⚠ It carries a `bijection-anchor` wart and explains why in its own header — you will need
@@ -103,7 +112,7 @@ loses messages, and a fixture that only tests send/receive/ack would pass withou
 
 ## Blast radius
 
-`wat-scripts/demos/sqs/` (new) · the gate fixture (`.wat` + `.rs`) · this excursus's SCORE.
+`wat-scripts/queue/` (new) · the gate fixture (`.wat` + `.rs`) · this excursus's SCORE.
 
 **Zero changes to `wat/`, `src/`, or `crates/`.** Every primitive this needs already ships.
 If that turns out to be false, it is a finding — say which primitive is missing.

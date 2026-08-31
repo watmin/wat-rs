@@ -11,7 +11,7 @@ Any failure in this stone's floor is this stone's.
 
 | # | what | expected |
 |---|---|---|
-| 1 | it is a DEMO, not stdlib | `wat-scripts/demos/sqs/`; `git diff -- wat/ src/ crates/` **empty** (the ⛔ decision) |
+| 1 | it is a DEMO, not stdlib | `wat-scripts/queue/`; `git diff -- wat/ src/ crates/` **empty** (the ⛔ decision) |
 | 2 | send → receive | 3 sent, `receive` 2 returns 2 |
 | 3 | received messages go invisible | a second immediate `receive` returns only the third |
 | 4 | ack removes | the acked message never returns |

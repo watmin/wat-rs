@@ -14,7 +14,7 @@ re-run of these, never against the executor's report.
 | 4 | blast radius held | `git diff --name-only` | exactly `wat/query.wat`, `wat/query/mem.wat`, `wat/query/sqlite-store.wat` (+ the SCORE) |
 | 5 | the floor | `./scripts/floor.sh; echo "FLOOR=$?"` | `FLOOR=0`, Summary line read verbatim |
 | 6 | journal still works on BOTH backends | the existing `probe_arc278_journal_backend_differential` arm | green — it is the regression canary |
-| 7 | SNS demo unaffected | `./target/release/wat wat-scripts/demos/sns/sns-fanout.wat` | `"3 3"` |
+| 7 | SNS demo unaffected | `./target/release/wat wat-scripts/topic/sns-fanout.wat` | `"3 3"` |
 | 8 | both backends AGREE | the probe runs against `mem-store`; a sqlite-backed twin is stone 2b | mem green; sqlite deferred, see below |
 
 ## Runtime prediction

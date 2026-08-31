@@ -20,7 +20,7 @@ So neither stone builds a transport, a store, or a serializer. Both are composit
 
 ## Stone 1 — SNS, in userland. STRUCK.
 
-`wat-scripts/demos/sns/sns-fanout.wat` — one topic, three subscribers, **one file that runs
+`wat-scripts/topic/sns-fanout.wat` — one topic, three subscribers, **one file that runs
 BOTH loci and prints both counts**. Prints `"3 3"`. The locus is a parameter, so the
 differential is the artifact rather than a thing a reader must remember to run twice.
 

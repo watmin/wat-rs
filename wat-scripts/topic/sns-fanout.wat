@@ -1,4 +1,8 @@
-;; wat-scripts/demos/sns/sns-fanout.wat — SNS in userland: one topic, N subscribers.
+;; wat-scripts/topic/sns-fanout.wat — wat-topic: one topic, N subscribers.
+;;
+;; Lives in userland on the wat-grep / wat-gen precedent — built here, promoted to
+;; wat/topic.wat when it demonstrates excellence, and that promotion is the builder's
+;; ruling. See wat-scripts/topic/README.md. Sibling: wat-scripts/queue/ (wat-queue).
 ;;
 ;; ★ WHAT THIS PROVES, and why it is one file: the SAME topic code fans out over
 ;;   `(:wat::spawn::thread)` and `(:wat::spawn::process)` and must deliver the SAME count.
