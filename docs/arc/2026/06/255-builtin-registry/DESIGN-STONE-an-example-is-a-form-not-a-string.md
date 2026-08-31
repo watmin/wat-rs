@@ -35,7 +35,7 @@ blindness** — a `///` block cannot see a reader; a metadata map sits inside on
   `parse_one_with_file(ex.expr, …)` today — it *re-parses the string into a form*. That line
   disappears; it is handed the form.
 
-## ⚠ THE BLOCKER — and it is real, measured, and not in this stone's gift
+## ~~⚠ THE BLOCKER~~ — ⛔ NOT A BLOCKER. See the ruling below.
 
 **One consumer prints:** `src/intrinsic/reflect.rs:522`, `out.push_str(ex.expr)` — `render-doc`.
 A form needs a printer, and the only form→text path in the tree renders **EDN spelling**:
@@ -47,9 +47,10 @@ a user wrote               →   (:wat::core::* x 2)
 
 (`crate::edn::bridge::watast_to_edn` + `wat_edn::write`, per `src/rete/validate.rs:370`.)
 
-⛔ **`docs/arc/2026/06/288-structural-pretty-printer/` is a STUB. Never shipped.** So there is no
-form→wat-source printer, and `render-doc` would start showing users a spelling they cannot type —
-which is the same defect class as the retired-name lint's whole reason for existing.
+`docs/arc/2026/06/288-structural-pretty-printer/` is a STUB, never shipped — so there is no
+form→wat-source printer. ~~`render-doc` would start showing users a spelling they cannot type.~~
+⛔ **That last clause is struck: EDN spelling IS the destination** (THE ROAD, steps 3–5). The
+measurement here is correct; the conclusion drawn from it was not.
 
 ## ✅ THE FORK IS RULED — B, and my framing of it was wrong
 
@@ -105,12 +106,14 @@ The **direction** is settled: an example should be a form. `wat-doc` already dep
 and already calls `parse_one_with_file`, so parsing costs nothing new. The only open question is
 **what `render-doc` prints in the meantime.**
 
-## Acceptance — once the fork is ruled
+## Acceptance
 
 | what | expected |
 |---|---|
 | a malformed example | refused where written, not at a downstream reflection test |
 | `reflect.rs:93`'s re-parse | gone — the form arrives as a form |
 | the wat side | `{:expr (:wat::string::capitalize "object") :expected "Object"}`, unescaped |
-| `render-doc` | per the ruling: unchanged (A) or EDN-spelled (B) |
+| `render-doc` | **EDN-spelled** — `(wat.core/+ 40 2) #=> 42`, the destination syntax |
+| the Rust `///` path | its `@example` text parses to a form too — ONE shape, both entry points |
 | floor | 5110/5110, 0 failed |
+| clippy | 0 under `-D warnings` |
