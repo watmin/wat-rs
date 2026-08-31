@@ -103,8 +103,8 @@ action you took THIS session:
 [ ] recovery file (this doc) ............ read ✓
 [ ] recolligere primer (datamancy MCP) .. fetched + run ✓
 [ ] git status / git log ................ ran ✓   → HEAD <hash>
-[ ] active arcs: ls docs/arc/2026/$(date +%m)/ .. enumerated ✓ → <list>
-[ ] live breadcrumb (CLIFFNOTES "Currently") .... read ✓
+[ ] active work: ls docs/arc/2026/*/ && ls docs/excursus/2026/*/ .. enumerated ✓ (arcs stop at 07/300; free experimentation lives in docs/excursus/ — see its README)
+[ ] live breadcrumb: ~/work/BREADCRUMB.md ...... read ✓
 [ ] latest state-of-world artifact ...... read ✓
 ```
 
@@ -1553,7 +1553,49 @@ incident and never re-measured. It read as sound and was cited in three subseque
 failing in each. A prescription is a claim; four occurrences are its refutation.
 `[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`
 
----
+
+### Failure mode 21 — Minting an arc number the builder never commissioned
+
+**An arc is commissioned.** `docs/arc/NNN` is opened when the builder asks, and only then.
+Work that is free experimentation — a thing being tried, not a thing being ordered — goes to
+`docs/excursus/YYYY/MM/NNN-slug/`, its own number space, sibling of `docs/arc/`. Read
+`docs/excursus/README.md`.
+
+**Two occurrences, same number.** `SEAM.md:118` already records an instance opening a rogue
+"arc 301". On 2026-08-30 a session did it again, with the identical number, for the SNS/SQS
+work. The builder: *"i did not ask for more arcs, at all - these are opened when i ask."* The
+whole tree was retracted and moved; **17 commit subjects still say `(301)` and always will.**
+
+★ **Why it recurred despite being written down:** the lesson was tagged for memory in an arc
+doc, and the host's memory store was empty. Prose in an arc doc is not a retrieval mechanism.
+The cure is the rule living where a compacted self is *forced* to read it — this file, and
+`docs/excursus/README.md` — not where it merely *exists*.
+
+**The tell:** you are about to create a directory under `docs/arc/` and cannot quote the
+builder asking for it. Stop. It is an excursus.
+
+### Failure mode 22 — Pointing the next self at an index you did not re-read
+
+A breadcrumb that says *"read `<X>/README.md` first, it carries the table"* is only as true as
+`<X>/README.md` is current — and an index is exactly the artifact that goes stale, because
+every stone updates the work and none of them updates the map.
+
+**Worked example (2026-08-31 → 2026-08-30 wake).** `docs/excursus/2026/08/001-sns-sqs/README.md`
+was written at `34cf54dd4` and never touched again. **Five stones landed after it.** Its table
+still read `| 3 | … | ◀ drawn, not struck |` while stones 3, 4, 5, 6 and 7 all had SCOREs on
+disk and HEAD was the stone-7 proof; its findings list held 3 NOTEs where the disk held 4; its
+code map omitted `wat-scripts/fanout/`. The breadcrumb written that same session sent the next
+self to it **first**, in bold.
+
+★ **The generating mistake is upstream of the staleness:** the breadcrumb's author cited the
+index from memory instead of opening it. A pointer is a claim about the file's *content*, not
+just its path — and `curare` step 4 (prune in the same motion) applies to the artifact you are
+pointing AT, not only the one you are writing.
+
+**The cure, mechanical:** before a breadcrumb names an index, `cat` the index and confirm its
+newest row matches `git log -1`. If it does not, fix the index in the same commit — a stale map
+you knowingly point at is worse than no map.
+
 
 ---
 
