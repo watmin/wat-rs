@@ -107,8 +107,19 @@
   [h <- :probe::ticker::Handle] -> :wat::core::i64
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::ticker::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))]
-    (:wat::core::match _s
+     _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))
+     ;; ⚠ THE DRIVE IS A BINDING, NOT THE BODY — and that is load-bearing, not style.
+     ;; `h` is this fn's handle on the ticker, and a service dies when its owner's handle is
+     ;; released. In the let's BODY the drive would be in TAIL position, which releases this
+     ;; scope BEFORE the call runs (`eval_let_tail` propagates the tail-call signal out and the
+     ;; scope goes with it) — so `h` would drop, the ticker would be severed, and `poll-until`
+     ;; would face a dead service. That is what this test reported for 38 days, and it was read
+     ;; as the timer being broken: `recv': peer closed`, blamed on a `remove-at` idx-shift that
+     ;; was never real. Held here, the tick fires and re-arms at BOTH loci.
+     ;; The severed-vs-clean-close distinction has its own gate,
+     ;; tests/services/probe_severed_reaches_the_client.rs; the underlying tail-position release
+     ;; is a live language defect, tracked separately and NOT what this test measures.
+     n  (:wat::core::match _s
       ((:wat::kernel::RecvOutcome::Message __start)
         (:wat::core::match __start
           ((:probe::Ticker::StartResponse::Ok) (:probe::poll-until c 3 40))
@@ -117,7 +128,8 @@
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
+    n))
 
 ;; entrypoint (thread locus): expect the count == target (3).
 (:wat::core::defn :user::self-tick-rearms-thread [] -> :wat::core::i64

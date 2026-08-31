@@ -276,16 +276,54 @@
      c (:sched::conn h)]
     (:sched::poll-reason c)))
 
+
+;; ── P — THE PROCESS LOCUS, held handle. ───────────────────────────────────────────────────────
+;; The fixture asserts BOTH loci. Everything above is thread-tier, so the process tick (env-grab
+;; arms the timer at the service's own tier) is still unproven. Same held-handle shape as
+;; `drive-tight`; only `:locus` differs.
+(:wat::core::defn :sched::drive-tight-process [] -> :wat::core::i64
+  (:wat::core::let
+    [h  (:sched::ticker/start :locus (:wat::spawn::process)
+          :record (:sched::ticker::Record :count 0 :target 3))
+     c  (:sched::conn h)
+     s1 (:sched::safe-start c)
+     n  (:wat::core::if (:wat::i64::< s1 0) s1 (:sched::poll-until c 3 40))]
+    n))
+
+
+;; ── Q — the FIXTURE'S REPAIR SHAPE, tested before it is proposed. ─────────────────────────────
+;; The fixture's `drive-ticker` takes the handle as a PARAMETER and drives in the body (= C, which
+;; dies). The minimal repair is to move the drive into a BINDING and return it. Whether a PARAM
+;; survives that is a separate question from whether a let-BOUND value does (A), and it is not
+;; something to assume: test it.
+(:wat::core::defn :sched::drive-param-binding [h <- :sched::ticker::Handle] -> :wat::core::i64
+  (:wat::core::let
+    [c  (:sched::conn h)
+     s1 (:sched::safe-start c)
+     n  (:wat::core::if (:wat::i64::< s1 0) s1 (:sched::poll-until c 3 40))]
+    n))
+
+(:wat::core::defn :sched::param-binding-thread [] -> :wat::core::i64
+  (:sched::drive-param-binding
+    (:sched::ticker/start :locus (:wat::spawn::thread)
+      :record (:sched::ticker::Record :count 0 :target 3))))
+
+(:wat::core::defn :sched::param-binding-process [] -> :wat::core::i64
+  (:sched::drive-param-binding
+    (:sched::ticker/start :locus (:wat::spawn::process)
+      :record (:sched::ticker::Record :count 0 :target 3))))
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::kernel::println
       (:wat::string::interpolate
         "A-binding={a} B-body-tail={b} C-param-tail={c} D-body-nontail={d} E-body-touched={e} || F-noTimer-tail={f} G-noTimer-nontail={g}"
-        :a (:sched::hold-in-binding)
-        :b (:sched::hold-in-body)
-        :c (:sched::hold-as-param)
-        :d (:sched::hold-in-body-nontail)
-        :e (:sched::hold-in-body-touched)
-        :f (:sched::plain-service-tail)
-        :g (:sched::plain-service-nontail)))
-    (:wat::kernel::println (:sched::severed-reason))))
+        :a (:sched::hold-in-binding) :b (:sched::hold-in-body) :c (:sched::hold-as-param)
+        :d (:sched::hold-in-body-nontail) :e (:sched::hold-in-body-touched)
+        :f (:sched::plain-service-tail) :g (:sched::plain-service-nontail)))
+    (:wat::kernel::println (:sched::severed-reason))
+    (:wat::kernel::println
+      (:wat::string::interpolate
+        "held: THREAD-tick={t} PROCESS-tick={p} || REPAIR-SHAPE param+binding: thread={q} process={r}"
+        :t (:sched::drive-tight) :p (:sched::drive-tight-process)
+        :q (:sched::param-binding-thread) :r (:sched::param-binding-process)))))

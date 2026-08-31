@@ -30,8 +30,11 @@
 //! ## THE FROZEN ALLOWLIST — out-of-scope residue, not an exemption from failing
 //!
 //! Stone P3's blast radius is the SEVEN arc-255 ignores; it does not touch, and must not widen
-//! this lint to fix, the other real ignores in the tree. **Anchored count this session: 11 real
-//! `#[ignore]` attributes total** — 5 re-pointed/surviving arc-255 ones (2 of the original 7 were
+//! this lint to fix, the other real ignores in the tree. **Anchored count: 11 real `#[ignore]` attributes** as of arc 255 Stone P3; **9 as of
+//! 2026-08-30**, when the two `probe_arc278_self_scheduling` ignores were removed — their stated
+//! blocker turned out never to have existed and both tests are green. Their allowlist rows went
+//! with them, per the instruction below: remove, never leave stale.
+//! The Stone P3 wording follows — 5 re-pointed/surviving arc-255 ones (2 of the original 7 were
 //! UN-IGNORED this stone: `metadata_of_answers_for_a_rust_builtin`,
 //! `metadata_of_emits_plain_values_and_enums_not_holon_ast`) **and 6 belonging to other arcs**
 //! (260, 259, 278, the 300 equality matrix). ⚠ The Stone P3 brief's own table claimed *"14 (7
@@ -65,14 +68,6 @@ const FROZEN_ALLOWLIST: &[(&str, &str)] = &[
     (
         "tests/kernel/probe_arc259_started_at_boot.rs",
         "peer_started_at_is_after_started_at",
-    ),
-    (
-        "tests/services/probe_arc278_self_scheduling.rs",
-        "self_tick_fires_rearms_and_reactor_serves_thread",
-    ),
-    (
-        "tests/services/probe_arc278_self_scheduling.rs",
-        "self_tick_fires_rearms_and_reactor_serves_process",
     ),
     (
         "tests/value/clj_expr_parity.rs",

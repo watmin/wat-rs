@@ -9,6 +9,9 @@
 //! by kebab->pascal → the fixture cannot even type-check, `call_beside_value` raises. GREEN when the stone
 //! lands (count == target, poll replies). The mechanism is proven hand-rolled in
 //! wat-scripts/scratch-pad/probe-self-scheduling-loop.wat — this gate proves the GENERATED serve loop.
+//!
+//! STATUS 2026-08-30: GREEN, both loci. The stone landed; what remained after it was a fixture that
+//! released its own service handle, not a substrate gap. See the un-ignore notes below.
 
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
@@ -16,14 +19,17 @@ use wat::runtime::Value;
 /// (thread locus) A self-armed `-tick` fires + re-arms to `target` (3), and `poll` still replies.
 /// Returns the polled count; GREEN iff it equals the target 3 (fired thrice, re-armed each time,
 /// on the service's own select loop, and the reactor served the poll between ticks).
-// TRACKED, item-(c): the arc-278 widening lands the CHECK (superset-O selectables type-check), but the
-// generated serve loop's Stone 2-A runtime — Alarm→timer arm + `-tick` fire + re-arm — crashes mid-tick
-// (`send': channel disconnected`); the timer is still in the wrong location (DESIGN-self-scheduling-
-// defservices.md: `after` → a unified `Peer'<nil,O>`). NOT a masked regression — an UNBUILT stone,
-// being built next; the mechanism is proven hand-rolled in wat-scripts/scratch-pad/probe-self-scheduling-loop.wat.
+// UN-IGNORED 2026-08-30. This stood #[ignore]d for 38 days on a cause that was never measured.
+// Its reason named "the remove-at idx-shift (service.wat:958/961) evicting the client peer" —
+// inferred from the symptom `recv': peer closed`, never verified. Three things were wrong with it:
+// `remove-at` is at service.wat:1591/1594 (the cited lines had drifted ~630 and now hold unrelated
+// handle-name minting); the self-scheduling mechanism reaches target at BOTH loci; and the eviction
+// reproduces with NO timer armed at all, so the timer was never involved.
+//
+// What actually kept it red was the FIXTURE releasing its own service: `drive-ticker` drove from
+// the let's BODY, i.e. tail position, which ends the scope holding the handle before the call runs.
+// See the comment at drive-ticker in the .wat beside this file.
 #[test]
-#[ignore = "item-c: the -tick op-ref colon fix (UnboundSymbol) landed; remaining = the remove-at idx-shift \
-            (service.wat:958/961) evicting the client peer, + the send'-wall makes the failure legible (DESIGN-send-outcome-wall.md)"]
 fn self_tick_fires_rearms_and_reactor_serves_thread() {
     let got = call_beside_value(file!(), ":user::self-tick-rearms-thread").unwrap_or_else(|e| {
         panic!("the self-scheduling `-tick` must fire + re-arm and poll must reply; got raise: {e:?}")
@@ -41,9 +47,9 @@ fn self_tick_fires_rearms_and_reactor_serves_thread() {
 
 /// (process locus) Identical, but the service is forked to a process — the `-tick` timer must arm at
 /// the PROCESS tier (env-grab: the service's own kind), proving the capability is loci-agnostic.
+// UN-IGNORED 2026-08-30 — see the note on the thread-locus twin above. The process tier was
+// measured too: the -tick arms at the service's own tier (env-grab) and reaches target.
 #[test]
-#[ignore = "item-c: the -tick op-ref colon fix (UnboundSymbol) landed; remaining = the remove-at idx-shift \
-            (service.wat:958/961) evicting the client peer, + the send'-wall makes the failure legible (DESIGN-send-outcome-wall.md)"]
 fn self_tick_fires_rearms_and_reactor_serves_process() {
     let got = call_beside_value(file!(), ":user::self-tick-rearms-process").unwrap_or_else(|e| {
         panic!("the process-tier self-scheduling `-tick` must fire + re-arm and poll must reply; \

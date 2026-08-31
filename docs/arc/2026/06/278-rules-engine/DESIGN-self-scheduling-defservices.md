@@ -9,6 +9,41 @@
 > It is the foundation the buffered sink (next stone) transcribes; the mechanism is proven in
 > `wat-scripts/scratch-pad/probe-self-scheduling-loop.wat` (green, both loci by env-grab).
 
+## ✅ CLOSED 2026-08-30 — THE STONE IS LANDED AND GREEN AT BOTH LOCI. The scout update below is ALSO stale; its "prime suspect" was never the cause.
+
+`tests/services/probe_arc278_self_scheduling.rs` is un-ignored and passing, thread and process.
+**Nothing in the substrate needed fixing after `1212c9ae` + the `-tick` colon fix.** Read this before
+the two sections below it, both of which will send you hunting a bug that does not exist.
+
+The scout update's diagnosis — *"a SUBTLE post-migration RUNTIME bug… Prime suspect: `poll'`'s
+reactor-class/homogeneity handling of a `{client + timer}` mix, OR an idx-shift when a fired timer is
+removed + a new one armed"* — was **inferred from the symptom `recv': peer closed`, never measured.**
+It then hardened into the `#[ignore]` reason and stood for 38 days. Three measurements retire it:
+
+- **`remove-at` is at `wat/service.wat:1591/1594`**, not `958/961`. Those lines drifted ~630 and now
+  hold unrelated handle-name minting, so the citation pointed at innocent code.
+- **The mechanism reaches `target` at BOTH loci** — `wat-scripts/scratch-pad/probe-self-sched-bisect.wat`,
+  `THREAD-tick=3 PROCESS-tick=3`, with the client polling *during* the tick cadence (the fixture's own
+  drive shape). `poll'` multiplexes `{client + timer}` correctly.
+- **The eviction reproduces with NO timer armed at all** (`F-noTimer-tail`). Self-scheduling was a
+  bystander; the timer was never involved.
+
+What actually kept it red: **the FIXTURE released its own service.** `drive-ticker` drove from the
+`let`'s BODY — tail position — which ends the scope holding the ticker's `Handle` before the call
+runs, and a service dies when its owner's handle is released. The client then met a severed service
+and reported `recv': peer closed`. The drive now sits in a binding; see the comment there.
+
+★ **The lesson is not about timers.** A symptom was reasoned into a cause, written into an
+`#[ignore]` reason and into this document, and thereafter read as measured. The
+`ignore_reason_justified` lint cannot catch this shape: it screens for *promises* wearing a
+condition's clothes, and this was a **checkable fact that happened to be false**.
+
+That owner-drop now names itself — `LociDiedError::Severed`, gated by
+`tests/services/probe_severed_reaches_the_client.rs` — so the next reader gets the cause in one line
+instead of a bisect. The tail-position release itself is a separate, live language question about
+handle lifetime, tracked outside this stone; it is NOT a defect in TCO, which is correct and
+load-bearing exactly as it is.
+
 ## ⛔ SCOUT UPDATE (2026-07-22, post-no-hidden-failures-commit `1212c9ae`) — the `after`-migration is DONE; the death root below is STALE. RE-GROUND before striking.
 The bucket-C widening (`1212c9ae`) landed the CHECK (superset-O selectables type-check). Grounding the RUNTIME death (`self_scheduling` ×2, currently `#[ignore]`'d):
 - **`after` IS migrated (both tiers)** — `eval_kernel_after` (`runtime.rs:27320-27356`) now builds a UNIFIED `Peer'<nil,O>` (`Peer::from_thread(dead_tx, timer_rx)` thread; a timerfd-backed process peer + wire frame process), NOT a tier-specific `Timer'`. **So the "STATUS (2026-07-21e)" diagnosis below — "`after` builds the WRONG thing" — is STALE / already fixed.** Do NOT re-do it.

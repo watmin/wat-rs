@@ -4,12 +4,16 @@
 ;; and the client must be able to tell them apart. This drives the distinction end to end and
 ;; returns which one arrived, as a string, so a RED names the wrong outcome instead of just failing.
 ;;
-;; The owner-drop is produced the way a caller actually trips it, not by a special teardown call:
-;; `h` is bound in a `let` and the drive sits in the let's BODY, which is TAIL position. The scope
-;; is released when the tail call leaves it, so the handle dies while still lexically in scope and
-;; the serve loop severs. `:sched::severed-is-named` below is the SAME code with the drive moved
-;; into a BINDING — the one-variable control proving this fixture measures the sever and not merely
-;; "a service that stopped".
+;; The owner-drop is produced by ORDINARY SCOPE EXIT: `:sev::dial-and-drop` starts the service,
+;; connects, and returns only the peer — so the `Handle` it bound goes out of scope at that
+;; function's return and the serve loop severs.
+;;
+;; Deliberately NOT produced by binding the handle in a `let` and driving from the let's BODY.
+;; That shape severs too (tail position releases the scope before the call runs, which is a live
+;; and separate language defect), and a gate built on it would assert a BUG: the day that defect is
+;; fixed, the handle would survive, the service would reply, and this test would go RED for the one
+;; reason that means everything is working. A gate must not be wired so that repairing the language
+;; breaks it. Scope exit is what a handle's lifetime MEANS, so it stays true either way.
 
 (:wat::core::defsurface :sev::Echo :nature :wat::kernel::Peer
   :messages
@@ -59,17 +63,23 @@
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
     (:wat::kernel::RecvOutcome::Closed "CLOSED:MUTE")))
 
-;; THE SUBJECT — the drive is in the let's BODY (tail position), so `h` is released before it runs.
-;; Expect "SEVERED". Before this capability existed the client read "CLOSED:MUTE".
-(:wat::core::defn :user::owner-drop-is-named [] -> :wat::core::String
+;; the owner: starts the service, hands back a connected peer, and lets its `Handle` go at return.
+;; The caller below holds a live, authorized channel to a service that now has no owner.
+(:wat::core::defn :sev::dial-and-drop [] -> (:wat::kernel::Peer :- [:sev::Echo::Op :sev::Echo::Reply])
   (:wat::core::let
     [h (:sev::echo/start :locus (:wat::spawn::thread) :record (:sev::echo::Record :n 0))
      c (:sev::conn h)]
-    (:sev::ping-outcome c)))
+    c))
 
-;; THE CONTROL — byte-identical but for the drive sitting in a BINDING, so the handle outlives it.
-;; Expect "REPLIED". If this ever returns "SEVERED" the fixture has stopped discriminating and the
-;; subject above proves nothing.
+;; THE SUBJECT — ping a service whose owner has gone. Expect "SEVERED".
+;; Before this capability existed the client read "CLOSED:MUTE" — a clean-close label on a service
+;; that did not close cleanly, which is the regression this gate exists to catch.
+(:wat::core::defn :user::owner-drop-is-named [] -> :wat::core::String
+  (:sev::ping-outcome (:sev::dial-and-drop)))
+
+;; THE CONTROL — the same service and the same ping, with the owner HOLDING its handle across the
+;; call. Expect "REPLIED". If this ever returns "SEVERED" the fixture has stopped discriminating
+;; and the subject above proves nothing.
 (:wat::core::defn :user::held-handle-still-replies [] -> :wat::core::String
   (:wat::core::let
     [h (:sev::echo/start :locus (:wat::spawn::thread) :record (:sev::echo::Record :n 0))
