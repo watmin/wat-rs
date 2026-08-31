@@ -95,14 +95,57 @@ const CATEGORY_LEGAL_VALUES: &str =
 
 
 /// One parsed `@example` / `@example-norun` directive.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Arc 255 STONE "an example is a FORM, not a string" — `expr`/`expected` were
+/// `String` (the text left/right of `#=>`, trimmed): an artifact of the `///`
+/// grammar, where an example genuinely IS text. A metadata-map declaration had
+/// to produce the same struct, so the data form inherited the text form's
+/// blindness — a malformed example (`Record/field-at` once shipped
+/// `#=> <r's first field's value>`, prose where a form belonged) was
+/// unrepresentable as an error HERE and surfaced downstream instead, as a
+/// `TrailingContent` in a reflection test. Both fields now hold the PARSED
+/// form: a malformed `@example` is a parse failure at THIS site (a
+/// `compile_error!` at the macro for the `///` path; a `DocError` at
+/// declaration time for the metadata path), not a string nobody validated.
+///
+/// `expr` is required for both `@example` and `@example-norun` — reflection
+/// (`src/intrinsic/reflect.rs`'s `:wat::intrinsic::examples` seam) already
+/// parses it unconditionally, for every registered example, run or not; this
+/// only moves that same requirement earlier.
+///
+/// `expected` is `Some(form)` ONLY for `@example` (`run: true`) — the
+/// REQUIRED, doctested marker; a missing marker there is
+/// `DocError::ExampleMissingMarker`, raised before a form is ever attempted.
+/// For `@example-norun` (`run: false`), `expected` is ALWAYS `None` here,
+/// whether or not `#=>` text follows in the source: an `@example-norun`
+/// marker's payload is illustrative and UNVERIFIED, per this crate's own
+/// grammar table above (`@example-norun` is "illustrative", `#=>` optional)
+/// and per `reflect.rs`'s reflection seam, which discards it unconditionally
+/// ("expected is human-doc pseudo-code, not wat; yield None") — the corpus
+/// bears this out: dozens of `@example-norun` markers are Rust `Debug`-style
+/// reprs or prose (a wrapped-record literal, the words "never returns", a
+/// full sentence describing a fresh symbol node), not wat syntax at all.
+/// Forcing those through the reader would turn illustrative doc-prose into a
+/// build break across the whole intrinsic corpus — a much wider blast radius
+/// than this stone draws, and a regression this crate's own pre-existing
+/// test (`norun_example_may_carry_an_unverified_marker`) already named as
+/// the contract: the marker is accepted, and not verified.
+///
+/// A `///` block that needs its ORIGINAL example text back (for
+/// `ExampleSubmission`'s `&'static str` fields) re-derives it directly from
+/// the raw doc string it already holds in full — see `wat-macros`'
+/// `example_text_slices` — rather than this struct carrying a second,
+/// driftable copy of the same fact.
+#[derive(Debug, Clone, PartialEq)]
 pub struct DocExample {
-    /// The wat form, verbatim — the text left of `#=>` (or the whole remainder
-    /// for a markerless `@example-norun`), trimmed.
-    pub expr: String,
-    /// The expected result, right of `#=>`, trimmed; `None` when no marker
-    /// (only legal for `@example-norun`).
-    pub expected: Option<String>,
+    /// The wat form, verbatim — parsed from the text left of `#=>` (or the
+    /// whole remainder for a markerless `@example-norun`), trimmed.
+    pub expr: WatAST,
+    /// The expected-result form, parsed from the text right of `#=>`.
+    /// `Some` only for `run: true` (`@example`, where the marker is
+    /// required and doctested); always `None` for `run: false`
+    /// (`@example-norun` — illustrative and unverified; see the struct docs).
+    pub expected: Option<WatAST>,
     /// `true` = `@example` (doctested by the consumer); `false` =
     /// `@example-norun` (illustrative, never executed).
     pub run: bool,
@@ -136,7 +179,11 @@ pub struct Deprecation {
 /// A fully-parsed doc comment with every *universal* required directive present
 /// (prose, `@added`, `@ret`, ≥1 example). The `@arg`⇄signature match is checked
 /// separately by [`check_args`], which needs the caller's parameter list.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// No `Eq` (only `PartialEq`): `examples: Vec<DocExample>` carries parsed
+/// `WatAST` forms, and `WatAST::FloatLit` holds an `f64` — not `Eq`. Same
+/// reason on [`DocSpecialForm`] below.
+#[derive(Debug, Clone, PartialEq)]
 pub struct DocComment {
     /// GFM body: everything before the first `@`-tag line, trimmed.
     pub prose: String,
@@ -273,7 +320,10 @@ pub enum DocError {
 /// A fully-parsed special-form doc comment.
 /// Special forms use `@purity` / `@determinism` instead of `@pure` / `@deterministic`,
 /// and require an `@syntax` grammar string. They do NOT accept `@yields`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// No `Eq` — see [`DocComment`]'s doc comment (same reason: `examples` carries
+/// `WatAST`, which is `PartialEq` only).
+#[derive(Debug, Clone, PartialEq)]
 pub struct DocSpecialForm {
     /// GFM prose body, trimmed.
     pub prose: String,
@@ -326,6 +376,23 @@ const SEPARATOR_TOKENS: &[&str] = &["—", "--", "-", ":"];
 /// `starts_with(':')` check alongside this one is what rules that out).
 fn type_token_is_expressible(token: &str) -> bool {
     wat_reader::parse_one_with_file(token, "<wat-doc @arg/@ret type token>").is_ok()
+}
+
+/// Parse an `@example`/`@example-norun` payload slice (the text left or right
+/// of `#=>`) as a single, complete wat form — the SAME reader every other
+/// verb's own source goes through (mirrors [`type_token_is_expressible`]'s
+/// use of it for `@arg`/`@ret` type tokens). A malformed example — unbalanced
+/// parens, a stray prose fragment, trailing content after the form — becomes
+/// a `DocError` HERE, at the directive that wrote it, instead of surviving as
+/// opaque text until a downstream re-parse (`src/intrinsic/reflect.rs`) fails
+/// at reflection time. `tag` names which directive is at fault (`"@example"`
+/// / `"@example-norun"`) for the error message.
+fn parse_example_form(text: &str, tag: &'static str) -> Result<WatAST, DocError> {
+    wat_reader::parse_one_with_file(text, "<wat-doc @example>").map_err(|_| DocError::MalformedDirective {
+        tag: tag.into(),
+        why: "does not parse as a single, complete wat form (unbalanced parens/brackets, a \
+              missing quote, or trailing content after the form)",
+    })
 }
 
 /// Split the type token off the front of `s` (already leading-whitespace-
@@ -572,42 +639,35 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
             }
             "@example" => {
                 let rest = payload;
-                match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
-                    Some((left, right)) => {
-                        let expr = left.trim().to_string();
-                        let expected = right.trim().to_string();
-                        examples.push(DocExample {
-                            expr,
-                            expected: Some(expected),
-                            run: true,
-                        });
-                    }
+                let (expr_text, expected_text) = match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                    Some((left, right)) => (left.trim(), right.trim()),
                     None => {
                         // Check if #=> appears at end with no trailing content.
                         if let Some(left) = rest.strip_suffix("#=>") {
-                            let expr = left.trim().to_string();
-                            examples.push(DocExample {
-                                expr,
-                                expected: Some(String::new()),
-                                run: true,
-                            });
+                            (left.trim(), "")
                         } else {
                             return Err(DocError::ExampleMissingMarker {
                                 expr: rest.trim().to_string(),
                             });
                         }
                     }
-                }
+                };
+                let expr = parse_example_form(expr_text, "@example")?;
+                let expected = parse_example_form(expected_text, "@example")?;
+                examples.push(DocExample { expr, expected: Some(expected), run: true });
             }
             "@example-norun" => {
                 let rest = payload;
-                let (expr, expected) =
-                    if let Some((left, right)) = rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
-                        (left.trim().to_string(), Some(right.trim().to_string()))
-                    } else {
-                        (rest.trim().to_string(), None)
-                    };
-                examples.push(DocExample { expr, expected, run: false });
+                // The `#=>` payload, when present, is illustrative doc-prose —
+                // see the DocExample struct docs (`expected` on a `run: false`
+                // entry is always `None` here; the marker text is UNVERIFIED
+                // by design and never reaches the reader).
+                let expr_text = match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                    Some((left, _right)) => left.trim(),
+                    None => rest.trim(),
+                };
+                let expr = parse_example_form(expr_text, "@example-norun")?;
+                examples.push(DocExample { expr, expected: None, run: false });
             }
             "@deprecated" => {
                 if deprecated.is_some() {
@@ -834,7 +894,7 @@ fn enum_symbol_variant<'a>(v: &'a WatAST, wat_type_path: &str) -> Option<&'a str
 /// | `:ret` | `@ret` | `[<:type-keyword> <desc StringLit>]` |
 /// | `:purity` / `:determinism` / `:totality` / `:expand-time` / `:category` | `@Purity` etc. | enum-symbol `Keyword`, e.g. `:wat::runtime::Purity::Pure` |
 /// | `:args` | `@arg` (per-entry) | `Vector` of `[<name Symbol/Keyword> <:type-keyword> <desc StringLit>]` |
-/// | `:examples` | `@example` | `Vector` of `[<expr StringLit> <expected StringLit>]` (each parses as `run: true`, mirroring `@example`; there is no metadata-map spelling yet for `@example-norun`'s optional-`expected` shape — out of scope for this stone's one-verb walk) |
+/// | `:examples` | `@example` | `Vector` of `[<expr form> <expected form>]` — LITERAL wat forms, not quoted strings (arc 255 STONE "an example is a FORM, not a string"); each entry is `run: true`, mirroring `@example`; there is no metadata-map spelling yet for `@example-norun`'s optional-`expected` shape — out of scope for this stone's one-verb walk |
 /// | `:see` | `@see` | `Vector` of keyword FQDNs |
 /// | `:yields` | `@yields` (per-subject) | `Vector` of `[<arg-name Symbol/Keyword> <desc StringLit>]` |
 /// | `:deprecated` | `@deprecated` | `[<since StringLit> <use-instead StringLit>]` |
@@ -1001,7 +1061,7 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
             _ => {
                 return Err(DocError::MalformedDirective {
                     tag: ":examples".into(),
-                    why: "grammar is `[<expr StringLit> <expected StringLit>]` entries",
+                    why: "grammar is `[<expr form> <expected form>]` entries",
                 })
             }
         };
@@ -1011,18 +1071,20 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
                 _ => {
                     return Err(DocError::MalformedDirective {
                         tag: ":examples".into(),
-                        why: "grammar is `[<expr StringLit> <expected StringLit>]` entries",
+                        why: "grammar is `[<expr form> <expected form>]` entries",
                     })
                 }
             };
-            let expr = metadata_string(&fields[0]).ok_or(DocError::ExampleMissingMarker {
-                expr: metadata_describe(&fields[0]),
-            })?;
-            let expected = metadata_string(&fields[1]).ok_or(DocError::MalformedDirective {
-                tag: ":examples".into(),
-                why: "expected value is empty",
-            })?;
-            examples.push(DocExample { expr, expected: Some(expected), run: true });
+            // Arc 255 STONE "an example is a FORM, not a string" — `fields[0]`/
+            // `fields[1]` are ALREADY parsed `WatAST` nodes (the wat reader
+            // parsed the surrounding `.wat` source that produced this metadata
+            // map), so there is nothing left to stringify or validate here: a
+            // malformed example is unrepresentable by construction on this
+            // path — the reader that loaded the declaration already refused
+            // it. Every metadata-map example is `run: true` (mirrors `@example`;
+            // there is no metadata-map spelling yet for `@example-norun`'s
+            // optional-`expected` shape — out of scope for this stone).
+            examples.push(DocExample { expr: fields[0].clone(), expected: Some(fields[1].clone()), run: true });
         }
     }
     if examples.is_empty() {
@@ -1311,38 +1373,33 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
             }
             "@example" => {
                 let rest = payload;
-                match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
-                    Some((left, right)) => {
-                        examples.push(DocExample {
-                            expr: left.trim().to_string(),
-                            expected: Some(right.trim().to_string()),
-                            run: true,
-                        });
-                    }
+                let (expr_text, expected_text) = match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                    Some((left, right)) => (left.trim(), right.trim()),
                     None => {
                         if let Some(left) = rest.strip_suffix("#=>") {
-                            examples.push(DocExample {
-                                expr: left.trim().to_string(),
-                                expected: Some(String::new()),
-                                run: true,
-                            });
+                            (left.trim(), "")
                         } else {
                             return Err(DocError::ExampleMissingMarker {
                                 expr: rest.trim().to_string(),
                             });
                         }
                     }
-                }
+                };
+                let expr = parse_example_form(expr_text, "@example")?;
+                let expected = parse_example_form(expected_text, "@example")?;
+                examples.push(DocExample { expr, expected: Some(expected), run: true });
             }
             "@example-norun" => {
                 let rest = payload;
-                let (expr, expected) =
-                    if let Some((left, right)) = rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
-                        (left.trim().to_string(), Some(right.trim().to_string()))
-                    } else {
-                        (rest.trim().to_string(), None)
-                    };
-                examples.push(DocExample { expr, expected, run: false });
+                // See `parse`'s identical arm / the DocExample struct docs —
+                // the marker text, when present, is illustrative and
+                // UNVERIFIED; `expected` stays `None` here regardless.
+                let expr_text = match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                    Some((left, _right)) => left.trim(),
+                    None => rest.trim(),
+                };
+                let expr = parse_example_form(expr_text, "@example-norun")?;
+                examples.push(DocExample { expr, expected: None, run: false });
             }
             "@deprecated" => {
                 if deprecated.is_some() {
@@ -1494,6 +1551,13 @@ pub fn check_args(doc: &DocComment, params: &[&str]) -> Result<(), DocError> {
 mod tests {
     use super::*;
 
+    /// Test-only shorthand: parse `s` as a single wat form. Used to build the
+    /// `WatAST` values `DocExample::expr`/`expected` now carry, wherever a
+    /// fixture used to spell them as plain `.into()` strings.
+    fn f(s: &str) -> WatAST {
+        wat_reader::parse_one_with_file(s, "<wat-doc test>").expect("test fixture form parses")
+    }
+
     /// The reference intrinsic doc block (`core::Bytes::to-hex`), in the exact
     /// joined form `sniff_doc` produces (`/// ` stripped, `\n`-joined). This IS
     /// the contract the parser must satisfy. Updated to firm grammar (no separator).
@@ -1516,8 +1580,8 @@ mod tests {
         assert_eq!(
             doc.examples,
             vec![DocExample {
-                expr: "(:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))".into(),
-                expected: Some("\"ff0010\"".into()),
+                expr: f("(:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))"),
+                expected: Some(f("\"ff0010\"")),
                 run: true,
             }]
         );
@@ -1535,7 +1599,7 @@ mod tests {
         assert_eq!(
             doc.examples,
             vec![DocExample {
-                expr: "(:wat::core::File::write p data)".into(),
+                expr: f("(:wat::core::File::write p data)"),
                 expected: None,
                 run: false,
             }]
@@ -1544,10 +1608,15 @@ mod tests {
 
     #[test]
     fn norun_example_may_carry_an_unverified_marker() {
+        // `#uuid "…"` is NOT a wat form the reader accepts (no `#uuid` tagged-
+        // literal syntax) — proof, not just assertion, that this marker is
+        // genuinely unverified: if `parse` attempted to parse it, this fixture
+        // itself would turn the `expect` below into a panic.
         let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Totality Unreviewed\n@ExpandTime Unreviewed\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::uuid::v4) #=> #uuid \"…\"";
         let doc = parse(raw).expect("norun-with-marker parses");
         assert!(!doc.examples[0].run);
-        assert_eq!(doc.examples[0].expected.as_deref(), Some("#uuid \"…\""));
+        assert_eq!(doc.examples[0].expr, f("(:wat::uuid::v4)"));
+        assert_eq!(doc.examples[0].expected, None);
     }
 
     #[test]

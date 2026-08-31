@@ -34,8 +34,12 @@
    :expand-time :wat::runtime::ExpandTime::Legal
    :category :wat::runtime::Category::Transform
    :args [[w :wat::core::String "the segment to capitalize"]]
-   :examples [["(:wat::string::capitalize \"object\")" "\"Object\""]
-              ["(:wat::string::capitalize \"\")" "\"\""]]}
+   ;; Arc 255 STONE "an example is a FORM, not a string" — literal wat forms,
+   ;; not escaped-string source. `wat_doc::from_metadata` reads `fields[0]`/
+   ;; `fields[1]` directly as the parsed forms they already are (the wat
+   ;; reader that loaded THIS file produced them); nothing here is stringified.
+   :examples [[(:wat::string::capitalize "object") "Object"]
+              [(:wat::string::capitalize "") ""]]}
   [w <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::if (:wat::core::= (:wat::string::length w) 0)

@@ -440,6 +440,52 @@ fn sniff_doc(item: &ItemFn) -> Option<String> {
     }
 }
 
+/// Re-derive each `@example`/`@example-norun` directive's ORIGINAL source text
+/// from `raw_doc`, in file order — one `(expr_text, expected_text)` pair per
+/// entry in [`wat_doc::DocComment::examples`] / [`wat_doc::DocSpecialForm::
+/// examples`].
+///
+/// Arc 255 STONE "an example is a FORM, not a string": `DocExample::expr`/
+/// `expected` are now parsed `WatAST` forms (the validation this stone adds —
+/// a malformed example fails HERE, at `wat_doc::parse`, not downstream), so
+/// they no longer carry the literal text `ExampleSubmission` needs for its
+/// `&'static str` fields (STOP-2: one struct does not carry both a form and
+/// its source text). The macro recovers that text NOT by re-printing the
+/// parsed form, but by re-scanning `raw_doc` — the SAME string it already
+/// holds in full and already fed to `wat_doc::parse` — for the identical
+/// one-directive-per-line shape `wat_doc`'s own grammar enforces (`crates/
+/// wat-doc/src/lib.rs`'s directive-line loop: a directive is `@word` at the
+/// start of a line, trimmed of leading whitespace, and its payload is
+/// everything after `@word` on THAT line — never multi-line). Since
+/// `wat_doc::parse`/`parse_special_form` already returned `Ok` by the time
+/// this runs, that same shape is guaranteed, so this walk finds exactly the
+/// same lines, in the same order, that produced `doc.examples` — no second
+/// parse of the grammar, just a re-location of substrings already known to
+/// exist.
+///
+/// Mirrors `wat_doc`'s own `@example`/`@example-norun` split logic exactly
+/// (`" #=> "` / `"#=> "` / a bare trailing `"#=>"`), because it is finding
+/// the SAME split, not a new one.
+fn example_text_slices(raw: &str) -> Vec<(String, Option<String>)> {
+    let mut out = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim_start();
+        let tag = trimmed.split_whitespace().next().unwrap_or("");
+        if tag != "@example" && tag != "@example-norun" {
+            continue;
+        }
+        let payload = trimmed[tag.len()..].trim_start();
+        match payload.split_once(" #=> ").or_else(|| payload.split_once("#=> ")) {
+            Some((left, right)) => out.push((left.trim().to_string(), Some(right.trim().to_string()))),
+            None => match payload.strip_suffix("#=>") {
+                Some(left) => out.push((left.trim().to_string(), Some(String::new()))),
+                None => out.push((payload.trim().to_string(), None)),
+            },
+        }
+    }
+    out
+}
+
 fn is_ref_watast(ty: &Type) -> bool {
     if let Type::Reference(r) = ty {
         return type_path_ends_with(&r.elem, "WatAST");
@@ -788,19 +834,38 @@ pub(crate) fn emit(
         })
         .collect();
 
+    // Arc 255 STONE "an example is a FORM, not a string" — `doc.examples[i]`
+    // now carries a PARSED form (that parse IS the validation this stone
+    // adds), not the literal text `ExampleSubmission` needs. Re-derive the
+    // original text directly from `raw_doc` (see `example_text_slices`);
+    // `doc.examples` and this re-scan walk the SAME `@example`/`@example-
+    // norun` lines in the SAME order (both are downstream of `wat_doc::
+    // parse`'s one identical grammar), so the assert below is a sanity check
+    // on that invariant, not a real failure mode.
+    let example_texts = example_text_slices(&raw_doc);
+    assert_eq!(
+        example_texts.len(),
+        doc.examples.len(),
+        "#[wat_intrinsic] {}: internal error — example_text_slices found {} @example/\
+         @example-norun source line(s) but wat_doc::parse produced {} DocExample entries; \
+         the two extraction passes must agree 1:1",
+        fqdn.value(),
+        example_texts.len(),
+        doc.examples.len(),
+    );
     let examples_lit: Vec<TokenStream2> = doc
         .examples
         .iter()
-        .map(|ex| {
-            let expr = &ex.expr;
+        .zip(example_texts.iter())
+        .map(|(ex, (expr_text, expected_text))| {
             let run = ex.run;
-            let expected = match &ex.expected {
+            let expected = match expected_text {
                 Some(s) => quote! { ::std::option::Option::Some(#s) },
                 None => quote! { ::std::option::Option::None },
             };
             quote! {
                 ::wat::intrinsic::ExampleSubmission {
-                    expr: #expr,
+                    expr: #expr_text,
                     expected: #expected,
                     run: #run,
                 }

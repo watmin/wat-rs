@@ -36,6 +36,33 @@ fn sniff_doc_from_struct(item: &syn::ItemStruct) -> Option<String> {
     if lines.is_empty() { None } else { Some(lines.join("\n")) }
 }
 
+/// Re-derive each `@example`/`@example-norun` directive's ORIGINAL source text
+/// from `raw_doc`, in file order. Special-form twin of `wat_intrinsic::
+/// example_text_slices` — see that fn's doc comment for the full rationale
+/// (arc 255 STONE "an example is a FORM, not a string": `DocExample::expr`/
+/// `expected` are parsed `WatAST` forms now, not text, so `SpecialFormSubmission`'s
+/// `&'static str` fields are re-derived from `raw_doc` directly rather than
+/// stored twice on `DocExample`).
+fn example_text_slices(raw: &str) -> Vec<(String, Option<String>)> {
+    let mut out = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim_start();
+        let tag = trimmed.split_whitespace().next().unwrap_or("");
+        if tag != "@example" && tag != "@example-norun" {
+            continue;
+        }
+        let payload = trimmed[tag.len()..].trim_start();
+        match payload.split_once(" #=> ").or_else(|| payload.split_once("#=> ")) {
+            Some((left, right)) => out.push((left.trim().to_string(), Some(right.trim().to_string()))),
+            None => match payload.strip_suffix("#=>") {
+                Some(left) => out.push((left.trim().to_string(), Some(String::new()))),
+                None => out.push((payload.trim().to_string(), None)),
+            },
+        }
+    }
+    out
+}
+
 /// The `@Totality` value -> token match (arc 255 Stone total-T2), exhaustive, no wildcard —
 /// mirrors `purity_token`/`determinism_token`/`category_token` in [`emit`], and is the
 /// same shape as `wat_intrinsic::totality_token`. A standalone `pub(crate) fn` so it is
@@ -138,16 +165,29 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
         quote! { (#name, #ty, #desc, #is_rest) }
     }).collect();
 
-    let examples_lit: Vec<TokenStream2> = doc.examples.iter().map(|ex| {
-        let expr = &ex.expr;
+    // See `wat_intrinsic::example_text_slices` — same reasoning, same 1:1
+    // re-scan of `raw_doc` for the original example text `DocExample` no
+    // longer carries.
+    let example_texts = example_text_slices(&raw_doc);
+    assert_eq!(
+        example_texts.len(),
+        doc.examples.len(),
+        "#[wat_special_form] {}: internal error — example_text_slices found {} @example/\
+         @example-norun source line(s) but wat_doc::parse_special_form produced {} DocExample \
+         entries; the two extraction passes must agree 1:1",
+        fqdn.value(),
+        example_texts.len(),
+        doc.examples.len(),
+    );
+    let examples_lit: Vec<TokenStream2> = doc.examples.iter().zip(example_texts.iter()).map(|(ex, (expr_text, expected_text))| {
         let run = ex.run;
-        let expected = match &ex.expected {
+        let expected = match expected_text {
             Some(s) => quote! { ::std::option::Option::Some(#s) },
             None => quote! { ::std::option::Option::None },
         };
         quote! {
             ::wat::intrinsic::ExampleSubmission {
-                expr: #expr,
+                expr: #expr_text,
                 expected: #expected,
                 run: #run,
             }
