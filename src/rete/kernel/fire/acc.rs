@@ -130,20 +130,49 @@ pub(super) fn acc_var_i64(
     }
 }
 
-/// Slot of `var` on the first bucket element. Empty bucket → None (count/sum
-/// emit identity; min/max/mean drop). Derived from a live Element, never stored
+/// Where a fold's operand lives on a bucket — THREE outcomes, deliberately.
+///
+/// This replaced an `Option<usize>` whose `None` carried two facts: `bucket.first()` finding
+/// nothing (an EMPTY bucket, legitimate) and `.position(…)` finding nothing (the fold names a var
+/// no condition binds — the same import-door defect the rest of this file refuses). Its two
+/// callers read that one `None` two different, both-wrong ways: `Sum` returned the empty-bucket
+/// identity `i64(0)` for a var that names nothing, and `Min`/`Max`/`Mean` dropped the derived
+/// fact. The two facts now have two names, so no arm can inherit one meaning while intending the
+/// other.
+///
+/// ⛔ Match every variant. A `_ =>` here re-mints the conflation this type exists to remove.
+pub(super) enum OperandSlot {
+    /// The bucket is empty. `Sum`'s identity genuinely is `0`; `Min`/`Max`/`Mean` genuinely have
+    /// no value to report. Reachable ONLY from an actually-empty bucket.
+    EmptyBucket,
+    /// `var` names bind slot `n` on the bucket's elements.
+    Slot(usize),
+    /// The bucket is non-empty and `var` is not among its bind keys — an imported network may
+    /// name a var no condition binds. REFUSE; never answer with a number or an absence.
+    Unbound,
+}
+
+/// Slot of `var` on the first bucket element. Derived from a live Element, never stored
 /// on the interned `AccFold` (`DESIGN-STONE-accum-fold-the-wall`).
+// rune:struere(invariant-coupling) — a fold key is proved at the COMPILE door only; the IMPORT
+// door supplies it unproved, so "the var names nothing" is an outcome, not an impossibility.
 pub(super) fn operand_slot(
     elements: &[Element],
     bucket: &[usize],
     var: &Value,
     bind_keys: &[Value],
     pool: &[(u32, u32)],
-) -> Option<usize> {
-    let &i = bucket.first()?;
-    pool_slice(pool, elements[i].binds)
+) -> OperandSlot {
+    let Some(&i) = bucket.first() else {
+        return OperandSlot::EmptyBucket;
+    };
+    match pool_slice(pool, elements[i].binds)
         .iter()
         .position(|(id, _)| bind_keys.get(*id as usize) == Some(var))
+    {
+        Some(slot) => OperandSlot::Slot(slot),
+        None => OperandSlot::Unbound,
+    }
 }
 
 fn operand_field(var: &Value, view: &AccView<'_>) -> Option<u8> {
@@ -318,8 +347,17 @@ pub(super) fn fold_bucket(
                     bucket.len(),
                 );
             }
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(Some(Value::i64(0)));
+            let slot = match operand_slot(elements, bucket, var, view.keys, view.pool) {
+                OperandSlot::Slot(slot) => slot,
+                // The identity, and ONLY from an actually-empty bucket.
+                OperandSlot::EmptyBucket => return Ok(Some(Value::i64(0))),
+                OperandSlot::Unbound => {
+                    return acc_refusal(format!(
+                        "accumulate :sum fold var {var:?} is not among the bind keys of the \
+                         bucket's elements — an imported network may name a var no condition \
+                         binds"
+                    ))
+                }
             };
             fold_i64s(
                 fold,
@@ -342,8 +380,17 @@ pub(super) fn fold_bucket(
                     bucket.len(),
                 );
             }
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(None);
+            let slot = match operand_slot(elements, bucket, var, view.keys, view.pool) {
+                OperandSlot::Slot(slot) => slot,
+                // No value to report, and ONLY from an actually-empty bucket.
+                OperandSlot::EmptyBucket => return Ok(None),
+                OperandSlot::Unbound => {
+                    return acc_refusal(format!(
+                        "accumulate :min/:max/:mean fold var {var:?} is not among the bind keys \
+                         of the bucket's elements — an imported network may name a var no \
+                         condition binds"
+                    ))
+                }
             };
             fold_i64s(
                 fold,
@@ -463,5 +510,75 @@ mod empty_case {
             fold_i64s(&AccFold::Min(k), std::iter::empty(), 0).unwrap(),
             None
         );
+    }
+
+    // ── The counter-proof for `OperandSlot` ────────────────────────────────────────────────
+    //
+    // The two tests above drive `fold_i64s` directly and never reach `operand_slot`, so neither
+    // of them can see the split. These go through `fold_bucket` — the caller whose conflated
+    // `None` is what `OperandSlot` names apart. `Unbound` now refuses; `EmptyBucket` must still
+    // answer exactly as before, or the strike "made everything refuse" instead of splitting the
+    // outcome.
+
+    fn empty_bucket_fold(fold: &AccFold) -> Option<Value> {
+        let facts = Value::Vec(std::sync::Arc::new(Vec::new()));
+        let view = AccView {
+            keys: &[],
+            vals: &[],
+            pool: &[],
+            facts: &facts,
+            derived: &[],
+            n_input: 0,
+            i64_by_fact: &[],
+            col_keys: &[],
+            col_fields: &[],
+        };
+        let sym = SymbolTable::new();
+        fold_bucket(fold, &[], &[], &sym, &view).expect("an empty bucket must never refuse")
+    }
+
+    #[test]
+    fn fold_bucket_sum_over_an_empty_bucket_is_still_the_identity() {
+        let k = Value::String(std::sync::Arc::new("?x".into()));
+        assert_eq!(empty_bucket_fold(&AccFold::Sum(k)), Some(Value::i64(0)));
+    }
+
+    #[test]
+    fn fold_bucket_min_max_mean_over_an_empty_bucket_still_drop() {
+        let k = Value::String(std::sync::Arc::new("?x".into()));
+        for fold in [
+            AccFold::Min(k.clone()),
+            AccFold::Max(k.clone()),
+            AccFold::Mean(k),
+        ] {
+            assert_eq!(empty_bucket_fold(&fold), None);
+        }
+    }
+
+    /// All three outcomes, named apart. Before the split, the first and the third were the same
+    /// `None` and the two callers of `operand_slot` disagreed about what it meant.
+    #[test]
+    fn operand_slot_tells_an_empty_bucket_from_an_unbound_var() {
+        let bound = Value::String(std::sync::Arc::new("?y".into()));
+        let unbound = Value::String(std::sync::Arc::new("?no-condition-binds-this".into()));
+        let keys = [bound.clone()];
+        let pool = [(0u32, 0u32)];
+        let elements = [Element {
+            fact: 0,
+            binds: BindSpan { off: 0, len: 1 },
+        }];
+
+        assert!(matches!(
+            operand_slot(&elements, &[], &bound, &keys, &pool),
+            OperandSlot::EmptyBucket
+        ));
+        assert!(matches!(
+            operand_slot(&elements, &[0], &bound, &keys, &pool),
+            OperandSlot::Slot(0)
+        ));
+        assert!(matches!(
+            operand_slot(&elements, &[0], &unbound, &keys, &pool),
+            OperandSlot::Unbound
+        ));
     }
 }
