@@ -54,7 +54,37 @@ This also closes a recorded deferral. `RETE-OPEN-WORK.md:1258` carried an unrepr
 believing either"*, recorded 2026-08-29 and never executed. `exigere` found it buried under a
 struck header in the same cast; `experiri` drove it.
 
-## ⛔ WHY THIS IS NOT ON THE FLOOR YET, AND HOW TO LAND IT
+## ⛔⛔ CORRECTION 2026-08-31 — THIS IS RECONNAISSANCE, NOT A GATE. THE SECTION BELOW WAS WRONG.
+
+**Counted before drawing the A3 strike: ONE real Rust assertion across EIGHT tests.**
+
+```
+$ grep -nE '^\s+assert(_eq|_ne)?!' positions-3-4.rs.txt
+78:    assert!(bad.is_empty(), "CALIBRATION FAILED — the cast is void:…");
+```
+
+Only `experiri_then_calibration` can fail. `then_sweep`'s four shards, `experiri_then_match_isolation`,
+`experiri_then_match_arm_spellings` and — **most importantly — `experiri_accumulator_position`,
+which is A3's entire subject** — build programs, drive them, and `println!` a matrix. Nothing
+compares the matrix to anything.
+
+**So the claim below that this "reddens on the defect and must go green on the cure" is FALSE**, and
+it was written confidently the same day this arc removed 26 tests that asserted nothing. A rider
+following it would have appended SEVEN hollow tests to the release floor. The `assertion-failed!`
+strings inside the embedded wat are what make a careless grep say otherwise; they are wat source,
+not Rust gates.
+
+**What this artifact actually is, and it is still worth having:** the reconnaissance that DROVE
+238 declared-surface cells and found A3 and D5. Its value is the synthesis harness and the fixture
+shapes, not its verdicts. The A3 strike therefore does NOT "append and confirm RED" — it must
+**convert `experiri_accumulator_position`'s recon into an assertion first**, and only the parts
+that become gates may land on the floor.
+
+**The lesson, which is the same one this arc keeps paying for:** a `println!` of a correct matrix
+looks exactly like a proof and is not one. I banked this as "the failing gate" without counting its
+assertions.
+
+## ⛔ WHY THIS IS NOT ON THE FLOOR YET (the original section, kept — its floor reasoning still holds)
 
 Because it goes **RED against this HEAD** — that is the whole point of it. The floor is
 zero-failure (5,165/5,165 at `.floor/2026-08-30T22-58-06Z`) and a red test may not be parked
