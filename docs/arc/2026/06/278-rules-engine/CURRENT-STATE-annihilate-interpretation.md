@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-30 (sixth — THE VIGILIA). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (seventh — SIX STRIKES LANDED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 36288679e..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 36288679e..HEAD        # what they touched
+git log --oneline 119214aef..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 119214aef..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -70,40 +70,60 @@ disk finding by finding):
 - **`intueri` CONVICTED the self-description** — six false claims, ALL about the tree's own layout,
   all trivially checkable, none checked. Both gates below exist because of it.
 
-**⛔⛔ THE ANSWER TO "IS IT AN EXEMPLAR" IS: NO, AND THE FULL VIGILIA SAID SO — 41 L1 + 70 L2.**
+**⛔⛔ THE ANSWER TO "IS IT AN EXEMPLAR" IS: NO — 41 L1 + 70 L2 FROM 19 WARDS, AND SIX STRIKES OF
+IT ARE NOW CLOSED.**
 
-**➡ THE WORK LIST IS `VIGILIA-2026-08-30-WORK-LIST.md`, IN THIS DIRECTORY. Go there. It is the
-only place a row's status lives.** This block is the pointer, not a second copy.
+**➡ THE WORK LIST IS `VIGILIA-2026-08-30-WORK-LIST.md`, IN THIS DIRECTORY. Go there.** It is the
+only place a row's status lives; this block is the pointer, not a second copy.
 
-The named list WAS empty on the morning of 2026-08-30 — everything mechanically checkable green or
-retired with reasons, both prior wards' findings fixed or gated. **Then 19 wards were cast against
-a tree 184 commits and +19,496 lines past the last full cast, and the gates were green throughout:
-every single finding is on a surface the 28 lints cannot see.** An empty work list was evidence
-about how hard we had looked, exactly as this file warned two stamps ago.
+**LANDED 2026-08-30/31, each drawn → probed RED → struck → mutation-proven → floor green:**
 
-⛔ **DO NOT WORK IT AS 111 ITEMS.** Five wards independently found five instances of ONE class —
-**an invariant proven at one door and assumed at all of them.** There are THREE doors into a
-Session (`compile-all`, `import_export`, a hand-assembled record); the first proves things and the
-other two do not. That is Class A in the work list and it is worth more than the rest combined.
+| | | |
+|---|---|---|
+| A1 | `788e5b66d` | the FOURTH wall — import accepted a graph the fire passes cannot walk |
+| A2 | `c449cd24d` | nine `panic!` arms → refusals; a wire value may not unwind the host |
+| A2b | `d081142a9` | the silent zero — one `Option`, two facts, split by type |
+| A4 | `42704d57b` | the ceiling's zero point belongs to the session, not the thread |
+| — | `9ee04f945` | every `docs/arc` `.wat` loads or declares in a closed rune why not |
+| C1 | `119214aef` | the label follows the arithmetic — 103 accumulators, mean → minimum |
 
-⚠ **AND TWO OF THE FINDINGS ARE THE PRIOR SELF'S OWN COMMITS FROM THAT SAME DAY**, both with one
-shape: **the commit message asserted a general fix while the diff performed a specific one.**
-`89e8c3ed0` moved the estimator LABEL to `MINIMUM` and left `stat()` computing a mean (git blame
-settles it: line 493 is that commit, lines 528-542 are not). `b7d9d8e90` fixed one `(engine)`
-mislabel while its own message named the class — two more were standing. **Naming a class in prose
-is not pulling it.** Until Class C closes, no cost number in this arc's record can be trusted.
+**⛔ THE CLASS ABOVE THE FINDINGS STILL GOVERNS what remains: an invariant proven at ONE door and
+assumed at ALL of them.** Three doors into a Session — `compile-all`, `import_export`, a
+hand-assembled record. The first proves things; the other two do not. A1/A2/A4 were three
+instances. **A3, A5, A6, A7 are the rest.**
 
-⚠ **AND AN EXEMPLAR CLAIM IS ITSELF A CLAIM ABOUT THE TREE.** This session is a long argument for
-not believing those without a check: SIX of my own instruments returned confident wrong numbers
-(a doc-detector that read an attribute as absent documentation; an `--exclude` flag that matched
-NOTHING once its target became a directory; a hollow-test classifier at 10 against `probare`'s 26;
-a `FireCtx` field count with which I nearly overruled a correct ward; `40_000` reasoned where
-`120_200` was measured; and a classifier blind to assertions inside a helper — rewarding the
-duplication it exists to detect). The two gates in `tests/lint/` are what make this table
-re-derivable rather than asserted. **Do not declare the exemplar from this file — run the
-script.**
+⚠ **AND THREE OF THE SIX WERE THE PRIOR SELF'S OWN DEFECTS**, all one shape — **a commit message
+asserting a general fix while the diff performed a specific one.** `89e8c3ed0` moved the estimator
+LABELS and left the arithmetic (C1, 103 sites). `b7d9d8e90` fixed one `(engine)` mislabel while its
+message named the class; two more stood. And two ratio floors gated a 0.23 ms arm on a parallel
+runner and reddened the floor (`2a7051c67`, struck with the captured arm as the reason).
+**Naming a class in prose is not pulling it.**
 
-**THE NEXT WORK: `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
+⚠⚠ **SEVEN RIDERS, SEVEN PRESCRIPTIONS OF MINE THAT DID NOT SURVIVE CONTACT** — every one surfaced
+by asking for honest deltas, **none by a scorecard**: an impossible mutation; a `collect()` costing
+five allocations on a path measured at ~27% of fire; a counter-proof that could not fail; an inert
+mutation that was really a coverage finding; a file I said to rune that already loaded; a DESIGN
+that forbade what its own BRIEF prescribed; and a gate spec that **could not see its own flagship
+defect**. If you draw a strike, ask the rider where the brief was thin — that is where the value is.
+
+**THE NEXT WORK — D1, and the reason it leads.** `validate/typing.rs:212`'s
+`keyword_constant_segment` is a **FOURTH** copy of enum-variant resolution — prefix-only, never
+checks the variant EXISTS — and it disagrees with the runtime's `sym.unit_variant`. A misspelled or
+Tagged variant **types clean, compiles, fires, and matches nothing, silently.** `matcher.rs:130`
+already carries the cure, documented *"ONE COPY … hand-written at THREE independent sites"*;
+`typing.rs` is the fourth. It is the arc's own named recurring class (fix-list F, closed three
+times) and the only open row where an ORDINARY user writing ordinary code gets a wrong answer with
+no diagnostic.
+
+⚠ **IT HAS NEVER BEEN DRIVEN** — `solvere` found it by reading, and the work list records it as
+*"mechanism verified by reading; NOT yet driven."* Drive it first. This session proved repeatedly
+that a reading cannot see an execution defect.
+
+Behind it: **A6** (unbounded `unpack_expr` recursion → SIGSEGV, needs a hostile Export), **B1** (the
+`with-network` lease leak — no `impl Drop` anywhere in `src/rete`, fires under memory pressure),
+then **A5/A7**, which are small and can ride along.
+
+**The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
 "FIXED" is one of the vigilia's own findings (Class C1): the label moved, the arithmetic did not.**
 
