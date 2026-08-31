@@ -19,12 +19,17 @@
 //!
 //! ## The six `?` predicates
 //!
-//! `pure?`/`deterministic?`/`total?`/`primitive?` share one body shape (`eval_axis_predicate_impl`
-//! below — the direct successor of `rete/purity.rs`'s now-deleted `eval_axis_predicate`): eval the
-//! one call argument to a quoted `WatAST`, then run a read-only structural walk
-//! (`is_pure_expr`/`is_deterministic_expr`/`is_total_expr`/`is_rete_primitive_expr`, still in
-//! `rete/purity.rs`) over it plus a `&SymbolTable` reference — a FRESH cycle-guard `HashSet` per
-//! call, no IO, no mutation, terminates even over a mutually-recursive user fn body.
+//! `pure?`/`deterministic?`/`total?`/`primitive?` share one arg-extraction shape
+//! (`eval_quoted_ast_arg` below — the direct successor of `rete/purity.rs`'s now-deleted
+//! `eval_axis_predicate`): eval the one call argument to a quoted `WatAST`, then run a read-only
+//! structural walk (`is_pure_expr`/`is_deterministic_expr`/`is_total_expr`/`is_rete_primitive_expr`,
+//! still in `rete/purity.rs`) over it plus a `&SymbolTable` reference — a FRESH cycle-guard
+//! `HashSet` per call, no IO, no mutation, terminates even over a mutually-recursive user fn body.
+//! Arc 255 Stone A-2-i split the walk-invocation half in two: `eval_axis_predicate_impl` (used by
+//! `primitive?` alone) always classifies under `ClassifyCtx::Static`; `eval_axis_predicate_impl_ctx`
+//! (used by `pure?`/`deterministic?`/`total?`) passes the call's OWN `env` down as
+//! `ClassifyCtx::Runtime` — the reason those three, and not `primitive?`, can now resolve a local
+//! binding holding a closure.
 //! `vocabulary-admitted?` (`rete_vocabulary_admitted`, `rete/vocabulary.rs`) is a fixed
 //! prefix-table lookup on a string; `cond-has-deferred-constraint?`
 //! (`cond_has_deferred_constraint`, `rete/matcher.rs`) is a finite structural walk over the
@@ -55,15 +60,38 @@ use crate::rete::matcher::{
     class_field_names, cond_has_deferred_constraint, fact_from_value, pack_alpha_match_option,
 };
 use crate::rete::purity::{
-    is_deterministic_expr, is_pure_expr, is_rete_primitive_expr, is_total_expr,
+    is_deterministic_expr, is_pure_expr, is_rete_primitive_expr, is_total_expr, ClassifyCtx,
 };
 use crate::rete::vocabulary::rete_vocabulary_admitted;
 use crate::runtime::eval_inner;
 use crate::value::{Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 
-/// Shared body for the four single-arg WatAST axis predicates: eval `expr` to a quoted
-/// `WatAST`, apply `classify`. Direct successor of `rete/purity.rs`'s deleted
-/// `eval_axis_predicate` — same shape, arity now shim-owned rather than hand-checked here.
+/// Shared arg-extraction for the four single-arg WatAST axis predicates: eval `expr` to a
+/// quoted `WatAST`. Direct successor of `rete/purity.rs`'s deleted `eval_axis_predicate` —
+/// same shape, arity now shim-owned rather than hand-checked here.
+fn eval_quoted_ast_arg(
+    op: &'static str,
+    expr: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<WatAST, EvalBreak> {
+    let val = eval_inner(expr, env, sym)?.value_owned();
+    match val {
+        Value::wat__WatAST(ref a) => Ok((**a).clone()),
+        other => Err(RuntimeError::new(
+            expr.span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `primitive?` alone keeps calling the walk under `ClassifyCtx::Static` (arc 255 Stone A-2-i
+/// deliberately did not extend it) — this impl's `classify` stays the plain two-arg shape.
 fn eval_axis_predicate_impl(
     op: &'static str,
     classify: fn(&WatAST, &SymbolTable) -> bool,
@@ -71,22 +99,22 @@ fn eval_axis_predicate_impl(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let val = eval_inner(expr, env, sym)?.value_owned();
-    let ast = match val {
-        Value::wat__WatAST(ref a) => (**a).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                expr.span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
+    let ast = eval_quoted_ast_arg(op, expr, env, sym)?;
     Ok(Value::bool(classify(&ast, sym)))
+}
+
+/// `pure?`/`deterministic?`/`total?` pass their OWN `env` down as `ClassifyCtx::Runtime` (arc 255
+/// Stone A-2-i, work item 4) — this is what makes the classifier's captured-fn resolution
+/// observable from wat at all, and is the stone's proof surface.
+fn eval_axis_predicate_impl_ctx(
+    op: &'static str,
+    classify: fn(&WatAST, &SymbolTable, ClassifyCtx) -> bool,
+    expr: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let ast = eval_quoted_ast_arg(op, expr, env, sym)?;
+    Ok(Value::bool(classify(&ast, sym, ClassifyCtx::Runtime(env))))
 }
 
 /// `(:wat::rete::pure? expr) -> :wat::core::bool` — is `expr` effect-free (no IO/mutation/spawn)?
@@ -114,7 +142,7 @@ pub(crate) fn eval_rete_pure_intrinsic(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    eval_axis_predicate_impl(":wat::rete::pure?", is_pure_expr, expr, env, sym)
+    eval_axis_predicate_impl_ctx(":wat::rete::pure?", is_pure_expr, expr, env, sym)
 }
 
 /// `(:wat::rete::deterministic? expr) -> :wat::core::bool` — is `expr` referentially transparent
@@ -139,7 +167,7 @@ pub(crate) fn eval_rete_deterministic_intrinsic(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    eval_axis_predicate_impl(":wat::rete::deterministic?", is_deterministic_expr, expr, env, sym)
+    eval_axis_predicate_impl_ctx(":wat::rete::deterministic?", is_deterministic_expr, expr, env, sym)
 }
 
 /// `(:wat::rete::total? expr) -> :wat::core::bool` — is `expr` domain-total (defined on ALL its
@@ -165,7 +193,7 @@ pub(crate) fn eval_rete_total_intrinsic(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    eval_axis_predicate_impl(":wat::rete::total?", is_total_expr, expr, env, sym)
+    eval_axis_predicate_impl_ctx(":wat::rete::total?", is_total_expr, expr, env, sym)
 }
 
 /// `(:wat::rete::primitive? expr) -> :wat::core::bool` — LAW A: is `expr` composed ONLY of rete

@@ -64,8 +64,8 @@ use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::runtime::{
-    EvalBreak, Environment, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
-    ValueSnapshot,
+    EvalBreak, Environment, Function, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable,
+    Value, ValueSnapshot,
 };
 use crate::span::Span;
 use crate::value::value::{AggregateValue, EnumValue};
@@ -915,10 +915,39 @@ fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     None
 }
 
+/// Arc 255 Stone A-2-i — which WORLD is this classification happening in? Every call site
+/// names it explicitly; there is no default to omit and nothing to forget.
+///
+/// `Option<&Environment>` was rejected mid-flight: `None` would have meant two different
+/// things at a call site — "there is genuinely no environment here" (static context, check
+/// time, no values exist yet) vs. "I did not bother threading one" — and nothing at the call
+/// site would have told a reader which. That conflation is the exact defect this arc exists to
+/// kill (the same reason `Totality` carries an `Unreviewed` variant instead of a guessed pole).
+#[derive(Clone, Copy)]
+pub(crate) enum ClassifyCtx<'a> {
+    /// No values exist yet — check time, a quoted form, a rule body being proved at
+    /// definition time. Captured-fn resolution is IMPOSSIBLE here, not merely skipped: there is
+    /// no environment to look a name up in. `head_ok`'s new door is simply not tried.
+    Static,
+    /// Values exist; a bare head naming a local binding may be resolved through this
+    /// environment (arc 255 Stone A-2-i — `head_ok`'s new door, immediately before its final
+    /// default-deny).
+    Runtime(&'a Environment),
+}
+
 /// Does `head` satisfy `axis`? Data constructors and field accessors are recognized first
 /// (pure-by-declaration); then user fns recurse transitively; intrinsics consult
-/// `intrinsic_meta`; unknown heads default-deny.
-fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>, at: &Span) -> Result<(), AxisViolation> {
+/// `intrinsic_meta`; under `ClassifyCtx::Runtime`, a local binding holding a closure is resolved
+/// (arc 255 Stone A-2-i) immediately before the final default-deny; unknown heads default-deny.
+fn head_ok(
+    head: &str,
+    axis: Axis,
+    sym: &SymbolTable,
+    seen: &mut HashSet<String>,
+    closure_seen: &mut HashSet<*const Function>,
+    at: &Span,
+    ctx: ClassifyCtx,
+) -> Result<(), AxisViolation> {
     // Data constructor (record/holon/enum-variant pure; struct impure) — recognized BEFORE the
     // sym.functions branch, because tagged-variant constructors are registered there as opaque stubs
     // that classify_fn would default-deny.
@@ -959,8 +988,24 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
     // itself is unchanged so the `FunctionBody::Native` arm (native HOF combinators —
     // `foldl`/`map`/… — registered in `sym.functions` and judged by `intrinsic_meta`, same as
     // always) keeps working exactly as before; only the Wat arm's admission rule flipped.
+    // Arc 278 #88 — THE MEMBRANE, unchanged: `sym.has_function` resolves a NAMED (defn-registered)
+    // fn. Its body is never lexically inside whatever scope is being classified here (a `defn`'s
+    // `closed_env` is always `None` — it resolves symbols via the global `sym`, not a captured
+    // env), so `ClassifyCtx::Static` is deliberately forced here instead of forwarding `ctx`:
+    // passing `Static` is not a "safe default", it is the ONLY correct world for this recursion,
+    // on scope grounds alone — whatever `ctx` this call was made under, a NAMED fn's own body is
+    // never lexically nested in it.
     if sym.has_function(head) {
-        return classify_fn(head, axis, sym, seen, at);
+        // ⛔ `ClassifyCtx::Static` is FORCED here, NOT forwarded — and forwarding the caller's
+        // `ctx` would be a silent SCOPE bug, not a safe-default question. A `defn`-registered
+        // function's body is never lexically inside the scope that triggered this
+        // classification: `Function` carries `closed_env = None` for named fns (they resolve
+        // through the global `SymbolTable` at call time — `src/value/environment.rs:44`), so the
+        // caller's environment is not this body's environment. Handing it down would let a named
+        // fn's body resolve a head through bindings it can never actually see.
+        // Captured-closure resolution belongs to `classify_closure`, reached from the
+        // `ClassifyCtx::Runtime` door below, which carries the closure's OWN `closed_env`.
+        return classify_fn(head, axis, sym, seen, closure_seen, at, ClassifyCtx::Static);
     }
     // Arc 278 #55 slice one — THE ADMISSION TEST, a FOURTH consideration alongside the three
     // above (additive, never a replacement — the design stone's own framing). A head inside a
@@ -984,6 +1029,24 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
             Axis::RetePrimitive => true,
         });
         return if ok { Ok(()) } else { Err(AxisViolation::at(at.clone(), head, axis)) };
+    }
+    // Arc 255 Stone A-2-i — THE NEW DOOR, immediately before the final default-deny: every prior
+    // door has declined (not a constructor, accessor, registered fn, or admitted rete-vocabulary
+    // member), so ask whether `head` names a LOCAL BINDING holding a closure — the shape
+    // `sort-by`'s comparator `(fn [a b] (< (keyfn a) (keyfn b)))` needs for `keyfn`. Under
+    // `ClassifyCtx::Static` no values exist yet, so this door is simply not tried — that is the
+    // whole point of the enum, not a special case of it. Under `Runtime(env)`, if `env` resolves
+    // `head` to a `Value::wat__core__fn(f)`, classify `f`'s body against the SAME axis, carrying
+    // `f`'s OWN `closed_env` — the scope the closure was CREATED in, never the caller's (`ctx`
+    // itself is not forwarded past this point; only a fresh ctx built from `f.closed_env` is).
+    if let ClassifyCtx::Runtime(env) = ctx {
+        if let Some(bound) = env.lookup(head, at) {
+            if let Value::wat__core__fn(f) = bound.value() {
+                return classify_closure(f, axis, sym, seen, closure_seen, at);
+            }
+            // Bound to a non-fn value — nothing to classify; fall through unchanged.
+        }
+        // No binding of this name in scope — fall through unchanged.
     }
     match axis {
         // Pure: effectful namespaces are an explicit deny; otherwise the metadata must declare pure.
@@ -1028,6 +1091,61 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
     }
 }
 
+/// Arc 255 Stone A-2-i — classify an ANONYMOUS closure resolved through `ClassifyCtx::Runtime`
+/// (`head_ok`'s new door). An anonymous closure has `name: None` and is absent from `sym`, so the
+/// FQDN-keyed `seen` cannot hold it (`classify_fn`'s guard, unusable here) — recursion is guarded
+/// on the `Arc<Function>` POINTER ADDRESS instead, in `closure_seen`, a set kept separate from
+/// `seen`'s FQDN keys, mirroring `src/value/value.rs:684`'s existing `Arc::ptr_eq` fn-identity
+/// idiom. A back-edge returns `Ok(())`, exactly as `classify_fn`'s FQDN back-edge does.
+///
+/// ⛔ NOT a depth bound: this classifier's `false` must mean *proven not*, never *gave up* — a
+/// recursion-depth limit would silently return the wrong answer on a deep-but-finite capture
+/// chain (`[[feedback_an_error_names_where_it_gave_up_not_what_is_missing]]`).
+fn classify_closure(
+    f: &Arc<Function>,
+    axis: Axis,
+    sym: &SymbolTable,
+    seen: &mut HashSet<String>,
+    closure_seen: &mut HashSet<*const Function>,
+    at: &Span,
+) -> Result<(), AxisViolation> {
+    let ptr: *const Function = Arc::as_ptr(f);
+    if closure_seen.contains(&ptr) {
+        return Ok(()); // back-edge — no new violation from the recursive call
+    }
+    closure_seen.insert(ptr);
+    match &f.body {
+        FunctionBody::Wat(body_ast) => {
+            // Carry `f`'s OWN captured environment — the scope the closure was CREATED in — not
+            // whatever `ClassifyCtx` this recursion was reached under.
+            let child_ctx = match &f.closed_env {
+                Some(closed_env) => ClassifyCtx::Runtime(closed_env),
+                None => ClassifyCtx::Static,
+            };
+            classify_expr(body_ast.as_ref(), std::slice::from_ref(&axis), sym, seen, closure_seen, child_ctx)
+        }
+        // Mirrors `classify_fn`'s `FunctionBody::Native` arm: opaque, so consult `intrinsic_meta`
+        // on the fn's OWN name if it has one. Nothing in this codebase constructs a `Native`-bodied
+        // fn VALUE bound to a local name today (see `FunctionBody`'s doc) — an unnamed native
+        // closure has nothing to key `intrinsic_meta` with and default-denies, a controlled
+        // refusal rather than a panic, exactly `classify_native_fn`'s own discipline.
+        FunctionBody::Native => {
+            let name = f.name.as_deref();
+            let ok = name.and_then(intrinsic_meta).is_some_and(|m| match axis {
+                Axis::Pure => m.pure,
+                Axis::Deterministic => m.deterministic,
+                Axis::Total => m.total,
+                Axis::RetePrimitive => false,
+            });
+            if ok {
+                Ok(())
+            } else {
+                Err(AxisViolation::at(at.clone(), name.unwrap_or("<anonymous native fn>"), axis))
+            }
+        }
+    }
+}
+
 // ─── Shared structural walk (parameterized by axis) ─────────────────────────────
 
 /// Refuse `cond` / `match` / `fn` as a RETE PRIMITIVE when more than one axis is
@@ -1060,7 +1178,14 @@ fn refuse_core_structural_on_multi(axes: &[Axis], items: &[WatAST]) -> Result<()
 /// The `WatAST::List` arm recurses into EVERY argument of EVERY call form on the
 /// same axis, whatever `head_ok` returned at the outer head — so a resource
 /// acquisition buried in an argument is caught even under a head the axis admits.
-fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
+fn classify_expr(
+    ast: &WatAST,
+    axes: &[Axis],
+    sym: &SymbolTable,
+    seen: &mut HashSet<String>,
+    closure_seen: &mut HashSet<*const Function>,
+    ctx: ClassifyCtx,
+) -> Result<(), AxisViolation> {
     match ast {
         // Non-list forms are pure, deterministic data.
         WatAST::IntLit(_, _)
@@ -1120,7 +1245,7 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
             if axes.contains(&Axis::RetePrimitive) && is_declaration_derived_construction(items, sym) =>
         {
             for arg in &items[1..] {
-                classify_expr(arg, axes, sym, seen)?;
+                classify_expr(arg, axes, sym, seen, closure_seen, ctx)?;
             }
             Ok(())
         }
@@ -1190,7 +1315,7 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
                 match clause {
                     WatAST::List(parts, _) => {
                         for e in parts {
-                            classify_expr(e, axes, sym, seen)?;
+                            classify_expr(e, axes, sym, seen, closure_seen, ctx)?;
                         }
                     }
                     // malformed clause → deny, naming the malformed clause's own span.
@@ -1217,7 +1342,7 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
             let scrut = items.get(1).ok_or_else(|| {
                 AxisViolation::at(list_span.clone(), "<malformed match: no scrutinee>", axes[0])
             })?;
-            classify_expr(scrut, axes, sym, seen)?;
+            classify_expr(scrut, axes, sym, seen, closure_seen, ctx)?;
             let arms = items.get(2..).ok_or_else(|| {
                 AxisViolation::at(list_span.clone(), "<malformed match: no arms>", axes[0])
             })?;
@@ -1226,7 +1351,7 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
                     // skip pattern (element 0); check body forms (1..).
                     WatAST::List(parts, _) => {
                         for e in parts.iter().skip(1) {
-                            classify_expr(e, axes, sym, seen)?;
+                            classify_expr(e, axes, sym, seen, closure_seen, ctx)?;
                         }
                     }
                     other => {
@@ -1260,7 +1385,7 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
                         AxisViolation::at(list_span.clone(), "<malformed fn: no body>", axes[0])
                     })?;
                     for e in body {
-                        classify_expr(e, axes, sym, seen)?;
+                        classify_expr(e, axes, sym, seen, closure_seen, ctx)?;
                     }
                     refuse_core_structural_on_multi(axes, items)?;
                     Ok(())
@@ -1289,10 +1414,11 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
             let at = head_node.map(|h| h.span().clone()).unwrap_or_else(|| ast.span().clone());
             for &axis in axes {
                 let mut axis_seen = seen.clone();
-                head_ok(head, axis, sym, &mut axis_seen, &at)?;
+                let mut axis_closure_seen = closure_seen.clone();
+                head_ok(head, axis, sym, &mut axis_seen, &mut axis_closure_seen, &at, ctx)?;
             }
             for a in &items[1..] {
-                classify_expr(a, axes, sym, seen)?;
+                classify_expr(a, axes, sym, seen, closure_seen, ctx)?;
             }
             Ok(())
         }
@@ -1300,20 +1426,20 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
         // Vectors / maps / sets → recurse element-wise.
         WatAST::Vector(elems, _) => {
             for e in elems {
-                classify_expr(e, axes, sym, seen)?;
+                classify_expr(e, axes, sym, seen, closure_seen, ctx)?;
             }
             Ok(())
         }
         WatAST::Map(pairs, _) => {
             for (k, v) in pairs {
-                classify_expr(k, axes, sym, seen)?;
-                classify_expr(v, axes, sym, seen)?;
+                classify_expr(k, axes, sym, seen, closure_seen, ctx)?;
+                classify_expr(v, axes, sym, seen, closure_seen, ctx)?;
             }
             Ok(())
         }
         WatAST::Set(elems, _) => {
             for e in elems {
-                classify_expr(e, axes, sym, seen)?;
+                classify_expr(e, axes, sym, seen, closure_seen, ctx)?;
             }
             Ok(())
         }
@@ -1322,7 +1448,15 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
 
 /// Classify a named user fn against `axis` by inspecting its body transitively. `seen` detects cycles;
 /// a back-edge (fqdn already in `seen`) returns `true` (fixpoint: the cycle adds no new violation).
-fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>, at: &Span) -> Result<(), AxisViolation> {
+fn classify_fn(
+    fqdn: &str,
+    axis: Axis,
+    sym: &SymbolTable,
+    seen: &mut HashSet<String>,
+    closure_seen: &mut HashSet<*const Function>,
+    at: &Span,
+    ctx: ClassifyCtx,
+) -> Result<(), AxisViolation> {
     if seen.contains(fqdn) {
         return Ok(()); // back-edge — no new violation from the recursive call
     }
@@ -1363,7 +1497,7 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
             } else if matches!(axis, Axis::RetePrimitive) {
                 Err(AxisViolation::at(at.clone(), fqdn, axis))
             } else {
-                classify_expr(body_ast.as_ref(), std::slice::from_ref(&axis), sym, seen)
+                classify_expr(body_ast.as_ref(), std::slice::from_ref(&axis), sym, seen, closure_seen, ctx)
             }
         }
         // A native builtin registered in sym.functions is opaque — its body cannot be inspected —
@@ -1513,20 +1647,28 @@ mod classify_native_fn_tests {
 // ─── Public axis classifiers (fresh `seen` per call) — also for stone 6b+ ──────
 
 /// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::uuid::v4` is pure (it does no IO).
-pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, &[Axis::Pure], sym, &mut HashSet::new()).is_ok()
+///
+/// Arc 255 Stone A-2-i — `ctx` names the world explicitly (`ClassifyCtx::Static` at check time /
+/// over a quoted form with no live environment; `ClassifyCtx::Runtime(env)` when `env` is a real,
+/// evaluated environment a local binding might resolve through). `:wat::rete::pure?` passes its
+/// own `env` as `Runtime` — the sole reason this predicate can now see a captured comparator like
+/// `sort-by`'s `(fn [a b] (< (keyfn a) (keyfn b)))`.
+pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable, ctx: ClassifyCtx) -> bool {
+    classify_expr(ast, &[Axis::Pure], sym, &mut HashSet::new(), &mut HashSet::new(), ctx).is_ok()
 }
 
 /// Is `ast` referentially transparent (same inputs → same output)? `:wat::uuid::v4` is NOT.
-pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, &[Axis::Deterministic], sym, &mut HashSet::new()).is_ok()
+/// `ctx` — see [`is_pure_expr`]'s doc.
+pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable, ctx: ClassifyCtx) -> bool {
+    classify_expr(ast, &[Axis::Deterministic], sym, &mut HashSet::new(), &mut HashSet::new(), ctx).is_ok()
 }
 
 /// Is `ast` domain-total (defined on all its inputs)? ARMED: `compile-condition` consults
 /// this as the third fence conjunct. `:wat::i64::/` is NOT (undefined at a zero
-/// divisor, and separately at the one input pair that overflows i64).
-pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, &[Axis::Total], sym, &mut HashSet::new()).is_ok()
+/// divisor, and separately at the one input pair that overflows i64). `ctx` — see
+/// [`is_pure_expr`]'s doc.
+pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable, ctx: ClassifyCtx) -> bool {
+    classify_expr(ast, &[Axis::Total], sym, &mut HashSet::new(), &mut HashSet::new(), ctx).is_ok()
 }
 
 /// LAW A — is every head in `ast`'s transitive walk a rete primitive? Armed on the
@@ -1534,16 +1676,34 @@ pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 /// the freeze wall plus intern `compile_condition_local` (CoreGeneric → none). Same
 /// walk as the three predicates above; only the axis differs — a user fn is admitted
 /// iff its BODY is, at any depth.
+///
+/// Arc 255 Stone A-2-i deliberately did NOT extend `:wat::rete::primitive?` to accept a
+/// `ClassifyCtx::Runtime` — nothing in this stone consumes that for the `RetePrimitive` axis, so
+/// this predicate keeps calling the walk under `ClassifyCtx::Static`, byte-identical to before.
 pub(crate) fn is_rete_primitive_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, &[Axis::RetePrimitive], sym, &mut HashSet::new()).is_ok()
+    classify_expr(ast, &[Axis::RetePrimitive], sym, &mut HashSet::new(), &mut HashSet::new(), ClassifyCtx::Static).is_ok()
 }
 
 /// Run the SAME walk `is_pure_expr`/`is_deterministic_expr` use, but keep the violation instead of
 /// collapsing it to `false`. `None` ⟺ `ast` satisfies `axis` (agrees with the bool predicates above
 /// by construction — same function, same recursion, only the return type differs). Backs the
-/// wat-visible `:wat::rete::axis-violation` diagnostic surface.
+/// wat-visible `:wat::rete::axis-violation` diagnostic surface. Thin `ClassifyCtx::Static` wrapper
+/// over [`find_axis_violation_ctx`] — this signature and its `freeze.rs` call site are unchanged.
 pub(crate) fn find_axis_violation(ast: &WatAST, axis: Axis, sym: &SymbolTable) -> Option<AxisViolation> {
-    classify_expr(ast, std::slice::from_ref(&axis), sym, &mut HashSet::new()).err()
+    find_axis_violation_ctx(ast, axis, sym, ClassifyCtx::Static)
+}
+
+/// Arc 255 Stone A-2-i — the env-carrying sibling `find_axis_violation` keeps beside it: same
+/// walk, but the caller NAMES the world (`ClassifyCtx::Static` vs. `Runtime(env)`) rather than
+/// getting `Static` by default. Nothing in this stone calls this with `Runtime` yet — the
+/// capability is shipped, not consumed (that is A-2-ii, at `sort$native`'s door).
+pub(crate) fn find_axis_violation_ctx(
+    ast: &WatAST,
+    axis: Axis,
+    sym: &SymbolTable,
+    ctx: ClassifyCtx,
+) -> Option<AxisViolation> {
+    classify_expr(ast, std::slice::from_ref(&axis), sym, &mut HashSet::new(), &mut HashSet::new(), ctx).err()
 }
 
 /// Arc 278 #88 v2 — THE DEFINITION-SITE CHECK's OUTCOME, as a matchable VALUE rather than a
@@ -1650,7 +1810,12 @@ pub(crate) fn apply_rete_defn_contracts(
         // One AST walk; first-failing axis at each call head (Pure → Det → Total → Rete).
         let mut seen: HashSet<String> = declared.clone();
         seen.insert(name.clone());
-        if let Some(v) = classify_expr(body_ast.as_ref(), &Axis::ALL, sym, &mut seen).err() {
+        let mut closure_seen: HashSet<*const Function> = HashSet::new();
+        // Definition-time check: no live `Environment` exists yet for a not-yet-invoked rete-defn
+        // body — `ClassifyCtx::Static` is the only world this call can honestly claim.
+        if let Some(v) =
+            classify_expr(body_ast.as_ref(), &Axis::ALL, sym, &mut seen, &mut closure_seen, ClassifyCtx::Static).err()
+        {
             return ReteDefnCheckOutcome::Err(ReteDefnCheckError {
                 span: v.span,
                 kind: ReteDefnCheckErrorKind::AxisViolation {
