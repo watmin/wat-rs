@@ -51,36 +51,82 @@ pub(super) fn acc_view<'a>(
 
 // ── Accumulate folds (8-b) — native mirrors of the wat acc::* fold library ────
 
+/// Refuse an accumulate fold read as a VALUE the caller can match, never a host unwind.
+///
+/// The shape `driver_of` (`fire/mod.rs`) already uses for the same class of missing id — with one
+/// difference that governs every message built here: `driver_of`'s miss really is a compiler bug,
+/// and this one is not. Fold keys reach fire time through TWO doors, and only one of them proves
+/// anything. So the reason names the door, never a proof.
+fn acc_refusal<T>(reason: String) -> Result<T, EvalBreak> {
+    Err(RuntimeError::new(
+        crate::rust_caller_span!(),
+        RuntimeErrorKind::MalformedForm {
+            head: ":wat::rete::fire-rules".into(),
+            reason,
+        },
+    )
+    .into())
+}
+
 /// Read an element's bound `?var` value as an i64 (the value-folds' arg).
 /// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
-/// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
-// rune:struere(invariant-coupling) — AccFold compile proved i64; Option would
-// force every fold to invent a fallback the grammar already forbids.
-pub(super) fn acc_var_i64(el: &Element, var: &Value, view: &AccView<'_>) -> i64 {
+///
+/// REFUSES — never panics — on an unbound var or a non-i64 value. `build_rete_arm` does prove the
+/// key of a natively compiled fold, but that proof belongs to the COMPILE door alone.
+/// `import_export` interns folds whose key `unpack_fold` (`export.rs`, the `:sum` arm) took off
+/// the wire as an arbitrary `Value`, with no check that any condition binds it or that its values
+/// are i64 — and the import graph wall validates node EDGES, deliberately not the fold side table.
+/// Every shape below is therefore reachable from an imported network, and a wire value may not
+/// unwind the host.
+// rune:struere(invariant-coupling) — the i64 shape is proved at the COMPILE door only; the
+// IMPORT door supplies fold keys unproved, so each read refuses as a value the caller can match.
+pub(super) fn acc_var_i64(
+    el: &Element,
+    var: &Value,
+    view: &AccView<'_>,
+) -> Result<i64, EvalBreak> {
     if el.binds.len > 0 {
         let bindings = element_fact_bindings(el, view.keys, view.vals, view.pool);
         return match Bindings::get(&bindings, var) {
-            Some(Value::i64(n)) => *n,
-            Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
-            None => panic!("accumulate: var {var:?} unbound in element bindings"),
+            Some(Value::i64(n)) => Ok(*n),
+            Some(other) => acc_refusal(format!(
+                "accumulate fold var {var:?} is bound to a non-i64 {other:?} on element fact {} \
+                 — an imported network may name a var whose values are not i64",
+                el.fact
+            )),
+            None => acc_refusal(format!(
+                "accumulate fold var {var:?} is unbound in the bindings of element fact {} \
+                 — an imported network may name a var no condition binds",
+                el.fact
+            )),
         };
     }
-    let pos = view
-        .col_keys
-        .iter()
-        .position(|k| k == var)
-        .unwrap_or_else(|| panic!("accumulate: var {var:?} not in packed slot_keys"));
-    let field = *view
-        .col_fields
-        .get(pos)
-        .unwrap_or_else(|| panic!("accumulate: packed field missing for {var:?}"));
+    let Some(pos) = view.col_keys.iter().position(|k| k == var) else {
+        return acc_refusal(format!(
+            "accumulate fold var {var:?} is not among the packed slot keys {:?} of element fact \
+             {} — an imported network may name a var no condition binds",
+            view.col_keys, el.fact
+        ));
+    };
+    let Some(&field) = view.col_fields.get(pos) else {
+        return acc_refusal(format!(
+            "accumulate fold var {var:?} holds packed slot {pos} but no packed field on element \
+             fact {} — an imported network may name a var no condition binds",
+            el.fact
+        ));
+    };
     match view
         .i64_by_fact
         .get(el.fact as usize)
         .and_then(|o| o.as_ref())
     {
-        Some(row) if (field as usize) < row.n as usize => row.fields[field as usize],
-        _ => panic!("accumulate: packed row missing for fact {}", el.fact),
+        Some(row) if (field as usize) < row.n as usize => Ok(row.fields[field as usize]),
+        _ => acc_refusal(format!(
+            "accumulate fold var {var:?} needs packed i64 field {field} of element fact {}, which \
+             has no such packed row — an imported network may name a var whose values are not \
+             packed i64",
+            el.fact
+        )),
     }
 }
 
@@ -110,7 +156,9 @@ fn operand_field(var: &Value, view: &AccView<'_>) -> Option<u8> {
 
 /// Packed fold only when the occupant actually has an i64 row. bind_only
 /// conds with a string field (location) still report col_fields, but
-/// `pack_i64_row` is None — `row_i64` must not panic (8b sum, where-accum-where).
+/// `pack_i64_row` is None — such a fold must take the SLOT path, not the packed one
+/// (8b sum, where-accum-where). Returning None here is what routes it there; it is a
+/// dispatch choice about a LEGITIMATE fold, not a refusal.
 fn packed_operand_field(var: &Value, view: &AccView<'_>, el: Option<&Element>) -> Option<u8> {
     let field = operand_field(var, view)?;
     let el = el?;
@@ -121,25 +169,46 @@ fn packed_operand_field(var: &Value, view: &AccView<'_>, el: Option<&Element>) -
     Some(field)
 }
 
-// rune:struere(invariant-coupling) — AccFold compile proved packed i64; Option
-// would force every fold to invent a fallback the grammar already forbids.
-fn row_i64(el: &Element, field: u8, rows: &[Option<I64Row>]) -> i64 {
+// rune:struere(invariant-coupling) — the packed i64 row is proved at the COMPILE door only; an
+// imported fold names its var unproved, so a missing row refuses as a value.
+fn row_i64(el: &Element, field: u8, rows: &[Option<I64Row>]) -> Result<i64, EvalBreak> {
     match rows.get(el.fact as usize).and_then(|o| o.as_ref()) {
-        Some(row) if (field as usize) < row.n as usize => row.fields[field as usize],
-        _ => panic!("accumulate: packed row missing for fact {}", el.fact),
+        Some(row) if (field as usize) < row.n as usize => Ok(row.fields[field as usize]),
+        _ => acc_refusal(format!(
+            "accumulate fold needs packed i64 field {field} of element fact {}, which has no such \
+             packed row — an imported network may name a var whose values are not packed i64",
+            el.fact
+        )),
     }
 }
 
-// rune:struere(invariant-coupling) — AccFold compile proved i64; Option would
-// force every fold to invent a fallback the grammar already forbids.
-pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, u32)]) -> i64 {
+// rune:struere(invariant-coupling) — the i64 shape is proved at the COMPILE door only; an
+// imported fold names its var unproved, so every slot read refuses as a value.
+pub(super) fn slot_i64(
+    el: &Element,
+    slot: usize,
+    vals: &[Value],
+    pool: &[(u32, u32)],
+) -> Result<i64, EvalBreak> {
     match pool_slice(pool, el.binds).get(slot) {
         Some((_, vid)) => match vals.get(*vid as usize) {
-            Some(Value::i64(n)) => *n,
-            Some(other) => panic!("accumulate: slot bound to non-i64 {other:?}"),
-            None => panic!("accumulate: slot {slot} filler id {vid} missing"),
+            Some(Value::i64(n)) => Ok(*n),
+            Some(other) => acc_refusal(format!(
+                "accumulate fold slot {slot} of element fact {} is bound to a non-i64 {other:?} \
+                 — an imported network may name a var whose values are not i64",
+                el.fact
+            )),
+            None => acc_refusal(format!(
+                "accumulate fold slot {slot} of element fact {} names filler id {vid}, which is \
+                 not interned — an imported network may name a var no condition binds",
+                el.fact
+            )),
         },
-        None => panic!("accumulate: slot {slot} missing in element bindings"),
+        None => acc_refusal(format!(
+            "accumulate fold slot {slot} is missing from the bindings of element fact {} \
+             — an imported network may name a var no condition binds",
+            el.fact
+        )),
     }
 }
 
@@ -148,9 +217,10 @@ pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, 
 /// `checked_add` per element, not a `sum()` — a wrapped total is a plausible-looking wrong
 /// answer, which is the worst thing an accumulator can return. The error carries `a` and `b` so
 /// the report names the pair that overflowed instead of just the fold.
-fn checked_i64_sum(vals: impl Iterator<Item = i64>) -> Result<i64, EvalBreak> {
+fn checked_i64_sum(vals: impl Iterator<Item = Result<i64, EvalBreak>>) -> Result<i64, EvalBreak> {
     let mut acc = 0i64;
     for v in vals {
+        let v = v?;
         acc = match acc.checked_add(v) {
             Some(n) => n,
             None => {
@@ -169,18 +239,44 @@ fn checked_i64_sum(vals: impl Iterator<Item = i64>) -> Result<i64, EvalBreak> {
     Ok(acc)
 }
 
+/// `min`/`max` over a FALLIBLE element stream — the iterator's own `min`/`max` cannot be used
+/// once each item may be a refusal, and the first refusal wins.
+///
+/// Written as a fold rather than `collect::<Result<Vec<_>, _>>()?`: every value fold runs once per
+/// bucket element on the hot accumulate path, and buying refusability with a per-bucket allocation
+/// would pay for a safety property in throughput. `keep` picks the survivor, so `min` and `max`
+/// share one traversal shape.
+fn extremum_i64(
+    vals: impl Iterator<Item = Result<i64, EvalBreak>>,
+    keep: fn(i64, i64) -> i64,
+) -> Result<Option<i64>, EvalBreak> {
+    let mut best: Option<i64> = None;
+    for v in vals {
+        let v = v?;
+        best = Some(match best {
+            Some(b) => keep(b, v),
+            None => v,
+        });
+    }
+    Ok(best)
+}
+
 /// Numeric AccFold algebra — one match, two gather representations.
 /// Sum/mean use checked `+`, matching `wat/rete/acc.wat` foldl of `:wat::core::+`.
+///
+/// Elements arrive as `Result` because reading one can be REFUSED: an imported network may name a
+/// fold var no condition binds (see `acc_var_i64`). The stream stays lazy so the refusal short-
+/// circuits without a gather allocation.
 pub(super) fn fold_i64s(
     fold: &AccFold,
-    vals: impl Iterator<Item = i64>,
+    vals: impl Iterator<Item = Result<i64, EvalBreak>>,
     n: usize,
 ) -> Result<Option<Value>, EvalBreak> {
     match fold {
         AccFold::Count => Ok(Some(Value::i64(n as i64))),
         AccFold::Sum(_) => Ok(Some(Value::i64(checked_i64_sum(vals)?))),
-        AccFold::Min(_) => Ok(vals.min().map(Value::i64)),
-        AccFold::Max(_) => Ok(vals.max().map(Value::i64)),
+        AccFold::Min(_) => Ok(extremum_i64(vals, std::cmp::min)?.map(Value::i64)),
+        AccFold::Max(_) => Ok(extremum_i64(vals, std::cmp::max)?.map(Value::i64)),
         AccFold::Mean(_) => {
             if n == 0 {
                 Ok(None)
@@ -188,6 +284,10 @@ pub(super) fn fold_i64s(
                 Ok(Some(Value::i64(checked_i64_sum(vals)? / n as i64)))
             }
         }
+        // NOT the wire-reachable class the refusals above answer: `fold_i64s` is private to
+        // this file and every call site sits inside an arm that has already matched Count /
+        // Sum / Min / Max / Mean, so no imported value can select this one. A fold tag from
+        // the wire is decided by `unpack_fold`, which refuses an unknown tag at the door.
         AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => {
             unreachable!("fold_i64s is numeric AccFold only")
         }
@@ -295,7 +395,7 @@ pub(super) fn accumulate_value(
             let mut seen: HashSet<i64> = HashSet::new();
             let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for el in gathered {
-                let n = acc_var_i64(el, var, view);
+                let n = acc_var_i64(el, var, view)?;
                 if seen.insert(n) {
                     pv.push_back_mut(Value::i64(n));
                 }
@@ -314,7 +414,7 @@ pub(super) fn accumulate_value(
             let mut groups: GroupByMap = HashMap::new();
             for el in gathered {
                 let fact = fact_at(view.facts, view.derived, view.n_input, el.fact).clone();
-                let k = acc_var_i64(el, var, view);
+                let k = acc_var_i64(el, var, view)?;
                 groups
                     .entry(k)
                     .or_default()
@@ -331,7 +431,7 @@ pub(super) fn accumulate_value(
         AccFold::User { var, program } => {
             let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, var, view)));
+                pv.push_back_mut(Value::i64(acc_var_i64(el, var, view)?));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
             Ok(Some(crate::rete::expr_ir::exec_call(
