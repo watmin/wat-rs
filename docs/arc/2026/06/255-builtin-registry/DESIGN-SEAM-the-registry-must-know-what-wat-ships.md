@@ -133,10 +133,44 @@ which is precisely the value that makes the hard-coded constant above start disc
 
 ## The remaining questions — the builder's, not mine
 
-1. **What does "registered" MEAN for a wat verb?** The Rust registry is `inventory`-based and fixed
-   at compile time; wat verbs arrive when a `.wat` is loaded/frozen. **Two populations with two
-   lifecycles.** One registry with a runtime-extensible half, or two registries with one query
-   surface, is the first fork and everything else follows it.
+1. ~~**What does "registered" MEAN for a wat verb?**~~ ✅ **ANSWERED 2026-08-30 — and the answer is
+   "it already is."**
+
+   > **Builder:** *"how do we get user def in the registry?... is this a thing we can do when we load
+   > a file?... or... do we do it now... the act of loading the code modifies the runtime?.. hrm......"*
+
+   That hesitation was correct, and measuring it dissolves the question:
+
+   ```rust
+   pub(crate) fn registry() -> &'static IntrinsicRegistry {
+       static REGISTRY: std::sync::OnceLock<IntrinsicRegistry> = …    // built ONCE from inventory
+   ```
+
+   **`registry()` is a `&'static OnceLock`** — built once at first touch, immutable after, and
+   **shared by every program**. Putting user defs in *it* would mean mutating a shared static at
+   load time: it breaks the sharing property and runs straight into the ZERO-MUTEX doctrine.
+
+   ★ **But there are already TWO stores with two correct lifetimes, and the second one already holds
+   every wat def:**
+
+   ```
+   registry()                            &'static, Rust intrinsics, compile-time, SHARED
+   FrozenWorld.symbols + binding_metadata  per-program, built by LOADING, holds every wat def
+   ```
+
+   ★★ **And they are already unified at the QUERY layer.** `eval_metadata_of` consults both, in
+   order — `registry().lookup_entry(&name)` first, then `sym.binding_metadata.get(&name)`. That is
+   why it answers `Some` for **both** `sort$native` (an intrinsic) and `:wat::string::capitalize`
+   (a wat `defn`). The unification happened; the two stores stayed separate, which is correct.
+
+   So *"the act of loading modifies the runtime"* is **already true and always was** — loading builds
+   a `FrozenWorld`. What it does not do, and must not, is mutate the shared static. The ordering also
+   fixes a shadowing rule worth naming: **the registry answers first, so a user def cannot shadow a
+   Rust intrinsic.**
+
+   ⇒ **Nothing to build here, and nothing to defer.** What remains is making the query surface
+   *honest* — the `:defined-in` constant is the named defect, and it is the one thing this seam says
+   should not wait.
 2. ~~**Does a wat verb DECLARE its axes or DERIVE them?**~~ ✅ **RULED — DECLARE, as wat data in the
    metadata map, lifted at build time.** See THE SHAPE above. Kept struck rather than deleted so the
    fork stays visible: derivation was live, and the classifier that made it possible is what made
