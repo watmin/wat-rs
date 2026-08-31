@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-30. The registry answers FOUR axes; the hand-lists are backlogs.
+# SEAM — the ONE live breadcrumb. As of 2026-08-31. The registry now spans BOTH HALVES of the substrate.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -20,13 +20,15 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor ........ 5109/5109, 0 FAIL, 17 skipped, ~106s   (scripts/floor.sh, exit read UNPIPED)
-clippy ....... 0 under `-D warnings`
-registry ..... 429 #[wat_intrinsic] + 2 #[wat_special_form] = 431   (`let`, `if` — the ONLY two)
-runtime.rs ... 33,917      KNOWN_UNREVIEWED 50      debt ledger 55
-@Totality ....... Total 25 · Partial 1 · Preserving 2 · Unreviewed 403
-@ExpandTime .. Legal 143 · RuntimeOnly 0 · Preserving 0 · Unreviewed 288
-host ......... JohnDesktop · john · ~/work/holon/wat-rs
+floor ............ 5110/5110, 0 FAIL, 17 skipped, ~110s   (scripts/floor.sh, exit read UNPIPED)
+clippy ........... 0 under `-D warnings --all-targets`
+registry ......... 436 #[wat_intrinsic] + 2 #[wat_special_form] = 438
+wat verbs DECLARING  3   (capitalize · sort · sort-by)   ← of ~409. THIS IS THE FRONTIER.
+ledgers .......... KNOWN_UNREVIEWED 48 · FROZEN_CHECKER_DEBT 59
+runtime.rs ....... 34,154
+@Totality ........ Total 30 · Partial 3 · Preserving 2 · Unreviewed 403
+@ExpandTime ...... Legal 150 · RuntimeOnly 0 · Preserving 0 · Unreviewed 288
+host ............. JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
 ## ⛔ THE THESIS — unchanged
@@ -35,66 +37,74 @@ host ......... JohnDesktop · john · ~/work/holon/wat-rs
 ```rust
 if is_reserved_prefix(head) { return true }     // the WHOLE language namespace
 ```
-**2,539 of 5,059 tests failed if default-denied — measured 2026-08-26, STALE by this whole day.**
-Gate: `tests/wat_lang/probe_undefined_builtin_resolves.rs`.
-⚠ It also means **`--check` cannot tell "this verb exists" from "this name was waved through."** I
-used it as an existence probe today and it proved nothing.
+Gate: `tests/wat_lang/probe_undefined_builtin_resolves.rs`. ⚠ It also means **`--check` cannot tell
+"this verb exists" from "this name was waved through."**
 
-## WHAT HAPPENED — the registry became the source of truth for FOUR axes
+## WHAT HAPPENED — the registry stopped being half a registry
+
+The day opened with the registry answering four axes for **431 Rust intrinsics** and blind to
+**~409 wat-defined verbs** — nearly a 1:1 split. *"Sole source of truth for the substrate"* was true
+of half the substrate. That half is now reachable:
 
 ```
-purity          ✅ derives   T5     hand-list gone
-determinism     ✅ derives   T5     hand-list gone
-totality        ✅ derives   T1→T4b residue: 11 unhomed verbs
-expand-time     ✅ derives   T1→T4b residue: 59 unhomed verbs
+wat verbs DECLARE     properties as wat DATA in the def's metadata map, values as enum
+                      symbols (:wat::runtime::Purity::Pure), read by wat_doc::from_metadata
+                      — the sibling of the /// parser: same required set, SAME DocErrors
+one door VALIDATES    record_binding_metadata is the ONLY way metadata enters the symbol
+                      table; a bad declaration fails at LOAD, at its OWN line (was: at the
+                      first metadata-of, blaming the reader)
+metadata-of ANSWERS   one shape from both stores; :defined-in discriminates Rust/Wat
+@see CROSSES          a DECLARED wat verb resolves; sort$native cites sort
+examples are FORMS    a malformed @example fails the BUILD, not a later reflection test
 ```
 
-Two axes were **minted from nothing** this day — `Totality` and `ExpandTime`, both as
-`defenum`s in `wat/runtime-meta.wat` with the Rust generated from them, both proven by **renaming a
-variant in the `.wat` and watching Rust fail with `E0599`**. Each then went declarable → required →
-derived. `intrinsic_meta` fell 2565 → 2369 lines; `is_expand_time_legal`'s 202 names became 59.
+★ **The mechanism was already ruled and already shipping.** `wat_enum_from!` made wat the source of
+truth for the runtime *enums*; this is the same door, same direction, for the verb *properties*.
+Builder: *"not 'magic comments' … just like how we do the runtime meta via wat files."*
 
-★ **Every axis converges on the same residue: verbs with no home.** The homing campaign and the
-property campaign are one campaign. `WORKLIST-the-44-unhomed.md` and
-`WORKLIST-the-registry-properties.md` are both on disk and are the agenda.
+★★ **And the classifier built to gate `sort$native`'s comparator is what made it possible.**
+`ClassifyCtx` / `find_axis_violation_ctx` derive axes from a body AST — which is what a wat `defn`
+is. One stone's machinery unblocked a different campaign.
 
 ## ⛔ THE LESSONS THAT COST THE MOST
 
-**1. `Unreviewed` AS A FOURTH VARIANT IS WHAT MADE EVERYTHING ELSE SAFE.** Both new axes got
-`Total|Partial|Preserving|Unreviewed` rather than a bare pole pair. That choice — an unmeasured verb
-is **default-deny, not a guess** — is why T5 could move **275 verdicts with `ALSO_TOTAL=0`** and admit
-nothing new. A design decision paying out three stones later.
+**1. I CITED A RULE INSTEAD OF MEASURING WHETHER IT APPLIED — three times.** ZERO-MUTEX for a
+contention that does not exist; *"a spelling users cannot type"* against a ROAD that says it is the
+destination; *"the registry branch is the reference shape"* when it emitted nothing for two axes.
+Two were refuted by the builder in one sentence. An authority is a claim about a CLASS; using one
+means proving the case is in it. `[[feedback_i_cited_a_rule_instead_of_measuring_whether_it_applied]]`
 
-**2. A CONTAINMENT ARGUMENT MUST NAME WHICH CONSUMERS IT COVERS.** I proved `ALSO_TOTAL=0` and called
-T5 contained. True — for the four-axis `where` fence. `:wat::rete::deterministic?` is a **standalone
-single-axis predicate**, and two floor tests call it. Mine named no consumers, so it read as general
-when it was specific. `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
+**2. A PREDICATE CAN BE WRONG IN BOTH DIRECTIONS.** The declaration gate keyed on `:doc` silently
+skipped `{:purity …}`; widened to every doc directive it captured *arbitrary user metadata* and broke
+three arc-241 contracts. `:doc`/`:added`/`:see` are human vocabulary — **no set built from them can
+discriminate.** The five AXIS keys can: using one is a CLAIM.
+`[[feedback_a_predicate_can_be_wrong_in_both_directions]]`
 
-**3. A PATCH THAT FIXES ONE COPY OF A CLAIM HAS FIXED ONE COPY.** expand-1 removed `keys`/`values`,
-retracted it, and I corrected the header's bullet while **missing a second comment** at the removal
-site still asserting the removal. Found by a rider that refused to transcribe a blessing the code
-gave and a comment denied. That is the defect class expand-1 EXISTED to audit.
-`[[feedback_a_walls_paperwork_can_claim_a_door_it_did_not_close]]`
+**3. THE GATE HOLE WAS TWO HOLES AND I STRUCK ONE AS CLOSED.** `meter-1` fixed the completeness
+gate's *registration* half and was recorded as closing "the gate hole", singular. The *dispatch* half
+was anchored to two function names — `dispatch_keyword_head` sits ONE WORD from the anchored
+`dispatch_keyword_head_value`. **38 verbs were invisible. The 44 was never the population.**
 
-**4. A CO-LOCATED RUNE IS ATTACHED TO A LINE — MOVING THE LINE DROPS THE EXEMPTION.** `sort'`'s
-earned `rune:lint(retired-name)` was left behind when its arm relocated. Not a new offender: a lost
-exemption, and the lint was the only thing that would notice.
+**4. A RETIREMENT CAN BE HALF DONE FOR FOUR MONTHS.** Arc 109's remedy named constructor AND
+match-pattern sites; only the constructor door was ever built, so the text instructed migrations
+nothing refused. And the shorthand was live at **THREE** doors, not the two I named — the third found
+by a rider, confirmed with a made-up head (`Zorble`) as the control.
 
-**5. MY ACCEPTANCE FILTERS WERE TOO NARROW THREE TIMES.** `-p wat-doc -p wat-macros` cannot see
-`tests/` (it belongs to the `wat` package); a `macro+stdlib+intrinsic+reflection` filter cannot see
-`test(lint)`. **Riders came back green and the floor came back red.** Only the orchestrator's full
-floor is a verdict.
+**5. RIDERS CAUGHT WHAT BRIEFS MISSED, repeatedly.** A corpus grep found 3 stdlib verbs that
+unconditional validation would have killed at startup; a corpus measurement found **105**
+`@example-norun` markers my brief's wording would have broken; `wat_special_form.rs` was a consumer
+my blast radius missed. **Each came from measuring the corpus rather than reading my words.**
 
 ## ★ WHAT ACTUALLY WORKS
 
-- **Break the door, every time.** Rename a variant in the `.wat` (`E0599`), hard-code a token
-  (`left: Unreviewed, right: Legal`), delete one ledger row, point a delegate at the wrong impl
-  (~230 reds naming `defrecord`). Nine stones, nine proofs that the green meant something.
-- **Derive the set; hand the rider a PREDICTION, never a list.** "Delete iff `lookup_entry` is
-  `Some`." My counts were wrong repeatedly; the registry's never was.
-- **The compiler as census.** Layer 1's no-`Default` rule turns a mandate into compiler output.
-  Delete one directive, rebuild, and the error NAMES the verb.
-- **Riders that refuse.** Six correct refusals today, four caused by my briefs.
+- **Break the door.** Rename a variant (`E0599`), delete a `:purity` line (`MissingPurity`, at the
+  author's line), plant a made-up head to prove a special case is special. A green nothing tested is
+  a claim.
+- **Predict the red, falsifiably.** Two homings tripped `checker_skip_debt_is_named_and_frozen`; the
+  third was PREDICTED not to, with a STOP saying *"if a row IS required, the measurement is wrong."*
+- **One door, not N checks.** `binding_metadata.insert` 6 → 1. The arc paid twice this week for
+  gates that had to be remembered at N sites.
+- **Ask the classifier, not grep.** Three text censuses were wrong; one `pure?` call answered.
 
 ## ⛔ THE ROAD — builder, 2026-08-27. THE ORDER IS THE RULING.
 ```
@@ -102,59 +112,54 @@ floor is a verdict.
 2  break into crates    3  kill `::` in keywords    4  every call head a symbol
 5  = EDN/Clojure-compliant syntax        6  chase totality       (LAST. Do not open early.)
 ```
+⚠ Steps 3–5 are why EDN spelling in doc output is a **PREVIEW, not a regression** — and why a stored
+FORM beats a stored string: a form renders in whatever spelling is current; a string needs a codemod.
 
 ## ⬜ NEXT — resume here
 
-- **THE NAMING NOTE IS WRITTEN** — `NOTE-the-prime-suffix-does-three-jobs-and-native-replaces-one.md`
-  (arc 255). The `$native`/`$oracle` convention **already exists and is already applied**: 5 live pairs
-  (the `:wat::rete::` firing family), and arc 278 0z de-primed 24 IPC names across 302 files by codemod.
-  ★ **The prime does THREE jobs** — native impl (`sort'`), defmacro expansion target (`readln'`), and
-  macro-generated positional ctor (`Env'` `EmptyEnv'` `ThreadLaunch'` `ProcessLaunch'` `Frame'`).
-  **`$native` replaces exactly ONE.** The real migration is `sort'` → `sort$native`, 5 runed sites —
-  and `sort'` is ALSO unhomed, so draw the rename and the homing as ONE stone.
-  ⚠ **THREE OF YESTERDAY'S CLAIMS HERE WERE WRONG, corrected in the NOTE:** "25 surviving primes"
-  was grep contamination (English possessives + closing prose quotes; **7 are live** — the lint's runes
-  are the arbiter, not grep); "6 `-spec`" is 4; and ⛔ **the W8 blocker is NOT dissolved** — that NOTE
-  was written *quoting* the `$native` arm, and its real blocker is registry-vs-wat-`defn` shadowing,
-  which naming does not touch. Its own cheap probe (pass `fire-rules` as a VALUE) is still the next move.
-- **`foldl` should be `reduce`** — `NOTE-foldl-should-have-been-reduce.md` (arc 109). 572 corpus calls
-  to the primitive vs 38 to the Clojure surface. ★ `sort'`/`sort` is the SAME shape done RIGHT: its
-  primitive wears a suffix meaning "primitive". `foldl` wears a name you would call.
-- **The 174-verb expand-time gap.** 288 verbs read `@ExpandTime Unreviewed`; ~174 are pure ∧
-  deterministic and probably legal. No longer invisible — it is in the source, at each verb.
-- **`WORKLIST-the-44-unhomed.md`** — 34 homing · 5 mechanism-unknown (`+ - * / reduce`, live but
-  reached by an unidentified path) · 3 namespace rules. ⛔ The 5 are NOT homing work until the
-  mechanism is named.
-- **`WORKLIST-the-registry-properties.md`** — `expand_time_legal` ✅ done; `defined_in`/`layer`
-  ⛔ **DO NOT BUILD** (they would be constant across all 431 entries); `primitive?` is an open
-  question, possibly rete's to own.
+- **3 of ~409 wat verbs declare.** The door is built; a corpus migration is the obvious next
+  campaign. ⚠ **Every declaration shifts `wat/core.wat` line numbers, which two goldens PIN** — 42
+  lines broke two this session. Arc 109 already filed the class
+  (`NOTE-a-golden-that-pins-a-rust-line-number.md`).
+- **`:layer` is still a hard-coded `Substrate`**, deliberately un-guessed: a substrate wat def and a
+  userland one arrive through the SAME branch, so only the registration CONTEXT can answer. Name the
+  context or leave it. A name-prefix guess would be `effectful_by_prefix` reborn.
+- **403 verbs read `@Totality Unreviewed`** — the census gating the `expect` purge, whose worklist is
+  `Partial` (3 rows). ⚠ A `Total` DEMAND refuses EVERY caller today, including `sort/1`'s default
+  `<`, because `:wat::core::<` is `Unreviewed`. **Impose after the census, never before** — the
+  cheapest way to silence that gate is to GUESS.
+- **W7 HOFs** (`map · mapv · filter · foldl`) — mechanism unblocked by A-2-i, blocked on a LANGUAGE
+  RULING: is an effectful `map` callback legitimate? A comparator's is not; a `map`'s may be.
+- **`WORKLIST-the-44-unhomed.md` numbers are STALE** and the file says so — repriced by meter-2.
+- `foldl` → `reduce` (arc 109 NOTE) · `metadata-of` omits `:args`/`:examples`/`:see`/`:yields`/
+  `:deprecated` on BOTH branches, by a commented scope cut.
 
 ## ⛔ RULES THAT STILL COST TIME
 
 - ⛔ **THE ORCHESTRATOR RUNS THE FULL FLOOR. A RIDER'S TARGETED GREEN IS NOT A VERDICT.**
-- ⛔ **THE LANGUAGE SERVER LIES DURING MACRO WORK — AND YOU MUST STILL CHECK.** Twice today it
-  reported ~200 `E0560`s and 5 `MissingExpandTime`s against stale expansions; both times a forced
-  `cargo check --release --all-targets` returned 0. *"It's just the analyzer"* is a dismissal; the
-  forced rebuild is a measurement. Ninety seconds, every time.
-- ⛔ **`git commit <paths>`. NEVER pathless.** And `git status --short && echo EMPTY` is NOT a check.
-  Use `test -z "$(git status --porcelain)" || { git status --porcelain; false; }`
-- ⛔ **NEVER `git checkout -- <file>` to clean up your own probe** — it takes a rider's work with it.
+- ⛔ **THE LANGUAGE SERVER LIES DURING MACRO WORK — AND YOU MUST STILL CHECK.** It reported ~10
+  `WatAST: quote::ToTokens` errors this session; forced `--all-targets` returned 0. Ninety seconds.
+- ⛔ **A committed probe CANNOT hold a form that fails to load** — `every_wat_scripts_file_loads`
+  loads every scratch `.wat`, and a compile-time failure cannot live in a `.rs` either. Demonstrate
+  a refusal out-of-tree and say so in the probe's header.
+- ⛔ **`git commit <paths>`. NEVER pathless.** `test -z "$(git status --porcelain)" || { git status --porcelain; false; }`
 - ⛔ **`wat/*.wat` is FROZEN INTO THE BINARY.** Rebuild, then floor.
 - ⛔ **Riders: no worktrees, no `git stash`, no sub-agents, everything FOREGROUND.**
-- ⛔ **`.wat` corpus migrations → the codemod. NEVER a hand-edit, never sed/python.** R21.
+- ⛔ **`.wat` corpus migrations → the codemod. NEVER a hand-edit, never sed/python.** R21. (A `;;`
+  comment is not a form — `fix.wat` cannot see it, so comment prose is a hand-edit.)
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I published a megafile ceiling that was too
-> generous by 2×, a containment argument that covered one consumer of two, a comment claiming a
-> removal I had retracted, and roughly a dozen wrong counts. **Every correction came from a rider,
-> a wall, or the compiler — never from me re-reading my own command.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** This session I cited a doctrine that did not apply, called
+> the destination syntax unusable, struck a hole as closed that was two holes, named a reference
+> shape missing two of five keys, and shipped a gate wrong in both directions. **Every correction
+> came from the builder, a rider, or the floor — never from me re-reading my own claim.**
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** two axes minted, made mandatory, and derived in
-> one day; four properties now answered by the registry; two hand-lists reduced to named backlogs;
-> every stone green at commit and every gate proven by breaking its door.
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** the registry now spans both halves of the
+> substrate; a declaration is validated at its own line by one door; a malformed example cannot be
+> written down; and every stone this session was green at commit with its door broken first.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`
