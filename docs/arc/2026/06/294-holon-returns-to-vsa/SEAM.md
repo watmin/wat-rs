@@ -22,12 +22,10 @@
 ```
 floor ............ 5110/5110, 0 FAIL, 17 skipped, ~110s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-registry ......... 436 #[wat_intrinsic] + 2 #[wat_special_form] = 438
+registry ......... 443 #[wat_intrinsic] + 2 #[wat_special_form] = 445
 wat verbs DECLARING  3   (capitalize · sort · sort-by)   ← of ~409. THIS IS THE FRONTIER.
-ledgers .......... KNOWN_UNREVIEWED 48 · FROZEN_CHECKER_DEBT 59
-runtime.rs ....... 34,154
-@Totality ........ Total 30 · Partial 3 · Preserving 2 · Unreviewed 403
-@ExpandTime ...... Legal 150 · RuntimeOnly 0 · Preserving 0 · Unreviewed 288
+ledgers .......... KNOWN_UNREVIEWED 41 · FROZEN_CHECKER_DEBT 64
+@Totality ........ Total 34 · Partial 6 · Preserving 2 · Unreviewed 403
 host ............. JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
@@ -105,6 +103,15 @@ my blast radius missed. **Each came from measuring the corpus rather than readin
 - **One door, not N checks.** `binding_metadata.insert` 6 → 1. The arc paid twice this week for
   gates that had to be remembered at N sites.
 - **Ask the classifier, not grep.** Three text censuses were wrong; one `pure?` call answered.
+- **Make the prediction UNEVEN.** The collection readers' debt prediction was *"assoc/conj no row,
+  drop/take a row each"* — and it held that way. ★ A uniform prediction cannot distinguish "right"
+  from "wrong in a way a uniform guess hides"; an uneven one can only be confirmed by being
+  unevenly right.
+- **PRE-FLIGHT SPLITS THE FAMILY, EVERY TIME.** Three families were named by the builder and three
+  came back smaller: the "6 collection readers" were 4 (two run caller code), the record/struct 7
+  are 5 (the struct pair needs a ruling), and `find-last-index` is a HOF wearing a reader's name —
+  the 44-unhomed worklist once filed it "INTRINSIC-READY". **Measure the bodies before briefing a
+  category.**
 
 ## ⛔ THE ROAD — builder, 2026-08-27. THE ORDER IS THE RULING.
 ```
@@ -115,12 +122,40 @@ my blast radius missed. **Each came from measuring the corpus rather than readin
 ⚠ Steps 3–5 are why EDN spelling in doc output is a **PREVIEW, not a regression** — and why a stored
 FORM beats a stored string: a form renders in whatever spelling is current; a string needs a codemod.
 
+## ⛔ ONE QUESTION IS WAITING ON THE BUILDER — read this before picking work
+
+**`struct-new` and `struct-field` need a RULING, not a stone.**
+`DESIGN-STONE-the-record-family.md` is drawn; five of seven are briefable, these two are not.
+
+`src/rete/purity.rs:940` declares *"a Struct accessor is impure (a struct can hold a live resource,
+arc 293.W)"*. ★ But that is a claim about the **TYPE**, not the verb — measured: `eval_struct_field`
+and `eval_struct_new` hold no `Mutex`, no `RefCell`, no `borrow`, no `apply_function`.
+
+Every answer costs something:
+- **`Effectful`** ⇒ fails `declared_purity_vs_effectful_by_prefix_census`. `:wat::core::` is not in
+  the prefix list, and widening it is the option the W7 NOTE disqualified.
+- **`Pure`** ⇒ the registry contradicts `accessor_meta`, and `intrinsic_meta` reads the registry
+  FIRST, so the contradiction resolves silently in the registry's favour.
+- **`Unreviewed`** ⇒ a lie: the bodies were read.
+
+⚠ **THIS IS THE SAME WALL AS W7, REACHED BY A DIFFERENT ROAD.** Not "struct verbs are hard" —
+**`:wat::core::` cannot express `Effectful` today, and THREE families now queue behind that one
+fact** (W7 HOFs · the stream forcers · the struct pair). That is the shape worth solving, and the
+W7 NOTE's option 3 — *does the prefix fallback retire, now that the registry is authoritative?* —
+is still the one nobody has measured.
+
 ## ⬜ NEXT — resume here
 
 - **3 of ~409 wat verbs declare.** The door is built; a corpus migration is the obvious next
   campaign. ⚠ **Every declaration shifts `wat/core.wat` line numbers, which two goldens PIN** — 42
   lines broke two this session. Arc 109 already filed the class
   (`NOTE-a-golden-that-pins-a-rust-line-number.md`).
+- **The record family: FIVE are briefable now** (`Record/assoc` · `Record/same-data?` ·
+  `record->map` · `to-record` · `variant`) — DESIGN drawn, brief not written. ★ Its mixed debt
+  prediction is 64 → 66 (`to-record`/`variant` only), and its DESIGN carries the doc-gate lesson:
+  **a verb WITH a scheme is one `doc_arg_ret_types_match_checker_scheme` verifies** — write
+  `@arg`/`@ret` FROM the registered scheme, put the real meaning in prose. That cost two floor
+  rounds on the collection readers.
 - **`:layer` is still a hard-coded `Substrate`**, deliberately un-guessed: a substrate wat def and a
   userland one arrive through the SAME branch, so only the registration CONTEXT can answer. Name the
   context or leave it. A name-prefix guess would be `effectful_by_prefix` reborn.
