@@ -6201,10 +6201,17 @@ fn infer_match(
                 if let WatAST::List(pat_items, _) = pattern {
                     if let Some(sub) = pat_items.get(1) {
                         match sub {
+                            // STONE: the bare-symbol shorthand dies — the bare
+                            // `WatAST::Symbol(s,_) if s == "Some"` alternative is
+                            // dropped: `check_subpattern` (above) now refuses a
+                            // bare-Symbol sub-pattern head before this bookkeeping
+                            // ever sees it (the outer `Ok` arm returns `None`, so
+                            // this `Some(Coverage::ResultOk{full:false})` match arm
+                            // is never reached for one) — only the FQDN keyword
+                            // form is still a live, checked sub-pattern spelling.
                             WatAST::List(sub_items, _)
                                 if sub_items.first().map(|h| {
-                                    matches!(h, WatAST::Symbol(s, _) if s.as_str() == "Some")
-                                        || matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::Some")
+                                    matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::Some")
                                 }).unwrap_or(false) =>
                             {
                                 covers_result_ok_inner_some = true;
@@ -6804,11 +6811,34 @@ fn pattern_coverage(
                 });
                 } // close `if !is_builtin_fqdn`
             }
-            // Arc 109 slice 1h — list-pattern head accepts both
-            // bare-Symbol (legacy grammar exception) and FQDN-keyword
-            // (canonical) forms for variant constructors. Map FQDN
-            // keywords to the bare ident strings so the downstream
-            // dispatch table works unchanged.
+            // STONE: the bare-symbol shorthand dies — a bare-Symbol
+            // "Some"/"Ok"/"Err" match-PATTERN head is the other half of the
+            // SAME arc 109 slice 1h/1i retirement already closed at
+            // CONSTRUCTOR sites (`infer_some_constructor`/`infer_ok_constructor`/
+            // `infer_err_constructor` above, `is_bare=true`). Reuse that EXACT
+            // `CheckErrorKind::TypeMismatch` shape — same `callee`, same `param`
+            // ("(retired bare-symbol exception)"), same `expected`/`got` — so
+            // `type_error_remedies` derives the identical RETIREMENT_TABLE remedy
+            // (keyed on `callee`, `retirement.rs`'s "Some"/"Ok"/"Err" rows) rather
+            // than a second, differently-worded refusal for one retirement.
+            if let WatAST::Symbol(ident, _) = head {
+                let bare = ident.as_str();
+                if bare == "Some" || bare == "Ok" || bare == "Err" {
+                    errors.push(CheckError { span: head.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: bare.to_string(),
+                        param: "(retired bare-symbol exception)".into(),
+                        expected: format!(":wat::core::{}", bare),
+                        got: bare.to_string(),
+                    } });
+                    return None;
+                }
+            }
+            // Arc 109 slice 1h — list-pattern head accepts the FQDN-keyword
+            // (canonical) form for built-in variant constructors. Map FQDN
+            // keywords to the bare ident strings so the downstream dispatch
+            // table works unchanged. A bare Symbol reaching here is neither
+            // "Some"/"Ok"/"Err" (refused above) nor a keyword — it falls to
+            // the `other` arm's dedicated hint (a user-enum look-alike, etc).
             let ident = match head {
                 WatAST::Symbol(i, _) => i.as_str(),
                 WatAST::Keyword(k, _) if k == ":wat::core::Some" => "Some",
@@ -7167,12 +7197,32 @@ fn check_subpattern(
                     return None;
                 }
             };
+            // STONE: the bare-symbol shorthand dies — same retirement as the
+            // outer `pattern_coverage` List-arm above; a bare-Symbol head at
+            // a NESTED sub-pattern position (e.g. the `(Some v)` inside
+            // `(Ok (Some v))`) reuses the identical TypeMismatch shape so the
+            // remedy comes from the SAME RETIREMENT_TABLE lookup, not a
+            // second refusal.
+            if let WatAST::Symbol(ident, _) = head {
+                let bare = ident.as_str();
+                if bare == "Some" || bare == "Ok" || bare == "Err" {
+                    errors.push(CheckError { span: head.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: bare.to_string(),
+                        param: "(retired bare-symbol exception)".into(),
+                        expected: format!(":wat::core::{}", bare),
+                        got: bare.to_string(),
+                    } });
+                    return None;
+                }
+            }
             // Variant-constructor list at this sub-position:
             // dispatch on expected_ty's shape.
-            // Built-in Some/Ok/Err — head is Symbol (legacy bare) OR
-            // FQDN keyword (arc 109 slice 1h+1i canonical form).
+            // Built-in Some/Ok/Err — head is the FQDN keyword (arc 109
+            // slice 1h+1i canonical form); a bare Symbol reaching here is
+            // neither "Some"/"Ok"/"Err" (refused above) — leave `Symbol`
+            // out of this table so it falls through to tuple-destructure
+            // below, same as any other unrecognized sub-pattern head.
             let builtin_ident = match head {
-                WatAST::Symbol(ident, _) => Some(ident.as_str()),
                 WatAST::Keyword(k, _) if k == ":wat::core::Some" => Some("Some"),
                 WatAST::Keyword(k, _) if k == ":wat::core::Ok" => Some("Ok"),
                 WatAST::Keyword(k, _) if k == ":wat::core::Err" => Some("Err"),

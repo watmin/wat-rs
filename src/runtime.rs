@@ -5174,21 +5174,21 @@ fn eval_list(
     // (`crate::intrinsic::registry().lookup(head)`) before falling through to its own
     // match — so a `WatAST::Keyword` head naming any of the three now reaches the SAME
     // `eval_some_ctor`/`eval_ok_ctor`/`eval_err_ctor` bodies (unchanged, still below)
-    // through the registry instead of through this now-redundant guard. The bare-Symbol
-    // exceptions just below (`Some`/`Ok`/`Err` as a bare identifier, not a keyword) are a
-    // DIFFERENT dispatch path — registration does not reach them — and are untouched.
+    // through the registry instead of through this now-redundant guard.
+    //
+    // STONE: the bare-symbol shorthand dies — the bare-Symbol constructor exceptions
+    // (`Some`/`Ok`/`Err` as a bare identifier, not a keyword) that used to sit right
+    // here are DELETED, not retired-with-a-guard: the checker refuses this spelling at
+    // both constructor and match-pattern sites (arc 109 slice 1h/1i's retirement,
+    // finally closed on both doors), so a bare `(Some 1)`/`(Ok 1)`/`(Err e)` reaching
+    // this dispatch now falls to the `WatAST::Symbol(ident, span)` arm just below —
+    // an unbound-symbol lookup, the same failure any other undefined bare callable
+    // gets. `eval-ast!` (an unchecked runtime path) previously reached these arms and
+    // evaluated the shorthand anyway; deleting them is what makes the runtime agree
+    // with the checker even off the checked corridor.
     match head {
         // dispatch_keyword_head now returns TrackedValue (propagates producer provenance).
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => {
-            eval_some_ctor(rest, list_span, env, sym).map(TrackedValue::from)
-        }
-        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => {
-            eval_ok_ctor(rest, list_span, env, sym).map(TrackedValue::from)
-        }
-        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => {
-            eval_err_ctor(rest, list_span, env, sym).map(TrackedValue::from)
-        }
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
             // Arc 233 Stone 233.2.k: keep TrackedValue so NotCallable errors
@@ -16093,14 +16093,16 @@ fn try_match_pattern(
                     },
                 )
             })?;
-            // Arc 109 slice 1h — recognize FQDN keyword forms for
-            // Option variant patterns. Both bare-Symbol "Some" and
-            // FQDN keyword ":wat::core::Some" land here at runtime;
-            // type-check time poisons the bare form.
+            // STONE: the bare-symbol shorthand dies — only the FQDN keyword
+            // form is recognized here now. The bare-Symbol "Some" alternative
+            // is DELETED (arc 109 slice 1h's match-pattern half, never closed
+            // until now): the checker refuses it at `pattern_coverage` /
+            // `check_subpattern`, and a bare `((Some v) ...)` reaching this
+            // runtime dispatch anyway (e.g. via `eval-ast!`, unchecked) now
+            // falls through to the tuple-destructure arm below, same as any
+            // other unrecognized list-pattern head — it no longer evaluates
+            // the retired shorthand.
             let head_is_some = matches!(
-                head,
-                WatAST::Symbol(ident, _) if ident.as_str() == "Some"
-            ) || matches!(
                 head,
                 WatAST::Keyword(k, _) if k == ":wat::core::Some"
             );
@@ -16126,14 +16128,10 @@ fn try_match_pattern(
                     _ => Ok(None),
                 };
             }
-            // Arc 109 slice 1i — recognize FQDN keyword forms for
-            // Result variant patterns (Ok / Err). Both bare-Symbol
-            // and FQDN-keyword forms land here; type-check time
-            // poisons the bare form.
+            // STONE: the bare-symbol shorthand dies — only the FQDN keyword
+            // form is recognized here now (see the "Some" comment above for
+            // the full rationale; identical for "Ok"/"Err").
             let head_is_ok = matches!(
-                head,
-                WatAST::Symbol(ident, _) if ident.as_str() == "Ok"
-            ) || matches!(
                 head,
                 WatAST::Keyword(k, _) if k == ":wat::core::Ok"
             );
@@ -16161,9 +16159,6 @@ fn try_match_pattern(
             }
             let head_is_err = matches!(
                 head,
-                WatAST::Symbol(ident, _) if ident.as_str() == "Err"
-            ) || matches!(
-                head,
                 WatAST::Keyword(k, _) if k == ":wat::core::Err"
             );
             if head_is_err {
@@ -16189,13 +16184,6 @@ fn try_match_pattern(
                 };
             }
             match head {
-                WatAST::Symbol(ident, _) if ident.as_str() == "Some" => {
-                    unreachable!("handled above")
-                }
-                WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => unreachable!("handled above"),
-                WatAST::Symbol(ident, _) if ident.as_str() == "Err" => {
-                    unreachable!("handled above")
-                }
                 // Arc 048 — user-enum tagged variant. Pattern
                 // `(:enum::Variant pat1 pat2 ...)` matches `Value::Enum`
                 // whose `type_path::variant_name` composes to the same

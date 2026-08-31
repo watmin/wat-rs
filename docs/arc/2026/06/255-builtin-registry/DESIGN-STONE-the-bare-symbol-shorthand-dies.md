@@ -1,5 +1,42 @@
 # DESIGN — STONE: the bare-symbol shorthand dies
 
+> ⛔ **THIS DESIGN SAID "BOTH FAMILIES". THERE ARE THREE.** Corrected in place 2026-08-30 after the
+> rider found a third live door and the orchestrator verified it. **Two doors are closed; the heresy
+> is NOT dead.** Read `## ⛔ THE THIRD DOOR` before treating this stone as complete.
+
+## ⛔ THE THIRD DOOR — the CEK stepper, still live after this stone
+
+`:wat::eval::walk` / `:wat::eval-step!` (arc 068/070, `is_match_canonical` + `try_match_pattern_ast`,
+`src/runtime.rs:~23689,23725`) carries its **own** bare-symbol recognition, structurally separate
+from the two families below. Verified live, post-rebuild, with both doors closed:
+
+```clojure
+(:wat::eval::walk '(:wat::core::match (Some 5) ((Some n) n) (:wat::core::None 0)) 0 :my::v)
+;; => #wat.core.Result/Ok [[5 2]]        the pattern fired, n bound to 5
+```
+
+★ **And it is the heresy, not generic structural matching** — discriminated with a made-up head:
+
+```clojure
+… (Zorble 5) ((Zorble n) n) …   =>  Err "eval-step! has no rule for op: symbol-head:Zorble"
+```
+
+`Some` is special-cased where `Zorble` is not. Had I not run that control, "the stepper just matches
+forms structurally" would have been a plausible and wrong dismissal.
+
+⚠ **Also correcting my own two mis-citations in the sections below**, both found by the rider
+verifying rather than trusting:
+- **The population was 4 sites in 2 files, not 5 in 3 plus a Rust fixture.**
+  `wat-scripts/perf/grid/where-control.wat`'s "site" is a `;;` comment (its live code is already
+  FQDN), and `tests/function/wat_arc170_closure_extraction.rs` contains **no inline wat at all** —
+  its fixtures load external `.wat` files already in FQDN form. The same contamination this design
+  warned about, one paragraph after warning about it.
+- **`src/check.rs:5896,5921,5941,6206` pointed at the wrong code** — those are inside `infer_list`,
+  the already-closed CONSTRUCTOR door. The open pattern-door arms are 300–900 lines further down in
+  `pattern_coverage` and `check_subpattern`.
+
+
+
 > **Builder, 2026-08-30:** *"we should just do that `(Some ...)` NOTE now?.... this is an active
 > heresy .... it must go..."*
 >
