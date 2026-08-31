@@ -3,6 +3,7 @@
   :uuid #uuid "00000000-0000-0000-0000-000000000000"
   :tags {}
   :time-ns 123
+  :event-id #uuid "00000000-0000-0000-0000-000000000000"
   :start-time-ns 100
   :name :requests
   :value #wat.telemetry.Numeric/I64 [7]

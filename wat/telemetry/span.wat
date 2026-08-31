@@ -86,11 +86,13 @@
      (:wat::core::let
        [rec (:wat::telemetry::span::State/durable s)
         now (:wat::time::epoch-nanos (:wat::time::now))
+        eid (:wat::uuid::v4)
         l   (:wat::telemetry::Log
               :namespace (:wat::telemetry::span::Record/namespace rec)
               :uuid (:wat::telemetry::span::Record/uuid rec)
               :tags (:wat::telemetry::span::Record/tags rec)
               :time-ns now
+              :event-id eid
               :emitted-from (:wat::telemetry::Span::LogRequest/emitted-from req)
               :level (:wat::telemetry::Span::LogRequest/level req)
               :message (:wat::telemetry::Span::LogRequest/message req))
@@ -116,6 +118,7 @@
             -> (:wat::core::Vector :- [:wat::telemetry::Metric])
             (:wat::core::conj acc
               (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
+                :event-id (:wat::uuid::v4)
                 :start-time-ns start :name name
                 :value (:wat::telemetry::Numeric::I64
                          (:wat::core::Option/expect (:wat::hashmap::get cs name) "counter present"))
@@ -139,9 +142,11 @@
               (:wat::core::conj
                 (:wat::core::conj acc
                   (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
+                    :event-id (:wat::uuid::v4)
                     :start-time-ns start :name count-name
                     :value (:wat::telemetry::Numeric::I64 cnt) :unit :wat::telemetry::Unit::Count))
                 (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
+                  :event-id (:wat::uuid::v4)
                   :start-time-ns start :name dur-name
                   :value (:wat::telemetry::Numeric::I64 total) :unit :wat::telemetry::Unit::Nanos))))
           counter-metrics

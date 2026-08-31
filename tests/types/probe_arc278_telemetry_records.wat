@@ -13,7 +13,7 @@
             :namespace     "market-eval"                     ;; spliced from Scope
             :uuid          (:wat::uuid::nil)            ;; spliced
             :tags          tags                              ;; spliced
-            :time-ns       123                               ;; spliced
+            :time-ns       123 :event-id (:wat::uuid::nil)                               ;; spliced
             :start-time-ns 100                               ;; own
             :name          :requests                         ;; own
             :value         (:wat::telemetry::Numeric::I64 7) ;; own

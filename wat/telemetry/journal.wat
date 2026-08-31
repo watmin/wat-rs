@@ -5,9 +5,11 @@
 ;; `Metric`/`Log` -> `StoredRow` -> `Store/put` through that held peer. Mirrors the s2s peer-holding
 ;; shape proven in tests/services/probe_arc278_s2s_peer_on_{thread,process} (caller' holding echo').
 ;;
-;; The key shapes (proven in tests/services/probe_arc278_tagged_keys_store):
-;;   pk   = #wat.telemetry'/PartitionKey {:namespace … :kind …}   (:wat::edn::write of a record)
-;;   sk   = #inst "<constant-width iso8601-nanos>"                 (:wat::time::to-iso8601 … 9, tagged)
+;; The key shapes (proven in tests/services/probe_arc278_tagged_keys_store + SORTKEY):
+;;   pk   = #wat.telemetry/PartitionKey {:namespace … :kind …}     (:wat::edn::write of a record)
+;;   sk   = #wat.telemetry/SortKey {:time #inst … :event-id #uuid …}
+;;          (time FIRST — edn::write emits declaration order; the Instant is constant-width
+;;          nanos so lexicographic = chronological. event-id makes same-ns events unique.)
 ;;   data = the record's tagged EDN                               (:wat::edn::write metric/log)
 ;;   index-keys = { "by-uuid" -> IndexKey{ipk=#uuid, isk=sk} }    (the uuid correlation GSI)
 ;;
@@ -18,12 +20,34 @@
 ;; wat/service.wat (defservice) — see the src/stdlib.rs manifest slot.
 
 ;; ── small pure helpers ──────────────────────────────────────────────────────────
-;; sk = #inst "<iso8601 with 9 fixed fractional digits, Z>" — CONSTANT WIDTH, so it sorts
-;; lexicographically = chronologically (the store's `sort-by Row/sk` is the range order).
-(:wat::core::defn :wat::telemetry::time-sk [ns <- :wat::core::i64] -> :wat::core::String
-  (:wat::string::concat
-    (:wat::string::concat "#inst \"" (:wat::time::to-iso8601 (:wat::time::at-nanos ns) 9))
-    "\""))
+;; SortKey — the base sort key. FIELD ORDER IS LOAD-BEARING: edn::write emits declaration
+;; order, and `scan` orders by that string. `time` MUST be first so range scans are
+;; chronological; `event-id` after so two events at one Instant are distinct keys.
+;; Stone INST made Instant-in-a-record render at constant nanosecond width (72/72/72),
+;; so the old hand-padded iso8601 helper is gone.
+(:wat::core::defrecord :wat::telemetry::SortKey
+  [time     <- :wat::time::Instant
+   event-id <- :wat::core::Uuid])
+
+;; min sentinel for a time window: Instant at `ns`, event-id = nil (all-zero uuid).
+;; A row at exactly `ns` with any event-id is >= this (nil is the lexicographic min
+;; of the canonical 8-4-4-4-12 lowercase `#uuid` rendering).
+(:wat::core::defn :wat::telemetry::sort-key-lo [ns <- :wat::core::i64] -> :wat::core::String
+  (:wat::edn::write
+    (:wat::telemetry::SortKey
+      :time (:wat::time::at-nanos ns)
+      :event-id (:wat::uuid::nil))))
+
+;; max sentinel for a time window: Instant at `ns`, event-id = all-f.
+;; A row at exactly `ns` with any event-id is <= this IFF all-f is the lexicographic
+;; max of `#uuid` renderings — demonstrated by probe_ex001_sortkey_boundary, not assumed.
+(:wat::core::defn :wat::telemetry::sort-key-hi [ns <- :wat::core::i64] -> :wat::core::String
+  (:wat::edn::write
+    (:wat::telemetry::SortKey
+      :time (:wat::time::at-nanos ns)
+      :event-id (:wat::core::Option/expect
+                  (:wat::uuid::from-string "ffffffff-ffff-ffff-ffff-ffffffffffff")
+                  "all-f is a canonical uuid string"))))
 
 ;; the uuid correlation GSI's index-keys for a scope uuid + the row's sk.
 (:wat::core::defn :wat::telemetry::uuid-index-keys
@@ -32,11 +56,14 @@
   (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
     "by-uuid" (:wat::query::IndexKey :ipk (:wat::edn::write uuid) :isk sk)))
 
-;; Metric -> StoredRow (pk = namespace+:Metric; sk = #inst; data = the tagged Metric EDN).
+;; Metric -> StoredRow (pk = namespace+:Metric; sk = SortKey{time, event-id}; data = tagged Metric EDN).
 (:wat::core::defn :wat::telemetry::metric->row
   [m <- :wat::telemetry::Metric] -> :wat::query::StoredRow
   (:wat::core::let
-    [sk (:wat::telemetry::time-sk (:wat::telemetry::Metric/time-ns m))]
+    [sk (:wat::edn::write
+          (:wat::telemetry::SortKey
+            :time (:wat::time::at-nanos (:wat::telemetry::Metric/time-ns m))
+            :event-id (:wat::telemetry::Metric/event-id m)))]
     (:wat::query::StoredRow
       :pk (:wat::edn::write (:wat::telemetry::PartitionKey
                               :namespace (:wat::telemetry::Metric/namespace m)
@@ -45,11 +72,14 @@
       :data (:wat::edn::write m)
       :index-keys (:wat::telemetry::uuid-index-keys (:wat::telemetry::Metric/uuid m) sk))))
 
-;; Log -> StoredRow (pk = namespace+:Log; sk = #inst; data = the tagged Log EDN).
+;; Log -> StoredRow (pk = namespace+:Log; sk = SortKey{time, event-id}; data = tagged Log EDN).
 (:wat::core::defn :wat::telemetry::log->row
   [l <- :wat::telemetry::Log] -> :wat::query::StoredRow
   (:wat::core::let
-    [sk (:wat::telemetry::time-sk (:wat::telemetry::Log/time-ns l))]
+    [sk (:wat::edn::write
+          (:wat::telemetry::SortKey
+            :time (:wat::time::at-nanos (:wat::telemetry::Log/time-ns l))
+            :event-id (:wat::telemetry::Log/event-id l)))]
     (:wat::query::StoredRow
       :pk (:wat::edn::write (:wat::telemetry::PartitionKey
                               :namespace (:wat::telemetry::Log/namespace l)
@@ -200,7 +230,7 @@
         pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Metric))
         resp (:wat::query::Store/scan store
                (:wat::query::Store::ScanRequest :pk pk
-                 :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+                 :sk-lo (:wat::telemetry::sort-key-lo lo) :sk-hi (:wat::telemetry::sort-key-hi hi)
                  :limit lim :cursor cur))
         qresp (:wat::core::match resp
                 ((:wat::kernel::RecvOutcome::Message sresp)
@@ -251,7 +281,7 @@
         pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Log))
         resp (:wat::query::Store/scan store
                (:wat::query::Store::ScanRequest :pk pk
-                 :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+                 :sk-lo (:wat::telemetry::sort-key-lo lo) :sk-hi (:wat::telemetry::sort-key-hi hi)
                  :limit lim :cursor cur))
         qresp (:wat::core::match resp
                 ((:wat::kernel::RecvOutcome::Message sresp)
@@ -316,7 +346,7 @@
                       pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Log))
                       resp (:wat::query::Store/scan store
                              (:wat::query::Store::ScanRequest :pk pk
-                               :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+                               :sk-lo (:wat::telemetry::sort-key-lo lo) :sk-hi (:wat::telemetry::sort-key-hi hi)
                                :limit lim :cursor cur))]
                      (:wat::core::match resp
                        ((:wat::kernel::RecvOutcome::Message sresp)
@@ -382,7 +412,7 @@
                       pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Metric))
                       resp (:wat::query::Store/scan store
                              (:wat::query::Store::ScanRequest :pk pk
-                               :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+                               :sk-lo (:wat::telemetry::sort-key-lo lo) :sk-hi (:wat::telemetry::sort-key-hi hi)
                                :limit lim :cursor cur))]
                      (:wat::core::match resp
                        ((:wat::kernel::RecvOutcome::Message sresp)

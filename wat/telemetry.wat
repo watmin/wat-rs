@@ -3,7 +3,7 @@
 ;; The telemetry facility's structural foundation: the enums/typealias/surfaces/records that the
 ;; sink + producer services (later stones) build on. First real consumer of surface-splice
 ;; (shipped 4c98b2ef): `Metric`/`Log` are `defrecord`s that SPLICE the `Scope` surface via
-;; `~@:wat::telemetry'::Scope` — the 4 Scope fields inline (splice-first) before each record's own
+;; `~@:wat::telemetry'::Scope` — the 5 Scope fields inline (splice-first) before each record's own
 ;; fields, and the unified aggregate ctor + register_aggregate_methods mint the spliced accessors
 ;; (e.g. `Metric/namespace`) for free.
 ;;
@@ -69,17 +69,21 @@
    kind      <- :wat::telemetry::Kind])
 
 ;; ─── Scope — the EXACT surface every telemetry record satisfies (identity + when). ─
-;; namespace (facility), uuid (correlation id), tags (dimensions), time-ns (event time).
+;; namespace (facility), uuid (span correlation id), tags (dimensions), time-ns (event time),
+;; event-id (THIS event's identity — not the span's correlation uuid). One field, spliced
+;; into both Metric and Log. A retry carries the same event-id → the same base key →
+;; idempotent replace, which is correct under at-least-once.
 ;; Spliced into Metric/Log via `~@:wat::telemetry'::Scope`.
 (:wat::core::defsurface :wat::telemetry::Scope
   :nature :wat::core::Record
   :features [namespace <- :wat::core::String
              uuid      <- :wat::core::Uuid
              tags      <- :wat::telemetry::Tags
-             time-ns   <- :wat::core::i64])
+             time-ns   <- :wat::core::i64
+             event-id  <- :wat::core::Uuid])
 
-;; ─── Metric — a measurement. Splices Scope (4 fields), then 4 own. ───────────────
-;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  start-time-ns name value unit.
+;; ─── Metric — a measurement. Splices Scope (5 fields), then 4 own. ───────────────
+;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns event-id  start-time-ns name value unit.
 (:wat::core::defrecord :wat::telemetry::Metric
   [~@:wat::telemetry::Scope
    start-time-ns <- :wat::core::i64
@@ -87,8 +91,8 @@
    value         <- :wat::telemetry::Numeric
    unit          <- :wat::telemetry::Unit])
 
-;; ─── Log — a log event. Splices Scope (4 fields), then 3 own. ────────────────────
-;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  emitted-from level message.
+;; ─── Log — a log event. Splices Scope (5 fields), then 3 own. ────────────────────
+;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns event-id  emitted-from level message.
 (:wat::core::defrecord :wat::telemetry::Log
   [~@:wat::telemetry::Scope
    emitted-from  <- :wat::kernel::Frame

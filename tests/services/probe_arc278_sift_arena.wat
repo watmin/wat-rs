@@ -68,7 +68,7 @@
                                     (:wat::edn::write (:prod::Flow :proto "tcp" :bytes i))
                                     (:wat::edn::write (:prod::Query :rows i)))))]
                          (:wat::telemetry::Log :namespace ns :uuid (:wat::uuid::nil) :tags tags
-                           :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
+                           :time-ns (:wat::i64::+ i 1) :event-id (:wat::uuid::nil) :emitted-from (:wat::kernel::call-site)
                            :level :wat::telemetry::Level::Info :message msg)))
                      idxs))
         journal  (:prod::producer::State/journal s)

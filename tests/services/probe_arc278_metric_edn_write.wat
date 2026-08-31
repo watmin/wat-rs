@@ -16,7 +16,7 @@
             :namespace     "probe-ns"
             :uuid          (:wat::uuid::nil)
             :tags          tags
-            :time-ns       123
+            :time-ns       123 :event-id (:wat::uuid::nil)
             :start-time-ns 100
             :name          :requests
             :value         (:wat::telemetry::Numeric::I64 7)
