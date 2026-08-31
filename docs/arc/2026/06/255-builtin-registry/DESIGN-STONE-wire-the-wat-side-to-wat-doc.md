@@ -132,6 +132,52 @@ counts and a `Totalityity` corruption check.
 ⚠ No `INSCRIPTION.md` was touched — verified. Only living docs (DESIGN/BRIEF/NOTE/SEAM/RULING) and
 `.rs`. The three `.wat` hits were `;;` prose, not forms, so no codemod was owed.
 
+## ✅ SHIPPED 2026-08-30 — and two things the design did not predict
+
+**The round trip works.** A wat-defined verb now answers `metadata-of`:
+
+```clojure
+(:wat::runtime::metadata-of :wat::string::capitalize)
+;; => Some {:purity :wat.runtime.Purity/Pure  :totality :wat.runtime.Totality/Total
+;;          :category :wat.runtime.Category/Transform  :determinism …/Deterministic
+;;          :expand-time …/Legal  :args [[w :wat.core/String "…"]]  :ret […]  :examples […]  :doc "…"}
+```
+
+Proven by perturbation, not construction: deleting `:purity` from the map raises
+**`MissingPurity`** — *the same `DocError` variant the `///` path raises.* The shared contract holds
+under a broken door.
+
+### ⚠ 1. The rider's gate was a SILENT SKIP, and it is amended
+
+`from_metadata` was called only when the map contained `:doc`. Measured:
+`(defn :probe::half {:purity …} [x] -> :i64 x)` ran **clean, exit 0** — a map declaring `:purity`
+and nothing else was never validated. **A declaration that does not declare.**
+
+That is the silent-skip class Stone P4 killed at `intrinsic/mod.rs:512` and `:742`, and it is worse
+than a missing feature: the author wrote a property expecting it to mean something.
+
+**Gate is now: ANY doc-axis key ⇒ validate the FULL required set.** A partial declaration is an
+error naming what is missing; a capability-only `{:restricted-to […]}` map carries no doc-axis key
+and is untouched — which is what keeps the three pre-existing stdlib verbs the rider found
+(`write-fd-raw`, `flood-stdout-raw`, `str-double`) out of a migration nobody asked for.
+
+★ **That near-miss was the rider's best catch.** Unconditional validation would have failed stdlib
+startup entirely — migrating three unrelated verbs by accident while walking one through the door.
+
+### ⚠ 2. ONE registration path of SIX is wired — say so plainly
+
+`binding_metadata.insert` has **six** call sites (`runtime.rs:861,978,1491,2832,3991,4066`). The
+validation is wired to the one `capitalize` travels. **A user-program `defn` with a metadata map is
+not validated today** — measured. That is honest for a stone whose scope is one verb through the
+door, but it must not read as "declarations are checked".
+
+### Known limits, from the rider, none needed by `capitalize`
+
+Type tokens in `:args`/`:ret` are bare `Keyword`s only — the bracket forms the text grammar accepts
+(`(Head :- [args])`, `[args :-> ret]`) would need an AST→source printer this leaf crate does not
+have. `:examples` are always `run: true` (no `@example-norun` equivalent). `:args` has no
+`is_rest`/variadic. **A future migration hits all three.**
+
 ## Acceptance
 
 | what | command | expected |

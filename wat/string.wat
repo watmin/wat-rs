@@ -14,7 +14,28 @@
 
 ;; capitalize — upcase the first char of a segment, keep the rest.
 ;;   "object" -> "Object", "v2" -> "V2", "" -> "".
+;;
+;; Arc 255 STONE "wire the wat side to wat-doc" — the door-plus-one-verb walk.
+;; The `;;` prose above is unchanged; the `{...}` metadata map below is the
+;; SAME facts as DATA, read by `wat_doc::from_metadata` at stdlib
+;; registration (`register_stdlib_defines`, src/runtime.rs) through the same
+;; shared-contract crate an intrinsic's `///` block goes through
+;; (`wat_doc::parse`) — same required set, same `DocError`s. Values on the
+;; closed-domain axes are ENUM SYMBOLS (`:wat::runtime::Purity::Pure`, not a
+;; bare `:Pure`) so a typo is a rejected variant, not a silently-accepted
+;; keyword.
 (:wat::core::defn :wat::string::capitalize
+  {:doc "Upcase the first character of a segment, keeping the rest unchanged."
+   :added "1.0.0"
+   :ret [:wat::core::String "the segment with its first character upcased"]
+   :purity :wat::runtime::Purity::Pure
+   :determinism :wat::runtime::Determinism::Deterministic
+   :totality :wat::runtime::Totality::Total
+   :expand-time :wat::runtime::ExpandTime::Legal
+   :category :wat::runtime::Category::Transform
+   :args [[w :wat::core::String "the segment to capitalize"]]
+   :examples [["(:wat::string::capitalize \"object\")" "\"Object\""]
+              ["(:wat::string::capitalize \"\")" "\"\""]]}
   [w <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::if (:wat::core::= (:wat::string::length w) 0)

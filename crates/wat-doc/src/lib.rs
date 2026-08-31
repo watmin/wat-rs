@@ -41,6 +41,11 @@
 //! silent skip. Old separator forms (` — `, ` -- `, ` - `, `: `) are REJECTED
 //! as illegal in the type position — the grammar is firm: `@arg <name> <type> <desc>`.
 
+// [`from_metadata`]'s one new type dependency — the `WatAST::Map` shape it reads.
+// Adds nothing to the crate graph: `wat-reader` is already a direct dependency
+// (Cargo.toml), used above via the fully-qualified `wat_reader::parse_one_with_file`.
+use wat_reader::WatAST;
+
 // ⛔ `Purity` and `Determinism` are GENERATED FROM wat, exactly as `Category` is
 // below. They were the last two Rust enums still mirroring a `defenum` by hand, and
 // after `every_rust_enum_matches_its_wat_defenum` was deleted as scaffolding
@@ -724,6 +729,386 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     // Every `@yields` subject must name a declared `@arg` — a directive with no referent
     // is a doc error, not a silent no-op. Checked here (not by the caller) because `parse`
     // already has the full `@arg` list gathered by this point; no signature is needed.
+    for y in &yields_vals {
+        if !args.iter().any(|a| a.name == y.arg) {
+            return Err(DocError::UnknownYieldsSubject { arg: y.arg.clone() });
+        }
+    }
+
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, totality, expand_time, category, yields: yields_vals })
+}
+
+/// Look up `key` (e.g. `":purity"`, including the leading `:`) among a
+/// metadata-map's key/value pairs. Non-`Keyword` keys are skipped rather
+/// than erroring here — [`from_metadata`]'s own required-field checks are
+/// what surface an absent key; a malformed KEY (as opposed to a malformed
+/// value) is not a shape the wat parser can even produce, since
+/// `WatAST::Map` pairs come from the reader's own `{k v ...}` grammar.
+fn metadata_lookup<'a>(pairs: &'a [(WatAST, WatAST)], key: &str) -> Option<&'a WatAST> {
+    pairs.iter().find_map(|(k, v)| match k {
+        WatAST::Keyword(k, _) if k == key => Some(v),
+        _ => None,
+    })
+}
+
+/// Read a `WatAST::StringLit` as an owned, non-empty (post-trim) `String`.
+/// Returns `None` for any other node shape, or a string that is empty/blank
+/// — the same "nothing usable here" verdict the text grammar reaches when a
+/// line is missing entirely.
+fn metadata_string(v: &WatAST) -> Option<String> {
+    match v {
+        WatAST::StringLit(s, _) => {
+            let t = s.trim();
+            if t.is_empty() { None } else { Some(t.to_string()) }
+        }
+        _ => None,
+    }
+}
+
+/// Read a bare name off a `WatAST::Symbol` or `WatAST::Keyword` (the two
+/// shapes an `:args`/`:yields` subject may be spelled in) — a `Keyword`'s
+/// leading `:` is stripped so it agrees with a `Symbol`'s bare spelling and
+/// with the actual fn-signature parameter name it must match.
+fn metadata_bare_name(v: &WatAST) -> Option<String> {
+    match v {
+        WatAST::Symbol(id, _) => Some(id.as_str().to_string()),
+        WatAST::Keyword(k, _) => Some(k.trim_start_matches(':').to_string()),
+        _ => None,
+    }
+}
+
+/// Render `v` for an error payload that must show what was actually written,
+/// without assuming it is a `Keyword` (an axis value that fails
+/// [`enum_symbol_variant`] may be any node shape at all).
+fn metadata_describe(v: &WatAST) -> String {
+    match v {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => format!("{other:?}"),
+    }
+}
+
+/// Read an enum-symbol value `:<wat_type_path>::<Variant>` and return the
+/// bare `<Variant>` spelling — but ONLY when the namespace prefix matches
+/// `wat_type_path` exactly. This is the check the DESIGN calls out by name:
+/// several axes share a variant spelling (`Purity::Preserving` /
+/// `Determinism::Preserving` / `Totality::Preserving` / `ExpandTime::Preserving`;
+/// `Totality::Unreviewed` / `ExpandTime::Unreviewed`), so accepting any
+/// `Keyword` whose LAST segment happens to name a variant of the target enum
+/// — without checking which enum it actually came from — would let
+/// `:wat::runtime::Determinism::Preserving` silently satisfy `:purity`. A
+/// bare `:Preserving` (no path at all) is rejected the same way a bare
+/// `:Pure` is: neither names which enum it came from.
+fn enum_symbol_variant<'a>(v: &'a WatAST, wat_type_path: &str) -> Option<&'a str> {
+    match v {
+        WatAST::Keyword(k, _) => {
+            let prefix_len = wat_type_path.len() + 2; // "::"
+            if k.len() > prefix_len && k.starts_with(wat_type_path) && k.as_bytes()[wat_type_path.len()..].starts_with(b"::") {
+                let rest = &k[prefix_len..];
+                if !rest.is_empty() && !rest.contains("::") {
+                    return Some(rest);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// `wat_doc::from_metadata` — the sibling of [`parse`] for the wat side (arc
+/// 255 Stone "wire the wat side to wat-doc"). Reads a `WatAST::Map` — the
+/// SAME metadata-map node a `(defn :name {…} […] -> :Ret body)` already
+/// parses into and that already reaches `SymbolTable.binding_metadata` at
+/// def-registration time (`register_defines` / `register_defclause`,
+/// `src/runtime.rs`) — and produces the same [`DocComment`] `parse` does,
+/// enforcing the SAME required set with the SAME [`DocError`] variants.
+///
+/// There is no wat-side docstring to feed the text grammar (see the DESIGN
+/// doc's finding: `doc_string` is `None` at every construction site and arc
+/// 141 never shipped) — so this entry point reads DATA, not text. Keys
+/// mirror the `///` directives one-for-one:
+///
+/// | key | directive equivalent | shape |
+/// |---|---|---|
+/// | `:doc` | prose (untagged) | `StringLit` |
+/// | `:added` | `@added` | `StringLit` |
+/// | `:ret` | `@ret` | `[<:type-keyword> <desc StringLit>]` |
+/// | `:purity` / `:determinism` / `:totality` / `:expand-time` / `:category` | `@Purity` etc. | enum-symbol `Keyword`, e.g. `:wat::runtime::Purity::Pure` |
+/// | `:args` | `@arg` (per-entry) | `Vector` of `[<name Symbol/Keyword> <:type-keyword> <desc StringLit>]` |
+/// | `:examples` | `@example` | `Vector` of `[<expr StringLit> <expected StringLit>]` (each parses as `run: true`, mirroring `@example`; there is no metadata-map spelling yet for `@example-norun`'s optional-`expected` shape — out of scope for this stone's one-verb walk) |
+/// | `:see` | `@see` | `Vector` of keyword FQDNs |
+/// | `:yields` | `@yields` (per-subject) | `Vector` of `[<arg-name Symbol/Keyword> <desc StringLit>]` |
+/// | `:deprecated` | `@deprecated` | `[<since StringLit> <use-instead StringLit>]` |
+///
+/// The closed-domain axis values are ENUM SYMBOLS, not bare keywords — a
+/// bare `:Pure` is a keyword nothing validates, where `:wat::runtime::
+/// Purity::Pure` names a variant that either exists or does not (builder,
+/// 2026-08-30). [`enum_symbol_variant`] is the ONE check that reads it.
+///
+/// A `map` that is not a metadata-map at all (`WatAST::metadata_map_pairs`
+/// returns `None`) is read as zero pairs — not a new error: it falls
+/// straight into the same `MissingProse`/`MissingAdded`/… cascade an empty
+/// `{}` would, so no new `DocError` vocabulary is needed for "not a map".
+///
+/// Type tokens (`:ret`'s and each `:args` entry's) are required to be a bare
+/// `Keyword` in THIS stone — the common case, and the one the walked verb
+/// (`:wat::string::capitalize`) uses. The two surviving STRUCTURAL type
+/// spellings the text grammar also accepts (`(Head :- [args])` parametric
+/// references, `[arg… :-> ret]` fn types) are themselves compound `WatAST`
+/// forms, not text, and stringifying one back to `DocComment::ret_type`'s
+/// `String` field would need an AST→source printer this leaf crate does not
+/// have (and per STOP-1, reaching for one would be a signal the work belongs
+/// in the consumer). Not exercised by the one verb this stone walks; left
+/// for whichever stone migrates a verb that needs one.
+pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
+    let pairs = map.metadata_map_pairs().unwrap_or_default();
+
+    let prose = metadata_lookup(&pairs, ":doc")
+        .and_then(metadata_string)
+        .ok_or(DocError::MissingProse)?;
+
+    let added = match metadata_lookup(&pairs, ":added") {
+        None => return Err(DocError::MissingAdded),
+        Some(v) => metadata_string(v).ok_or(DocError::MalformedDirective {
+            tag: ":added".into(),
+            why: "version string is empty",
+        })?,
+    };
+
+    let (ret_type, ret) = match metadata_lookup(&pairs, ":ret") {
+        None => return Err(DocError::MissingRet),
+        Some(WatAST::Vector(items, _)) if items.len() == 2 => {
+            let ty = match &items[0] {
+                WatAST::Keyword(k, _) => k.clone(),
+                _ => {
+                    return Err(DocError::MalformedDirective {
+                        tag: ":ret".into(),
+                        why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
+                    })
+                }
+            };
+            if !type_token_is_expressible(&ty) {
+                return Err(DocError::MalformedDirective {
+                    tag: ":ret".into(),
+                    why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
+                });
+            }
+            let desc = metadata_string(&items[1]).ok_or(DocError::MalformedDirective {
+                tag: ":ret".into(),
+                why: "description is empty; grammar is `@ret <type> <desc>`",
+            })?;
+            (ty, desc)
+        }
+        Some(_) => {
+            return Err(DocError::MalformedDirective {
+                tag: ":ret".into(),
+                why: "grammar is `@ret <type> <desc>`",
+            })
+        }
+    };
+
+    macro_rules! read_axis {
+        ($key:literal, $enum_ty:ty, $missing:expr, $invalid:expr) => {
+            match metadata_lookup(&pairs, $key) {
+                None => return Err($missing),
+                Some(v) => match enum_symbol_variant(v, <$enum_ty>::WAT_TYPE_PATH) {
+                    Some(variant) => match variant.parse::<$enum_ty>() {
+                        Ok(val) => val,
+                        Err(_) => return Err($invalid(v)),
+                    },
+                    None => return Err($invalid(v)),
+                },
+            }
+        };
+    }
+
+    let purity = read_axis!(":purity", Purity, DocError::MissingPurity, |_v: &WatAST| {
+        DocError::MalformedDirective {
+            tag: ":purity".into(),
+            why: "value must be one of: Pure, Effectful, Preserving",
+        }
+    });
+    let determinism = read_axis!(":determinism", Determinism, DocError::MissingDeterminism, |_v: &WatAST| {
+        DocError::MalformedDirective {
+            tag: ":determinism".into(),
+            why: "value must be one of: Deterministic, Nondeterministic, Preserving",
+        }
+    });
+    let totality = read_axis!(":totality", Totality, DocError::MissingTotality, |v: &WatAST| {
+        DocError::InvalidTotalityVariant { got: metadata_describe(v) }
+    });
+    let expand_time = read_axis!(":expand-time", ExpandTime, DocError::MissingExpandTime, |v: &WatAST| {
+        DocError::InvalidExpandTimeVariant { got: metadata_describe(v) }
+    });
+    let category = read_axis!(":category", Category, DocError::MissingCategory, |_v: &WatAST| {
+        DocError::MalformedDirective {
+            tag: ":category".into(),
+            why: CATEGORY_LEGAL_VALUES,
+        }
+    });
+
+    let mut args: Vec<DocArg> = Vec::new();
+    if let Some(v) = metadata_lookup(&pairs, ":args") {
+        let items = match v {
+            WatAST::Vector(items, _) => items,
+            _ => {
+                return Err(DocError::MalformedDirective {
+                    tag: ":args".into(),
+                    why: "grammar is `@arg <name> <type> <desc>`",
+                })
+            }
+        };
+        for item in items {
+            let fields = match item {
+                WatAST::Vector(fields, _) if fields.len() == 3 => fields,
+                _ => {
+                    return Err(DocError::MalformedDirective {
+                        tag: ":args".into(),
+                        why: "grammar is `@arg <name> <type> <desc>`",
+                    })
+                }
+            };
+            let name = metadata_bare_name(&fields[0]).ok_or(DocError::MalformedDirective {
+                tag: ":args".into(),
+                why: "name is missing",
+            })?;
+            let ty = match &fields[1] {
+                WatAST::Keyword(k, _) => k.clone(),
+                _ => {
+                    return Err(DocError::MalformedDirective {
+                        tag: ":args".into(),
+                        why: "type token must start with `:` (e.g. `:wat::core::Bytes`); grammar is `@arg <name> <type> <desc>`",
+                    })
+                }
+            };
+            if !type_token_is_expressible(&ty) {
+                return Err(DocError::MalformedDirective {
+                    tag: ":args".into(),
+                    why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
+                });
+            }
+            let desc = metadata_string(&fields[2]).ok_or(DocError::MalformedDirective {
+                tag: ":args".into(),
+                why: "description is empty; grammar is `@arg <name> <type> <desc>`",
+            })?;
+            args.push(DocArg { name, ty, desc, is_rest: false });
+        }
+    }
+
+    let mut examples: Vec<DocExample> = Vec::new();
+    if let Some(v) = metadata_lookup(&pairs, ":examples") {
+        let items = match v {
+            WatAST::Vector(items, _) => items,
+            _ => {
+                return Err(DocError::MalformedDirective {
+                    tag: ":examples".into(),
+                    why: "grammar is `[<expr StringLit> <expected StringLit>]` entries",
+                })
+            }
+        };
+        for item in items {
+            let fields = match item {
+                WatAST::Vector(fields, _) if fields.len() == 2 => fields,
+                _ => {
+                    return Err(DocError::MalformedDirective {
+                        tag: ":examples".into(),
+                        why: "grammar is `[<expr StringLit> <expected StringLit>]` entries",
+                    })
+                }
+            };
+            let expr = metadata_string(&fields[0]).ok_or(DocError::ExampleMissingMarker {
+                expr: metadata_describe(&fields[0]),
+            })?;
+            let expected = metadata_string(&fields[1]).ok_or(DocError::MalformedDirective {
+                tag: ":examples".into(),
+                why: "expected value is empty",
+            })?;
+            examples.push(DocExample { expr, expected: Some(expected), run: true });
+        }
+    }
+    if examples.is_empty() {
+        return Err(DocError::MissingExample);
+    }
+
+    let deprecated = match metadata_lookup(&pairs, ":deprecated") {
+        None => None,
+        Some(WatAST::Vector(fields, _)) if fields.len() == 2 => {
+            let since = metadata_string(&fields[0]).ok_or(DocError::MalformedDirective {
+                tag: ":deprecated".into(),
+                why: "version string is empty",
+            })?;
+            let use_instead = metadata_string(&fields[1]).ok_or(DocError::MalformedDirective {
+                tag: ":deprecated".into(),
+                why: "use-instead is empty",
+            })?;
+            Some(Deprecation { since, use_instead })
+        }
+        Some(_) => {
+            return Err(DocError::MalformedDirective {
+                tag: ":deprecated".into(),
+                why: "grammar is `[<since StringLit> <use-instead StringLit>]`",
+            })
+        }
+    };
+
+    let mut see: Vec<String> = Vec::new();
+    if let Some(v) = metadata_lookup(&pairs, ":see") {
+        let items = match v {
+            WatAST::Vector(items, _) => items,
+            _ => {
+                return Err(DocError::MalformedDirective {
+                    tag: ":see".into(),
+                    why: "@see entries must be keyword FQDNs",
+                })
+            }
+        };
+        for item in items {
+            match item {
+                WatAST::Keyword(k, _) => see.push(k.clone()),
+                _ => {
+                    return Err(DocError::MalformedDirective {
+                        tag: ":see".into(),
+                        why: "@see entries must be keyword FQDNs",
+                    })
+                }
+            }
+        }
+    }
+
+    let mut yields_vals: Vec<DocYields> = Vec::new();
+    if let Some(v) = metadata_lookup(&pairs, ":yields") {
+        let items = match v {
+            WatAST::Vector(items, _) => items,
+            _ => {
+                return Err(DocError::MalformedDirective {
+                    tag: ":yields".into(),
+                    why: "grammar is `@yields <argname> <desc>`",
+                })
+            }
+        };
+        for item in items {
+            let fields = match item {
+                WatAST::Vector(fields, _) if fields.len() == 2 => fields,
+                _ => {
+                    return Err(DocError::MalformedDirective {
+                        tag: ":yields".into(),
+                        why: "grammar is `@yields <argname> <desc>`",
+                    })
+                }
+            };
+            let arg_name = metadata_bare_name(&fields[0]).ok_or(DocError::MalformedDirective {
+                tag: ":yields".into(),
+                why: "argument name is missing; grammar is `@yields <argname> <desc>`",
+            })?;
+            let desc = metadata_string(&fields[1]).ok_or(DocError::MalformedDirective {
+                tag: ":yields".into(),
+                why: "description is empty; grammar is `@yields <argname> <desc>`",
+            })?;
+            if yields_vals.iter().any(|y: &DocYields| y.arg == arg_name) {
+                return Err(DocError::DuplicateYieldsSubject { arg: arg_name });
+            }
+            yields_vals.push(DocYields { arg: arg_name, desc });
+        }
+    }
     for y in &yields_vals {
         if !args.iter().any(|a| a.name == y.arg) {
             return Err(DocError::UnknownYieldsSubject { arg: y.arg.clone() });

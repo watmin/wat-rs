@@ -1408,6 +1408,86 @@ pub fn register_stdlib_defines(
                 sym.register_function(path.clone(), func);
             }
             if let Some(meta) = metadata_opt {
+                // Arc 255 Stone "wire the wat side to wat-doc" — a stdlib `defn`'s
+                // `{...}` metadata-map is the wat-side entry point into the SAME
+                // shared-contract crate an intrinsic's `///` block goes through
+                // (`wat_doc::parse`): `wat_doc::from_metadata` reads the map
+                // directly (no docstring exists to feed the text grammar — see
+                // the DESIGN doc's finding) and enforces the SAME required set
+                // with the SAME `DocError`s. This is the validation gate; the
+                // STORAGE and the READ side (`sym.binding_metadata`,
+                // `:wat::runtime::metadata-of`) are both unchanged — they
+                // already carry any def/defn metadata map today (Stone 241.6/
+                // 241.7). Reconstructing a `WatAST::Map` from the already-
+                // peeled `meta` pairs (rather than threading the original map
+                // node through `ParsedFnShapeDef`) keeps this a single call
+                // site; the span is the whole form's, since `DocError` itself
+                // carries no span for a diagnostic to prefer.
+                //
+                // ⛔ GATED on `:doc`'s presence, NOT unconditional — a corpus
+                // check (2026-08-30) found THREE pre-existing stdlib `defn`s
+                // (`wat/kernel/services/stdio.wat`: `write-fd-raw`,
+                // `flood-stdout-raw`, `str-double`) whose metadata-map carries
+                // ONLY `{:restricted-to […]}` — a capability restriction,
+                // unrelated to and pre-dating this stone, enforced entirely by
+                // `check.rs`'s restricted-call walker, never by `wat_doc`. Made
+                // unconditional, `from_metadata` would raise `MissingProse` on
+                // ALL THREE and fail stdlib startup — exactly the "migrate the
+                // 409" breadth this stone's own DESIGN rejects, done by
+                // accident to verbs nobody asked to move. `:doc` is this
+                // stone's OWN key (nothing pre-existing ever wrote it), so its
+                // presence is the author's opt-in signal: "this metadata map
+                // declares doc-contract properties" — exactly the ONE verb
+                // this stone walks through the door. A capability-only map is
+                // read and stored exactly as before, untouched.
+                // ⚠ AMENDED by the orchestrator: the gate was `contains_key(":doc")`
+                // alone, which SILENTLY SKIPPED a partial declaration. Measured:
+                // `(defn :probe::half {:purity …} [x] -> :i64 x)` ran clean, exit 0
+                // — a map that declares `:purity` and nothing else was never
+                // validated, so a declaration that does not declare passes. That is
+                // the silent-skip class Stone P4 killed at `intrinsic/mod.rs:512`
+                // and `:742`, and it is worse than a missing feature: the author
+                // wrote a property expecting it to mean something.
+                //
+                // The gate is now ANY doc-axis key ⇒ validate the FULL required set,
+                // so a partial declaration is an ERROR naming what is missing. A
+                // capability-only `{:restricted-to […]}` map still carries no
+                // doc-axis key and is read and stored exactly as before — which is
+                // what keeps the three pre-existing stdlib verbs above untouched.
+                const DOC_AXIS_KEYS: &[&str] = &[
+                    ":doc",
+                    ":added",
+                    ":category",
+                    ":purity",
+                    ":determinism",
+                    ":totality",
+                    ":expand-time",
+                    ":args",
+                    ":ret",
+                    ":examples",
+                    ":see",
+                    ":yields",
+                    ":deprecated",
+                ];
+                if DOC_AXIS_KEYS.iter().any(|k| meta.contains_key(*k)) {
+                    let map_ast = WatAST::Map(
+                        meta.iter()
+                            .map(|(k, v)| (WatAST::Keyword(k.clone(), v.span().clone()), v.clone()))
+                            .collect(),
+                        form.span().clone(),
+                    );
+                    if let Err(e) = wat_doc::from_metadata(&map_ast) {
+                        return Err(RuntimeError::new(
+                            form.span().clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: path.clone(),
+                                reason: format!(
+                                    "metadata-map doc contract violation (wat_doc::from_metadata): {e:?}"
+                                ),
+                            },
+                        ));
+                    }
+                }
                 sym.binding_metadata.insert(path, meta);
             }
             rest.push(form);
