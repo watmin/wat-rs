@@ -54,7 +54,7 @@
 //! forgot to read is a located raise at run time, not a build failure. So when you add a
 //! variant, the compiler will find the pack arm for you and nothing will find the unpack arm.
 //!
-//! **3. Unpacking a value is not trusting it. Three independent walls stand between the wire and
+//! **3. Unpacking a value is not trusting it. Four independent walls stand between the wire and
 //! the evaluator**, and each catches what the one before it cannot:
 //!
 //! - **Range refusal, at the read** — `expect_u16` / `expect_op` / `expect_idx` refuse
@@ -72,8 +72,14 @@
 //!   from the classes and fields the export *itself* declares, so **a packed ABI can agree with
 //!   itself and still disagree with this process's records.** Gate two proves the export is
 //!   internally consistent; only gate three proves it fits *here*.
+//! - **The graph shape, in `check_node_graph`** — the first three walls are each about a VALUE;
+//!   this one is about the SHAPE OF THE GRAPH. Over the already-unpacked node map it proves every
+//!   child id names a node, every reference-field alpha id names a node that is an `Alpha`, and
+//!   every child id exceeds its parent's — the ascending-id topological order the alpha /
+//!   root-join / hash-join passes require, which the compile path gets from minting ids increasing
+//!   and the wire path gets from nobody. It refuses; it never repairs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
@@ -83,7 +89,7 @@ use crate::rete::compiled_rhs::{CompiledRhs, CompiledRhsByRule, RhsOp};
 use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
     alpha_cond_from_node, class_field_names, get_node, kind_of, network_identity, node_children,
-    node_named_field, node_named_i64, node_named_string, invert_feeding_alpha,
+    node_named_field, node_named_i64, node_named_string, node_ref_alpha_id, invert_feeding_alpha,
     kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
     agg_named_field, session_named_field, session_network, session_names, sorted_node_ids, AccFold, AlphasByType,
     CondDriver, InternedNetwork, NodeKind, RuleDep,
@@ -2012,6 +2018,90 @@ pub(crate) fn eval_import(
     import_export(&export, list_span, sym)
 }
 
+/// WALL 4 — the imported graph must be one the fire passes can legally WALK.
+///
+/// The other three walls (module header, law 3) are each about a VALUE: a range at the read, a
+/// slot inside its own frame, a compat fingerprint. This one is about the SHAPE OF THE GRAPH. It
+/// runs over the already-unpacked node map, so it reads no bytes, changes no wire format, and
+/// costs no version bump — and it proves three things:
+///
+/// 1. every child id names a node in this import;
+/// 2. every reference-field alpha id (Negation `negated-alpha-id`, Exists `exists-alpha-id`,
+///    Accumulate `from-alpha-id`) names a node in this import **whose kind is `Alpha`**;
+/// 3. every child id EXCEEDS its parent's. `kernel/node.rs` (`sorted_node_ids`) and
+///    `kernel/arm.rs` both state that ascending node id IS the topological order the
+///    alpha / root-join / hash-join passes require. On the compile path that holds because ids
+///    are minted increasing; on the wire path nothing minted anything.
+///
+/// **It REFUSES; it never repairs.** No dangling edge is dropped, no graph re-sorted, no missing
+/// node synthesised. A repaired import's output would depend on the damage rather than on the
+/// input, which is exactly the property that makes a wall a wall.
+fn check_node_graph(network: &Value, span: &Span) -> Result<(), EvalBreak> {
+    let ids = sorted_node_ids(network);
+    let known: HashSet<i64> = ids.iter().copied().collect();
+    for id in ids {
+        let Some(node) = get_node(network, id) else {
+            return Err(malformed(
+                span,
+                IMPORT_OP,
+                format!("node graph: id {id} keys the network but names no node"),
+            ));
+        };
+        for kid in node_children(node) {
+            if !known.contains(&kid) {
+                return Err(malformed(
+                    span,
+                    IMPORT_OP,
+                    format!(
+                        "node graph: node {id} has a child edge to {kid}, \
+                         which names no node in this import"
+                    ),
+                ));
+            }
+            if kid <= id {
+                return Err(malformed(
+                    span,
+                    IMPORT_OP,
+                    format!(
+                        "node graph: node {id} has a child edge to {kid}, but a child id must \
+                         exceed its parent's — ascending node id is the topological order the \
+                         alpha / root-join / hash-join passes require"
+                    ),
+                ));
+            }
+        }
+        if let Some(aid) = node_ref_alpha_id(node) {
+            let kind = kind_of(node);
+            match get_node(network, aid) {
+                None => {
+                    return Err(malformed(
+                        span,
+                        IMPORT_OP,
+                        format!(
+                            "node graph: {kind:?} node {id} references alpha id {aid}, \
+                             which names no node in this import"
+                        ),
+                    ))
+                }
+                Some(target) => {
+                    let target_kind = kind_of(target);
+                    if target_kind != NodeKind::Alpha {
+                        return Err(malformed(
+                            span,
+                            IMPORT_OP,
+                            format!(
+                                "node graph: {kind:?} node {id} references alpha id {aid}, \
+                                 whose kind is {target_kind:?}, not Alpha"
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The whole import, in phases — the inverse of `eval_export` and the file's one place where
 /// untrusted bytes become a runnable network.
 ///
@@ -2022,14 +2112,19 @@ pub(crate) fn eval_import(
 ///    internally consistent but describes records this process declares differently.
 /// 3. **Nodes** — `unpack_node` per entry into a network `PMap`, with each alpha's class index
 ///    resolved back to a class NAME through the export's interned table.
-/// 4. **The five side tables** — conds, drivers, progs, folds (node-id keyed) and rhs (rule-name
+/// 4. **The graph wall** (module header, law 3, wall four) — `check_node_graph` proves the
+///    assembled node map is one the fire passes can legally walk: every child id names a node,
+///    every reference-field alpha id names a node that is an `Alpha`, and every child id exceeds
+///    its parent's. It runs BEFORE the side tables, because everything after it assumes an edge
+///    can be followed and that ascending id is topological. It refuses; it never repairs.
+/// 5. **The five side tables** — conds, drivers, progs, folds (node-id keyed) and rhs (rule-name
 ///    keyed), each re-read into a `HashMap`.
-/// 5. **Derived structure is REBUILT, never transported** — `NetworkEdges`, `AlphaTree`,
+/// 6. **Derived structure is REBUILT, never transported** — `NetworkEdges`, `AlphaTree`,
 ///    `WhereTree`, `kind_ids`, `joins_fed_by`, `compiled_max_slots` are all recomputed here from
 ///    the data above. This is why the wire format carries none of them: an index is a function of
 ///    the network, so shipping one would create a second thing that can disagree with the first,
 ///    and an importer that trusted it could be handed a stale index over a valid network.
-/// 6. **Intern and return** — the assembled `InternedNetwork` is registered via
+/// 7. **Intern and return** — the assembled `InternedNetwork` is registered via
 ///    `rete_arm_intern` so the imported program fires through the same arm path a locally
 ///    compiled one does.
 ///
@@ -2126,6 +2221,10 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
         network_pairs.push((Value::i64(id), rec));
     }
     let network = Value::wat__core__PersistentMap(PMap::from_pairs(network_pairs));
+
+    // WALL 4 — the graph must be one the fire passes can legally walk. Before any side
+    // table is read, and before anything downstream assumes ascending id is topological.
+    check_node_graph(&network, span)?;
 
     let mut compiled_conds = HashMap::new();
     for pair in expect_seq(export_named(export, "conds", span)?, IMPORT_OP, span)? {
