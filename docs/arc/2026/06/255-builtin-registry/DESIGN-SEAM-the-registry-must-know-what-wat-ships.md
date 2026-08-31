@@ -4,8 +4,12 @@
 > *"and sort is a wat defclause — hrm.... this feels like... the rust side should know what wat
 > ships... the tooling should be in the registry too?..."*
 >
-> **A SEAM, not a stone. Nothing is drawn.** The measurements are here and the fork is real; the
-> shape is the builder's ruling, because it is architecture, not cleanup.
+> **A SEAM, not a stone. Nothing is drawn.** The measurements are here; the shape was the builder's
+> to rule, because it is architecture, not cleanup.
+>
+> ✅ **THE SHAPE IS NOW RULED** — properties declared as wat DATA in the metadata map, lifted at
+> build time by a `wat_enum_from!`-shaped macro. Two questions remain open (lifecycle, and whether
+> it reaches the Rust half); the middle one is answered.
 
 ## The measurement
 
@@ -109,10 +113,10 @@ which is precisely the value that makes the hard-coded constant above start disc
    at compile time; wat verbs arrive when a `.wat` is loaded/frozen. **Two populations with two
    lifecycles.** One registry with a runtime-extensible half, or two registries with one query
    surface, is the first fork and everything else follows it.
-2. **Does a wat verb DECLARE its axes or DERIVE them?** Declaring means a syntax change across 409
-   forms; deriving means the classifier answers and a verb's axes change when its body changes.
-   ⚠ Derivation is not free of judgement: it decides *by construction* that a wat verb can never be
-   more trusted than the verbs it calls.
+2. ~~**Does a wat verb DECLARE its axes or DERIVE them?**~~ ✅ **RULED — DECLARE, as wat data in the
+   metadata map, lifted at build time.** See THE SHAPE above. Kept struck rather than deleted so the
+   fork stays visible: derivation was live, and the classifier that made it possible is what made
+   the question worth asking at all.
 3. **What is the registry FOR, once it holds both?** Today it answers four axes and feeds the
    completeness gate. If it holds 409 more verbs, is it also the checker's scheme source? the
    doc surface? `@see`'s resolution domain? **Each answer pulls a different design.**
