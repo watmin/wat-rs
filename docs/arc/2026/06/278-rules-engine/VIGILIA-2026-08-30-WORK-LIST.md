@@ -237,6 +237,54 @@ three (`x /= r;`, `let (a,b) = (a / r, b / r);`, and `*x /= r;` inside a loop).
 | **D6** | `step_payload.rs:143` | explain payload silently DROPS every keyword/enum-operand constraint (`sym = None`, and `value_to_ast_literal` has no `Value::Enum` arm), while its doc claims the constraint list is complete | `solvere` |
 | **D7** | `alpha.rs:85-98,129-132` | two writers of `wm.alpha[aid]` in one pass — one `push`, one `insert` (replace). Kept disjoint only by an index coincidence the same file's `_ =>` arm can break. Shape finding: not reached from the `insert` door | `struere` |
 
+### ⏭ D2 — DRIVEN 2026-08-31. The code asymmetry is REAL; no constructed input reaches it. **LATENT, not live.**
+
+The orchestrator owed this row a drive and has now paid it. **The result is a bounded negative, and
+"I could not construct a trigger" is NOT "there is no trigger."**
+
+**THE CODE DEFECT IS REAL, re-verified at HEAD `16f504e14`.** `right_idx[J]` has two writers and
+only one maintains the high-water mark the other reads:
+
+| writer | maintains `right_idx_n`? |
+|---|---|
+| `keyed_join_persistent` (`fire/mod.rs:776,799,815`) | **yes** — reads `already`, appends the tail, writes back |
+| `hash_join_delta` (`pass/hash_join.rs`) | **no** — the fn has ZERO mentions of `right_idx_n`; it is not even a parameter |
+
+**THE SHAPE IS CONSTRUCTIBLE, and was measured rather than assumed** — decoded from a real
+`Export` (`:a`lpha `:j`oin `:t`est `:h`ashjoin `:p`roduction):
+
+```
+0:α(A) → 1:RootJoin → 2:TEST → 4:HASHJOIN(a) → 6:HASHJOIN(b) → 7:Production
+         3:α(B) ──────────────↗   5:α(C) ────────↗
+```
+
+That is `filter → HashJoin(a) → HashJoin(b)` exactly. ⚠ **The first attempt at this row asserted
+the shape without measuring it** — the same defect class as everything else in this cast.
+
+**WHAT WAS DRIVEN, and found nothing:**
+
+| attempt | native | oracle | rows |
+|---|---|---|---|
+| C derived mid-fixpoint, fact-count observable | `[1 1]` | `[1 1]` | — |
+| A,B,M derived round 1; C from M round 2 (staggers b's right side behind a's beta) | `[1 1 1]` | `[1 1 1]` | 1 |
+
+The third column is a query whose `:when` **mirrors the join chain**, so it yields one row per
+TOKEN rather than per fact — the observable `sequi` predicted, since `seen_insert` dedups the facts.
+It did not double. The oracle is a trustworthy reference again as of `16f504e14`, so agreement here
+is evidence rather than two engines sharing a bug.
+
+**WHAT THIS DOES AND DOES NOT ESTABLISH.** It does not disprove `sequi`'s trace: reaching the stale
+`already` needs `beta[a]` empty at pass-3 time in one round and a derived fact landing in `alpha_b`
+the next, and neither staggering above provably produced that exact interleaving — **nothing here
+inspected `right_idx_n` directly.** A Rust-level probe that reads the counter after each round
+would settle it and is the honest next step if this row is ever reopened.
+
+**DISPOSITION: the structural fix is worth taking on its own merits, reachability aside.** `sequi`'s
+proposal removes the class rather than the instance: make `right_idx` a newtype whose only insertion
+verb is `index_upto(join_id, &[Element])`, carrying the high-water mark inside, so **no writer can
+append without advancing it and a fifth writer added later inherits the guarantee.** That is a small
+`extirpare` win with no behaviour change — not an urgent correctness strike.
+
 ---
 
 ## CLASS E — error shape and diagnostics
