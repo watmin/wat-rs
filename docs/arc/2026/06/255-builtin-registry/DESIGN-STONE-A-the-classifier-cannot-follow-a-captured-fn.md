@@ -54,11 +54,7 @@ The HOF declares a purity requirement on its callback arg (a new directive, or a
 `@yields`); the registry carries it as an entry field; the checker classifies the **argument's AST
 at the call site**, where a literal or a named fn is visible.
 
-- **Obvious? YES** — the error lands on the user's own `keyfn`, naming their function.
-- **Simple? YES** at the intrinsic's own door; the classifier is unchanged.
-- **Honest? YES** where it applies — a static refusal on a form the walker can actually see.
-- **Good UX? YES** — a check-time error, not a runtime one.
-- ⛔ **THE UNMEASURED PART, and it is load-bearing:** `sort` and `sort-by` are wat **`defclause`s**,
+⛔ **THE UNMEASURED PART, and it is load-bearing:** `sort` and `sort-by` are wat **`defclause`s**,
   not registered intrinsics. A requirement on `sort$native`'s argument must **propagate outward**
   through the defclause to *its* callers, because inside `core.wat` the argument is the free
   variable `keyfn`. **Contract propagation through a wat defclause is not measured and may be the
@@ -70,16 +66,11 @@ Add an `Option<&Environment>` to `classify_expr`/`head_ok`. On an unknown head, 
 supplied environment (and in a `Function`'s `closed_env`) and recurse into its body if it resolves
 to a `Function`. Absent an environment, behaviour is exactly today's — default-deny.
 
-- **Obvious? YES** — "follow the value you actually hold" is the direct reading of the defect.
-- **Simple? YES**, mechanically: `classify_expr` has **19 callers**, `head_ok` 2,
-  `find_axis_violation` 2 — an `Option` parameter keeps every existing caller's behaviour identical.
-- **Honest? YES** — and it is the only shape that closes the hole for the case that motivated this:
-  a user's impure `keyfn` smuggled in through `sort-by`. It also fixes `freeze.rs`'s identical blind
-  spot in the same motion.
-- **Good UX? YES**, with one caveat to design in: the check runs **once per call, at the door, on
-  the fixed comparator** — never per comparison — so the cost is one classifier walk per `sort`, not
-  O(n log n) of them. A runtime refusal is later than a check-time one, which is the real price.
-- ⚠ The classifier stops being purely static. That is a genuine change in what the thing IS, and it
+The check runs **once per call, at the door, on the fixed comparator** — never per comparison — so
+the cost is one classifier walk per `sort`, not O(n log n) of them. A runtime refusal is later than a
+check-time one; that is the real price.
+
+⚠ The classifier stops being purely static. That is a genuine change in what the thing IS, and it
   is the reason this is the builder's call and not mine.
 
 ### A-3 — impose nothing; let the registry record the truth and the fence refuse
@@ -87,10 +78,9 @@ to a `Function`. Absent an environment, behaviour is exactly today's — default
 Declare the HOFs honestly (`Effectful`, or `Unreviewed`), accept that they stay out of the four-axis
 `where` fence, and close the `effectful_by_prefix` question separately.
 
-- **Obvious? YES · Simple? YES · Honest? YES** — it claims nothing it cannot verify.
-- ⛔ **Good UX? NO** — it concedes the ground. Five verbs stay unhomeable-as-pure, the fence stays
-  shut to them, and a user can still make `sort` effectful with no diagnostic anywhere. It is the
-  status quo with better paperwork.
+It claims nothing it cannot verify — but it concedes the ground. Five verbs stay unhomeable-as-pure,
+the fence stays shut to them, and a user can still make `sort` effectful with no diagnostic
+anywhere. It is the status quo with better paperwork.
 
 ## What this stone must NOT do
 
@@ -101,6 +91,33 @@ Declare the HOFs honestly (`Effectful`, or `Unreviewed`), accept that they stay 
   only two users are the two special forms. For `if`, the fence walks into the branches; for a HOF
   the argument is a runtime value nothing can inspect. It would assert a conditional purity **nothing
   can verify** — the hole intact, wearing a label that sounds checked.
+
+## THE FOUR QUESTIONS — flat YES/NO, every option
+
+**Obvious + Simple + Honest must ALL hold before Good UX is weighed.** A `—` means the question was
+never reached, because the option was already disqualified.
+
+| option | Obvious? | Simple? | Honest? | Good UX? | verdict |
+|---|:---:|:---:|:---:|:---:|---|
+| **A-1** declare the contract; enforce statically at the call site | YES | **NO** | **NO** | — | ⛔ **DISQUALIFIED** |
+| **A-2** the classifier may hold an environment; resolve the capture | YES | YES | YES | YES | ✅ **ADMITTED** |
+| **A-3** impose nothing; record honestly, fence stays shut | YES | YES | YES | **NO** | ⛔ **DISQUALIFIED** |
+
+**Why each NO — the answer is the finding, not an opinion:**
+
+- **A-1 Simple? NO.** Three things, not one: a new per-parameter metadata key, new per-call-site
+  enforcement, and a hand-declaration at *every link* in every HOF chain. `sort-by` must declare an
+  obligation `sort$native` incurred.
+- **A-1 Honest? NO.** The declaration asserts an obligation **nothing verifies against the body**.
+  Forget one and the hole reopens with no diagnostic — a list that cannot tell *"deliberately
+  omitted"* from *"never added."* This is the defect class the whole arc exists to kill.
+- **A-3 Good UX? NO.** It passes the first three by claiming nothing — and serves no caller. A user
+  can still make `sort` effectful with no diagnostic anywhere. ★ This is precisely what *"UX is the
+  tiebreaker, not the load-bearing test"* is for: A-3 is **honest but useless**, and that is a real
+  disqualification, not a quibble.
+
+★ **A-2 is the only option that answers YES four times**, and it does so on measurements, not
+preference.
 
 ## ★ THE PROBE RAN — 2026-08-30. THE FORK HAS COLLAPSED, AND NOT AS PREDICTED.
 

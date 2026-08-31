@@ -66,14 +66,29 @@ are untouched. Nothing a normal user types changes.
 - **The other two prime jobs** (`readln'`; the positional-ctor family) — builder: *"we'll deal with
   the rest of primes later."* Affirmatively cut from this stone.
 
-## The four questions
+## THE FOUR QUESTIONS — flat YES/NO
 
-- **Obvious? YES** — one verb, one spelling, matching a convention already applied five times.
-- **Simple? YES** — a rename plus a retirement row. No new mechanism, no behaviour change.
-- **Honest? YES** — the old spelling errors with a remedy instead of silently vanishing, and five
+**Obvious + Simple + Honest must ALL hold before Good UX is weighed.**
+
+| option | Obvious? | Simple? | Honest? | Good UX? | verdict |
+|---|:---:|:---:|:---:|:---:|---|
+| **C** rename `sort'` → `sort$native`, no homing | YES | YES | YES | YES | ✅ **ADMITTED** |
+| **C′** rename AND home it as `Pure` | YES | YES | **NO** | — | ⛔ **DISQUALIFIED** |
+| **C″** leave the name; home it as `Effectful` | **NO** | YES | YES | — | ⛔ **DISQUALIFIED** |
+
+- **C Obvious? YES** — one verb, one spelling, a convention already applied five times.
+- **C Simple? YES** — a rename plus a retirement row. No new mechanism, no behaviour change.
+- **C Honest? YES** — the old spelling errors with a remedy instead of vanishing, and five
   exemptions stop being claimed for a name nobody can type.
-- **Good UX? YES** — the public `sort`/`sort-by` surface is untouched; the only caller is the
+- **C Good UX? YES** — the public `sort`/`sort-by` surface is untouched; the only caller is the
   substrate's own `core.wat`.
+- **C′ Honest? NO** — `Pure` is unverifiable at this door: measured, a user CAN make sort effectful
+  today (`255-probe-can-a-user-make-sort-effectful.wat`), and the classifier cannot see it
+  (`255-probe-the-classifier-cannot-see-through-a-closure.wat`). Declaring `Pure` would assert what
+  nothing checks. Belongs to STONE A.
+- **C″ Obvious? NO** — it leaves the last native-impl prime wearing a marker the substrate retired
+  everywhere else, so the reader meets two conventions for one job with nothing naming which is
+  live.
 
 ## Acceptance
 
