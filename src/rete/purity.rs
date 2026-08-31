@@ -1114,35 +1114,41 @@ fn classify_closure(
         return Ok(()); // back-edge — no new violation from the recursive call
     }
     closure_seen.insert(ptr);
+    // Carry `f`'s OWN captured environment — the scope the closure was CREATED in — not
+    // whatever `ClassifyCtx` this recursion was reached under. Shared by both arms below (arc
+    // 255 Stone A-2-ii-a widened this from the Wat arm alone): a Native fn carries no captured
+    // env today — nothing in this codebase constructs one with `closed_env: Some(..)` — so this
+    // reduces to `ClassifyCtx::Static` there in practice, but the shape stays uniform rather
+    // than special-cased per body kind.
+    let child_ctx = match &f.closed_env {
+        Some(closed_env) => ClassifyCtx::Runtime(closed_env),
+        None => ClassifyCtx::Static,
+    };
     match &f.body {
         FunctionBody::Wat(body_ast) => {
-            // Carry `f`'s OWN captured environment — the scope the closure was CREATED in — not
-            // whatever `ClassifyCtx` this recursion was reached under.
-            let child_ctx = match &f.closed_env {
-                Some(closed_env) => ClassifyCtx::Runtime(closed_env),
-                None => ClassifyCtx::Static,
-            };
             classify_expr(body_ast.as_ref(), std::slice::from_ref(&axis), sym, seen, closure_seen, child_ctx)
         }
-        // Mirrors `classify_fn`'s `FunctionBody::Native` arm: opaque, so consult `intrinsic_meta`
-        // on the fn's OWN name if it has one. Nothing in this codebase constructs a `Native`-bodied
-        // fn VALUE bound to a local name today (see `FunctionBody`'s doc) — an unnamed native
-        // closure has nothing to key `intrinsic_meta` with and default-denies, a controlled
-        // refusal rather than a panic, exactly `classify_native_fn`'s own discipline.
-        FunctionBody::Native => {
-            let name = f.name.as_deref();
-            let ok = name.and_then(intrinsic_meta).is_some_and(|m| match axis {
-                Axis::Pure => m.pure,
-                Axis::Deterministic => m.deterministic,
-                Axis::Total => m.total,
-                Axis::RetePrimitive => false,
-            });
-            if ok {
-                Ok(())
-            } else {
-                Err(AxisViolation::at(at.clone(), name.unwrap_or("<anonymous native fn>"), axis))
-            }
-        }
+        // Arc 255 Stone A-2-ii-a — REACH-INDEPENDENCE: a named native gets the SAME verdict a
+        // head named the same way would get, routed through `head_ok`'s one door ladder
+        // (constructor_meta -> accessor_meta -> sym.has_function/classify_fn -> intrinsic_meta
+        // -> deny) instead of consulting `intrinsic_meta` alone — the asymmetry
+        // DESIGN-STONE-A-2-ii-a-a-resolved-name-gets-the-same-doors-as-a-head.md measured. Both
+        // recursion guards ride along in the exact calling convention `head_ok` already takes
+        // everywhere else: `seen` (FQDN back-edge, inside `classify_fn` via the
+        // `sym.has_function` door) and `closure_seen` (pointer back-edge, already inserted
+        // above — so a native reachable from its own resolution, e.g. via the `ClassifyCtx::
+        // Runtime` env-lookup door at the tail of `head_ok`, hits THIS fn's own guard at the
+        // top and returns `Ok(())` rather than recursing again). This is not a second thread of
+        // recursion to guard independently; it is the SAME `head_ok` recursion, just entered
+        // with a name instead of a call-site head string.
+        //
+        // An **anonymous** native (`name: None`) keeps A-2-i's exact behaviour: default-deny.
+        // Nothing names it, so `head_ok` — which classifies a NAME — is never consulted; there
+        // is no second ladder here; the two arms cannot drift because there is only one.
+        FunctionBody::Native => match f.name.as_deref() {
+            Some(name) => head_ok(name, axis, sym, seen, closure_seen, at, child_ctx),
+            None => Err(AxisViolation::at(at.clone(), "<anonymous native fn>", axis)),
+        },
     }
 }
 

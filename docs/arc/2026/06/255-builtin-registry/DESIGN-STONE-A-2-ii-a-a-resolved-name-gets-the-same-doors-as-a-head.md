@@ -1,37 +1,52 @@
 # DESIGN — STONE A-2-ii-a: a name resolved through the environment gets the SAME DOORS as a head
 
-> Found in A-2-ii's pre-flight, 2026-08-30, before any brief was written. **A-2-i shipped a
-> capability with an asymmetry inside it**, and the asymmetry blocks two live substrate sites.
+> ⛔ **THIS DESIGN'S MECHANISM ACCOUNT WAS WRONG, AND ITS UNBLOCKING CLAIM WAS FALSE.**
+> Corrected in place 2026-08-30 after the rider refuted it and the orchestrator verified all four
+> claims against the disk. **The stone still shipped** — the fix it describes is real and correct —
+> **but it unblocks nothing, and the reason the accessor case fails is entirely different from what
+> is written below.** Read `## ⛔ THE REFUTATION` before anything else on this page.
 
-## The finding — measured, one probe, two rows
+## ⛔ THE REFUTATION — what the disk actually says
 
-```clojure
-;; the accessor as a direct HEAD
-(pure? '(fn [a <- :probe::R] -> :i64 (:probe::R/sk a)))            -> true
+**1. The accessor never reaches the arm this stone patches.** Every accessor `wat-rs` generates
+(`register_aggregate_methods`, `runtime.rs`) is **`FunctionBody::Wat`**, not `Native` — verified:
+`runtime.rs:884,1257,1695` all construct `FunctionBody::Wat`. Its body literally calls
+`(:wat::core::Record/field-at …)`. So resolving `:probe::R/sk` through a binding takes
+`classify_closure`'s **Wat arm** (a transitive body walk), never the Native arm.
 
-;; the SAME accessor, reached through an env binding
-(let [k :probe::R/sk]
-  (pure? '(fn [a <- :probe::R] -> :i64 (k a))))                    -> false
-```
+**2. `FunctionBody::Native` has ZERO live constructors.** Verified: no construction site anywhere in
+`src/` or `crates/`. And arc 278 recorded the identical finding independently, months earlier —
+`tests/program/wat_arc278_sigma_fn_purity_gate.rs:25-30`: *"research proved (grepping every
+`Function { .. }` construction site in the crate) that nothing anywhere constructs a `Function` with
+`FunctionBody::Native`… There is no wat source a user can write that reaches the Native arm."*
 
-**The same name gets two different answers depending on how it was reached.** That is not a
-missing feature; it is the classifier contradicting itself.
+**3. THE REAL CAUSE — and it is arc 255's own business.** The accessor's Wat body denies because the
+verbs it calls are `KNOWN_UNREVIEWED`:
+`:wat::core::Option/expect` (`purity.rs:2189`) · `:wat::core::Record/field-at` (`:2192`) ·
+`:wat::core::struct-field` (`:2219`) · `:wat::core::type` (`:2224`).
+**Four verbs need rulings.** That is a homing/ruling problem — the campaign's main thrust — not a
+classifier-plumbing problem.
 
-## Why
+**4. Therefore the unblocking claim below is FALSE.** This stone does **not** unblock
+`wat/query/mem.wat:136,163`. Those two sites stay refused until the four verbs above are ruled.
 
-`head_ok` tries **four doors** for a head string, in order:
+★ **How the orchestrator got it wrong:** I read `classify_closure`'s `Native` arm, saw it consulted
+`intrinsic_meta` alone, and attributed the accessor's `false` to it — without checking which arm an
+accessor actually takes. The adjacent implementation is not the subject.
+`[[feedback_an_adjacent_implementation_is_not_the_subject]]`
 
-```
-constructor_meta  ->  accessor_meta  ->  sym.has_function/classify_fn  ->  intrinsic_meta  ->  deny
-```
+## Why the stone shipped anyway
 
-`classify_closure` (A-2-i) resolves a binding to a `Value::wat__core__fn(Arc<Function>)` and, on a
-`FunctionBody::Native`, consults **`intrinsic_meta` alone** on `f.name`. A record field accessor is
-recognised by `accessor_meta` (`src/rete/purity.rs:884` — *"a Record/HolonRecord accessor is pure ∧
-deterministic, a Struct accessor is impure"*), a door the resolved path never opens.
+The fix is real: the Native arm *did* consult a narrower ladder than a head, and that inconsistency
+is a defect whether or not anything reaches it today. It is a **removal of drift in existing code**
+(31/−25 lines, one ladder instead of two), not new machinery — so this is not the `defined_in`/
+`layer` "cheap to build is not worth building" case, which was about ADDING a field. Arc 278 already
+treats this same defensive arm as worth having correct and Rust-exercised.
 
-★ **The name is the same string either way.** `head_ok` knows `R/sk` is a pure accessor; the
-resolved path asks a narrower question and gets a narrower answer.
+⚠ **But it is UNREACHABLE from any wat program today, and must not be read as load-bearing.** The
+rider correctly triggered STOP-3 rather than widening scope to manufacture a witness, and the
+brief's flagship `true`/`true` probe row **cannot be produced** — recorded honestly in the probe's
+own header.
 
 ## THE INVARIANT THIS STONE ESTABLISHES — and it is the real deliverable
 
@@ -57,9 +72,13 @@ threads both; this stone must not drop them at the hand-off.
 An **anonymous** native (`name: None`) keeps A-2-i's behaviour exactly: default-deny, because
 nothing names it and nothing can prove it.
 
-## Why this blocks A-2-ii-b, concretely
+## ⛔ ~~Why this blocks A-2-ii-b~~ — STRUCK. IT DOES NOT. Here is what actually does.
 
-`wat/query/mem.wat:136` and `:163` — **two live substrate sites** — pass a bare field accessor as
+~~This section claimed the stone unblocks `wat/query/mem.wat:136,163`.~~ **It does not, and never
+would have** — see THE REFUTATION at the top. Kept struck rather than deleted so the error stays
+legible.
+
+**What A-2-ii-b is ACTUALLY blocked on.** Those two live sites pass a bare field accessor as
 `sort-by`'s key function:
 
 ```clojure
@@ -67,12 +86,18 @@ sorted (:wat::core::sort-by :wat::query::Row/sk matches)
 sorted (:wat::core::sort-by :wat::query::IndexRow/isk matches)
 ```
 
-Imposing pure ∧ deterministic ∧ total at `sort$native`'s door **today** refuses both — not because
-the accessors are impure (they are not; as heads they classify pure) but because the resolved path
-cannot see them. **That would be the gate reporting a defect it invented.**
-`[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
+The accessor resolves to a **Wat-bodied** `Function` whose body calls four verbs that are all
+`KNOWN_UNREVIEWED` — `Option/expect`, `Record/field-at`, `struct-field`, `type`. The walk denies on
+those, not on anything about the accessor. **So the blocker is FOUR RULINGS**, which is arc 255's
+own business and exactly the ratchet `KNOWN_UNREVIEWED` exists to force:
 
-`wat/bracket.wat:783`'s inline-`fn` key function already classifies `true` and is not at risk.
+> *"a verb in this list that is no longer unreviewed ⇒ RED. Rule on it, delete its line."*
+
+★ The imposition would still refuse those two sites today — but for the honest reason that four
+verbs in the path are **unruled**, not because the instrument cannot see them. That is
+default-deny working, not a defect the gate invented.
+
+`wat/bracket.wat:783`'s inline-`fn` key function classifies `true` and is not at risk either way.
 
 ## Out of scope = REJECTED (not deferred)
 
@@ -97,9 +122,9 @@ cannot see them. **That would be the gate reporting a defect it invented.**
 
 | what | command | expected |
 |---|---|---|
-| the asymmetry is gone | probe: accessor as head vs through a binding | `true` / `true` — **agreeing** |
-| still no widening | probe: effectful `keyfn` through a binding | `false` |
-| anonymous native still denies | probe: unnamed native through a binding | `false` |
+| ⛔ ~~the asymmetry is gone~~ | ~~probe: accessor as head vs binding~~ | ⛔ **UNPRODUCIBLE — this bar was written from a wrong mechanism.** The accessor takes the **Wat** arm, not the patched Native arm, so no edit in this stone's blast radius can make the rows agree. Measured `true` / `false`, and correctly so: the binding path denies on four `KNOWN_UNREVIEWED` verbs. Rider triggered STOP-3 rather than widen |
+| still no widening | probe: effectful `keyfn` through a binding | `false` — **verified** |
+| ⚠ anonymous native still denies | probe: unnamed native through a binding | **unconstructible** — `FunctionBody::Native` has zero live constructors (arc 278 proved the same); no wat program reaches it |
 | A-2-i's rows hold | `255-probe-the-classifier-follows-a-capture.wat` | `true` / `false` |
 | negative control holds | `255-probe-the-classifier-cannot-see-through-a-closure.wat` | `true` / `false` / `false` |
 | additive | `scripts/floor.sh`, exit read UNPIPED | 5109/5109, 0 failed |
