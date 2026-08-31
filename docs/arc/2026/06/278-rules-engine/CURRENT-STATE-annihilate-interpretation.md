@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (seventh — SIX STRIKES LANDED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (eighth — EIGHT STRIKES, AND THE ORACLE ITSELF). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 119214aef..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 119214aef..HEAD        # what they touched
+git log --oneline cd2ab4b37..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat cd2ab4b37..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -84,8 +84,37 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | A2 | `c449cd24d` | nine `panic!` arms → refusals; a wire value may not unwind the host |
 | A2b | `d081142a9` | the silent zero — one `Option`, two facts, split by type |
 | A4 | `42704d57b` | the ceiling's zero point belongs to the session, not the thread |
-| — | `9ee04f945` | every `docs/arc` `.wat` loads or declares in a closed rune why not |
-| C1 | `119214aef` | the label follows the arithmetic — 103 accumulators, mean → minimum |
+| — | `9ee04f945` | every `docs/arc` `.wat` loads, or declares in a closed rune why not |
+| C1 | `119214aef` | the label follows the arithmetic — 103 accumulators |
+| D1 | `2733b9bd9` | a bare keyword types as `enum` only for a UNIT variant that EXISTS |
+| **oracle** | `16f504e14` | **an accumulate result is SUPERSEDED, not extended** |
+
+**★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
+oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
+side is right is not decided here"* — and the builder said **"measure this against clara — confirm
+who is wrong."** Clara 0.24.0 settled it in one run: it keeps exactly ONE derived fact, holding the
+FINAL count. Native agreed on all three shapes; **the ORACLE was wrong**, accreting one stale fact
+per intermediate state (`Tally(n=0)` standing while the count was 2).
+
+**⛔ WHEN TWO INTERNAL ENGINES DISAGREE, NEITHER IS THE REFEREE.** The oracle is this arc's
+differential reference — every `fire-rules$oracle` comparison over a changing-accumulate shape had
+been measured against something that over-emits. And the tree's ONLY test for that shape carried a
+`where` fence that filtered the intermediate emission, so it passed *because of its fixture's
+shape*. Fenced they agreed; unfenced they did not.
+
+⚠ **The fix reached Clara's answer by the oracle's OWN route** — well-supportedness
+(`F := F ∩ (base ∪ D(F))`), not a port of native's delta logic, because an oracle made to mirror
+native makes every future differential vacuous.
+
+**⏭ D2 — DRIVEN, AND THE ANSWER IS A BOUNDED NEGATIVE.** The code asymmetry is real
+(`hash_join_delta` has ZERO mentions of `right_idx_n`; `keyed_join_persistent` reads it as a
+high-water mark). The shape is constructible — **measured from a real `Export` this time**, not
+asserted. But no input reached the doubling, and a probe over all four branches explains why:
+across 423 rete tests and three grid axes, **35 calls, ALL first-index, ZERO incremental.**
+`indexed_n` is a **correctness guard** — the append does not clear, so it prevents a second call
+re-pushing everything — **guarding a case nothing measured reaches.** So D2 is a live hole in a
+guard that has never had a second chance to matter. **It must NOT be reaped**; `sequi`'s newtype is
+the fix. Full reasoning in the work list.
 
 **⛔ THE CLASS ABOVE THE FINDINGS STILL GOVERNS what remains: an invariant proven at ONE door and
 assumed at ALL of them.** Three doors into a Session — `compile-all`, `import_export`, a
@@ -106,22 +135,18 @@ mutation that was really a coverage finding; a file I said to rune that already 
 that forbade what its own BRIEF prescribed; and a gate spec that **could not see its own flagship
 defect**. If you draw a strike, ask the rider where the brief was thin — that is where the value is.
 
-**THE NEXT WORK — D1, and the reason it leads.** `validate/typing.rs:212`'s
-`keyword_constant_segment` is a **FOURTH** copy of enum-variant resolution — prefix-only, never
-checks the variant EXISTS — and it disagrees with the runtime's `sym.unit_variant`. A misspelled or
-Tagged variant **types clean, compiles, fires, and matches nothing, silently.** `matcher.rs:130`
-already carries the cure, documented *"ONE COPY … hand-written at THREE independent sites"*;
-`typing.rs` is the fourth. It is the arc's own named recurring class (fix-list F, closed three
-times) and the only open row where an ORDINARY user writing ordinary code gets a wrong answer with
-no diagnostic.
+**THE NEXT WORK — CLASS B, the lease leak.** `wat/rete/syntax.wat:308`: `with-network` /
+`with-overlay` release the arm lease in a `do` AFTER the body, so **any raise skips it** — and the
+ceiling-breach path raises INSIDE that body, so the leak is guaranteed exactly when memory pressure
+is highest. The lease is the sole owner count; a miss pins the whole `InternedNetwork` until thread
+end. **`grep 'impl Drop' src/rete/` is EMPTY.** Its doc claims parity with `with-open-file`; a
+`let`+`do` is not a scope guard. Found by `secare`, verified on the disk, **never driven** — drive
+it first, as every row this session has rewarded.
 
-⚠ **IT HAS NEVER BEEN DRIVEN** — `solvere` found it by reading, and the work list records it as
-*"mechanism verified by reading; NOT yet driven."* Drive it first. This session proved repeatedly
-that a reading cannot see an execution defect.
-
-Behind it: **A6** (unbounded `unpack_expr` recursion → SIGSEGV, needs a hostile Export), **B1** (the
-`with-network` lease leak — no `impl Drop` anywhere in `src/rete`, fires under memory pressure),
-then **A5/A7**, which are small and can ride along.
+Behind it: **A6** (unbounded `unpack_expr` recursion → SIGSEGV from a hostile Export), **D3**
+(unchecked `CallUser` arity — a surplus arg written into an arbitrary slot), **A3/A5/A7**, and
+**D1's residual** (a `UnknownEnumVariant` kind so rete's refusal names the same thing core's does —
+small, and it completes the agreement story).
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
