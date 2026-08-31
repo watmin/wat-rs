@@ -138,13 +138,32 @@ FIRST and write `@arg`/`@ret` to match it**, then put the real meaning in prose.
 - **re-rule-here Simple? NO** — seven mechanical homings plus a change to arc 293's containment
   semantics in one stone; a red could not be attributed.
 
+## ⛔ ACCEPTANCE ROW CORRECTED 2026-08-31 — I WROTE THE BAR FROM WHAT I EXPECTED
+
+The row below first read *"was REFUSED → **ADMITTED**"*. **That bar was mis-derived.** The `where`
+fence is FOUR axes (pure ∧ deterministic ∧ total ∧ primitive), and this same stone rules
+`struct-field` `@Totality Partial` on its out-of-bounds index — so admission was never the outcome
+the rule requires, and a green on that row would have meant the totality ruling was wrong.
+
+What the stone actually produces is **stronger evidence**, because it shows purity has stopped being
+the objection at all:
+
+```
+BEFORE   "compile-condition: where expr is not pure  — ':wat::core::struct-field' is not pure"
+AFTER    "compile-condition: where expr is not total — ':wat::core::struct-field' is not total"
+```
+
+★ A refusal that MOVES AXES proves the axis under test changed hands. An admission would have proved
+two things at once and told us which only by accident.
+`[[feedback_an_acceptance_row_is_a_pin_unless_it_derives_its_bar]]`
+
 ## Acceptance
 
 | what | command | expected |
 |---|---|---|
 | the seven are registered | `lookup_entry` each | `Some` |
 | each `@Totality` is its own | the seven declarations | measured per verb, cited |
-| ★ the fence flips for the raw form | `struct-field` in a `where`, via `compile-all` | was REFUSED → **ADMITTED** |
+| ★ the fence's OBJECTION MOVES AXES | `struct-field` in a `where`, via `compile-all` | "is not **pure**" → "is not **total**" |
 | ★ the typed struct accessor is UNCHANGED | `:u::Conn/fd` in a `where` | still REFUSED (293.W's wall, untouched) |
 | the ratchet | `KNOWN_UNREVIEWED` | 41 → **34** |
 | the uneven prediction | `FROZEN_CHECKER_DEBT` | 64 → **68**, and only those four |

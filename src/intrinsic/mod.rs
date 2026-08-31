@@ -831,6 +831,25 @@ mod tests {
         // untouched (STOP-4); the ledger grows by two, the same shape W6 used for `nth`/`reverse`.
         ":wat::core::drop",
         ":wat::core::take",
+        // Arc 255 Stone the-record-family — `struct-new`/`struct-field`/`variant`/`to-record`
+        // are each checked FOR REAL by hand-written machinery (`struct-new`/`struct-field`/
+        // `variant` are runtime-only, enforced by their own `eval_*` guards + the TypeEnv
+        // lookups inside them, with no `check.rs` inference arm at all; `to-record` IS
+        // type-checked, by the hand-written `infer_projection_verb_check` arm, `check.rs:4734`)
+        // — but NONE of the four carries an `env.register()` TypeScheme, so `check_env.get`
+        // returns `None` for all four. Exactly the `nth`/`reverse`/`drop`/`take` shape above:
+        // real checking (or, for the three runtime-only verbs, real runtime enforcement, which
+        // this ledger's criterion does not distinguish from "checked" — see the header note),
+        // no scheme to verify the docs against. `Record/assoc`/`Record/same-data?`/
+        // `record->map`, homed in the SAME stone, are NOT on this ledger: all three DO carry an
+        // `env.register()` TypeScheme (`check.rs:21236/21259/21275`) — a deliberately MIXED
+        // prediction, falsifiable in both directions, and it held both ways: `check_env.get`
+        // returns `Some` for all three, `None` for all four here. `check.rs` stays untouched
+        // (STOP-4); the ledger grows by four, the same shape W6 used for `nth`/`reverse`.
+        ":wat::core::struct-field",
+        ":wat::core::struct-new",
+        ":wat::core::to-record",
+        ":wat::core::variant",
         ":wat::core::type-equal?",
         ":wat::core::type-params-used-in",
         ":wat::edn::validate",

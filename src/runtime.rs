@@ -5545,7 +5545,12 @@ fn dispatch_keyword_head_value(
         // arg0 `x` is evaluated; arg1 `:S` is a literal surface keyword (NOT evaluated).
         // RETIRED 293 K3-revise: `:wat::core::to-struct` — projection is ONE-WAY UP, never
         // down; `$struct` is the impure tier; you already have the struct in locus.
-        ":wat::core::to-record" => eval_to_core_record(args, list_span, env, sym),
+        // Arc 255 Stone the-record-family — `:wat::core::to-record` moved into a
+        // `#[wat_intrinsic]` handler (`src/intrinsic/record.rs`) with its real (2) arity
+        // declared; the pre-match registry check above (arc 255.1c-guard) intercepts the
+        // name before reaching here. Ruled `Pure ∧ Deterministic ∧ Partial` — measured at
+        // `project_surface_attrs` (`:17828`), whose `sym.get(&method_key)` miss raises
+        // `UnknownFunction` when a surface member names no accessor on the concrete type.
         // Arc 296 G-1b — `:wat::core::Record::of` / `:wat::holon::Record::of` DELETED (finish
         // the kill, arc 294.c.2a): both retired constructors, zero/one live callers, superseded
         // by `aggregate-new` (the one nature-dispatched ctor).
@@ -5558,8 +5563,15 @@ fn dispatch_keyword_head_value(
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
         // record?   :: ∀T. T -> bool          — true iff input is Value::Aggregate (Record/HolonRecord nature)
         // record->map :: :wat::core::Record -> (HashMap :- [keyword T]) — extract field-name/value map
+        // Arc 255 Stone the-record-family — `:wat::core::record->map` moved into a
+        // `#[wat_intrinsic]` handler (`src/intrinsic/record.rs`) with its real (1) arity
+        // declared; the pre-match registry check above (arc 255.1c-guard) intercepts the
+        // name before reaching here. Ruled `Pure ∧ Deterministic ∧ Partial` — measured at
+        // `record_field_map` (`:18125`), which raises `MalformedForm` when the receiver's
+        // class is not registered in the TypeEnv — a hole the `:wat::core::Record` umbrella
+        // param type does not close (the same container-gate/value-hole shape `assoc`'s
+        // Record arm carries).
         ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
-        ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
         // Arc 249 Stone 249.3a — form-shape predicate over WatAST::List form-values.
         // List? :: ∀T. T -> bool — true iff input is Value::wat__WatAST wrapping WatAST::List.
         // core form-shape predicate over WatAST::List; distinct from
@@ -5570,12 +5582,22 @@ fn dispatch_keyword_head_value(
         // Arc 234 Stone 234.3b — write verb in the polymorphic record-y family.
         // assoc :: :wat::core::Record × :wat::core::keyword × :T -> :wat::core::Record
         // Returns a new record with one field replaced; original is unchanged (immutable).
-        ":wat::core::Record/assoc" => eval_record_assoc(args, list_span, env, sym),
+        // Arc 255 Stone the-record-family — moved into a `#[wat_intrinsic]` handler
+        // (`src/intrinsic/record.rs`) with its real (3) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
+        // Ruled `Pure ∧ Deterministic ∧ Partial` — measured at `record_assoc_inner`
+        // (`:18319`'s `UnknownField` miss on the field-name lookup; `:18337`'s `TypeMismatch`
+        // when the new value's type variant differs from the old field's) — `Record/assoc`
+        // is `assoc`'s sibling and shares exactly that shape.
         // Arc 237 Stone S-C.2d — type-BLIND record data equality.
         // same-data? :: :wat::core::Record × :wat::core::Record -> :wat::core::bool
         // Compares field-name→value maps (record->map); type-blind and flavor-blind.
         // Distinct from `=` (type-strict, arc 238): Pt[0,0] same-data? Coord[0,0] → true.
-        ":wat::core::Record/same-data?" => eval_record_same_data(args, list_span, env, sym),
+        // Arc 255 Stone the-record-family — moved into a `#[wat_intrinsic]` handler
+        // (`src/intrinsic/record.rs`) with its real (2) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
+        // Ruled `Pure ∧ Deterministic ∧ Partial` — reaches `record_field_map` (`:18125`)
+        // twice, the same unregistered-class hole `record->map` carries.
         // Language forms
         // Arc 157 slice 1a-ii — config setters. These are top-level forms
         // that update the SymbolTable carrier flags at freeze time (via
@@ -5827,9 +5849,23 @@ fn dispatch_keyword_head_value(
         // (`:19490-19495` below) catches it and wraps it as the enclosing function's own
         // matchable `Err`/`:None` return, guaranteed type-correct by the checker whenever the
         // body contains a `try` (see the comment at `:19458`).
-        ":wat::core::struct-new" => eval_struct_new(args, list_span, env, sym),
-        ":wat::core::struct-field" => eval_struct_field(args, list_span, env, sym),
-        ":wat::core::variant" => eval_variant(args, list_span, env, sym),
+        // Arc 255 Stone the-record-family — `:wat::core::struct-new`, `:wat::core::struct-field`,
+        // `:wat::core::variant` moved into `#[wat_intrinsic]` handlers (`src/intrinsic/record.rs`)
+        // with their real arities declared; the pre-match registry check above (arc 255.1c-guard)
+        // intercepts each name before reaching here.
+        // `struct-new` — `Variadic`. ⚠ Its own first guard (`if args.is_empty()`, above at
+        // `:15765`) enforces a minimum of ONE argument (the type-name keyword; zero fields is
+        // admitted), not two — a measured correction, not the two-argument minimum an earlier
+        // draft of this stone's brief assumed (STOP-1). Ruled `Pure ∧ Deterministic ∧ Partial` —
+        // raises `MalformedForm` when arg0 is not a keyword literal (`:15779`) or names an
+        // unregistered struct/newtype (`:15810`).
+        // `struct-field` — `Exact(2)` (`if args.len() != 2`, above at `:16086`). Ruled
+        // `Pure ∧ Deterministic ∧ Partial` — raises `TypeMismatch` on a non-`Aggregate`
+        // receiver (`:16109`) and `MalformedForm` on an out-of-range field index (`:16148`).
+        // `variant` — `Variadic`, real minimum TWO (`if args.len() < 2`, above at `:15852`;
+        // confirmed against §1's table). Ruled `Pure ∧ Deterministic ∧ Partial` — raises
+        // `MalformedForm` when the type path is not a registered enum (`:15917`) or the
+        // variant name is unknown on that enum (`:15937`).
         // Arc 255.1c-kernel-remainder (home #8) — `:wat::kernel::retag-op` moved to the
         // intrinsic registry (`src/intrinsic/kernel/serve.rs`); dispatch now reaches
         // `eval_retag_op` (unchanged) via the registry lookup above, not a literal arm here.
@@ -15719,7 +15755,7 @@ pub(crate) fn eval_kernel_here(args: &[WatAST], list_span: &Span) -> Result<Valu
 /// Emits `Value::Aggregate(nature=Struct)` with the class FQDN and positional fields.
 /// Arity vs field-count mismatch is enforced by the type checker at
 /// the bare `<struct>` ctor scheme — this primitive trusts the caller.
-fn eval_struct_new(
+pub(crate) fn eval_struct_new(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -15807,7 +15843,7 @@ fn eval_struct_new(
 /// - Remaining args evaluate; their count becomes the variant's
 ///   field count. Arity vs declared variant arity is enforced by
 ///   the type checker at the synthesized constructor scheme.
-fn eval_variant(
+pub(crate) fn eval_variant(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -16041,7 +16077,7 @@ pub(crate) fn eval_retag_op(
 /// enforced by the type checker at the `<struct>/<field>` scheme —
 /// this primitive trusts the caller for well-typed programs, and
 /// raises `MalformedForm` for the ill-typed runtime path.
-fn eval_struct_field(
+pub(crate) fn eval_struct_field(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -17877,7 +17913,7 @@ pub(crate) fn parse_projection_args(
 // Retirement entry lives in `src/remedy/retirement.rs`.
 
 /// Arc 293 K3-revise — `(:wat::core::to-record x :S)` → `:S$core-record` (Record nature).
-fn eval_to_core_record(
+pub(crate) fn eval_to_core_record(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -18123,7 +18159,7 @@ fn record_field_map(
 ///
 /// Zero-field record: returns empty HashMap.
 /// Non-record input: TypeMismatch error.
-fn eval_record_to_map(
+pub(crate) fn eval_record_to_map(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -18158,7 +18194,7 @@ fn eval_record_to_map(
 /// Errors:
 /// - `ArityMismatch` — not exactly 2 args
 /// - `TypeMismatch`  — either arg is not a record
-fn eval_record_same_data(
+pub(crate) fn eval_record_same_data(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -18378,7 +18414,7 @@ fn record_assoc_inner(
 
 /// Thin wrapper: evaluates args then delegates to `record_assoc_inner`.
 /// Callers that already have evaluated values (e.g. `eval_assoc`) call `record_assoc_inner` directly.
-fn eval_record_assoc(
+pub(crate) fn eval_record_assoc(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,

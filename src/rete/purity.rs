@@ -2244,8 +2244,6 @@ mod completeness_gate {
         // population and their debt is visible again. Nothing here is classified; 255.3 owns
         // that. [[feedback_a_gate_freezes_names_never_a_count]] — the gate froze the names
         // correctly; the DISPOSITION of its red is what went wrong.
-    ":wat::core::Record/assoc",
-    ":wat::core::Record/same-data?",
     ":wat::core::Tuple",
     ":wat::core::ann-form",
     ":wat::core::apply",
@@ -2261,16 +2259,11 @@ mod completeness_gate {
     ":wat::core::match",
     ":wat::core::quasiquote",
     ":wat::core::quote",
-    ":wat::core::record->map",
     ":wat::core::seqable->stream",
     ":wat::core::show",
     ":wat::core::struct->form",
-    ":wat::core::struct-field",
-    ":wat::core::struct-new",
     ":wat::core::subtype?",
-    ":wat::core::to-record",
     ":wat::core::use!",
-    ":wat::core::variant",
     // `:wat::form::matches?` DELETED from this ledger 2026-08-28 (arc 255 Stone P6-c-1):
     // homing it into the intrinsic registry gave it `intrinsic_meta` purity, so it is no longer
     // unreviewed. This gate went RED demanding the deletion — the ratchet shrinking as the debt
