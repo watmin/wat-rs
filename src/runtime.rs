@@ -26829,12 +26829,25 @@ pub(crate) fn eval_poll_prime(
                                 names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Admin"),
                                 fields: vec![msg],
                             })),
-                            Err(_) => Value::Enum(Arc::new(EnumValue {
-                                type_path: SELECT_EVENT_TYPE.into(),
-                                variant_name: "Shutdown".into(),
-                                names: no_field_names(),
-                                fields: vec![],
-                            })),
+                            Err(_) => {
+                                // The owner dropped the handle, so this serve loop is
+                                // about to exit and every peer below is about to read a
+                                // bare EOF — `RecvOutcome::Closed`, a clean-close label on
+                                // a service that did not close cleanly. `:Shutdown`'s own
+                                // declaration names the cause ("owner dropped the handle");
+                                // emit it here, where it is known, so the client gets
+                                // `Lost` with a reason. Best-effort and non-blocking: a
+                                // client that is not draining is skipped, never waited on.
+                                crate::kernel::peer::broadcast_peer_severed_best_effort(
+                                    &peer_arcs,
+                                );
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Shutdown".into(),
+                                    names: no_field_names(),
+                                    fields: vec![],
+                                }))
+                            }
                         }
                     } else if index.0 == 1 {
                         // ── Listener arm: a client is dialing ─────────────────────────
@@ -27013,12 +27026,25 @@ pub(crate) fn eval_poll_prime(
                                     fields: vec![msg],
                                 }))
                             }
-                            Err(_) => Value::Enum(Arc::new(EnumValue {
-                                type_path: SELECT_EVENT_TYPE.into(),
-                                variant_name: "Shutdown".into(),
-                                names: no_field_names(),
-                                fields: vec![],
-                            })),
+                            Err(_) => {
+                                // The owner dropped the handle, so this serve loop is
+                                // about to exit and every peer below is about to read a
+                                // bare EOF — `RecvOutcome::Closed`, a clean-close label on
+                                // a service that did not close cleanly. `:Shutdown`'s own
+                                // declaration names the cause ("owner dropped the handle");
+                                // emit it here, where it is known, so the client gets
+                                // `Lost` with a reason. Best-effort and non-blocking: a
+                                // client that is not draining is skipped, never waited on.
+                                crate::kernel::peer::broadcast_peer_severed_best_effort(
+                                    &peer_arcs,
+                                );
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Shutdown".into(),
+                                    names: no_field_names(),
+                                    fields: vec![],
+                                }))
+                            }
                         }
                     } else {
                         // ── Client peer arm: clients[k-1] fired (k = index, k ≥ 1) ──

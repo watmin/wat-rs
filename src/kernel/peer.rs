@@ -255,6 +255,48 @@ pub struct Peer {
 /// legitimate reply payload can collide with it.
 pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
 
+/// Reserved sentinel — the wire form of the best-effort **severed** notification:
+/// the service's owner released its handle, the lineage channel drained, and the
+/// serve loop is exiting. The peer on the far side is going away for a reason that
+/// is KNOWN at the moment it happens.
+///
+/// `:Shutdown`'s own declaration (`wat/spawn.wat:196`) states that reason —
+/// *"owner dropped the handle (self-peer drained)"* — and the serve loop then
+/// returned `nil`, so every connected client's next `recv'` read a bare EOF and
+/// reported `RecvOutcome::Closed`: a clean-close label on a service that did not
+/// close cleanly. That is the same mute `PEER_CRASHED_SENTINEL` was minted to kill
+/// (arc 278 RST stone), on the one path that stone never covered — the ordinary
+/// return rather than a crash.
+///
+/// Deliberately NOT `RecvError::PeerCrashed`: nothing crashed. Reusing the crash
+/// sentinel would mislabel an orderly owner-drop as an abnormal death — precisely
+/// the class of lie arc 170 pulled out when a healthy stopped peer was being
+/// reported as "peer closed". This sentinel decodes to `RecvError::Failed` carrying
+/// [`PEER_SEVERED_REASON`], so the client gets `RecvOutcome::Lost` with a message
+/// that says what actually happened.
+///
+/// Same two tier forms and the same reserved-namespace argument as
+/// [`PEER_CRASHED_SENTINEL`]; see that constant's doc.
+pub(crate) const PEER_SEVERED_SENTINEL: &str = ":wat::kernel::__peer_severed__";
+
+/// The reason [`PEER_SEVERED_SENTINEL`] carries as `RecvError::Failed(..)`.
+///
+/// Deliberately states the FACT only, with no remedy attached: a remedy is a claim
+/// with a date on it, and the reason a handle is released early is a separate open
+/// question (`eval_let_tail` releases a `let` scope when a tail call leaves it). If
+/// that changes, this string must still be true.
+///
+/// Note where it does and does not arrive. A wat CLIENT does not read this text:
+/// `src/runtime.rs:6528` scrubs every genuine death to a reason-free
+/// `LociDiedError::Disconnected` at the trust boundary (arc 294 — "a client learns
+/// no server internals"), so what the client gains from this sentinel is the
+/// DISTINCTION — `Lost` rather than a mute `Closed` — not the words. The text is
+/// what a non-scrubbed reader (the transport tier itself, `RecvError`'s `Display`)
+/// reports.
+pub(crate) const PEER_SEVERED_REASON: &str =
+    "service severed: its owner released the service handle, so the serve loop exited \
+     (the lineage peer drained)";
+
 /// Outcome of [`Peer::try_send`] / [`Peer::try_send_wire`] — Arc 278 Phase
 /// 3a (`BRIEF-send-wall-3a-try-send-outcome.md`). Distinguishes "the write
 /// would have blocked" (a live peer just not draining fast enough — the
@@ -391,6 +433,12 @@ impl Peer {
     pub fn recv(&self) -> Result<crate::value::Value, RecvError> {
         match self.rx.recv()? {
             v if Self::is_peer_crashed_sentinel(&v) => Err(RecvError::PeerCrashed),
+            // The owner released the service handle. Carries its reason (never
+            // `PeerCrashed` — nothing crashed) so the client's `recv'` reports
+            // `Lost` with a cause instead of a mute `Closed`.
+            v if Self::is_peer_severed_sentinel(&v) => {
+                Err(RecvError::Failed(PEER_SEVERED_REASON.to_string()))
+            }
             v => Ok(v),
         }
     }
@@ -401,6 +449,17 @@ impl Peer {
         matches!(
             value,
             crate::value::Value::wat__core__keyword(k) if k.as_str() == PEER_CRASHED_SENTINEL
+        )
+    }
+
+    /// Recognize the reserved `severed` sentinel keyword value (thread-tier wire
+    /// form — see [`PEER_SEVERED_SENTINEL`]'s doc). The twin of
+    /// [`Self::is_peer_crashed_sentinel`], kept separate because the two mean
+    /// different things and must not collapse into one outcome.
+    fn is_peer_severed_sentinel(value: &crate::value::Value) -> bool {
+        matches!(
+            value,
+            crate::value::Value::wat__core__keyword(k) if k.as_str() == PEER_SEVERED_SENTINEL
         )
     }
 
@@ -424,6 +483,25 @@ impl Peer {
             }
             PeerTx::Socket(tx) => {
                 let _ = tx.try_send(PEER_CRASHED_SENTINEL.to_string());
+            }
+        }
+    }
+
+    /// Best-effort: notify this peer that the service it is connected to was
+    /// SEVERED — its owner released the handle and the serve loop is exiting.
+    /// Identical delivery discipline to [`Self::notify_peer_crashed_best_effort`]
+    /// (rides the existing data channel, `try_send`, never blocks, skips a full or
+    /// gone channel); only the sentinel differs, because the cause differs.
+    pub(crate) fn notify_peer_severed_best_effort(&self) {
+        match &self.tx {
+            PeerTx::Thread(tx) => {
+                let sentinel = crate::value::Value::wat__core__keyword(std::sync::Arc::new(
+                    PEER_SEVERED_SENTINEL.to_string(),
+                ));
+                let _ = tx.try_send(sentinel);
+            }
+            PeerTx::Socket(tx) => {
+                let _ = tx.try_send(PEER_SEVERED_SENTINEL.to_string());
             }
         }
     }
@@ -460,7 +538,33 @@ impl Peer {
         if wire == PEER_CRASHED_SENTINEL {
             return Err(RecvError::PeerCrashed);
         }
+        if wire == PEER_SEVERED_SENTINEL {
+            return Err(RecvError::Failed(PEER_SEVERED_REASON.to_string()));
+        }
         Ok(wire)
+    }
+}
+
+/// Best-effort broadcast of the **severed** notification to every peer a serve
+/// loop is still holding, at the moment its owner drops the handle.
+///
+/// Takes already-downcast [`crate::kernel::spawn::PeerCell`]s rather than a wat
+/// `Value`, because the one caller (`eval_poll_prime`, both tiers) has them in
+/// hand: `poll'` downcasts its peers argument up front, and the `Shutdown` arm
+/// fires inside that same call. So the notification is emitted where the cause is
+/// KNOWN, with no new wat-visible intrinsic and no change to the generated serve
+/// loop — `wat/service.wat`'s `:Shutdown` arm stays exactly as it is.
+///
+/// Best-effort in the same sense as its crash twin: `try_send`, never blocks,
+/// silently skips a peer whose channel is full or already gone. A service on its
+/// way out cannot wait on a client that is not draining.
+pub(crate) fn broadcast_peer_severed_best_effort(peers: &[crate::kernel::spawn::PeerCell]) {
+    for cell in peers {
+        let _ = cell.with_ref("poll-shutdown-severed-broadcast", |opt_peer| {
+            if let Some(peer) = opt_peer {
+                peer.notify_peer_severed_best_effort();
+            }
+        });
     }
 }
 
