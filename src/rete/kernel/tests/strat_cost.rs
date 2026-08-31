@@ -185,8 +185,9 @@ fn strat_merge_present_parts() {
     }
     let carried_hashes = seed.len() + total_derived;
 
-    let mut a = 0.0f64;
-    let mut b = 0.0f64;
+    // MINIMUM across runs, not mean — see the header this test prints.
+    let mut a = f64::INFINITY;
+    let mut b = f64::INFINITY;
     let mut len_a = 0usize;
     let mut len_b = 0usize;
 
@@ -202,7 +203,7 @@ fn strat_merge_present_parts() {
                 }
             }
         }
-        a += t0.elapsed().as_nanos() as f64;
+        a = a.min(t0.elapsed().as_nanos() as f64);
         len_a = pv.len();
         black_box(&pv);
 
@@ -217,13 +218,11 @@ fn strat_merge_present_parts() {
                 }
             }
         }
-        b += t0.elapsed().as_nanos() as f64;
+        b = b.min(t0.elapsed().as_nanos() as f64);
         len_b = pv.len();
         black_box(&pv);
     }
 
-    let r = RUNS as f64;
-    let (a, b) = (a / r, b / r);
 
     let table = format!(
         "\nstrat merge present — [{STRATA} {ITEMS}], MINIMUM of {RUNS}\n\
@@ -284,8 +283,9 @@ fn strat_acc_derived_clone_parts() {
         })
         .collect();
 
-    let mut a = 0.0f64;
-    let mut b = 0.0f64;
+    // MINIMUM across runs, not mean — see the header this test prints.
+    let mut a = f64::INFINITY;
+    let mut b = f64::INFINITY;
     let mut len_a = 0usize;
     let mut len_b = 0usize;
 
@@ -302,7 +302,7 @@ fn strat_acc_derived_clone_parts() {
                 }
             }
         }
-        a += t0.elapsed().as_nanos() as f64;
+        a = a.min(t0.elapsed().as_nanos() as f64);
         len_a = out.len();
         black_box((&set, &out));
 
@@ -318,13 +318,11 @@ fn strat_acc_derived_clone_parts() {
                 }
             }
         }
-        b += t0.elapsed().as_nanos() as f64;
+        b = b.min(t0.elapsed().as_nanos() as f64);
         len_b = out.len();
         black_box((&set, &out));
     }
 
-    let r = RUNS as f64;
-    let (a, b) = (a / r, b / r);
     let total = STRATA * PER_STRATUM as usize;
 
     let table = format!(
@@ -384,9 +382,10 @@ fn strat_neg_stratum_split() {
         "(:strat::seed-items (:wat::core::match (:wat::rete::compile (:strat::build-rules {STRATA})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {ITEMS})"
     );
 
-    let mut wall = 0.0f64;
-    let mut fire = 0.0f64;
-    let mut net = [0.0f64; 5];
+    // MINIMUM across runs, not mean.
+    let mut wall = f64::INFINITY;
+    let mut fire = f64::INFINITY;
+    let mut net = [f64::INFINITY; 5];
     let mut pairs = [0u64; 5];
 
     for _ in 0..RUNS {
@@ -403,7 +402,7 @@ fn strat_neg_stratum_split() {
             fire_rules_on_session(&staged, world.symbols(), None)
                 .unwrap_or_else(|e| panic!("fire-rules raised: {e:?}"))
         });
-        wall += t0.elapsed().as_nanos() as f64;
+        wall = wall.min(t0.elapsed().as_nanos() as f64);
 
         let of = |name: &str| -> (u64, u64) {
             rows.iter()
@@ -411,22 +410,21 @@ fn strat_neg_stratum_split() {
                 .map(|(_, ns, k)| (*ns, *k))
                 .unwrap_or((0, 0))
         };
-        fire += FIRE_PHASES.iter().map(|n| of(n).0).sum::<u64>() as f64;
+        fire = fire.min(FIRE_PHASES.iter().map(|n| of(n).0).sum::<u64>() as f64);
         for (i, name) in STRAT_PHASES.iter().enumerate() {
             let (ns, k) = of(name);
-            net[i] += ns as f64 - k as f64 * cal;
+            net[i] = net[i].min(ns as f64 - k as f64 * cal);
             pairs[i] = k;
         }
     }
 
-    let r = RUNS as f64;
-    let strat_sum: f64 = net.iter().sum::<f64>() / r;
+    let strat_sum: f64 = net.iter().sum::<f64>();
 
     let mut body = String::new();
     for (i, name) in STRAT_PHASES.iter().enumerate() {
         body.push_str(&format!(
             "{name:<22} {:>8.3} ms   {} pairs\n",
-            ms(net[i] / r),
+            ms(net[i]),
             pairs[i]
         ));
     }
@@ -439,8 +437,8 @@ fn strat_neg_stratum_split() {
          FIRE (4 phases)        {:>8.3} ms\n\
          \n{body}\
          strat sum              {:>8.3} ms\n",
-        ms(wall / r),
-        ms(fire / r),
+        ms(wall),
+        ms(fire),
         ms(strat_sum),
     );
     println!("{table}");
@@ -558,8 +556,9 @@ fn strat_merge_cow_parts() {
         n += PER_STRATUM;
     }
 
-    let mut a = 0.0f64;
-    let mut b = 0.0f64;
+    // MINIMUM across runs, not mean — see the header this test prints.
+    let mut a = f64::INFINITY;
+    let mut b = f64::INFINITY;
     let mut len_a = 0usize;
     let mut len_b = 0usize;
 
@@ -576,7 +575,7 @@ fn strat_merge_cow_parts() {
             }
             acc = pv; // caller's copy replaced only AFTER the appends
         }
-        a += t0.elapsed().as_nanos() as f64;
+        a = a.min(t0.elapsed().as_nanos() as f64);
         len_a = acc.len();
         black_box(&acc);
 
@@ -590,13 +589,11 @@ fn strat_merge_cow_parts() {
             }
             acc = pv;
         }
-        b += t0.elapsed().as_nanos() as f64;
+        b = b.min(t0.elapsed().as_nanos() as f64);
         len_b = acc.len();
         black_box(&acc);
     }
 
-    let r = RUNS as f64;
-    let (a, b) = (a / r, b / r);
 
     let table = format!(
         "\nstrat merge copy-on-write — [{STRATA} {SEED}], MINIMUM of {RUNS}\n\

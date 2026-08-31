@@ -525,22 +525,30 @@ fn render_phase_table(
             "{label}: phase(s) {missing:?} never recorded at {a}/{b}"
         );
 
-        let stat = |xs: &[u64]| -> (f64, u64, u64) {
-            let sum: u64 = xs.iter().sum();
+        // THE REPORTED FIGURE IS THE MINIMUM, which is what this table's header has always
+        // claimed and what `calibrate_mark_ns` twenty lines up has always computed. It returned
+        // `sum / xs.len()` until arc 278 C1 — a mean under a MINIMUM header, one instrument with
+        // two estimators, and the wrong one on the larger measurement.
+        //
+        // TWO columns, not three. While the reported value was a mean, `lo`/`hi` were a genuine
+        // spread around it; now that the reported value IS `lo`, printing both would be the same
+        // number twice. The second column is therefore the WORST run — the reported value is the
+        // floor, `hi` is how much interference the box added on its noisiest pass, and the gap
+        // between them is the only thing a reader can still learn from the spread.
+        let stat = |xs: &[u64]| -> (f64, u64) {
             (
-                sum as f64 / xs.len() as f64,
-                *xs.iter().min().expect("non-empty"),
+                *xs.iter().min().expect("non-empty") as f64,
                 *xs.iter().max().expect("non-empty"),
             )
         };
         let net_of = |k: &str, xs: &[u64]| -> f64 {
             stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair
         };
-        let total_mean: f64 = top
+        let total_min: f64 = top
             .iter()
             .filter_map(|k| samples.get(k).map(|xs| stat(xs).0))
             .sum();
-        assert!(total_mean > 0.0, "{label}: phase total is zero at {a}/{b}");
+        assert!(total_min > 0.0, "{label}: phase total is zero at {a}/{b}");
         let total_net: f64 = top
             .iter()
             .filter_map(|k| samples.get(k).map(|xs| net_of(k, xs)))
@@ -551,7 +559,7 @@ fn render_phase_table(
             "\n  {a}/{b}  ({} facts)   FIRE {:.2} ms raw / {:.2} net   \
                  instrument {:.2} ms across {} pairs\n",
             facts(a, b),
-            total_mean / 1e6,
+            total_min / 1e6,
             total_net / 1e6,
             instrument / 1e6,
             pairs.values().sum::<u64>(),
@@ -561,7 +569,7 @@ fn render_phase_table(
                 continue;
             }
             let xs = samples.get(phase).expect("discovered, so present");
-            let (mean, lo, hi) = stat(xs);
+            let (best, worst) = stat(xs);
             let net = net_of(phase, xs);
             let flag = if net <= 0.0 {
                 "  ⚠ BELOW ITS OWN INSTRUMENT"
@@ -569,13 +577,12 @@ fn render_phase_table(
                 ""
             };
             table.push_str(&format!(
-                "    {:<20} {:>8.2} ms raw  {:>8.2} net  {:>5.1}%  [{:.2}–{:.2}]  {}x{}\n",
+                "    {:<20} {:>8.2} ms raw  {:>8.2} net  {:>5.1}%  [worst {:.2}]  {}x{}\n",
                 phase,
-                mean / 1e6,
+                best / 1e6,
                 net / 1e6,
                 100.0 * net / total_net,
-                lo as f64 / 1e6,
-                hi as f64 / 1e6,
+                worst as f64 / 1e6,
                 *pairs.get(phase).unwrap_or(&0),
                 flag,
             ));

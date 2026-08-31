@@ -271,55 +271,44 @@ fn accum_query_harvest_split() {
         }
     };
 
+    // MINIMUM across runs, not mean — see the header this table prints. Seeded to +∞ so the
+    // first run wins outright; `query_maps` is a COUNT, not a measurement, so it is assigned.
     let mut without = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        setup: 0.0,
-        round: 0.0,
-        alpha: 0.0,
-        harvest: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        setup: f64::INFINITY,
+        round: f64::INFINITY,
+        alpha: f64::INFINITY,
+        harvest: f64::INFINITY,
         query_maps: 0,
     };
     let mut with = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        setup: 0.0,
-        round: 0.0,
-        alpha: 0.0,
-        harvest: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        setup: f64::INFINITY,
+        round: f64::INFINITY,
+        alpha: f64::INFINITY,
+        harvest: f64::INFINITY,
         query_maps: 0,
     };
     for _ in 0..RUNS {
         let a = shot(false);
         let b = shot(true);
-        without.wall += a.wall;
-        without.fire += a.fire;
-        without.setup += a.setup;
-        without.round += a.round;
-        without.alpha += a.alpha;
-        without.harvest += a.harvest;
+        without.wall = without.wall.min(a.wall);
+        without.fire = without.fire.min(a.fire);
+        without.setup = without.setup.min(a.setup);
+        without.round = without.round.min(a.round);
+        without.alpha = without.alpha.min(a.alpha);
+        without.harvest = without.harvest.min(a.harvest);
         without.query_maps = a.query_maps;
-        with.wall += b.wall;
-        with.fire += b.fire;
-        with.setup += b.setup;
-        with.round += b.round;
-        with.alpha += b.alpha;
-        with.harvest += b.harvest;
+        with.wall = with.wall.min(b.wall);
+        with.fire = with.fire.min(b.fire);
+        with.setup = with.setup.min(b.setup);
+        with.round = with.round.min(b.round);
+        with.alpha = with.alpha.min(b.alpha);
+        with.harvest = with.harvest.min(b.harvest);
         with.query_maps = b.query_maps;
     }
-    let r = RUNS as f64;
-    without.wall /= r;
-    without.fire /= r;
-    without.setup /= r;
-    without.round /= r;
-    without.alpha /= r;
-    without.harvest /= r;
-    with.wall /= r;
-    with.fire /= r;
-    with.setup /= r;
-    with.round /= r;
-    with.alpha /= r;
-    with.harvest /= r;
 
     println!(
         "\naccum query harvest split — [200 200], MINIMUM of {RUNS}\n\
@@ -542,22 +531,23 @@ fn accum_leftover_split() {
 
     let cal = calibrate_mark_ns();
 
-    let mut fire = 0.0;
-    let mut alpha_raw = 0.0;
-    let mut kid_raw = [0.0; 4];
+    // MINIMUM across runs — every `_raw` slot below is seeded to +∞ and only ever falls.
+    let mut fire = f64::INFINITY;
+    let mut alpha_raw = f64::INFINITY;
+    let mut kid_raw = [f64::INFINITY; 4];
     let mut kid_pairs = [0u64; 4];
-    let mut prod_raw = 0.0;
-    let mut pk_raw = [0.0; 2];
+    let mut prod_raw = f64::INFINITY;
+    let mut pk_raw = [f64::INFINITY; 2];
     let mut pk_pairs = [0u64; 2];
-    let mut seen_raw = 0.0;
-    let mut drop_raw = 0.0;
-    let mut fold_raw = 0.0;
-    let mut index_raw = 0.0;
-    let mut snap_raw = 0.0;
-    let mut accum_raw = 0.0;
-    let mut filter_raw = 0.0;
-    let mut hash_raw = 0.0;
-    let mut out_raw = 0.0;
+    let mut seen_raw = f64::INFINITY;
+    let mut drop_raw = f64::INFINITY;
+    let mut fold_raw = f64::INFINITY;
+    let mut index_raw = f64::INFINITY;
+    let mut snap_raw = f64::INFINITY;
+    let mut accum_raw = f64::INFINITY;
+    let mut filter_raw = f64::INFINITY;
+    let mut hash_raw = f64::INFINITY;
+    let mut out_raw = f64::INFINITY;
     let mut alpha_pairs = 0u64;
     let mut prod_pairs = 0u64;
     let mut seen_pairs = 0u64;
@@ -571,57 +561,38 @@ fn accum_leftover_split() {
                 .map(|(_, ns, k)| (*ns, *k))
                 .unwrap_or((0, 0))
         };
-        fire += TOP.iter().map(|n| of(n).0 as f64).sum::<f64>();
+        fire = fire.min(TOP.iter().map(|n| of(n).0 as f64).sum::<f64>());
         let (a_ns, a_k) = of("alpha");
-        alpha_raw += a_ns as f64;
+        alpha_raw = alpha_raw.min(a_ns as f64);
         alpha_pairs = a_k;
         for (i, name) in ALPHA_KIDS.iter().enumerate() {
             let (ns, k) = of(name);
-            kid_raw[i] += ns as f64;
+            kid_raw[i] = kid_raw[i].min(ns as f64);
             kid_pairs[i] = k;
         }
         let (p_ns, p_k) = of("production");
-        prod_raw += p_ns as f64;
+        prod_raw = prod_raw.min(p_ns as f64);
         prod_pairs = p_k;
         for (i, name) in PROD_KIDS.iter().enumerate() {
             let (ns, k) = of(name);
-            pk_raw[i] += ns as f64;
+            pk_raw[i] = pk_raw[i].min(ns as f64);
             pk_pairs[i] = k;
         }
         let (s_ns, s_k) = of("  ├ setup:seen");
-        seen_raw += s_ns as f64;
+        seen_raw = seen_raw.min(s_ns as f64);
         seen_pairs = s_k;
         let (d_ns, d_k) = of("  └ round:drop-memories");
-        drop_raw += d_ns as f64;
+        drop_raw = drop_raw.min(d_ns as f64);
         drop_pairs = d_k;
         let (f_ns, f_k) = of("  └ accum:fold");
-        fold_raw += f_ns as f64;
+        fold_raw = fold_raw.min(f_ns as f64);
         fold_pairs = f_k;
-        index_raw += of("  ├ accum:index").0 as f64;
-        snap_raw += of("  ├ accum:snapshot").0 as f64;
-        accum_raw += of("accumulate").0 as f64;
-        filter_raw += of("filter").0 as f64;
-        hash_raw += of("hash-join").0 as f64;
-        out_raw += of("OUT: to_persistent").0 as f64;
-    }
-    let r = RUNS as f64;
-    fire /= r;
-    alpha_raw /= r;
-    prod_raw /= r;
-    seen_raw /= r;
-    drop_raw /= r;
-    fold_raw /= r;
-    index_raw /= r;
-    snap_raw /= r;
-    accum_raw /= r;
-    filter_raw /= r;
-    hash_raw /= r;
-    out_raw /= r;
-    for x in &mut kid_raw {
-        *x /= r;
-    }
-    for x in &mut pk_raw {
-        *x /= r;
+        index_raw = index_raw.min(of("  ├ accum:index").0 as f64);
+        snap_raw = snap_raw.min(of("  ├ accum:snapshot").0 as f64);
+        accum_raw = accum_raw.min(of("accumulate").0 as f64);
+        filter_raw = filter_raw.min(of("filter").0 as f64);
+        hash_raw = hash_raw.min(of("hash-join").0 as f64);
+        out_raw = out_raw.min(of("OUT: to_persistent").0 as f64);
     }
     let net = |raw: f64, pairs: u64| raw - pairs as f64 * cal;
     let kid_net: [f64; 4] = std::array::from_fn(|i| net(kid_raw[i], kid_pairs[i]));
@@ -1614,9 +1585,11 @@ fn accum_seen_fire_context_split() {
         }));
     }
 
-    let mut fire_seen = 0.0;
-    let mut fire_alloc = 0.0;
-    let mut fire_ins = 0.0;
+    // The three micro-arms above already took the minimum; these three did not, and that split
+    // inside one test is arc 278 C1 in miniature — same header, two estimators.
+    let mut fire_seen = f64::INFINITY;
+    let mut fire_alloc = f64::INFINITY;
+    let mut fire_ins = f64::INFINITY;
     for _ in 0..RUNS {
         let rows = accum_phase_census(G, W);
         let of = |name: &str| -> u64 {
@@ -1625,14 +1598,10 @@ fn accum_seen_fire_context_split() {
                 .map(|(_, ns, _)| *ns)
                 .unwrap_or(0)
         };
-        fire_seen += of("  ├ setup:seen") as f64;
-        fire_alloc += of("  │  setup:seen:alloc") as f64;
-        fire_ins += of("  │  setup:seen:insert") as f64;
+        fire_seen = fire_seen.min(of("  ├ setup:seen") as f64);
+        fire_alloc = fire_alloc.min(of("  │  setup:seen:alloc") as f64);
+        fire_ins = fire_ins.min(of("  │  setup:seen:insert") as f64);
     }
-    let r = RUNS as f64;
-    fire_seen /= r;
-    fire_alloc /= r;
-    fire_ins /= r;
     let table = format!(
         "\nseen fire-context split — accum [{G} {W}], {n} facts, MINIMUM of {RUNS}\n\
              \n\

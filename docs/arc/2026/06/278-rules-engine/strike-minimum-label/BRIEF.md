@@ -71,3 +71,37 @@ three columns, say what the third means.
 The count you converted, **per file**, against DESIGN's table — and if your number differs from 96,
 say so and say why. The orchestrator's first count was 37 and wrong; a second wrong count that
 merely agrees with the first would be worse than a disagreement.
+
+---
+
+## MEASURED, after the strike — the population was 103 sites across 9 files, not 96 across 7
+
+The gate's own RED is the instrument. **DESIGN's 96 is a LINE count; 103 is a SITE count**, and
+the two extra files are real, not bookkeeping:
+
+| file | DESIGN (lines) | gate RED (sites) | why they differ |
+|---|---:|---:|---|
+| `accum_cost.rs` | 29 | 29 | — |
+| `fanout_cost.rs` | 28 | 28 | — |
+| `rank_and_instrument.rs` | 21 | 22 | +1: `mean(xs) = sum / xs.len()` at :140, not a `/ r` |
+| `strat_cost.rs` | 7 | 10 | +3: three lines are `let (a, b) = (a / r, b / r)` — two divides each |
+| `accum_alpha_cost.rs` | 6 | 6 | — |
+| `cascade_cost.rs` | 4 | 4 | — |
+| `harvest_cost.rs` | 1 | 2 | +1: same destructured line, two divides |
+| **`mod.rs`** | *not counted* | **1** | `render_phase_table::stat` — `sum as f64 / xs.len()`, the flagship |
+| **`gather_probe_cost.rs`** | *not in the 7* | **1** | `let runs = RUNS as f64; g /= runs;` — the alias is `runs`, not `r` |
+| **TOTAL** | **96** | **103** | |
+
+**Two findings the scoping pass could not have had:**
+
+1. **`gather_probe_cost.rs` is a NINTH file**, outside BRIEF's declared blast radius. Its
+   `probe_gap_cost_split` holds six accumulators; `89e8c3ed0` converted **five** (`r`/`s`/`p`/`e`/`j`
+   are all `f64::INFINITY`-seeded) and left `g` a mean, under one shared `MINIMUM of {RUNS}` header.
+   A ratio built from five minima and one mean. It escaped every count because its divisor is named
+   `runs`, so even a `/ r\b` regex is blind to it — the same class of miss as the original 37.
+2. **STOP trigger 3 fired.** BRIEF asserted "none [of these assertions] compares an accumulated ns
+   value to a magnitude constant". `rank_and_instrument::fold_cost_with_and_without_the_binding_lookup`
+   does: `assert!(c < 5.0e6, …)` and `assert!(s <= c * 2.0 || s < 8.0e6, …)`, where `c`/`s` were the
+   means. The conversion moves both bounds in the SAFE direction (a minimum is ≤ a mean, so the
+   `<` bounds only loosen) and no test moved — but the pre-drawing check was wrong, and a future
+   strike over this ground must not inherit the claim.

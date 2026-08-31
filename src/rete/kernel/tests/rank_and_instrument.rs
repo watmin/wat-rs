@@ -137,8 +137,11 @@ fn fold_cost_with_and_without_the_binding_lookup() {
         counts.push(one_rule_fold_ns(COUNT_RULE, g, w));
         sums.push(one_rule_fold_ns(SUM_RULE, g, w));
     }
-    let mean = |xs: &[u64]| xs.iter().sum::<u64>() as f64 / xs.len() as f64;
-    let (c, s) = (mean(&counts), mean(&sums));
+    // MINIMUM of the samples, not their mean — this test's own header says `MINIMUM of {RUNS}`,
+    // and the two bounds below are read against the FLOOR of the fold's cost, which is the only
+    // figure a first-arm outlier cannot inflate.
+    let best = |xs: &[u64]| *xs.iter().min().expect("RUNS >= 1, so non-empty") as f64;
+    let (c, s) = (best(&counts), best(&sums));
     assert!(
         c > 0.0 && s > 0.0,
         "one or both folds recorded nothing — the instrument never fired"
@@ -355,30 +358,24 @@ fn cell_rank_after_fanout() {
         (fire as f64, best_name, best_ns as f64)
     }
 
-    let mut fanout = (0.0, "", 0.0);
-    let mut accum = (0.0, "", 0.0);
-    let mut share = (0.0, "", 0.0);
+    // MINIMUM across runs, not mean. `.1` is the top-row NAME, not a measurement.
+    let mut fanout = (f64::INFINITY, "", f64::INFINITY);
+    let mut accum = (f64::INFINITY, "", f64::INFINITY);
+    let mut share = (f64::INFINITY, "", f64::INFINITY);
     for _ in 0..RUNS {
         let (f, n, c) = fire_and_top(&fanout_phase_census(100, 20));
-        fanout.0 += f;
+        fanout.0 = fanout.0.min(f);
         fanout.1 = n;
-        fanout.2 += c;
+        fanout.2 = fanout.2.min(c);
         let (f, n, c) = fire_and_top(&accum_phase_census(200, 200));
-        accum.0 += f;
+        accum.0 = accum.0.min(f);
         accum.1 = n;
-        accum.2 += c;
+        accum.2 = accum.2.min(c);
         let (f, n, c) = fire_and_top(&node_share_phase_census(50, 200));
-        share.0 += f;
+        share.0 = share.0.min(f);
         share.1 = n;
-        share.2 += c;
+        share.2 = share.2.min(c);
     }
-    let r = RUNS as f64;
-    fanout.0 /= r;
-    fanout.2 /= r;
-    accum.0 /= r;
-    accum.2 /= r;
-    share.0 /= r;
-    share.2 /= r;
     let table = format!(
         "\ncell rank after fanout — MINIMUM of {RUNS}\n\
              FIRE is IN+SETUP+ROUND+OUT; top-row is the largest named child\n\
@@ -445,30 +442,24 @@ fn cell_rank_after_grid() {
         (fire as f64, best_name, best_ns as f64)
     }
 
-    let mut fanout = (0.0, "", 0.0);
-    let mut cascade = (0.0, "", 0.0);
-    let mut accum = (0.0, "", 0.0);
+    // MINIMUM across runs, not mean.
+    let mut fanout = (f64::INFINITY, "", f64::INFINITY);
+    let mut cascade = (f64::INFINITY, "", f64::INFINITY);
+    let mut accum = (f64::INFINITY, "", f64::INFINITY);
     for _ in 0..RUNS {
         let (f, n, c) = fire_and_top(&fanout_phase_census(100, 20));
-        fanout.0 += f;
+        fanout.0 = fanout.0.min(f);
         fanout.1 = n;
-        fanout.2 += c;
+        fanout.2 = fanout.2.min(c);
         let (f, n, c) = fire_and_top(&cascade_phase_census(50, 100));
-        cascade.0 += f;
+        cascade.0 = cascade.0.min(f);
         cascade.1 = n;
-        cascade.2 += c;
+        cascade.2 = cascade.2.min(c);
         let (f, n, c) = fire_and_top(&accum_phase_census(200, 200));
-        accum.0 += f;
+        accum.0 = accum.0.min(f);
         accum.1 = n;
-        accum.2 += c;
+        accum.2 = accum.2.min(c);
     }
-    let r = RUNS as f64;
-    fanout.0 /= r;
-    fanout.2 /= r;
-    cascade.0 /= r;
-    cascade.2 /= r;
-    accum.0 /= r;
-    accum.2 /= r;
     let table = format!(
         "\ncell rank after grid — MINIMUM of {RUNS}\n\
              FIRE is IN+SETUP+ROUND+OUT; top-row is the largest named child\n\
@@ -550,36 +541,27 @@ fn honest_cell_rank_after_arm() {
         (fire as f64, best_name, best_ns as f64, honest)
     }
 
-    let mut fanout = (0.0, "", 0.0, 0.0);
-    let mut cascade = (0.0, "", 0.0, 0.0);
-    let mut accum = (0.0, "", 0.0, 0.0);
+    // MINIMUM across runs, not mean.
+    let mut fanout = (f64::INFINITY, "", f64::INFINITY, f64::INFINITY);
+    let mut cascade = (f64::INFINITY, "", f64::INFINITY, f64::INFINITY);
+    let mut accum = (f64::INFINITY, "", f64::INFINITY, f64::INFINITY);
     for _ in 0..RUNS {
         let t = fire_top_honest(&fanout_phase_census(100, 20), cal);
-        fanout.0 += t.0;
+        fanout.0 = fanout.0.min(t.0);
         fanout.1 = t.1;
-        fanout.2 += t.2;
-        fanout.3 += t.3;
+        fanout.2 = fanout.2.min(t.2);
+        fanout.3 = fanout.3.min(t.3);
         let t = fire_top_honest(&cascade_phase_census(50, 100), cal);
-        cascade.0 += t.0;
+        cascade.0 = cascade.0.min(t.0);
         cascade.1 = t.1;
-        cascade.2 += t.2;
-        cascade.3 += t.3;
+        cascade.2 = cascade.2.min(t.2);
+        cascade.3 = cascade.3.min(t.3);
         let t = fire_top_honest(&accum_phase_census(200, 200), cal);
-        accum.0 += t.0;
+        accum.0 = accum.0.min(t.0);
         accum.1 = t.1;
-        accum.2 += t.2;
-        accum.3 += t.3;
+        accum.2 = accum.2.min(t.2);
+        accum.3 = accum.3.min(t.3);
     }
-    let r = RUNS as f64;
-    fanout.0 /= r;
-    fanout.2 /= r;
-    fanout.3 /= r;
-    cascade.0 /= r;
-    cascade.2 /= r;
-    cascade.3 /= r;
-    accum.0 /= r;
-    accum.2 /= r;
-    accum.3 /= r;
     let table = format!(
         "\nhonest cell rank after arm — MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\

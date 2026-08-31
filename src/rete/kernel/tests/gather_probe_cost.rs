@@ -1037,7 +1037,10 @@ fn probe_gap_cost_split() {
     let mut p = f64::INFINITY;
     let mut e = f64::INFINITY;
     let mut j = f64::INFINITY;
-    let mut g = 0.0;
+    // ⛔ `g` WAS THE ONE MEAN AMONG SIX MINIMA in this test — `r`/`s`/`p`/`e`/`j` above were
+    // converted by 89e8c3ed0 and `g` was not, under a header promising the minimum for all six.
+    // A ratio built from five minima and one mean is not a ratio of anything.
+    let mut g = f64::INFINITY;
     for _ in 0..RUNS {
         r = r.min(ns_per_iter(N, || {
             black_box(super::rematch_compiled(&conds, 2).expect("compiled"));
@@ -1097,10 +1100,8 @@ fn probe_gap_cost_split() {
         for _ in 0..G_N {
             black_box(super::extend_token(&tok, 0, el.binds, 2, &mut bp, &mut mp));
         }
-        g += t0.elapsed().as_nanos() as f64;
+        g = g.min(t0.elapsed().as_nanos() as f64);
     }
-    let runs = RUNS as f64;
-    g /= runs;
     // ⛔ WAS ONE liveness check on `j` alone, out of SIX measured components. Same reasoning as
     // `probe_extend_cost_split` above: this test's finding is a ratio, and five of its six terms
     // were unguarded.
