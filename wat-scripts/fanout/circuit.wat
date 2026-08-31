@@ -26,13 +26,6 @@
 (:wat::load-file! "../topic/sns-fanout.wat")
 (:wat::load-file! "../queue/sqs.wat")
 
-;; ── outcomes ────────────────────────────────────────────────────────────────────
-(:wat::core::defrecord :fanout::Outcome
-  [worker <- :wat::core::String
-   queue  <- :wat::core::String
-   id     <- :wat::core::String
-   body   <- :wat::core::String])
-
 ;; ── adapter: :demo::Sub whose deliver is Queue/send ──────────────────────────────
 (:wat::service::defservice :fanout::adapter
   :satisfies :demo::Sub
@@ -68,7 +61,12 @@
 ;; ── worker: process that pulls from ONE queue ───────────────────────────────────
 (:wat::core::defsurface :fanout::Worker :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :fanout::Worker::DrainRequest [])
+  [(:wat::core::defrecord :fanout::Outcome
+     [worker <- :wat::core::String
+      queue  <- :wat::core::String
+      id     <- :wat::core::String
+      body   <- :wat::core::String])
+   (:wat::core::defrecord :fanout::Worker::DrainRequest [])
    (:wat::core::defenum :fanout::Worker::DrainResponse :wat::enum::Pure
      :Ok [outcomes <- (:wat::core::Vector :- [:fanout::Outcome])]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -125,16 +123,8 @@
                              acc
                              (:wat::core::let
                                [e (:wat::core::first envs)
-                                fr (:wat::core::match
-                                     (:wat::edn::read-foreign (:wat::edn::write e))
-                                     ((:wat::edn::ReadForeignOutcome::Value v) v)
-                                     (_ (:wat::kernel::assertion-failed! "fanout: envelope foreign-read failed" :wat::core::None :wat::core::None)))
-                                eid (:wat::core::match (:wat::edn::ForeignRecord/get fr :id)
-                                      ((:wat::core::Some v) (:wat::core::format "{v}" :v v))
-                                      (:wat::core::None ""))
-                                ebody (:wat::core::match (:wat::edn::ForeignRecord/get fr :body)
-                                        ((:wat::core::Some v) (:wat::core::format "{v}" :v v))
-                                        (:wat::core::None ""))
+                                eid (:queue::Envelope/id e)
+                                ebody (:queue::Envelope/body e)
                                 ar (:queue::Queue/ack q
                                      (:queue::Queue::AckRequest :queue name :id eid))]
                                (:wat::core::match ar
@@ -409,4 +399,4 @@
   (:user::run 12 2 2))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:user::compute)))
+  (:wat::kernel::println (:user::run 2000 4 3)))
