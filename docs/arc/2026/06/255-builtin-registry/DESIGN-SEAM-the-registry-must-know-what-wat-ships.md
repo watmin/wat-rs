@@ -93,13 +93,37 @@ scraper parses. `{:purity :Pure}` in a metadata map is **data the reader already
 reader, the same forms, no second grammar. Every "the directive parses but nothing consumes it" and
 "the doc says X while the code does Y" defect this arc has found lives in the gap between those two.
 
-### ⚠ The one question the ruling does NOT settle
+### ⛔ ~~The one question the ruling does NOT settle~~ — THE QUESTION WAS MALFORMED
 
-**Does this reach the 431 Rust intrinsics too, or only the 409 wat-defined verbs?** A Rust
-intrinsic's *implementation* is Rust, but its *declaration* need not be — under the doctrine as
-written, its properties would also be declared in wat and lifted, and `#[wat_intrinsic]`'s doc
-directives would go the way of `#[derive(WatEnum)]`. That is a far larger inversion than adding the
-wat half, and it is a separate ruling. **Nothing here assumes it.**
+~~Does this reach the 431 Rust intrinsics too, or only the 409 wat-defined verbs?~~ **Struck
+2026-08-30.** The builder: *"the rust ones are already configured .... the wat-doc does this for
+us?"* — correct. There is no two-sided migration to weigh, because **`wat-doc` is already ONE shared
+crate serving both**, and its own header says so:
+
+> *"the prose+`@tag` parser + the mutual-checks live in ONE shared leaf crate, depended on by BOTH
+> `wat-macros` … AND `wat` … An intrinsic's `///` block and a wat form's docstring parse through the
+> same code … parity by construction, not by discipline."*
+
+### ⚠ BUT THE WAT HALF OF THE PARSER HAS NO CALLER — measured
+
+That header describes a design the wat side was never connected to:
+
+```
+the runtime side uses wat_doc for TYPES only:
+  Purity 14 · Totality 11 · Determinism 11 · ExpandTime 7 · Category 4 · DocExample 1
+
+wat_doc::parse callers — ALL of them:
+  crates/wat-macros/src/wat_intrinsic.rs        the Rust attribute path
+  crates/wat-macros/src/wat_special_form.rs     the Rust attribute path
+```
+
+**No wat `defn` docstring is parsed by anything.** "Parity by construction" is true of the *types*
+and aspirational for the *parser* — another door whose paperwork is ahead of it.
+
+★ **And this makes the builder's shape SMALLER, not larger.** The parser is already shared and
+already shaped for both halves; the work is wiring the wat side to a crate built for it, and moving
+the grammar from line-based `@tag` text to metadata-map DATA is then **one change that lands on both
+halves at once** — because there is only one parser to change.
 
 ### What the smallest proving step looks like under this shape
 
