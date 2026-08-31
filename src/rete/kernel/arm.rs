@@ -1202,7 +1202,14 @@ pub(crate) fn eval_arm_session(
     // this is the one door a session is born through — the same reason the termination verifier
     // runs here. Everything the session allocates from now on is charged to it, at BOTH doors it
     // can grow through (`insert` and the fixpoint), against `max-session-bytes`.
-    crate::alloc_counter::mark_session_origin();
+    //
+    // ⛔ FILED UNDER THE SESSION'S OWN NETWORK IDENTITY — the same key `ARM_TABLE` two lines up
+    // uses — and `mark_session_origin` does not clobber. This used to write ONE thread-wide slot
+    // unconditionally, so a second `compile-all` on the thread re-based the first session's zero
+    // point and left it, once the thread's byte count dipped below the new origin, with no ceiling
+    // at all. `network_identity` is known `Some` here: the guard above refuses a Session whose
+    // network carries no intern.
+    crate::alloc_counter::mark_session_origin(network_identity(network));
     crate::rete::kernel::outcome::compile_result_to_outcome(Ok(session))
 }
 

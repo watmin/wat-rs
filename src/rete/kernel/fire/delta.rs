@@ -436,6 +436,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
     // forgets everything `insert` staged before it, which is how 2.5M staged facts reached 4.0 GB
     // against a 1 GiB contract with no diagnostic. The origin is now marked once, at `arm-session`
     // (`alloc_counter::mark_session_origin`), and BOTH doors measure from it.
+    // WHICH SESSION THE CEILING BELOW IS JUDGING. The zero point is filed per session
+    // (`alloc_counter::SessionOriginKey` — the network's rust identity), not per thread, so this
+    // door has to name the session it is standing at. Taken ONCE, above the loop: a fire does not
+    // re-intern the network, and `insert`'s overlay clones it, which preserves the intern.
+    let origin_key = crate::rete::kernel::network_identity(&wm.network);
     let max_fire_rounds: usize = sym
         .encoding_ctx()
         .map(|c| c.config.max_fire_rounds)
@@ -679,7 +684,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
         // The DECISION is `session::session_ceiling_breach` — shared with the insert door so the
         // two cannot drift on what "over the ceiling" means. Only the diagnostic is local: rounds
         // completed is what THIS door can honestly say about how far the session had got.
-        if let Some(breach) = crate::rete::kernel::session::session_ceiling_breach(sym) {
+        if let Some(breach) = crate::rete::kernel::session::session_ceiling_breach(sym, origin_key) {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
                 RuntimeErrorKind::SessionMemoryCeilingExceeded {
