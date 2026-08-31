@@ -23,7 +23,7 @@ tightest shape, so it can only ever be a backstop. A compile-time wall does not 
 |---|---|---|
 | 1 | **creation-scope escape** — a peer escaping a `let` (1a) or a function (1b) that created the handle | ✅ struck — `CheckErrorKind::HandleCreationEscape`, floor 5132 |
 | 2 | **tail escape** — a peer leaving via a tail call | ✅ struck — `CheckErrorKind::HandleTailEscape`, floor 5135 |
-| 3 | **param ownership** — a handle created by the caller as a temporary, tail-escaped by the callee | ◀ drawn, not struck |
+| 3 | **param ownership** — a handle created by the caller as a temporary, tail-escaped by the callee | ✅ struck — `HandleTailEscape` widened downward, floor 5136 |
 
 ## The invariant, and the four cells
 

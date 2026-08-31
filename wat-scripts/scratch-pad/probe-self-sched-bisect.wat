@@ -200,6 +200,9 @@
     (:wat::core::if (:wat::i64::< s1 0) s1 (:sched::poll-until c 3 40))))
 
 ;; C — the fixture's ACTUAL shape: the handle arrives as a PARAMETER and the drive is in the body.
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: this is road 3 (Handle param,
+;; tail-escapes a peer). The probe must construct it to print C-param-tail. Rune the
+;; instrument, never the acceptance criterion.
 (:wat::core::defn :sched::drive-param [h <- :sched::ticker::Handle] -> :wat::core::i64
   (:wat::core::let
     [c  (:sched::conn h)

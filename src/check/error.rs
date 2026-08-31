@@ -384,9 +384,11 @@ pub enum CheckErrorKind {
         #[to_edn(key = "created-at")]
         created_at: Span,
     },
-    /// Excursus 002 stone 2 — a `let` that CREATES a Handle is itself in tail
-    /// position, and its tail expression is a user-function call taking a `Peer`
-    /// of that service. The scope (and Handle) die before the call runs.
+    /// Excursus 002 stones 2 and 3 — a scope that OWNS a Handle is itself in
+    /// tail position, and its tail expression is a user-function call taking a
+    /// `Peer` of that service. Ownership is a creating call (`param` is `None`,
+    /// stone 2) or a Handle-typed parameter (`param` is `Some`, stone 3,
+    /// downward only). The scope (and Handle) die before the call runs.
     HandleTailEscape {
         function: String,
         service: String,
@@ -394,6 +396,9 @@ pub enum CheckErrorKind {
         created_at: Span,
         #[to_edn(key = "tail-call")]
         tail_call: Span,
+        /// `Some` when ownership is a Handle-typed parameter (stone 3).
+        /// `None` when ownership is a creating call in this scope (stone 2).
+        param: Option<String>,
     },
 }
 
@@ -848,17 +853,23 @@ impl CheckErrorKind {
                 service,
                 created_at,
                 tail_call,
-            } => write!(
-                f,
-                "{}function {}: a tail call at {} carries a peer of {} out of the scope that \
-                 created its Handle at {} — the Handle dies before the call runs, leaving a live \
-                 channel to nothing",
-                prefix,
-                function,
-                tail_call,
-                service,
-                created_at,
-            ),
+                param,
+            } => match param {
+                Some(p) => write!(
+                    f,
+                    "{}function {}: a tail call at {} carries a peer of {} out of a scope whose \
+                     parameter {} owns the Handle — this frame dies before the call runs, taking \
+                     the Handle with it",
+                    prefix, function, tail_call, service, p,
+                ),
+                None => write!(
+                    f,
+                    "{}function {}: a tail call at {} carries a peer of {} out of the scope that \
+                     created its Handle at {} — the Handle dies before the call runs, leaving a live \
+                     channel to nothing",
+                    prefix, function, tail_call, service, created_at,
+                ),
+            },
         }
     }
 }

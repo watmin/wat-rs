@@ -476,6 +476,16 @@ pub(crate) fn clause_attempts_to_edn(v: &[(usize, Vec<String>)]) -> wat_edn::Own
 /// generation, and the shorter name reads naturally for that case.
 /// New concerns added here (scoped flags, effect rows, whatever) land
 /// as additional fields without further renames.
+/// A Handle-typed parameter of the enclosing function. For the downward
+/// (tail-call) escape only, this is an owning binding — the frame dies
+/// before the callee runs, taking the Handle with it.
+#[derive(Debug, Clone)]
+struct EnclosingHandleParam {
+    name: String,
+    op: TypeExpr,
+    reply: TypeExpr,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct InferCtx {
     next: u64,
@@ -487,6 +497,10 @@ pub(crate) struct InferCtx {
     /// The form currently being inferred is in tail position. Tail-carrying
     /// helpers read this at entry (before any child `infer` overwrites it).
     this_form_in_tail: bool,
+    /// Stack of Handle-typed params per enclosing function. Used by stone 3
+    /// so a `let` that does not CREATE a Handle still sees the function's
+    /// Handle params as owning bindings, downward only.
+    enclosing_handle_params: Vec<Vec<EnclosingHandleParam>>,
 }
 
 impl InferCtx {
@@ -528,6 +542,33 @@ impl InferCtx {
 
     pub(crate) fn enclosing_fn(&self) -> Option<&str> {
         self.enclosing_fns.last().map(|s| s.as_str())
+    }
+
+    /// Record Handle-typed parameters of the function whose body we are
+    /// about to check. Paired with [`pop_enclosing_handle_params`].
+    pub(crate) fn push_handle_params_of<'a, I>(&mut self, names_and_types: I, env: &CheckEnv)
+    where
+        I: IntoIterator<Item = (String, &'a TypeExpr)>,
+    {
+        let params = names_and_types
+            .into_iter()
+            .filter_map(|(name, ty)| {
+                let (op, reply) = service_handle_protocol(ty, env)?;
+                Some(EnclosingHandleParam { name, op, reply })
+            })
+            .collect();
+        self.enclosing_handle_params.push(params);
+    }
+
+    pub(crate) fn pop_enclosing_handle_params(&mut self) {
+        self.enclosing_handle_params.pop();
+    }
+
+    fn enclosing_handle_params(&self) -> &[EnclosingHandleParam] {
+        self.enclosing_handle_params
+            .last()
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     /// Snapshot this form's tailness, then default children to non-tail.
@@ -2017,12 +2058,12 @@ fn push_handle_tail_escape(
     scope: &WatAST,
     tail_expr: &WatAST,
     function: &str,
+    handle_params: &[EnclosingHandleParam],
 ) {
     let mut creations = Vec::new();
     collect_handle_creations(scope, env, &mut creations);
-    if creations.is_empty() {
-        return;
-    }
+    // Stone 2: a creating call in this let. Stone 3: a Handle-typed param of
+    // the enclosing function. Either is an owning binding DOWNWARD.
     for c in &creations {
         let mut calls = Vec::new();
         collect_tail_user_fn_peer_calls(tail_expr, env, &c.op, &c.reply, &mut calls);
@@ -2037,6 +2078,27 @@ fn push_handle_tail_escape(
                     service: surface_from_op(&c.op),
                     created_at: c.span.clone(),
                     tail_call: (*tail_span).clone(),
+                    param: None,
+                },
+            });
+            return;
+        }
+    }
+    for p in handle_params {
+        let mut calls = Vec::new();
+        collect_tail_user_fn_peer_calls(tail_expr, env, &p.op, &p.reply, &mut calls);
+        if let Some(tail_span) = calls.first() {
+            if function_has_creation_escape_rune(tail_span, function) {
+                return;
+            }
+            errors.push(CheckError {
+                span: (*tail_span).clone(),
+                kind: CheckErrorKind::HandleTailEscape {
+                    function: function.to_string(),
+                    service: surface_from_op(&p.op),
+                    created_at: (*tail_span).clone(),
+                    tail_call: (*tail_span).clone(),
+                    param: Some(p.name.clone()),
                 },
             });
             return;
@@ -2113,6 +2175,13 @@ fn check_function_body(
         FunctionBody::Native => return,
     };
     fresh.push_enclosing_fn(path.to_string());
+    fresh.push_handle_params_of(
+        func.params
+            .iter()
+            .zip(scheme.params.iter())
+            .map(|(n, t)| (n.as_str().to_string(), t)),
+        env,
+    );
     fresh.push_enclosing_ret(scheme.ret.clone());
     // A function body is in tail position relative to apply_function's trampoline.
     fresh.set_in_tail(true);
@@ -2149,6 +2218,7 @@ fn check_function_body(
             path,
         );
     }
+    fresh.pop_enclosing_handle_params();
     fresh.pop_enclosing_fn();
 }
 
@@ -8256,6 +8326,7 @@ fn infer_let(
                     &wall_scope,
                     tail_expr,
                     fresh.enclosing_fn().unwrap_or(""),
+                    fresh.enclosing_handle_params(),
                 );
             }
         }

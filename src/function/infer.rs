@@ -173,10 +173,15 @@ pub(crate) fn infer_fn(
     // boundary (matches Rust's `?`-operator scoping — short-circuits
     // the innermost fn or closure, not the outer function).
     fresh.push_enclosing_ret(ret_type.clone());
+    fresh.push_handle_params_of(
+        param_names.iter().cloned().zip(param_types.iter()),
+        env,
+    );
     // A fn body is in tail position relative to that fn (apply_function trampoline).
     fresh.set_in_tail(true);
     let body_ty = infer(&body_ast, env, &body_locals, fresh, subst).drain_errors_into(&mut errors);
     fresh.set_in_tail(false);
+    fresh.pop_enclosing_handle_params();
     fresh.pop_enclosing_ret();
     if let Some(body_ty) = body_ty {
         let body_span = body_ast.span();
