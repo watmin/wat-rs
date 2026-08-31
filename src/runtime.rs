@@ -1386,6 +1386,37 @@ pub fn preregister_stdlib_defclause_stub(form: &WatAST, sym: &mut SymbolTable) {
     );
 }
 
+/// Arc 255 Stone "metadata-of answers in one shape" — the ONE predicate that decides whether a
+/// stored `{...}` metadata map is a doc declaration (subject to `wat_doc::from_metadata`) or a
+/// capability-only map (e.g. `{:restricted-to […]}`, read raw, untouched). Shared by the
+/// registration gate below (`register_stdlib_defines`) and the read side
+/// (`eval_metadata_of`'s wat branch) so the two cannot answer "is this a doc declaration?"
+/// differently — the exact drift class this stone exists to close.
+const AXIS_DECLARATION_KEYS: &[&str] = &[
+    ":purity",
+    ":determinism",
+    ":totality",
+    ":expand-time",
+    ":category",
+];
+
+/// Does `meta` claim to declare substrate axis properties? See [`AXIS_DECLARATION_KEYS`].
+///
+/// ⚠ NARROWED 2026-08-31, by a RED. This predicate first read `:doc` alone (a silent skip:
+/// `{:purity …}` with no `:doc` was never validated), then ALL doc directives — which broke
+/// `probe_arc241_stone7_metadata_of_reflection`, whose fixtures carry `(def :my::x {:doc "the x
+/// value"} 42)`. That is ARBITRARY USER METADATA, and `:doc`/`:added`/`:deprecated`/`:see` are
+/// ordinary human documentation vocabulary a user's map legitimately holds.
+///
+/// The five axis keys are not: their values are `:wat::runtime::*` enum symbols, they are the
+/// substrate's own closed-domain vocabulary, and nobody writes them as a casual note. **Using one
+/// is an unambiguous claim to be declaring a substrate property** — which is the only honest
+/// discriminator between a declaration and a comment. Both earlier predicates were wrong in
+/// opposite directions; this one asks what the map CLAIMS, not what shape it happens to have.
+fn meta_has_doc_axis_key(meta: &std::collections::HashMap<String, WatAST>) -> bool {
+    AXIS_DECLARATION_KEYS.iter().any(|k| meta.contains_key(*k))
+}
+
 /// Stdlib-registration variant of [`register_defines`] that bypasses
 /// the reserved-prefix check. Called by the startup pipeline on the
 /// baked stdlib sources; user source still goes through
@@ -1454,22 +1485,7 @@ pub fn register_stdlib_defines(
                 // capability-only `{:restricted-to […]}` map still carries no
                 // doc-axis key and is read and stored exactly as before — which is
                 // what keeps the three pre-existing stdlib verbs above untouched.
-                const DOC_AXIS_KEYS: &[&str] = &[
-                    ":doc",
-                    ":added",
-                    ":category",
-                    ":purity",
-                    ":determinism",
-                    ":totality",
-                    ":expand-time",
-                    ":args",
-                    ":ret",
-                    ":examples",
-                    ":see",
-                    ":yields",
-                    ":deprecated",
-                ];
-                if DOC_AXIS_KEYS.iter().any(|k| meta.contains_key(*k)) {
+                if meta_has_doc_axis_key(&meta) {
                     let map_ast = WatAST::Map(
                         meta.iter()
                             .map(|(k, v)| (WatAST::Keyword(k.clone(), v.span().clone()), v.clone()))
@@ -13595,10 +13611,18 @@ fn eval_body_of(
 /// `(:wat::runtime::metadata-of <name :keyword>) -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])])`
 ///
 /// Stone 241.7. Returns the binding's metadata-map as Option:
-/// - Some({:k1 v1 ...}) when metadata was attached at def time (Stone 241.6 storage)
 /// - Some(baseline-map) when `name` is a registered Rust intrinsic (arc 255.1b-iii): the
 ///   auto-derived `:name`/`:kind`/`:defined-in`/`:layer`/`:arity`/`:purity`/`:determinism`/
-///   `:doc`/`:added`/`:ret`/`:category` fields
+///   `:totality`/`:expand-time`/`:doc`/`:added`/`:ret`/`:category` fields
+/// - Some(doc-map) when `name` is a wat `defn`/`def` whose `{...}` metadata map carries any
+///   doc-axis key (arc 255 Stone "metadata-of answers in one shape"): `:purity`/
+///   `:determinism`/`:totality`/`:expand-time`/`:category`/`:defined-in` come back as the SAME
+///   `Value::Enum` shape the intrinsic branch above produces (both read through the one
+///   decoder, `wat_doc::from_metadata`), plus `:doc`/`:added`/`:ret` as `Value::String` — never
+///   the raw, un-decoded `Value::wat__WatAST` this branch used to hand back for these keys
+/// - Some({:k1 v1 ...}) when metadata was attached at def time but carries NO doc-axis key
+///   (e.g. `{:restricted-to […]}`, a capability restriction unrelated to the doc contract):
+///   read and stored exactly as authored, raw and un-decoded, wrapped as `Value::wat__WatAST`
 /// - None when binding exists but no metadata
 /// - None when binding doesn't exist
 ///
@@ -13613,14 +13637,18 @@ fn eval_body_of(
 /// `(:Option :- [(HashMap :- [Keyword HolonAST])])` — false on two counts, checked against the
 /// body below. First, the map's VALUES are never `HolonAST`: the intrinsic-baseline branch
 /// inserts plain scalar/enum `Value`s (`Value::String`, `Value::i64`, `Value::Enum` for
-/// `:kind`/`:defined-in`/`:layer`/`:purity`/`:determinism`/`:category` — see the `put` calls
-/// below, whose own comment already said "PLAIN wat Values (no HolonAST wrapping)"), while the
-/// user-metadata branch (`sym.binding_metadata`) wraps each value as `Value::wat__WatAST` —
-/// WatAST, not HolonAST (arc 201/251/294.f retired the HolonAST carrier on this whole
-/// reflection surface — the same finding W3 made for `lookup-define`/`body-of`). Second, the
-/// two branches are themselves heterogeneous with each other (plain values vs. WatAST-wrapped),
-/// so no single element type describes both; `:wat::core::Value` (this surface's existing
-/// convention for "any wat value", e.g. `edn::get-field`'s `@ret`) is what actually fits.
+/// `:kind`/`:defined-in`/`:layer`/`:purity`/`:determinism`/`:totality`/`:expand-time`/
+/// `:category` — see the `put` calls below, whose own comment already said "PLAIN wat Values
+/// (no HolonAST wrapping)"), while the user-metadata branch (`sym.binding_metadata`) wraps a
+/// CAPABILITY-only map's values as `Value::wat__WatAST` — WatAST, not HolonAST (arc
+/// 201/251/294.f retired the HolonAST carrier on this whole reflection surface — the same
+/// finding W3 made for `lookup-define`/`body-of`). A user-metadata map that instead carries a
+/// doc-axis key takes the SAME `Value::Enum`/`Value::String` path the intrinsic branch does
+/// (Stone "metadata-of answers in one shape" — both call `wat_doc::from_metadata`, neither
+/// decodes the AST itself). Second, the branches remain heterogeneous with EACH OTHER when a
+/// capability-only map is in play (plain values vs. WatAST-wrapped), so no single element type
+/// describes all three cases; `:wat::core::Value` (this surface's existing convention for "any
+/// wat value", e.g. `edn::get-field`'s `@ret`) is what actually fits.
 /// `metadata-of` carries NO checker `TypeScheme` (absent from `register_builtins` — see the
 /// `FROZEN_CHECKER_DEBT_LEDGER` entry below), so this claim was never verified by anything; it
 /// is corrected here, not newly enforced.
@@ -13678,8 +13706,12 @@ fn eval_metadata_of(
     // a user `defn`. ZERO eval behavior change: the handler dispatch route is
     // untouched; this only READS the baseline the registry already carries.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
+        // 13 `put`s below (`:name`/`:kind`/`:defined-in`/`:layer`/`:arity`/`:purity`/
+        // `:determinism`/`:totality`/`:expand-time`/`:doc`/`:added`/`:ret`/`:category`) —
+        // bumped from a stale `8` (already undercounting pre-`:totality`/`:expand-time`)
+        // while touching this block for the "metadata-of answers in one shape" stone.
         let mut map: std::collections::HashMap<Value, Value> =
-            std::collections::HashMap::with_capacity(8);
+            std::collections::HashMap::with_capacity(13);
         // iv-c: put inserts PLAIN values (no HolonAST wrapping).
         let mut put = |key: &str, val: Value| {
             map.insert(Value::wat__core__keyword(Arc::new(key.to_string())), val);
@@ -13713,6 +13745,17 @@ fn eval_metadata_of(
         let determinism_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.determinism);
         put(":purity", purity_val);
         put(":determinism", determinism_val);
+        // :totality / :expand-time — Stone "metadata-of answers in one shape": these two axes
+        // have lived on `IntrinsicEntry` since the T3/expand-T3 stones but were never `put` here,
+        // so an intrinsic's `metadata-of` answered `:purity`/`:determinism`/`:category` and
+        // silently OMITTED `:totality`/`:expand-time` — the same "answers in two shapes" defect
+        // this stone closes, one level up: absent here, present (raw AST) on the wat branch.
+        // Wired in now so both axes are comparable across BOTH branches, per the acceptance bar
+        // ("the other axes too ... converging one key only MOVES the defect").
+        let totality_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.totality);
+        let expand_time_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.expand_time);
+        put(":totality", totality_val);
+        put(":expand-time", expand_time_val);
         // :doc — the GFM prose body from the structured doc contract (iv-b1).
         // :added — the @added version string.
         // :ret — the @ret description.
@@ -13729,6 +13772,85 @@ fn eval_metadata_of(
         )))));
     }
     match sym.binding_metadata.get(&name) {
+        // Arc 255 Stone "metadata-of answers in one shape" — a metadata map carrying any
+        // doc-axis key is a doc DECLARATION (same predicate as the registration gate,
+        // `meta_has_doc_axis_key`, so the two cannot disagree on what counts as one). It is
+        // run through the ONE decoder, `wat_doc::from_metadata` — already called at
+        // registration to VALIDATE the same map; here its result is finally READ, not
+        // discarded. Emission below reuses the registry branch's own `to_enum_value` /
+        // `Value::String` shapes key for key, so the two branches cannot drift apart by
+        // inspection: a `:purity` (etc.) from either branch is the same `Value::Enum` over
+        // the same `wat_doc` type, not a raw `Value::wat__WatAST` the registry branch never
+        // produces for these keys.
+        Some(meta) if !meta.is_empty() && meta_has_doc_axis_key(meta) => {
+            let map_ast = WatAST::Map(
+                meta.iter()
+                    .map(|(k, v)| (WatAST::Keyword(k.clone(), v.span().clone()), v.clone()))
+                    .collect(),
+                name_ast.span().clone(),
+            );
+            let doc = match wat_doc::from_metadata(&map_ast) {
+                Ok(d) => d,
+                // Unreachable in practice — registration (`register_stdlib_defines`) already
+                // ran this SAME map through this SAME decoder and would have refused to
+                // register a def whose doc contract doesn't hold. Handled, not unwrapped,
+                // because a defensive `?` here costs nothing and an `unwrap` would turn a
+                // decoder disagreement into a panic instead of a diagnosable error.
+                Err(e) => {
+                    return Err(RuntimeError::new(
+                        name_ast.span().clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: name.clone(),
+                            reason: format!(
+                                "metadata-map doc contract violation (wat_doc::from_metadata): {e:?}"
+                            ),
+                        },
+                    )
+                    .into());
+                }
+            };
+            let mut map: std::collections::HashMap<Value, Value> =
+                std::collections::HashMap::with_capacity(9);
+            let mut put = |key: &str, val: Value| {
+                map.insert(Value::wat__core__keyword(Arc::new(key.to_string())), val);
+            };
+            // :purity / :determinism / :totality / :expand-time / :category — the SAME
+            // `ToEnumValue::to_enum_value` calls the registry branch makes, fed from
+            // `DocComment`'s typed fields instead of `IntrinsicEntry`'s. Same `Value::Enum`
+            // over the same `wat_doc` enum type either way — the fix the NOTE asked for.
+            put(":purity", crate::intrinsic::ToEnumValue::to_enum_value(&doc.purity));
+            put(
+                ":determinism",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.determinism),
+            );
+            put(":totality", crate::intrinsic::ToEnumValue::to_enum_value(&doc.totality));
+            put(
+                ":expand-time",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.expand_time),
+            );
+            put(":category", crate::intrinsic::ToEnumValue::to_enum_value(&doc.category));
+            // :defined-in — a fact at THIS site: this branch is reached only from
+            // `sym.binding_metadata`, which only a wat `defn`/`def` populates (STOP-4). Not a
+            // default beside a derived field — the registry branch above is the ONLY other
+            // way into this function, and it is reached only by a `#[wat_intrinsic]` entry.
+            put(
+                ":defined-in",
+                crate::intrinsic::ToEnumValue::to_enum_value(&crate::intrinsic::DefinedIn::Wat),
+            );
+            // :doc / :added / :ret — same `Value::String` shape as the registry branch;
+            // `:args`/`:examples`/`:see`/`:yields`/`:deprecated` are deliberately NOT emitted,
+            // matching the registry branch's own scope cut (its comment: "CARRIED on the
+            // entry but rendered by the iv-b2 verifier seam, not here").
+            put(":doc", Value::String(Arc::new(doc.prose.clone())));
+            put(":added", Value::String(Arc::new(doc.added.clone())));
+            put(":ret", Value::String(Arc::new(doc.ret.clone())));
+            Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(
+                Arc::new(map),
+            )))))
+        }
+        // No doc-axis key (e.g. `{:restricted-to […]}`, 4 live in the corpus) — STOP-2: keeps
+        // today's behaviour EXACTLY, raw and un-decoded. Same predicate as the branch above,
+        // so a capability-only map can never accidentally take the doc path.
         Some(meta) if !meta.is_empty() => {
             let mut map: std::collections::HashMap<Value, Value> =
                 std::collections::HashMap::with_capacity(meta.len());

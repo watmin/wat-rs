@@ -126,6 +126,13 @@ macro_rules! enum_value_via_as_str {
 enum_value_via_as_str!(wat_doc::Category);
 enum_value_via_as_str!(wat_doc::Purity);
 enum_value_via_as_str!(wat_doc::Determinism);
+// Arc 255 Stone "metadata-of answers in one shape" — `entry.totality`/`entry.expand_time`
+// have carried these typed fields since the T3/expand-T3 stones, but `eval_metadata_of`'s
+// registry branch never `put` them: the axis simply never reached the reflection surface.
+// Wiring them in (`runtime.rs`) needs the same `Value` conversion its four siblings already
+// have; adding it here is the one-line, zero-new-logic extension of the existing pattern.
+enum_value_via_as_str!(wat_doc::Totality);
+enum_value_via_as_str!(wat_doc::ExpandTime);
 enum_value_via_as_str!(Kind);
 enum_value_via_as_str!(DefinedIn);
 enum_value_via_as_str!(Layer);
@@ -406,13 +413,14 @@ pub(crate) struct IntrinsicEntry {
     /// directive is absent — arc 255 stone total-T2 minted the axis OPTIONAL, because a
     /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
     /// `Unreviewed` is default-deny and merely refuses.
-    #[allow(dead_code)] // read by totality_is_carried_from_the_doc_into_the_registry_entry (cfg(test));
-    // production readers arrive with stone T4, when the three totality hand-lists
-    // (rete/purity.rs's intrinsic_meta, macros/eval.rs's is_pure_total,
-    // rete/vocabulary.rs's RETE_OPS) stop answering for themselves and DERIVE from here.
-    // `allow` not `expect`, matching `purity`/`determinism` two fields up: the readers are
-    // cfg(test)-only today, so an `expect` is unfulfilled in the test build and fulfilled in
-    // the lib build — it cannot be satisfied in both at once. Measured, not assumed.
+    // ★ READ IN PRODUCTION since the "metadata-of answers in one shape" stone —
+    // `eval_metadata_of`'s registry branch (`runtime.rs`) now `put`s `:totality` from this
+    // field, closing the gap where an intrinsic's `metadata-of` answered `:purity`/
+    // `:determinism`/`:category` but silently omitted `:totality`. The three totality
+    // hand-lists this comment used to promise as "stone T4" readers
+    // (rete/purity.rs's intrinsic_meta, macros/eval.rs's is_pure_total, rete/vocabulary.rs's
+    // RETE_OPS) have NOT been touched by this stone — that migration is still open; only the
+    // reflection surface is fixed here. No `#[allow(dead_code)]` needed any more.
     pub totality: wat_doc::Totality,
     /// Declared expand-time legality from `@ExpandTime <Variant>` in the doc.
     /// `Unreviewed` when the directive is absent — arc 255 Stone expand-T2 minted

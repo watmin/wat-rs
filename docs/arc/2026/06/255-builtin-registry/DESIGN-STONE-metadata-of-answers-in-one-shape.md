@@ -85,6 +85,44 @@ right back where it started.
 - **`:layer` by prefix Honest? NO** — a guess presented as provenance, in the very field whose job
   is to stop guessing. It is `effectful_by_prefix` reborn in the reflection surface.
 
+## ✅ SHIPPED 2026-08-31 — with two corrections the design did not predict
+
+```
+purity · determinism · totality · expand-time · category   intrinsic=true  wat=true
+defined-in                                                 Rust  vs  Wat
+```
+
+### ⚠ 1. The registry branch never emitted `:totality`/`:expand-time` AT ALL
+
+Not the wrong shape — **absent**. Verified against `HEAD`: `put(":totality"` occurred **0** times
+before this stone. `IntrinsicEntry` has carried both typed fields since T3/expand-T3, and nothing
+ever read them out.
+
+★ **This design's premise was wrong.** It called the registry branch "the reference shape" and asked
+the wat branch to match it key for key — but for two axes there was nothing to match. Fixing only
+the wat branch would have made the two stores disagree on *presence* rather than type, failing this
+design's own acceptance bar one key over. The rider caught it and closed it properly (two `put`s,
+two one-line `ToEnumValue` impls).
+
+### ⚠ 2. THE GATE WAS WRONG TWICE, IN OPPOSITE DIRECTIONS — and a RED found it
+
+| predicate | defect |
+|---|---|
+| `contains_key(":doc")` (rider's) | **silent skip** — `{:purity …}` with no `:doc` was never validated |
+| ALL doc directives (orchestrator's) | **over-capture** — broke `probe_arc241_stone7_metadata_of_reflection`, whose fixture is `(def :my::x {:doc "the x value"} 42)` |
+| **the five AXIS keys** (shipped) | ✅ |
+
+That fixture is **arbitrary user metadata**. `:doc` `:added` `:deprecated` `:see` are ordinary human
+documentation vocabulary a user's map legitimately holds — they cannot discriminate.
+
+★ **The five axis keys can.** Their values are `:wat::runtime::*` enum symbols; they are the
+substrate's own closed-domain vocabulary; nobody writes them as a casual note. **Using one is an
+unambiguous claim to be declaring a substrate property** — the predicate asks what the map CLAIMS,
+not what shape it happens to have.
+
+⚠ I widened that gate myself, one stone ago, to close a silent skip — and widened it past the
+boundary between *a declaration* and *a note*. Only the floor found it.
+
 ## Acceptance
 
 | what | command | expected |
