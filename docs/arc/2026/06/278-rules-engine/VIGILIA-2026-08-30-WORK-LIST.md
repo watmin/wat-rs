@@ -183,13 +183,45 @@ same shape: **the commit message asserted a general fix while the diff performed
 
 | id | site | what |
 |---|---|---|
-| **C1** | `tests/mod.rs:493` + ~18 accumulators in 8 files | `89e8c3ed0` rewrote **only the label**. `git blame`: line 493 (`MINIMUM of {RUNS}`) is that commit; lines 528-542 (`stat` returning `sum/len`, `net_of`, `total_mean`) are untouched. `render_phase_table` renders the axis tables for accum, node-share, cascade, fanout, harvest, strat, gather-probe. In `accum_alpha_leftover_split` the **two halves of one table disagree** — isolated arms `.min()`, in-fire rows mean, one header. Sites: `accum_alpha_cost.rs:112,346` · `accum_cost.rs:310,607,1632` · `cascade_cost.rs:372` · `fanout_cost.rs:424,619,741,852` · `harvest_cost.rs:598` · `rank_and_instrument.rs:375,465,573` · `strat_cost.rs:225,326,422,598` |
+| **C1** ⚠ SCOPED 2026-08-31 — **96 divides, 7 files**, not the "~18 in 8" this row said | `tests/mod.rs:493` + 96 divide-by-`RUNS` sites | `89e8c3ed0` rewrote **only the label**. `git blame`: line 493 (`MINIMUM of {RUNS}`) is that commit; lines 528-542 (`stat` returning `sum/len`, `net_of`, `total_mean`) are untouched. `render_phase_table` renders the axis tables for accum, node-share, cascade, fanout, harvest, strat, gather-probe. In `accum_alpha_leftover_split` the **two halves of one table disagree** — isolated arms `.min()`, in-fire rows mean, one header. Sites: `accum_alpha_cost.rs:112,346` · `accum_cost.rs:310,607,1632` · `cascade_cost.rs:372` · `fanout_cost.rs:424,619,741,852` · `harvest_cost.rs:598` · `rank_and_instrument.rs:375,465,573` · `strat_cost.rs:225,326,422,598` |
 | **C2** | `gather_probe_cost.rs:176`; `accum_cost.rs:1383` | two more arms labelled `(engine)` that are not. `seen_insert` routes stamped aggregates to `FxHashSet<u64>` (arm **I**), table labels **S**. `intern_val` has the 4096-slot table built in (arm **A**), table labels **V** — and `table_ok` at `:1322` is literally the engine's own fast-path predicate. Both print a *"predicted cut"* for a stone that shipped. **`b7d9d8e90` fixed instance 1 and named the class in its own message.** |
 | **C3** | `accum_cost.rs:1630` | reads phase mark `setup:seen:insert`. The engine emits `setup:seen:alloc` and `setup:seen` only. `of` is `unwrap_or(0)` → prints `0.00 ms` as a measurement and `−S` as a difference. On the floor. |
 | **C4** | `accum_alpha_cost.rs:233,1080` | the arm labelled `A alpha_activate_fact` (**THE production path**) is handed an empty `bind_only`, disabling the `skip_span` fast path production takes for ~all 80,200 pairs. The same file builds it correctly at `:532`. |
 | **C5** | `binding_repr_bench.rs:545,664` | on the release floor, asserting `extend_array_wins + get_array_wins < usize::MAX` — a tautology — while measuring a representation decision the engine settled a third way (`BindSpan` into `bind_pool`, not a trie). Both siblings are `#[ignore]`d with measured reasons. Also `:24` apportions an "in-engine bind" across three arms, none on the bind path. |
 | **C6** | `node_share_cost.rs:61,286` | reconstructs the `filter` phase from the **retired interpreter** (`eval_test_core`, whose own doc says native fire is `exec_where`), against a hard-coded 2026-08-01 constant. Only arm F is the fire path. |
 | **C7** | rule | **`intueri`'s rung, adopt it:** an arm may carry `(engine)` **only if its body CALLS the production function** — as `accum_cost`'s V arm does with `intern_val`. Where no arm calls production, no arm gets the label. |
+
+### ⚠ C1'S SCOPE, MEASURED — and the orchestrator's third wrong instrument on this row
+
+Counted 2026-08-31 on the real signal (files binding `let r = RUNS as f64` **and** carrying a
+`MINIMUM of` header), which is the only honest population:
+
+| file | divides by RUNS | MINIMUM headers |
+|---|---:|---:|
+| `accum_cost.rs` | 29 | 8 |
+| `fanout_cost.rs` | 28 | 5 |
+| `rank_and_instrument.rs` | **21** | 5 |
+| `strat_cost.rs` | 7 | 5 |
+| `accum_alpha_cost.rs` | 6 | 5 |
+| `cascade_cost.rs` | 4 | 2 |
+| `harvest_cost.rs` | 1 | 5 |
+| **TOTAL** | **96** | **35** |
+
+⛔ **A FIRST COUNT OF 37 WAS WRONG AND IS KEPT HERE AS THE LESSON.** The regex was
+`^\s*[a-z_]+ */= r;` — shaped from the first site read (`fire /= r;`) — and it cannot see
+`let (a, b) = (a / r, b / r);`, which is how `harvest_cost` and `strat_cost` spell it. It reported
+`rank_and_instrument.rs` as **zero** where the file has **21**. `vocare` had named those exact
+sites in the cast and the orchestrator's own grep contradicted the ward; **the ward was right.**
+
+Same class as `--exclude tests.rs` matching nothing (2026-08-30) and `doc-coverage.sh` counting
+1,917 `#[cfg(test)]` lines as production: **an instrument shaped by the first example it saw,
+reporting a subset as a total.** Third instance on this arc, and this one was produced in the same
+breath as a promise not to produce another wrong number.
+
+**For whoever draws this strike:** the population is the 96, `render_phase_table`'s `stat()` (which
+renders the axis tables for fanout, accum, node-share and rank-and-instrument), and `net_of` /
+`total_mean` which both read `stat(..).0`. Do NOT trust a `/= r` grep; the spellings are at least
+three (`x /= r;`, `let (a,b) = (a / r, b / r);`, and `*x /= r;` inside a loop).
 
 ---
 
