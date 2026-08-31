@@ -105,16 +105,34 @@
   [h <- :hs::alpha::Handle] -> (:wat::kernel::Address :- [:hs::Alpha::Op :hs::Alpha::Reply])
   (:hs::alpha::Handle/addr h))
 
-;; THE SHAPE THE WALL MUST REJECT — legal today, and this is the escape that manufactures a peer
-;; to a service nobody owns. Kept here, type-checking, as the wall's target: when the stone lands
-;; this function is what must stop compiling.
-(:wat::core::defn :hs::the-escape-the-wall-must-reject
+;; ⛔ CORRECTED 2026-08-31 — this function was committed under the name
+;; `:hs::the-escape-the-wall-must-reject`, and that label was WRONG. It is the ordinary `conn`
+;; helper every caller writes, and it is SAFE: the handle arrives as a PARAM, so the CALLER still
+;; owns it and the peer cannot outlive it. A wall keyed on "param is a Handle, return is a Peer"
+;; would reject this and every `conn` in the corpus.
+;;
+;; The discriminator is not the parameter, it is WHO CREATED THE HANDLE — see
+;; `:hs::dial-and-drop-is-the-real-escape` below. Recorded rather than quietly renamed: a wrong
+;; acceptance criterion is how a wall gets built against the wrong shape.
+(:wat::core::defn :hs::conn-is-safe-the-caller-owns-the-handle
   [h <- :hs::alpha::Handle] -> (:wat::kernel::Peer :- [:hs::Alpha::Op :hs::Alpha::Reply])
   (:wat::core::match (:wat::kernel::connect (:hs::alpha::Handle/addr h))
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+;; THE REAL CASE-1 ESCAPE, and the wall's true acceptance criterion. `h` is CREATED here by
+;; `/start`, so this scope owns it; returning the peer hands the caller a live channel to a service
+;; that dies the moment this function returns. Legal today, type-checks today. When the stone lands
+;; THIS must stop compiling while `:hs::conn-is-safe-the-caller-owns-the-handle` above keeps
+;; compiling — a wall that cannot separate those two is too blunt to ship.
+(:wat::core::defn :hs::dial-and-drop-is-the-real-escape
+  [] -> (:wat::kernel::Peer :- [:hs::Alpha::Op :hs::Alpha::Reply])
+  (:wat::core::let
+    [h (:hs::alpha/start :locus (:wat::spawn::thread) :record (:hs::alpha::Record :n 0))
+     c (:hs::conn-is-safe-the-caller-owns-the-handle h)]
+    c))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println "handle->surface relation: both services annotate precisely"))
