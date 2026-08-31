@@ -55,7 +55,7 @@ the reading of property keys out of the map does not.
 
 ## What ships
 
-1. `wat_doc::from_metadata` — reads `:purity` / `:determinism` / `:total` / `:expand-time` (and the
+1. `wat_doc::from_metadata` — reads `:purity` / `:determinism` / `:totality` / `:expand-time` (and the
    universal required set) out of a metadata-map `WatAST`, producing the **same `DocComment`** the
    text path produces, enforcing the **same required directives** with the **same `DocError`s**.
 2. The wat def-registration path calls it, so a wat `defn`'s declared properties reach
@@ -136,7 +136,7 @@ counts and a `Totalityity` corruption check.
 
 | what | command | expected |
 |---|---|---|
-| one wat verb declares | a `defn` with `{:purity :Pure …}` | loads, checks clean |
+| one wat verb declares | a `defn` with `{:purity :wat::runtime::Purity::Pure …}` | loads, checks clean |
 | the declaration is READ | `metadata-of` on that verb | `Some`, carrying the declared axes |
 | the same errors as the Rust path | a metadata map missing `:purity` | the **same `DocError`** the `///` path raises |
 | the Rust path is untouched | `wat_doc::parse` callers | still 2, unchanged |
