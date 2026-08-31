@@ -33,6 +33,20 @@ Drawing this is what uncovered the rest of excursus 001: `receive` needs a re-pu
 `:wat::query::Store` did not have). Both landed, along with the `journal` data-loss bug the
 first of those exposed.
 
+## What is here
+
+- **`sqs.wat`** — the queue service (holds a `Store` peer, GSI `by-visible-at`) plus a
+  both-backends lifecycle that is the gate: send 3 / receive 2 / the two go invisible /
+  the third is returned / ack / the unacked message reappears once `now` steps past the
+  window. `now` is an argument — `:wat::time::now` cannot be stepped, and a sleep is a
+  guess. Prints one agreed summary from mem and sqlite, or `DIFFERENTIAL-MISMATCH`.
+
+```bash
+./target/release/wat wat-scripts/queue/sqs.wat
+# => bound=x;r1=a,b;r2=c;r3=;redel=b
+```
+
 ## Sibling
 
-`wat-scripts/topic/` — **wat-topic**, the SNS half.
+`wat-scripts/topic/` — **wat-topic**, the SNS half. A topic fanning out to N durable queues is
+the shape the pair exists for.
