@@ -50,11 +50,50 @@ slot bounds, three compat gates). **None is a graph wall.**
 | ~~**A1**~~ ✅ `788e5b66d` | `export.rs:2112-2128` | no structural validation of the imported graph: nothing checks a child id resolves, that a Negation/Exists/Accumulate `aid` names an **Alpha**, or that `child > parent`. `node.rs:192` and `arm.rs:592` both state the passes **require** ascending id order. | a fourth wall between phases 3 and 5, refusing with `malformed` like the other three — then state it in law 3 so the wall count and the walls agree |
 | ~~**A2**~~ ✅ `c449cd24d` (acc.rs half; `fire/mod.rs` remains) | `acc.rs:64,72,76,83,129,139-142`; `fire/mod.rs:1400,1406,1415,1615-1628` | `panic!` licensed by a rune reading *"AccFold compile proved i64"* — a proof `import_export` never runs. `unpack_fold` (`export.rs:1382`) takes the fold key straight off the wire; `import_export` interns it at `:2199`. No `catch_unwind` on the program path. Rust panic, no span, no rule named. | return `Result<_, EvalBreak>` as `driver_of` (`fire/mod.rs:239`) already does for the same class — **a wire-reachable invariant may not be spelled `panic!`**. A rune here must name the DOOR, not the compiler. |
 | **A3** | `expr_ir/mod.rs:947` / `arm.rs:429` | acc-form fence admits on pure ∧ deterministic ∧ total ∧ `primitive?` — and `primitive?` IS "has a `RETE_OPS` row". `lower_named_rete_fn` then resolves via `sym.get(head)` (USER table) with no `rete_op_for` branch; sibling `lower_list` has one. `PersistentVector/length` fires in all 3 other positions, unreachable here. Raise says `unknown rete-defn` about a minted row. | give the lowering the ladder the fence implies — `rete_op_for` before `sym.get`. ✅ **FAILING GATE ALREADY BANKED**: `harness-experiri/` — land it WITH the fix, RED→GREEN |
-| **A4** | `alloc_counter.rs:118,133` / `session.rs:1404` | `SESSION_ORIGIN` is one `Cell` per THREAD, rebased unconditionally by every `compile-all` (`arm.rs:1205`). Second session re-bases the first; `saturating_sub` then floors the reading at **0 — no ceiling at all for the rest of that session's life**. `arm_lease.rs:141` is a GREEN test holding two live sessions on one thread. | key the origin the way `ARM_TABLE` already keys entries — by network identity — and pass the session into `session_ceiling_breach`. `origin > thread_bytes()` is not a zero; it is proof the origin belongs to another session, and must refuse loudly |
+| ~~**A4**~~ ✅ `42704d57b` | `alloc_counter.rs:118,133` / `session.rs:1404` | `SESSION_ORIGIN` is one `Cell` per THREAD, rebased unconditionally by every `compile-all` (`arm.rs:1205`). Second session re-bases the first; `saturating_sub` then floors the reading at **0 — no ceiling at all for the rest of that session's life**. `arm_lease.rs:141` is a GREEN test holding two live sessions on one thread. | ✅ origin keyed by network identity, the way `ARM_TABLE` keys its arms, and threaded into both doors. **Two corrections to this fix shape, both from contact:** (a) *"`origin > thread_bytes()` … is proof the origin belongs to another session, and must refuse loudly"* is now FALSE and was not implemented — with per-session origins that inequality is the ordinary consequence of a sibling session freeing on the same thread, and refusing loudly there would refuse the innocent. (b) keying is only HALF the fix: `mark_session_origin` must also refuse to overwrite an origin it already holds, or a re-`arm-session` on a live session re-bases it under its own key. See § A4 closure below. |
 | **A5** | `arm.rs:1190`; `stratify.rs:852` | *"`compile-all` is the one door EVERY rule passes"* is unqualified and false at import and at hand-assembled Sessions. `stratify.rs:852` meets the imported case, comments *"saying so is the honest outcome"*, and then `continue`s — saying nothing to anyone. | qualify the sentence at the site (every **locally compiled** rule set) and make `stratify.rs:852` return an outcome the caller can see |
 | **A6** | `export.rs:746,296,275` | `unpack_expr` / `check_expr_slots` recurse unbounded over wire-chosen nesting. No depth bound on the path. SIGSEGV, no wat error, no span. Reachable from a wat program building nesting iteratively into `(:wat::rete::import …)`. | thread a depth counter, refuse past a stated bound with `malformed` |
 | **A7** | `export.rs:2128` + `pmap.rs:148` | import builds the network **O(N²)** (`from_pairs` linear-scans the accumulator per pair) with no node cap; and import calls neither `check_session_ceiling` nor `mark_session_origin`, so what it allocates is charged to nothing | add both calls at the import door; build through the trie arm directly at large pair counts |
 
+
+### ✅ A4 — THE SESSION CEILING'S ZERO POINT. CLOSED `42704d57b`.
+
+`alloc_counter::SESSION_ORIGIN` was one `Cell` per THREAD. It is now an `FxHashMap` keyed by the
+session's network identity (`arm::network_identity` — the same key `ARM_TABLE` uses), with a
+`const`-initialised one-entry `Cell` cache in front of it, and `session_ceiling_breach` /
+`check_insert_ceiling` carry the key down from all three call sites.
+
+**What it bought, stated at its true size.** A thread-local byte counter still cannot separate two
+sessions sharing a thread — `alloc_counter`'s own doc said so before the fix and still says so
+after. Session A's reading includes session B's bytes, so A **over-counts and refuses EARLY**,
+which the module already rules the safe direction. **The strike converted an unsafe silent failure
+(a session with no ceiling at all) into a safe conservative one. A per-session origin is not a
+per-session allocator.**
+
+**Three things measured rather than assumed:**
+
+1. **The prescribed mutation was INERT.** "Make `mark_session_origin` clobber regardless of id"
+   (`or_insert` → `insert`) left every arm of the probe GREEN, because with distinct keys the two
+   behave identically. The mutation that actually bites is dropping the key entirely. A third probe
+   arm (`rearm`) was added to close the hole the inert mutation exposed: it hands the SAME session
+   back to `arm-session` mid-life, and it is the only arm `insert` vs `or_insert` can move.
+2. **The map cost is real on the insert hot path** — `+51 / +77 / +75` ns per fact, a consistent
+   ~1.5%, measured with two binaries built from the same tree and run INTERLEAVED
+   (`wat-scripts/scratch-pad/bench-arc278-session-origin-insert-door.wat`). The one-entry cache
+   brings it to `-43 / -3 / -86` against the pre-strike binary, i.e. back inside the noise. The
+   `const` init the old doc defended did not disappear; it moved to the slot read per fact.
+3. **Two `compile-all`s of the same rule set do NOT share a network identity** (measured:
+   `Some(17592186044421)`, `…428`, `…435` in one process), so the key distinguishes sessions in the
+   corpus. STOP trigger 2 did not fire.
+
+⚠ **NOT TAKEN — A7's import half, and it is one line.** `import_export` (`export.rs:2312`) still
+never calls `mark_session_origin`; the patch is
+`crate::alloc_counter::mark_session_origin(network_identity(&network));` beside the existing
+`rete_arm_intern`. DESIGN admitted it "only if it costs one call" — it does — but taking it means a
+SEVENTH file against a blast radius stated as six, and "a seventh is a STOP, not a delta" is the
+harder rule. **Left for A7, and mostly harmless meanwhile:** an imported session now self-marks
+under its OWN key on first ceiling check and nothing can clobber it, which is the property that was
+missing before.
 
 ### ✅ A2b — THE SILENT ZERO. CLOSED `d081142a9`.
 
