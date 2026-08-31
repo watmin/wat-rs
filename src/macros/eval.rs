@@ -455,8 +455,12 @@ fn is_expand_time_legal(head: &str) -> bool {
     //     `stream::lazy`, `stream->vec`, `stream->pvec`
     //   homoiconic AST helpers not yet homed — `forms`, `with-children`,
     //     `write-forms`, `struct->form`
-    //   Option/Result unwrappers — `Option/expect`, `Option/try`, `Result/expect`,
-    //     `Result/try`
+    //   ~~Option/Result unwrappers~~ — DELETED 2026-08-31. All four (`Option/expect`,
+    //     `Option/try`, `Result/expect`, `Result/try`) are now `#[wat_intrinsic]`-registered,
+    //     so the `registry().lookup_entry` door above answers first and these arms were
+    //     unreachable dead text — precisely the "shadowed by a copy" defect this residue
+    //     list's own header names. Found by a rider that was homing three of them and
+    //     noticed the fourth had been stale since earlier the same day.
     //   ReadOutcome / Error field access — `ReadOutcome::Forms`,
     //     `ReadOutcome::Malformed`, `Error/message`
     matches!(
@@ -512,10 +516,6 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::with-children"
         | ":wat::core::write-forms"
         | ":wat::core::struct->form"
-        | ":wat::core::Option/expect"
-        | ":wat::core::Option/try"
-        | ":wat::core::Result/expect"
-        | ":wat::core::Result/try"
         | ":wat::core::ReadOutcome::Forms"
         | ":wat::core::ReadOutcome::Malformed"
         | ":wat::core::Error/message"

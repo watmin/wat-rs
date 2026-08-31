@@ -776,6 +776,18 @@ mod tests {
         // no scheme to verify the DOCS against. Retires when a scheme registers — not by
         // weakening the gate.
         ":wat::core::Option/expect",
+        // Arc 255 Stone the-option-result-siblings — `Option/try`/`Result/expect`/`Result/try`
+        // are each checked FOR REAL by a hand-written `check_call` arm (`infer_option_try`/
+        // `infer_result_expect`/`infer_try`, `src/check.rs:2918,2926,2948`'s match arms), but
+        // NONE carries an `env.register()` TypeScheme, so `check_env.get` returns `None` for
+        // all three. Exactly the `Option/expect` shape just above: real checking, no scheme to
+        // verify the DOCS against. Predicted in the DESIGN before this stone was briefed
+        // (measured against this same `check_env.get` — verified, not inferred), and it fired
+        // exactly as predicted. Retires when a scheme registers for each — not by weakening
+        // the gate.
+        ":wat::core::Option/try",
+        ":wat::core::Result/expect",
+        ":wat::core::Result/try",
         // Arc 255 Stone A-2-ii-b-1 — `Some`/`Ok`/`Err` are each checked FOR REAL by a
         // hand-written `check_call` arm (`infer_some_constructor`/`infer_ok_constructor`/
         // `infer_err_constructor`, `src/check.rs:4938,4948,4958` — Region A's FQDN-keyword-

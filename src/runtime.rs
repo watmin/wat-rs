@@ -5815,20 +5815,23 @@ fn dispatch_keyword_head_value(
         // Stone 241.15: the three retiring verbs (:wat::core::try,
         // :wat::core::option::expect, :wat::core::result::expect) are now
         // HARD CUT (MalformedForm rejection at check time); dispatch arms deleted.
-        // Canonical post-slice forms.
-        ":wat::core::Result/try" => eval_try(":wat::core::Result/try", args, list_span, env, sym),
-        ":wat::core::Result/expect" => {
-            eval_result_expect(":wat::core::Result/expect", args, list_span, env, sym)
-        }
         // Arc 255 Stone A-2-ii-b-0 — `:wat::core::Option/expect` moved into a `#[wat_intrinsic]`
         // handler (`src/intrinsic/option.rs`) with its real (2) arity declared; the pre-match
         // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // Ruled `Pure ∧ Deterministic ∧ Partial` — it raises on `None`
         // (`RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`).
-        // New substrate addition (Option-side propagation).
-        ":wat::core::Option/try" => {
-            eval_option_try(":wat::core::Option/try", args, list_span, env, sym)
-        }
+        // Arc 255 Stone — the option/result siblings — `:wat::core::Option/try`,
+        // `:wat::core::Result/expect`, `:wat::core::Result/try` moved into `#[wat_intrinsic]`
+        // handlers (`src/intrinsic/option.rs`, `src/intrinsic/result.rs`) with their real
+        // arities declared (`Result/expect` 2, both `try` verbs 1); the registry check above
+        // intercepts each name before reaching here, so their literal dispatch arms are gone.
+        // `Result/expect` ruled `Pure ∧ Deterministic ∧ Partial` — same shape as
+        // `Option/expect`, it `expect_panic`s on `Err`. Both `try` verbs ruled
+        // `Pure ∧ Deterministic ∧ Total` — the propagate signal they raise
+        // (`EvalSignal::TryPropagate`/`OptionPropagate`) is not a panic; `apply_function`
+        // (`:19490-19495` below) catches it and wraps it as the enclosing function's own
+        // matchable `Err`/`:None` return, guaranteed type-correct by the checker whenever the
+        // body contains a `try` (see the comment at `:19458`).
         ":wat::core::struct-new" => eval_struct_new(args, list_span, env, sym),
         ":wat::core::struct-field" => eval_struct_field(args, list_span, env, sym),
         ":wat::core::variant" => eval_variant(args, list_span, env, sym),
@@ -15333,7 +15336,11 @@ pub(crate) fn eval_err_ctor(
 ///
 /// Type error (not a checker guarantee — the runtime still guards):
 /// arg is not a `Value::Result`. Caller surfaces `TypeMismatch`.
-fn eval_try(
+///
+/// Arc 255 Stone — the option/result siblings — `pub(crate)` so
+/// `src/intrinsic/result.rs`'s thin `#[wat_intrinsic]` delegate (`eval_result_try`) can call
+/// straight into this unchanged body.
+pub(crate) fn eval_try(
     op: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -15393,7 +15400,11 @@ fn eval_try(
 /// The type checker (see `crate::check::infer_option_try`) guarantees
 /// the enclosing function returns `(:Option :- [_])`. The dispatcher
 /// assumes this invariant and does not re-verify at runtime.
-fn eval_option_try(
+///
+/// Arc 255 Stone — the option/result siblings — `pub(crate)` so
+/// `src/intrinsic/option.rs`'s thin `#[wat_intrinsic]` delegate can call straight into this
+/// unchanged body.
+pub(crate) fn eval_option_try(
     op: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -15494,7 +15505,11 @@ pub(crate) fn eval_option_expect(
 
 /// `(:wat::core::result::expect -> :T <res> <msg>)` — the panic-on-Err
 /// sibling of `option::expect`. Arc 108.
-fn eval_result_expect(
+///
+/// Arc 255 Stone — the option/result siblings — `pub(crate)` so
+/// `src/intrinsic/result.rs`'s thin `#[wat_intrinsic]` delegate can call straight into this
+/// unchanged body.
+pub(crate) fn eval_result_expect(
     op: &str,
     args: &[WatAST],
     list_span: &Span,

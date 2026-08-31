@@ -1,11 +1,15 @@
 //! `:wat::core::Option/expect` — arc 255 Stone A-2-ii-b-0, the first `:wat::core::Option::*`
 //! verb to get a registry home. `:wat::core::Some` joined it arc 255 Stone A-2-ii-b-1 — the
 //! tagged `Option` constructor `meter-2` made visible and parked; its sibling `Ok`/`Err`
-//! constructors live in `src/intrinsic/result.rs`.
+//! constructors live in `src/intrinsic/result.rs`. `:wat::core::Option/try` joined arc 255
+//! Stone the-option-result-siblings, homing the last `:wat::core::Option::*` verb — its
+//! `Result`-side twin `Result/try` and `Option/expect`'s sibling `Result/expect` both live in
+//! `src/intrinsic/result.rs`.
 //!
 //! BRIEF: `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-A-2-ii-b-0-the-accessor-path-verbs-get-homes.md`
 //! (`Option/expect`), `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-A-2-ii-b-1-the-option-result-constructors-get-homes.md`
-//! (`Some`).
+//! (`Some`), `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-the-option-result-siblings.md`
+//! (`Option/try`).
 //!
 //! Thin `#[wat_intrinsic]` delegates over pre-existing named fns (`src/runtime.rs`) — bodies do
 //! not move, per the brief's two-layer architecture (`src/intrinsic/<ns>.rs` registers and
@@ -120,4 +124,60 @@ pub(crate) fn eval_some_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     crate::runtime::eval_some_ctor(std::slice::from_ref(v), list_span, env, sym)
+}
+
+/// `(:wat::core::Option/try <option-expr>) -> :T` — the Option-side mirror of
+/// `:wat::core::Result/try` (`src/intrinsic/result.rs`'s `eval_result_try`). Unwraps a
+/// `(:wat::core::Option :- [T])` to its inner `T`, or short-circuits the enclosing
+/// Option-returning function with `:None`.
+///
+/// Homed here arc 255 Stone the-option-result-siblings with its real (1) arity declared; the
+/// hand-rolled `args.len() != 1` guard in `eval_option_try` retires. The body is unchanged,
+/// still in `src/runtime.rs`.
+///
+/// **Purity ground:** the one arg is evaluated by ordinary call-by-value (not itself an
+/// effect). Past that, the body only matches the already-evaluated `Option` and either returns
+/// the wrapped value or raises a propagate signal — no `eval_inner`/`apply_function` on
+/// caller-supplied code beyond that one argument evaluation. Pure ∧ Deterministic.
+///
+/// **Totality ground — pinned in the DESIGN, ruled by
+/// `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`:** on `:None`, this verb
+/// returns `Err(EvalBreak::Signal(EvalSignal::OptionPropagate))` — a **signal**, not a raise.
+/// `runtime.rs:19493-19495`'s `apply_function` catches it and packages it as the enclosing
+/// function's own `Value::Option(Arc::new(None))` return, mirroring `TryPropagate`'s handling
+/// just above it (`:19458`, quoted on `Result/try`'s doc) — the checker
+/// (`crate::check::infer_option_try`) guarantees the enclosing function returns
+/// `(:wat::core::Option :- [_])` whenever its body contains an `Option/try`, so the wrap is
+/// always a matchable `Some`/`None` arm. `Total` — the opposite verdict from its `expect`
+/// sibling above, because the body does the opposite thing: propagate, not panic.
+///
+/// **Expand-time ground —** Pure ∧ Deterministic ∧ Total; safe to evaluate during expansion.
+/// Legal.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     opt (:wat::core::Option :- [T]) the option unwrapped
+/// @ret     :T the wrapped value, if `opt` is `Some`; otherwise short-circuits the enclosing
+///   function with `:None`
+/// @example (:wat::core::Option/try (:wat::core::Some 3)) #=> 3
+/// @see     :wat::core::Option/expect
+/// @see     :wat::core::Result/try
+#[wat_intrinsic(":wat::core::Option/try")]
+pub(crate) fn eval_option_try(
+    opt: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_option_try(
+        ":wat::core::Option/try",
+        std::slice::from_ref(opt),
+        list_span,
+        env,
+        sym,
+    )
 }

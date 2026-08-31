@@ -2244,11 +2244,8 @@ mod completeness_gate {
         // population and their debt is visible again. Nothing here is classified; 255.3 owns
         // that. [[feedback_a_gate_freezes_names_never_a_count]] — the gate froze the names
         // correctly; the DISPOSITION of its red is what went wrong.
-    ":wat::core::Option/try",
     ":wat::core::Record/assoc",
     ":wat::core::Record/same-data?",
-    ":wat::core::Result/expect",
-    ":wat::core::Result/try",
     ":wat::core::Tuple",
     ":wat::core::ann-form",
     ":wat::core::apply",
