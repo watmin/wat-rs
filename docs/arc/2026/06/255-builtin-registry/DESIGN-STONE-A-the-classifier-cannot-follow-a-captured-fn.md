@@ -102,10 +102,51 @@ Declare the HOFs honestly (`Effectful`, or `Unreviewed`), accept that they stay 
   the argument is a runtime value nothing can inspect. It would assert a conditional purity **nothing
   can verify** — the hole intact, wearing a label that sounds checked.
 
-## The cheap probe whoever draws this should run FIRST
+## ★ THE PROBE RAN — 2026-08-30. THE FORK HAS COLLAPSED, AND NOT AS PREDICTED.
 
-Before designing: take A-1's unmeasured half on its own. Declare a purity requirement on ONE
-intrinsic's callback arg and ask whether a `defclause` between the caller and that intrinsic can
-carry it. If contract propagation through a wat defclause turns out to be cheap, A-1 wins on
-Good UX (check-time beats runtime). **If it does not, A-2 is the only shape that closes the hole**,
-and the fork collapses to a ruling about whether the classifier may hold an environment.
+This section previously said: *"if contract propagation through a wat defclause turns out to be
+cheap, A-1 wins on Good UX."* **That framing was wrong. Propagation is neither cheap nor expensive
+— it DOES NOT EXIST**, and nothing in the substrate would derive it.
+
+### What A-1 would actually cost — measured
+
+| | measured | source |
+|---|---|---|
+| a fn TYPE carrying purity | ⛔ **none.** `TypeExpr::Fn { args, ret }` — two fields, no effect row | `src/types.rs` |
+| a metadata-map on a `defclause` | ✅ **parsed and enforced** — two tests cover it | `src/check.rs:21772, :21803` |
+| any defclause in the corpus using one | ⛔ **zero.** *"corpus carries no `:restricted-to` defclause today"* | `src/check.rs:21723` |
+| `binding_metadata` granularity | ⛔ **per-BINDING**, and `:restricted-to` constrains the caller's FQDN prefix — a capability wall, not a property of a parameter | `src/check.rs:633, :1383` |
+
+So the carrier exists, but the **key is new** (per-parameter, not per-binding), the **enforcement is
+new**, and — decisively — **nothing derives the obligation from the body.** `sort-by` would
+hand-declare `{:pure-params [keyfn]}` because a human noticed it closes over `keyfn` into
+`sort$native`'s pure slot. Nothing checks that declaration against what the body actually does.
+
+⛔ **That is the CONVENTION rung, and it is the exact failure this arc exists to kill:** a
+hand-declaration that cannot tell *"deliberately omitted"* from *"never added"*, so a forgotten one
+reopens the hole silently. It is `is_pure_total`'s 174-verb gap in a new costume.
+
+### What A-2 actually costs — measured, and smaller than this document first said
+
+| | measured |
+|---|---|
+| `classify_expr` call sites | **19 — ALL inside `src/rete/purity.rs`.** The signature change does not cross a module boundary |
+| the capture is reachable | ✅ `Function.closed_env: Option<Environment>` (`src/value/environment.rs:4,46`) |
+| the lookup exists | ✅ `Environment::lookup(&self, name, head_span) -> Option<TrackedValue>` (`:200`) |
+| both consumers already hold what they need | ✅ `freeze.rs` has the `Function`; `sort$native`'s door has `env` **and** the comparator value |
+
+### ⚠ A-2's ONE REAL HAZARD — name it in the stone, it is not blocking
+
+`classify_fn` guards recursion with `seen: HashSet<String>` **keyed on the FQDN**, resolving through
+`sym.get(fqdn)`. **An anonymous closure has `name: None` and is not in `sym`** — so it has no key,
+and a naive "follow the capture" recursion has no back-edge guard. A-2 must supply its own: identity
+on the `Arc<Function>`, or a depth bound. Cheap, but it must be designed, not discovered.
+
+### Where that leaves the fork
+
+**A-2 is contained to one file and closes the hole; A-1 is a new declaration surface whose
+correctness rests on each author remembering to declare.** A-3 remains the honest concession.
+The Good-UX argument that favoured A-1 (check-time beats runtime) survives — but it is now paid for
+with a hand-declaration per link in every HOF chain, and this arc has spent the whole day proving
+what that costs. **The ruling is the builder's; the measurement no longer supports A-1 being the
+cheap one.**
