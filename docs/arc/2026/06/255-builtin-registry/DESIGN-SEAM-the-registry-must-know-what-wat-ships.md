@@ -64,7 +64,46 @@ default-denies an unmeasured head, so a wat verb calling any of the 403 `Unrevie
 derives as *not proven* — not as impure. Derivation would produce a large, honest, `Unreviewed`-
 shaped residue, exactly as `@Total` does today.
 
-## The questions this seam turns on — the builder's, not mine
+## ★ THE SHAPE — builder, 2026-08-30, and it answers question 2 outright
+
+> *"we made all the defs take a metadata map, yes?.... we can declare all of these properties as
+> actual wat data... not 'magic comments' ... the actual def exprs are consulted by some rust macro
+> who lifts them and installs?... just like how we do the runtime meta via wat files"*
+
+**DECLARE, as wat data, lifted at BUILD time.** Not derive, and not doc-comment prose. Every piece
+already exists and is proven:
+
+| piece | status | evidence |
+|---|---|---|
+| defs take a metadata map | ✅ shipped | `(defn :name {:restricted-to […]} [args] -> :Ret body)`; 4 live corpus uses (`wat/spawn.wat:338`, `wat/kernel/services/stdio.wat`) |
+| a wat form lifted into Rust at build time | ✅ shipped | `wat_enum_from!` — `CARGO_MANIFEST_DIR` → `read_to_string` → generate |
+| the anti-drift property | ✅ solved | it emits `const _: &str = include_str!(…)` so **rustc tracks the file**; edit the wat, the Rust rebuilds |
+| the doctrine | ✅ ruled 2026-08-15 | *"wat is the source of truth; this crate generates the Rust… there is no second copy to go stale"* |
+
+★ **So this is not a new idea — it is the completion of one already ruled.** `wat_enum_from!` made
+wat the source of truth for the runtime *enums*. This makes it the source of truth for the verb
+*properties*, through the same door, in the same direction.
+
+★★ **And it kills the magic comments.** `/// @Purity Pure` is prose in a Rust doc comment that a
+scraper parses. `{:purity :Pure}` in a metadata map is **data the reader already parses** — the same
+reader, the same forms, no second grammar. Every "the directive parses but nothing consumes it" and
+"the doc says X while the code does Y" defect this arc has found lives in the gap between those two.
+
+### ⚠ The one question the ruling does NOT settle
+
+**Does this reach the 431 Rust intrinsics too, or only the 409 wat-defined verbs?** A Rust
+intrinsic's *implementation* is Rust, but its *declaration* need not be — under the doctrine as
+written, its properties would also be declared in wat and lifted, and `#[wat_intrinsic]`'s doc
+directives would go the way of `#[derive(WatEnum)]`. That is a far larger inversion than adding the
+wat half, and it is a separate ruling. **Nothing here assumes it.**
+
+### What the smallest proving step looks like under this shape
+
+One wat `defn` carrying `{:purity :Pure :determinism :Deterministic :total :Total :expand-time :Legal}`,
+lifted by a `wat_enum_from!`-shaped sibling, appearing in `metadata-of` with **`:defined-in Wat`** —
+which is precisely the value that makes the hard-coded constant above start discriminating.
+
+## The remaining questions — the builder's, not mine
 
 1. **What does "registered" MEAN for a wat verb?** The Rust registry is `inventory`-based and fixed
    at compile time; wat verbs arrive when a `.wat` is loaded/frozen. **Two populations with two
