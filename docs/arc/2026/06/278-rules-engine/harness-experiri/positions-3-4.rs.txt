@@ -1,0 +1,237 @@
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// TEMPORARY — experiri ward, 2026-08-30. THIRD POSITION: the `:then` head.
+// Delete before commit (the ward's harness, not a gate).
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/// Build the complete program for one cell driven in `:then` VALUE-OPERAND position.
+///
+/// Same records, same two facts, same rule shape as `synth` — the only difference is WHERE the
+/// expression is written. The rule's `:when` is unconstrained, so BOTH facts fire it; the
+/// expression is evaluated in the `:then` item's `:ok` field, and the oracle counts how many
+/// derived `:probe::Out` carry `ok = true`. Exactly 1 == the expression discriminated.
+fn synth_then(cell: &Cell, expr_override: Option<&str>) -> String {
+    let expr = expr_override.unwrap_or(&cell.expr).replace("{f}", "?v");
+    format!(
+        r#"{extra}(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- {field_ty}])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String  ok <- :wat::core::bool])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) (?v <- :v))]
+  :then
+  [(:probe::Out :k ?k :ok {expr})])
+
+(:wat::rete::defquery :probe::q
+  :params []
+  :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
+     session (:wat::core::match (:wat::rete::insert session (:probe::In :k "hit"  :v {hit})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+     session (:wat::core::match (:wat::rete::insert session (:probe::In :k "miss" :v {miss})) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::if (:probe::Out/ok (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact"))
+          (:wat::core::i64::+ acc 1)
+          acc))
+      0
+      (:wat::rete::query fired (:probe::q)))))
+"#,
+        extra = cell.extra,
+        field_ty = cell.field_ty,
+        expr = expr,
+        hit = cell.hit,
+        miss = cell.miss,
+    )
+}
+
+/// CALIBRATION for the `:then` position — two pinned cells, four drives, mixed outcomes.
+#[test]
+fn experiri_then_calibration() {
+    let mut log = String::new();
+    let mut bad: Vec<String> = Vec::new();
+    for (name, want_fire, want_refuse) in [
+        (":wat::rete::core::i64::>", 1i64, 0i64),
+        (":wat::rete::core::string::=", 1i64, 0i64),
+    ] {
+        let cell = operands_for(name).expect("pinned row");
+        // fire-drive: the cell as the corpus knows it — hit satisfies, miss does not.
+        let fired = raw_count(&synth_then(&cell, None));
+        // refuse-drive: ONE operand negated (the fact's own discriminating value), nothing else.
+        let neg = Cell { op: cell.op, arity: cell.arity, expr_is_verbatim: cell.expr_is_verbatim,
+            field_ty: cell.field_ty, hit: cell.miss, miss: cell.miss, extra: cell.extra,
+            expr: cell.expr.clone() };
+        let refused = raw_count(&synth_then(&neg, None));
+        log.push_str(&format!("  {name:<34} fire={fired:?}  refuse={refused:?}\n"));
+        if fired != Ok(want_fire) {
+            bad.push(format!("{name} fire-drive => {fired:?}, wanted Ok({want_fire})"));
+        }
+        if refused != Ok(want_refuse) {
+            bad.push(format!("{name} refuse-drive => {refused:?}, wanted Ok({want_refuse})"));
+        }
+    }
+    println!("\n─── experiri :then-position CALIBRATION (2 cells, 4 drives) ───\n{log}");
+    assert!(bad.is_empty(), "CALIBRATION FAILED — the cast is void:\n{}", bad.join("\n"));
+}
+
+fn then_sweep(shard: usize, of: usize) {
+    let rows: Vec<&ReteOp> =
+        RETE_OPS.iter().enumerate().filter(|(i, _)| i % of == shard).map(|(_, r)| r).collect();
+    let mut matrix: Vec<String> = Vec::new();
+    for row in &rows {
+        let Some(cell) = operands_for(row.rete_name) else {
+            matrix.push(format!("{:<46} NO-CELL", row.rete_name));
+            continue;
+        };
+        let src = synth_then(&cell, None);
+        let verdict = match raw_count(&src) {
+            Ok(1) => "then=FIRES".to_string(),
+            Ok(0) => "then=MATCHES-NOTHING".to_string(),
+            Ok(n) => format!("then=INERT-ALL({n})"),
+            Err(e) => {
+                let one = e.replace('\n', " ");
+                let named = one.contains(row.rete_name)
+                    || one.contains(&as_diagnostics_spell_it(row.rete_name));
+                format!("then={} :: {}", if named { "REFUSED" } else { "UNATTRIBUTED" }, one)
+            }
+        };
+        matrix.push(format!("{:<46} {}", row.rete_name, verdict));
+    }
+    println!("\n─── experiri :then-position sweep — shard {shard}/{of} ───");
+    for l in &matrix {
+        println!("{l}");
+    }
+    println!("─── {} rows ───\n", rows.len());
+}
+
+#[test] fn experiri_then_0() { then_sweep(0, 4) }
+#[test] fn experiri_then_1() { then_sweep(1, 4) }
+#[test] fn experiri_then_2() { then_sweep(2, 4) }
+#[test] fn experiri_then_3() { then_sweep(3, 4) }
+
+/// experiri — isolate the `:then` `match` refusal: is it my rendering, or the position?
+#[test]
+fn experiri_then_match_isolation() {
+    let cell = operands_for(":wat::rete::core::match").expect("row");
+    // (A) THE CELL AS THE SIBLING POSITIONS RUN IT — enum-variant arms.
+    let a = raw_count(&synth_then(&cell, None));
+    // (B) SAME ROW, DIFFERENT RENDERING — a hash-destructure arm, no enum pattern anywhere.
+    //     Driven on an i64 field so the enum decl is irrelevant; expression proven by the
+    //     `a_match_hash_destructure_binds_fields_in_both_positions` control.
+    let pt = Cell {
+        op: ":wat::rete::core::match", arity: 0, expr_is_verbatim: true,
+        field_ty: ":probe::Point", hit: "(:probe::Point :x 40 :y 2)", miss: "(:probe::Point :x 1 :y 1)",
+        extra: "(:wat::core::defrecord :probe::Point [x <- :wat::core::i64  y <- :wat::core::i64])\n\n",
+        expr: "(:wat::rete::core::i64::= (:wat::rete::core::match {f} ({vx :x  vy :y} (:wat::rete::core::i64::+ vx vy :undefined 0))) 42)".to_string(),
+    };
+    let b = raw_count(&synth_then(&pt, None));
+    // (C) THE ENUM MACHINERY ALONE, no `match` — `enum::=` over the same defenum, in `:then`.
+    let c = raw_count(&synth_then(&operands_for(":wat::rete::core::enum::=").expect("row"), None));
+    // (D) A NON-match rete form whose sub-forms are also NOT calls: `cond`'s `(pred body)` arms.
+    let d = raw_count(&synth_then(&operands_for(":wat::rete::core::cond").expect("row"), None));
+    println!("\n─── experiri :then / match isolation ───");
+    println!("  A enum-variant arms  = {a:?}");
+    println!("  B hash-destructure   = {b:?}");
+    println!("  C enum::= (no match) = {c:?}");
+    println!("  D cond arms          = {d:?}");
+    println!("\n─── program A (the refused one) ───\n{}", synth_then(&cell, None));
+}
+
+/// experiri — how wide is the `:then` enum-arm mis-read? Two spellings x three positions.
+#[test]
+fn experiri_then_match_arm_spellings() {
+    const ENUM: &str = "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n";
+    let bare = Cell { op: ":wat::rete::core::match", arity: 0, expr_is_verbatim: true,
+        field_ty: ":probe::E", hit: ":probe::E::A", miss: ":probe::E::B", extra: ENUM,
+        expr: "(:wat::rete::core::match {f} (:probe::E::A true) (:probe::E::B false))".to_string() };
+    let paren = Cell { op: ":wat::rete::core::match", arity: 0, expr_is_verbatim: true,
+        field_ty: ":probe::E", hit: ":probe::E::A", miss: ":probe::E::B", extra: ENUM,
+        expr: "(:wat::rete::core::match {f} ((:probe::E::A) true) ((:probe::E::B) false))".to_string() };
+    // A PAYLOAD enum — the arm's own arity now COINCIDES with the variant's declared field count.
+    const PENUM: &str = "(:wat::core::defenum :probe::P :wat::enum::Pure :N [n <- :wat::core::i64])\n\n";
+    let payload = Cell { op: ":wat::rete::core::match", arity: 0, expr_is_verbatim: true,
+        field_ty: ":probe::P", hit: "(:probe::P::N 7)", miss: "(:probe::P::N 9)", extra: PENUM,
+        expr: "(:wat::rete::core::i64::= (:wat::rete::core::match {f} ((:probe::P::N n) n)) 7)".to_string() };
+    for (label, c) in [("bare-kw arm", &bare), ("paren arm", &paren), ("payload arm", &payload)] {
+        let inline = raw_count(&synth(c, CallSite::InlineConstraint)).map(|n| n.to_string()).unwrap_or_else(|e| format!("REFUSED[{}]", &e[..e.len().min(90)]));
+        let fence = raw_count(&synth(c, CallSite::WhereFence)).map(|n| n.to_string()).unwrap_or_else(|e| format!("REFUSED[{}]", &e[..e.len().min(90)]));
+        let then = raw_count(&synth_then(c, None)).map(|n| n.to_string()).unwrap_or_else(|e| format!("REFUSED[{}]", &e[..e.len().min(120)]));
+        println!("EXPERIRI-ARM  {label:<14} inline={inline:<12} fence={fence:<12} then={then}");
+    }
+}
+
+/// experiri — the FOURTH declared position: the user accumulator fold's acc-form head.
+/// `vocabulary.rs`'s module doc declares it ("a `where` / `:then` / user accum fold may call").
+#[test]
+fn experiri_accumulator_position() {
+    fn prog2(acc_form: &str, extra: &str, facts: usize, want: i64) -> String { prog_inner(acc_form, extra, facts, want) }
+    fn prog(acc_head: &str, facts: usize, want: i64) -> String { prog_inner(&format!("({acc_head} ?v)"), "", facts, want) }
+    fn prog_inner(acc_form: &str, extra: &str, facts: usize, want: i64) -> String {
+        let inserts: String = (0..facts).map(|i| format!(
+            "     session (:wat::core::match (:wat::rete::insert session (:probe::In :k \"f{i}\"  :v {i})) ((:wat::rete::InsertOutcome::Inserted __s) __s) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __a __b __c) (:wat::kernel::assertion-failed! \"insert\" :wat::core::None :wat::core::None)))\n")).collect();
+        format!(r#"{extra}(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [n <- :wat::core::i64])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(?n <- {acc_form} :from (:probe::In (?v <- :v)))]
+  :then
+  [(:probe::Out :n ?n)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __r __ft) (:wat::kernel::assertion-failed! "compile" :wat::core::None :wat::core::None)))
+{inserts}     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __f) __f) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r2) (:wat::kernel::assertion-failed! "fire" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "cap" :wat::core::None :wat::core::None)))]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::if (:wat::core::i64::= (:probe::Out/n (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "q")) {want})
+          (:wat::core::i64::+ acc 1)
+          acc))
+      0
+      (:wat::rete::query fired (:probe::q)))))
+"#)
+    }
+    // CALIBRATION for this position: the TRUSTED builtin head, both answers.
+    const FOLD: &str = "(:wat::rete::core::defn :probe::total [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64\n  (:wat::rete::core::foldl (:wat::rete::core::fn [a <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ a x :undefined 0)) 0 xs))\n\n";
+    let s = |x: &Result<i64, String>| match x { Ok(n) => n.to_string(), Err(e) => format!("REFUSED[{}]", &e[..e.len().min(400)]) };
+    const LEN: &str = "(:wat::rete::core::defn :probe::len [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64\n  (:wat::rete::core::PersistentVector/length xs))\n\n";
+    // CELL 1 — a user fold whose BODY is the very op cell 3 uses as the acc HEAD.
+    let b_fire = raw_count(&prog2("(:probe::len ?v)", LEN, 2, 2));
+    let b_ref  = raw_count(&prog2("(:probe::len ?v)", LEN, 1, 2));
+    // CELL 2 — a USER rete-defn fold, the exact shape a RETE_OPS head would take.
+    let u_fire = raw_count(&prog2("(:probe::total ?v)", FOLD, 3, 3));   // v = 0+1+2 = 3
+    let u_ref  = raw_count(&prog2("(:probe::total ?v)", FOLD, 2, 3));   // v = 0+1 = 1
+    println!("EXPERIRI-ACC  CAL user len     fire(2,want2)={}  refuse(1,want2)={}", s(&b_fire), s(&b_ref));
+    println!("EXPERIRI-ACC  CAL user fold    fire(3,want3)={}  refuse(2,want3)={}", s(&u_fire), s(&u_ref));
+    // The ONE RETE_OPS row whose declared signature the acc-form head admits: (PV<T>) -> i64.
+    let mut refused_named = 0usize; let mut other: Vec<String> = Vec::new(); let mut fires: Vec<&str> = Vec::new();
+    for row in RETE_OPS.iter() {
+        let r = raw_count(&prog(row.rete_name, 2, 2));
+        match &r {
+            Err(e) if e.contains(row.rete_name) => refused_named += 1,
+            Err(e) => other.push(format!("{} :: {}", row.rete_name, &e[..e.len().min(200)])),
+            Ok(n) => fires.push(Box::leak(format!("{} => Ok({n})", row.rete_name).into_boxed_str())),
+        }
+    }
+    println!("EXPERIRI-ACC  COLUMN over all {} rows: refused-naming-the-op={refused_named}  other={:?}  non-refused={:?}", RETE_OPS.len(), other, fires);
+    for h in [":wat::rete::core::fn", ":wat::rete::core::cond"] {
+        println!("EXPERIRI-ACC  PANIC-ARM {h} => {:?}", drive(&prog(h, 2, 2), h));
+    }
+    for head in [":wat::rete::core::PersistentVector/length"] {
+        let f = raw_count(&prog(head, 2, 2));
+        let r = raw_count(&prog(head, 1, 2));
+        println!("EXPERIRI-ACC  {head}\n     fire-drive(2 facts, want 2) => {}\n     refuse-drive(1 fact, want 2) => {}", s(&f), s(&r));
+    }
+    // How many of the 79 rows declare a signature this position can even call?
+    let admits: Vec<&str> = RETE_OPS.iter().filter(|r| r.params.len() == 1
+        && matches!(r.params[0], crate::rete::vocabulary::ParamType::PersistentVectorOf(_)))
+        .map(|r| r.rete_name).collect();
+    println!("EXPERIRI-ACC  rows whose declared params are exactly one PersistentVector<T>: {admits:?}");
+}
