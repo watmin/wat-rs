@@ -225,8 +225,10 @@ pub(crate) struct OpMeta {
 /// `apply` (purity depends on the fn it is handed); `struct-new` / `struct-field` / `struct->form`
 /// (a struct may hold a live resource — arc 293.W); `Record/assoc` / `Record/field-at` /
 /// `record->map` / `to-record`; the AST/meta family (`read-string`, `macroexpand`, `forms`,
-/// `ast->*`, `with-children`, `write-forms`); `Option/expect` / `Result/expect` (total but they
-/// raise); and the generic sequence verbs (`range`, `take`, `drop`, `rest`, `last`, `assoc`,
+/// `ast->*`, `with-children`, `write-forms`); `Option/expect` / `Result/expect` (⛔ RULED
+/// `Partial` 2026-08-30 — this line used to read "total but they raise"; a raise is NOT a
+/// matchable outcome, so "but they raise" was the whole answer, not a parenthetical. See
+/// `docs/arc/2026/06/255-builtin-registry/RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`); and the generic sequence verbs (`range`, `take`, `drop`, `rest`, `last`, `assoc`,
 /// `conj`, `find-last-index`) which are very likely pure but were not measured this session.
 ///
 /// **The other 101 `:wat::holon::` verbs are also deliberately unclassified.** Three groups, and

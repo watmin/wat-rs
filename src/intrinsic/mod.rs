@@ -1021,8 +1021,16 @@ mod tests {
     /// zero divisor"). Its `@Total Partial` here is not an adjudication of that dispute; it is
     /// a TRANSCRIPTION of what the verb's own shipped doc already says two lines above the
     /// directive: *"`b = 0` raises `DivisionByZero`; `i64::MIN / -1` raises `IntegerOverflow`."*
-    /// Two distinct inputs on which it is undefined. Resolving what the two LISTS mean by
-    /// "total" remains stone T4's ruling.
+    /// Two distinct inputs on which it is undefined.
+    ///
+    /// ✅ RESOLVED 2026-08-30, and this paragraph's premise is now STALE in two ways. (a) The two
+    /// lists no longer contradict: Stone expand-1 renamed `is_pure_total` -> `is_expand_time_legal`,
+    /// and that file now says `:wat::i64::/` "is legal DESPITE being `@Total Partial` … Totality and
+    /// expand-time legality are different axes." They never disagreed about one property — they
+    /// answered two questions under one name. (b) The builder ADJUDICATED the underlying question:
+    /// a raise is not a matchable OUTCOME, so a raising verb is `Partial`. The transcription above
+    /// is therefore also the ruling. See
+    /// `docs/arc/2026/06/255-builtin-registry/RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`.
     #[test]
     fn totality_is_carried_from_the_doc_into_the_registry_entry() {
         let reg = super::registry();
