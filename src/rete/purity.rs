@@ -497,6 +497,61 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     ) {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
+    // ── STONE meter-2 — seven verbs the widened `dispatch_verbs` scan newly finds, dispatched
+    // all along from `dispatch_keyword_head` (one word off the anchored
+    // `dispatch_keyword_head_value` — the exact miss `DESIGN-STONE-meter-2` names) and from
+    // `resolve_verify_payload` (never anchored at all). Each ruling below is read from the
+    // implementation the widened scan exposed, not guessed to keep the count down (STOP-2).
+    //
+    // `:wat::core::write-forms` (`dispatch_keyword_head`, `src/runtime.rs:5266` →
+    // `eval_write_forms`, `src/edn/render.rs:687-711`) — evaluates its one already-typed
+    // `:wat::WatAST` argument (ordinary call-by-value — the same thing every verb in the
+    // `pure_det` list below does to its own args, not itself an effect) and then runs a pure
+    // structural transform (`watast_to_edn` + `wat_edn::write`): no IO, no ambient state, nothing
+    // outlives the call. `total` left `false`, conservatively — the serializer's behavior over
+    // every WatAST variant was not independently verified here.
+    if head == ":wat::core::write-forms" {
+        return Some(OpMeta { pure: true, deterministic: true, total: false });
+    }
+    // `:wat::core::with-children` (`dispatch_keyword_head`, `src/runtime.rs:5271` →
+    // `eval_with_children`, `src/edn/render.rs:921-990`) — evaluates its two arguments, then
+    // rebuilds a WatAST node of the SAME kind as its template from the supplied children: a pure
+    // structural transform, no IO, no ambient state. `total: false` — verified PARTIAL on
+    // well-typed input: a leaf template given non-empty children, or a `Map` template given an
+    // odd child count, both raise `MalformedForm` (`src/edn/render.rs:970-989`), the same
+    // well-typed-domain-restriction shape `i64::/` is `total: false` for.
+    if head == ":wat::core::with-children" {
+        return Some(OpMeta { pure: true, deterministic: true, total: false });
+    }
+    // `:wat::core::macro-error` (`dispatch_keyword_head`, `src/runtime.rs:5285-5310`) — evaluates
+    // its one String argument (ordinary call-by-value) and then UNCONDITIONALLY returns
+    // `Err(MacroAbort)` or `Err(TypeMismatch)` — it never returns `Ok` on any input, so `total` is
+    // trivially `false`. No ambient read/write either way: pure, deterministic.
+    if head == ":wat::core::macro-error" {
+        return Some(OpMeta { pure: true, deterministic: true, total: false });
+    }
+    // `:wat::verify::string` / `:wat::verify::http-path` / `:wat::verify::s3-path`
+    // (`resolve_verify_payload`, `src/runtime.rs:24271-24306` — never anchored, invisible to the
+    // old two-anchor scan). `string` evaluates its one argument and returns it unchanged if it is
+    // already a `String` (`TypeMismatch` otherwise — nothing ambient touched either way);
+    // `http-path`/`s3-path` don't even evaluate their argument — the arm unconditionally raises
+    // "reserved but not implemented in this build". All three: no IO, no ambient state (pure,
+    // deterministic); `total: false` since each has a raise path on every reachable input class.
+    if matches!(
+        head,
+        ":wat::verify::string" | ":wat::verify::http-path" | ":wat::verify::s3-path"
+    ) {
+        return Some(OpMeta { pure: true, deterministic: true, total: false });
+    }
+    // `:wat::verify::file-path` (`resolve_verify_payload`, `src/runtime.rs:24281-24297`) — reads
+    // a FILE FROM DISK (`sym.source_loader()...fetch_payload_file`), the same class of externally
+    // observable effect `:wat::io::`'s whole namespace is blanket `Impure` for. Ruled Impure
+    // per-verb here (there is no `:wat::verify::` = Impure namespace rule — its siblings above
+    // are pure), not via a namespace prefix, because the effect is this one verb's, not the
+    // namespace's.
+    if head == ":wat::verify::file-path" {
+        return Some(OpMeta { pure: false, deterministic: true, total: false });
+    }
     // ── arc 255 Stone total-T5 — THE REGISTRY ANSWERS ALL THREE AXES ────────────────────────────
     //
     // Every `#[wat_intrinsic]`-registered verb ALREADY declares `@Purity`/`@Determinism`/`@Total`
@@ -2305,11 +2360,17 @@ mod completeness_gate {
         // number a review. This carve ADDED verbs to its sight. Parking them here is the honest
         // disposition — nobody has ruled on their purity — not a ratchet being loosened.
         //
-        // ⛔ FOUR ARMS REMAIN INVISIBLE for exactly the same reason and are NOT parked here,
-        // because the gate cannot count what it cannot see: `:wat::core::write-forms`,
-        // `with-children`, `macro-error`, `let` still live in `dispatch_keyword_head`. Widening
-        // `dispatch_verbs` to a third anchor is a separate stone; until it happens this ledger
-        // is exact only over what the scan reaches.
+        // ⛔→✅ CLOSED by STONE meter-2 (the whole-file, shape-based scan): at HOME-12 time, four
+        // more arms were invisible for exactly this reason — `:wat::core::write-forms`,
+        // `with-children`, `macro-error`, `let`, all living in `dispatch_keyword_head`, one word
+        // off the anchored `dispatch_keyword_head_value` — and widening `dispatch_verbs` to a
+        // third named anchor was flagged as a separate stone rather than done here. meter-2 did
+        // NOT add a third anchor (that would only reload the same defect against a fourth
+        // function someday); it replaced the anchor-and-span scan with a whole-file, shape-based
+        // one, so all four are visible now regardless of which function they sit in. `let` was
+        // already classified (`rete_op_for` admits it as a `RETE_OPS` Form-class row); the other
+        // three are RULED in `intrinsic_meta` above (STONE meter-2's block) with citations to
+        // `src/edn/render.rs`/`src/runtime.rs`, not parked here.
         //
         // Measured while parking, so the eventual ruling starts from evidence rather than a guess:
         //   read-string   is TOTAL — malformed input returns `ReadOutcome/Malformed`, it does not raise.
@@ -2365,36 +2426,183 @@ mod completeness_gate {
         // `:wat::rete::axis-violation` (`src/rete/purity.rs`)        @Purity Pure       @Determinism Deterministic — the same
         //                             read-only `classify_expr` walk `is_pure_expr`/`is_deterministic_expr`/`is_total_expr` run,
         //                             never evaluating `expr`.
+
+        // ── ADDED (STONE meter-2, the dispatch scan reads the whole file, both arm shapes).
+        // `dispatch_verbs`'s literal-scan used to run only between two named anchors
+        // (`dispatch_keyword_head_value`/`dispatch_substrate_impl`) and knew only one arm shape
+        // (`":wat::…" =>`). Widening it to the whole file, and to also recognize the
+        // keyword-guard shape (`WatAST::Keyword(k, _) if k == "…" =>`), makes FIVE more verbs
+        // visible that were dispatched all along:
+        //
+        // `:wat::core::Some` / `:wat::core::Ok` / `:wat::core::Err` (`eval_list`,
+        // `src/runtime.rs:5174-5182`) — the Option/Result constructor producers, keyword-guard
+        // shape, never reached by the old scan (a different function than either anchor). NOT
+        // ruled here: DESIGN-STONE-meter-2 (`Out of scope = REJECTED`) is explicit that homing
+        // `Some`/`Ok`/`Err` is the NEXT stone, and "ruling a verb the meter cannot see [fully] is
+        // building on sand" — this stone's job is visibility, not the ruling.
+        ":wat::core::Some",
+        ":wat::core::Ok",
+        ":wat::core::Err",
+        // `:wat::core::defalias` (`parse_defalias_form`, `src/runtime.rs:2894`) and
+        // `:wat::core::extend-type` (`register_stdlib_runtime_defs`/`register_runtime_defs_form`,
+        // `src/runtime.rs:1302`/`2852`) — declaration-door siblings of `:wat::core::def`/`fn`/
+        // `derive`, already parked above under the identical open question (registration-time
+        // forms that mutate the symbol table rather than compute a value). Parked for the same
+        // reason as those three, not ruled, for consistency with how they are already treated.
+        ":wat::core::defalias",
+        ":wat::core::extend-type",
     ];
 
-    /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the
-    /// keyword-head path) and `dispatch_substrate_impl` (the `apply`-reachable substrate table).
-    /// Located by NAME, not line number, so the scan cannot silently drift to the wrong region —
-    /// and a floor-assert below catches it going vacuous if a rename ever breaks the anchors.
+    /// Pull every verb the runtime dispatches, from BOTH doors: every literal or keyword-guard
+    /// match arm anywhere in `runtime.rs` keyed on a wat FQDN, and every `#[wat_intrinsic]`-
+    /// registered name anywhere under `src/` (below).
+    ///
+    /// STONE meter-2: this used to scan only the text BETWEEN two named anchors
+    /// (`dispatch_keyword_head_value`/`dispatch_substrate_impl`), so an arm living in any other
+    /// function was invisible — including `dispatch_keyword_head`, one word off the anchored
+    /// name, and `resolve_verify_payload`, anchored nowhere
+    /// (`DESIGN-STONE-meter-2-the-dispatch-half-sees-the-whole-file.md`) — and it knew only one
+    /// arm SHAPE (`":wat::…" =>`), missing the keyword-guard shape
+    /// (`WatAST::Keyword(k, _) if k == "…" =>`) `eval_list`'s Option/Result producers use,
+    /// wherever it might live. THE CONTRACT: the population is defined by SHAPE — any match arm
+    /// anywhere in the file whose pattern is (or ends in) a `:`-prefixed string literal — never
+    /// by the name of the function it happens to sit in. Anchoring on names is the defect
+    /// meter-1 and meter-2 both fix; adding the missing names as more anchors would only reload
+    /// it (`DESIGN-STONE-meter-2`'s disqualified alternative).
+    ///
+    /// A plain substring search over 33k lines also catches a FQDN inside a comment, a doc
+    /// `@example`, an error message, or a `matches!`/`if` guard that never reaches a `=>` — so a
+    /// candidate counts only if walking FORWARD from its closing quote, through nothing but
+    /// whitespace, `|` (an or-pattern separator), `(`/`)` (an or-pattern's grouping), or another
+    /// quoted string (another alternative in the same or-pattern), reaches `=>` before anything
+    /// else. That single rule is exactly the shape of a real match arm's pattern —
+    /// `"a" | "b" => …`, `x @ ("a" | "b") => …`, a bare `"a" => …`, or the keyword-guard
+    /// `Keyword(k, _) if k == "a" => …` — and exactly what a `matches!(...)` call, an `if` guard,
+    /// or a function-call argument never do (each hits a `)` then `;`/`{`/`.` instead, never
+    /// `=>`, so they fail the walk and are silently excluded — no `matches!`-detection needed).
+    ///
+    /// Two shapes it still cannot tell apart from a genuine dispatch arm this way, named and
+    /// EXCLUDED below rather than parked as if they were open rulings (the brief's own
+    /// instruction: "not a verb" is disposed by excluding it from the scan's shape, never by a
+    /// row pretending it is one):
+    ///
+    ///   - `:undefined` (`src/runtime.rs:9480`) — not a call head at all; a REQUIRED POSITIONAL
+    ///     MARKER argument a rete fallback op checks on its own already-received arg list, never
+    ///     a head anyone dispatches `(:undefined …)` on.
+    ///   - `:rust::` (`src/runtime.rs:6289`) — not a per-verb arm; `other if
+    ///     other.starts_with(":rust::") =>` is a NAMESPACE-PREFIX routing guard into the separate
+    ///     `rust_deps` registry (dispatches whichever `:rust::*` symbol is actually present at
+    ///     runtime), the same shape as the `RETE_PREFIX`/`is_effectful_op` prefix checks
+    ///     elsewhere in this file — never itself a dispatchable verb name.
+    ///   - `:wat::core::None` (`src/runtime.rs:16015`) — this occurrence is `try_match_pattern`
+    ///     recognizing a PATTERN-CLAUSE head inside `:wat::core::match`'s own implementation (a
+    ///     pattern literal `:None` denotes "match `Option::None`"), not dispatching a call. Its
+    ///     genuine expression-position evaluation is `src/runtime.rs:5045`'s
+    ///     `if k == ":None" || k == ":wat::core::None"` — an `if`, not a match arm, so it sits
+    ///     outside this stone's two shapes and was never a scream either way.
+    ///
+    /// Test code is excluded wholesale: everything from the top-level `mod tests {` to EOF is one
+    /// `#[cfg(test)]` block (verified: no production code follows it in this file), so the scan
+    /// stops there — a `Value::Enum(ev) if ev.type_path == ":wat::holon::CosineOutcome" => …`
+    /// inside a test helper reaches `=>` exactly like a real arm (it matches an ALREADY-PRODUCED
+    /// value's type tag, not a call being dispatched) and would otherwise need the same per-name
+    /// exclusion as the three above. Smaller `#[cfg(test)] mod { … }` blocks earlier in the file
+    /// are NOT separately excluded (no brace-tracking here) — verified empty of any FQDN-shaped
+    /// literal as of this stone, so today's measurement is unaffected, but a future one added
+    /// inside such a block would need a fresh look, not a name appended to the list above.
     fn dispatch_verbs(src: &str) -> Vec<String> {
-        let lines: Vec<&str> = src.lines().collect();
+        // Not a dispatch arm — see the doc comment above for why each is excluded by name rather
+        // than by a `KNOWN_UNREVIEWED` row pretending it is a verb.
+        const NOT_A_DISPATCH_ARM: &[&str] = &[":undefined", ":rust::", ":wat::core::None"];
+
+        // Strip whole-line `//`/`///`/`//!` comments and everything from the top-level test
+        // module onward (see doc comment), replacing excluded text with blanks so every
+        // remaining character keeps its original position.
+        let mut clean = String::with_capacity(src.len());
+        let mut in_tests = false;
+        for line in src.lines() {
+            let trimmed = line.trim_start();
+            if trimmed == "mod tests {" {
+                in_tests = true;
+            }
+            if !in_tests && !trimmed.starts_with("//") {
+                clean.push_str(line);
+            }
+            clean.push('\n');
+        }
+        let chars: Vec<char> = clean.chars().collect();
+        let n = chars.len();
+
+        // Does walking forward from `i` reach `=>` through nothing but whitespace / `|` / `(` /
+        // `)` / another quoted string? See the doc comment above — this IS "a real match arm's
+        // pattern", by shape, wherever in the file it lives.
+        fn reaches_fat_arrow(chars: &[char], mut i: usize, n: usize) -> bool {
+            let mut steps = 0usize;
+            loop {
+                steps += 1;
+                if steps > 4000 || i >= n {
+                    return false;
+                }
+                let c = chars[i];
+                if c.is_whitespace() || c == '|' || c == '(' || c == ')' {
+                    i += 1;
+                    continue;
+                }
+                if c == '"' {
+                    let mut j = i + 1;
+                    loop {
+                        if j >= n {
+                            return false;
+                        }
+                        if chars[j] == '"' {
+                            j += 1;
+                            break;
+                        }
+                        if chars[j] == '\\' {
+                            j += 2;
+                            continue;
+                        }
+                        j += 1;
+                    }
+                    i = j;
+                    continue;
+                }
+                return c == '=' && i + 1 < n && chars[i + 1] == '>';
+            }
+        }
+
         let mut out = Vec::new();
-        for anchor in ["fn dispatch_keyword_head_value(", "fn dispatch_substrate_impl("] {
-            let start = match lines.iter().position(|l| l.contains(anchor)) {
-                Some(i) => i,
-                None => continue,
-            };
-            let end = lines[start + 1..]
-                .iter()
-                .position(|l| l.starts_with("fn ") || l.starts_with("pub fn ") || l.starts_with("pub(crate) fn "))
-                .map(|i| start + 1 + i)
-                .unwrap_or(lines.len());
-            for line in &lines[start..end] {
-                let mut rest = *line;
-                while let Some(i) = rest.find("\":wat::") {
-                    rest = &rest[i + 1..];
-                    if let Some(j) = rest.find('"') {
-                        out.push(rest[..j].to_string());
-                        rest = &rest[j + 1..];
-                    } else {
+        let mut i = 0;
+        while i < n {
+            if chars[i] == '"' {
+                let mut j = i + 1;
+                let mut content = String::new();
+                let mut closed = false;
+                while j < n {
+                    if chars[j] == '"' {
+                        closed = true;
                         break;
                     }
+                    if chars[j] == '\\' {
+                        j += 2;
+                        continue;
+                    }
+                    content.push(chars[j]);
+                    j += 1;
                 }
+                if closed {
+                    if content.starts_with(':')
+                        && !NOT_A_DISPATCH_ARM.contains(&content.as_str())
+                        && reaches_fat_arrow(&chars, j + 1, n)
+                    {
+                        out.push(content);
+                    }
+                    i = j + 1;
+                } else {
+                    i = j;
+                }
+            } else {
+                i += 1;
             }
         }
         // ⚠ ARC 255'S CARVE DRAINS THIS SCAN. Every home carved out of `runtime.rs`'s literal

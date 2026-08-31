@@ -7,6 +7,28 @@
 This file is that list. **It is REPLACED in place, never appended.** Every row retires when its
 verb gets a registration site, and when the last row goes, `intrinsic_meta` has nothing left to say.
 
+## ⛔ THE 44 WAS NEVER THE POPULATION — repriced 2026-08-30 by STONE meter-2
+
+The instrument that produced "44" — `dispatch_verbs` — was **blind to most of the file**. It built
+the dispatched population by scanning between **two named function anchors**, so ~30 literal arms in
+six other functions (`eval_tail`, `step_list`, `register_runtime_defs_form`, `resolve_verify_payload`,
+a `pub fn`, and **`dispatch_keyword_head` — one word off the anchored name**) plus a second arm shape
+entirely (`WatAST::Keyword(k, _) if k == "…"`, in `eval_list`) were invisible.
+
+**meter-2 measured 38 newly-visible names.** Disposed: 26 already answered by the registry · 7 ruled ·
+5 parked. Two consequences this file must own:
+
+- ⚠ **`intrinsic_meta`'s hand-list GREW by 7**, and `KNOWN_UNREVIEWED` grew 47 → 52. This file calls
+  the residue *"a countdown"*. **The countdown went UP.** That is the meter working, not a
+  regression: these verbs were always dispatched and always unruled — they were invisible debt, and
+  making debt visible is what a fixed meter does.
+- ⚠ **Every count below predates the fix.** The categories are still correctly *shaped*; the
+  numbers are not a census any more. Re-measure before quoting one.
+
+★ And the lesson under it, which cost two stones: **meter-1 fixed this gate's REGISTRATION half and
+was recorded as closing "the gate hole", singular.** It was one of two. A fix that names the hole it
+closed, rather than the CLASS, invites exactly this.
+
 ## Where this came from
 
 `total-T5` (`1d4a53349`) made `intrinsic_meta` derive purity, determinism and totality from the
