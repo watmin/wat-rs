@@ -1,14 +1,21 @@
 //! `:wat::core::Option/expect` — arc 255 Stone A-2-ii-b-0, the first `:wat::core::Option::*`
-//! verb to get a registry home.
+//! verb to get a registry home. `:wat::core::Some` joined it arc 255 Stone A-2-ii-b-1 — the
+//! tagged `Option` constructor `meter-2` made visible and parked; its sibling `Ok`/`Err`
+//! constructors live in `src/intrinsic/result.rs`.
 //!
-//! BRIEF: `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-A-2-ii-b-0-the-accessor-path-verbs-get-homes.md`.
+//! BRIEF: `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-A-2-ii-b-0-the-accessor-path-verbs-get-homes.md`
+//! (`Option/expect`), `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-A-2-ii-b-1-the-option-result-constructors-get-homes.md`
+//! (`Some`).
 //!
-//! Thin `#[wat_intrinsic]` delegate over the pre-existing `eval_option_expect` (`src/runtime.rs`)
-//! — the body does not move, per the brief's two-layer architecture (`src/intrinsic/<ns>.rs`
-//! registers and delegates, the implementation stays where it lived). Homed here (not left as a
-//! literal match arm) so a generated record accessor that raises through `Option/expect` en
-//! route to `Record/field-at` stops classifying `impure`/`Unreviewed` when reached through an
-//! environment binding — see `DESIGN-STONE-A-2-ii-b-0-the-accessor-path-verbs-get-homes.md`.
+//! Thin `#[wat_intrinsic]` delegates over pre-existing named fns (`src/runtime.rs`) — bodies do
+//! not move, per the brief's two-layer architecture (`src/intrinsic/<ns>.rs` registers and
+//! delegates, the implementation stays where it lived). `Option/expect` is homed here (not left
+//! as a literal match arm) so a generated record accessor that raises through it en route to
+//! `Record/field-at` stops classifying `impure`/`Unreviewed` when reached through an environment
+//! binding — see `DESIGN-STONE-A-2-ii-b-0-the-accessor-path-verbs-get-homes.md`. `Some` is homed
+//! for the same reason, one hop earlier: `(Some self)` is the accessor body's OUTER form, and it
+//! denied the same way until this stone — see
+//! `DESIGN-STONE-A-2-ii-b-1-the-option-result-constructors-get-homes.md`.
 
 use wat_macros::wat_intrinsic;
 
@@ -65,4 +72,52 @@ pub(crate) fn eval_option_expect(
         env,
         sym,
     )
+}
+
+/// `(:wat::core::Some v) -> (:wat::core::Option :- [T])` — the tagged constructor of the
+/// built-in `Option` enum (058-030). `v`'s dual is the nullary keyword literal `:None`
+/// (handled directly in `eval`, not a dispatch arm — out of scope here, see the DESIGN's
+/// `Out of scope = REJECTED`); together they are the only way to produce `Value::Option`.
+///
+/// Homed here arc 255 Stone A-2-ii-b-1 with its real (1) arity declared; the hand-rolled
+/// `args.len() != 1` guard in `eval_some_ctor` retires (unreachable once the shim itself
+/// enforces arity 1 before calling in). The body is unchanged, still in `src/runtime.rs`. Its
+/// `WatAST::Keyword(k, _) if k == ":wat::core::Some"` guard arm in `eval_list` is retired too —
+/// `dispatch_keyword_head` now reaches this same body through the registry. The pre-existing
+/// bare-Symbol form (`(Some v)`, no `:wat::core::` prefix) is untouched: a different dispatch
+/// path this registration does not reach.
+///
+/// **Purity ground:** the one arg is evaluated by ordinary call-by-value (not itself an
+/// effect). Past that, the body only wraps the already-evaluated value in `Value::Option(Arc::new(Some(_)))`
+/// — no `eval_inner`/`apply_function` on caller-supplied code beyond that one argument
+/// evaluation. Pure ∧ Deterministic.
+///
+/// **Totality ground — pinned in the DESIGN:** the only `return Err` in the body is the arity
+/// check, which retires on homing (the shim enforces arity 1 before this fn is ever called).
+/// Past that the wrap cannot fail — there is no raise, no bounds check, nothing to deny.
+/// `Total`.
+///
+/// **Expand-time ground —** Pure ∧ Deterministic ∧ Total; safe to evaluate during expansion.
+/// Legal.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Total         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     v :T the value to wrap
+/// @ret     (:wat::core::Option :- [T]) `v` wrapped as `Some`
+/// @example (:wat::core::Some 3) #=> (:wat::core::Some 3)
+/// @see     :wat::core::Option/expect
+/// @see     :wat::core::Ok
+/// @see     :wat::core::Err
+#[wat_intrinsic(":wat::core::Some")]
+pub(crate) fn eval_some_ctor(
+    v: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_some_ctor(std::slice::from_ref(v), list_span, env, sym)
 }

@@ -21,6 +21,19 @@
 //! all (`last` via `require_vec`'s `Value::Vec`-only gate; `range` takes two `i64`s and never
 //! receives a collection argument). All seven: Pure, Deterministic.
 
+// ─── THE DELEGATE TEMPLATE — one gotcha, twice paid for ────────────────────────
+//
+// A 1-ARITY delegate must forward its single `&WatAST` with `std::slice::from_ref(x)`,
+// NOT `&[x.clone()]`. Both compile; only the first passes `clippy -D warnings`
+// (`clippy::cloned_ref_to_slice_refs`). This fired on the FIRST 1-arity delegate of arc
+// 255 Stone A-2-ii-b-0 (`:wat::core::type`) and again on all three of A-2-ii-b-1
+// (`Some`/`Ok`/`Err`) — a rider copying an existing 2-arity delegate, where
+// `&[a.clone(), b.clone()]` is correct and unavoidable, lands on the wrong idiom every
+// time. Recorded here rather than in a brief because the template is what gets copied.
+//
+//     1 arg :  crate::runtime::eval_x(std::slice::from_ref(v), span, env, sym)
+//     N args:  crate::runtime::eval_x(&[a.clone(), b.clone()], span, env, sym)
+
 use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;

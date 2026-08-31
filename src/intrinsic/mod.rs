@@ -620,7 +620,8 @@ mod math;
 // Arc 255 Stone A-2-ii-b-0 — `:wat::core::Option/expect`, moved verbatim out of `runtime.rs`'s
 // giant match with its real (2) arity declared, so a generated record accessor stops
 // classifying impure/Unreviewed through the raise it propagates. Ruled `Pure ∧ Deterministic ∧
-// Partial` — see `option.rs`'s own doc.
+// Partial` — see `option.rs`'s own doc. `:wat::core::Some` joined it arc 255 Stone A-2-ii-b-1,
+// moved the same way with its real (1) arity declared, ruled `Pure ∧ Deterministic ∧ Total`.
 mod option;
 // Arc 255 Stone P6-c-W2 — the campaign's second wave. One nullary `:wat::program::env`
 // reader, moved verbatim out of `runtime.rs`'s giant match with its real (0) arity
@@ -633,6 +634,12 @@ mod rational;
 mod record;
 mod reflect;
 mod regex;
+// Arc 255 Stone A-2-ii-b-1 — `:wat::core::Ok`/`Err`, the tagged `Result` constructors, moved
+// verbatim out of `runtime.rs`'s giant match with their real (1) arity declared. No pre-existing
+// `Result`-namespaced module to extend (unlike `Some`, which joined `option.rs`), so this is a
+// new "own home, same shape" file. Ruled `Pure ∧ Deterministic ∧ Total` — see `result.rs`'s own
+// doc.
+mod result;
 // Arc 255 Stone P6-c-W5a — the P6-c campaign's fifth wave (5a): the nine READ-ONLY
 // `:wat::rete::` verbs (the six `?` predicates + the three alpha-matchers), moved verbatim out
 // of `runtime.rs`'s giant match with their real arities declared. The other 19 `:wat::rete::`
@@ -716,7 +723,10 @@ mod tests {
     /// this measurement cannot disagree with what the gates actually skip. 53 of 405
     /// registered entries (2026-08-29 count, post-W4; the prior "384" total had already
     /// drifted stale before this stone from unrelated homing — not re-audited here beyond
-    /// this stone's own +3).
+    /// this stone's own +3). Arc 255 Stone A-2-ii-b-1 adds a further +3 (`Some`/`Ok`/`Err`,
+    /// newly registered by this stone and newly on this ledger) — the "53 of 405" and the
+    /// per-namespace breakdown below are stale by that same +3 and not re-audited here either,
+    /// same discipline as the W4 note just above.
     ///
     /// ★ `registry().all_entries().count()` (405) is NOT the same instrument as the anchored
     /// `#[wat_intrinsic]`-attribute grep (403 post-W4) — the +2 gap is not noise, it is a fixed
@@ -758,6 +768,20 @@ mod tests {
         // no scheme to verify the DOCS against. Retires when a scheme registers — not by
         // weakening the gate.
         ":wat::core::Option/expect",
+        // Arc 255 Stone A-2-ii-b-1 — `Some`/`Ok`/`Err` are each checked FOR REAL by a
+        // hand-written `check_call` arm (`infer_some_constructor`/`infer_ok_constructor`/
+        // `infer_err_constructor`, `src/check.rs:4938,4948,4958` — Region A's FQDN-keyword-
+        // headed constructor arms), but NONE carries an `env.register()` TypeScheme, so
+        // `check_env.get` returns `None` for all three and
+        // `doc_arg_ret_types_match_checker_scheme` cannot compare their `@arg`/`@ret` against
+        // one. Exactly the `Option/expect` shape just above and the `nth`/`reverse` shape
+        // below: real checking, no scheme to verify the DOCS against. Predicted in the DESIGN
+        // before this stone was briefed (measured against this same `check_env.get` — verified,
+        // not inferred), and it fired exactly as predicted. Retires when a scheme registers for
+        // each — not by weakening the gate.
+        ":wat::core::Some",
+        ":wat::core::Ok",
+        ":wat::core::Err",
         ":wat::core::List",
         ":wat::core::fresh-symbol",
         ":wat::core::if",

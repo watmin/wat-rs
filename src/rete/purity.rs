@@ -2431,18 +2431,16 @@ mod completeness_gate {
         // `dispatch_verbs`'s literal-scan used to run only between two named anchors
         // (`dispatch_keyword_head_value`/`dispatch_substrate_impl`) and knew only one arm shape
         // (`":wat::…" =>`). Widening it to the whole file, and to also recognize the
-        // keyword-guard shape (`WatAST::Keyword(k, _) if k == "…" =>`), makes FIVE more verbs
-        // visible that were dispatched all along:
+        // keyword-guard shape (`WatAST::Keyword(k, _) if k == "…" =>`), made FIVE more verbs
+        // visible that were dispatched all along: `:wat::core::Some`/`Ok`/`Err` (the
+        // Option/Result constructor producers, keyword-guard shape in `eval_list`) plus the
+        // two below. THREE of those five — `Some`/`Ok`/`Err` — RETIRED from this list arc 255
+        // Stone A-2-ii-b-1: homed as `#[wat_intrinsic]`s (`src/intrinsic/option.rs`,
+        // `src/intrinsic/result.rs`), ruled `Pure ∧ Deterministic ∧ Total`, and their
+        // keyword-guard arms retired from `eval_list` (the line numbers this comment used to
+        // cite no longer name that code). The remaining two are unrelated declaration-door
+        // siblings, not touched by that stone:
         //
-        // `:wat::core::Some` / `:wat::core::Ok` / `:wat::core::Err` (`eval_list`,
-        // `src/runtime.rs:5174-5182`) — the Option/Result constructor producers, keyword-guard
-        // shape, never reached by the old scan (a different function than either anchor). NOT
-        // ruled here: DESIGN-STONE-meter-2 (`Out of scope = REJECTED`) is explicit that homing
-        // `Some`/`Ok`/`Err` is the NEXT stone, and "ruling a verb the meter cannot see [fully] is
-        // building on sand" — this stone's job is visibility, not the ruling.
-        ":wat::core::Some",
-        ":wat::core::Ok",
-        ":wat::core::Err",
         // `:wat::core::defalias` (`parse_defalias_form`, `src/runtime.rs:2894`) and
         // `:wat::core::extend-type` (`register_stdlib_runtime_defs`/`register_runtime_defs_form`,
         // `src/runtime.rs:1302`/`2852`) — declaration-door siblings of `:wat::core::def`/`fn`/

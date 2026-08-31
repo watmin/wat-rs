@@ -5166,22 +5166,17 @@ fn eval_list(
     };
     let rest = &items[1..];
 
-    // Arc 109 slice 1h — FQDN keyword forms for Option variant
-    // constructors recognized alongside the bare-Symbol exceptions.
-    // The bare forms continue to work at runtime; type-check time
-    // surfaces the migration hint via Pattern 2 poison.
-    match head {
-        WatAST::Keyword(k, _) if k == ":wat::core::Some" => {
-            return eval_some_ctor(rest, list_span, env, sym).map(TrackedValue::from)
-        }
-        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => {
-            return eval_ok_ctor(rest, list_span, env, sym).map(TrackedValue::from)
-        }
-        WatAST::Keyword(k, _) if k == ":wat::core::Err" => {
-            return eval_err_ctor(rest, list_span, env, sym).map(TrackedValue::from)
-        }
-        _ => {}
-    }
+    // Arc 109 slice 1h's FQDN keyword-guard arms for `:wat::core::Some`/`Ok`/`Err`
+    // (a `match head { WatAST::Keyword(k, _) if k == "…" => … }` block, right here)
+    // are RETIRED — arc 255 Stone A-2-ii-b-1. All three are now `#[wat_intrinsic]`-
+    // registered (`src/intrinsic/option.rs`, `src/intrinsic/result.rs`), and
+    // `dispatch_keyword_head` below already checks the registry FIRST
+    // (`crate::intrinsic::registry().lookup(head)`) before falling through to its own
+    // match — so a `WatAST::Keyword` head naming any of the three now reaches the SAME
+    // `eval_some_ctor`/`eval_ok_ctor`/`eval_err_ctor` bodies (unchanged, still below)
+    // through the registry instead of through this now-redundant guard. The bare-Symbol
+    // exceptions just below (`Some`/`Ok`/`Err` as a bare identifier, not a keyword) are a
+    // DIFFERENT dispatch path — registration does not reach them — and are untouched.
     match head {
         // dispatch_keyword_head now returns TrackedValue (propagates producer provenance).
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
@@ -15020,7 +15015,10 @@ fn eval_positional_accessor(
 /// The dual is `:None` (keyword literal, nullary) handled directly in
 /// [`eval`]. Together they are the only way to produce `Value::Option`;
 /// callers consume via `(:wat::core::match ...)`.
-fn eval_some_ctor(
+///
+/// Arc 255 Stone A-2-ii-b-1 — `pub(crate)` so `src/intrinsic/option.rs`'s thin
+/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
+pub(crate) fn eval_some_ctor(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -15044,7 +15042,10 @@ fn eval_some_ctor(
 /// `(Ok <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
 /// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
 /// in `Value::Result(Ok(_))`.
-fn eval_ok_ctor(
+///
+/// Arc 255 Stone A-2-ii-b-1 — `pub(crate)` so `src/intrinsic/result.rs`'s thin
+/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
+pub(crate) fn eval_ok_ctor(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -15068,7 +15069,10 @@ fn eval_ok_ctor(
 /// `(Err <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
 /// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
 /// in `Value::Result(Err(_))`.
-fn eval_err_ctor(
+///
+/// Arc 255 Stone A-2-ii-b-1 — `pub(crate)` so `src/intrinsic/result.rs`'s thin
+/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
+pub(crate) fn eval_err_ctor(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
