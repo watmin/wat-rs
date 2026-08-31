@@ -5373,13 +5373,16 @@ fn dispatch_keyword_head_value(
         // trailing args). Routes EARLY before all other arms so apply is
         // unambiguous at the dispatch level.
         ":wat::core::apply" => eval_apply(args, env, sym, list_span.clone()),
-        // Arc 234 Stone 234.0 — `:wat::core::type` polymorphic type-name primitive.
-        // Extracts a Value's record-type FQDN as a String, regardless of storage
-        // backend. Dispatch table: HolonAST classifier-wrap → extract_classifier;
-        // Struct → sv.type_name (colon stripped); other → Value::type_name().
-        // Consumed by surface-method dispatch (revised Stone 232.1)
-        // and all arc 234.x record-y verbs.
-        ":wat::core::type" => eval_type(args, list_span, env, sym),
+        // Arc 255 Stone A-2-ii-b-0 — `:wat::core::type` (arc 234 Stone 234.0's polymorphic
+        // type-name primitive: HolonAST classifier-wrap → extract_classifier; other →
+        // `Value::declared_type_name`; consumed by surface-method dispatch and all arc 234.x
+        // record-y verbs) moved into a `#[wat_intrinsic]` handler (`src/intrinsic/reflect.rs`)
+        // with its real (1) arity declared; the pre-match registry check above (arc
+        // 255.1c-guard) intercepts the name before reaching here. Ruled
+        // `Pure ∧ Deterministic ∧ Total` — `eval_type`'s only `return Err` is the arity check,
+        // which retires on homing; the body then delegates unconditionally to
+        // `Value::declared_type_name`, an exhaustive, non-`Result` match over every `Value`
+        // variant (`src/value/value.rs:1705`) — no remaining domain-failure path.
         // Arc 255 Stone P6-c-W6 — `:wat::core::length`/`empty?` moved into `#[wat_intrinsic]`
         // handlers (above this match, still in this file) with their real (1/1) arities
         // declared; the pre-match registry check above (arc 255.1c-guard) intercepts both
@@ -5443,12 +5446,15 @@ fn dispatch_keyword_head_value(
         // RETIRED 293 K3-revise: `:wat::core::to-struct` — projection is ONE-WAY UP, never
         // down; `$struct` is the impure tier; you already have the struct in locus.
         ":wat::core::to-record" => eval_to_core_record(args, list_span, env, sym),
-        // Arc 234 Stone 234.2a — `:wat::core::Record/field-at` accessor.
-        // Accessor: (record index) -> field-value at fields[index]
         // Arc 296 G-1b — `:wat::core::Record::of` / `:wat::holon::Record::of` DELETED (finish
         // the kill, arc 294.c.2a): both retired constructors, zero/one live callers, superseded
         // by `aggregate-new` (the one nature-dispatched ctor).
-        ":wat::core::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
+        // Arc 255 Stone A-2-ii-b-0 — `:wat::core::Record/field-at` (arc 234 Stone 234.2a's
+        // accessor: (record index) -> field-value at fields[index]) moved into a
+        // `#[wat_intrinsic]` handler (`src/intrinsic/record.rs`) with its real (2) arity
+        // declared; the pre-match registry check above (arc 255.1c-guard) intercepts the name
+        // before reaching here. Ruled `Pure ∧ Deterministic ∧ Partial` — measured at the site:
+        // `if index < 0 || (index as usize) >= fields.len()` returns `Err`.
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
         // record?   :: ∀T. T -> bool          — true iff input is Value::Aggregate (Record/HolonRecord nature)
         // record->map :: :wat::core::Record -> (HashMap :- [keyword T]) — extract field-name/value map
@@ -5709,9 +5715,11 @@ fn dispatch_keyword_head_value(
         ":wat::core::Result/expect" => {
             eval_result_expect(":wat::core::Result/expect", args, list_span, env, sym)
         }
-        ":wat::core::Option/expect" => {
-            eval_option_expect(":wat::core::Option/expect", args, list_span, env, sym)
-        }
+        // Arc 255 Stone A-2-ii-b-0 — `:wat::core::Option/expect` moved into a `#[wat_intrinsic]`
+        // handler (`src/intrinsic/option.rs`) with its real (2) arity declared; the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
+        // Ruled `Pure ∧ Deterministic ∧ Partial` — it raises on `None`
+        // (`RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`).
         // New substrate addition (Option-side propagation).
         ":wat::core::Option/try" => {
             eval_option_try(":wat::core::Option/try", args, list_span, env, sym)
@@ -15219,7 +15227,10 @@ fn eval_option_try(
 /// opt-expression's span as `location`, and `panic_any`s. Caught by
 /// the substrate's catch_unwind in run-sandboxed-ast / by Rust's
 /// default panic handler outside a sandbox.
-fn eval_option_expect(
+///
+/// Arc 255 Stone A-2-ii-b-0 — `pub(crate)` so `src/intrinsic/option.rs`'s thin
+/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
+pub(crate) fn eval_option_expect(
     op: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -16369,7 +16380,10 @@ fn try_match_pattern(
 ///   arc 224 Stone 224.5 naming audit).
 ///
 /// Routes through `Value::declared_type_name` which is the ONE exhaustive authority (arc 237 Stone 237.5).
-fn eval_type(
+///
+/// Arc 255 Stone A-2-ii-b-0 — `pub(crate)` so `src/intrinsic/reflect.rs`'s thin
+/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
+pub(crate) fn eval_type(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -17682,7 +17696,10 @@ fn eval_to_core_record(
 /// Positional accessor for a Record/HolonRecord Aggregate. Returns `fields[index]`.
 /// Out-of-bounds index (negative or >= fields.len()) → TypeMismatch error.
 /// Consumed by the Stone 234.2b defrecord macro's per-field accessor codegen.
-fn eval_record_field_at(
+///
+/// Arc 255 Stone A-2-ii-b-0 — `pub(crate)` so `src/intrinsic/record.rs`'s thin
+/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
+pub(crate) fn eval_record_field_at(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,

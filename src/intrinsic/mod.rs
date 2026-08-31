@@ -617,11 +617,20 @@ mod map;
 // (HOME-9 already renamed these off `:wat::std::`); shim-only, three files, no
 // `src/math/`/`src/stat/`/`src/seq/` directory (STOP-1 — no algebra worth naming).
 mod math;
+// Arc 255 Stone A-2-ii-b-0 — `:wat::core::Option/expect`, moved verbatim out of `runtime.rs`'s
+// giant match with its real (2) arity declared, so a generated record accessor stops
+// classifying impure/Unreviewed through the raise it propagates. Ruled `Pure ∧ Deterministic ∧
+// Partial` — see `option.rs`'s own doc.
+mod option;
 // Arc 255 Stone P6-c-W2 — the campaign's second wave. One nullary `:wat::program::env`
 // reader, moved verbatim out of `runtime.rs`'s giant match with its real (0) arity
 // declared. `:wat::program::self-peer`/`cpu-count` are neighbours, not this wave's verbs.
 mod program;
 mod rational;
+// Arc 255 Stone A-2-ii-b-0 — `:wat::core::Record/field-at`, moved verbatim out of
+// `runtime.rs`'s giant match with its real (2) arity declared. Ruled `Pure ∧ Deterministic ∧
+// Partial` — see `record.rs`'s own doc.
+mod record;
 mod reflect;
 mod regex;
 // Arc 255 Stone P6-c-W5a — the P6-c campaign's fifth wave (5a): the nine READ-ONLY
@@ -741,6 +750,14 @@ mod tests {
     ///   FQDN-keyed special-case grammar, never via a generic `TypeScheme`, so `CheckEnv`
     ///   was never going to have it — this gate's job is only to notice and freeze that fact)
     const FROZEN_CHECKER_DEBT_LEDGER: &[&str] = &[
+        // Arc 255 Stone A-2-ii-b-0 — `Option/expect` is checked FOR REAL by a hand-written
+        // `check_call` arm (`infer_option_expect`, `src/check.rs`), but carries no
+        // `env.register()` TypeScheme, so `check_env.get` returns `None` and
+        // `doc_arg_ret_types_match_checker_scheme` cannot compare its `@arg`/`@ret` against one.
+        // Exactly the `nth`/`reverse` shape recorded below, and the same debt: real checking,
+        // no scheme to verify the DOCS against. Retires when a scheme registers — not by
+        // weakening the gate.
+        ":wat::core::Option/expect",
         ":wat::core::List",
         ":wat::core::fresh-symbol",
         ":wat::core::if",

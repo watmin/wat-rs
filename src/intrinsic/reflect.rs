@@ -746,3 +746,52 @@ pub(crate) fn eval_type_equal(
 
     Ok(Value::bool(a_ty == b_ty))
 }
+
+/// `(:wat::core::type v) -> :wat::core::String` — arc 234 Stone 234.0, homed arc 255 Stone
+/// A-2-ii-b-0 alongside its `type-params-used-in`/`type-equal?` siblings.
+///
+/// Polymorphic runtime primitive that extracts a Value's record-type FQDN as a String.
+/// Thin `#[wat_intrinsic]` delegate over the pre-existing `eval_type` (`src/runtime.rs`) — the
+/// body does not move. Homed here with its real (1) arity declared; the hand-rolled
+/// `args.len() != 1` guard in `eval_type` retires.
+///
+/// **Purity ground:** the sole arg is evaluated by ordinary call-by-value (not itself an
+/// effect). Past that, the body only reads the already-evaluated value's declared type name off
+/// it (`Value::declared_type_name`) — no `eval_inner`/`apply_function` on caller-supplied code
+/// beyond the one argument evaluation. Pure ∧ Deterministic.
+///
+/// **Totality ground — measured, not transcribed (this stone's own determination):**
+/// `eval_type`'s body has exactly ONE `return Err` — the arity-mismatch check above, which
+/// retires on homing (the macro-generated shim now enforces arity before this body runs). Past
+/// that single arity check, `eval_type` unconditionally calls `arg_val.declared_type_name()`
+/// (`src/runtime.rs:16372`-area) and returns `Ok`; nothing else in the body can fail.
+/// `declared_type_name` (`src/value/value.rs:1705`) returns a bare `String`, not a `Result` —
+/// there is no `Err` arm for it to produce — and its own match is exhaustive over every `Value`
+/// variant with no bare `_ =>`/`other =>` catch-all (its doc: "the Rust compiler rejects a
+/// future variant that forgets to supply its declared-type arm"), so no domain hole is even
+/// structurally possible: every variant, nominal or primitive, has an explicit arm that returns
+/// a name. With the arity failure retired and zero remaining domain-failure paths, this verb is
+/// `Total`.
+///
+/// **Expand-time ground —** Pure ∧ Deterministic and safe to evaluate during expansion; also
+/// `Total`, so no partiality question even arises for expand-time legality here. Legal.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Total         Total
+/// @ExpandTime    Legal
+/// @Category      Reflection
+/// @arg     v :T any value — every `Value` variant has a declared-type arm
+/// @ret     :wat::core::String the value's record-type FQDN
+/// @example (:wat::core::type 3) #=> "wat::core::i64"
+/// @see     :wat::core::type-equal?
+#[wat_intrinsic(":wat::core::type")]
+pub(crate) fn eval_type(
+    v: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_type(std::slice::from_ref(v), list_span, env, sym)
+}
