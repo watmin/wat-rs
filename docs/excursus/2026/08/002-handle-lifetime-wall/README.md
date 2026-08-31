@@ -21,8 +21,22 @@ tightest shape, so it can only ever be a backstop. A compile-time wall does not 
 
 | stone | what | state |
 |---|---|---|
-| 1 | **creation-scope escape** — a peer escaping a `let` (1a) or a function (1b) that created the handle | ◀ drawn, not struck |
-| 2 | **tail escape** — a peer leaving via a tail call | undrawn; blocked on the checker having no notion of tail position |
+| 1 | **creation-scope escape** — a peer escaping a `let` (1a) or a function (1b) that created the handle | ✅ struck — `CheckErrorKind::HandleCreationEscape`, floor 5132 |
+| 2 | **tail escape** — a peer leaving via a tail call | ◀ drawn, not struck |
+
+## Two lessons this excursus has already paid for
+
+**Rune the INSTRUMENT. Never rune the ACCEPTANCE CRITERION.** Stone 1 came back with a red floor
+because the wall correctly rejected its own target, which I had placed under `wat-scripts/` where
+the loader gate demands every file pass. The executor refused to silence it — *"a rune there would
+make a green floor that fires on nothing"* — and was right. A gate that must construct the
+forbidden state to measure it (`probe_severed_reaches_the_client`, `probe-self-sched-bisect`) earns
+a rune; the red probe proving the wall fires never does.
+
+**A must-be-rejected `.wat` lives in `probes/`, not `wat-scripts/`.** The convention was already in
+the tree at `docs/arc/2026/06/278-rules-engine/probes/red-*.wat`. Stone 2's collision has the
+opposite answer to stone 1's, though: the bisect probe is a program that RUNS, and a rejected file
+cannot run, so it is runed rather than moved.
 
 ## Feasibility, probed before anything was drawn
 
