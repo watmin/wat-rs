@@ -23,6 +23,21 @@ tightest shape, so it can only ever be a backstop. A compile-time wall does not 
 |---|---|---|
 | 1 | **creation-scope escape** — a peer escaping a `let` (1a) or a function (1b) that created the handle | ✅ struck — `CheckErrorKind::HandleCreationEscape`, floor 5132 |
 | 2 | **tail escape** — a peer leaving via a tail call | ✅ struck — `CheckErrorKind::HandleTailEscape`, floor 5135 |
+| 3 | **param ownership** — a handle created by the caller as a temporary, tail-escaped by the callee | ◀ drawn, not struck |
+
+## The invariant, and the four cells
+
+*A peer must not outlive its handle.* Asked in two directions the answer differs, and that IS the
+design — expressed locally, with no lifetimes and no linear types:
+
+| direction | creating scope | param scope |
+|---|---|---|
+| **upward** (return / let value) | ⛔ stone 1 | ✅ legal — `conn(h)`; the caller owns it and outlives the call |
+| **downward** (tail call) | ⛔ stone 2 | ⛔ stone 3 |
+
+Measured, not assumed: **road 4** — a handle created in an ARGUMENT expression with the peer carried
+out by a tail call — is ALREADY caught by stone 2. Stones 1 and 2 generalize further than they were
+drawn for, and only the caller-temporary/callee-param road was left open.
 
 ## Two lessons this excursus has already paid for
 
