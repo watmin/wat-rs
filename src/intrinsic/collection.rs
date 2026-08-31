@@ -20,6 +20,12 @@
 //! `TypeMismatch` before any cell is realized; `last` and `range` never touch `StreamContainer` at
 //! all (`last` via `require_vec`'s `Value::Vec`-only gate; `range` takes two `i64`s and never
 //! receives a collection argument). All seven: Pure, Deterministic.
+//!
+//! Arc 255 Stone A-2-ii-b added an eighth verb, `sort$native` — outside the P6-c-W6 wave above
+//! (a different arity-2 comparator-sort primitive, homed for the purity GATE it ships alongside
+//! rather than this wave's read-only motive), but needing the identical `#[wat_intrinsic]`
+//! file-scan visibility the header above explains, so it lives here rather than opening a file
+//! for one verb.
 
 // ─── THE DELEGATE TEMPLATE — one gotcha, twice paid for ────────────────────────
 //
@@ -382,4 +388,80 @@ pub(crate) fn eval_vec_range(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     crate::collection::transform::eval_vec_range(start, end, env, sym)
+}
+
+/// `(:wat::core::sort$native cmp xs) -> (:wat::core::Vector :- [T])` — arc 056/247/251: the
+/// Rust comparator-sort primitive `sort`/`sort-by` (`wat/core.wat`) wrap; `cmp` is
+/// `[T T :-> :wat::core::bool]`, `less?`-shaped (Clojure convention — the caller owns
+/// ascending vs. descending via the predicate).
+///
+/// Arc 255 Stone A-2-ii-b — the gate and this homing ship in ONE stone, because a declaration
+/// the door does not enforce is a lie. `eval_vec_sort_by` (`src/collection/transform.rs`) now
+/// refuses a comparator that is not proven Pure ∧ Deterministic BEFORE any comparison runs —
+/// a refusal fired mid-sort would already have run the caller's comparator on some pairs, the
+/// exact effects the gate exists to prevent. Homing here retires three hand-lists that now
+/// derive from this registration: the literal `:wat::core::sort$native` arm in `runtime.rs`'s
+/// dispatch match, the `KNOWN_UNREVIEWED` row in `rete/purity.rs`, and the expand-time-residue
+/// entry in `macros/eval.rs`'s `is_expand_time_legal` (its `registry().lookup_entry` door now
+/// answers from `@ExpandTime` below instead of falling through to that hand-list).
+///
+/// **Purity ground — `@Purity Pure` is true BECAUSE OF THE GATE above it, not by assertion.**
+/// Before this stone, an effectful comparator — e.g.
+/// `(fn [a b] (do (println …) (< a b)))` — ran for real: measured firing 4 side effects
+/// sorting a 3-element vector (`255-probe-can-a-user-make-sort-effectful.wat`), so `Pure`
+/// would have been a claim a user could falsify in one line. `eval_vec_sort_by` classifies the
+/// comparator against its OWN `closed_env` (`ClassifyCtx::Runtime`/`Static`, never the
+/// caller's) and refuses anything not Pure ∧ Deterministic before the first comparison, so by
+/// the time this fn's body is reached at all the comparator already IS pure and deterministic
+/// — this declaration inherits that from the door standing in front of it, rather than
+/// re-deriving it. Same warrant, same door, for `@Determinism Deterministic`.
+///
+/// **Totality ground — on `sort$native`'s OWN merits, not the comparator's.** `Total` is
+/// deliberately NOT imposed on the comparator
+/// (`RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`), and the reason is NOT
+/// the one first written here. It is not that accessors are `Partial` via `Option/expect`
+/// (true, but not binding). **It is that the totality census has not run:** `@Total` reads
+/// `Total 29 · Partial 3 · Preserving 2 · Unreviewed 403`, and `Unreviewed` is default-deny by
+/// design. Measured — even `sort/1`'s trivial default comparator fails `total?`, because
+/// `:wat::core::<` (the polymorphic generic) is `Unreviewed` while its own per-type sibling
+/// `:wat::i64::<` is ruled `Total`. So a `Total` demand today refuses EVERY caller, not for
+/// being partial but for never having been looked at — and the only cheap way to silence that
+/// gate is to GUESS `Total`, which is precisely the laundering `Unreviewed` exists to prevent.
+/// Impose it after the census, when it costs nothing where true. Meanwhile sort stays
+/// total regardless, because a comparator that raises just makes the sort raise (ordinary
+/// propagation, not a domain hole this fn owns). Measured directly: a pathological but Pure ∧
+/// Deterministic comparator returning an inconsistent ordering still yields a scrambled but
+/// well-formed vector for any input — exit 0, no panic — so `sort$native` itself is `Total` on
+/// its own merits.
+///
+/// **Expand-time ground —** pure ∧ deterministic (via the gate above) with no state read;
+/// safe to evaluate while a `defmacro` body is being expanded.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Total         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     cmp [:T :T :-> :wat::core::bool] the `less?` comparator; refused before any comparison runs unless proven Pure ∧ Deterministic against its own closed environment
+/// @arg     xs (:wat::core::Vector :- [T]) the vector sorted
+/// @ret     (:wat::core::Vector :- [T]) a new vector holding `xs`'s elements ordered by `cmp`
+/// @yields  cmp two elements of `xs` at a time — the pair being ordered; `cmp` returns whether the first sorts before the second. Called up to twice per comparison (the two-sided test that distinguishes Equal from Less/Greater — see `eval_vec_sort_by`), which is why an EFFECTFUL comparator leaks an implementation detail into observable output and is refused at the door
+/// @example (:wat::core::sort$native (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool (:wat::core::< a b)) (:wat::core::Vector 3 1 2)) #=> (:wat::core::Vector 1 2 3)
+/// ⚠ NO `@see :wat::core::sort` — and the reason is a real limit worth knowing.
+/// `all_see_fqdns_resolve_to_registered_intrinsics` requires every `@see` to name a REGISTERED
+/// INTRINSIC, and `sort`/`sort-by` are wat `defclause`s in `wat/core.wat`, not intrinsics. So a
+/// Rust primitive cannot cite its own wat-level public wrapper through `@see`, even though that is
+/// the single most useful cross-reference it has. The relationship is carried in the prose above
+/// instead. (Measured: the gate went red on exactly this, `@see` is optional, and pointing it at
+/// some other registered verb to satisfy the gate would be a worse lie than omitting it.)
+#[wat_intrinsic(":wat::core::sort$native")]
+pub(crate) fn eval_sort_native(
+    cmp: &WatAST,
+    xs: &WatAST,
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::collection::transform::eval_vec_sort_by(&[cmp.clone(), xs.clone()], call_span, env, sym)
 }

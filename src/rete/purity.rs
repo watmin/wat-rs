@@ -1758,8 +1758,9 @@ pub(crate) fn find_axis_violation(ast: &WatAST, axis: Axis, sym: &SymbolTable) -
 
 /// Arc 255 Stone A-2-i — the env-carrying sibling `find_axis_violation` keeps beside it: same
 /// walk, but the caller NAMES the world (`ClassifyCtx::Static` vs. `Runtime(env)`) rather than
-/// getting `Static` by default. Nothing in this stone calls this with `Runtime` yet — the
-/// capability is shipped, not consumed (that is A-2-ii, at `sort$native`'s door).
+/// getting `Static` by default. First consumed by arc 255 Stone A-2-ii-b, at `sort$native`'s
+/// door (`eval_vec_sort_by`, `src/collection/transform.rs`): the comparator's own `closed_env`
+/// names the world there — `Runtime(env)` when it has one, `Static` when it does not.
 pub(crate) fn find_axis_violation_ctx(
     ast: &WatAST,
     axis: Axis,
@@ -2269,7 +2270,6 @@ mod completeness_gate {
     ":wat::core::record->map",
     ":wat::core::seqable->stream",
     ":wat::core::show",
-    ":wat::core::sort$native",
     ":wat::core::struct->form",
     ":wat::core::struct-field",
     ":wat::core::struct-new",

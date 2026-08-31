@@ -58,9 +58,34 @@ declaration that is false, or the second half ships a gate nothing declares.
 | `@Total` | **Total** | measured on its own merits: a pathological comparator returns a scrambled well-formed vector, exit 0, no panic |
 | `@ExpandTime` | Legal | pure ∧ deterministic, no state read |
 
-⛔ **`Total` is NOT imposed on the comparator** — the ruling's corollary. Sort is total regardless;
-a comparator that *raises* just makes the sort raise, which is ordinary propagation. Imposing it
-would refuse every accessor key (they are `Partial` via `Option/expect`) **for no defect**.
+⛔ **`Total` is NOT imposed on the comparator** — and the reason below was WRONG on first writing.
+
+> ~~Imposing it would refuse every accessor key (they are `Partial` via `Option/expect`) for no
+> defect.~~ **Corrected 2026-08-30 on the builder's challenge — *"why is total not ready here...
+> wat will become completely total in the medium term"*.**
+
+**The binding constraint is that the totality census has not run.** Measured:
+
+```
+@Total:  Total 29 · Partial 3 · Preserving 2 · Unreviewed 403
+
+total?  :wat::i64::<   -> true     measured, homed, ruled
+total?  :wat::core::<  -> FALSE    the polymorphic generic — Unreviewed
+```
+
+**A `Total` demand today refuses EVERY caller** — including `sort/1`'s trivial default `(< a b)` —
+not because they are partial but because **nobody has measured them**. `Unreviewed` is default-deny
+by design.
+
+★ **And the usual forcing-function argument inverts here.** *Impose the check and read the screams*
+has been right repeatedly this arc; here the screams would read *"not proven total"* for 403 verbs
+nobody has looked at, and the cheapest way to silence them is to **guess `Total`** — exactly the
+laundering `Unreviewed` exists as a fourth variant to prevent. A gate whose screams can be silenced
+by guessing teaches guessing.
+
+**The order is the answer, not the goal:** run the census (the builder's ruling is what makes it
+possible), purge `expect` using the `Partial` rows as the worklist, then impose `Total` — at which
+point it costs nothing where true and correctly refuses where it is not.
 
 ## ★ A PREDICTION, and it is falsifiable
 
@@ -90,7 +115,10 @@ If one is needed, the measurement is wrong and that is a finding — not a row t
   measured status quo.
 - **gate-first-declare-later Honest? NO** — `Unreviewed` would mean *nobody looked*, when the door
   next to it enforces the answer. That is the "did not look" lie in reverse.
-- **impose-`Total` Honest? NO** — a demand with no defect behind it, refusing every accessor key.
+- **impose-`Total` Honest? NO** — it would refuse **every** caller, including `sort/1`'s trivial
+  default `<`, because 403 verbs read `Unreviewed` and that is default-deny. The screams would
+  say *"not proven total"* about verbs nobody has measured, and the cheapest way to silence
+  them is to guess. Impose after the census, not before it.
 
 ## Acceptance
 

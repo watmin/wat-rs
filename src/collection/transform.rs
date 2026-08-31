@@ -34,8 +34,8 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{
-    apply_function, eval_inner, require_i64, require_vec, Environment, EvalBreak, RuntimeError,
-    RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
+    apply_function, eval_inner, require_i64, require_vec, Environment, EvalBreak, FunctionBody,
+    RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
 use std::sync::Arc;
@@ -270,6 +270,11 @@ fn lazy_drop_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::st
 /// stable-sort semantics honest; the doubled call count is amortized
 /// against O(n log n) — for the lab's bounded windows it's
 /// negligible.
+///
+/// Arc 255 Stone A-2-ii-b — `less?` is refused at this fn's door, before any comparison
+/// runs, unless proven Pure ∧ Deterministic against its own `closed_env` (see the gate
+/// immediately below, right after `func` is bound) — the door `#[wat_intrinsic]`'s
+/// `@Purity Pure`/`@Determinism Deterministic` (`src/intrinsic/collection.rs`) declares true.
 // rune:temperare(simplicity-win) — two-sided less? calls (up to 2× apply_function per comparison)
 // preserve the (T,T)->bool predicate interface the rest of the stdlib uses; a three-way comparator
 // would halve the call count but requires a new predicate protocol. Cost ceiling: sort runs on
@@ -309,6 +314,54 @@ pub(crate) fn eval_vec_sort_by(
             .into());
         }
     };
+    // Arc 255 Stone A-2-ii-b — refuse an impure/nondeterministic comparator AT THE DOOR,
+    // before any comparison runs. STOP-1: a refusal fired mid-sort would already have run
+    // the caller's comparator on some pairs — exactly the effects this gate exists to
+    // prevent. Placed immediately after `func` is bound and before `sorted` even exists
+    // (nothing above this point has called `func`; nothing below calls it until
+    // `sorted.sort_by` does), so a refusal here is provably zero-comparison.
+    //
+    // Mirrors `freeze.rs`'s `check_sigma_fn_contract` (the sigma-fn purity gate) exactly,
+    // narrowed to the two axes this door imposes — Pure, Deterministic, never Total (see
+    // RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md: every record
+    // accessor is `Partial` via `Option/expect`, so imposing `Total` would refuse
+    // `wat/query/mem.wat`'s live accessor-keyfn callers for no defect). Classifies against
+    // the comparator's OWN `closed_env` — `ClassifyCtx::Runtime` when it has one, `Static`
+    // when it does not — the same environment `classify_closure` (`rete/purity.rs`) carries
+    // for an anonymous closure, never the caller's.
+    use crate::rete::purity::{classify_native_fn, find_axis_violation_ctx, Axis, ClassifyCtx};
+    let comparator_label = func.name.clone().unwrap_or_else(|| match &func.body {
+        FunctionBody::Wat(_) => crate::value::ANON_FN_SYMBOL.to_string(),
+        FunctionBody::Native => "<native>".to_string(),
+    });
+    let comparator_ctx = match &func.closed_env {
+        Some(closed_env) => ClassifyCtx::Runtime(closed_env),
+        None => ClassifyCtx::Static,
+    };
+    for (axis, axis_name) in [(Axis::Pure, "pure"), (Axis::Deterministic, "deterministic")] {
+        let violation = match &func.body {
+            FunctionBody::Wat(ast) => find_axis_violation_ctx(ast, axis, sym, comparator_ctx),
+            FunctionBody::Native => classify_native_fn(&comparator_label, axis).err(),
+        };
+        if let Some(v) = violation {
+            return Err(RuntimeError::new(
+                call_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "comparator `{label}` is not {axis_name}: `{head}` is not proven \
+                         {axis_name} (sort$native refuses an impure or nondeterministic \
+                         comparator BEFORE any comparison runs, so no effect from a bad \
+                         comparator is ever observable)",
+                        label = comparator_label,
+                        axis_name = axis_name,
+                        head = v.head,
+                    ),
+                },
+            )
+            .into());
+        }
+    }
     let mut sorted: Vec<Value> = (*xs).clone();
     let mut sort_err: Option<EvalBreak> = None;
     sorted.sort_by(|a, b| {

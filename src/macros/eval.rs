@@ -428,7 +428,7 @@ fn is_expand_time_legal(head: &str) -> bool {
     // ★ THE RESIDUE — arc 255 Stone expand-T4b. NOT a hand-list of "which verbs are
     // expand-time legal": every name below is one for which `registry().lookup_entry`
     // returns `None` — no registration site exists yet to carry an `@ExpandTime`
-    // ruling — so the verdict for exactly these 59 stays HERE until one exists. This
+    // ruling — so the verdict for exactly these 58 stays HERE until one exists. This
     // is a HOMING BACKLOG, not the 202-name hand-list it replaced: each row retires
     // the moment its verb gets a registration site — move the reasoning there (the
     // same motion `:wat::hashmap::keys` / `:wat::hashmap::values` just made above)
@@ -436,7 +436,10 @@ fn is_expand_time_legal(head: &str) -> bool {
     // added below alongside a real registration, the derivation above is being
     // shadowed by a copy, which is the exact defect this stone exists to remove.
     // Measured at 59 (arc 255 Stone expand-T4a's count, reconfirmed by this stone via
-    // `lookup_entry` on every one, not re-guessed).
+    // `lookup_entry` on every one, not re-guessed). Down to 58 — arc 255 Stone A-2-ii-b
+    // homed `:wat::core::sort$native` into `#[wat_intrinsic]` with its own
+    // `@ExpandTime Legal`, so `lookup_entry` now answers for it above and the
+    // hand-list row would have been a shadowing copy.
     //
     // Grouped only for a reader's sake — the residue's DEFINITION is `lookup_entry ==
     // None`, nothing about these groupings:
@@ -448,7 +451,7 @@ fn is_expand_time_legal(head: &str) -> bool {
     //   collection / sequence ops still on the pre-registry dispatch path —
     //     `assoc`, `conj`, `contains?`, `count`, `first`, `second`, `third`, `get`,
     //     `into`, `drop`, `take`, `filter`, `filterv`, `map`, `mapv`, `foldl`,
-    //     `reduce`, `reduce-stream`, `doall`, `dorun`, `find-last-index`, `sort$native`,
+    //     `reduce`, `reduce-stream`, `doall`, `dorun`, `find-last-index`,
     //     `stream::lazy`, `stream->vec`, `stream->pvec`
     //   homoiconic AST helpers not yet homed — `forms`, `with-children`,
     //     `write-forms`, `struct->form`
@@ -502,7 +505,6 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::doall"
         | ":wat::core::dorun"
         | ":wat::core::find-last-index"
-        | ":wat::core::sort$native"
         | ":wat::stream::lazy"
         | ":wat::core::stream->vec"
         | ":wat::core::stream->pvec"

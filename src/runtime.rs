@@ -6023,9 +6023,11 @@ fn dispatch_keyword_head_value(
         ":wat::core::drop" => {
             crate::collection::transform::eval_vec_drop(args, list_span, env, sym)
         }
-        ":wat::core::sort$native" => {
-            crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym)
-        }
+        // Arc 255 Stone A-2-ii-b — `:wat::core::sort$native` moved into a `#[wat_intrinsic]`
+        // handler (`src/intrinsic/collection.rs`), a thin delegate over
+        // `crate::collection::transform::eval_vec_sort_by` (in place, unmoved — the gate this
+        // stone shipped lives there); the pre-match registry check above (arc 255.1c-guard)
+        // intercepts the name before reaching here.
         ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
         ":wat::core::mapv" => crate::collection::transform::eval_mapv(args, list_span, env, sym),
         // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — the private eager→lazy
