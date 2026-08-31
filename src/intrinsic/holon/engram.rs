@@ -53,7 +53,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
@@ -78,7 +78,7 @@ pub(crate) fn engram_name(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
@@ -104,7 +104,7 @@ pub(crate) fn engram_eigenvalue_signature(e: &Value, span: &Span) -> Result<Valu
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
@@ -125,7 +125,7 @@ pub(crate) fn engram_n(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
@@ -150,7 +150,7 @@ pub(crate) fn engram_residual(e: &Value, v: &Value, span: &Span) -> Result<Value
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     dim :wat::core::i64 the library's vector dimension
@@ -173,7 +173,7 @@ pub(crate) fn library_new(dim: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library mutated
@@ -210,7 +210,7 @@ pub(crate) fn library_add(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
@@ -259,7 +259,7 @@ pub(crate) fn library_match_vec(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
@@ -279,7 +279,7 @@ pub(crate) fn library_len(lib: &Value, span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
@@ -303,7 +303,7 @@ pub(crate) fn library_contains(lib: &Value, name: &Value, span: &Span) -> Result
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed

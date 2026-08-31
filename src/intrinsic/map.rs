@@ -50,7 +50,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
@@ -67,7 +67,7 @@ pub(crate) fn persistentmap_length(m: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
@@ -84,7 +84,7 @@ pub(crate) fn persistentmap_empty_q(m: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
@@ -103,7 +103,7 @@ pub(crate) fn persistentmap_contains_key_q(m: &Value, k: &Value) -> Result<Value
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
@@ -122,7 +122,7 @@ pub(crate) fn persistentmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map transformed
@@ -142,7 +142,7 @@ pub(crate) fn persistentmap_assoc(m: &Value, k: &Value, v: &Value) -> Result<Val
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map transformed
@@ -162,7 +162,7 @@ pub(crate) fn persistentmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBr
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map projected
@@ -180,7 +180,7 @@ pub(crate) fn persistentmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map projected

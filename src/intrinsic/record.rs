@@ -45,7 +45,7 @@ use crate::span::Span;
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Partial
+/// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     record :wat::core::Record the receiver — a Record/HolonRecord Aggregate (not Struct)

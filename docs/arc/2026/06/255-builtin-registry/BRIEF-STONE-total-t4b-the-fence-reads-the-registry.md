@@ -7,7 +7,7 @@ Read `DESIGN-STONE-total-t4b-the-fence-reads-the-registry.md` first.
 `intrinsic_meta` computes `total` with a 38-name `matches!`. Twenty-seven of those verbs now
 declare the answer at their own registration site. **Make the lookup consult the registry, and cut
 the `matches!` down to the 11 verbs that have no registration to consult.** First, correct `if` and
-`let` to `@Total Preserving` — their doc blocks are internally inconsistent today.
+`let` to `@Totality Preserving` — their doc blocks are internally inconsistent today.
 
 ## Read in order
 
@@ -18,7 +18,7 @@ src/rete/purity.rs, the `── `total` —` block   the 38-name matches! and it
 src/rete/purity.rs, end of intrinsic_meta      `Some(OpMeta { pure: true, deterministic: true, total })`
 src/intrinsic/mod.rs:1038                      `matches!(entry.purity, Pure | Preserving)` — the
                                                house convention that Preserving SATISFIES an axis
-src/intrinsic/special/control_flow.rs          `if` — @Purity Preserving, @Total Total. Inconsistent.
+src/intrinsic/special/control_flow.rs          `if` — @Purity Preserving, @Totality Total. Inconsistent.
 src/intrinsic/special/binding.rs               `let` — same.
 src/intrinsic/mod.rs, `registry()`             `pub(crate)`, so purity.rs can call it
 ```
@@ -26,7 +26,7 @@ src/intrinsic/mod.rs, `registry()`             `pub(crate)`, so purity.rs can ca
 ## Implementation sketch
 
 ```rust
-// FIRST: if/let become @Total Preserving (doc-line change only).
+// FIRST: if/let become @Totality Preserving (doc-line change only).
 
 // THEN, in intrinsic_meta, replacing the 38-name matches!:
 let total = match crate::intrinsic::registry().lookup_entry(head).map(|e| e.totality) {
@@ -65,7 +65,7 @@ it: capture all 38 verdicts before, and all 38 after, and diff them.
    verb and both verdicts.
 2. **The residual `matches!` needs a 12th name** to keep the verdicts stable. It means a verb the
    design believes is registered is not, or an answer did not land in T4a. STOP and name it.
-3. **You are about to answer `@Total` for a verb outside `if`/`let`.** Not this stone. STOP.
+3. **You are about to answer `@Totality` for a verb outside `if`/`let`.** Not this stone. STOP.
 4. **You are about to touch `is_pure_total` or `RETE_OPS`.** Other consumers, other stones. STOP.
 5. **The `where`-corpus goes red.** It is the live consumer. STOP with the failure verbatim.
 
@@ -74,11 +74,11 @@ it: capture all 38 verdicts before, and all 38 after, and diff them.
 ```
  0. ★ CAPTURE THE BASELINE FIRST: all 38 verbs' `total` verdicts BEFORE any edit. A tiny temp test
       over `intrinsic_meta` is fine. Report the 38, or at minimum the count of true/false.
- 1. ★ if AND let READ `@Total Preserving`, and their other two axes are untouched.
+ 1. ★ if AND let READ `@Totality Preserving`, and their other two axes are untouched.
  2. ★ THE DERIVATION IS IN, and the residual `matches!` holds EXACTLY the 11 named above.
  3. ★ ALL 38 VERDICTS IDENTICAL to row 0. Diff them and say so explicitly.
  4. ★ PROVE THE REGISTRY IS ACTUALLY BEING CONSULTED: flip one of the 27 (say `:wat::i64::>`) to
-      `@Total Partial`, show `intrinsic_meta(":wat::i64::>").total` become FALSE, restore. If the
+      `@Totality Partial`, show `intrinsic_meta(":wat::i64::>").total` become FALSE, restore. If the
       verdict does not move, the derivation is not wired and the residual list is carrying it.
  5. ★ THE 11 ARE GENUINELY UNREGISTERED: show that `registry().lookup_entry()` returns None (or
       Unreviewed) for each. If one IS registered with an answer, it does not belong in the residue.

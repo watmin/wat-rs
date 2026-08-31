@@ -118,7 +118,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     op :T the op value to re-tag; not further constrained at check time
@@ -170,7 +170,7 @@ pub(crate) fn eval_retag_op(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     clients (:wat::core::Vector :- [(:wat::kernel::Peer :- [S R])]) the connected clients to notify on a handler crash

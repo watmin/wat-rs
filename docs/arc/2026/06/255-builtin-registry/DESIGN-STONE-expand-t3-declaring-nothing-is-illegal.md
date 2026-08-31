@@ -2,7 +2,7 @@
 
 > Builder: *"how do we make declaring nothing illegal? we did this trick earlier with totality."*
 
-Exactly that trick. `@ExpandTime` joins `@Purity`, `@Determinism`, `@Total` and `@Category` as
+Exactly that trick. `@ExpandTime` joins `@Purity`, `@Determinism`, `@Totality` and `@Category` as
 REQUIRED. Absence becomes `DocError::MissingExpandTime`, and the registration macro refuses to
 expand.
 
@@ -22,7 +22,7 @@ crates/wat-doc/src/lib.rs:1045   `parse_special_form`  the same
 Do not count your way to "every site declares." Delete one directive and rebuild:
 
 ```
-error: #[wat_intrinsic] :wat::i64::/: doc comment is missing a required `@Total <Variant>`
+error: #[wat_intrinsic] :wat::i64::/: doc comment is missing a required `@Totality <Variant>`
        directive (known: Total, Partial, Preserving, Unreviewed)
 ```
 
@@ -50,7 +50,7 @@ belongs to the `wat` package, not those crates**, so my own criteria could not s
 this exact change produced — two in `tests/reflection/probe_arc255_axes_are_declared_not_derived.rs`
 (a shared doc fixture failing `MissingTotality`) and one lint red on new `contains`-style assertions.
 
-**Measured now, before the sweep: `tests/` holds 6 fixtures carrying `@Total`.** They will need
+**Measured now, before the sweep: `tests/` holds 6 fixtures carrying `@Totality`.** They will need
 `@ExpandTime` too. The acceptance rows below run the FULL floor, not two crates.
 
 ★ And that probe is named `axes_are_declared_not_derived` — the file whose thesis is *"the axes are
@@ -62,10 +62,10 @@ thesis has quietly stopped covering.
 ## Method
 
 ~432 doc blocks is past hand-editing: a surgical Rust Cargo tool under repo-local `tools/`, deleted
-before the commit. Read file → insert one line after the `@Total` line of each block lacking
+before the commit. Read file → insert one line after the `@Totality` line of each block lacking
 `@ExpandTime` → write, every other byte untouched.
 
-**Placement: after `@Total`, before `@Category`** — so the four property axes read as a block.
+**Placement: after `@Totality`, before `@Category`** — so the four property axes read as a block.
 
 ★ **Per-file non-ASCII counts verified unchanged.** This repo has silently lost 5,720 non-ASCII
 characters to a whole-file round-trip while the suite stayed green; content integrity is a separate

@@ -36,7 +36,7 @@ use crate::value::{
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     bs :wat::core::Bytes the bytes to encode
@@ -101,7 +101,7 @@ const NIBBLE: [char; 16] = [
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg        s :wat::core::String the hex-encoded string to decode

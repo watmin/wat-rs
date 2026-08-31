@@ -58,7 +58,7 @@ better; keep the behaviour.
 ```
 
 **Every one already declares `@Purity` AND `@Determinism`, and every one declares
-`@Total Unreviewed`.** Verify that yourself — it is the justification for the ledger row. The
+`@Totality Unreviewed`.** Verify that yourself — it is the justification for the ledger row. The
 reason each row carries is that the FENCE's question is three axes and the third is open:
 the verb's purity is ruled and on disk, its totality is not.
 
@@ -82,7 +82,7 @@ identical strings would be a template wearing a reason's clothes.
    eleven by name. A different set means something moved and the design is stale. STOP and report
    the difference.
 3. **You are about to classify a verb in `intrinsic_meta`** rather than ledger it. STOP.
-4. **You are about to touch `effectful_by_prefix`, `RULES`, or any verb's `@Purity`/`@Total`.** STOP.
+4. **You are about to touch `effectful_by_prefix`, `RULES`, or any verb's `@Purity`/`@Totality`.** STOP.
 5. **The `stale` assert fires** (a ledger row for a verb no longer unreviewed). Report which.
 
 ## Acceptance
@@ -92,7 +92,7 @@ identical strings would be a template wearing a reason's clothes.
       Report both, and the eleven names it reports — compare against the design's list.
  1. ★ THE ELEVEN LEDGERED, each with its OWN reason citing its own declaration. Quote all eleven
       rows in your report.
- 2. ★ CONFIRM the premise: all eleven declare @Purity, @Determinism, and @Total Unreviewed. Show
+ 2. ★ CONFIRM the premise: all eleven declare @Purity, @Determinism, and @Totality Unreviewed. Show
       the command and its output.
  3. ★ KNOWN_UNREVIEWED 217 -> 228, by the gate's own printed line.
  4. ★ THE NON-VACUITY ASSERT STILL PASSES, unmodified. State the population it saw.

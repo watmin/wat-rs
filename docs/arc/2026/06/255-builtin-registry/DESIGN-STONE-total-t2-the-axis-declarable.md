@@ -28,12 +28,12 @@ different properties wearing one name**, which 255's own DESIGN already suspecte
 
 ## What T2 delivers
 
-**The `@Total <Variant>` directive, parsed and carried on `DocComment`.** After this stone a verb
+**The `@Totality <Variant>` directive, parsed and carried on `DocComment`.** After this stone a verb
 can DECLARE its totality where it is defined, and every consumer can read it.
 
 ## The one contract decision, pinned
 
-**`@Total` is OPTIONAL in T2 and defaults to `Totality::Unreviewed`.**
+**`@Totality` is OPTIONAL in T2 and defaults to `Totality::Unreviewed`.**
 
 Mandating it here would force 429 sites to answer in a single strike, and answers produced under
 that pressure are guesses. **A guessed `:Total` is a lie in a fence that ADMITS CODE into a
@@ -53,7 +53,7 @@ measurement sizes T3.** Bundling them means starting the grind without knowing i
 - **No consumer changes.** `intrinsic_meta`, `is_pure_total`, `RETE_OPS` are untouched. They keep
   their hand-lists and keep working. Making them derive is T4.
 - **No Layer-1 baseline field.** The LOCKED RECORD MODEL is not edited by this stone.
-- **No verb is annotated.** Zero `@Total` directives are added to real verbs here; the mechanism
+- **No verb is annotated.** Zero `@Totality` directives are added to real verbs here; the mechanism
   ships unused except by its own fixtures. Annotating is T3's grind.
 - **The `i64::/` contradiction is NOT resolved here.** It is named, and it is T4's first test case —
   because the resolution is a ruling about what the two lists MEAN, not an edit.
@@ -66,7 +66,7 @@ green. `Determinism` is the exact structural twin to copy; every site below is w
 appears.
 
 ```
-crates/wat-doc/src/lib.rs         DocComment.totality field · parse `@Total` · DocError::
+crates/wat-doc/src/lib.rs         DocComment.totality field · parse `@Totality` · DocError::
                                   InvalidTotalityVariant · the round-trip test's own list
 crates/wat-macros/src/wat_intrinsic.rs      value -> quote! token, one arm per variant  (~:787)
 crates/wat-macros/src/wat_special_form.rs   the same match, again                        (~:75)
@@ -79,9 +79,9 @@ Build green + test-build green = every match-shaped mirror reached.
 
 ## The algorithm
 
-1. `DocComment` gains `totality: Totality`, defaulting to `Totality::Unreviewed` when no `@Total`
+1. `DocComment` gains `totality: Totality`, defaulting to `Totality::Unreviewed` when no `@Totality`
    directive is present. Same for the special-form doc struct.
-2. `@Total <Variant>` parses with the same shape as `@Determinism` — singleton (a second occurrence
+2. `@Totality <Variant>` parses with the same shape as `@Determinism` — singleton (a second occurrence
    is `DuplicateSingleton`), unknown variant is `InvalidTotalityVariant { got }` naming all four.
 3. Both proc-macros gain the value→token match arm, exhaustive, no wildcard.
 4. The registry entry carries it through, exactly as `determinism` is carried.

@@ -45,7 +45,7 @@ use crate::span::Span;
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :T the value to wrap
@@ -96,7 +96,7 @@ pub(crate) fn eval_ok_ctor(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :E the value to wrap

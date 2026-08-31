@@ -58,7 +58,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @ret     :wat::kernel::Location the call form's own source coordinate
@@ -89,7 +89,7 @@ pub(crate) fn eval_kernel_here(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @ret     :wat::kernel::Frame the innermost enclosing wat fn-call's frame
@@ -135,7 +135,7 @@ pub(crate) fn eval_kernel_call_site(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @ret     :wat::WatAST a spliceable `(:wat::kernel::Frame' file line symbol)` form
@@ -168,7 +168,7 @@ pub(crate) fn eval_kernel_macro_call_site(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     f :wat::core::Fn the fn value to reify (or a keyword naming a registered fn)

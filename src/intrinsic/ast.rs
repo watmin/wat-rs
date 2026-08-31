@@ -72,7 +72,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the wat source text parsed
@@ -107,7 +107,7 @@ pub(crate) fn eval_read_string_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ast :wat::WatAST the node serialized
@@ -140,7 +140,7 @@ pub(crate) fn eval_ast_to_source_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ast :wat::WatAST the node decomposed
@@ -173,7 +173,7 @@ pub(crate) fn eval_ast_children_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     ast :wat::WatAST the node probed
@@ -203,7 +203,7 @@ pub(crate) fn eval_ast_kind_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     ast :wat::WatAST the Symbol, Keyword, or StringLit node probed
@@ -234,7 +234,7 @@ pub(crate) fn eval_ast_name_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     ast :wat::WatAST the node probed
@@ -263,7 +263,7 @@ pub(crate) fn eval_ast_span_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     ast :wat::WatAST the node probed
@@ -296,7 +296,7 @@ pub(crate) fn eval_ast_end_span_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the bare symbol text
@@ -326,7 +326,7 @@ pub(crate) fn eval_symbol_node_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the `:`-prefixed keyword text
@@ -361,7 +361,7 @@ pub(crate) fn eval_keyword_node_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     base :wat::core::String the base name the fresh symbol's text carries

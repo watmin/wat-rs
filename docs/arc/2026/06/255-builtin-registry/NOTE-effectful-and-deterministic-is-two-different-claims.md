@@ -31,7 +31,7 @@ surface the registry's actual claim to that predicate found the claim was false.
 **"Deterministic given an openable path" is a PRECONDITION, and a precondition does not rescue an
 axis.** Every partial function is total on the subset where it is defined; that is not what these
 axes measure. The identical move was refused for `:wat::i64::/` earlier the same day — it is
-*"pure ∧ deterministic yet undefined at a zero divisor"*, and we ruled `@Total Partial` rather than
+*"pure ∧ deterministic yet undefined at a zero divisor"*, and we ruled `@Totality Partial` rather than
 *"total given a nonzero divisor."*
 
 For `open-file` the varying thing is not even the domain — it is **the world**. Same path string,

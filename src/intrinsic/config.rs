@@ -36,7 +36,7 @@ use crate::value::{EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::i64 the program's committed encoding dimension
@@ -60,7 +60,7 @@ pub(crate) fn eval_config_dim_count_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::i64 the program's committed hologram-slot capacity
@@ -89,7 +89,7 @@ pub(crate) fn eval_config_dim_capacity_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::f64 `1/sqrt(dim-count)` at the program's committed dimension
@@ -112,7 +112,7 @@ pub(crate) fn eval_config_noise_floor_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::i64 the program's committed atom-seeding seed

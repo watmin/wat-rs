@@ -24,7 +24,7 @@ floor ........ 5109/5109, 0 FAIL, 17 skipped, ~106s   (scripts/floor.sh, exit re
 clippy ....... 0 under `-D warnings`
 registry ..... 429 #[wat_intrinsic] + 2 #[wat_special_form] = 431   (`let`, `if` — the ONLY two)
 runtime.rs ... 33,917      KNOWN_UNREVIEWED 50      debt ledger 55
-@Total ....... Total 25 · Partial 1 · Preserving 2 · Unreviewed 403
+@Totality ....... Total 25 · Partial 1 · Preserving 2 · Unreviewed 403
 @ExpandTime .. Legal 143 · RuntimeOnly 0 · Preserving 0 · Unreviewed 288
 host ......... JohnDesktop · john · ~/work/holon/wat-rs
 ```

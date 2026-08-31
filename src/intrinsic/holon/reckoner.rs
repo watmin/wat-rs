@@ -44,7 +44,7 @@ use holon::HolonAST;
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     name :wat::core::String the reckoner's name
@@ -127,7 +127,7 @@ pub(crate) fn eval_reckoner_new_discrete(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     name :wat::core::String the reckoner's name
@@ -207,7 +207,7 @@ pub(crate) fn eval_reckoner_new_continuous(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner mutated
@@ -243,7 +243,7 @@ pub(crate) fn reckoner_observe(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
@@ -289,7 +289,7 @@ pub(crate) fn reckoner_predict(r: &Value, v: &Value, span: &Span) -> Result<Valu
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner mutated
@@ -346,7 +346,7 @@ pub(crate) fn eval_reckoner_resolve(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
@@ -374,7 +374,7 @@ pub(crate) fn reckoner_curve(r: &Value, span: &Span) -> Result<Value, EvalBreak>
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
@@ -398,7 +398,7 @@ pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed

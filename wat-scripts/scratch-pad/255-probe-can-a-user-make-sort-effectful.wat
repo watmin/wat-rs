@@ -15,7 +15,7 @@
 ;; ── MEASURED 2: a PURE but INCONSISTENT comparator does NOT panic. ──
 ;; `:user::inconsistent` returns `true` always — not a strict weak ordering.
 ;; Result: [0 6 4 8 2 7 1 9 3 5]  exit 0. Scrambled, well-formed, no panic.
-;; ⇒ @Total is `Total` on its own merits: no reachable failure path, even
+;; ⇒ @Totality is `Total` on its own merits: no reachable failure path, even
 ;;   pathologically. Imposing purity is NOT what buys totality — totality already
 ;;   holds. And imposing purity does NOT buy a correct ORDER; nobody should claim it.
 ;;

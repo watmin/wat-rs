@@ -130,7 +130,7 @@ use holon::{encode, HolonAST, Similarity};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the HolonAST to decode, alone or with a `-> :T` type-hint suffix
@@ -453,7 +453,7 @@ pub(crate) fn eval_holon_from_holon(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST to wrap, alone
@@ -484,7 +484,7 @@ pub(crate) fn eval_holon_atom_constructor(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :T the value to encode, alone
@@ -515,7 +515,7 @@ pub(crate) fn eval_holon_to_holon(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :T the primitive value to wrap, alone
@@ -571,7 +571,7 @@ pub(crate) fn eval_holon_leaf(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     a :wat::WatAST the quoted form to lower, alone
@@ -619,7 +619,7 @@ pub(crate) fn eval_holon_from_wat(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST to raise back to a form, alone
@@ -660,7 +660,7 @@ pub(crate) fn eval_holon_to_wat(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the unevaluated form, alone
@@ -693,7 +693,7 @@ pub(crate) fn eval_holon_literal(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     x :wat::core::Value the value projected
@@ -740,7 +740,7 @@ pub(crate) fn eval_to_holon_record(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
@@ -790,7 +790,7 @@ pub(crate) fn eval_algebra_map(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
@@ -840,7 +840,7 @@ pub(crate) fn eval_algebra_set(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
@@ -894,7 +894,7 @@ pub(crate) fn eval_algebra_vector(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
@@ -944,7 +944,7 @@ pub(crate) fn eval_algebra_list(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
@@ -1004,7 +1004,7 @@ pub(crate) fn eval_algebra_tuple(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Combine
 /// @arg     a :wat::holon::HolonAST the two operands bound together, in order
@@ -1059,7 +1059,7 @@ pub(crate) fn eval_algebra_bind(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Combine
 /// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs bundled, alone
@@ -1151,7 +1151,7 @@ pub(crate) fn eval_algebra_bundle(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST permuted and the integer shift amount, in order
@@ -1212,7 +1212,7 @@ pub(crate) fn eval_algebra_permute(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :wat::core::f64 the value and its `[min, max]` range, in order
@@ -1249,7 +1249,7 @@ pub(crate) fn algebra_thermometer(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Combine
 /// @arg     a :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
@@ -1293,7 +1293,7 @@ pub(crate) fn algebra_blend(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     x :wat::holon::HolonAST the HolonAST or Record probed, alone
@@ -1344,7 +1344,7 @@ pub(crate) fn eval_extract_classifier(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
@@ -1390,7 +1390,7 @@ pub(crate) fn eval_bind_left(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
@@ -1437,7 +1437,7 @@ pub(crate) fn eval_bind_right(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
@@ -1488,7 +1488,7 @@ pub(crate) fn eval_bundle_children(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
@@ -1545,7 +1545,7 @@ pub(crate) fn eval_bundle_first(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1574,7 +1574,7 @@ pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1603,7 +1603,7 @@ pub(crate) fn holon_is_set_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1632,7 +1632,7 @@ pub(crate) fn holon_is_vector_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1661,7 +1661,7 @@ pub(crate) fn holon_is_list_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1690,7 +1690,7 @@ pub(crate) fn holon_is_tuple_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1719,7 +1719,7 @@ pub(crate) fn holon_is_symbol_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1748,7 +1748,7 @@ pub(crate) fn holon_is_keyword_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1776,7 +1776,7 @@ pub(crate) fn holon_is_tag_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
@@ -1804,7 +1804,7 @@ pub(crate) fn holon_is_nil_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed and the classifier name, in order
@@ -1852,7 +1852,7 @@ pub(crate) fn eval_holon_is_predicate(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST templated, alone
@@ -1892,7 +1892,7 @@ pub(crate) fn eval_term_template(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
@@ -1933,7 +1933,7 @@ pub(crate) fn eval_term_slots(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
@@ -1978,7 +1978,7 @@ pub(crate) fn eval_term_ranges(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     q :wat::holon::HolonAST the query and subject HolonASTs, in order
@@ -2063,7 +2063,7 @@ pub(crate) fn eval_term_matches_q(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     low :wat::core::f64 the low bound, high bound, and value, in order
@@ -2155,7 +2155,7 @@ pub(crate) fn eval_therm_form(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     d :wat::core::i64 the vector dimension, alone
@@ -2193,7 +2193,7 @@ pub(crate) fn eval_presence_floor(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     d :wat::core::i64 the vector dimension, alone
@@ -2245,7 +2245,7 @@ pub(crate) fn eval_coincident_floor(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
@@ -2284,7 +2284,7 @@ pub(crate) fn eval_algebra_cosine(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     target :wat::holon::HolonAST the target and reference operands, in order
@@ -2323,7 +2323,7 @@ pub(crate) fn eval_algebra_presence_q(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
@@ -2354,7 +2354,7 @@ pub(crate) fn eval_algebra_coincident_q(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
@@ -2430,7 +2430,7 @@ pub(crate) fn eval_algebra_coincident_explain(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
@@ -2476,7 +2476,7 @@ pub(crate) fn eval_form_ast_coincident_q(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
@@ -2518,7 +2518,7 @@ pub(crate) fn eval_form_edn_coincident_q(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
@@ -2544,7 +2544,7 @@ pub(crate) fn eval_form_digest_coincident_q(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
@@ -2570,7 +2570,7 @@ pub(crate) fn eval_form_digest_string_coincident_q(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
@@ -2596,7 +2596,7 @@ pub(crate) fn eval_form_signed_coincident_q(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
@@ -2631,7 +2631,7 @@ pub(crate) fn eval_form_signed_string_coincident_q(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     a :wat::core::Value the two operands compared, in order
@@ -2662,7 +2662,7 @@ pub(crate) fn eval_algebra_dot(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     target :wat::core::Value the value hashed, alone
@@ -2725,7 +2725,7 @@ pub(crate) fn eval_algebra_simhash(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     target :wat::holon::HolonAST the HolonAST encoded, alone
@@ -2756,7 +2756,7 @@ pub(crate) fn eval_holon_encode(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :wat::holon::Vector the vector encoded, alone
@@ -2807,7 +2807,7 @@ pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBr
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     bs :wat::core::Bytes the packed byte vector decoded, alone
@@ -2898,7 +2898,7 @@ pub(crate) fn eval_holon_bytes_vector(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     a :wat::holon::Vector the two raw vectors bound together, in order
@@ -2928,7 +2928,7 @@ pub(crate) fn holon_vector_bind(a: &Value, b: &Value) -> Result<Value, EvalBreak
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     vs (:wat::core::Vector :- [:wat::holon::Vector]) the `:wat::core::Vector` of raw vectors bundled, alone
@@ -2994,7 +2994,7 @@ pub(crate) fn eval_holon_vector_bundle(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     a :wat::holon::Vector the two raw vectors and their two weights, in order
@@ -3033,7 +3033,7 @@ pub(crate) fn holon_vector_blend(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     v :wat::holon::Vector the raw vector permuted and the integer shift amount, in order
@@ -3085,7 +3085,7 @@ pub(crate) fn eval_holon_vector_permute(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ast :wat::holon::HolonAST the HolonAST measured, alone

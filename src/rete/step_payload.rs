@@ -50,7 +50,7 @@ use std::sync::Arc;
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     session :wat::rete::Session the compiled session (network read via `session_network`)

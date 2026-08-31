@@ -62,7 +62,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     k :wat::core::keyword the keyword probed
@@ -92,7 +92,7 @@ pub(crate) fn eval_keyword_to_string_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the colon-free keyword text
@@ -124,7 +124,7 @@ pub(crate) fn eval_keyword_from_string_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the Keyword form node converted
@@ -155,7 +155,7 @@ pub(crate) fn eval_keyword_to_symbol_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the type Keyword form node rendered
@@ -186,7 +186,7 @@ pub(crate) fn eval_keyword_to_type_form_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the type Keyword form node rendered

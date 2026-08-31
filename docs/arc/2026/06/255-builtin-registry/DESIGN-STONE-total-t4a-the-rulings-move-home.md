@@ -5,12 +5,12 @@
 ## The blocker this removes
 
 `intrinsic_meta` (`src/rete/purity.rs`) cannot derive its `total` axis from the registry while
-**431 of 432 verbs answer `@Total Unreviewed`**. Derivation today would tell arc 278's `where`
+**431 of 432 verbs answer `@Totality Unreviewed`**. Derivation today would tell arc 278's `where`
 fence "unknown" for 38 verbs it currently calls total, and the 9-file / 98-row `where`-corpus
 would go red.
 
 ```
-431  @Total Unreviewed        1  @Total Partial  (i64::/, transcribed in T2b)
+431  @Totality Unreviewed        1  @Totality Partial  (i64::/, transcribed in T2b)
  38  verbs the fence calls TOTAL
  27  of those are REGISTERED — can carry the label today   ← THIS STONE
  11  still unhomed — the named residue
@@ -77,7 +77,7 @@ ruling cannot move home until the verb has a home. `38 → 11`, and the 11 have 
 ## Out of scope = REJECTED
 
 - **The derivation itself.** T4b, drawn next.
-- **Any verb not in the 27.** The other ~404 keep `@Total Unreviewed` honestly.
+- **Any verb not in the 27.** The other ~404 keep `@Totality Unreviewed` honestly.
 - **Re-verifying the 27's totality from scratch.** The rulings were made by reading the
   implementations; this stone moves them. A rider who *disagrees* with one reports it as a finding
   rather than silently transcribing — see the brief's STOP-2.

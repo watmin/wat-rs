@@ -59,7 +59,7 @@ fn example_names() -> Arc<Vec<String>> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @ret (:wat::core::Vector :- [:wat::intrinsic::Example]) a Vector of Example records, one per @example/@example-norun across all registered intrinsics
@@ -225,7 +225,7 @@ fn extract_fqdn(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes::to-hex`
@@ -346,7 +346,7 @@ pub(crate) fn eval_show_source(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes::to-hex`
@@ -570,7 +570,7 @@ fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>,
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg params (:wat::core::Vector :- [:wat::WatAST]) the candidate type-param name nodes (Symbols, or Keywords), in declaration order
@@ -674,7 +674,7 @@ pub(crate) fn eval_type_params_used_in(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg a :wat::WatAST a type-expression node — keyword, `wat.type/` symbol, parametric form `(Head :- [args])`, or fn-type bracket `[arg… :-> ret]`
@@ -779,7 +779,7 @@ pub(crate) fn eval_type_equal(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     v :T any value — every `Value` variant has a declared-type arm

@@ -166,7 +166,7 @@ purity source").
 **2. THE DOC CONTRACT CANNOT CARRY A THIRD AXIS.** `wat_doc::parse`'s recognized-tag list is
 CLOSED (`crates/wat-doc/src/lib.rs:321-322`, mirrored at `:622` for special forms):
 `@added @arg @ret @example @example-norun @deprecated @see @Purity @Determinism @Category
-@yields`. A `@Total` is refused as `UnknownDirective` (verified by run). **Totality is the one
+@yields`. A `@Totality` is refused as `UnknownDirective` (verified by run). **Totality is the one
 axis a namespace prefix cannot derive** — `:wat::core::i64::+` is pure ∧ deterministic ∧ NOT total
 — which is why the rete fence grew its own `total` column in #52 and will keep it until 255
 arrives. When the re-lift happens, a third axis is *mirror `Purity` once more*: a `Totality` enum

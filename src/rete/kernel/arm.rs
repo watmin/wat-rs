@@ -1000,7 +1000,7 @@ pub(crate) fn subset_rete_arm(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     session :wat::rete::Session the compiled session to arm; its network identity keys the lease
@@ -1059,7 +1059,7 @@ pub(crate) fn eval_arm_session(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     session :wat::rete::Session the session whose network identity's lease is dropped by one

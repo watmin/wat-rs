@@ -47,7 +47,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value, ValueSnapshot, Ru
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     filter [:wat::core::f64 :-> :wat::core::bool] a therm-routing filter function
@@ -77,7 +77,7 @@ pub(crate) fn eval_hologram_make(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store mutated
@@ -136,7 +136,7 @@ pub(crate) fn eval_hologram_put(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
@@ -186,7 +186,7 @@ pub(crate) fn eval_hologram_get(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
@@ -243,7 +243,7 @@ pub(crate) fn eval_hologram_find(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store mutated
@@ -290,7 +290,7 @@ pub(crate) fn eval_hologram_remove(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
@@ -311,7 +311,7 @@ pub(crate) fn hologram_len(store: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed

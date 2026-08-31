@@ -45,7 +45,7 @@ use crate::span::Span;
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     ns :wat::core::keyword the namespace to reflect (e.g. `:weather`); matches `"{ns}::"` as a prefix, subtree included

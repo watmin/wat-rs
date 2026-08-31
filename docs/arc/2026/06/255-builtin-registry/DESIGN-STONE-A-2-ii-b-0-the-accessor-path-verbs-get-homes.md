@@ -36,7 +36,7 @@ today holds exactly one verb.
 
 ## The rulings — two pinned from measurement, one the rider must measure
 
-| verb | @Purity | @Determinism | @Total | ground |
+| verb | @Purity | @Determinism | @Totality | ground |
 |---|---|---|---|---|
 | `:wat::core::Option/expect` | Pure | Deterministic | **Partial** | raises on `None`. Ruled 2026-08-30: a raise is not a matchable outcome |
 | `:wat::core::Record/field-at` | Pure | Deterministic | **Partial** | **measured at the site**: `if index < 0 \|\| (index as usize) >= fields.len()` returns `Err` |
@@ -88,7 +88,7 @@ delete its line."* If the rows are not deleted, the floor goes red, and that red
 | the accessor classifies pure through a binding | probe: `(let [k :R/sk] (pure? '(fn [a] (k a))))` | `true` (is `false` today) |
 | the three are registered | `lookup_entry` for each | `Some` |
 | the ratchet is satisfied | the three `KNOWN_UNREVIEWED` rows | deleted |
-| `Partial` census grew honestly | `grep -c "@Total *Partial"` in `src/` | 1 → 3 |
+| `Partial` census grew honestly | `grep -c "@Totality *Partial"` in `src/` | 1 → 3 |
 | no widening | probe: effectful fn through a binding | `false` |
 | floor | `scripts/floor.sh`, exit read UNPIPED | 5109/5109, 0 failed |
 | clippy | `cargo clippy --release --all-targets -- -D warnings` | 0 |

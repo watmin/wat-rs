@@ -247,7 +247,7 @@ pub(crate) struct IntrinsicSubmission {
     pub purity: wat_doc::Purity,
     /// Declared determinism from `@Determinism <Variant>` in the doc.
     pub determinism: wat_doc::Determinism,
-    /// Declared totality from `@Total <Variant>` in the doc. `Unreviewed` when the
+    /// Declared totality from `@Totality <Variant>` in the doc. `Unreviewed` when the
     /// directive is absent — arc 255 stone total-T2 minted the axis OPTIONAL, because a
     /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
     /// `Unreviewed` is default-deny and merely refuses.
@@ -285,7 +285,7 @@ pub(crate) struct SpecialFormSubmission {
     pub see: &'static [&'static str],
     pub purity: wat_doc::Purity,
     pub determinism: wat_doc::Determinism,
-    /// Declared totality from `@Total <Variant>` in the doc. `Unreviewed` when the
+    /// Declared totality from `@Totality <Variant>` in the doc. `Unreviewed` when the
     /// directive is absent — arc 255 stone total-T2 minted the axis OPTIONAL, because a
     /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
     /// `Unreviewed` is default-deny and merely refuses.
@@ -402,7 +402,7 @@ pub(crate) struct IntrinsicEntry {
     #[allow(dead_code)] // read by purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc + reflect.rs's eval_intrinsic_examples (arc 255.1c site 2)
     /// Declared determinism — from `@Determinism <Variant>` in the doc.
     pub determinism: wat_doc::Determinism,
-    /// Declared totality from `@Total <Variant>` in the doc. `Unreviewed` when the
+    /// Declared totality from `@Totality <Variant>` in the doc. `Unreviewed` when the
     /// directive is absent — arc 255 stone total-T2 minted the axis OPTIONAL, because a
     /// GUESSED `Total` is a lie in a fence that ADMITS code into a `where`, while an
     /// `Unreviewed` is default-deny and merely refuses.
@@ -1043,7 +1043,7 @@ mod tests {
     /// non-pure-det intrinsics MUST carry ≥1 `@example-norun` and NO runnable
     /// ★ ROW 4 — arc 255 stone total-T2b. THE CARRIAGE PROOF, and it is two-sided.
     ///
-    /// T2 made `@Total` parse and made the proc-macro turn it into a token; what it could
+    /// T2 made `@Totality` parse and made the proc-macro turn it into a token; what it could
     /// NOT prove — because its blast radius forbade `src/` while its acceptance row demanded
     /// the registry — is that the value survives the last hop into the submission literal and
     /// out the other side as an `IntrinsicEntry`. A directive that parses correctly and is
@@ -1059,14 +1059,14 @@ mod tests {
     /// hand-lists CONTRADICT each other about — `macros/eval.rs`'s `is_pure_total` includes it
     /// ("div-by-zero is a deterministic located abort … never a panic") while
     /// `rete/purity.rs`'s `total` sub-list excludes it ("`i64::/` is both, and undefined at a
-    /// zero divisor"). Its `@Total Partial` here is not an adjudication of that dispute; it is
+    /// zero divisor"). Its `@Totality Partial` here is not an adjudication of that dispute; it is
     /// a TRANSCRIPTION of what the verb's own shipped doc already says two lines above the
     /// directive: *"`b = 0` raises `DivisionByZero`; `i64::MIN / -1` raises `IntegerOverflow`."*
     /// Two distinct inputs on which it is undefined.
     ///
     /// ✅ RESOLVED 2026-08-30, and this paragraph's premise is now STALE in two ways. (a) The two
     /// lists no longer contradict: Stone expand-1 renamed `is_pure_total` -> `is_expand_time_legal`,
-    /// and that file now says `:wat::i64::/` "is legal DESPITE being `@Total Partial` … Totality and
+    /// and that file now says `:wat::i64::/` "is legal DESPITE being `@Totality Partial` … Totality and
     /// expand-time legality are different axes." They never disagreed about one property — they
     /// answered two questions under one name. (b) The builder ADJUDICATED the underlying question:
     /// a raise is not a matchable OUTCOME, so a raising verb is `Partial`. The transcription above
@@ -1082,7 +1082,7 @@ mod tests {
         assert_eq!(
             div.totality,
             wat_doc::Totality::Partial,
-            "`:wat::i64::/` declares `@Total Partial`; reading `Unreviewed` here means the \
+            "`:wat::i64::/` declares `@Totality Partial`; reading `Unreviewed` here means the \
              directive parsed but never reached the submission literal"
         );
 
@@ -1095,7 +1095,7 @@ mod tests {
         assert_eq!(
             mul.totality,
             wat_doc::Totality::Unreviewed,
-            "`:wat::i64::*` declares no `@Total`; it must read the `Unreviewed` default, or \
+            "`:wat::i64::*` declares no `@Totality`; it must read the `Unreviewed` default, or \
              the field is not being carried per-verb at all"
         );
     }

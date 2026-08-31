@@ -46,7 +46,7 @@ of purity.
 
 ### `:wat::i64::/` — NOT A LIE. **The list's NAME is the lie.**
 
-`i64::/` is pure, deterministic, and `@Total Partial` (undefined at a zero divisor — transcribed
+`i64::/` is pure, deterministic, and `@Totality Partial` (undefined at a zero divisor — transcribed
 from its own doc in stone total-T2b). A list called `is_pure_total` blessing a partial verb is a
 contradiction **only because of what it calls itself.**
 

@@ -56,7 +56,7 @@ delegate over the existing `eval_vec_sort_by`. Declare:
 ```
 @Purity      Pure            — true because the door above imposes it
 @Determinism Deterministic   — same
-@Total       Total           — on its own merits; a pathological comparator returns a scrambled
+@Totality       Total           — on its own merits; a pathological comparator returns a scrambled
                                well-formed vector, exit 0, no panic (measured)
 @ExpandTime  Legal
 ```

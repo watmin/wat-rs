@@ -62,7 +62,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the left addend
@@ -114,7 +114,7 @@ fn eval_i64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the minuend
@@ -156,7 +156,7 @@ fn eval_i64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the first factor
@@ -199,7 +199,7 @@ fn eval_i64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Partial
+/// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
@@ -246,7 +246,7 @@ fn eval_i64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
@@ -298,7 +298,7 @@ fn eval_i64_mod_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
@@ -345,7 +345,7 @@ fn eval_i64_quot_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::i64 the dividend
@@ -402,7 +402,7 @@ fn eval_i64_rem_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
@@ -438,7 +438,7 @@ pub(crate) fn eval_i64_lt(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
@@ -474,7 +474,7 @@ pub(crate) fn eval_i64_lte(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
@@ -510,7 +510,7 @@ pub(crate) fn eval_i64_gt(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
@@ -547,7 +547,7 @@ pub(crate) fn eval_i64_gte(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
@@ -584,7 +584,7 @@ pub(crate) fn eval_i64_eq(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::i64 the left operand
@@ -622,7 +622,7 @@ pub(crate) fn eval_i64_not_eq(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
@@ -657,7 +657,7 @@ pub(crate) fn eval_i64_to_bigint(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to cast
@@ -684,7 +684,7 @@ pub(crate) fn eval_i64_to_f64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
@@ -718,7 +718,7 @@ pub(crate) fn eval_i64_to_rational(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to render

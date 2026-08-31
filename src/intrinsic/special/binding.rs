@@ -9,7 +9,7 @@ use wat_macros::wat_special_form;
 /// **Totality ground —** `let` has no totality of its own. Like `Purity`/`Determinism`
 /// immediately above, it PRESERVES: it is total exactly when its bindings and body are, the
 /// same sentence `Totality::Preserving` was minted with (arc 255 total-T1). T4a transcribed
-/// this as `@Total Total`, inconsistent with its own two sibling axes; total-T4b corrects it
+/// this as `@Totality Total`, inconsistent with its own two sibling axes; total-T4b corrects it
 /// to `Preserving` here. The fence's derived verdict is unchanged either way (`Preserving`
 /// satisfies the axis exactly as `Total` does — see `intrinsic/mod.rs:1038`'s
 /// `matches!(purity, Pure | Preserving)` convention), which is what makes the correction
@@ -23,7 +23,7 @@ use wat_macros::wat_special_form;
 /// @Category Binding
 /// @Purity Preserving
 /// @Determinism Preserving
-/// @Total       Preserving
+/// @Totality       Preserving
 /// @ExpandTime  Legal
 /// @syntax (let [<binder> <expr> ...] <body>+)
 /// @ret :T the value of the final body form

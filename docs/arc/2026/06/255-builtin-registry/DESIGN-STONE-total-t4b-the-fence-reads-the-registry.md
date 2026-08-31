@@ -36,12 +36,12 @@ contributes nothing of its own and `classify_expr` recurses into the arguments s
 
 ## ⛔ AND A CORRECTION THIS STONE MUST MAKE FIRST — the orchestrator's error
 
-T4a's brief told the rider to transcribe all 27 as `@Total Total`. **Two of them were wrong**, and
+T4a's brief told the rider to transcribe all 27 as `@Totality Total`. **Two of them were wrong**, and
 their own doc blocks say so:
 
 ```
-:wat::core::if     @Purity Preserving   @Determinism Preserving   @Total Total   ← inconsistent
-:wat::core::let    @Purity Preserving   @Determinism Preserving   @Total Total   ← inconsistent
+:wat::core::if     @Purity Preserving   @Determinism Preserving   @Totality Total   ← inconsistent
+:wat::core::let    @Purity Preserving   @Determinism Preserving   @Totality Total   ← inconsistent
 ```
 
 Two axes say *"I preserve my sub-forms' property"*; the third claims an intrinsic one. `if` has no
@@ -52,7 +52,7 @@ The rete sub-list agrees and points at the fix in its own words: *"`if`/`let` �
 ops with no domain restriction … **exactly the convention `pure`/`deterministic` already use**."*
 For these two verbs that convention IS `Preserving`.
 
-**So T4b corrects `if` and `let` to `@Total Preserving` before deriving.** The fence's verdict is
+**So T4b corrects `if` and `let` to `@Totality Preserving` before deriving.** The fence's verdict is
 unchanged either way (`Preserving => true`), which is what makes the correction safe to land here
 rather than needing its own stone.
 
@@ -83,7 +83,7 @@ no explanation will reasonably assume it is the same hand-list it replaced.
 
 ## Out of scope = REJECTED
 
-- **Answering `@Total` for any further verb.** The other ~403 keep `Unreviewed` honestly.
+- **Answering `@Totality` for any further verb.** The other ~403 keep `Unreviewed` honestly.
 - **`is_pure_total` (`macros/eval.rs`) and `RETE_OPS`.** Two more totality consumers; neither is
   this stone, and `is_pure_total` measures expand-time legality rather than totality at all.
 - **Homing any of the 11.**

@@ -45,7 +45,7 @@ git show 5725ab10d -- src/collection/eval.rs src/collection/transform.rs
 
 ```rust
 // src/intrinsic/collection.rs — the attributed fn KEEPS everything, body becomes one call
-/// … the entire existing doc block, unchanged, including @Total Unreviewed …
+/// … the entire existing doc block, unchanged, including @Totality Unreviewed …
 #[wat_intrinsic(":wat::core::length")]
 pub(crate) fn eval_length(
     xs: &WatAST, list_span: &Span, env: &Environment, sym: &SymbolTable,

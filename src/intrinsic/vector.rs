@@ -67,7 +67,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
@@ -85,7 +85,7 @@ pub(crate) fn persistentvector_length(v: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
@@ -108,7 +108,7 @@ pub(crate) fn persistentvector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
@@ -134,7 +134,7 @@ pub(crate) fn persistentvector_contains_q(v: &Value, item: &Value) -> Result<Val
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
@@ -154,7 +154,7 @@ pub(crate) fn persistentvector_get(v: &Value, i: &Value) -> Result<Value, EvalBr
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector transformed
@@ -178,7 +178,7 @@ pub(crate) fn persistentvector_conj(v: &Value, item: &Value) -> Result<Value, Ev
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     to (:wat::core::PersistentVector :- [T]) the receiver; its kind is preserved

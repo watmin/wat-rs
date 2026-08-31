@@ -79,7 +79,7 @@ use crate::span::Span;
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
@@ -131,7 +131,7 @@ pub(crate) fn eval_length(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
@@ -187,7 +187,7 @@ pub(crate) fn eval_empty(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the receiver — this call also accepts (PersistentVector :- [T]), (List :- [T]), or a WatAST list form (returning :wat::WatAST); a (Stream :- [T]) is refused (`nth_indexable()` gate excludes it — use (drop s i) then :wat::stream::next)
@@ -234,7 +234,7 @@ pub(crate) fn eval_nth(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the vector probed
@@ -286,7 +286,7 @@ pub(crate) fn eval_vec_last(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the receiver; identity-preserving — this call also accepts (List :- [T]), (PersistentVector :- [T]), or a WatAST list form, each returning the same container kind; a (Stream :- [T]) is refused (`has_tail()` gate excludes it — see :wat::stream::next)
@@ -327,7 +327,7 @@ pub(crate) fn eval_rest(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     xs (:wat::core::Vector :- [T]) the sequence reversed; this call also accepts (PersistentVector :- [T]) or (List :- [T]), each returning the same container kind — a (Stream :- [T]), Tuple, HashSet, or WatAST form is refused (`ordered()` gate excludes them)
@@ -372,7 +372,7 @@ pub(crate) fn eval_vec_reverse(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     start :wat::core::i64 the inclusive lower bound
@@ -420,7 +420,7 @@ pub(crate) fn eval_vec_range(
 /// deliberately NOT imposed on the comparator
 /// (`RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`), and the reason is NOT
 /// the one first written here. It is not that accessors are `Partial` via `Option/expect`
-/// (true, but not binding). **It is that the totality census has not run:** `@Total` reads
+/// (true, but not binding). **It is that the totality census has not run:** `@Totality` reads
 /// `Total 29 · Partial 3 · Preserving 2 · Unreviewed 403`, and `Unreviewed` is default-deny by
 /// design. Measured — even `sort/1`'s trivial default comparator fails `total?`, because
 /// `:wat::core::<` (the polymorphic generic) is `Unreviewed` while its own per-type sibling
@@ -440,7 +440,7 @@ pub(crate) fn eval_vec_range(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     cmp [:T :T :-> :wat::core::bool] the `less?` comparator; refused before any comparison runs unless proven Pure ∧ Deterministic against its own closed environment

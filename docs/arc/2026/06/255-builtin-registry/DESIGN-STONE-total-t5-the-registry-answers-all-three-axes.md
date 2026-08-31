@@ -46,7 +46,7 @@ Measured by probing the registry itself, not by grepping text:
 NEWLY_RULED = 275      PURE_AND_DET = 163      ALSO_TOTAL = 0
 ```
 
-**Zero.** Every one of the 275 carries `@Total Unreviewed`, so `total` comes out `false`, and arc
+**Zero.** Every one of the 275 carries `@Totality Unreviewed`, so `total` comes out `false`, and arc
 278's fence requires `pure ∧ deterministic ∧ total ∧ primitive`. **The fence admits exactly zero
 additional verbs.**
 

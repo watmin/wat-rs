@@ -48,7 +48,7 @@ fn is_canonical_uuid_string(s: &str) -> bool {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
 /// @ret     :wat::core::Uuid a freshly-minted random UUID
@@ -69,7 +69,7 @@ pub(crate) fn eval_uuid_v4() -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     ns   :wat::core::Uuid   the namespace UUID
@@ -123,7 +123,7 @@ pub(crate) fn eval_uuid_v5(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the candidate UUID text
@@ -164,7 +164,7 @@ pub(crate) fn eval_uuid_from_string(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     u :wat::core::Uuid the UUID to render
@@ -200,7 +200,7 @@ pub(crate) fn eval_uuid_to_string(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @ret     :wat::core::Uuid the nil UUID (`00000000-0000-0000-0000-000000000000`)
@@ -218,7 +218,7 @@ pub(crate) fn eval_uuid_nil() -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     u :wat::core::Uuid the UUID to inspect
@@ -256,7 +256,7 @@ pub(crate) fn eval_uuid_version(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     u :wat::core::Uuid the UUID to inspect

@@ -1,4 +1,4 @@
-# BRIEF — STONE total-T2: `@Total` becomes a declarable directive
+# BRIEF — STONE total-T2: `@Totality` becomes a declarable directive
 
 Read `DESIGN-STONE-total-t2-the-axis-declarable.md` first. This brief is the strike path.
 
@@ -6,7 +6,7 @@ Read `DESIGN-STONE-total-t2-the-axis-declarable.md` first. This brief is the str
 
 The `Totality` enum already exists — generated from `wat/runtime-meta.wat` by `wat_enum_from!`,
 committed at `525dbdb5b` with a passing probe. **Make it declarable.** A doc comment gains
-`@Total <Variant>`; `DocComment` carries it; both proc-macros forward it into the registry entry.
+`@Totality <Variant>`; `DocComment` carries it; both proc-macros forward it into the registry entry.
 `Determinism` is the exact structural twin — every site you touch is one where `Determinism`
 already appears, and copying its shape is the intended method.
 
@@ -53,9 +53,9 @@ already correct; it needs no edit.
 
 ## STOP triggers — each REJECTS. Ship nothing; report.
 
-1. **You are about to make `@Total` mandatory** (a `MissingTotality` error, or removing the
+1. **You are about to make `@Totality` mandatory** (a `MissingTotality` error, or removing the
    default). That is T3 and it is a 429-site compile break. STOP.
-2. **You are about to add `@Total` to a real verb.** Zero verbs are annotated by this stone.
+2. **You are about to add `@Totality` to a real verb.** Zero verbs are annotated by this stone.
    Fixtures only. STOP.
 3. **You are about to edit any file under `src/`.** STOP.
 4. **A wildcard `_ =>` arm would make one of the two proc-macro matches compile.** The
@@ -66,13 +66,13 @@ already correct; it needs no edit.
 ```
  0. ★ YOUR OWN PRE-CHECK: name both parse resolution points you found, and say whether the
       special-form doc struct is the same type as DocComment or a sibling. Report BEFORE editing.
- 1. ★ `@Total Total` / `Partial` / `Preserving` / `Unreviewed` all parse, verified by a test
+ 1. ★ `@Totality Total` / `Partial` / `Preserving` / `Unreviewed` all parse, verified by a test
       per variant.
- 2. ★ ABSENT `@Total` yields `Totality::Unreviewed` — the default, tested explicitly.
- 3. ★ A SECOND `@Total` is `DuplicateSingleton`; an unknown variant is `InvalidTotalityVariant`
+ 2. ★ ABSENT `@Totality` yields `Totality::Unreviewed` — the default, tested explicitly.
+ 3. ★ A SECOND `@Totality` is `DuplicateSingleton`; an unknown variant is `InvalidTotalityVariant`
       whose message NAMES ALL FOUR legal values. Both tested.
- 4. ★ BREAK THE DOOR, and keep the artifact as a test: prove `@Total` actually reaches the
-      registry — a fixture verb declaring `@Total Partial` whose registry entry reads back
+ 4. ★ BREAK THE DOOR, and keep the artifact as a test: prove `@Totality` actually reaches the
+      registry — a fixture verb declaring `@Totality Partial` whose registry entry reads back
       `Partial`, NOT `Unreviewed`. A test that only proves parsing proves nothing about carriage.
  5. ★ Both proc-macro matches are exhaustive with NO wildcard. State that you checked both.
  6. ★ `git diff --stat src/` is EMPTY. Say so explicitly.

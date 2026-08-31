@@ -33,7 +33,7 @@ crates/wat-macros/*                both `inventory::submit!` emit literals
 ```rust
 // wat-doc, alongside totality_val
 let mut expand_time_val: Option<ExpandTime> = None;
-// … in the directive loop, mirroring @Total:
+// … in the directive loop, mirroring @Totality:
 //   duplicate -> DocError::DuplicateSingleton
 //   unknown   -> DocError::InvalidExpandTimeVariant { got }
 // … at BOTH resolution points, DEFAULT rather than error:
@@ -46,7 +46,7 @@ wat_doc::ExpandTime::Preserving  => quote! { ::wat_doc::ExpandTime::Preserving }
 wat_doc::ExpandTime::Unreviewed  => quote! { ::wat_doc::ExpandTime::Unreviewed },
 ```
 
-★ **Placement in a doc block: after `@Total`, before `@Category`** — so the four property axes read
+★ **Placement in a doc block: after `@Totality`, before `@Category`** — so the four property axes read
 as a block. `:wat::i64::/` shows the column alignment.
 
 ## Blast radius

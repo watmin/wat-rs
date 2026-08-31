@@ -37,7 +37,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     dim :wat::core::i64 the ambient vector dimension
@@ -61,7 +61,7 @@ pub(crate) fn subspace_new(dim: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
@@ -81,7 +81,7 @@ pub(crate) fn subspace_dim(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
@@ -101,7 +101,7 @@ pub(crate) fn subspace_k(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
@@ -121,7 +121,7 @@ pub(crate) fn subspace_n(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
@@ -141,7 +141,7 @@ pub(crate) fn subspace_threshold(s: &Value, span: &Span) -> Result<Value, EvalBr
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
@@ -164,7 +164,7 @@ pub(crate) fn subspace_eigenvalues(s: &Value, span: &Span) -> Result<Value, Eval
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace mutated
@@ -192,7 +192,7 @@ pub(crate) fn subspace_update(s: &Value, v: &Value, span: &Span) -> Result<Value
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
@@ -215,7 +215,7 @@ pub(crate) fn subspace_residual(s: &Value, v: &Value, span: &Span) -> Result<Val
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
@@ -239,7 +239,7 @@ pub(crate) fn subspace_project(s: &Value, v: &Value, span: &Span) -> Result<Valu
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed

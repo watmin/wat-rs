@@ -61,7 +61,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     err :wat::kernel::LociDiedError the death report to read a message from
@@ -102,7 +102,7 @@ pub(crate) fn eval_died_error_message(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a message from
@@ -135,7 +135,7 @@ pub(crate) fn eval_failure_message(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a location from
@@ -167,7 +167,7 @@ pub(crate) fn eval_failure_location(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     err :wat::kernel::LociDiedError the death report to convert

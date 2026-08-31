@@ -56,7 +56,7 @@ gate      intrinsic_meta            THREE axes — the FENCE's question, includi
 **They ask different questions.** A verb can honestly declare `@Purity Pure` and still be
 unreviewed for arc 278's four-axis `where` fence, because totality is a separate judgement the
 registry could not hold until stone total-T1 this morning. **Every one of the eleven carries
-`@Total Unreviewed`** — measured, not assumed.
+`@Totality Unreviewed`** — measured, not assumed.
 
 So the honest disposition is a `KNOWN_UNREVIEWED` row each. The gate calls that "the LAST resort…
 only honest for a verb whose ruling is genuinely open." Here it *is* genuinely open, on a named
@@ -73,7 +73,7 @@ The ledger grows honestly instead: **217 → 228**.
 
 ## Out of scope = REJECTED
 
-- **Deriving `intrinsic_meta` from the registry.** Needs `@Total` answered per verb; that is T4.
+- **Deriving `intrinsic_meta` from the registry.** Needs `@Totality` answered per verb; that is T4.
 - **Ruling any of the eleven pure/total.** Each keeps its declared `@Purity`; only its *visibility*
   changes.
 - **`effectful_by_prefix`.** Untouched; it dies when its last 17 customers are homed.

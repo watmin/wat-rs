@@ -99,7 +99,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes the reader will yield back, in order
@@ -136,7 +136,7 @@ pub(crate) fn eval_ioreader_from_bytes(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the string the reader will yield back
@@ -172,7 +172,7 @@ pub(crate) fn eval_ioreader_from_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     path :wat::core::String the path to open for reading
@@ -218,7 +218,7 @@ pub(crate) fn eval_ioreader_open_file(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     fd :wat::core::i64 the raw fd to dup and wrap
@@ -253,7 +253,7 @@ pub(crate) fn eval_ioreader_from_fd(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull bytes from
@@ -290,7 +290,7 @@ pub(crate) fn eval_ioreader_read(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to drain to EOF
@@ -324,7 +324,7 @@ pub(crate) fn eval_ioreader_read_all(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to drain to EOF
@@ -357,7 +357,7 @@ pub(crate) fn eval_ioreader_read_all_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull a line from
@@ -394,7 +394,7 @@ pub(crate) fn eval_ioreader_read_line(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     xs… :wat::io::IOReader the reader to pull a frame from (+ optional max-bytes — see `infer_ioreader_read_frame`)
@@ -441,7 +441,7 @@ pub(crate) fn eval_ioreader_read_frame(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     reader :wat::io::IOReader the reader to rewind

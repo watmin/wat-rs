@@ -49,7 +49,7 @@ use crate::span::Span;
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Partial
+/// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     opt (:wat::core::Option :- [T]) the option unwrapped
@@ -103,7 +103,7 @@ pub(crate) fn eval_option_expect(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :T the value to wrap

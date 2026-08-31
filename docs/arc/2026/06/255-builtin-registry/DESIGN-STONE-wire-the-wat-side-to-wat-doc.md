@@ -93,6 +93,45 @@ the reading of property keys out of the map does not.
   what it calls; that is a fine default and a lie as a declaration. (It remains the right tool for
   *checking* a declaration, which is a later stone.)
 
+## ★ THE VALUES ARE ENUM SYMBOLS, not bare keywords — builder, 2026-08-30
+
+> *"can we hvae the category value... be an actual enum symbol?"*
+
+Yes, and it generalises past `:category`. wat spells a variant `:namespace::Enum::Variant` (live
+uses: `:wat::bracket::PoolMsg::Setup`, `:wat::cache::Cache::GetRequest`), and every axis is already a
+`defenum` in `wat/runtime-meta.wat`: `Purity` · `Determinism` · `Totality` · `ExpandTime` ·
+`Category` · `Kind` · `DefinedIn` · `Layer`.
+
+So each closed-domain value is written as the enum value it actually is:
+
+```clojure
+   :category    :wat::runtime::Category::Transform
+   :purity      :wat::runtime::Purity::Pure
+   :determinism :wat::runtime::Determinism::Deterministic
+   :totality    :wat::runtime::Totality::Total
+   :expand-time :wat::runtime::ExpandTime::Legal
+```
+
+★ **A bare `:Transform` is a keyword the checker cannot validate — it could be `:Transfrom` and
+nothing would notice until a reader tripped over it.** An enum symbol is a closed domain: the
+variant either exists or the form does not check. Same reasoning as examples-as-forms and
+types-as-keywords — **the declaration stops being text that happens to be right.**
+
+## ✅ `@Total` → `@Totality` — DONE, 2026-08-30
+
+> *"i think totality reads better than total... we should probably do a mass sed on the rust side"*
+
+Done: **658 occurrences → 0**, `@Totality` 1 → 659, across 102 files. Boundary-safe (`@Total\b`
+cannot match inside `@Totality`, so the one pre-existing use was untouched), verified by before/after
+counts and a `Totalityity` corruption check.
+
+★ **It made four things agree that were three-versus-one.** The error variant was already
+`MissingTotality`, the enum `Totality`, the struct field `totality` — **only the directive said
+`@Total`.** It was the odd one out, not the standard.
+
+⚠ No `INSCRIPTION.md` was touched — verified. Only living docs (DESIGN/BRIEF/NOTE/SEAM/RULING) and
+`.rs`. The three `.wat` hits were `;;` prose, not forms, so no codemod was owed.
+
 ## Acceptance
 
 | what | command | expected |

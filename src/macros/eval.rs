@@ -340,7 +340,7 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 // `dispatch_keyword_head_value` heads (runtime.rs) may be CALLED from inside a
 // `defmacro` body while it is being expanded. This is NOT "the pure-total
 // subset" — arc 255 Stone expand-1 audited all 202 entries against their own
-// registered `@Purity`/`@Determinism`/`@Total` and found expand-time-legality
+// registered `@Purity`/`@Determinism`/`@Totality` and found expand-time-legality
 // is an independent property that purity and totality each bear on but
 // neither one settles alone.
 //
@@ -371,7 +371,7 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 //     etc.) are denied by default — arc 255 Stone expand-1's audit found zero
 //     exceptions across all 202 entries that were legal.
 //   - `:wat::i64::/` (and `mod`/`rem`/`quot`) is legal despite being
-//     `@Total Partial` (undefined at a zero divisor). A partial verb can
+//     `@Totality Partial` (undefined at a zero divisor). A partial verb can
 //     still be expand-time-legal: dividing by zero during expansion raises a
 //     deterministic, located MacroError — a compile-time failure instead of
 //     a runtime one, which is strictly better. Totality and expand-time

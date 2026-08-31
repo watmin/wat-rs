@@ -40,7 +40,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     xs (:wat::core::Seqable :- [T]) the left sequence
@@ -67,7 +67,7 @@ pub(crate) fn eval_seq_zip_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     xs (:wat::core::Seqable :- [T]) the sequence to window over
@@ -95,7 +95,7 @@ pub(crate) fn eval_seq_window_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     xs (:wat::core::Seqable :- [T]) the sequence to remove from

@@ -55,7 +55,7 @@ the reflection surface already publishes them**. Not built, and already shipped.
 
 ## The convergence nobody planned
 
-A wat `defn` declares no `@Purity`/`@Determinism`/`@Total`/`@ExpandTime`. Six stones ago that
+A wat `defn` declares no `@Purity`/`@Determinism`/`@Totality`/`@ExpandTime`. Six stones ago that
 would have made registration impossible without a syntax change.
 
 **It is now possible without one.** `classify_expr` + `ClassifyCtx` + `find_axis_violation_ctx`
@@ -66,7 +66,7 @@ verbs honest axes without anyone declaring anything.
 ⚠ **And its limits are already measured, so nobody should be surprised by them:** the classifier
 default-denies an unmeasured head, so a wat verb calling any of the 403 `Unreviewed` intrinsics
 derives as *not proven* — not as impure. Derivation would produce a large, honest, `Unreviewed`-
-shaped residue, exactly as `@Total` does today.
+shaped residue, exactly as `@Totality` does today.
 
 ## ★ THE SHAPE — builder, 2026-08-30, and it answers question 2 outright
 

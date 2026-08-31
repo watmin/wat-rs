@@ -20,7 +20,7 @@ an arity check, then `eval_inner` on the single argument, then a wrap —
 `Ok(Value::Option(Arc::new(Some(v))))` / `Ok(Value::Result(Arc::new(Ok(v))))` /
 `Ok(Value::Result(Arc::new(Err(v))))`.
 
-| verb | @Purity | @Determinism | @Total | ground |
+| verb | @Purity | @Determinism | @Totality | ground |
 |---|---|---|---|---|
 | `:wat::core::Some` | Pure | Deterministic | **Total** | one `return Err`: the arity check, which retires on homing. The wrap cannot fail |
 | `:wat::core::Ok` | Pure | Deterministic | **Total** | same shape |

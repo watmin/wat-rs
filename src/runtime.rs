@@ -13045,7 +13045,7 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name looked up (a literal keyword; a named fn value also resolves via its stored name)
@@ -13161,7 +13161,7 @@ fn eval_lookup_define(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name whose signature head is reconstructed
@@ -13283,7 +13283,7 @@ fn eval_signature_of_defn(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     fn_expr :wat::core::fn the fn value whose signature is reconstructed
@@ -13350,7 +13350,7 @@ fn eval_signature_of_fn(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     fn_expr :wat::core::fn the fn value whose declared return type is read
@@ -13442,7 +13442,7 @@ fn eval_return_type_of(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name whose body is read
@@ -13548,7 +13548,7 @@ fn eval_body_of(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
@@ -13741,7 +13741,7 @@ fn require_ast_children<'a>(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head whose name is replaced
@@ -13939,7 +13939,7 @@ fn eval_rename_callable_name(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head walked
@@ -14045,7 +14045,7 @@ fn eval_extract_arg_names(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     head :wat::WatAST the signature head walked
@@ -14154,7 +14154,7 @@ fn eval_extract_arg_types(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field names are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
@@ -14212,7 +14212,7 @@ fn eval_field_names_of(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field types are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
@@ -14380,7 +14380,7 @@ fn resolve_aggregate_def_for_reflection<'a>(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value SUBJECT (evaluated) followed by the pattern `(:TYPE-NAME clause ...)` (never evaluated — walked structurally)
@@ -19557,7 +19557,7 @@ fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @arg     args… :wat::core::Value must be empty — this verb takes no wat-level arguments
@@ -19595,7 +19595,7 @@ fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     (:wat::core::Vector :- [:wat::core::String]) the process argv, fixed for this run's duration (empty if never set)
@@ -19631,7 +19631,7 @@ fn eval_runtime_argv() -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::String the calling thread's id, `{:?}`-formatted

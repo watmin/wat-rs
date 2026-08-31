@@ -6,7 +6,7 @@ Read `DESIGN-STONE-expand-t3-declaring-nothing-is-illegal.md` first.
 
 `@ExpandTime` is optional and defaults to `Unreviewed` at two resolution points. **Make it
 required**, then give every registration that lacks it an explicit `@ExpandTime    Unreviewed`
-line so the tree compiles again with every verb having declared. `@Total`'s own T3
+line so the tree compiles again with every verb having declared. `@Totality`'s own T3
 (`56f95c5fb`) is the worked precedent — read that commit before starting.
 
 ## Read in order
@@ -23,28 +23,28 @@ src/intrinsic/ast.rs:~308        `fresh-symbol` — the ONE site already declari
 
 ## Placement — uniform
 
-After `@Total`, before `@Category`, aligned like its siblings:
+After `@Totality`, before `@Category`, aligned like its siblings:
 
 ```
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 ```
 
 ## Method — a surgical Rust tool under `tools/`, deleted before you finish
 
-Read file → insert one line after the `@Total` line of each doc block that has no `@ExpandTime` →
+Read file → insert one line after the `@Totality` line of each doc block that has no `@ExpandTime` →
 write. Every other byte untouched; never a whole-file rebuild. **Confirm each file's non-ASCII
 character count is identical before and after** — this repo once lost 5,720 non-ASCII characters to
 a round-trip while the suite stayed green.
 
 ## ⚠ FOUR TREES CARRY DOC FIXTURES, NOT TWO
 
-`@Total`'s T3 was briefed against `-p wat-doc -p wat-macros` and MISSED three reds, because the
+`@Totality`'s T3 was briefed against `-p wat-doc -p wat-macros` and MISSED three reds, because the
 `tests/` tree belongs to the `wat` package. Measured before this sweep: **`tests/` holds 6 fixtures
-carrying `@Total`.** They will need `@ExpandTime` too. So do the doc-string fixtures inside
+carrying `@Totality`.** They will need `@ExpandTime` too. So do the doc-string fixtures inside
 `wat-doc` and `wat-macros`' own unit tests.
 
 ★ **`tests/reflection/probe_arc255_axes_are_declared_not_derived.rs` will break, and how you fix it
@@ -90,7 +90,7 @@ nothing there asserts is a new axis that file's thesis has quietly stopped cover
 ★ **Row 1 must come FIRST.** Once every site declares, "absence is an error" has nothing left in the
 tree to fire on. Prove the wall while something can still hit it.
 
-★ **Row 10 exists because row 9 is not enough** — and because the identical stone for `@Total`
+★ **Row 10 exists because row 9 is not enough** — and because the identical stone for `@Totality`
 shipped with acceptance rows that could not see the reds it caused.
 
 ## How to work

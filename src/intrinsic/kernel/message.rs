@@ -75,7 +75,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Message
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to send across
@@ -113,7 +113,7 @@ pub(crate) fn eval_peer_send_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Message
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to send across
@@ -149,7 +149,7 @@ pub(crate) fn eval_peer_try_send_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Message
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to receive from
@@ -184,7 +184,7 @@ pub(crate) fn eval_peer_recv_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Message
 /// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) non-empty, same-tier peers to fan in over
@@ -225,7 +225,7 @@ pub(crate) fn eval_peer_select_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Message
 /// @arg     self_peer (:wat::kernel::Peer :- [S A]) the owner/supervisor link (self-peer); `A` (its receive type) becomes the Admin payload type

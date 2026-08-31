@@ -582,7 +582,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             "doc comment is missing a required `@Determinism <Variant>` directive (known: Deterministic, Nondeterministic, Preserving)".into()
         }
         wat_doc::DocError::MissingTotality => {
-            "doc comment is missing a required `@Total <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)".into()
+            "doc comment is missing a required `@Totality <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)".into()
         }
         wat_doc::DocError::MissingExpandTime => {
             "doc comment is missing a required `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, Preserving, Unreviewed)".into()
@@ -594,7 +594,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             format!("unknown @Determinism variant `{}`; known: Deterministic, Nondeterministic, Preserving", got)
         }
         wat_doc::DocError::InvalidTotalityVariant { got } => {
-            format!("unknown @Total variant `{}`; known: Total, Partial, Preserving, Unreviewed", got)
+            format!("unknown @Totality variant `{}`; known: Total, Partial, Preserving, Unreviewed", got)
         }
         wat_doc::DocError::InvalidExpandTimeVariant { got } => {
             format!("unknown @ExpandTime variant `{}`; known: Legal, RuntimeOnly, Preserving, Unreviewed", got)
@@ -611,7 +611,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
     }
 }
 
-/// The `@Total` value -> token match (arc 255 Stone total-T2), exhaustive, no wildcard —
+/// The `@Totality` value -> token match (arc 255 Stone total-T2), exhaustive, no wildcard —
 /// mirrors `purity_token`/`determinism_token`/`category_token` in [`emit`]. A standalone
 /// `pub(crate) fn` (not an inline `let`) so it is directly unit-testable without going
 /// through the full attribute-macro pipeline. See the call site in [`emit`] for why its
@@ -1092,12 +1092,12 @@ pub(crate) fn emit(
 #[cfg(test)]
 mod totality_axis_tests {
     //! arc 255 Stones total-T2 / total-T3. T2's Row 4 ("break the door") proved
-    //! `@Total <Variant>` survives past PARSING (rows 1-3, `wat-doc`'s own tests)
+    //! `@Totality <Variant>` survives past PARSING (rows 1-3, `wat-doc`'s own tests)
     //! and reaches the SAME token-generation step `emit()` runs for every real
     //! intrinsic (`totality_token`, called at this file's
     //! `let totality_token = totality_token(doc.totality);`).
     //!
-    //! T3 adds this module's own Row 1: absence of `@Total` must make `emit()`
+    //! T3 adds this module's own Row 1: absence of `@Totality` must make `emit()`
     //! itself refuse to expand, with `MissingTotality`, BEFORE the 437-site sweep
     //! removes every real fixture that could demonstrate it.
     use super::*;
@@ -1132,15 +1132,15 @@ mod totality_axis_tests {
         LitStr::new(":probe::add", proc_macro2::Span::call_site())
     }
 
-    /// ★ ROW 4 — a fixture verb declaring `@Total Partial` reads back `Partial` (not
+    /// ★ ROW 4 — a fixture verb declaring `@Totality Partial` reads back `Partial` (not
     /// `Unreviewed`) through the SAME function `emit()` calls for every real handler,
     /// and `emit()` itself accepts the fixture end-to-end.
     #[test]
     fn row4_total_partial_survives_into_the_generated_token() {
-        let item = fixture_fn("/// @Total Partial\n");
+        let item = fixture_fn("/// @Totality Partial\n");
         let raw_doc = sniff_doc(&item).expect("fixture doc must be sniffed");
         let doc = wat_doc::parse(&raw_doc).expect("fixture doc must parse under the full contract");
-        assert_eq!(doc.totality, wat_doc::Totality::Partial, "declared @Total Partial must read back as Partial");
+        assert_eq!(doc.totality, wat_doc::Totality::Partial, "declared @Totality Partial must read back as Partial");
 
         // The SAME fn emit() calls at its `totality_token(doc.totality)` site — not a
         // reimplementation living only in this test.
@@ -1148,11 +1148,11 @@ mod totality_axis_tests {
         assert_eq!(token.to_string(), quote! { ::wat_doc::Totality::Partial }.to_string());
         assert_ne!(token.to_string(), quote! { ::wat_doc::Totality::Unreviewed }.to_string());
 
-        emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring @Total Partial");
+        emit(&fqdn(), None, &item).expect("emit() must accept a fixture declaring @Totality Partial");
     }
 
     /// ★ Arc 255 Stone total-T3, ROW 1 — "break the door first": a fixture with NO
-    /// `@Total` line must FAIL TO COMPILE. `wat_doc::parse` returns `MissingTotality`
+    /// `@Totality` line must FAIL TO COMPILE. `wat_doc::parse` returns `MissingTotality`
     /// directly, and `emit()` — the exact fn every real `#[wat_intrinsic]` call site
     /// expands through — refuses with that error rendered into its message. This is
     /// the artifact kept from the sweep: the moment every real site declares, there
@@ -1165,11 +1165,11 @@ mod totality_axis_tests {
         assert_eq!(
             wat_doc::parse(&raw_doc),
             Err(wat_doc::DocError::MissingTotality),
-            "a doc block with no @Total must fail to parse with MissingTotality"
+            "a doc block with no @Totality must fail to parse with MissingTotality"
         );
 
         let err = emit(&fqdn(), None, &item)
-            .expect_err("emit() must refuse to expand a fixture with no @Total");
+            .expect_err("emit() must refuse to expand a fixture with no @Totality");
         // Exact, not `contains`: the message is deterministic, so an exact compare also
         // catches wording drift a substring check would sail past (tests/lint/
         // no_loose_string_assert.rs went RED on the `contains` form this replaced).
@@ -1179,8 +1179,8 @@ mod totality_axis_tests {
         assert_eq!(
             err.to_string(),
             "#[wat_intrinsic] :probe::add: doc comment is missing a required \
-             `@Total <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)",
-            "emit()'s refusal must name the verb, @Total, and all four legal values"
+             `@Totality <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)",
+            "emit()'s refusal must name the verb, @Totality, and all four legal values"
         );
     }
 
@@ -1228,7 +1228,7 @@ mod expand_time_axis_tests {
     use super::*;
 
     /// A realistic BINDING-shaped fixture handler. `expand_time_line` is spliced
-    /// between `@Total` and `@Category` — the same column position the real
+    /// between `@Totality` and `@Category` — the same column position the real
     /// `:wat::core::fresh-symbol` annotation uses.
     fn fixture_fn(expand_time_line: &str) -> ItemFn {
         let src = format!(
@@ -1237,7 +1237,7 @@ mod expand_time_axis_tests {
              /// @added 1.0.0\n\
              /// @Purity Pure\n\
              /// @Determinism Deterministic\n\
-             /// @Total Unreviewed\n\
+             /// @Totality Unreviewed\n\
              {expand_time_line}\
              /// @Category Arithmetic\n\
              /// @arg a :wat::core::i64 the left operand\n\

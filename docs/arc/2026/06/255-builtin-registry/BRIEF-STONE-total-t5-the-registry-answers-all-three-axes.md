@@ -44,7 +44,7 @@ follow-up, and moving them now would mix two changes.
 ## ⛔ THE CONTAINMENT YOU MUST RE-PROVE
 
 The design measured, via the registry: **275 verbs newly ruled, 163 pure∧deterministic, and ZERO
-also total.** Because every one carries `@Total Unreviewed`, the four-axis fence admits none of
+also total.** Because every one carries `@Totality Unreviewed`, the four-axis fence admits none of
 them. **Re-measure this yourself before and after** — it is the argument that this stone is safe.
 
 ## Blast radius

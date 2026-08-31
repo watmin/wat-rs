@@ -63,13 +63,13 @@ its own gaps: the list cannot tell "deliberately excluded" from "never added".
 ## INSTANCE 4 — the property with no home at all
 
 `#[wat_intrinsic]`'s doc preamble declares `@Purity` (277 uses), `@Determinism` (269), `@Category`
-(274), `@added` (196). **There is no `@Total`.** Totality is expressible NOWHERE at the registration
+(274), `@added` (196). **There is no `@Totality`.** Totality is expressible NOWHERE at the registration
 site, which is exactly why it lives in a hand-curated list with per-op prose reasoning (`f64::*` is
 not total — overflows to ±Inf; `f64::>` is — its output is a bool).
 
 So purity and determinism are ALREADY registry properties that the hand-lists merely restate;
 totality is the one that genuinely has nowhere else to live. **A corrective stone starts there:** mint
-`@Total`, move the curated reasoning to the registration site, and let the consumers read it.
+`@Totality`, move the curated reasoning to the registration site, and let the consumers read it.
 
 ## INSTANCE 5 — the checker accepts a type nobody registered
 
@@ -97,7 +97,7 @@ Half the floor. This cannot close until the registry answers for far more than i
 
 ## ★ INSTANCE 4-bis — THE TWO DESIGNS NEVER MET, and 255.3 cannot land without one field
 
-Builder, 2026-08-26: *"our current arc 255 is the one who will address `@Total`, right?"* — and the
+Builder, 2026-08-26: *"our current arc 255 is the one who will address `@Totality`, right?"* — and the
 answer is **yes, it already has the slice, but the slice cannot close as written.**
 
 `255/DESIGN.md` commits to exactly this collapse. All three of its `total` mentions are the
@@ -134,7 +134,7 @@ is this NOTE's class one level up: not a property nothing verifies, but a proper
 
 **Consequence for scoping:** 255.3 needs one field added to a model explicitly marked LOCKED, sitting
 beside `pure` and `deterministic` where it obviously belongs. That is a deliberate act on a locked
-model and the builder's ruling, not a rider's. Once the field exists, `@Total` at the registration
+model and the builder's ruling, not a rider's. Once the field exists, `@Totality` at the registration
 site is mechanical — `@Purity` has 290 uses and `@Determinism` 282 across 256 registered intrinsics,
 so the shape is proven — and rete's curated per-op totality reasoning (`f64::*` is not total: it
 overflows to ±Inf; `f64::>` is: its output is a bool) moves to the site that declares the verb, where
@@ -146,7 +146,7 @@ Not "add the missing entries" — that is what this arc has been doing all week,
 seventh table will drift too. The shape is:
 
 1. **The registration site is the single source of truth.** It already carries purity, determinism,
-   category, arity. Mint `@Total` so it carries the last one.
+   category, arity. Mint `@Totality` so it carries the last one.
 2. **Consumers DERIVE.** `src/check.rs`'s `register_builtins` already does this for one case — it
    walks `registry().all_entries()` and aliases new spellings onto old schemes rather than restating
    36 names, and that derivation **caught a real defect on its first run** (the variadic `max-of`

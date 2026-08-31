@@ -97,7 +97,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @ret     :wat::io::TempFile a fresh, auto-deleting temp file handle
@@ -137,7 +137,7 @@ pub(crate) fn eval_io_temp_file_new(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     temp_file :wat::io::TempFile the temp file handle to read the path from
@@ -182,7 +182,7 @@ pub(crate) fn eval_io_temp_file_path(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @ret     :wat::io::TempDir a fresh, auto-deleting temp directory handle
@@ -217,7 +217,7 @@ pub(crate) fn eval_io_temp_dir_new(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     temp_dir :wat::io::TempDir the temp dir handle to read the path from
@@ -256,7 +256,7 @@ pub(crate) fn eval_io_temp_dir_path(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     path :wat::core::String the path to read
@@ -297,7 +297,7 @@ pub(crate) fn eval_io_read_file(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     path :wat::core::String the directory to list

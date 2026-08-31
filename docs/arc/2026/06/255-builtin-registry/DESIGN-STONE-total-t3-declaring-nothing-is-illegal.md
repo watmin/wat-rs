@@ -3,18 +3,18 @@
 > **Builder's ruling, 2026-08-30:** *"i think declaring nothing needs to be illegal — we do not
 > tolerate optional here…"*
 
-T2 minted `@Total` as OPTIONAL, defaulting to `Unreviewed`. That default is now struck. **Every
+T2 minted `@Totality` as OPTIONAL, defaulting to `Unreviewed`. That default is now struck. **Every
 registration must declare its totality or fail to compile.**
 
 ## What changes
 
-`@Total <Variant>` joins `@Purity`, `@Determinism`, `@Category` and `@added` as a REQUIRED
+`@Totality <Variant>` joins `@Purity`, `@Determinism`, `@Category` and `@added` as a REQUIRED
 directive. Absent → `DocError::MissingTotality` → the `#[wat_intrinsic]` / `#[wat_special_form]`
 macro refuses to expand, naming the offending verb and the four legal values.
 
 ```
 438 registrations must answer     429 #[wat_intrinsic] + 9 #[wat_special_form]
-  1 already does                  :wat::i64::/  @Total Partial  (T2b)
+  1 already does                  :wat::i64::/  @Totality Partial  (T2b)
 437 do not                        every one becomes a compile error
 ```
 
@@ -28,19 +28,19 @@ what dies. `:Unreviewed` is the opposite: an author **must type it**, deliberate
 
 Four questions, on keeping it:
 
-- **Obvious? YES** — `@Total Unreviewed` reads as "nobody has measured this verb," which is exactly
+- **Obvious? YES** — `@Totality Unreviewed` reads as "nobody has measured this verb," which is exactly
   what it means.
 - **Simple? YES** — one directive, always present, four legal values, no absence case anywhere.
 - **Honest? YES**, and this is the load-bearing one. Forcing 437 verbs to a `Total`/`Partial` answer
   in a single strike produces **guesses**, and a guessed `:Total` is a lie in a fence that ADMITS
   code into a `where`. `:Unreviewed` is default-deny — it refuses. An honest refusal beats a
   confident lie in the only direction that can hurt us.
-- **Good UX? YES** — `grep '@Total *Unreviewed'` IS the totality work list, per verb, at the verb,
+- **Good UX? YES** — `grep '@Totality *Unreviewed'` IS the totality work list, per verb, at the verb,
   and it shrinks monotonically.
 
 ## The one contract decision, pinned: the initial value is `Unreviewed` for all 437
 
-**No existing hand-list is migrated into `@Total`. Measured, and here is why.**
+**No existing hand-list is migrated into `@Totality`. Measured, and here is why.**
 
 The two surviving totality lists are not two censuses of one property — they answer **different
 questions over different populations**:
@@ -59,7 +59,7 @@ but most of those are the rete list being *silent*, not *contradicting*. The gen
 disagreement is visible at `:wat::i64::/`: macro says total, rete says not, and the verb's own doc
 says it raises on two distinct inputs.
 
-**Migrating either list would import an answer to a question `@Total` is not asking**, into 437 doc
+**Migrating either list would import an answer to a question `@Totality` is not asking**, into 437 doc
 blocks, where finding it again would be far harder than it is today. The lists stay exactly where
 they are, untouched, as T4's raw material.
 
@@ -91,10 +91,10 @@ src/**/*.rs  +  crates/**/*.rs             437 doc blocks gain one line
 
 437 sites is well past the threshold where a hand-edit or a shell one-liner is the wrong instrument.
 Build a surgical Cargo binary under repo-local `tools/`: read file → insert one line immediately
-after the `@Determinism` line of each doc block that lacks `@Total` → write. Every other byte
+after the `@Determinism` line of each doc block that lacks `@Totality` → write. Every other byte
 untouched. Delete the tool before the commit.
 
-**Placement is `@Total` immediately after `@Determinism`, before `@Category`** — matching
+**Placement is `@Totality` immediately after `@Determinism`, before `@Category`** — matching
 `:wat::i64::/`'s existing block, so all 438 read identically.
 
 ★ **Content-integrity is a separate axis from tests-green:** the tool must confirm each file's

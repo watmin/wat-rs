@@ -48,7 +48,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the left addend
@@ -86,7 +86,7 @@ fn eval_bigint_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the minuend
@@ -120,7 +120,7 @@ fn eval_bigint_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the first factor
@@ -156,7 +156,7 @@ fn eval_bigint_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::bigint the dividend
@@ -210,7 +210,7 @@ fn eval_bigint_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::bigint the bigint to cast
@@ -232,7 +232,7 @@ pub(crate) fn eval_bigint_to_f64_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::bigint the bigint to promote

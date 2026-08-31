@@ -36,7 +36,7 @@ fn sniff_doc_from_struct(item: &syn::ItemStruct) -> Option<String> {
     if lines.is_empty() { None } else { Some(lines.join("\n")) }
 }
 
-/// The `@Total` value -> token match (arc 255 Stone total-T2), exhaustive, no wildcard —
+/// The `@Totality` value -> token match (arc 255 Stone total-T2), exhaustive, no wildcard —
 /// mirrors `purity_token`/`determinism_token`/`category_token` in [`emit`], and is the
 /// same shape as `wat_intrinsic::totality_token`. A standalone `pub(crate) fn` so it is
 /// directly unit-testable. See the call site in [`emit`] for why its result is not yet
@@ -201,9 +201,9 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
 #[cfg(test)]
 mod totality_axis_tests {
     //! arc 255 Stones total-T2 / total-T3 — the special-form sibling of
-    //! `wat_intrinsic`'s `totality_axis_tests`. T2's Row 4 proved `@Total` reaches
+    //! `wat_intrinsic`'s `totality_axis_tests`. T2's Row 4 proved `@Totality` reaches
     //! `totality_token` (the same fn [`emit`] calls for every real special form).
-    //! T3 adds this module's own Row 1: absence of `@Total` must make [`emit`]
+    //! T3 adds this module's own Row 1: absence of `@Totality` must make [`emit`]
     //! refuse to expand, with `MissingTotality`.
     use super::*;
 
@@ -229,25 +229,25 @@ mod totality_axis_tests {
         LitStr::new(":probe::probe-form", proc_macro2::Span::call_site())
     }
 
-    /// ★ ROW 4 — a fixture special form declaring `@Total Partial` reads back
+    /// ★ ROW 4 — a fixture special form declaring `@Totality Partial` reads back
     /// `Partial` (not `Unreviewed`) through the SAME `totality_token` [`emit`] calls,
     /// and [`emit`] itself accepts the fixture end-to-end.
     #[test]
     fn row4_total_partial_survives_into_the_generated_token() {
-        let item = fixture_item("/// @Total Partial\n");
+        let item = fixture_item("/// @Totality Partial\n");
         let raw_doc = sniff_doc_from_struct(&item).expect("fixture doc must be sniffed");
         let doc = wat_doc::parse_special_form(&raw_doc).expect("fixture doc must parse under the full contract");
-        assert_eq!(doc.totality, wat_doc::Totality::Partial, "declared @Total Partial must read back as Partial");
+        assert_eq!(doc.totality, wat_doc::Totality::Partial, "declared @Totality Partial must read back as Partial");
 
         let token = totality_token(doc.totality);
         assert_eq!(token.to_string(), quote! { ::wat_doc::Totality::Partial }.to_string());
         assert_ne!(token.to_string(), quote! { ::wat_doc::Totality::Unreviewed }.to_string());
 
-        emit(&fqdn(), &item).expect("emit() must accept a fixture declaring @Total Partial");
+        emit(&fqdn(), &item).expect("emit() must accept a fixture declaring @Totality Partial");
     }
 
     /// ★ Arc 255 Stone total-T3, ROW 1 (special-form sibling) — a fixture with NO
-    /// `@Total` line must FAIL TO COMPILE with `MissingTotality`, through the same
+    /// `@Totality` line must FAIL TO COMPILE with `MissingTotality`, through the same
     /// `emit()` every real `#[wat_special_form]` call site expands through.
     #[test]
     fn absent_total_fails_to_compile_with_missing_totality() {
@@ -256,11 +256,11 @@ mod totality_axis_tests {
         assert_eq!(
             wat_doc::parse_special_form(&raw_doc),
             Err(wat_doc::DocError::MissingTotality),
-            "a doc block with no @Total must fail to parse with MissingTotality"
+            "a doc block with no @Totality must fail to parse with MissingTotality"
         );
 
         let err = emit(&fqdn(), &item)
-            .expect_err("emit() must refuse to expand a fixture with no @Total");
+            .expect_err("emit() must refuse to expand a fixture with no @Totality");
         // Exact, not `contains` — this file's error path is `format!("{:?}", e)`, so the
         // whole rendering IS the variant name and an exact compare costs nothing while
         // catching drift. (tests/lint/no_loose_string_assert.rs went RED on the
@@ -304,7 +304,7 @@ mod expand_time_axis_tests {
              /// @added 1.0.0\n\
              /// @Purity Pure\n\
              /// @Determinism Deterministic\n\
-             /// @Total Unreviewed\n\
+             /// @Totality Unreviewed\n\
              {expand_time_line}\
              /// @Category ControlFlow\n\
              /// @syntax (probe-form a b)\n\

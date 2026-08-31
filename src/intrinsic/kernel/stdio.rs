@@ -71,7 +71,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to print
@@ -93,7 +93,7 @@ pub(crate) fn eval_kernel_println(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to pretty-print
@@ -118,7 +118,7 @@ pub(crate) fn eval_kernel_pprintln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the crash-reason value
@@ -141,7 +141,7 @@ pub(crate) fn eval_kernel_eprintln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the crash-reason value
@@ -167,7 +167,7 @@ pub(crate) fn eval_kernel_epprintln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     cap :wat::core::i64 max buffer bytes for the read frame
@@ -210,7 +210,7 @@ pub(crate) fn eval_kernel_readln_prime(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @ret     :wat::kernel::ReadFrameOutcome the raw outcome — Frame(text) / Eof / Stopped

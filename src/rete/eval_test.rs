@@ -115,7 +115,7 @@ pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     expr :wat::WatAST the quoted predicate expression (from `:wat::core::quote`)

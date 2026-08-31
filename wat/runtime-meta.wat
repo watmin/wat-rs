@@ -230,7 +230,7 @@
 ;; ⛔ INDEPENDENT OF THE OTHER THREE AXES, and arc 255 Stone expand-1's audit of all
 ;; 202 entries in `macros/eval.rs`'s allow-list produced a witness for each:
 ;;
-;;   `:wat::i64::/`             is @Total PARTIAL          and legal — a zero divisor
+;;   `:wat::i64::/`             is @Totality PARTIAL          and legal — a zero divisor
 ;;                              at expand time is a COMPILE-time failure, strictly
 ;;                              better than a runtime one.
 ;;   `:wat::core::fresh-symbol` is @Determinism NONDETERMINISTIC and legal — minting a

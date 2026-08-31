@@ -100,7 +100,7 @@ use crate::value::{
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the left addend
@@ -139,7 +139,7 @@ fn eval_f64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the minuend
@@ -174,7 +174,7 @@ fn eval_f64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the first factor
@@ -210,7 +210,7 @@ fn eval_f64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the dividend
@@ -252,7 +252,7 @@ fn eval_f64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the left operand
@@ -282,7 +282,7 @@ pub(crate) fn eval_f64_max(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     a :wat::core::f64 the left operand
@@ -327,7 +327,7 @@ pub(crate) fn eval_f64_min(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
@@ -362,7 +362,7 @@ pub(crate) fn eval_f64_lt(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
@@ -397,7 +397,7 @@ pub(crate) fn eval_f64_lte(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
@@ -432,7 +432,7 @@ pub(crate) fn eval_f64_gt(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
@@ -469,7 +469,7 @@ pub(crate) fn eval_f64_gte(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
@@ -505,7 +505,7 @@ pub(crate) fn eval_f64_eq(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     a :wat::core::f64 the left operand
@@ -536,7 +536,7 @@ pub(crate) fn eval_f64_not_eq(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     n :wat::core::f64 the f64 to take the absolute value of
@@ -567,7 +567,7 @@ pub(crate) fn eval_f64_abs(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v :wat::core::f64 the value to round
@@ -599,7 +599,7 @@ pub(crate) fn eval_f64_round(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::f64 the f64 to truncate
@@ -635,7 +635,7 @@ pub(crate) fn eval_f64_to_i64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     n :wat::core::f64 the f64 to render
@@ -676,7 +676,7 @@ pub(crate) fn eval_f64_to_string(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     v :wat::core::f64 the value to bound
@@ -753,7 +753,7 @@ fn f64_variadic_reduce(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     args… :wat::core::f64 the values to reduce
@@ -783,7 +783,7 @@ pub(crate) fn eval_f64_max_of(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     args… :wat::core::f64 the values to reduce

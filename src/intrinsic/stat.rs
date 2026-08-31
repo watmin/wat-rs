@@ -36,7 +36,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to average
@@ -65,7 +65,7 @@ pub(crate) fn eval_stat_mean_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of
@@ -93,7 +93,7 @@ pub(crate) fn eval_stat_variance_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 /// @arg     xs (:wat::core::Vector :- [:wat::core::f64]) the values to measure the spread of

@@ -165,7 +165,7 @@ The Layer-1 BASELINE of `DESIGN.md`'s **LOCKED RECORD MODEL (2026-06-21)** is:
 name · arity · kind · pure · deterministic · expand_time_legal · defined_in · layer
 ```
 
-`pure` ✓ · `deterministic` ✓ · **`total` ✗** — and `@Total` does not exist in `wat-doc` (measured:
+`pure` ✓ · `deterministic` ✓ · **`total` ✗** — and `@Totality` does not exist in `wat-doc` (measured:
 0 occurrences). Totality is the one axis with **nowhere else to live**, which is precisely why it
 lives in a hand-curated list carrying per-op prose (*`f64::*` is not total — it overflows to ±Inf;
 `f64::>` is — its output is a bool*). The two designs never met: 255's model was locked
@@ -189,7 +189,7 @@ understood as **a bandage on a gate that ought to be deleted**, not as the fix. 
 Layer 1, then:
 
 ```
-  @Total mintable at the registration site (the shape is proven: @Purity 290 uses, @Determinism 282)
+  @Totality mintable at the registration site (the shape is proven: @Purity 290 uses, @Determinism 282)
   → intrinsic_meta DERIVES all four axes instead of restating two and hoarding one
   → the 25-verb hole closes BY CONSTRUCTION (they already declare what the gate wants)
   → macros::is_pure_total deletes; 255.3 can finally land

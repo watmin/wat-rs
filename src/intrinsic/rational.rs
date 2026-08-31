@@ -53,7 +53,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the left addend
@@ -89,7 +89,7 @@ fn eval_rational_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the minuend
@@ -121,7 +121,7 @@ fn eval_rational_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the first factor
@@ -154,7 +154,7 @@ fn eval_rational_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
 /// @arg     a :wat::core::rational the dividend
@@ -199,7 +199,7 @@ fn eval_rational_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::rational the rational to cast
@@ -222,7 +222,7 @@ pub(crate) fn eval_rational_to_f64_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::rational the rational to inspect
@@ -245,7 +245,7 @@ pub(crate) fn eval_rational_numerator_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     n :wat::core::rational the rational to inspect

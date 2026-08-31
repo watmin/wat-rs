@@ -15,7 +15,7 @@
 ;; keyword value, to each element — precisely `(k a)` below). This stone homes all three verbs
 ;; as `#[wat_intrinsic]` delegates and rules them Pure ∧ Deterministic (`Option/expect` and
 ;; `Record/field-at` also `Partial` — they raise; `type` `Total`) — Purity/Determinism are the
-;; only axes `:wat::rete::pure?` consults, so the `@Total` ruling does not affect this probe.
+;; only axes `:wat::rete::pure?` consults, so the `@Totality` ruling does not affect this probe.
 ;;
 ;;   row 1 — the generated accessor reached THROUGH A BINDING -> true  (was `false` before this
 ;;           stone: all three verbs default-denied every axis while `KNOWN_UNREVIEWED`)

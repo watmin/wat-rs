@@ -4,9 +4,9 @@ Read `DESIGN-STONE-total-t4a-the-rulings-move-home.md` first.
 
 ## The work, one paragraph
 
-Twenty-seven verbs are declared `@Total Unreviewed` at their registration sites while
+Twenty-seven verbs are declared `@Totality Unreviewed` at their registration sites while
 `intrinsic_meta`'s `total` sub-list (`src/rete/purity.rs`) already rules them total, with per-op
-reasoning. **Change each to `@Total Total` and bring its reasoning with it**, as a short
+reasoning. **Change each to `@Totality Total` and bring its reasoning with it**, as a short
 `/// **Totality ground —** …` paragraph in that verb's own doc block. Nothing else changes.
 
 ## Read in order
@@ -17,7 +17,7 @@ src/rete/purity.rs, the `── `total` —` block   THE SOURCE. Its header expl
                                                `where` … each verified total by READING its own
                                                implementation". Below it, per-op reasoning.
                                                ⛔ DO NOT EDIT THIS BLOCK. T4b collapses it.
-src/intrinsic/i64.rs:~171                      `:wat::i64::/`'s `@Total Partial` — the shape to
+src/intrinsic/i64.rs:~171                      `:wat::i64::/`'s `@Totality Partial` — the shape to
                                                copy for placement and column alignment.
 src/rete/collect.rs                            an existing "**Purity ground —**" prose paragraph:
                                                the house shape for carrying a ruling's reasoning
@@ -49,7 +49,7 @@ src/intrinsic/special/binding.rs        let                           1
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Total
+/// @Totality         Total
 /// @Category      Arithmetic
 ```
 
@@ -75,27 +75,27 @@ The eight files above. **`src/rete/purity.rs` is NOT edited** — it is the sour
 2. **You disagree with one of the 27's totality.** Report the verb and your argument. Do NOT
    transcribe a verdict you believe is wrong, and do NOT quietly write `Partial` instead. STOP.
 3. **You are about to edit `intrinsic_meta` or its `total` sub-list.** T4b's job. STOP.
-4. **A verb in the list is not registered, or has no `@Total` line to change.** The design says all
+4. **A verb in the list is not registered, or has no `@Totality` line to change.** The design says all
    27 are registered. STOP and report which.
-5. **`:wat::i64::*` gains a `@Total` answer.** It is the CONTROL in
+5. **`:wat::i64::*` gains a `@Totality` answer.** It is the CONTROL in
    `totality_is_carried_from_the_doc_into_the_registry_entry` and must stay `Unreviewed`, or that
    test stops proving carriage. STOP.
 
 ## Acceptance
 
 ```
- 0. ★ YOUR OWN PRE-CHECK: confirm all 27 are registered and currently read `@Total Unreviewed`.
+ 0. ★ YOUR OWN PRE-CHECK: confirm all 27 are registered and currently read `@Totality Unreviewed`.
       Report the command and the count.
- 1. ★ ALL 27 NOW READ `@Total Total`, each with its own Totality-ground paragraph. Quote three
+ 1. ★ ALL 27 NOW READ `@Totality Total`, each with its own Totality-ground paragraph. Quote three
       paragraphs in full — one comparison, one conversion, one from the holon four.
- 2. ★ THE COUNT MOVES EXACTLY: `@Total Total` 0 → 27; `@Total Unreviewed` 431 → 404;
-      `@Total Partial` unchanged at 1 real verb (`i64::/`).
+ 2. ★ THE COUNT MOVES EXACTLY: `@Totality Total` 0 → 27; `@Totality Unreviewed` 431 → 404;
+      `@Totality Partial` unchanged at 1 real verb (`i64::/`).
  3. ★ THE CONTROL SURVIVES: `:wat::i64::*` still reads `Unreviewed`, and
       `totality_is_carried_from_the_doc_into_the_registry_entry` still passes.
  4. ★ ZERO BEHAVIOUR CHANGE: `git diff` touches ONLY doc-comment lines. No fn body, no signature,
       no test, no `.wat`. State that the diff is `///` lines only.
  5. ★ `src/rete/purity.rs` diff is EMPTY. Say so.
- 6. ★ BREAK THE DOOR: set one of the 27 to `@Total Partial`, show the registry read it back as
+ 6. ★ BREAK THE DOOR: set one of the 27 to `@Totality Partial`, show the registry read it back as
       `Partial` (the T2b carriage test's mechanism), restore. Proves the declarations you wrote are
       actually reaching the registry rather than sitting in prose.
  7. cargo build --release --all-targets — clean; warnings VERBATIM if any.

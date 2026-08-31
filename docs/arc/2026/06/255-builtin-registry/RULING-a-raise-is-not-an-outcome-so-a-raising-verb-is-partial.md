@@ -41,7 +41,7 @@ in `Option/expect`:
 That is not a defect in the accessor. It is `expect` propagating, and it is exactly the thing the
 long-term purge exists to remove.
 
-✅ **`:wat::i64::/`'s `@Total Partial` is now ADJUDICATED, not merely transcribed.**
+✅ **`:wat::i64::/`'s `@Totality Partial` is now ADJUDICATED, not merely transcribed.**
 `src/intrinsic/mod.rs` recorded it as *"not an adjudication of that dispute; it is a TRANSCRIPTION
 of what the verb's own shipped doc already says"*, deferring to *"stone T4's ruling."* This is that
 ruling, and it agrees with the transcription.
@@ -52,7 +52,7 @@ ruling, and it agrees with the transcription.
 while `rete/purity.rs`'s `total` sub-list excludes it."* Since arc 255 Stone expand-1 renamed
 `is_pure_total` → `is_expand_time_legal`, that file says the opposite of what the comment reports:
 
-> *"`:wat::i64::/` … is legal **despite being `@Total Partial`** … A partial verb can still be
+> *"`:wat::i64::/` … is legal **despite being `@Totality Partial`** … A partial verb can still be
 > expand-time-legal … **Totality and expand-time legality are different axes.**"*
 
 **The two lists agree.** They never disagreed about one property — they answered two questions under
@@ -81,7 +81,7 @@ imposed axis needs a measured defect behind it:
 
 The long-term goal is a **total language**: no raises, no panics, every failure a matchable arm.
 `expect` is named by the builder as *"a fatal mistake"* to be ripped out as the work grinds forward.
-Under this ruling the registry becomes the census for that campaign — `@Total Partial` is the
+Under this ruling the registry becomes the census for that campaign — `@Totality Partial` is the
 worklist, exactly as `Totality`'s own `defenum` says:
 
 > *"★ THIS VARIANT IS THE WORK LIST: the totality endgame's census is

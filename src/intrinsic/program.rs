@@ -41,7 +41,7 @@ use crate::value::{EvalBreak, RuntimeError, RuntimeErrorKind, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::program::Env the calling thread's ambient program env

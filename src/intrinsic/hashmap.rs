@@ -50,7 +50,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
@@ -71,7 +71,7 @@ pub(crate) fn hashmap_length(m: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
@@ -92,7 +92,7 @@ pub(crate) fn hashmap_empty_q(m: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
@@ -115,7 +115,7 @@ pub(crate) fn hashmap_contains_key_q(m: &Value, k: &Value) -> Result<Value, Eval
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
@@ -138,7 +138,7 @@ pub(crate) fn hashmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
@@ -162,7 +162,7 @@ pub(crate) fn hashmap_assoc(m: &Value, k: &Value, v: &Value) -> Result<Value, Ev
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
@@ -196,7 +196,7 @@ pub(crate) fn hashmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected
@@ -223,7 +223,7 @@ pub(crate) fn hashmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected

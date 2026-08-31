@@ -55,7 +55,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the EDN text parsed
@@ -82,7 +82,7 @@ pub(crate) fn eval_edn_read_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the JSON text parsed
@@ -109,7 +109,7 @@ pub(crate) fn eval_edn_read_json_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the EDN text parsed
@@ -134,7 +134,7 @@ pub(crate) fn eval_edn_read_foreign_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
@@ -156,7 +156,7 @@ pub(crate) fn eval_edn_write_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
@@ -179,7 +179,7 @@ pub(crate) fn eval_edn_write_pretty_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
@@ -204,7 +204,7 @@ pub(crate) fn eval_edn_write_json_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
@@ -234,7 +234,7 @@ pub(crate) fn eval_edn_write_json_natural_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      CheckGate
 /// @arg     value :T the value checked against `declared_type`'s shape
@@ -270,7 +270,7 @@ pub(crate) fn eval_edn_validate_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record navigated
@@ -297,7 +297,7 @@ pub(crate) fn eval_foreign_record_get_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record probed
@@ -322,7 +322,7 @@ pub(crate) fn eval_foreign_record_class_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
@@ -346,7 +346,7 @@ pub(crate) fn eval_foreign_variant_variant_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
@@ -371,7 +371,7 @@ pub(crate) fn eval_foreign_variant_enum_class_home(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed

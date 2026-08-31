@@ -61,7 +61,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
@@ -79,7 +79,7 @@ pub(crate) fn list_length(l: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
@@ -98,7 +98,7 @@ pub(crate) fn list_empty_q(l: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
@@ -119,7 +119,7 @@ pub(crate) fn list_contains_q(l: &Value, item: &Value) -> Result<Value, EvalBrea
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     l (:wat::core::List :- [T]) the list probed
@@ -140,7 +140,7 @@ pub(crate) fn list_get(l: &Value, i: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     l (:wat::core::List :- [T]) the list transformed

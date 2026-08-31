@@ -22,7 +22,7 @@ use wat_macros::wat_intrinsic;
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String a length-1 BMP string

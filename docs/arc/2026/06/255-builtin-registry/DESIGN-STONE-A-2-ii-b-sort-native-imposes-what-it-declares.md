@@ -55,7 +55,7 @@ declaration that is false, or the second half ships a gate nothing declares.
 |---|---|---|
 | `@Purity` | **Pure** | true *because the door imposes it*, not by assertion |
 | `@Determinism` | **Deterministic** | same |
-| `@Total` | **Total** | measured on its own merits: a pathological comparator returns a scrambled well-formed vector, exit 0, no panic |
+| `@Totality` | **Total** | measured on its own merits: a pathological comparator returns a scrambled well-formed vector, exit 0, no panic |
 | `@ExpandTime` | Legal | pure ∧ deterministic, no state read |
 
 ⛔ **`Total` is NOT imposed on the comparator** — and the reason below was WRONG on first writing.
@@ -67,7 +67,7 @@ declaration that is false, or the second half ships a gate nothing declares.
 **The binding constraint is that the totality census has not run.** Measured:
 
 ```
-@Total:  Total 29 · Partial 3 · Preserving 2 · Unreviewed 403
+@Totality:  Total 29 · Partial 3 · Preserving 2 · Unreviewed 403
 
 total?  :wat::i64::<   -> true     measured, homed, ruled
 total?  :wat::core::<  -> FALSE    the polymorphic generic — Unreviewed

@@ -1,13 +1,13 @@
-# BRIEF — STONE total-T3: `@Total` becomes REQUIRED
+# BRIEF — STONE total-T3: `@Totality` becomes REQUIRED
 
 Read `DESIGN-STONE-total-t3-declaring-nothing-is-illegal.md` first. This brief is the strike path.
 
 ## The work, one paragraph
 
-`@Total <Variant>` is currently optional and defaults to `Totality::Unreviewed`. **Make it
+`@Totality <Variant>` is currently optional and defaults to `Totality::Unreviewed`. **Make it
 required.** Absence becomes `DocError::MissingTotality`, which makes the registration macro refuse
 to expand. Then give all 437 registrations that lack the directive an explicit
-`@Total         Unreviewed` line, so the tree compiles again with every verb having declared.
+`@Totality         Unreviewed` line, so the tree compiles again with every verb having declared.
 `@Purity` and `@Determinism` are the exact templates — every site you touch is one where
 `MissingPurity` / `MissingDeterminism` already appear.
 
@@ -29,20 +29,20 @@ src/intrinsic/i64.rs:~171        `:wat::i64::/` — the ONE verb that already de
 
 ## Placement — uniform, all 438
 
-`@Total` goes **immediately after `@Determinism`, before `@Category`**, aligned like its siblings:
+`@Totality` goes **immediately after `@Determinism`, before `@Category`**, aligned like its siblings:
 
 ```
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @Category      Arithmetic
 ```
 
 ## Method — a surgical Rust tool, built under `tools/`
 
 437 edits is well past hand-editing. Build a small Cargo binary under repo-local `tools/` that
-reads a file, inserts one line after the `@Determinism` line of each doc block that has no `@Total`,
+reads a file, inserts one line after the `@Determinism` line of each doc block that has no `@Totality`,
 and writes it back — every other byte untouched. `read_to_string` → targeted insert → `write`, never
 a char-by-char rebuild. **Delete the tool before you finish**; it is scaffolding, not substrate.
 
@@ -54,15 +54,15 @@ green — content integrity is a separate axis from tests-green, and it is yours
 
 `crates/wat-doc/`, `crates/wat-macros/`, and doc comments across `src/` and `crates/`. **Only doc
 comment lines are added.** No function body, no signature, no test assertion, no `.wat` file, and no
-`@Total` value other than `Unreviewed` — with the single exception that `:wat::i64::/`'s existing
+`@Totality` value other than `Unreviewed` — with the single exception that `:wat::i64::/`'s existing
 `Partial` is left exactly as it is.
 
 ## STOP triggers — each REJECTS. Ship nothing; report.
 
-1. **You are about to write `@Total Total` or `@Total Partial` on any verb.** No verb is adjudicated
+1. **You are about to write `@Totality Total` or `@Totality Partial` on any verb.** No verb is adjudicated
    by this stone. If a doc block makes you certain a verb is partial, say so in your report and
    still write `Unreviewed`. STOP.
-2. **You are about to migrate `is_pure_total` or `intrinsic_meta` membership into `@Total` values.**
+2. **You are about to migrate `is_pure_total` or `intrinsic_meta` membership into `@Totality` values.**
    Those lists answer different questions; the DESIGN measures why. STOP.
 3. **You are about to change a consumer** — `src/rete/purity.rs`, `src/macros/eval.rs`,
    `src/rete/vocabulary.rs`. They keep their hand-lists this stone. STOP.
@@ -72,14 +72,14 @@ comment lines are added.** No function body, no signature, no test assertion, no
 ## Acceptance
 
 ```
- 0. ★ YOUR OWN PRE-CHECK: the count of registrations lacking @Total, measured BEFORE any edit,
+ 0. ★ YOUR OWN PRE-CHECK: the count of registrations lacking @Totality, measured BEFORE any edit,
       by your own command. Report it. The design predicts 437 and it is not authoritative.
  1. ★ BREAK THE DOOR FIRST, and keep the artifact as a test: a fixture registration with NO
-      @Total must FAIL TO COMPILE with MissingTotality. Prove the requirement is real BEFORE
+      @Totality must FAIL TO COMPILE with MissingTotality. Prove the requirement is real BEFORE
       sweeping — a sweep that lands first can make the requirement untestable.
  2. ★ The rendered MissingTotality message names all four legal values. Quote it verbatim.
  3. ★ Every registration declares. Your own count after the sweep, by the same command as row 0.
- 4. ★ `:wat::i64::/` still reads `@Total Partial` — the sweep must not flatten it. The existing
+ 4. ★ `:wat::i64::/` still reads `@Totality Partial` — the sweep must not flatten it. The existing
       test `totality_is_carried_from_the_doc_into_the_registry_entry` covers this; say it passed.
  5. ★ NON-ASCII INTEGRITY: per-file counts identical before/after. State how you checked.
  6. ★ `ls tools/` is EMPTY at the end. The tool is deleted.

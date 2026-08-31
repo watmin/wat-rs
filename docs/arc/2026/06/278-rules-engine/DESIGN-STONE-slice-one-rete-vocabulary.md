@@ -137,7 +137,7 @@ refactor is UNMEASURED** — the shape is known, the cost is not. It gates op #2
 - **Arming the third conjunct.** `total?` stays UNARMED at `rete.wat:661`. The admission test is
   **built and unit-tested, not wired into `compile-condition`.** Arming is #57 and only after the
   corpus migration — a refused `first` with nowhere to go locks a user out of arithmetic.
-- **Anything in arc 255.** No `@Total`, no `Totality` enum, no `Category` variant, no registry
+- **Anything in arc 255.** No `@Totality`, no `Totality` enum, no `Category` variant, no registry
   enrolment, no touching `wat_doc` or `#[wat_intrinsic]`. The fence has its own `total` column
   (#52) and it works.
 - **The cosine family conversion.** 4 verbs / 56 sites, names ratified, its own strike.

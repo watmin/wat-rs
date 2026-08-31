@@ -61,7 +61,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
@@ -83,7 +83,7 @@ pub(crate) fn vector_length(v: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
@@ -106,7 +106,7 @@ pub(crate) fn vector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
@@ -130,7 +130,7 @@ pub(crate) fn vector_contains_q(v: &Value, item: &Value) -> Result<Value, EvalBr
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
@@ -154,7 +154,7 @@ pub(crate) fn vector_get(v: &Value, i: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     v (:wat::core::Vector :- [T]) the vector transformed
@@ -180,7 +180,7 @@ pub(crate) fn vector_conj(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     left (:wat::core::Vector :- [T]) the left half
@@ -203,7 +203,7 @@ pub(crate) fn vector_concat(left: &Value, right: &Value) -> Result<Value, EvalBr
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     to (:wat::core::Vector :- [T]) the receiver; its kind is preserved

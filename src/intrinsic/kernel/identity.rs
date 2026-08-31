@@ -160,7 +160,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      CheckGate
 /// @arg     x :T the value whose transport marker must be `Wire`
@@ -196,7 +196,7 @@ pub(crate) fn eval_require_wire_address(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     peer (:wat::kernel::Peer :- [S R]) the peer to interrogate
@@ -241,7 +241,7 @@ pub(crate) fn eval_peer_wire(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     addr (:wat::kernel::Address :- [S R]) the address to interrogate
@@ -288,7 +288,7 @@ pub(crate) fn eval_address_wire(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer to read the far-end pid from
@@ -332,7 +332,7 @@ pub(crate) fn eval_peer_pid(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer whose concrete locus to un-erase

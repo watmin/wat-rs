@@ -259,7 +259,7 @@ pub(crate) fn resolve_rhs_value(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     fact_form :wat::WatAST the quoted fact-form `(:Type arg…)` (from `:wat::core::quote`)

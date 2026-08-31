@@ -554,7 +554,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     }
     // ── arc 255 Stone total-T5 — THE REGISTRY ANSWERS ALL THREE AXES ────────────────────────────
     //
-    // Every `#[wat_intrinsic]`-registered verb ALREADY declares `@Purity`/`@Determinism`/`@Total`
+    // Every `#[wat_intrinsic]`-registered verb ALREADY declares `@Purity`/`@Determinism`/`@Totality`
     // at its registration site (mandatory on the first two since long before this campaign; T4b
     // armed the third). For any such verb, consult the registry directly instead of re-answering
     // via a second, hand-transcribed copy of the same fact — the exact shape `total-T4b` already
@@ -573,7 +573,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //
     // DESIGN-STONE-total-t5-the-registry-answers-all-three-axes.md measured this change moves 275
     // verdicts (unregistered-by-this-fn's-old-reckoning verbs go from `None` to a declared ruling)
-    // and that ZERO of them also pass `total` — every one carries `@Total Unreviewed` — so the
+    // and that ZERO of them also pass `total` — every one carries `@Totality Unreviewed` — so the
     // four-axis `where` fence (pure ∧ det ∧ total ∧ primitive) admits exactly none of them.
     if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
         return Some(OpMeta {
@@ -676,7 +676,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // BRIEF-total-t1-the-axis-unarmed.md through total-T4a built and verified a 38-name hand-list
     // here, each verdict earned by READING the verb's own implementation (never inferred from the
     // name) against the 9-file / 98-row `where`-corpus (`wat-scripts/perf/grid/where-*.wat`).
-    // Total-T4a then moved 27 of those 38 verdicts to their own registration site (an `@Total`
+    // Total-T4a then moved 27 of those 38 verdicts to their own registration site (an `@Totality`
     // line in the verb's doc block) — the reasoning lives there now, not here. Total-T4b (this
     // stone) makes the lookup below CONSULT those 27 sites instead of keeping a second copy of a
     // fact the registry already holds, the exact shape 255.1c retired as "a gate reading a copy
@@ -701,7 +701,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //     `pure`/`deterministic` already use — `bool::to-string` verified against
     //     `eval_bool_to_string`, `if b {"true"} else {"false"}`, no domain hole). Their typed
     //     siblings (`i64::=`/`i64::not=`/`i64::to-string`/`f64::to-string`, …) are homed and
-    //     registered `@Total Total`; these generic/untyped forms are not yet.
+    //     registered `@Totality Total`; these generic/untyped forms are not yet.
     //   `map`/`mapv`/`filter`/`foldl`/`reduce` — the W7 HOF family, parked on
     //     `effectful_by_prefix` rather than dispatched as ordinary registered intrinsics. A
     //     combinator's totality is CONDITIONAL on its fn-argument, and `classify_expr`'s
@@ -2062,7 +2062,7 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
@@ -2389,7 +2389,7 @@ mod completeness_gate {
         //
         // All eleven already declare `@Purity` and `@Determinism` — each was ruled with a
         // disk-cited reason in arc 255 Stone P6-c (W5a/W5b/W5c) or Stone P6-c-1. What none of
-        // them declare is `@Total`: every one carries `@Total Unreviewed`, because totality is
+        // them declare is `@Totality`: every one carries `@Totality Unreviewed`, because totality is
         // a separate axis the registry could not hold before stone total-T1. The gate's
         // question is the FENCE's three axes (pure ∧ det ∧ total), not the doc contract's two
         // — so a verb ruled `@Purity Pure` here is still honestly unreviewed for this gate. No

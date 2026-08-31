@@ -85,7 +85,7 @@ use crate::value::{EvalBreak, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool true once the kernel stop flag has been set
@@ -102,7 +102,7 @@ pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool the current value of the SIGUSR1 flag
@@ -120,7 +120,7 @@ pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool the current value of the SIGUSR2 flag
@@ -138,7 +138,7 @@ pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::bool the current value of the SIGHUP flag
@@ -158,7 +158,7 @@ pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::nil always nil
@@ -176,7 +176,7 @@ pub(crate) fn eval_kernel_reset_sigusr1(list_span: &Span) -> Result<Value, EvalB
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::nil always nil
@@ -194,7 +194,7 @@ pub(crate) fn eval_kernel_reset_sigusr2(list_span: &Span) -> Result<Value, EvalB
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::core::nil always nil

@@ -11,7 +11,7 @@ use wat_macros::wat_special_form;
 /// **Totality ground —** `if` has no totality of its own. Like `Purity`/`Determinism`
 /// immediately above, it PRESERVES: it is total exactly when its taken branch is, the same
 /// sentence `Totality::Preserving` was minted with (arc 255 total-T1). T4a transcribed this
-/// as `@Total Total`, inconsistent with its own two sibling axes; total-T4b corrects it to
+/// as `@Totality Total`, inconsistent with its own two sibling axes; total-T4b corrects it to
 /// `Preserving` here. The fence's derived verdict is unchanged either way
 /// (`Preserving` satisfies the axis exactly as `Total` does — see `intrinsic/mod.rs:1038`'s
 /// `matches!(purity, Pure | Preserving)` convention), which is what makes the correction
@@ -25,7 +25,7 @@ use wat_macros::wat_special_form;
 /// @Category ControlFlow
 /// @Purity Preserving
 /// @Determinism Preserving
-/// @Total       Preserving
+/// @Totality       Preserving
 /// @ExpandTime  Legal
 /// @arg cond :wat::core::Bool the condition to branch on
 /// @arg then :T returned when cond is :true (the taken branch)

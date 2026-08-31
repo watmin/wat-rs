@@ -39,10 +39,10 @@
 //! `docs/arc/2026/06/255-builtin-registry/NOTE-purity-is-definition-time-queryable-metadata.md`.
 //!
 //!   1. ⛔ **SUPERSEDED 2026-08-30 — 255 ARRIVED.** This fact used to read: *"The doc contract
-//!      cannot carry a third axis … a `@Total` is refused as `UnknownDirective` (verified by run,
+//!      cannot carry a third axis … a `@Totality` is refused as `UnknownDirective` (verified by run,
 //!      2026-08-02) … the rete fence … will keep carrying it until 255 arrives. Nothing needs
-//!      `@Total` today."* Every clause of that is now false. Stone total-T1 minted
-//!      `:wat::runtime::Totality` in `wat/runtime-meta.wat`; T2 made `@Total` a recognized
+//!      `@Totality` today."* Every clause of that is now false. Stone total-T1 minted
+//!      `:wat::runtime::Totality` in `wat/runtime-meta.wat`; T2 made `@Totality` a recognized
 //!      directive; T2b carried it into `IntrinsicEntry`; **T3 made it REQUIRED** — and this
 //!      probe's own baseline went RED on `MissingTotality` the moment it did, which is how the
 //!      staleness surfaced. The observation the fact rested on remains exactly right and is why
@@ -89,7 +89,7 @@ fn doc_with(extra_tag_lines: &str) -> String {
          @added         1.0.0\n\
          @Purity        Pure\n\
          @Determinism   Deterministic\n\
-         @Total         Unreviewed\n\
+         @Totality         Unreviewed\n\
          @ExpandTime    Unreviewed\n\
          @Category      Transform\n\
          {extra_tag_lines}\
@@ -111,7 +111,7 @@ fn control_baseline_doc_parses() {
 
 /// ★ THE CLAIM — every purity axis is read OFF THE DOC. Refutes the stale module header.
 ///
-/// ⚠ FOUR axes now, not three. Arc 255 stone total-T3 minted `@Total` and made it REQUIRED, and
+/// ⚠ FOUR axes now, not three. Arc 255 stone total-T3 minted `@Totality` and made it REQUIRED, and
 /// this probe's own baseline went RED on `MissingTotality` when it did — the file that exists to
 /// assert "the axes are DECLARED" was itself not declaring the newest one. Extending the claim to
 /// cover it, rather than only adding the directive to the fixture, is the difference between
@@ -130,7 +130,7 @@ fn axes_are_declared_not_derived() {
     assert_eq!(
         doc.totality,
         wat_doc::Totality::Unreviewed,
-        "@Total is parsed from the doc, not inferred"
+        "@Totality is parsed from the doc, not inferred"
     );
     assert_eq!(
         doc.expand_time,

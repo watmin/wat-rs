@@ -83,7 +83,7 @@ fn next_outcome_exhausted() -> Value {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @ret     (:wat::stream::Stream :- [T]) the Empty terminator
@@ -110,7 +110,7 @@ pub(crate) fn eval_stream_empty_intrinsic() -> Result<Value, EvalBreak> {
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     head :T the value prepended, evaluated strictly
@@ -168,7 +168,7 @@ pub(crate) fn eval_stream_cons_intrinsic(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     s (:wat::stream::Stream :- [T]) the stream forced to WHNF

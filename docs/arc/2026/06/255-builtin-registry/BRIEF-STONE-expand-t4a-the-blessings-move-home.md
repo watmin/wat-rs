@@ -41,7 +41,7 @@ src/intrinsic/i64.rs                          a "Totality ground —" paragraph 
 ///
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
 ```

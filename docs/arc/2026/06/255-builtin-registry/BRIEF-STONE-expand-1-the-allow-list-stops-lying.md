@@ -81,7 +81,7 @@ findings and both are acceptable** — report which:
 
 ```
  0. ★ YOUR OWN PRE-CHECK: confirm all three contradictions against the registry — keys/values
-      Nondeterministic, i64::/ @Total Partial — and that zero listed verbs are Effectful.
+      Nondeterministic, i64::/ @Totality Partial — and that zero listed verbs are Effectful.
  1. ★ keys AND values REMOVED. i64::/, fresh-symbol, macro-call-site all still present.
  2. ★ RENAMED at the definition and every call site. Name the call sites you found.
  3. ★ THE HEADER REWRITTEN — no "pure-total subset" claim; states the two deliberate

@@ -128,7 +128,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @ret     :wat::io::IOWriter a fresh, empty in-memory writer
@@ -168,7 +168,7 @@ pub(crate) fn eval_iowriter_new(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     path :wat::core::String the path to open (create+truncate) for writing
@@ -211,7 +211,7 @@ pub(crate) fn eval_iowriter_open_file(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     fd :wat::core::i64 the raw fd to dup and wrap
@@ -246,7 +246,7 @@ pub(crate) fn eval_iowriter_from_fd(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
@@ -292,7 +292,7 @@ pub(crate) fn eval_iowriter_to_bytes(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
@@ -328,7 +328,7 @@ pub(crate) fn eval_iowriter_to_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
@@ -366,7 +366,7 @@ pub(crate) fn eval_iowriter_write(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
@@ -403,7 +403,7 @@ pub(crate) fn eval_iowriter_write_all(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
@@ -439,7 +439,7 @@ pub(crate) fn eval_iowriter_write_string(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
@@ -474,7 +474,7 @@ pub(crate) fn eval_iowriter_print(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
@@ -508,7 +508,7 @@ pub(crate) fn eval_iowriter_println(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
@@ -547,7 +547,7 @@ pub(crate) fn eval_iowriter_writeln(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     writer :wat::io::IOWriter the writer to flush
@@ -590,7 +590,7 @@ pub(crate) fn eval_iowriter_flush(
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     writer :wat::io::IOWriter the writer to close

@@ -21,9 +21,9 @@ does not contain your Rust changes. **You may not spawn sub-agents.** Work only 
    — the rule you are ruling by. A raise is not a matchable outcome; a raising verb is `Partial`.
 3. `src/intrinsic/collection.rs` — **the template.** Seven verbs homed as thin `#[wat_intrinsic]`
    delegates over existing named fns, each with a full directive block
-   (`@Purity`/`@Determinism`/`@Total`/`@ExpandTime`/`@Category`/`@arg`/`@ret`/`@example`) and prose
+   (`@Purity`/`@Determinism`/`@Totality`/`@ExpandTime`/`@Category`/`@arg`/`@ret`/`@example`) and prose
    grounding each axis. Copy its shape, including the grounding prose.
-4. `src/intrinsic/i64.rs` around `:wat::i64::/` — **the only `@Total Partial` in the tree today.**
+4. `src/intrinsic/i64.rs` around `:wat::i64::/` — **the only `@Totality Partial` in the tree today.**
    Read how it words its partiality; yours should read like it.
 5. The three implementations, all already named fns — `eval_option_expect`, `eval_record_field_at`,
    `eval_type` (all in `src/runtime.rs`, reached from thin literal arms at `:5712`, `:5451`, `:5382`).

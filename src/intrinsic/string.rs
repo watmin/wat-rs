@@ -118,7 +118,7 @@ fn arg_i64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string searched
@@ -150,7 +150,7 @@ pub(crate) fn eval_string_contains(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
@@ -182,7 +182,7 @@ pub(crate) fn eval_string_starts_with(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
@@ -221,7 +221,7 @@ pub(crate) fn eval_string_ends_with(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     s :wat::core::String the string to test
@@ -252,7 +252,7 @@ pub(crate) fn eval_string_empty(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to measure
@@ -279,7 +279,7 @@ pub(crate) fn eval_string_length(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to trim
@@ -310,7 +310,7 @@ pub(crate) fn eval_string_trim(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to lowercase
@@ -341,7 +341,7 @@ pub(crate) fn eval_string_to_lowercase(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to uppercase
@@ -377,7 +377,7 @@ pub(crate) fn eval_string_to_uppercase(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the PascalCase string to convert
@@ -422,7 +422,7 @@ pub(crate) fn eval_string_pascal_to_kebab(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
@@ -463,7 +463,7 @@ pub(crate) fn eval_string_pascal_to_kebab_in(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
@@ -504,7 +504,7 @@ pub(crate) fn eval_string_kebab_to_pascal_in(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s     :wat::core::String the string to slice
@@ -558,7 +558,7 @@ pub(crate) fn eval_string_subs(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     haystack :wat::core::String the string to split
@@ -609,7 +609,7 @@ pub(crate) fn eval_string_split(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     sep    :wat::core::String the separator
@@ -695,7 +695,7 @@ pub(crate) fn eval_string_join(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args… :wat::core::String the strings to concatenate, in order
@@ -765,7 +765,7 @@ pub(crate) fn eval_string_concat(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the template followed by `:name value` kwarg pairs
@@ -997,7 +997,7 @@ pub(crate) fn eval_string_interpolate(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Declaration
 /// @arg     _ns        :wat::core::keyword the namespace the acronyms are declared for (unused here — registered by the pre-pass)
@@ -1028,7 +1028,7 @@ pub(crate) fn eval_string_declare_acronyms(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
@@ -1061,7 +1061,7 @@ pub(crate) fn eval_string_to_i64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
@@ -1094,7 +1094,7 @@ pub(crate) fn eval_string_to_f64(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Total         Unreviewed
+/// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
