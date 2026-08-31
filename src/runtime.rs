@@ -5682,6 +5682,12 @@ fn dispatch_keyword_head_value(
         ":wat::rete::release-session" => {
             crate::rete::kernel::eval_release_session(args, list_span, env, sym)
         }
+        // Arc 278 Class B1 — mint the OWNER of the lease `compile-all` already took, so a
+        // `with-` form needs no release call and no unwind can skip one. ADOPT, not acquire
+        // (`ArmLease`). `#[restricted_to]` fences the mouth to `:wat::rete::`.
+        ":wat::rete::adopt-session-lease" => {
+            crate::rete::kernel::eval_adopt_session_lease(args, list_span, env, sym)
+        }
         // Arc 278 — native `insert-all` (oracle is `insert-all$oracle`).
         // 2-ary `insert` is handled above (`eval_insert_public`).
         ":wat::rete::insert-all$native" | ":wat::rete::insert-all" => {

@@ -279,10 +279,20 @@
 ;; pairing it — compile-all already takes an intern lease (DESIGN-STONE-arm-at-compile) and
 ;; release-session drops it; every caller had to remember the release by hand. These two forms
 ;; are that missing shape, matching :wat::io::with-open-file: a plain defn that acquires its
-;; own resource and releases it after the body runs.
+;; own resource and releases it when the body's scope ends.
+;;
+;; ⛔ "WHEN THE SCOPE ENDS", NOT "AFTER THE BODY RUNS" — and the difference is the whole parity
+;; claim. This line used to say the latter, which described the shape rather than the guarantee,
+;; and the shape was true while the guarantee was false: the release sat in a `do` AFTER the
+;; body, so a wat error or a host panic skipped it and pinned the InternedNetwork until thread
+;; end (arc 278 Class B1, driven RED on both paths). `with-open-file` never had that hole
+;; because its resource is a Rust value whose `Drop` closes the fd — the OWNER, not the call
+;; site, is what makes a `with-` form unwind-safe. `with-network` now earns the same way:
+;; `:wat::rete::adopt-session-lease` mints an `ArmLease` guard into the `let`, and there is no
+;; release call left in either form to skip.
 
-;; with-network — compiles rules+queries into an armed Session, hands it to body-fn, releases
-;; the lease after. Returns body-fn's result.
+;; with-network — compiles rules+queries into an armed Session, hands it to body-fn, and
+;; releases the lease when the scope ends by ANY path. Returns body-fn's result.
 ;; Both forms COMPILE their own network; neither accepts a Session. This is forced, not
 ;; stylistic: compile-all already arms, and arm-session's HIT path INCREMENTS the lease
 ;; (arm.rs:709) — so a wrapper handed an already-compiled Session could only add a lease it
@@ -305,13 +315,21 @@
                                (:wat::kernel::assertion-failed!
                                  "with-network: the rule set may not terminate"
                                  :wat::core::None :wat::core::None)))
+                    ;; ⛔ THE SCOPE IS CLOSED BY A `Drop`, NOT BY A RELEASE CALL (arc 278 B1).
+                    ;; `lease` OWNS the intern lease `compile-all` took (adopt, not acquire) and
+                    ;; releases it when this frame dies — which a normal return, a wat error and
+                    ;; a host panic all do alike. The old `(do (release-session base) result)`
+                    ;; sat AFTER the body, so both unwind paths skipped it and pinned the
+                    ;; InternedNetwork until thread end; both were driven RED. It is DELETED,
+                    ;; not supplemented — two release sites is the bug wearing a fix. Bind
+                    ;; `lease` BEFORE `result` so the body runs inside its scope.
+                    lease  (:wat::rete::adopt-session-lease base)
                     result (body-fn base)]
-    (:wat::core::do
-      (:wat::rete::release-session base)
-      result)))
+    result))
 
-;; with-overlay — same acquire/release scope as with-network (built ON it: one release site,
-;; not two), plus a structural guarantee: the body receives not the Session but an Overlay
+;; with-overlay — same acquire/release scope as with-network (built ON it, so it inherits the
+;; `ArmLease` guard and has NO release site of its own — driven, not argued from the call graph:
+;; `scoped_work_with_overlay_releases_the_lease_when_the_body_raises`), plus a structural guarantee: the body receives not the Session but an Overlay
 ;; (facts -> fired Session), always re-seeded from the compiled base. The base is never in
 ;; scope, so threading one unit of work's facts into the next has no form. `(overlay facts)`
 ;; returns a FIRED Session, not a seeded one — the caller never wants the unfired form.

@@ -371,3 +371,119 @@ fn scoped_work_with_network_releases_the_lease_it_takes() {
          prototype's first-draft bug) would leave this Some instead of None"
     );
 }
+
+// ── PROBE (arc 278, Class B1) — THE UNWIND PATHS ────────────────────────────────────────────
+//
+// Row 3 above proves the lease is released when the body RETURNS. Nothing proved what happens
+// when the body UNWINDS, and `wat/rete/syntax.wat:307` releases in a
+// `(do (release-session base) result)` that sits AFTER the body — so an unwinding body skips it.
+// The ceiling-breach path is reached from inside that body, which is what makes this the leak
+// that fires exactly when memory pressure is highest.
+//
+// TWO unwind paths exist and a body can reach either, so each gets its OWN test rather than two
+// arms of one: a first draft asserted both in sequence, arm 1 failed, and arm 2 was never
+// reached — one drive cannot prove a two-arm gate.
+//   - a wat runtime error (`DivisionByZero`) leaves `eval_in_frozen` as `Err`;
+//   - `:wat::kernel::assertion-failed!` PANICS the host (`runtime.rs:15922` says so), which is
+//     what every ceiling-outcome match arm in this file's own fixtures calls. An earlier draft
+//     rode only this one and never reached its own assertion — the panic blew past it.
+//
+// Both measure a table-size DELTA, not an absolute: on an unwind `with-network` never hands the
+// Session back, so there is no id to ask `rete_arm_leases` about. A leaked lease is a row that
+// outlives the call; a released one leaves the table exactly as it was found.
+
+/// The body raises a wat ERROR — `eval_in_frozen` returns `Err`, no panic involved.
+#[test]
+fn scoped_work_with_network_releases_the_lease_when_the_body_raises() {
+    use super::rete_arm_table_len;
+    let world = startup_from_source(SCOPED_WORK_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("scoped-work world should freeze");
+
+    let before = rete_arm_table_len();
+    let src = "\
+(:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
+  (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64\n\
+    (:wat::core::i64::/ 1 0)))";
+    let ast = crate::parse_one!(src).expect("parse erroring with-network driver");
+    let outcome = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(
+        outcome.is_err(),
+        "the body must actually raise; a body that returned would prove nothing"
+    );
+    let after = rete_arm_table_len();
+    assert_eq!(
+        after, before,
+        "with-network must release the lease compile-all took when the body raises a wat ERROR; \
+         table grew {before} -> {after}, so the InternedNetwork is pinned until thread end"
+    );
+}
+
+/// The body PANICS the host — the shape every ceiling-outcome match arm in this file calls.
+#[test]
+fn scoped_work_with_network_releases_the_lease_when_the_body_panics() {
+    use super::rete_arm_table_len;
+    let world = startup_from_source(SCOPED_WORK_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("scoped-work world should freeze");
+
+    let before = rete_arm_table_len();
+    let src = "\
+(:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
+  (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64\n\
+    (:wat::kernel::assertion-failed! \"probe: the body panics\" :wat::core::None :wat::core::None)))";
+    let ast = crate::parse_one!(src).expect("parse panicking with-network driver");
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+    }));
+    assert!(
+        caught.is_err(),
+        "the body must actually panic the host; assertion-failed! is a panic, not an Err"
+    );
+    let after = rete_arm_table_len();
+    assert_eq!(
+        after, before,
+        "with-network must release the lease compile-all took when the body PANICS; \
+         table grew {before} -> {after}, so the InternedNetwork is pinned until thread end"
+    );
+}
+
+/// Row 4 (arc 278, Class B1) — `with-overlay` INHERITS the cure, driven rather than argued.
+///
+/// `with-overlay` is built ON `with-network` (one release site, not two), so the call graph
+/// says it must inherit. That is an argument, and an argument is not a measurement: the body
+/// `with-overlay` hands to `with-network` is an INNER CLOSURE that captures `base` and mints
+/// the overlay verb, and a capture is exactly the shape that could keep the guard's frame — or
+/// a Session copy — alive past the scope the guard is supposed to close. Only driving it
+/// answers that.
+///
+/// The wat-ERROR arm, not the panic arm. Its sibling above already proved the panic path
+/// through `with-network`, and the thing under test here is the closure layer, which both arms
+/// traverse identically. The panic arm for `with-overlay` is therefore reachable and NOT
+/// driven — one probe is what the scorecard's row 4 (and the floor count it feeds) specifies.
+///
+/// Verified RED against the pre-fix form: with `(do (release-session base) result)` restored,
+/// this fails with `table grew 0 -> 1`, exactly as its two siblings do.
+#[test]
+fn scoped_work_with_overlay_releases_the_lease_when_the_body_raises() {
+    use super::rete_arm_table_len;
+    let world = startup_from_source(SCOPED_WORK_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("scoped-work world should freeze");
+
+    let before = rete_arm_table_len();
+    let src = "\
+(:wat::rete::with-overlay (:sw::the-rules) (:sw::the-queries)\n\
+  (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::i64\n\
+    (:wat::core::i64::/ 1 0)))";
+    let ast = crate::parse_one!(src).expect("parse erroring with-overlay driver");
+    let outcome = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(
+        outcome.is_err(),
+        "the body must actually raise; a body that returned would prove nothing"
+    );
+    let after = rete_arm_table_len();
+    assert_eq!(
+        after, before,
+        "with-overlay must release the lease its inner with-network took when the body raises a \
+         wat ERROR; table grew {before} -> {after}, so the InternedNetwork is pinned until \
+         thread end"
+    );
+}

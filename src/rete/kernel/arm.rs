@@ -39,6 +39,7 @@ use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use rustc_hash::FxHashMap;
+use wat_macros::restricted_to;
 
 use super::{
     alpha_cond_from_node, alpha_cond_of, cond_text, get_node, kind_of, node_children,
@@ -694,6 +695,15 @@ pub(crate) fn rete_arm_leases(id: u64) -> Option<usize> {
     ARM_TABLE.with(|t| t.borrow().get(&id).map(|e| e.leases))
 }
 
+/// PROBE INSTRUMENT (arc 278, Class B1) — how many networks this thread currently holds armed.
+///
+/// The raise path of `with-network` never hands the Session back, so there is no id to ask
+/// `rete_arm_leases` about; the only observable is whether the table grew. Delta, never absolute.
+#[cfg(test)]
+pub(crate) fn rete_arm_table_len() -> usize {
+    ARM_TABLE.with(|t| t.borrow().len())
+}
+
 /// Publish an arm under a network identity and take a lease on it.
 ///
 /// Re-interning an id REPLACES the arm and still increments — the newest build wins, and the
@@ -722,8 +732,15 @@ pub(crate) fn rete_arm_intern(id: u64, arm: &Arc<InternedNetwork>) {
 
 /// Drop one lease. At zero the intern entry is gone. Missing id is a no-op
 /// (hangup after already deprovisioned).
+///
+/// ⛔ `try_with`, NOT `with` (arc 278, Class B1). Since [`ArmLease`] exists, a release can be
+/// reached from a `Drop` — and a guard still alive at THREAD EXIT drops during TLS teardown,
+/// where `ARM_TABLE` may already have been destroyed. `.with()` PANICS in that window
+/// (destruction order among thread-locals is unspecified); `try_with`'s `Err` means exactly
+/// "the table is already gone", which is indistinguishable from the no-op this fn already
+/// performs for a missing id. So the `Err` is discarded and nothing else changes.
 pub(crate) fn rete_arm_release(id: u64) {
-    ARM_TABLE.with(|t| {
+    let _ = ARM_TABLE.try_with(|t| {
         let mut m = t.borrow_mut();
         let drop = match m.get_mut(&id) {
             Some(e) if e.leases <= 1 => true,
@@ -737,6 +754,51 @@ pub(crate) fn rete_arm_release(id: u64) {
             m.remove(&id);
         }
     });
+}
+
+/// The OWNER of one intern lease — `Drop` releases it (arc 278, Class B1).
+///
+/// ## ADOPT, never acquire — the non-obvious half
+///
+/// Constructing an `ArmLease` takes **no new lease**. It assumes ownership of the one
+/// `compile-all` already took (`rete_arm_lease_or_build` → `rete_arm_intern`), so the count
+/// stays at 1 and this guard's single release drives it to 0. A constructor that called
+/// `rete_arm_intern` would take the count to 2, release 1, and leave `compile-all`'s original
+/// held forever — the leak surviving its own cure while every probe went green.
+///
+/// ## Why this exists
+///
+/// `with-network` used to release in a `(do (release-session base) result)` AFTER the body, so a
+/// wat error or a host panic in the body skipped it and pinned the `InternedNetwork` until
+/// thread end. A release call cannot be made unwind-safe; only an owner can. This is the parity
+/// `with-open-file` already has (its resource is an `OwnedFd` whose `Drop` closes), and which
+/// `with-network`'s doc claimed without earning.
+///
+/// The guard rides wat as a `:rust::rete::ArmLease` opaque bound in `with-network`'s `let`, so
+/// the frame teardown that unwinding performs IS the release. There is no release call left in
+/// the wat form.
+///
+/// ## The bound it inherits
+///
+/// `ARM_TABLE` is thread-local (`DESIGN-STONE-intern-zero-mutex`), so a guard dropped on a
+/// thread other than the arming one releases nothing — exactly the connection-thread affinity
+/// `release-session` already carries, named in the `circumspicere` rune on the `thread_local!`.
+/// This guard neither widens nor narrows that bound.
+pub(crate) struct ArmLease {
+    id: u64,
+}
+
+impl ArmLease {
+    /// ADOPT the lease already held for `id`. Does not intern; see the type doc.
+    pub(crate) fn adopt(id: u64) -> Self {
+        ArmLease { id }
+    }
+}
+
+impl Drop for ArmLease {
+    fn drop(&mut self) {
+        rete_arm_release(self.id);
+    }
 }
 
 fn rete_arm_build_put(
@@ -1267,4 +1329,70 @@ pub(crate) fn eval_release_session(
         .into());
     }
     Ok(session)
+}
+
+/// The wat type path of the [`ArmLease`] opaque. One constant, two uses (mint + doc).
+pub(crate) const ARM_LEASE_TYPE_PATH: &str = ":rust::rete::ArmLease";
+
+/// `(:wat::rete::adopt-session-lease <session>) -> :rust::rete::ArmLease`
+///
+/// Mint the Rust OWNER of the intern lease this Session's network already holds, so that
+/// dropping the returned value releases it. **ADOPT semantics: this takes no new lease** — see
+/// [`ArmLease`]. Exactly one call site exists (`with-network` in `wat/rete/syntax.wat`), and
+/// `#[restricted_to]` fences the mouth to `:wat::rete::` callers: minting an owner for a lease
+/// you did not take is a way to deprovision someone else's live network.
+///
+/// The refusals mirror [`eval_release_session`]'s exactly (same two `TypeMismatch` doors: not a
+/// Session, or a network carrying no intern identity) because it is reaching the same identity
+/// by the same two steps.
+#[restricted_to(":wat::rete::adopt-session-lease", ":wat::rete::")]
+pub(crate) fn eval_adopt_session_lease(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &crate::runtime::Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::adopt-session-lease";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let network = match session_network(&session) {
+        Some(network) => network,
+        None => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Session",
+                    got: Box::new(ValueSnapshot::of(&session)),
+                },
+            )
+            .into());
+        }
+    };
+    match network_identity(network) {
+        // NOT `rete_arm_intern` — adopt, never acquire.
+        Some(id) => Ok(crate::rust_deps::marshal::make_rust_opaque(
+            ARM_LEASE_TYPE_PATH,
+            ArmLease::adopt(id),
+        )),
+        None => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::PersistentMap network with intern identity",
+                got: Box::new(ValueSnapshot::of(network)),
+            },
+        )
+        .into()),
+    }
 }

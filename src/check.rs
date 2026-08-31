@@ -13855,7 +13855,22 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
             let bare = p.strip_prefix(':').unwrap_or(p.as_str());
             // Well-known impure opaque paths (not parametric).
             match bare {
-                "wat::kernel::ChildHandle"
+                // Arc 278 Class B1 — the rete intern-lease OWNER. HAND-MINTED via
+                // `make_rust_opaque`, so it is NOT in the `#[wat_dispatch]` registry and
+                // `is_registered_rust_opaque` (the self-enrolling check, one screen up) cannot
+                // see it. Measured: without this row a `:rust::rete::ArmLease` path reaches the
+                // `None => true` arm at the bottom of this match — "unknown path ⇒ a formal type
+                // parameter ⇒ portable by convention". Driven with a positive control
+                // (`:rust::rete::NotAThing`, an unregistered sibling): it comes back PURE, so the
+                // arm is real and not a reading. Without this row the purity wall calls a live
+                // thread-local resource handle PURE, i.e. admissible as a `Record` field and onto
+                // a wire. Nothing can fill such a field today (the mint is
+                // `#[restricted_to(…, ":wat::rete::")]` and its one call site binds the guard in a
+                // `let`), so this is the hole closed before it is a defect, not after. The general
+                // shape — hand-minted opaques being invisible to the self-enrolment — is arc 278's
+                // `BRIEF-opaque-purity-self-enrolls` STOP-1 territory and is NOT fixed here.
+                "rust::rete::ArmLease"
+                | "wat::kernel::ChildHandle"
                 | "wat::io::IOReader"
                 | "wat::io::IOWriter"
                 | "wat::holon::OnlineSubspace"
@@ -21454,6 +21469,19 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 278 Class B1 — mint the Rust owner of the lease already held, so `with-network`'s
+    // scope is closed by a `Drop` rather than by a release call an unwind can skip.
+    // (:wat::rete::adopt-session-lease <session: :wat::rete::Session>) → :rust::rete::ArmLease
+    env.register(
+        ":wat::rete::adopt-session-lease".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":rust::rete::ArmLease".into()),
             rest_param_type: None,
         },
     );

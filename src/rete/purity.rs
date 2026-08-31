@@ -2378,6 +2378,15 @@ mod completeness_gate {
     ":wat::rete::alpha-match-under",
     ":wat::rete::arm-session",
     ":wat::rete::release-session",
+    // Arc 278 Class B1. Parked BESIDE its two siblings, not instead of a ruling: the open
+    // question for this verb is exactly theirs — `RULES`' `:wat::rete::` row says a rete verb
+    // inside a rete predicate "wants a ruling on recursion before a ruling on purity", and the
+    // lease family is the sharpest case of it. Parking is safe here in the way the gate's own
+    // warning demands be justified: `compile-condition` panics on `pure? = false`, so an
+    // unruled verb cannot appear in a rule condition — and this one CANNOT reach a condition
+    // at all, because `#[restricted_to(…, ":wat::rete::")]` admits only rete's own wat and the
+    // sole call site is `with-network`'s `let`. Rule on all three together or on none.
+    ":wat::rete::adopt-session-lease",
     ":wat::rete::cond-has-deferred-constraint?",
     ":wat::rete::axis-violation",
     ":wat::rete::collect-rules",
