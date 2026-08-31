@@ -56,6 +56,9 @@
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
 
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: user::main IS the
+;; measurement (binding served vs tail closed). It must construct the escape.
+;; Rune the instrument, never the acceptance criterion.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [h (:tl::bag-svc/start :locus (:wat::spawn::thread) :record (:tl::bag-svc::Record :n 0))

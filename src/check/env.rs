@@ -19,7 +19,7 @@ use crate::check::error::CheckError;
 use crate::runtime::SymbolTable;
 use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub use super::TypeScheme;
 use super::register_builtins;
@@ -133,6 +133,10 @@ pub struct CheckEnv<'a> {
     /// on purpose (option iii): this map only ever grows via the one
     /// seed loop in `from_symbols` and is never written to elsewhere.
     pub(crate) corpus_values: HashMap<String, TypeExpr>,
+    /// Names present in `SymbolTable::functions` — the same set `sym.has_function`
+    /// uses to emit `EvalSignal::TailCall`. Builtins/defclauses that are not
+    /// Function entries are absent, matching the runtime.
+    pub(crate) registered_functions: HashSet<String>,
 }
 
 impl<'a> CheckEnv<'a> {
@@ -148,6 +152,7 @@ impl<'a> CheckEnv<'a> {
     pub fn from_symbols(sym: &'a SymbolTable, types: &'a TypeEnv) -> Result<CheckEnv<'a>, Box<CheckError>> {
         let mut env = Self::with_builtins_and_types(types);
         for (path, func) in sym.functions_iter() {
+            env.registered_functions.insert(path.clone());
             if let Some(scheme) = super::derive_scheme_from_function(func) {
                 // Arc 170 — the OVERLAY lands through the gate, not a bare insert.
                 // Privilege::Stdlib here because this loop replays an ALREADY-FROZEN
@@ -265,7 +270,14 @@ impl<'a> CheckEnv<'a> {
             defined_value_asts: HashMap::new(),
             extend_registrations: HashMap::new(),
             corpus_values: HashMap::new(),
+            registered_functions: HashSet::new(),
         }
+    }
+
+    /// True when `path` is a registered Function — the checker's twin of
+    /// `SymbolTable::has_function`. A builtin/defclause head is false.
+    pub fn has_registered_function(&self, path: &str) -> bool {
+        self.registered_functions.contains(path)
     }
 
     /// Arc 048 — look up the enum type for a unit-variant keyword

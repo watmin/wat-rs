@@ -481,6 +481,12 @@ pub(crate) struct InferCtx {
     next: u64,
     enclosing_rets: Vec<TypeExpr>,
     enclosing_fns: Vec<String>,
+    /// The form about to be inferred is in tail position. `infer` snapshots this
+    /// into `this_form_in_tail` and then clears it so children default to non-tail.
+    in_tail: bool,
+    /// The form currently being inferred is in tail position. Tail-carrying
+    /// helpers read this at entry (before any child `infer` overwrites it).
+    this_form_in_tail: bool,
 }
 
 impl InferCtx {
@@ -522,6 +528,21 @@ impl InferCtx {
 
     pub(crate) fn enclosing_fn(&self) -> Option<&str> {
         self.enclosing_fns.last().map(|s| s.as_str())
+    }
+
+    /// Snapshot this form's tailness, then default children to non-tail.
+    /// Called at the start of every `infer`.
+    pub(crate) fn enter_infer(&mut self) {
+        self.this_form_in_tail = self.in_tail;
+        self.in_tail = false;
+    }
+
+    pub(crate) fn this_form_in_tail(&self) -> bool {
+        self.this_form_in_tail
+    }
+
+    pub(crate) fn set_in_tail(&mut self, v: bool) {
+        self.in_tail = v;
     }
 }
 
@@ -1946,6 +1967,83 @@ fn function_has_creation_escape_rune(span: &Span, function_path: &str) -> bool {
     false
 }
 
+fn scheme_takes_peer_of(scheme: &TypeScheme, op: &TypeExpr, reply: &TypeExpr) -> bool {
+    scheme.params.iter().any(|p| {
+        let mut peers = Vec::new();
+        collect_peer_protocols(p, &mut peers);
+        peers.iter().any(|(o, r)| o == op && r == reply)
+    })
+}
+
+/// Walk `expr` through tail-carrying forms to the user-function call(s) that
+/// would emit `EvalSignal::TailCall`. Uses [`crate::tail::tail_form`] — the
+/// same table `eval_tail` dispatches on.
+fn collect_tail_user_fn_peer_calls<'a>(
+    expr: &'a WatAST,
+    env: &CheckEnv,
+    op: &TypeExpr,
+    reply: &TypeExpr,
+    out: &mut Vec<&'a Span>,
+) {
+    let WatAST::List(items, span) = expr else {
+        return;
+    };
+    if items.is_empty() {
+        return;
+    }
+    let Some(head) = call_head_keyword(&items[0]) else {
+        return;
+    };
+    if let Some(form) = crate::tail::tail_form(head) {
+        for child in form.tail_children(&items[1..]) {
+            collect_tail_user_fn_peer_calls(child, env, op, reply, out);
+        }
+        return;
+    }
+    if !env.has_registered_function(head) {
+        return;
+    }
+    let Some(scheme) = env.get(head) else {
+        return;
+    };
+    if scheme_takes_peer_of(scheme, op, reply) {
+        out.push(span);
+    }
+}
+
+fn push_handle_tail_escape(
+    errors: &mut Vec<CheckError>,
+    env: &CheckEnv,
+    scope: &WatAST,
+    tail_expr: &WatAST,
+    function: &str,
+) {
+    let mut creations = Vec::new();
+    collect_handle_creations(scope, env, &mut creations);
+    if creations.is_empty() {
+        return;
+    }
+    for c in &creations {
+        let mut calls = Vec::new();
+        collect_tail_user_fn_peer_calls(tail_expr, env, &c.op, &c.reply, &mut calls);
+        if let Some(tail_span) = calls.first() {
+            if function_has_creation_escape_rune(tail_span, function) {
+                return;
+            }
+            errors.push(CheckError {
+                span: (*tail_span).clone(),
+                kind: CheckErrorKind::HandleTailEscape {
+                    function: function.to_string(),
+                    service: surface_from_op(&c.op),
+                    created_at: c.span.clone(),
+                    tail_call: (*tail_span).clone(),
+                },
+            });
+            return;
+        }
+    }
+}
+
 fn push_handle_creation_escape(
     errors: &mut Vec<CheckError>,
     env: &CheckEnv,
@@ -2016,7 +2114,10 @@ fn check_function_body(
     };
     fresh.push_enclosing_fn(path.to_string());
     fresh.push_enclosing_ret(scheme.ret.clone());
+    // A function body is in tail position relative to apply_function's trampoline.
+    fresh.set_in_tail(true);
     let body_ty = infer(body_ast, env, &locals, fresh, &mut subst).drain_errors_into(errors);
+    fresh.set_in_tail(false);
     fresh.pop_enclosing_ret();
     // Unify body type with declared return type. If unification fails,
     // produce a ReturnTypeMismatch with ranked remedies when the body
@@ -2149,6 +2250,7 @@ pub(crate) fn infer(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    fresh.enter_infer();
     let mut local_errors: Vec<CheckError> = Vec::new();
     match ast {
         WatAST::IntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::i64".into())),
@@ -3516,6 +3618,8 @@ fn infer_list(
                 // `assignable` on the result. Non-compound / non-matching-shape exprs
                 // fall back to plain bottom-up infer inside the same helper, so the
                 // `assignable` check below still applies uniformly to both cases.
+                let in_tail = fresh.this_form_in_tail();
+                fresh.set_in_tail(in_tail);
                 let expr_ty = infer_component_against(&args[0], &ascribed_ty, env, locals, fresh, subst, &mut local_errors);
                 // Require expr's type S assignable to the ascribed type T.
                 if let Some(s) = expr_ty {
@@ -6288,6 +6392,7 @@ fn infer_match(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    let in_tail = fresh.this_form_in_tail();
     let mut local_errors: Vec<CheckError> = Vec::new();
     // Arc 258.5 — the `-> :T` ascription is retired: the result type is
     // now INFERRED by unifying the arm bodies (the mechanism `if` uses).
@@ -6413,7 +6518,8 @@ fn infer_match(
                     covers_option_some = true;
                     covers_result_ok = true;
                     covers_result_err = true;
-                    // Unify the arm body into the running result type.
+                    // Unify the arm body into the running result type. Arm bodies carry tail.
+                    fresh.set_in_tail(in_tail);
                     let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
                     if let Some(t) = arm_ty {
                         if let Some(r) = result_ty.clone() {
@@ -6498,6 +6604,8 @@ fn infer_match(
 
         // Each arm body unifies into the running result type (mirrors
         // `if`: the first typed arm seeds it, the rest unify against it).
+        // Arm bodies carry tail position (eval_match_tail).
+        fresh.set_in_tail(in_tail);
         let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(t) = arm_ty {
             if let Some(r) = result_ty.clone() {
@@ -7706,6 +7814,7 @@ fn infer_if(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    let in_tail = fresh.this_form_in_tail();
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() == 3 {
         // Arc 258.1/258.4 — the BARE form `(if cond then else)` is the ONLY form: no `-> :T`.
@@ -7721,7 +7830,9 @@ fn infer_if(
                 } });
             }
         }
+        fresh.set_in_tail(in_tail);
         let then_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        fresh.set_in_tail(in_tail);
         let else_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         match (then_ty, else_ty) {
             (Some(t), Some(e)) => {
@@ -7923,6 +8034,7 @@ fn infer_do(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    let in_tail = fresh.this_form_in_tail();
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
@@ -7946,7 +8058,8 @@ fn infer_do(
             }
         }
     }
-    // Final: its inferred type IS the do form's type.
+    // Final: its inferred type IS the do form's type. Carries tail position.
+    fresh.set_in_tail(in_tail);
     let val = infer(&args[last_idx], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     match val {
         Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -7982,6 +8095,8 @@ fn infer_let(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    // Snapshot BEFORE any child infer overwrites this_form_in_tail.
+    let in_tail = fresh.this_form_in_tail();
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.is_empty() {
         // HARVEST (236.2): silent-by-intent — empty let form; no body; return nil placeholder.
@@ -8103,6 +8218,8 @@ fn infer_let(
         }
     }
 
+    // Last body form carries tail position (eval_let_tail).
+    fresh.set_in_tail(in_tail);
     let val = infer(&body_ast, env, &extended, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(ref ty) = val {
         // Excursus 002 stone 1a — a Peer must not escape a `let` that created
@@ -8127,6 +8244,21 @@ fn infer_let(
             body_ast.span(),
             fresh.enclosing_fn().unwrap_or(""),
         );
+        // Excursus 002 stone 2 — both conditions: this let is in tail position
+        // AND its tail expression is a user-function call taking a Peer of a
+        // Handle created here. Skipping the first makes every non-tail let a
+        // false positive (rows 2 and 3).
+        if in_tail {
+            if let Some(tail_expr) = body_forms.last() {
+                push_handle_tail_escape(
+                    &mut local_errors,
+                    env,
+                    &wall_scope,
+                    tail_expr,
+                    fresh.enclosing_fn().unwrap_or(""),
+                );
+            }
+        }
     }
     match val {
         Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -15808,9 +15940,15 @@ fn infer_boolean_shortcircuit(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    let in_tail = fresh.this_form_in_tail();
     let mut local_errors: Vec<CheckError> = Vec::new();
     // `and` / `or` take any number of :bool args, return :bool.
+    // The last operand carries tail position (eval_and_tail / eval_or_tail).
+    let last = args.len().saturating_sub(1);
     for (i, arg) in args.iter().enumerate() {
+        if i == last {
+            fresh.set_in_tail(in_tail);
+        }
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {

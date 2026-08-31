@@ -94,6 +94,9 @@
 ;; `h` is bound HERE and used ONLY inside the tail expression. If the checker did not still hold
 ;; `h`'s type while inferring that tail call, this could not resolve at all. It type-checking is
 ;; the positive half; the transient negative below is what makes it discriminating.
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: the visibility half of
+;; this probe is itself a tail escape (start in the let, consume-peer in the body).
+;; The file must keep running; rune the instrument, never the acceptance criterion.
 (:wat::core::defn :c2::binding-is-visible-in-the-tail [] -> :wat::core::i64
   (:wat::core::let
     [h (:c2::alpha/start :locus (:wat::spawn::thread) :record (:c2::alpha::Record :n 0))]
@@ -105,6 +108,9 @@
 ;; severed service. When the stone lands, THIS function is what must stop compiling — and
 ;; `:c2::held` directly below it, which differs only in that the drive sits in a binding, is what
 ;; must KEEP compiling. A wall that cannot tell these two apart is too blunt to ship.
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: this is the shape the
+;; wall rejects; the probe must construct it so user::main can print the race. The
+;; acceptance criterion lives in probes/red-tail-escape.wat and is NOT runed.
 (:wat::core::defn :c2::the-tail-escape-the-wall-must-reject [] -> :wat::core::i64
   (:wat::core::let
     [h (:c2::alpha/start :locus (:wat::spawn::thread) :record (:c2::alpha::Record :n 0))

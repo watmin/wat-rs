@@ -188,6 +188,9 @@
     n))
 
 ;; B — poll-until in the BODY (h's last use is the `conn` binding)
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: this function is the
+;; tail-escape the wall must name; the probe has to construct it to print the
+;; discrimination table. Rune the instrument, never the acceptance criterion.
 (:wat::core::defn :sched::hold-in-body [] -> :wat::core::i64
   (:wat::core::let
     [h  (:sched::ticker/start :locus (:wat::spawn::thread)
@@ -241,6 +244,9 @@
 ;; selectable set. The ONLY thing this shares with B is: a Handle bound in a let, and a call in the
 ;; let's TAIL position. If F closes too, self-scheduling is a bystander and the defect is general to
 ;; every service handle in the language.
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: F is a deliberate tail
+;; escape (Handle bound in a let, user-fn call in the let's tail). The probe must
+;; construct it to print the discrimination table.
 (:wat::core::defn :sched::plain-service-tail [] -> :wat::core::i64
   (:wat::core::let
     [h (:sched::ticker/start :locus (:wat::spawn::thread)
@@ -269,6 +275,8 @@
     (:wat::kernel::RecvOutcome::Stopped "Stopped")
     (:wat::kernel::RecvOutcome::Closed "Closed (MUTE — the reason was dropped)")))
 
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: same tail-escape shape as
+;; plain-service-tail; this function prints the Lost cause a caller would see.
 (:wat::core::defn :sched::severed-reason [] -> :wat::core::String
   (:wat::core::let
     [h (:sched::ticker/start :locus (:wat::spawn::thread)

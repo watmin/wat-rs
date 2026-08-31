@@ -71,6 +71,9 @@
          ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))]
     (:wat::core::do (:rw::try c "row1 non-tail       ") nil)))
 
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: this file measures
+;; which Handle field keeps a tail-called service alive. It must construct the
+;; escape. Rune the instrument, never the acceptance criterion.
 (:wat::core::defn :rw::row-tail-bare [] -> :wat::core::nil
   (:wat::core::let
     [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
@@ -81,6 +84,8 @@
          ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))]
     (:rw::try c "row2 tail, no handle")))
 
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: tail escape with Handle
+;; carried as an extra arg; the probe must construct it.
 (:wat::core::defn :rw::row-tail-carry-handle [] -> :wat::core::nil
   (:wat::core::let
     [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
@@ -91,6 +96,8 @@
          ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))]
     (:rw::try-with-handle c h "row3 tail, carry h  ")))
 
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: tail escape with lineage
+;; carried as an extra arg; the probe must construct it.
 (:wat::core::defn :rw::row-tail-carry-lineage [] -> :wat::core::nil
   (:wat::core::let
     [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
@@ -101,6 +108,8 @@
          ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))]
     (:rw::try-with-lineage c (:rw::bag-svc::Handle/handle h) "row4 tail, carry lineage")))
 
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: tail escape with addr
+;; carried as an extra arg; the probe must construct it.
 (:wat::core::defn :rw::row-tail-carry-addr [] -> :wat::core::nil
   (:wat::core::let
     [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))

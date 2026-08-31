@@ -4411,9 +4411,25 @@ fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value
                     }
                 }
             }
+            // Tail-carrying forms: one table (`crate::tail::TailForm`), two consumers.
+            // Exhaustiveness of this match is the compile-time half of row 7; the
+            // parse of these `eval_*_tail(` calls is the other half.
+            if let Some(form) = crate::tail::tail_form(head) {
+                return match form {
+                    crate::tail::TailForm::If => eval_if_tail(args, &list_span, env, sym),
+                    crate::tail::TailForm::Match => eval_match_tail(args, &list_span, env, sym),
+                    // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
+                    // for eval_tail's caller (apply_function trampoline uses bare Value).
+                    crate::tail::TailForm::Let => {
+                        eval_let_tail(args, &list_span, env, sym).map(|tv| tv.value_owned())
+                    }
+                    crate::tail::TailForm::Do => eval_do_tail(args, &list_span, env, sym),
+                    crate::tail::TailForm::And => eval_and_tail(args, &list_span, env, sym),
+                    crate::tail::TailForm::Or => eval_or_tail(args, &list_span, env, sym),
+                    crate::tail::TailForm::AnnForm => eval_ann_form_tail(args, &list_span, env, sym),
+                };
+            }
             match head {
-                ":wat::core::if" => eval_if_tail(args, &list_span, env, sym),
-                ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
                 // Arc 255.1c-kernel-remainder (home #8) — the `:wat::kernel::serve-dispatch-op`
                 // tail-position special-case that used to live HERE moved to the intrinsic
                 // registry (`src/intrinsic/kernel/serve.rs`); the fallthrough `_ =>
@@ -4422,19 +4438,6 @@ fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value
                 // — the SAME delegate, still evaluating `body` via `eval_tail` internally, so the
                 // `serve` self-recursion trampoline is preserved. See that module's doc for the
                 // full derivation (verified safe against `apply_function`'s trampoline loop).
-                // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
-                // for eval_tail's caller (apply_function trampoline uses bare Value).
-                ":wat::core::let" => {
-                    eval_let_tail(args, &list_span, env, sym).map(|tv| tv.value_owned())
-                }
-                ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
-                // Arc 278 #59 — `and`/`or`/`ann-form` mirror the `if`/`match`/`let`/`do` pattern
-                // above: each is a legitimate tail context (see eval_and_tail/eval_or_tail/
-                // eval_ann_form_tail's docs for what each one does and, for and/or, the RULED
-                // trade this makes).
-                ":wat::core::and" => eval_and_tail(args, &list_span, env, sym),
-                ":wat::core::or" => eval_or_tail(args, &list_span, env, sym),
-                ":wat::core::ann-form" => eval_ann_form_tail(args, &list_span, env, sym),
                 // DESIGN-STONE-insert-prime-split — foldl's inner is tail; without this
                 // arm the defclause TCO path apply_function's the wat 2-ary wrapper (~1.2 µs).
                 ":wat::rete::insert" => {

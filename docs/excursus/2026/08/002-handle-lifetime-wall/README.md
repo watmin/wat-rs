@@ -22,7 +22,7 @@ tightest shape, so it can only ever be a backstop. A compile-time wall does not 
 | stone | what | state |
 |---|---|---|
 | 1 | **creation-scope escape** — a peer escaping a `let` (1a) or a function (1b) that created the handle | ✅ struck — `CheckErrorKind::HandleCreationEscape`, floor 5132 |
-| 2 | **tail escape** — a peer leaving via a tail call | ◀ drawn, not struck |
+| 2 | **tail escape** — a peer leaving via a tail call | ✅ struck — `CheckErrorKind::HandleTailEscape`, floor 5135 |
 
 ## Two lessons this excursus has already paid for
 

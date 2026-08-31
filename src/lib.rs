@@ -90,6 +90,7 @@ pub mod parser;
 pub mod resolve;
 pub mod restriction_entry;
 pub mod runtime;
+pub(crate) mod tail;
 pub mod stream;
 pub mod rust_deps;
 pub mod panic_hook;

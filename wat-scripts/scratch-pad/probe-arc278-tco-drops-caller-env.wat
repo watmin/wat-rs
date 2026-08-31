@@ -86,6 +86,9 @@
     (:wat::core::do (:tco::try c "service : non-tail") nil)))
 
 ;; ── row 2: the SAME call, now the let's tail — TCO drops the frame first ─────────
+;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: this is the TCO
+;; measurement (non-tail served vs let-tail closed). It must construct the escape.
+;; Rune the instrument, never the acceptance criterion.
 (:wat::core::defn :tco::service-let-tail [] -> :wat::core::nil
   (:wat::core::let
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
