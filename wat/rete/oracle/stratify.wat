@@ -24,8 +24,18 @@
 ;;
 ;; WHY this file: numbering is one reason-to-change (the produced/negated/consumed
 ;; type graph). Fire-stratified drive stays in fire.wat.
-;; WHY fire-fixpoint unchanged: it is correct within a stratum (monotone,
-;; finite, no negation-ordering hazard). Stratification is the ordering layer.
+;;
+;; ⛔ THIS FILE USED TO CLAIM `fire-fixpoint` NEEDED NO CHANGE — *"it is correct within a stratum
+;; (monotone, finite, no negation-ordering hazard)"*. THE MONOTONE PREMISE WAS FALSE, and it was
+;; false about the very failure mode named three paragraphs up: *"leak a spurious derived fact
+;; that is never retracted"*. AN ACCUMULATE IS NOT MONOTONE — its result is SUPERSEDED, not
+;; extended, when its source grows mid-fixpoint — and stratification, which orders negation, says
+;; nothing about that. Measured against Clara 0.24.0 (2026-08-31): a `Tally` from
+;; `(acc::count :from Out)` over an Out that grows 0→1→2 left THREE tallies in the oracle where
+;; Clara and native each keep ONE. `fire-fixpoint` now has a second, SHRINKING half
+;; (`fire-support-fixpoint`, wat/rete/oracle/fire.wat) that drops a fact whose support is gone.
+;; Stratification is still the ordering layer; it was never the supersession layer.
+;; Probe: tests/rete/probe_arc278_oracle_accumulate_supersedes.rs
 
 ;; StratifyAcc — sweep accumulator: current type-strata map + change flag.
 ;; type-strata: (HashMap :- [String i64]) mapping produced-type FQDN → stratum number.

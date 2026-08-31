@@ -228,14 +228,45 @@
     facts
     derived))
 
-;; fire-fixpoint — internal fixpoint driver over fire-once: re-run the full match over a
-;; dedup-growing fact set until a round adds no new fact (monotone-finite termination — datalog property).
+;; retain-supported — keep exactly the facts still SUPPORTED by `supported`, drop the rest.
+;;
+;; A PLAIN FILTER, and that is load-bearing twice over:
+;;
+;;   1. ⛔ IT MUST NOT DEDUP. `insert$oracle` never dedups, so a caller that stages the same fact
+;;      twice genuinely holds it twice and its alpha memory carries two elements. Collapsing here
+;;      would silently retract a duplicate the INPUT contains — a retraction with no cause.
+;;   2. Because the result is a sub-MULTISET of `facts` (order and multiplicity preserved for
+;;      everything kept), `length(out) == length(in)` holds if and only if NOTHING was dropped.
+;;      That is what lets `fire-support-fixpoint` below keep a length test while retracting —
+;;      see the ⚠ there.
+(:wat::core::defn :wat::rete::retain-supported
+  [facts     <- :wat::core::PersistentVector
+   supported <- :wat::core::PersistentVector]
+  -> :wat::core::PersistentVector
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector
+                     f   <- :wat::core::Record]
+      -> :wat::core::PersistentVector
+      (:wat::core::if (:wat::core::PersistentVector/contains? supported f)
+        (:wat::core::PersistentVector/conj acc f)
+        acc))
+    (:wat::core::PersistentVector)
+    facts))
+
+;; fire-grow-fixpoint — the GROWING half: re-run the full match over a dedup-growing fact set
+;; until a round adds no new fact (monotone-finite termination — datalog property).
 ;; Re-run-from-scratch (pure replay) each round: fire-once recomputes all memories from Session.facts,
 ;; so derived facts in facts are matched exactly like input facts on the next round. The oracle
 ;; never incrementals — native fire is `fire_fixpoint_delta` (P4b).
 ;; Internal: the returned Session.facts = the whole closure (input + derived), which is what the
 ;; matching machinery needs across rounds. The PUBLIC caller (fire-rules) restores facts = input only.
-(:wat::core::defn :wat::rete::fire-fixpoint
+;;
+;; ⛔ THIS HALF ALONE IS NOT THE FIXPOINT ANY MORE. `merge-facts` only ADDS, so the closure it
+;; reaches contains every fact ever derived — including one derived from an accumulate result that
+;; a LATER round superseded. Measured (Clara 0.24.0 is the authority): a `Tally` from
+;; `(acc::count :from Out)` where Out grows 0→1→2 leaves THREE tallies here, asserting n=0 and n=1
+;; alongside the true n=2. `fire-support-fixpoint` is the second half that removes them.
+(:wat::core::defn :wat::rete::fire-grow-fixpoint
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   ;; ⛔ HAND-FACED (arc 278 the fire-outcome wall) — a STDLIB site, per-site semantic, and the
@@ -246,18 +277,18 @@
                                ((:wat::rete::FireOutcome::Fired __f) __f)
                                ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds)
                                  (:wat::kernel::assertion-failed!
-                                   ":wat::rete::fire-fixpoint: the oracle hit a memory ceiling — the oracle enforces none"
+                                   ":wat::rete::fire-grow-fixpoint: the oracle hit a memory ceiling — the oracle enforces none"
                                    :wat::core::None :wat::core::None))
                                ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still)
                                  (:wat::kernel::assertion-failed!
-                                   ":wat::rete::fire-fixpoint: the oracle hit a round cap — the oracle enforces none"
+                                   ":wat::rete::fire-grow-fixpoint: the oracle hit a round cap — the oracle enforces none"
                                    :wat::core::None :wat::core::None)))
                     derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
                     old-facts (:wat::rete::Session/facts session)
                     new-facts (:wat::rete::merge-facts old-facts derived)]
     (:wat::core::if (:wat::core::= (:wat::core::length new-facts) (:wat::core::length old-facts))
       fired
-      (:wat::rete::fire-fixpoint
+      (:wat::rete::fire-grow-fixpoint
         (:wat::rete::Session
           :network (:wat::rete::Session/network fired)
           :rules (:wat::rete::Session/rules   fired)
@@ -267,6 +298,88 @@
           :facts new-facts
           :next-id (:wat::rete::Session/next-id fired)
           :query-memory (:wat::rete::Session/query-memory fired))))))
+
+;; fire-support-fixpoint — the SHRINKING half: drop facts whose support is gone.
+;;
+;; THE CONTRACT IT ENFORCES, stated model-theoretically (this is the oracle's own vocabulary —
+;; a fact set, a full replay, membership — NOT native's delta/token machinery):
+;;
+;;     every fact in the answer is either an INPUT fact, or is re-derived by ONE full replay
+;;     over the answer itself.                                     (well-supportedness)
+;;
+;; `merge-facts` in the growing half cannot enforce that, because a derivation is not permanent:
+;; an `accumulate` over a source that grows mid-fixpoint does not EXTEND its result, it SUPERSEDES
+;; it. The fact derived from the old result has no support left and must go.
+;;
+;; The step is `F := F ∩ (base ∪ D(F))`, where D(F) is `fire-once$oracle`'s production memory over
+;; F — i.e. keep only what one honest replay still stands behind, and never invent anything.
+;;
+;; ⚠ WHY A LENGTH TEST IS STILL EXACT HERE, when a retracting loop normally cannot use one.
+;; The general hazard is real and was called out in advance: retraction can hold the length equal
+;; while the SET changes, terminating on a FALSE fixpoint — a silent wrong answer, worse than the
+;; defect. It cannot happen here because the step is INTERSECTION WITH F ITSELF, so
+;; `new-facts ⊆ old-facts` as a multiset ALWAYS (see `retain-supported`: a plain filter). For a
+;; sub-multiset, equal length ⟺ nothing was dropped ⟺ equal set. The length test is not a
+;; cheaper approximation of the set test — on a filter it IS the set test.
+;;
+;; ⚠ AND WHY IT TERMINATES. `F` strictly shrinks on every recursion (that is the only branch that
+;; recurses) and is finite, so the descent is bounded by `length(F)` steps. Note this is why the
+;; step intersects rather than replacing `F` with `base ∪ D(F)` outright: the latter is textbook
+;; naive evaluation and reaches the same answer on every shape measured here, but it is a
+;; NON-monotone sequence in both directions and can oscillate forever on a rule set with no
+;; fixpoint (`count(Out) = 0 => insert Out`), and the oracle enforces no round cap to catch it.
+;;
+;; ⚠ AND WHY IT CHANGES NOTHING FOR MONOTONE RULE SETS. If no rule is an accumulate, D is monotone,
+;; the grown closure C satisfies C = base ∪ D(C), so the first step retains everything and stops.
+;; One extra `fire-once` per fire-fixpoint, zero fact movement — the whole existing differential
+;; corpus sees the same answers it saw before.
+(:wat::core::defn :wat::rete::fire-support-fixpoint
+  [base    <- :wat::core::PersistentVector
+   session <- :wat::rete::Session]
+  -> :wat::rete::Session
+  ;; ⛔ HAND-FACED — same reason as `fire-grow-fixpoint` above.
+  (:wat::core::let [fired     (:wat::core::match (:wat::rete::fire-once$oracle session)
+                               ((:wat::rete::FireOutcome::Fired __f) __f)
+                               ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds)
+                                 (:wat::kernel::assertion-failed!
+                                   ":wat::rete::fire-support-fixpoint: the oracle hit a memory ceiling — the oracle enforces none"
+                                   :wat::core::None :wat::core::None))
+                               ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still)
+                                 (:wat::kernel::assertion-failed!
+                                   ":wat::rete::fire-support-fixpoint: the oracle hit a round cap — the oracle enforces none"
+                                   :wat::core::None :wat::core::None)))
+                    derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
+                    ;; base ∪ D(F) — everything that still has a reason to be here.
+                    supported (:wat::rete::merge-facts base derived)
+                    old-facts (:wat::rete::Session/facts session)
+                    new-facts (:wat::rete::retain-supported old-facts supported)]
+    (:wat::core::if (:wat::core::= (:wat::core::length new-facts) (:wat::core::length old-facts))
+      fired
+      (:wat::rete::fire-support-fixpoint base
+        (:wat::rete::Session
+          :network (:wat::rete::Session/network fired)
+          :rules (:wat::rete::Session/rules   fired)
+          :alpha-memory (:wat::rete::Session/alpha-memory fired)
+          :beta-memory (:wat::rete::Session/beta-memory  fired)
+          :production-memory (:wat::rete::Session/production-memory fired)
+          :facts new-facts
+          :next-id (:wat::rete::Session/next-id fired)
+          :query-memory (:wat::rete::Session/query-memory fired))))))
+
+;; fire-fixpoint — the per-stratum fixpoint: GROW to the closure, then SHRINK to what the closure
+;; still supports. Two halves because they have two different termination arguments (monotone
+;; growth in a finite universe; strict descent inside a finite set) and neither one alone is the
+;; answer: growth without the shrink accretes superseded accumulate results, and the shrink alone
+;; would never reach the facts a cascade has to derive first.
+;;
+;; `base` for the shrink is THIS call's input facts — for stratum k that is the accumulated closure
+;; of strata 0..k-1, which are already established and are not up for retraction here.
+(:wat::core::defn :wat::rete::fire-fixpoint
+  [session <- :wat::rete::Session]
+  -> :wat::rete::Session
+  (:wat::rete::fire-support-fixpoint
+    (:wat::rete::Session/facts session)
+    (:wat::rete::fire-grow-fixpoint session)))
 
 ;; Stratification numbering lives in wat/rete/oracle/stratify.wat
 ;; (StratifyAcc + rule-produces through stratify). Fire-stratified drive stays here.
