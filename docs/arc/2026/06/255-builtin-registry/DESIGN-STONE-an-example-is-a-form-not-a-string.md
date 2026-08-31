@@ -31,9 +31,24 @@ blindness** — a `///` block cannot see a reader; a metadata map sits inside on
 
 - **A malformed example becomes unrepresentable**, not caught downstream.
 - **The wat side stops escaping.** No `\"` inside a string inside a map.
-- **One consumer gets simpler:** `src/intrinsic/reflect.rs:93` does
-  `parse_one_with_file(ex.expr, …)` today — it *re-parses the string into a form*. That line
-  disappears; it is handed the form.
+- ⚠ ~~**One consumer gets simpler:** `reflect.rs:93`'s re-parse disappears.~~ **FALSE for the Rust
+  half — corrected 2026-08-31 in pre-flight, before briefing.** Measured:
+
+  ```rust
+  ExampleSubmission { expr: &'static str, … }   // what the proc macro EMITS into the registry
+  DocComment.examples: Vec<DocExample>          // the RUNTIME struct wat-doc produces
+  ```
+
+  A `WatAST` is a heap structure and **cannot be `&'static` const data emitted by a proc macro**, so
+  the registry entry structurally cannot hold a form. `reflect.rs:93` keeps re-parsing for the
+  registry path — it is now re-parsing text already **proven parseable at compile time**.
+
+★ **So "one shape, both entry points" is achievable at the `DocComment` layer and impossible at the
+registry-entry layer.** The stone lands there, and the win moves with it:
+
+**A malformed `@example` becomes a COMPILE ERROR at the macro** — `Record/field-at`'s
+`#=> <r's first field's value>` would have failed the build, instead of surfacing later as a
+`TrailingContent` in a reflection test.
 
 ## ~~⚠ THE BLOCKER~~ — ⛔ NOT A BLOCKER. See the ruling below.
 
