@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (eighth — EIGHT STRIKES, AND THE ORACLE ITSELF). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (ninth — NINE STRIKES; CLASS B IS CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline cd2ab4b37..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat cd2ab4b37..HEAD        # what they touched
+git log --oneline 7319c1ea4..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 7319c1ea4..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -88,6 +88,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | C1 | `119214aef` | the label follows the arithmetic — 103 accumulators |
 | D1 | `2733b9bd9` | a bare keyword types as `enum` only for a UNIT variant that EXISTS |
 | **oracle** | `16f504e14` | **an accumulate result is SUPERSEDED, not extended** |
+| **B1** | `7319c1ea4` | **a `with-` form's scope is closed by a `Drop`, not by a release call** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -135,18 +136,34 @@ mutation that was really a coverage finding; a file I said to rune that already 
 that forbade what its own BRIEF prescribed; and a gate spec that **could not see its own flagship
 defect**. If you draw a strike, ask the rider where the brief was thin — that is where the value is.
 
-**THE NEXT WORK — CLASS B, the lease leak.** `wat/rete/syntax.wat:308`: `with-network` /
-`with-overlay` release the arm lease in a `do` AFTER the body, so **any raise skips it** — and the
-ceiling-breach path raises INSIDE that body, so the leak is guaranteed exactly when memory pressure
-is highest. The lease is the sole owner count; a miss pins the whole `InternedNetwork` until thread
-end. **`grep 'impl Drop' src/rete/` is EMPTY.** Its doc claims parity with `with-open-file`; a
-`let`+`do` is not a scope guard. Found by `secare`, verified on the disk, **never driven** — drive
-it first, as every row this session has rewarded.
+✅ **CLASS B IS CLOSED (`7319c1ea4`), and the root was NOT what the work list said.** The release
+sat in a `do` after the body; a wat error and a host panic each skipped it, both driven RED (the
+two are separate mechanisms — `assertion-failed!` PANICS, `runtime.rs:15922` — and a first probe
+that rode only the panic **blew past its own assertion**, failing with no message, which reads
+exactly like a test that ran). But `with-open-file` has the **byte-identical** `let`+`do` shape and
+does not leak: its resource is a Rust value whose `Drop` closes the fd. **The shape was never the
+defect; the absence of an OWNER is.** An `ArmLease` guard now adopts `compile-all`'s lease and the
+`do` is DELETED, not supplemented.
 
-Behind it: **A6** (unbounded `unpack_expr` recursion → SIGSEGV from a hostile Export), **D3**
-(unchecked `CallUser` arity — a surplus arg written into an arbitrary slot), **A3/A5/A7**, and
-**D1's residual** (a `UnknownEnumVariant` kind so rete's refusal names the same thing core's does —
-small, and it completes the agreement story).
+★ **TWO HOLES THE DESIGN MISSED, BOTH FOUND BY DRIVING.** `rete_arm_release` needed `try_with`: a
+guard dropping after `ARM_TABLE` is destroyed does not panic, it **ABORTS** (`thread local panicked
+on drop`, SIGABRT) — and reverting it changes nothing observable, so that is a **coverage** finding,
+not a covered one. And `:rust::rete::ArmLease` is hand-minted, so `is_registered_rust_opaque` cannot
+see it and `is_pure_type`'s `None => true` arm judged **a live thread-local resource handle PURE** —
+admissible as a `Record` field and onto the wire. Driven with an unregistered positive control.
+
+⛔ **AND THE SHARPEST CORRECTION ANY RIDER HAS RETURNED: A COUNT IN A SCORECARD IS A CEILING ON THE
+EXECUTOR.** My EXPECTATIONS row 11 pinned the floor at 5,188 + **exactly three** tests, so a fourth
+arm would have falsified my own row before I ran it. Two real arms went undriven because of my
+arithmetic. Pin a floor-bound and a direction, never an equality. Full reasoning in
+`strike-lease-unwind/SCORE.md` § "Where MY brief was thin".
+
+**THE NEXT WORK — A6**, the last unbounded recursion: `unpack_expr` / `check_expr_slots`
+(`export.rs:746,296,275`) recurse over wire-chosen nesting with no depth bound → SIGSEGV, no wat
+error, no span, reachable from a wat program building nesting iteratively into
+`(:wat::rete::import …)`. Same Class A root as A1/A2/A4 — an invariant proven at one door and
+assumed at the others. Behind it: **D3** (unchecked `CallUser` arity), **A3/A5/A7**, and **D1's
+residual**.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
