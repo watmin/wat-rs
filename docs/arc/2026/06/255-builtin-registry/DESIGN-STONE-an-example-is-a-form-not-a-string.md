@@ -51,7 +51,36 @@ a user wrote               →   (:wat::core::* x 2)
 form→wat-source printer, and `render-doc` would start showing users a spelling they cannot type —
 which is the same defect class as the retired-name lint's whole reason for existing.
 
-## THE FORK — the builder's, because both answers are defensible
+## ✅ THE FORK IS RULED — B, and my framing of it was wrong
+
+> **Builder, 2026-08-31:** *"we are movign to only edn.... 251 demanded 255.....
+> `(wat.core/+ 40 2) #=> 42`"*
+
+⛔ **I called EDN spelling "a spelling a user cannot type". That measured against TODAY, not against
+the road** — which is the builder's own ruling of 2026-08-27, on this seam:
+
+```
+3  kill `::` in keywords    4  every call head a symbol    5  = EDN/Clojure-compliant syntax
+```
+
+`(wat.core/+ 40 2)` is not a foreign spelling. **It is the destination**, and doc output reaching it
+early is a preview rather than a regression. Arc 251 parked precisely to let 255 clear the way —
+*"we park 251 and 278 on 255's clean up… 255 will force us to organize"*.
+
+★★ **AND THERE IS A STRONGER ARGUMENT FOR FORMS THAN THE ONE THIS DESIGN MADE, which I missed:**
+
+**A stored string must be MIGRATED when steps 3–5 land. A stored form does not.**
+`"(:wat::core::+ 40 2)"` is text — every example in the corpus would need a codemod rewrite at the
+syntax flip. A form renders in whatever spelling is current, so **examples written today survive the
+flip untouched.**
+
+That inverts the fork's cost table: option A does not "wait safely" — it accumulates 400-odd string
+examples that a later codemod has to carry across the very migration this arc is clearing the way
+for. **The blocker I named was pointing the wrong direction.**
+
+## ~~THE FORK~~ — kept struck, for the record
+
+
 
 | | what ships | cost |
 |---|---|---|
