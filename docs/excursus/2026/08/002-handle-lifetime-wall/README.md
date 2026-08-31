@@ -25,6 +25,16 @@ tightest shape, so it can only ever be a backstop. A compile-time wall does not 
 | 2 | **tail escape** — a peer leaving via a tail call | ✅ struck — `CheckErrorKind::HandleTailEscape`, floor 5135 |
 | 3 | **param ownership** — a handle created by the caller as a temporary, tail-escaped by the callee | ✅ struck — `HandleTailEscape` widened downward, floor 5136 |
 
+**All three struck; the invariant is closed.** Every road was measured rather than assumed, and the
+census says zero live code pays for it: 1699 files, and the only rejections are the three deliberate
+red probes in `probes/`.
+
+★ **The record worth keeping is that all three stones also corrected a specification error of mine**
+— see each SCORE's delta section. One shape underneath them: *rows written from memory of a
+measurement rather than from the rule just written.* The counter-practice that worked every time was
+to **run the census before writing the acceptance criterion**; stone 3's rule came from probing
+roads 3 and 4 first and is the only one that needed no correction.
+
 ## The invariant, and the four cells
 
 *A peer must not outlive its handle.* Asked in two directions the answer differs, and that IS the
