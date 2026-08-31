@@ -33,13 +33,13 @@
 ;; so `:peers [:wat::query::Store]` is a true bijection (journal.wat's shape).
 
 ;; ── surface ─────────────────────────────────────────────────────────────────────
-(:wat::core::defrecord :queue::Envelope
-  [id   <- :wat::core::String
-   body <- :wat::core::String])
-
 (:wat::core::defsurface :queue::Queue :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :queue::Queue::SendRequest
+  [(:wat::core::defrecord :queue::Envelope
+     [id   <- :wat::core::String
+      body <- :wat::core::String])
+
+   (:wat::core::defrecord :queue::Queue::SendRequest
      [queue <- :wat::core::String
       body  <- :wat::core::String
       now-ns <- :wat::core::i64])

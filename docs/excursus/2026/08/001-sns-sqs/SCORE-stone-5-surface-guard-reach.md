@@ -135,7 +135,33 @@ And it **reused `parse_type_node`** — *"the existing door for a List in a type
 own comment — instead of writing a parser. The BRIEF asked for that; it is the difference
 between a fix and a fork.
 
-## ★ Row 7 came back ZERO, and the instrument is why that is believable
+## ⛔ CORRECTED at stone 6 — ROW 7 WAS NOT ZERO. THERE WAS A SECOND CASE, AND IT WAS MASKED.
+
+`wat-scripts/fanout/circuit.wat` carries the **identical defect**: `:fanout::Outcome` is
+declared at line 30, **beside** `:fanout::Worker` (line 69), and `Worker::DrainResponse::Ok`
+references it as `(Vector :- [:fanout::Outcome])`. `Envelope`'s twin.
+
+It did not appear at stone 5 because **the circuit's FIRST error was the loaded queue's
+`Envelope`, and the check stops there.** Moving `Envelope` in stone 6 unmasked it. Measured
+after stone 6: `--check wat-scripts/fanout/circuit.wat` → `1`,
+*"references `:fanout::Outcome` which is not declared"*.
+
+★ **The instrument argument below is sound about FILES and wrong about DEFECTS.**
+`every_wat_scripts_file_loads` reports which **files** fail. It does not report every defect
+**within** a file — a type-check halts at the first error. Two files failed; one of them was
+hiding a second defect behind the first.
+
+**That is the same failure this excursus has now catalogued four times: an instrument reporting
+truthfully within a scope narrower than the claim made from it.** I built a careful three-part
+coverage argument and never asked whether a passing *file count* implies an exhausted *defect
+list*. It does not.
+
+The corrected reading: the widening exposed **two** latent fork-failures, not zero — the queue's
+and the circuit's — and they surfaced one stone apart because the first shadowed the second.
+
+The original section follows, left standing so the correction is legible against it.
+
+## ~~★ Row 7 came back ZERO, and the instrument is why that is believable~~ (SUPERSEDED)
 
 I wrote in the BRIEF that *"any surface in the tree could carry the same latent defect"* and
 told the executor not to let the count discourage the widening. **The count was zero.** My
