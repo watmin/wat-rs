@@ -47,13 +47,41 @@ slot bounds, three compat gates). **None is a graph wall.**
 
 | id | site | what | fix shape |
 |---|---|---|---|
-| **A1** | `export.rs:2112-2128` | no structural validation of the imported graph: nothing checks a child id resolves, that a Negation/Exists/Accumulate `aid` names an **Alpha**, or that `child > parent`. `node.rs:192` and `arm.rs:592` both state the passes **require** ascending id order. | a fourth wall between phases 3 and 5, refusing with `malformed` like the other three — then state it in law 3 so the wall count and the walls agree |
-| **A2** | `acc.rs:64,72,76,83,129,139-142`; `fire/mod.rs:1400,1406,1415,1615-1628` | `panic!` licensed by a rune reading *"AccFold compile proved i64"* — a proof `import_export` never runs. `unpack_fold` (`export.rs:1382`) takes the fold key straight off the wire; `import_export` interns it at `:2199`. No `catch_unwind` on the program path. Rust panic, no span, no rule named. | return `Result<_, EvalBreak>` as `driver_of` (`fire/mod.rs:239`) already does for the same class — **a wire-reachable invariant may not be spelled `panic!`**. A rune here must name the DOOR, not the compiler. |
+| ~~**A1**~~ ✅ `788e5b66d` | `export.rs:2112-2128` | no structural validation of the imported graph: nothing checks a child id resolves, that a Negation/Exists/Accumulate `aid` names an **Alpha**, or that `child > parent`. `node.rs:192` and `arm.rs:592` both state the passes **require** ascending id order. | a fourth wall between phases 3 and 5, refusing with `malformed` like the other three — then state it in law 3 so the wall count and the walls agree |
+| ~~**A2**~~ ✅ `c449cd24d` (acc.rs half; `fire/mod.rs` remains) | `acc.rs:64,72,76,83,129,139-142`; `fire/mod.rs:1400,1406,1415,1615-1628` | `panic!` licensed by a rune reading *"AccFold compile proved i64"* — a proof `import_export` never runs. `unpack_fold` (`export.rs:1382`) takes the fold key straight off the wire; `import_export` interns it at `:2199`. No `catch_unwind` on the program path. Rust panic, no span, no rule named. | return `Result<_, EvalBreak>` as `driver_of` (`fire/mod.rs:239`) already does for the same class — **a wire-reachable invariant may not be spelled `panic!`**. A rune here must name the DOOR, not the compiler. |
 | **A3** | `expr_ir/mod.rs:947` / `arm.rs:429` | acc-form fence admits on pure ∧ deterministic ∧ total ∧ `primitive?` — and `primitive?` IS "has a `RETE_OPS` row". `lower_named_rete_fn` then resolves via `sym.get(head)` (USER table) with no `rete_op_for` branch; sibling `lower_list` has one. `PersistentVector/length` fires in all 3 other positions, unreachable here. Raise says `unknown rete-defn` about a minted row. | give the lowering the ladder the fence implies — `rete_op_for` before `sym.get`. ✅ **FAILING GATE ALREADY BANKED**: `harness-experiri/` — land it WITH the fix, RED→GREEN |
 | **A4** | `alloc_counter.rs:118,133` / `session.rs:1404` | `SESSION_ORIGIN` is one `Cell` per THREAD, rebased unconditionally by every `compile-all` (`arm.rs:1205`). Second session re-bases the first; `saturating_sub` then floors the reading at **0 — no ceiling at all for the rest of that session's life**. `arm_lease.rs:141` is a GREEN test holding two live sessions on one thread. | key the origin the way `ARM_TABLE` already keys entries — by network identity — and pass the session into `session_ceiling_breach`. `origin > thread_bytes()` is not a zero; it is proof the origin belongs to another session, and must refuse loudly |
 | **A5** | `arm.rs:1190`; `stratify.rs:852` | *"`compile-all` is the one door EVERY rule passes"* is unqualified and false at import and at hand-assembled Sessions. `stratify.rs:852` meets the imported case, comments *"saying so is the honest outcome"*, and then `continue`s — saying nothing to anyone. | qualify the sentence at the site (every **locally compiled** rule set) and make `stratify.rs:852` return an outcome the caller can see |
 | **A6** | `export.rs:746,296,275` | `unpack_expr` / `check_expr_slots` recurse unbounded over wire-chosen nesting. No depth bound on the path. SIGSEGV, no wat error, no span. Reachable from a wat program building nesting iteratively into `(:wat::rete::import …)`. | thread a depth counter, refuse past a stated bound with `malformed` |
 | **A7** | `export.rs:2128` + `pmap.rs:148` | import builds the network **O(N²)** (`from_pairs` linear-scans the accumulator per pair) with no node cap; and import calls neither `check_session_ceiling` nor `mark_session_origin`, so what it allocates is charged to nothing | add both calls at the import door; build through the trie arm directly at large pair counts |
+
+
+### ✅ A2b — THE SILENT ZERO. CLOSED `d081142a9`.
+
+Surfaced by A2's own rider, driven and deliberately not committed then. `operand_slot`'s
+`Option<usize>` carried TWO facts — `bucket.first()?` (empty bucket, where `Sum`'s identity
+genuinely is 0) and `.position(…)` (the var names nothing). `Sum` read the second as the first and
+returned `i64(0)`; `Min`/`Max`/`Mean` read it as absence and **silently dropped the derived fact**.
+One `Option`, two consumers, two different wrong answers. Split into
+`EmptyBucket` / `Slot(usize)` / `Unbound`, no `_ =>`; both `Unbound` arms refuse. Both arms
+mutation-proven independently, each reddening only its own probe.
+
+⚠ **AND THE ORCHESTRATOR'S COUNTER-PROOF ROW COULD NOT HAVE FAILED.** EXPECTATIONS named the
+existing `empty_case` tests as the proof that an empty bucket still yields the identity, and called
+that row "not optional". Both call `fold_i64s` DIRECTLY with `std::iter::empty()` — neither enters
+`fold_bucket`, neither touches `operand_slot`, neither covers `Sum`. They would have stayed green
+under exactly the over-correction the row existed to catch. The rider read them, said so, and BUILT
+the real counter-proof (3 tests through `fold_bucket` and `operand_slot`). Recorded as
+`[[a-named-counter-proof-is-still-a-claim]]`.
+
+### ⏭ NEW — the refusal span carries no information
+
+`acc_refusal` (`acc.rs:62`) expands `rust_caller_span!()` **in the helper body**, so all **11**
+refusal call sites in that file report location `acc.rs:62`. Only the message text distinguishes
+the arms — which is why A2b's two refusals had to spell out `:sum` vs `:min/:max/:mean` in prose.
+Introduced by `c449cd24d` and missed by both that rider and this orchestrator. Same class as
+Class E5 (`conformare`: `refuse_export_without_arm` gets a synthetic span at both call sites while
+the real one is a frame up). If that span is load-bearing anywhere, it is a strike.
 
 ---
 
