@@ -362,6 +362,21 @@ pub enum RecvError {
     /// Stays its own variant — NEVER folded into `Failed` (callers must not
     /// read the err channel for it; see the doc above).
     FrameTooLarge,
+    /// The far side was SEVERED: a service's owner released its handle, the
+    /// lineage channel drained, and the serve loop exited. Delivered as the
+    /// reserved `PEER_SEVERED_SENTINEL` on the peer's existing data channel
+    /// (`kernel::peer`), exactly as `PeerCrashed` is.
+    ///
+    /// Its own variant, never folded into `Disconnected` (which would restore
+    /// the mute: a clean-close label on a service that did not close cleanly)
+    /// and never into `PeerCrashed` (nothing crashed — mislabeling an orderly
+    /// owner-drop as an abnormal death is the class of lie arc 170 pulled out
+    /// when a healthy stopped peer was reported as "peer closed").
+    ///
+    /// BEST-EFFORT, like `PeerCrashed`: the sentinel is `try_send`, so a torn-down
+    /// pipe can beat it and the client then reads `Disconnected`. Its ARRIVAL is
+    /// information; its ABSENCE proves nothing about the owner.
+    PeerSevered,
     /// A raw transport failure with a carried reason: an io_uring
     /// submission/read error, invalid UTF-8 in a frame, a wire (EDN)
     /// decode failure, or a frame-scan malformed-frame rejection. The
@@ -423,6 +438,7 @@ impl std::fmt::Display for RecvError {
             RecvError::FrameTooLarge => f.write_str("frame exceeded cap (message larger than the receiver's max-message-bytes budget)"),
             RecvError::Failed(reason) => write!(f, "transport failed: {reason}"),
             RecvError::PeerCrashed => f.write_str("peer crashed (abnormal far-side crash — no reason; the crash reason is administrative and travels only to the owner's crash channel)"),
+            RecvError::PeerSevered => f.write_str("service severed: its owner released the service handle, so the serve loop exited (the lineage peer drained)"),
         }
     }
 }

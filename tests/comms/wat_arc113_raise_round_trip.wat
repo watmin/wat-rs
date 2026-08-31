@@ -49,6 +49,7 @@
           ((:wat::kernel::LociDiedError::RuntimeError _m) (:wat::core::Some "WRONG:RuntimeError"))
           (:wat::kernel::LociDiedError::Disconnected (:wat::core::Some "WRONG:Disconnected"))
           (:wat::kernel::LociDiedError::Stopped (:wat::core::Some "WRONG:Stopped"))
+          (:wat::kernel::LociDiedError::Severed (:wat::core::Some "WRONG:Severed"))
           ((:wat::kernel::LociDiedError::StartupError _m) (:wat::core::Some "WRONG:StartupError"))
           ((:wat::kernel::LociDiedError::EntryFormFailure _m) (:wat::core::Some "WRONG:EntryFormFailure"))
           ((:wat::kernel::LociDiedError::MainSignature _m) (:wat::core::Some "WRONG:MainSignature"))

@@ -1596,6 +1596,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   Disconnected             — the wire dropped (was ChannelDisconnected).
     //   Stopped                  — a stop was requested mid-recv, any locus (arc 170 intueri
     //                              cast: wat's word for this fact, not Rust's "shutdown").
+    //   Severed                  — the service's owner released its handle; the serve loop
+    //                              exited. Distinct from Disconnected: nobody holds the
+    //                              service, so a redial fails the same way.
     //   StartupError(message)    — the locus didn't come up (fork/exec fail,
     //                              or a remote ECONNREFUSED).
     //   EntryFormFailure(message)— the peer program's entry form was malformed.
@@ -1637,6 +1640,23 @@ fn register_builtin_types(env: &mut TypeEnv) {
             // fires, a stop was merely requested. Rust's own vocabulary (`trigger_shutdown`,
             // `RecvError::Shutdown`, …) is UNCHANGED; only this wat-visible variant moves.
             EnumVariant::Unit("Stopped".into()),
+            // The service's owner released its handle: the lineage channel drained
+            // and the serve loop exited. Its own variant rather than folding into
+            // `Disconnected`, and it is one of the TWO deaths a client is entitled
+            // to name (see the scrub in `src/runtime.rs`): the scrub hides what
+            // happened INSIDE a server -- a panic message, a runtime error, a bad
+            // return. `Severed` carries none of that. It is a fact about the
+            // RELATIONSHIP, nullary and reason-free, exactly as opaque as
+            // `Disconnected` and one bit more useful: `Disconnected` means the peer
+            // died and a redial may work, while `Severed` means nobody holds the
+            // service any more, so a redial fails identically and the fault is in
+            // the owner's own structure. Same argument arc 170/278 #73 made to let
+            // `Stopped` through.
+            //
+            // BEST-EFFORT on arrival (the sentinel is `try_send`; a torn-down pipe
+            // can beat it, and the client then sees `Disconnected`). Its ARRIVAL is
+            // information; its ABSENCE proves nothing about the owner.
+            EnumVariant::Unit("Severed".into()),
             // arc 170 slice 1i — structured exit variants for all peer death
             // paths. extract-panics / the recv' Lost decoder use the TypeEnv to
             // reconstruct these from EDN on round-trip; they must be registered

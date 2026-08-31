@@ -279,23 +279,9 @@ pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
 /// [`PEER_CRASHED_SENTINEL`]; see that constant's doc.
 pub(crate) const PEER_SEVERED_SENTINEL: &str = ":wat::kernel::__peer_severed__";
 
-/// The reason [`PEER_SEVERED_SENTINEL`] carries as `RecvError::Failed(..)`.
-///
-/// Deliberately states the FACT only, with no remedy attached: a remedy is a claim
-/// with a date on it, and the reason a handle is released early is a separate open
-/// question (`eval_let_tail` releases a `let` scope when a tail call leaves it). If
-/// that changes, this string must still be true.
-///
-/// Note where it does and does not arrive. A wat CLIENT does not read this text:
-/// `src/runtime.rs:6528` scrubs every genuine death to a reason-free
-/// `LociDiedError::Disconnected` at the trust boundary (arc 294 — "a client learns
-/// no server internals"), so what the client gains from this sentinel is the
-/// DISTINCTION — `Lost` rather than a mute `Closed` — not the words. The text is
-/// what a non-scrubbed reader (the transport tier itself, `RecvError`'s `Display`)
-/// reports.
-pub(crate) const PEER_SEVERED_REASON: &str =
-    "service severed: its owner released the service handle, so the serve loop exited \
-     (the lineage peer drained)";
+/// (The severed reason text now lives on `RecvError::PeerSevered`'s `Display`
+/// impl in `src/comms/mod.rs`, beside its crash twin's, rather than as a const
+/// here — one variant, one reason, one place.)
 
 /// Outcome of [`Peer::try_send`] / [`Peer::try_send_wire`] — Arc 278 Phase
 /// 3a (`BRIEF-send-wall-3a-try-send-outcome.md`). Distinguishes "the write
@@ -436,9 +422,7 @@ impl Peer {
             // The owner released the service handle. Carries its reason (never
             // `PeerCrashed` — nothing crashed) so the client's `recv'` reports
             // `Lost` with a cause instead of a mute `Closed`.
-            v if Self::is_peer_severed_sentinel(&v) => {
-                Err(RecvError::Failed(PEER_SEVERED_REASON.to_string()))
-            }
+            v if Self::is_peer_severed_sentinel(&v) => Err(RecvError::PeerSevered),
             v => Ok(v),
         }
     }
@@ -539,7 +523,7 @@ impl Peer {
             return Err(RecvError::PeerCrashed);
         }
         if wire == PEER_SEVERED_SENTINEL {
-            return Err(RecvError::Failed(PEER_SEVERED_REASON.to_string()));
+            return Err(RecvError::PeerSevered);
         }
         Ok(wire)
     }

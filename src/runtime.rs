@@ -6525,6 +6525,7 @@ fn dispatch_keyword_head_value(
                                                     //
                                                     // Emits: (match _cause
                                                     //          (LociDiedError::Stopped LociDiedError::Stopped)
+                                                    //          (LociDiedError::Severed LociDiedError::Severed)
                                                     //          (_ LociDiedError::Disconnected))
                                                     //
                                                     // The `_` here is deliberate INFORMATION HIDING at a trust
@@ -6533,12 +6534,31 @@ fn dispatch_keyword_head_value(
                                                     // The difference is that the client is not entitled to what
                                                     // is dropped, and IS entitled to know its own process is
                                                     // stopping.
+                                                    //
+                                                    // `Severed` passes through for the SAME reason `Stopped`
+                                                    // does, and the test is what the variant reveals about the
+                                                    // SERVER'S INSIDES. Panic/RuntimeError/StartupError/
+                                                    // EntryFormFailure/MainSignature/BadReturn each carry a
+                                                    // message about what went wrong in there — the client is
+                                                    // not entitled to those, so they collapse. `Severed`
+                                                    // carries nothing from inside: it is a fact about the
+                                                    // RELATIONSHIP, that the owner let go. Nullary, exactly as
+                                                    // opaque as `Disconnected`, and one bit more useful —
+                                                    // `Disconnected` means a redial may work, `Severed` means
+                                                    // nobody holds the service and a redial fails identically.
+                                                    // (Best-effort on arrival: a torn-down pipe can beat the
+                                                    // sentinel and the client then sees `Disconnected`. Its
+                                                    // presence is information; its absence proves nothing.)
                                                     WatAST::List(vec![
                                                         WatAST::Keyword(":wat::core::match".into(), span.clone()),
                                                         WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
                                                         WatAST::List(vec![
                                                             WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
                                                             WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
+                                                        ], span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Severed".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Severed".into(), span.clone()),
                                                         ], span.clone()),
                                                         WatAST::List(vec![
                                                             WatAST::Symbol(Identifier::bare("_"), span.clone()),
@@ -21324,6 +21344,11 @@ pub(crate) fn eval_died_error_message(
                 // arc 170 Slice A — a stop was requested during recv. Wat-visible name is
                 // "Stopped" (arc-170 intueri cast RULING A), not Rust's "shutdown".
                 "Stopped" => Ok(Value::String(Arc::new("process stopped".to_string()))),
+                // The owner released the service handle and the serve loop exited.
+                // Reason-free by construction — this string IS the whole report.
+                "Severed" => Ok(Value::String(Arc::new(
+                    "service severed: its owner released the service handle".to_string(),
+                ))),
                 _ => Err(RuntimeError::new(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
@@ -21453,6 +21478,8 @@ pub(crate) fn eval_died_error_to_failure(
                 // arc 170 Slice A — a stop was requested during recv. Wat-visible name is
                 // "Stopped" (arc-170 intueri cast RULING A), not Rust's "shutdown".
                 "Stopped" => Ok(message_only_failure("process stopped".to_string())),
+                // See the `/message` arm above — same fact, Failure carrier.
+                "Severed" => Ok(message_only_failure("service severed: its owner released the service handle".to_string())),
                 _ => Err(RuntimeError::new(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
@@ -21558,6 +21585,33 @@ fn recv_outcome_shutdown() -> Value {
         variant_name: "Stopped".into(),
         names: no_field_names(),
         fields: vec![],
+    }))
+}
+
+/// `RecvOutcome::Lost[LociDiedError::Severed]` — the service's owner released its
+/// handle, so its serve loop exited.
+///
+/// Reason-free BY CONSTRUCTION, not by scrubbing: there is no message to carry. The
+/// fact IS the whole report, which is why this needs no `reason: String` the way
+/// [`recv_outcome_lost`] does, and why it survives the client trust boundary intact
+/// (`src/runtime.rs`'s scrub passes `Severed` through beside `Stopped`; everything
+/// else collapses to `Disconnected`).
+///
+/// Why not `Closed`: nothing closed cleanly. Why not a bare `Disconnected`: that is
+/// the catch-all for "it died, you are not told why", and it would put an owner-drop
+/// in the same bucket as a panic — the caller could not tell "redial may work" from
+/// "nobody holds this service, redial fails identically".
+fn recv_outcome_lost_severed() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: RECV_OUTCOME_TYPE.into(),
+        variant_name: "Lost".into(),
+        names: builtin_enum_variant_names(RECV_OUTCOME_TYPE, "Lost"),
+        fields: vec![Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::LociDiedError".into(),
+            variant_name: "Severed".into(),
+            names: no_field_names(),
+            fields: vec![],
+        }))],
     }))
 }
 
@@ -25024,6 +25078,13 @@ pub(crate) fn eval_peer_recv_prime(
                                         e.to_string(),
                                         sym.types().map(|a| a.as_ref()),
                                     ),
+                                    // The owner released the service handle. EXPLICIT, never
+                                    // left to the `_` below: falling through would report a
+                                    // clean `Closed` for a service that did not close cleanly
+                                    // — the exact mute this variant was minted to kill.
+                                    crate::comms::RecvError::PeerSevered => {
+                                        recv_outcome_lost_severed()
+                                    }
                                     // Arc 170 — a stop was requested; the peer is ALIVE and the
                                     // channel is open. This arm used to be folded into the
                                     // wildcard below under the comment "genuine clean close",
@@ -25051,6 +25112,8 @@ pub(crate) fn eval_peer_recv_prime(
                                     e.to_string(),
                                     sym.types().map(|a| a.as_ref()),
                                 ),
+                                // See the socket-tier arm above: explicit, never the wildcard.
+                                crate::comms::RecvError::PeerSevered => recv_outcome_lost_severed(),
                                 // Arc 170 — see the socket-tier arm above: a stop request is not
                                 // a close, and calling it one is the lie this fix removes.
                                 crate::comms::RecvError::Shutdown => recv_outcome_shutdown(),

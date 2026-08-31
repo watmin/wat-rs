@@ -156,14 +156,22 @@ pub fn typed_recv(
                 // (the one reason-carrying shape this enum already has) instead
                 // of collapsing into a mute Disconnected.
                 Err(crate::comms::RecvError::Failed(reason)) => RecvOutcome::DecodeError(reason),
-                // Arc 278 RST stone: `PeerCrashed` is a `Peer'`-messaging-only
-                // signal (`kernel::peer::Peer::notify_peer_crashed_best_effort`
-                // sends the reserved sentinel; nothing else ever does) — a bare
+                // Arc 278 RST stone: `PeerCrashed` and its severed twin are
+                // `Peer'`-messaging-only signals (`kernel::peer`'s
+                // `notify_peer_crashed_best_effort` /
+                // `notify_peer_severed_best_effort` send the reserved sentinels;
+                // nothing else ever does) — a bare
                 // `:wat::kernel::Sender<T>`/`Receiver<T>` channel (this path)
-                // never legitimately produces it. Per arc 278 no-hidden-
+                // never legitimately produces either. Per arc 278 no-hidden-
                 // failures, don't silently fold an impossible-in-practice case
-                // into a clean `Disconnected`; surface it loudly instead.
-                Err(e @ crate::comms::RecvError::PeerCrashed) => RecvOutcome::DecodeError(e.to_string()),
+                // into a clean `Disconnected`; surface it loudly instead. Both
+                // share this arm because the reasoning is one reasoning — not a
+                // tidy uniformity: each `Display` still names which sentinel
+                // arrived, so the loud report stays specific.
+                Err(
+                    e @ (crate::comms::RecvError::PeerCrashed
+                    | crate::comms::RecvError::PeerSevered),
+                ) => RecvOutcome::DecodeError(e.to_string()),
             }
         }
         ReceiverInner::PipeFd(reader) => {
