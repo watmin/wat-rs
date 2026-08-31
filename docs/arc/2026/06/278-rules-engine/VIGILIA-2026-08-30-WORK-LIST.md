@@ -1,0 +1,197 @@
+# VIGILIA 2026-08-30 — the work list
+
+> **Cast at HEAD `78b1fad56`.** 19 wards: 17 inward in parallel, then `experiri` (which drives),
+> then `circumspicere` (which surveys what the rest turned their backs on). `mora` out per the
+> standing orders in `VIGILIA-LOOP.md`. **41 L1 + 70 L2.**
+>
+> The prior full cast was 2026-08-24. Between them: 184 commits and +19,496/−11,996 lines in
+> `src/rete` alone, including 19 files that did not exist then. **The gates were green throughout;
+> every finding is on a surface the 28 lints cannot see.**
+
+> ⛔ **STATUS IS EDITED HERE, IN PLACE. Never append a closure below a row.** A row's status
+> living in two places IS the defect — `exigere` found exactly that in this arc's TRACKED
+> DECISIONS this same day, in a section whose own header bans it. One row, one place.
+
+> ⛔ **DO NOT WORK THIS LIST TOP-TO-BOTTOM AS 111 ITEMS.** Five wards independently found five
+> instances of ONE class, and it is Class A below. Pulling that root is worth more than the rest
+> of the list combined. A count is not a finding — `partire`'s row sat open a week in this arc
+> because it recorded counts and no proposals.
+
+---
+
+## ⛔ THE CLASS ABOVE THE FINDINGS — an invariant proven at ONE door, assumed at ALL of them
+
+**There are THREE doors into a Session:** `arm-session` (`compile-all`), `import_export`, and a
+hand-assembled `Session` record. **The first proves things. The other two do not**, and almost
+every instance below is the second door.
+
+| # | invariant | proven at | assumed at | found by |
+|---|---|---|---|---|
+| A1 | node ids ascend (topological) | minting, on compile | the wire, unchecked | `circumspicere` |
+| A2 | fold values are `i64` | `build_rete_arm` | `acc.rs`'s `panic!` | `circumspicere` |
+| A3 | acc-form head is callable | the fence, via `RETE_OPS` | the executor, via `sym.get` | `experiri` (driven) |
+| A4 | session byte ceiling | one thread-local origin | every session on that thread | `secare` + `sequi` |
+| A5 | termination is verified | `arm-session` | *"the one door EVERY rule passes"* | `circumspicere` |
+
+**The question to ask of every remaining invariant in this engine: which door proved this, and
+how many doors are there?**
+
+---
+
+## CLASS A — the doors. Highest priority; this is the root.
+
+`export.rs:15-17` states its own law: *"it consumes bytes some other process wrote, and every one
+of them can be a lie."* `export.rs:2015` calls `import_export` *"the file's one place where
+untrusted bytes become a runnable network."* The header counts **three walls** (range refusal,
+slot bounds, three compat gates). **None is a graph wall.**
+
+| id | site | what | fix shape |
+|---|---|---|---|
+| **A1** | `export.rs:2112-2128` | no structural validation of the imported graph: nothing checks a child id resolves, that a Negation/Exists/Accumulate `aid` names an **Alpha**, or that `child > parent`. `node.rs:192` and `arm.rs:592` both state the passes **require** ascending id order. | a fourth wall between phases 3 and 5, refusing with `malformed` like the other three — then state it in law 3 so the wall count and the walls agree |
+| **A2** | `acc.rs:64,72,76,83,129,139-142`; `fire/mod.rs:1400,1406,1415,1615-1628` | `panic!` licensed by a rune reading *"AccFold compile proved i64"* — a proof `import_export` never runs. `unpack_fold` (`export.rs:1382`) takes the fold key straight off the wire; `import_export` interns it at `:2199`. No `catch_unwind` on the program path. Rust panic, no span, no rule named. | return `Result<_, EvalBreak>` as `driver_of` (`fire/mod.rs:239`) already does for the same class — **a wire-reachable invariant may not be spelled `panic!`**. A rune here must name the DOOR, not the compiler. |
+| **A3** | `expr_ir/mod.rs:947` / `arm.rs:429` | acc-form fence admits on pure ∧ deterministic ∧ total ∧ `primitive?` — and `primitive?` IS "has a `RETE_OPS` row". `lower_named_rete_fn` then resolves via `sym.get(head)` (USER table) with no `rete_op_for` branch; sibling `lower_list` has one. `PersistentVector/length` fires in all 3 other positions, unreachable here. Raise says `unknown rete-defn` about a minted row. | give the lowering the ladder the fence implies — `rete_op_for` before `sym.get`. ✅ **FAILING GATE ALREADY BANKED**: `harness-experiri/` — land it WITH the fix, RED→GREEN |
+| **A4** | `alloc_counter.rs:118,133` / `session.rs:1404` | `SESSION_ORIGIN` is one `Cell` per THREAD, rebased unconditionally by every `compile-all` (`arm.rs:1205`). Second session re-bases the first; `saturating_sub` then floors the reading at **0 — no ceiling at all for the rest of that session's life**. `arm_lease.rs:141` is a GREEN test holding two live sessions on one thread. | key the origin the way `ARM_TABLE` already keys entries — by network identity — and pass the session into `session_ceiling_breach`. `origin > thread_bytes()` is not a zero; it is proof the origin belongs to another session, and must refuse loudly |
+| **A5** | `arm.rs:1190`; `stratify.rs:852` | *"`compile-all` is the one door EVERY rule passes"* is unqualified and false at import and at hand-assembled Sessions. `stratify.rs:852` meets the imported case, comments *"saying so is the honest outcome"*, and then `continue`s — saying nothing to anyone. | qualify the sentence at the site (every **locally compiled** rule set) and make `stratify.rs:852` return an outcome the caller can see |
+| **A6** | `export.rs:746,296,275` | `unpack_expr` / `check_expr_slots` recurse unbounded over wire-chosen nesting. No depth bound on the path. SIGSEGV, no wat error, no span. Reachable from a wat program building nesting iteratively into `(:wat::rete::import …)`. | thread a depth counter, refuse past a stated bound with `malformed` |
+| **A7** | `export.rs:2128` + `pmap.rs:148` | import builds the network **O(N²)** (`from_pairs` linear-scans the accumulator per pair) with no node cap; and import calls neither `check_session_ceiling` nor `mark_session_origin`, so what it allocates is charged to nothing | add both calls at the import door; build through the trie arm directly at large pair counts |
+
+---
+
+## CLASS B — resource lifetime
+
+| id | site | what | fix shape |
+|---|---|---|---|
+| **B1** | `wat/rete/syntax.wat:308` | `with-network` / `with-overlay` release the arm lease in a `do` AFTER the body, so **any raise skips it** — and the ceiling-breach path raises INSIDE that body, so the leak is guaranteed exactly when memory pressure is highest. The lease is the sole owner count; a miss pins the whole `InternedNetwork` until thread end. **`grep 'impl Drop' src/rete/` is empty.** Its doc claims parity with `with-open-file`; a `let`+`do` is not a scope guard. | an `ArmLease` handle whose `Drop` releases, so no wat form can forget and no unwind can skip — or a real unwind-safe scope combinator both `with-network` and `with-open-file` share |
+
+---
+
+## CLASS C — the instruments. Blocks trusting ANY recorded cost number in this arc.
+
+⚠ **Two of these are my own, committed this morning and reported as finished.** Both have the
+same shape: **the commit message asserted a general fix while the diff performed a specific one.**
+
+| id | site | what |
+|---|---|---|
+| **C1** | `tests/mod.rs:493` + ~18 accumulators in 8 files | `89e8c3ed0` rewrote **only the label**. `git blame`: line 493 (`MINIMUM of {RUNS}`) is that commit; lines 528-542 (`stat` returning `sum/len`, `net_of`, `total_mean`) are untouched. `render_phase_table` renders the axis tables for accum, node-share, cascade, fanout, harvest, strat, gather-probe. In `accum_alpha_leftover_split` the **two halves of one table disagree** — isolated arms `.min()`, in-fire rows mean, one header. Sites: `accum_alpha_cost.rs:112,346` · `accum_cost.rs:310,607,1632` · `cascade_cost.rs:372` · `fanout_cost.rs:424,619,741,852` · `harvest_cost.rs:598` · `rank_and_instrument.rs:375,465,573` · `strat_cost.rs:225,326,422,598` |
+| **C2** | `gather_probe_cost.rs:176`; `accum_cost.rs:1383` | two more arms labelled `(engine)` that are not. `seen_insert` routes stamped aggregates to `FxHashSet<u64>` (arm **I**), table labels **S**. `intern_val` has the 4096-slot table built in (arm **A**), table labels **V** — and `table_ok` at `:1322` is literally the engine's own fast-path predicate. Both print a *"predicted cut"* for a stone that shipped. **`b7d9d8e90` fixed instance 1 and named the class in its own message.** |
+| **C3** | `accum_cost.rs:1630` | reads phase mark `setup:seen:insert`. The engine emits `setup:seen:alloc` and `setup:seen` only. `of` is `unwrap_or(0)` → prints `0.00 ms` as a measurement and `−S` as a difference. On the floor. |
+| **C4** | `accum_alpha_cost.rs:233,1080` | the arm labelled `A alpha_activate_fact` (**THE production path**) is handed an empty `bind_only`, disabling the `skip_span` fast path production takes for ~all 80,200 pairs. The same file builds it correctly at `:532`. |
+| **C5** | `binding_repr_bench.rs:545,664` | on the release floor, asserting `extend_array_wins + get_array_wins < usize::MAX` — a tautology — while measuring a representation decision the engine settled a third way (`BindSpan` into `bind_pool`, not a trie). Both siblings are `#[ignore]`d with measured reasons. Also `:24` apportions an "in-engine bind" across three arms, none on the bind path. |
+| **C6** | `node_share_cost.rs:61,286` | reconstructs the `filter` phase from the **retired interpreter** (`eval_test_core`, whose own doc says native fire is `exec_where`), against a hard-coded 2026-08-01 constant. Only arm F is the fire path. |
+| **C7** | rule | **`intueri`'s rung, adopt it:** an arm may carry `(engine)` **only if its body CALLS the production function** — as `accum_cost`'s V arm does with `intern_val`. Where no arm calls production, no arm gets the label. |
+
+---
+
+## CLASS D — engine behaviour
+
+| id | site | what | found by |
+|---|---|---|---|
+| **D1** | `validate/typing.rs:212` | `keyword_constant_segment` is a **FOURTH** copy of enum-variant resolution, prefix-only — never checks the variant EXISTS — and disagrees with the runtime's `sym.unit_variant`. `matcher.rs:130`'s `enum_variant_ctor` is documented **"ONE COPY … hand-written at THREE independent sites"**. A misspelled or Tagged variant types clean, compiles, fires, matches nothing, silently. **fix-list F's class.** ⚠ mechanism verified by reading; NOT yet driven | `solvere` |
+| **D2** | `hash_join.rs:296` | `right_idx[J]` has two writers, only one maintains `right_idx_n[J]`. On `filter → HashJoin(a) → HashJoin(b)`, round 2 pushes without bumping, 3.7 re-appends the same element → doubled buckets, duplicate tokens. `seen_insert` hides it in the fact set; surfaces as doubled `:accumulate` counts and query rows | `sequi` |
+| **D3** | `expr_ir/eval.rs:405` | `CallUser` arity never checked. Surplus arg written into an arbitrary slot; beyond `inner.len()` dropped silently; missing arg surfaces as `UnboundSymbol` naming the callee's param. Header says *"`lower` IS TOTAL OR IT REFUSES"* | `struere` |
+| **D4** | `expr_ir/eval.rs:85-126` | `EXEC_SP` is inert — the `RefMut` spans `f`, so every nested frame takes the `Err` arm and `start` is always 0. Doc holds BOTH claims: `:96` *"nested calls stack"* (false) and `:99` *"the `Err` arm is a correctness path"* (true). A panic through `f` strands `len` slots permanently — no `Drop` guard | `struere` |
+| **D5** | `validate/mod.rs:747` | `match` refused in `:then`, byte-identical expression accepted in the `where` fence. `walk_nested_constructors` cannot tell a match ARM from a CALL. Survives only by arity coincidence, so which spelling compiles depends on the author's choice. Diagnostic names a fact-type absent from the source. ✅ **FAILING GATE BANKED** in `harness-experiri/` | `experiri` (driven) |
+| **D6** | `step_payload.rs:143` | explain payload silently DROPS every keyword/enum-operand constraint (`sym = None`, and `value_to_ast_literal` has no `Value::Enum` arm), while its doc claims the constraint list is complete | `solvere` |
+| **D7** | `alpha.rs:85-98,129-132` | two writers of `wm.alpha[aid]` in one pass — one `push`, one `insert` (replace). Kept disjoint only by an index coincidence the same file's `_ =>` arm can break. Shape finding: not reached from the `insert` door | `struere` |
+
+---
+
+## CLASS E — error shape and diagnostics
+
+| id | site | what | found by |
+|---|---|---|---|
+| **E1** | `validate/typing.rs:74` | `check_field_at`'s doc promises *"the span of the FIELD rather than the clause"*; both callers pass `clause.span()`, and `:45` discards the field's own span into `_` nine lines above. The parameter's type is `Span`, so nothing can tell the two apart | `conformare` |
+| **E2** | `validate/mod.rs:1019` | unknown-field arm is mis-documented (claims `bad.span`, passes `fact_span`) **and unreachable** — `:976` returns before it. Four `UnknownField` producers, one dead, and the dead one documents better behaviour than any live one | `conformare` |
+| **E3** | `signal.rs:317-346` | three doc blocks merge onto one variant; `RuleSetMayNotTerminate` and `FixpointRoundCapExceeded` carry none. The wall's justification for the former being matchable is *"its diagnostic names an action the author can take"* — attached to a different failure | `conformare` |
+| **E4** | `outcome.rs:103,161,213` | the three converters' `_ =>` leaves the wall's completeness to a hand-maintained `CEILING_VARIANTS` list. `no_ceiling_raise_in_rete` guards **construction**, not **routing**. Fix: `RuntimeErrorKind::ReteCeiling(ReteCeiling)`, matched exhaustively | `conformare` |
+| **E5** | `fire/mod.rs:1038`, `rules.rs:658` | `refuse_export_without_arm` gets `rust_caller_span!()` at both call sites; the real `list_span` is one frame up and dropped. `span_substitution_justified` cannot see it because the enclosing fn takes no span param — **a general evasion of that lint** | `conformare` |
+
+---
+
+## CLASS F — the description layer. **Builder's directive, 2026-08-30: greppability over correction.**
+
+> *"counts are always wrong, every time... we must make our file suitable for greps for on the fly
+> counting as necessary"* · *"more lints are almost always better"*
+
+**F0 — THE RULE.** A number in prose is replaced by **the command that derives it**, not by a
+corrected number. Every rotted claim this cast found was a count that was true when written:
+*"eleven session fields plus three"*, *"55 rows × 2 positions"*, *"three callers"*, *"the dozen
+non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch` has ten),
+*"exactly six write sites"* (thirteen). Correcting them buys weeks. Deleting the claim is the fix.
+
+**F1 — the five lints this cast earned**, each with instances already found:
+
+| lint | instances |
+|---|---|
+| backticked identifiers must resolve | 7, incl. `head_is_boolean_rete_predicate` — the comment guarding a silent `_ => None` on the fix-list F path. Also `token_element_compatible`, `DidNotDiscriminate`, `CoreKind`, `rule_rhs_cache`, `ref_alpha_of`, `invoke_wat_compile` |
+| bare `*.rs` filenames must resolve | `kernel/mod.rs:4` *"Tests are `tests.rs`"* — stale the day it was written. `no_stale_path_in_doc.rs` only extracts tokens containing `/` |
+| `rune:perspicere` / `rune:purgare` closed vocabularies | `perspicere`'s `read-once` is falsified by its own file (6 runes, 5 occurrences, 2 unruned twins); `purgare`'s categories are undefined and `trait-contract` names a mechanism absent at all 3 sites. Model on `no_unknown_sequi_rune.rs` |
+| `MINIMUM of` header may not co-occur with `/= r` | C1 above, found twice independently |
+| non-vacuity guards on walking gates | **10 of 15** lack one. `no_ceiling_raise_in_rete.rs:92` already writes the reason verbatim |
+
+**F2 — rotted claims inside `src/` and the arc** (do these WITH F0, not as corrections):
+
+- `NEXT-STRIKES:1491,1512` — both TRACKED DECISIONS premises expired; the tally at `:1283`
+  contradicts them. The section banning two-places-per-row committed it again. *(`exigere`)*
+- `rust_deps/cache.rs:70` — cites heading *"exigere — the cache panic conversion"*; grep finds it
+  **only in that source line**. *(`exigere`)*
+- `purity.rs:216` — *"nothing enforces that"*; `mod completeness_gate` is at `:2093`, same file. *(`exigere`)*
+- `DESIGN-STONE-4b:68` — *"its own future stone (let need reveal)"*; `delta.rs:391` says *"THIS IS
+  THE STONE 4b DEFERRED … The need revealed."* Forward edge, no back edge. *(`exigere`)*
+- `DESIGN-STONE-gather-no-snapshot:53` — forbids what `delta.rs:321` does; superseded 2026-08-19,
+  neither earlier stone annotated. *(`conferre`)*
+- **83 of 207 stones name `src/rete/kernel.rs`**, deleted 2026-08-20. `no_stale_path_in_doc.rs`
+  scans `src/rete` only, so the impl side is spotless and the stones rotted. *(`conferre`)*
+- `reachability.rs:820,830,832` coverage prose; `:568-578` an orphaned doc block that merged onto
+  `uniform_call`'s rustdoc; `:419,446` "four cells" vs six. *(`intueri`)*
+- `wat-scripts/fixes/rete-where-per-type-spelling.wat:80,96` — **the MANDATED codemod still
+  rewrites INTO `map`/`filter`, retired 2026-08-28.** The migration tool manufactures the phantom.
+  `every_wat_scripts_file_loads` is blind to `:wat::` heads by construction. *(`cernere`)*
+- `remedy/retirement.rs` — zero `:wat::rete::` rows; every rete retirement to date lands as a bare
+  `unbound symbol` instead of the remediation the table exists to give. *(`cernere`)*
+
+**F3 — the 70 L2 not itemised here** live in the ward reports. Highest-value clusters:
+`temperare` ×7 (all with measurement plans — `join_extend`'s three per-pair map probes;
+`alpha.rs:82,94` hashing the class FQDN twice per fact in the subsystem whose own stone measured
+that at 3.26 ms), `perspicere` ×5 (aliases), `partire` ×4 (`fire/mod.rs` → `gather.rs` + `query.rs`;
+`compiled_cond.rs` at its own `// ─── The executor ───` banner; `stratify.rs` → `termination.rs`;
+`expr_ir/eval.rs` → `ops.rs` — all four with verified one-directional seams).
+
+---
+
+## ⏸ DEFERRED BY BUILDER'S RULING, 2026-08-30 — docs outside `docs/arc/`
+
+> *"our docs outside of arcs are very out of date — we've just been grinding on code correctness —
+> our compiler and runtime provide coordinates and prompt injections as errors for corrections…
+> i'm less keen on truing up our docs and more keen on ensuring our code is an exemplar; docs come
+> after the code churn is satisfied."*
+
+**Owner: builder. Re-read: when Classes A–E close.** Bounded, not promised — `exigere`'s rule.
+
+`circumspicere` L1: `README.md`, `docs/USER-GUIDE.md`, `docs/README.md`, `docs/INTENTIONS.md`
+contain **zero** hits for `rete` / `defrule` / `rules engine`. The module tour omits `src/rete` —
+42,012 lines, the largest module in `src/`. `README.md:148` claims *"725 Rust + ~58 wat"* against a
+5,165 floor; `:150` claims *"25 integration suites under `tests/`"* where there are **0** top-level
+`.rs` files (19 subdirectories); `:59` claims ten arcs in 2026-03..04 where `docs/arc/2026/` holds
+`04 05 06 07`. All four verified by the orchestrator on the disk.
+
+**The reason this is deferred and not struck:** the correction mechanism for a wat author is the
+compiler's own located diagnostic, not the README — so a stale README costs a reader orientation,
+not correctness. That is a real ruling with a real ground, and it holds only while the ground does.
+
+---
+
+## Verification status
+
+Every L1 above was weighed against the disk by the orchestrator, not credited to the report.
+**Verified by direct read or drive:** A2, A3, A4, A5, C1 (git blame), C2, C3, C5, D1 (mechanism),
+D5, E1, E3, F2's `exigere` four, `partire`'s two corrections to our own record, and all of
+`circumspicere`'s README claims. **Passed through on the ward's citation, not independently
+re-derived:** the remainder. A row's evidence is its ward's report until someone re-reads it.
+
+⚠ **Two of `partire`'s corrections are to numbers in THIS arc's own record**: `arm.rs` is ~1,251
+production lines, not the 593 the breadcrumb states — and that 593 was itself recorded as a
+*correction* of an earlier wrong figure. `reachability.rs` is **0** production lines, not 1,917:
+`src/rete/mod.rs:86` wraps the whole file in `#[cfg(test)]`, invisible to any per-file scan —
+including `scripts/doc-coverage.sh`, which counted all 1,917 as production in the figures this arc
+has been quoting.

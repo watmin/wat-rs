@@ -125,9 +125,14 @@ log over the file. (A one-commit, docs-only gap is normal: the commit that WRITE
 the stamp necessarily lands after it, so the stamp names its own parent. Confirm
 that is what you are looking at; anything more is stale.)
 
-Its companion, and the state-of-world artifact for arc 278, is
-`docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md` — the open list,
-the closing tally, and the TRACKED DECISIONS rows.
+**The WORK LIST — the live open list, and the only place a row's status lives — is
+`docs/arc/2026/06/278-rules-engine/VIGILIA-2026-08-30-WORK-LIST.md`** (41 L1 + 70 L2 from the
+19-ward cast at HEAD `78b1fad56`). Read its Class A block first: five wards independently found
+five instances of one class, and working the list top-to-bottom as 111 items misses it.
+
+Its predecessor, `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md`, holds the
+theater hunt, the closing tally, and the TRACKED DECISIONS rows — historical reasoning plus two
+rows the vigilia found have EXPIRED PREMISES (work-list F2). Read it for why, not for what is open.
 
 > ⚠ **This block is here because the ledger above used to say `live breadcrumb
 > (CLIFFNOTES "Currently")`, which is arc 170's cliff notes — a different arc,

@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-30 (fifth). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-30 (sixth — THE VIGILIA). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline b7d9d8e90..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat b7d9d8e90..HEAD        # what they touched
+git log --oneline 36288679e..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 36288679e..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -70,17 +70,28 @@ disk finding by finding):
 - **`intueri` CONVICTED the self-description** — six false claims, ALL about the tree's own layout,
   all trivially checkable, none checked. Both gates below exist because of it.
 
-**⛔ SO THE ANSWER TO "IS IT AN EXEMPLAR" IS: THE NAMED LIST IS EMPTY — AND CLOSING ITS LAST ROW
-FOUND A DEFECT NOTHING ON THE LIST PREDICTED.** Everything mechanically checkable is green or
-retired with reasons; both wards were cast and everything they found is fixed or gated; the
-instrument that measures this subsystem was root-caused and swept; item #3 closed at `b7d9d8e90`.
+**⛔⛔ THE ANSWER TO "IS IT AN EXEMPLAR" IS: NO, AND THE FULL VIGILIA SAID SO — 41 L1 + 70 L2.**
 
-⚠ **READ THAT AS A STATEMENT ABOUT THE LIST, NOT A CERTIFICATE.** #3 was written as "assert an
-ordering — three runs settles it." The ordering held in six. What it actually surfaced was a
-benchmark row that had named the wrong data structure "the engine" for eleven days, under a green
-test, in a file the wards had already swept. **An empty work list is evidence about how hard we
-have looked, and this arc's last item found a defect on its way out.** The next hand should expect
-the same and should not read "empty" as "clean."
+**➡ THE WORK LIST IS `VIGILIA-2026-08-30-WORK-LIST.md`, IN THIS DIRECTORY. Go there. It is the
+only place a row's status lives.** This block is the pointer, not a second copy.
+
+The named list WAS empty on the morning of 2026-08-30 — everything mechanically checkable green or
+retired with reasons, both prior wards' findings fixed or gated. **Then 19 wards were cast against
+a tree 184 commits and +19,496 lines past the last full cast, and the gates were green throughout:
+every single finding is on a surface the 28 lints cannot see.** An empty work list was evidence
+about how hard we had looked, exactly as this file warned two stamps ago.
+
+⛔ **DO NOT WORK IT AS 111 ITEMS.** Five wards independently found five instances of ONE class —
+**an invariant proven at one door and assumed at all of them.** There are THREE doors into a
+Session (`compile-all`, `import_export`, a hand-assembled record); the first proves things and the
+other two do not. That is Class A in the work list and it is worth more than the rest combined.
+
+⚠ **AND TWO OF THE FINDINGS ARE THE PRIOR SELF'S OWN COMMITS FROM THAT SAME DAY**, both with one
+shape: **the commit message asserted a general fix while the diff performed a specific one.**
+`89e8c3ed0` moved the estimator LABEL to `MINIMUM` and left `stat()` computing a mean (git blame
+settles it: line 493 is that commit, lines 528-542 are not). `b7d9d8e90` fixed one `(engine)`
+mislabel while its own message named the class — two more were standing. **Naming a class in prose
+is not pulling it.** Until Class C closes, no cost number in this arc's record can be trusted.
 
 ⚠ **AND AN EXEMPLAR CLAIM IS ITSELF A CLAIM ABOUT THE TREE.** This session is a long argument for
 not believing those without a check: SIX of my own instruments returned confident wrong numbers
@@ -92,9 +103,12 @@ duplication it exists to detect). The two gates in `tests/lint/` are what make t
 re-derivable rather than asserted. **Do not declare the exemplar from this file — run the
 script.**
 
-**THE NEXT WORK, in the order I would take it:**
+**THE NEXT WORK: `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
+PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
+"FIXED" is one of the vigilia's own findings (Class C1): the label moved, the arithmetic did not.**
 
-✅ **1 — THE INSTRUMENT IS FIXED (`89e8c3ed0`, `c898713de`).** It was a CLASS, not the three
+✅ **1 — THE INSTRUMENT IS FIXED (`89e8c3ed0`, `c898713de`).** ⛔ **SUPERSEDED — SEE CLASS C1.**
+This row is wrong and is kept as the worked example of how it was wrong. It was a CLASS, not the three
 impossible signs I started from. Every cost split took the MEAN of 3 rounds and the FIRST arm of
 each round paid a one-time cost: 287.4 ms against 11.5 and 11.4 for identical work. `M` was never
 slow — `M` GOES FIRST. 106 accumulators swept to the MINIMUM across 8 files; `A−M` went
