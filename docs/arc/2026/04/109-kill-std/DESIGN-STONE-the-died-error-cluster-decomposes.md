@@ -43,8 +43,8 @@ and shipped two commits earlier. `[[feedback_i_cited_a_rule_instead_of_measuring
 | # | destination | items | lines | basis |
 |---|---|---:|---:|---|
 | **4a** | `src/kernel/error.rs` | 14 (+5 chain helpers) | ~581 | the edge file; one-edge-one-module |
-| **4b** | `src/process/died.rs` | 8 (+1) | ~105 | callers `process/verbs.rs` ×7, `distribution/mod.rs` ×5 |
-| **4c** | `src/freeze/stop.rs` | 6 (+1) | ~90 | callers `freeze.rs` ×5, `distribution/mod.rs` ×3 |
+| **4b** | `src/process/died.rs` | **10** | ~130 | callers `process/verbs.rs` ×9, `distribution/mod.rs` ×5 |
+| **4c** | `src/freeze/stop.rs` | **8** | ~105 | callers `freeze.rs` ×5, `distribution/mod.rs` ×3 |
 | **4d** | ⬜ **STILL UNASSIGNED** | 12 | ~316 | the genuine residue — see below |
 
 **4a** `eval_died_error_message` · `eval_died_error_to_failure` · `eval_failure_message` ·
@@ -63,6 +63,26 @@ one mistake this campaign keeps paying for.** They surfaced only from a cross-fa
 exactly as `reply_failed_reason` and the seven `*_OUTCOME_TYPE` consts did. Each is measured:
 `single_died_chain` and `conj_died_chain` are runtime-internal; `conj_died_chain_value` → `process`;
 `thread_crash_{panic,runtime}_edn` → `kernel`; `stop_failed_value` → `distribution`.
+
+## ⚠ AMENDED before briefing — the both-halves scan changed the lists
+
+Running the visibility scan this DESIGN commits to, and then **ruling on each hit**, converted three
+"stays-side bumps" into two members and one bump:
+
+- **`STOP_FAILURES_PTR` (703) is a MEMBER of 4c, not a reach-back.** Only `publish_stop_failures` and
+  `take_stop_failures` touch it — it is their state. ★ The instrument can find what the movers depend
+  on; it cannot tell a *missed member* from a *legitimate reach-back*. **That is the practitioner's
+  call, and it is the exact call the numeric stone got wrong.**
+- **`conj_died_chain` (10214) is a MEMBER of 4b.** Its only caller is `conj_died_chain_value`. My
+  cross-family scan put them on opposite sides because it **did not strip comments** and read a
+  doc-comment mention as a call — the identical defect stone B's rider reported to me about
+  `try_match_pattern`, which I recorded and did not fix.
+  `[[feedback_a_lesson_learned_and_then_dropped]]`
+- **`failure_value_from_assertion_payload` (9861) is the one genuine bump** — private today, 4d
+  residue, called by 4b's `process_died_error_panic`. Its three "external consumers" are all doc
+  mentions.
+
+**Half 2 (imports orphaned by departure): none.** Derived, not assumed.
 
 ## ⬜ 4d — what stays unassigned, and why that is an answer
 
