@@ -188,3 +188,66 @@ the arity came off the handler's own signature.
 | schemes keep their own authority | a scheme-carrying row's TYPE error still names the type | unchanged message |
 | floor | `scripts/floor.sh`, exit read UNPIPED | 5115/5115, 0 failed |
 | clippy | `cargo clippy --release --all-targets -- -D warnings` | 0 |
+
+
+---
+
+# ⛔ SHIPPED — and the measured coverage is 48/71, not 71/71
+
+`STONE` landed. What the stone actually did, measured against the built binary rather than claimed:
+
+```
+scheme-less registry rows ............................. 71
+  reached by the new check-time arity consult ......... 48   ✅ arity now enforced AT CHECK TIME
+  SHADOWED, never reach it ............................ 23   ⚠ the whole :wat::kernel:: verb surface
+of the eleven silent rows: now rejected ............... 9
+  :wat::core::variant ................................. Arity::Variadic — correctly unaffected
+  :wat::kernel::peer-pid .............................. SHADOWED (see below)
+```
+
+## ★★★ The stone surfaced a SECOND prefix authority, which is why 23 rows are untouched
+
+`src/check.rs` carries `_ if k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::")` — an
+arm that returns `CheckResult::ok(fresh.fresh())` for any such head with no scheme. Every
+`:wat::kernel::` verb takes it and never reaches the registry consult. **That is a namespace guess
+standing in for the registry — the same class as `effectful_by_prefix`**, and it is the next forcing.
+
+⚠ **My DESIGN claimed the check covers "EVERY row the registry knows and the checker does not."**
+That was false, and it had already been written into a comment on disk before it was measured. The
+comment now states the real coverage and names the shadowing predicate **by grep-token, not by line
+number** — the doc that sent me hunting for this cited a `check.rs:5561` that had long since drifted.
+
+## What the 23 are NOT
+
+They are **not unchecked**: `runtime.rs`'s `dispatch_substrate_impl` raises `ArityMismatch` for them
+at eval time — verified, `(:wat::kernel::peer-pid 1 … 9)` fails when run. The stone moves enforcement
+EARLIER for 48 rows; for the 23 it stays where it already was.
+
+⚠ Nor is "a nonexistent `:wat::` verb type-checks clean" a finding of this stone — that is the
+documented blanket-accept `tests/cli/retirement_table_reachable.rs` exists to police, and the runtime
+raises `UnknownFunction`. Measured before reporting, because it looked like a much larger hole.
+
+## STOP-5, which the rider correctly reported it could not run
+
+Both directions sabotage-tested by the orchestrator, both name the offender:
+
+- **NEW** — dropped `:wat::linkedlist::length` from `FROZEN_TYPES_UNCHECKED` → *"carries a wrong-typed
+  probe in `TYPE_RESIDUE_PROBES` but is absent from `FROZEN_TYPES_UNCHECKED`. Add it."*
+- **STALE** — repointed its probe at a rejecting call → *"its wrong-typed call is now REJECTED …
+  delete it from `FROZEN_TYPES_UNCHECKED` and `TYPE_RESIDUE_PROBES`"*, quoting the rejection.
+
+★ A free control fell out: sabotaging the wrong list first proved
+`checker_skip_debt_is_named_and_frozen` fires too.
+
+## STOP-1 held, and found something the DESIGN's probe could not see
+
+`:wat::core::variant` is typed `@arg xs… :wat::core::Value`, and `types.rs`'s `is_subtype` makes
+`Value` the **universal top** — no argument is ill-typed against it, now or ever. Its residue entry
+cannot exist, so the probed population is **ten**, not eleven. ★ The arity-abuse probe that found the
+eleven was structurally blind to this: it never asks what the individual argument *types* are.
+
+## ⬜ NEXT — and it is named, not deferred
+
+**Close `check.rs`'s `:wat::kernel::`/`:wat::std::` prefix arm** so the 23 shadowed rows reach the
+registry. The 23 are listed in this stone's commit message; the predicate is greppable; the cascade
+is the same SUBSTRATE-AS-TEACHER shape this stone predicted and did not get.

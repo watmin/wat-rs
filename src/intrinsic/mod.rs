@@ -965,6 +965,136 @@ mod tests {
         );
     }
 
+    /// Arc 255 STONE-the-checker-must-read-the-registry (AMENDED) — the sibling ledger
+    /// `FROZEN_CHECKER_DEBT_LEDGER` was missing: its criterion (`check_env.get().is_none()`,
+    /// "no `TypeScheme`") cannot distinguish a row checked FOR REAL by a hand-written
+    /// `check_call`/`infer_*` arm (or, for a few runtime-only verbs, by their own `eval_*`
+    /// guard) from a row nothing checks at all. `FROZEN_TYPES_UNCHECKED` names the STRICT
+    /// SUBSET of that 71-row ledger whose TYPES nothing checks — measured behaviourally, by
+    /// DRIVING THE CHECKER with each row's own wrong-typed call (never by grepping for an
+    /// `infer_*` arm: a text predicate said twelve rows were unchecked and the behavioural
+    /// probe corrected it to eleven — `macro-error` rejected by arc 255's `ExpandOnly` wall,
+    /// not by any type check).
+    ///
+    /// ⛔ `:wat::core::variant` is NOT on this list, though the DESIGN's initial behavioural
+    /// probe (an arity-abuse call, `(<verb> 1 2 .. 9)`) measured it as one of the eleven.
+    /// STOP-1: `variant`'s declared arg type — `@arg xs… :wat::core::Value` — is
+    /// `:wat::core::Value`, which `types.rs::is_subtype`'s `sup == ":wat::core::Value"` arm
+    /// makes the UNIVERSAL SUBTYPE-TOP (arc 278 Stone-Value: "every type <: Value"). No value
+    /// is ill-typed against a `Value`-typed parameter — passing `"not-a-keyword"` where the doc
+    /// says "arg0 the enum's type path (literal keyword)" still type-checks, confirmed against
+    /// the pre-stone binary (`(:wat::core::variant "not-a-keyword" "also-not" 1 2 3)` → exit 0).
+    /// `variant`'s two positional keywords are validated at RUNTIME by hand (`eval_variant`'s
+    /// own `MalformedForm` raises, `runtime.rs:15917`/`:15937`) — real enforcement, just not by
+    /// the type system, and not expressible as a "was accepted, now rejected" gate: nothing
+    /// could ever flip that gate red, because `assignable(_, Value)` is `true` by construction
+    /// for every type, including a future one. Reported per STOP-1, not dropped and not faked;
+    /// `variant` remains fully covered by `FROZEN_CHECKER_DEBT_LEDGER` above (no `TypeScheme`),
+    /// just not by this narrower, probe-driven list.
+    const FROZEN_TYPES_UNCHECKED: &[&str] = &[
+        ":wat::core::fresh-symbol",
+        ":wat::core::struct-field",
+        ":wat::core::type-equal?",
+        ":wat::core::type-params-used-in",
+        ":wat::kernel::peer-pid",
+        ":wat::runtime::metadata-of",
+        ":wat::linkedlist::get",
+        ":wat::linkedlist::length",
+        ":wat::linkedlist::empty?",
+        ":wat::linkedlist::contains?",
+    ];
+
+    /// One wrong-typed call per `FROZEN_TYPES_UNCHECKED` row, each derived from that row's own
+    /// `@arg` declaration (not guessed from the verb's name) — right arity, wrong type at the
+    /// FIRST argument whose declared type is concrete (not a top type, not a type variable).
+    /// Confirmed against the pre-stone binary: every one of these `check`s `Ok(())` today.
+    ///   - `fresh-symbol`         @arg base   :wat::core::String            → pass `5` (i64)
+    ///   - `struct-field`         @arg record :wat::core::Record            → pass `5` (i64)
+    ///   - `type-equal?`          @arg a      :wat::WatAST                  → pass `5` (i64) —
+    ///     NOT a top type (unlike `:wat::core::Value`): the `ast-span` control (a scheme'd
+    ///     `:wat::WatAST` param) rejects the identical `5` with `TypeMismatch`, so this is a
+    ///     real gap, not another `variant`.
+    ///   - `type-params-used-in`  @arg params (:wat::core::Vector :- [:wat::WatAST]) → pass `5`
+    ///   - `peer-pid`             @arg peer   (:wat::kernel::Peer :- [I O]) → pass `5` (i64)
+    ///   - `metadata-of`          @arg name_ast :wat::core::keyword         → pass `5` (i64)
+    ///   - `linkedlist::get`      @arg l      (:wat::core::List :- [T])     → pass a `String`
+    ///   - `linkedlist::length`   @arg l      (:wat::core::List :- [T])     → pass a `String`
+    ///   - `linkedlist::empty?`   @arg l      (:wat::core::List :- [T])     → pass a `String`
+    ///   - `linkedlist::contains?` @arg l     (:wat::core::List :- [T])     → pass a `String`
+    const TYPE_RESIDUE_PROBES: &[(&str, &str)] = &[
+        (":wat::core::fresh-symbol", "(:wat::core::fresh-symbol 5)"),
+        (":wat::core::struct-field", "(:wat::core::struct-field 5 0)"),
+        (":wat::core::type-equal?", "(:wat::core::type-equal? 5 5)"),
+        (":wat::core::type-params-used-in", "(:wat::core::type-params-used-in 5 5)"),
+        (":wat::kernel::peer-pid", "(:wat::kernel::peer-pid 5)"),
+        (":wat::runtime::metadata-of", "(:wat::runtime::metadata-of 5)"),
+        (":wat::linkedlist::get", "(:wat::linkedlist::get \"not-a-list\" 0)"),
+        (":wat::linkedlist::length", "(:wat::linkedlist::length \"not-a-list\")"),
+        (":wat::linkedlist::empty?", "(:wat::linkedlist::empty? \"not-a-list\")"),
+        (":wat::linkedlist::contains?", "(:wat::linkedlist::contains? \"not-a-list\" 1)"),
+    ];
+
+    /// The bidirectional gate `FROZEN_TYPES_UNCHECKED` needs — the exact shape
+    /// `checker_skip_debt_is_named_and_frozen` uses above, over a DIFFERENT pair of sets: here,
+    /// "measured" cannot be a structural query (there is no `IntrinsicEntry` field recording
+    /// "has a hand-written check arm"), so it is the set of names carrying a probe in
+    /// `TYPE_RESIDUE_PROBES` — each probe DRIVES the real checker
+    /// (`crate::check::tests::check`, the same `OnceLock`-cached pipeline
+    /// `doc_arg_ret_types_match_checker_scheme` and every other consumer-side gate in this file
+    /// use) rather than being read off a name.
+    ///
+    /// - NEW: a name carries a probe but is absent from `FROZEN_TYPES_UNCHECKED` — the ledger
+    ///   and the probe table have drifted apart.
+    /// - STALE (two ways): a frozen name carries no probe at all (dropped without updating the
+    ///   ledger), OR its probe's `check()` now returns `Err` — the checker has started
+    ///   rejecting the wrong-typed call for real, so the row is fixed and must come off the list.
+    #[test]
+    fn checker_type_residue_is_named_and_frozen() {
+        // `.0`/`.1` field access (not tuple-pattern destructuring) throughout this fn —
+        // auto-deref makes it depth-agnostic across `.iter()`/`.find()`'s reference layers,
+        // where a `(n, _)` closure pattern would have to get the depth exactly right.
+        let mut probed: Vec<&'static str> =
+            TYPE_RESIDUE_PROBES.iter().map(|pair| pair.0).collect();
+        probed.sort_unstable();
+        probed.dedup();
+
+        let frozen: Vec<&'static str> = FROZEN_TYPES_UNCHECKED.to_vec();
+
+        let new: Vec<&'static str> =
+            probed.iter().copied().filter(|n| !frozen.contains(n)).collect();
+        assert!(
+            new.is_empty(),
+            "NEW — {:?} carries a wrong-typed probe in `TYPE_RESIDUE_PROBES` but is absent \
+             from `FROZEN_TYPES_UNCHECKED` (`src/intrinsic/mod.rs`). Add it to the frozen list.",
+            new,
+        );
+
+        let mut stale: Vec<String> = Vec::new();
+        for name in frozen.iter().copied() {
+            match TYPE_RESIDUE_PROBES.iter().find(|pair| pair.0 == name) {
+                None => stale.push(format!(
+                    "{name} — on `FROZEN_TYPES_UNCHECKED` but carries no entry in \
+                     `TYPE_RESIDUE_PROBES`; add one or delete the name."
+                )),
+                Some(pair) => {
+                    let src = pair.1;
+                    if let Err(e) = crate::check::tests::check(src) {
+                        stale.push(format!(
+                            "{name} — its wrong-typed call `{src}` is now REJECTED \
+                             ({e}); the checker verifies this row's types for real now — \
+                             delete it from `FROZEN_TYPES_UNCHECKED` and `TYPE_RESIDUE_PROBES`."
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(
+            stale.is_empty(),
+            "STALE — the type residue ledger has resolved entries still frozen:\n{}",
+            stale.join("\n"),
+        );
+    }
+
     /// Arc 255.1b-v: every `@see` FQDN in the intrinsic corpus must resolve —
     /// to a registered Rust intrinsic OR (arc 255 STONE "`@see` can cross the
     /// boundary") a wat verb that DECLARES (carries an axis-declaration key
@@ -1131,6 +1261,23 @@ mod tests {
             if !entry.ret_type.is_empty() { check(entry.ret_type, &scheme.ret, "ret"); }
             if ok { full_rt += 1 } else if !failing_rows.contains(&entry.name) { failing_rows.push(entry.name) }
         }
+
+        // ── The other half of the question: the rows with NO scheme at all.
+        let mut no_scheme_sf = 0;
+        let mut no_scheme_intr: Vec<&'static str> = Vec::new();
+        for entry in super::registry().all_entries() {
+            if check_env.get(entry.name).is_some() { continue }
+            match entry.kind {
+                super::Kind::SpecialForm => no_scheme_sf += 1,
+                _ => no_scheme_intr.push(entry.name),
+            }
+        }
+        no_scheme_intr.sort_unstable();
+        eprintln!("\n=== ROWS WITH NO CHECKER SCHEME — by kind ===");
+        eprintln!("  total registry rows ......................... {}", super::registry().all_entries().count());
+        eprintln!("  Kind::SpecialForm, no scheme ................ {no_scheme_sf}  <- a rank-1 scheme is the WRONG SHAPE");
+        eprintln!("  Kind::Intrinsic,  no scheme ................. {}  <- a scheme could exist and does not", no_scheme_intr.len());
+        for n in &no_scheme_intr { eprintln!("     {n}"); }
 
         eprintln!("\n=== CAN THE REGISTRY ABSORB THE SCHEMES? — census ===");
         eprintln!("  registered rows WITH a checker scheme ....... {with_scheme}");

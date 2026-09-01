@@ -5703,6 +5703,51 @@ fn infer_list(
                     } });
                     return CheckResult::errs(local_errors);
                 }
+                // Arc 255 STONE-the-checker-must-read-the-registry — DOOR 2: consult the
+                // registry's declared `arity` before falling into the silent accept below.
+                // `k` has no `TypeScheme` (we are inside `env.get(canonical_k) == None`) — but
+                // if it IS a registered row (`crate::intrinsic::registry()`), its `arity` is a
+                // REQUIRED, MACHINE-SNIFFED field (the `#[wat_intrinsic]` proc-macro reads it off
+                // the handler's own Rust signature; `runtime.rs:5631`'s `dispatch_substrate_impl`
+                // already trusts the SAME field at eval time). Mirrors that predicate exactly —
+                // same `Arity::Exact(n)` guard, same `ArityMismatch` shape — so a call like
+                // `(:wat::linkedlist::length 1 2 3 4 5 6 7 8 9)` stops type-checking clean.
+                // ⛔ MEASURED COVERAGE — 48 of the 71 scheme-less rows, NOT all of them.
+                // The `_ if k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::")`
+                // guard EARLIER in this same dispatch (grep that predicate; do not trust a line
+                // number — the doc that sent me hunting cited a `check.rs:NNNN` that had drifted)
+                // returns `CheckResult::ok(fresh.fresh())` for every `:wat::kernel::`/`:wat::std::`
+                // head with no scheme, so 23 registered rows — the whole `:wat::kernel::` verb
+                // surface, `peer-pid`/`send`/`recv`/`select`/`poll`/`spawn-*`/… — never reach this
+                // branch and stay arity-checked at RUNTIME only (`runtime.rs`'s
+                // `dispatch_substrate_impl`, verified: `(:wat::kernel::peer-pid 1 … 9)` raises
+                // `ArityMismatch` when run, and type-checks clean). That prefix arm is a SECOND
+                // namespace-guess authority of the same class as `effectful_by_prefix`, and
+                // closing it is its own stone — the population it shadows is measured and listed
+                // in this stone's DESIGN rather than left to be rediscovered.
+                //
+                // `Arity::Variadic` imposes nothing (unchanged). A row that DOES carry a
+                // `TypeScheme` never reaches this branch at all (it took the `Some(s)` arm
+                // above) — the scheme is strictly stronger and stays the one authority for that
+                // row (STOP-6: one authority per question). `Kind::SpecialForm` (`if`/`let`) is
+                // excluded explicitly, mirroring the DESIGN's ruling that a rank-1 arity check is
+                // the wrong shape for a special form — moot in practice (both are dispatched by
+                // their own literal match arms long before this fallback), but stated rather than
+                // relied upon.
+                if let Some(entry) = crate::intrinsic::registry().lookup_entry(canonical_k) {
+                    if entry.kind == crate::intrinsic::Kind::Intrinsic {
+                        if let crate::intrinsic::Arity::Exact(n) = entry.arity {
+                            if args.len() != n {
+                                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                                    callee: k.clone(),
+                                    expected: n,
+                                    got: args.len(),
+                                } });
+                                return CheckResult::errs(local_errors);
+                            }
+                        }
+                    }
+                }
                 // HARVEST (236.2): silent-by-intent — no scheme found for multi-arg form; accept and pass.
                 return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
             }
@@ -21711,7 +21756,13 @@ fn register_builtins(env: &mut CheckEnv) {
 }
 
 #[cfg(test)]
-mod tests {
+// Arc 255 STONE-the-checker-must-read-the-registry — `pub(crate)`, not private: the sibling
+// gate this stone adds (`FROZEN_TYPES_UNCHECKED` + its bidirectional test, `src/intrinsic/mod.rs`)
+// must drive THIS SAME harness (`check(src)` below), not a second one — the DESIGN names it as
+// "the harness already exists," and inventing a parallel construction here is exactly the
+// two-authorities-for-one-question shape this arc exists to delete. Only visibility widens;
+// no behavior in this module changes.
+pub(crate) mod tests {
     use super::*;
     use crate::macros::{expand_all, register_defmacros, MacroRegistry};
     use crate::resolve::Privilege;
@@ -21742,7 +21793,7 @@ mod tests {
         })
     }
 
-    fn check(src: &str) -> Result<(), CheckErrors> {
+    pub(crate) fn check(src: &str) -> Result<(), CheckErrors> {
         let (stdlib_sym, stdlib_macros, stdlib_types) = stdlib_loaded();
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut macros = stdlib_macros.clone();
