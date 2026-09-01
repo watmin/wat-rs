@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (thirteenth — THIRTEEN STRIKES; B1, A6, D3, A3, A5 CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (fourteenth — FOURTEEN STRIKES; ⭐ CLASS A IS CLOSED, ALL SEVEN DOORS). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 7e24c3257..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 7e24c3257..HEAD        # what they touched
+git log --oneline b0e3377e9..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat b0e3377e9..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -93,6 +93,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **D3** | `057f9d494` | **an argument with no parameter is refused, not placed** |
 | **A3** | `17fc5fb3e` | **the fence and the executor share one head-space** |
 | **A5** | `7e24c3257` | **a verdict that cannot say "I did not look" is not a verdict** |
+| **A7** | `b0e3377e9` | **the import door is a session's birth, and is charged like one** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -284,12 +285,43 @@ strikes ago after a floor red a scoped probe structurally could not see.
 that lint's own law says *"if you cannot gate it, do not assert a totality about it."* Radius went
 to +1 file and that is correct.
 
-**THE NEXT WORK — A7**, the last Class A row: `export.rs:2128` + `pmap.rs:148`. Import builds the
-network **O(N²)** (`from_pairs` linear-scans the accumulator per pair) with **no node cap**, and
-calls neither `check_session_ceiling` nor `mark_session_origin` — so everything it allocates is
-charged to nothing. Note A4 (`42704d57b`) built the per-session origin machinery this needs, and
-A6's depth wall is the neighbouring precedent at the same door. After it, Class A is CLOSED and
-what remains is **D1's residual**, **Class E** (5 rows) and **Class F** (greppability + 5 lints).
+⭐ **CLASS A IS CLOSED — ALL SEVEN DOORS (A1, A2, A3, A4, A5, A6, A7).** The class above the
+findings — *an invariant proven at ONE door and assumed at ALL of them* — is pulled. `import_export`
+now carries **six walls** where the header once counted three.
+
+✅ **A7 (`b0e3377e9`) was worse than "uncounted".** `session_bytes` does `entry(key).or_insert(now)`,
+so an unmarked session's origin was set at the FIRST CHECK and the entire build went **retroactively
+free**. Driven, same 2 MB: marked-at-birth **2097268**, never-marked **0**. The origin is now
+captured as the door's FIRST statement and filed after the build — the reading and the filing must
+split, because the key IS the built network's identity. Wall six refuses past `MAX_IMPORT_NODES =
+10_000`, **measured**: corpus max 63 nodes across 34 importing tests, ~122 ms worst case on the
+driven quadratic curve. `from_pairs` was affirmatively CUT — the cap bounds N, so the quadratic is
+bounded with it, and the before-curve (1.05→4.87 µs per pair at 500→4000) is recorded for a later
+speed stone.
+
+⛔⛔ **AND THE STRIKE INDICTED ONE OF MY OWN.** Mutation 3 removed A4's non-clobber rule: the new
+unit probe reddens, and **A4's `rearm` arm stays GREEN** — the arm whose fixture says verbatim
+*"only this arm can see it."* The mask is `LAST_ORIGIN`, the cache in front of the origin map, never
+invalidated on a write. `git show 42704d57b`: **the cache and the arm landed in the SAME commit**, so
+the measurement was taken before the cache existed beside it and never re-taken. **It was false the
+day it shipped** — my strike, under a doctrine file whose header opens with a warning about exactly
+this. The code is correct; the PROOF was broken. Struck at the site, with the driven correction and
+a pointer to the live gate. **A cache in front of probed state makes a gate unfalsifiable — re-run
+every mutation proof when a memo lands.** Promoted to memory.
+
+⚠ **Three hazards recorded, not acted on:** `expect_seq` clones the whole `nodes` vector before the
+cap can see it (one memcpy on a hostile 10M-element field); `SESSION_ORIGINS` entries are never
+removed, so a long-lived importing thread leaks one entry per session (pre-existing with A4); and
+**a release-weighed floor ELIDES an allocation-only probe's ballast** — a 1 MiB `Vec` read as 121
+bytes until `black_box` was added. I hit that in my own recon and failed to warn about it.
+
+**THE NEXT WORK — the remainder, and it is no longer Class A.** In order: **D1's residual** (a
+`UnknownEnumVariant` kind so rete's refusal names what core's does — small, and it completes the
+agreement story), then **Class E** (5 rows, error shape and diagnostics), then **Class F**
+(greppability + 5 lints, the builder's directive: *greppability over correction*). Also open and
+recorded: `acc_refusal`'s span carries no information; the misnamed `probes/` dir; D2's structural
+fix (`sequi`'s newtype — must NOT be reaped); and the export/import corpus being **broad in variants
+and flat in depth** (max nesting 3), which is why A6's bound could never have been constrained by it.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
