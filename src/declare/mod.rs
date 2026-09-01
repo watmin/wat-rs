@@ -43,9 +43,12 @@
 //! each moved with its sole consumer) relocate out of `src/runtime.rs` into this module, split by
 //! phase as above. Behaviour is unchanged — every declaration form registers identically; only
 //! the location moved. `eval_tail` (the evaluator's own tail-call spine, one line past the
-//! DESIGN doc's line range) stays in `runtime.rs`, as do `ClauseRegPhase`,
-//! `parse_defclause_form`/`parse_extend_type_form` (the `defclause_dispatch` region), and
-//! `synthesize_fn_body` — none of those are on this stone's function list.
+//! DESIGN doc's line range) stays in `runtime.rs`, as do `ClauseRegPhase` and
+//! `synthesize_fn_body` — neither is on this stone's function list.
+//!
+//! Arc 109 update — the defclause-into-function-home stone (later than this one) moved
+//! `parse_defclause_form`/`parse_extend_type_form` on from the `defclause_dispatch` region of
+//! `runtime.rs` into `src/function/parse.rs`; this file's `use` block now points there instead.
 //!
 //! `register_defclause` / `preregister_stdlib_defclause_stub` are a named practitioner's-call in
 //! the DESIGN doc (lifecycle vs. feature grouping); they ship here, split by lifecycle across

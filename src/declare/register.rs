@@ -27,12 +27,14 @@ use crate::value::{
 // The following are genuinely defined in `crate::runtime` (not a facade re-export of a
 // `crate::value` type — see STOP-1) and stay there: `ClauseRegPhase` (register_defclause's own
 // phase enum), `eval_inner` (the evaluator's inner entry point; 2 of the design's measured 3
-// touches land in this file), `no_field_names` (a shared empty-Arc<Vec<String>> helper),
-// `parse_defclause_form` / `parse_extend_type_form` (the defclause/extend-type FORM parsers,
-// which live in the `defclause_dispatch` region of `runtime.rs`, not in this move).
-use crate::runtime::{
-    eval_inner, no_field_names, parse_defclause_form, parse_extend_type_form, ClauseRegPhase,
-};
+// touches land in this file), `no_field_names` (a shared empty-Arc<Vec<String>> helper).
+use crate::runtime::{eval_inner, no_field_names, ClauseRegPhase};
+
+// Arc 109 Stone — the defclause-into-function-home stone moved `parse_defclause_form` /
+// `parse_extend_type_form` (the defclause/extend-type FORM parsers) out of `runtime.rs`'s
+// `defclause_dispatch` region into `src/function/`'s existing parse.rs — this dissolves two of
+// this file's `declare`-to-`runtime` cycle edges as a side effect (docs/arc/2026/04/109-kill-std/).
+use crate::function::{parse_defclause_form, parse_extend_type_form};
 
 use crate::declare::parse::{
     is_runtime_declaration_head, parse_defalias_form, try_parse_fn_shape_def,

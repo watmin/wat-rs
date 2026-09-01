@@ -2646,7 +2646,7 @@ fn infer_list(
             // Returns unit type — a declaration, not a value expression.
             ":wat::core::extend-type" => {
                 let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
-                if let Err(e) = crate::runtime::parse_extend_type_form(&form_as_list) {
+                if let Err(e) = crate::function::parse_extend_type_form(&form_as_list) {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                         head: k.to_string(),
                         reason: format!("{e}"),
@@ -2665,7 +2665,7 @@ fn infer_list(
             // already happened in splice_type_decls (types.rs). Returns unit type.
             ":wat::core::derive" => {
                 let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
-                if let Err(e) = crate::runtime::parse_derive_form(&form_as_list) {
+                if let Err(e) = crate::function::parse_derive_form(&form_as_list) {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                         head: k.to_string(),
                         reason: format!("{e}"),
@@ -8127,7 +8127,7 @@ fn infer_defclause(
     all_items.extend_from_slice(args);
     let form = WatAST::List(all_items, head_span.clone());
 
-    let cs = match crate::runtime::parse_defclause_form(&form, crate::resolve::Privilege::User) {
+    let cs = match crate::function::parse_defclause_form(&form, crate::resolve::Privilege::User) {
         Ok((_name, cs)) => cs,
         Err(e) => {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
@@ -8446,7 +8446,7 @@ fn collect_and_register_splice_defs(
 /// parse fails or the name is already registered (when `idempotent=true`).
 fn register_defclause_from_form(form: &WatAST, env: &mut CheckEnv, idempotent: bool) -> bool {
     let span = form.span().clone();
-    let (name, cs) = match crate::runtime::parse_defclause_form(form, crate::resolve::Privilege::User) {
+    let (name, cs) = match crate::function::parse_defclause_form(form, crate::resolve::Privilege::User) {
         Ok(pair) => pair,
         Err(_) => return false,
     };
@@ -8575,7 +8575,7 @@ fn collect_splice_defs_ctx(
         // Now a no-op for the surface case: `from_symbols` already carries the right scheme;
         // this loop only needs to register the PROTOCOL edge (unchanged).
         ":wat::core::extend-type" if is_top => {
-            if let Ok((_key, ed)) = crate::runtime::parse_extend_type_form(form) {
+            if let Ok((_key, ed)) = crate::function::parse_extend_type_form(form) {
                 let is_surface = env.types().get(&ed.protocol_name)
                     .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
                     .unwrap_or(false);

@@ -51,13 +51,22 @@ mod eval;
 mod infer;
 mod metadata;
 mod parse;
+mod subsume;
 
 /// The canonical form head for all `:wat::core::fn` error messages.
 /// Declared once; all sub-modules reference this constant so the literal
 /// never drifts.
 pub(in crate::function) const FN_HEAD: &str = ":wat::core::fn";
 
-pub(crate) use eval::eval_fn;
+// Arc 109 Stone — the defclause-into-function-home stone added the `defclause`/`extend-type`/
+// `derive` parser re-exports (`parse` list, below) and the `defclause` call-dispatch
+// re-exports (`eval` list, below), plus the new `subsume` sub-module — home-internal only,
+// nothing outside `src/function/` reaches it. No new home minted; this fills out the
+// existing one.
+pub(crate) use eval::{eval_call_to_defclause, eval_call_to_defclause_with_vals, eval_fn, select_defclause_clause};
 pub(crate) use infer::infer_fn;
 pub(crate) use metadata::peel_type_binder;
-pub(crate) use parse::{parse_fn_signature, parse_fn_signature_for_check};
+pub(crate) use parse::{
+    parse_defclause_form, parse_derive_form, parse_extend_type_form,
+    parse_fn_signature, parse_fn_signature_for_check,
+};
