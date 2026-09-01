@@ -305,6 +305,15 @@ fn profile_flag() -> &'static [&'static str] {
     if release { &["--release"] } else { &[] }
 }
 
+// rune:lint(vacuity-guard) — the population here is rustdoc's diagnostic stream, not a file
+// set, and this ledger is MEANT to reach zero — a "found at least N" floor would make an empty,
+// correct tree RED, which is the opposite of the property. What this gate does instead:
+// `the_unresolved_link_extractor_still_matches_rustdocs_format` above proves the parser against a
+// fixed sample of rustdoc's wording. If a toolchain bump rewords the diagnostic, THAT test reds
+// FIRST and names the format change, instead of this one silently parsing nothing out of a full
+// build and reporting the whole ledger as resolved. The three exit-code arms below carry the other
+// half: a doc build that timed out, could not be spawned, or failed is a red rather than a clean
+// parse of no output.
 #[test]
 fn no_broken_intra_doc_link_outside_the_frozen_ledger() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));

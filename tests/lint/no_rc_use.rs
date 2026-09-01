@@ -94,6 +94,8 @@ fn shared_ownership_is_atomic() {
     }
     files.sort();
 
+    // NON-VACUITY: the guard below is this gate's answer to it. 236 .rs files are found today
+    // (driven 2026-09-01); the floor of 50 catches a walk that stopped reaching the tree.
     // A discovering walk must prove it discovered something, or an empty sweep reads as clean.
     assert!(
         files.len() > 50,

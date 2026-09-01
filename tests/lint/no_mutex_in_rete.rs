@@ -34,6 +34,9 @@ fn rete_home_has_no_mutex() {
     let rete = Path::new(manifest).join("src/rete");
     let mut files = Vec::new();
     collect_rs(&rete, &mut files);
+    // NON-VACUITY: the guard below is this gate's answer to it. A typo'd or moved `src/rete` would
+    // find zero files and this gate would report the home Mutex-free forever while reading nothing.
+    // 57 .rs files are found today (driven 2026-09-01).
     assert!(
         files.len() > 10,
         "the no-Mutex walk found only {} src/rete .rs files",
