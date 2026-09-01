@@ -1048,6 +1048,138 @@ mod tests {
     ///
     /// For variadic args (`is_rest=true`): the doc's element type must match the
     /// ELEMENT of `scheme.rest_param_type` (a `Vector<elem>` in the scheme).
+    /// PROBE (measurement, not a gate) — CAN THE REGISTRY ABSORB THE CHECKER'S SCHEMES?
+    ///
+    /// `doc_arg_ret_types_match_checker_scheme` (below) proves the two representations AGREE,
+    /// by projecting `TypeExpr -> doc string` (`typeexpr_to_doc_string`). Agreement in one
+    /// direction does not prove the doc string can RECONSTRUCT the scheme — a lossy projection
+    /// agrees too. This probe measures the INVERSE, which is the direction the registry would
+    /// need if it were to become the type authority: doc string -> `TypeExpr`, via the
+    /// substrate's own `parse_type_expr_from_source`.
+    ///
+    /// It asserts nothing about the outcome; it prints a census. The number that matters is how
+    /// many entries round-trip EXACTLY, and — separately — how many schemes carry `type_params`
+    /// (quantified generics) that an `@arg`/`@ret` string has no slot for at all.
+    #[test]
+    fn probe_can_doc_types_reconstruct_the_checker_scheme() {
+        use crate::check::CheckEnv;
+        use crate::types::TypeEnv;
+
+        let type_env = TypeEnv::new();
+        let check_env = CheckEnv::with_builtins_and_types(&type_env);
+
+        let (mut with_scheme, mut full_rt, mut generic, mut generic_recoverable) = (0, 0, 0, 0);
+        let mut parse_fail_examples: Vec<String> = Vec::new();
+        let mut mismatch_examples: Vec<String> = Vec::new();
+        let mut generic_examples: Vec<String> = Vec::new();
+        let mut failing_rows: Vec<&'static str> = Vec::new();
+
+        for entry in super::registry().all_entries() {
+            let Some(scheme) = check_env.get(entry.name) else { continue };
+            with_scheme += 1;
+            if !scheme.type_params.is_empty() {
+                generic += 1;
+                // Measure, do not assume: is every quantified var NAMED somewhere in the doc's
+                // own arg/ret type strings? If it is not, the doc cannot reconstruct the
+                // quantifier list and the registry cannot be the type authority for this row.
+                let doc_text: String = entry
+                    .args.iter().map(|a| a.1)
+                    .chain(std::iter::once(entry.ret_type))
+                    .collect::<Vec<_>>().join(" ");
+                let missing: Vec<&str> = scheme
+                    .type_params.iter()
+                    .filter(|v| !doc_text.split(|c: char| !c.is_alphanumeric() && c != '_')
+                                         .any(|tok| tok == v.as_str()))
+                    .map(|v| v.as_str()).collect();
+                if missing.is_empty() { generic_recoverable += 1 } else if generic_examples.len() < 8 {
+                    generic_examples.push(format!(
+                        "{} <{}> — doc never names {:?}  (doc types: {})",
+                        entry.name, scheme.type_params.join(","), missing, doc_text));
+                }
+            }
+            let mut ok = true;
+            let mut check = |doc: &str, want: &crate::types::TypeExpr, what: &str| {
+                match crate::types::parse_type_expr_from_source(doc) {
+                    Err(e) => {
+                        ok = false;
+                        if parse_fail_examples.len() < 8 {
+                            parse_fail_examples.push(format!("{} {}: `{}` -> {}", entry.name, what, doc, e));
+                        }
+                    }
+                    Ok(got) => {
+                        // ⛔ Compare the TypeExprs THEMSELVES (`TypeExpr: PartialEq`), never via
+                        // `typeexpr_to_doc_string`. Comparing through the forward projection is
+                        // the defect this probe exists to avoid: a lossy projection makes two
+                        // different TypeExprs compare equal, and the probe scores a match it did
+                        // not earn. The first draft of this probe did exactly that and returned
+                        // a perfect 386/386. `[[feedback_a_green_test_can_prove_nothing]]`
+                        if got != *want {
+                            ok = false;
+                            if mismatch_examples.len() < 8 {
+                                mismatch_examples.push(format!(
+                                    "{} {}: doc `{}`\n        parsed  {:?}\n        scheme  {:?}",
+                                    entry.name, what, doc, got, want));
+                            }
+                        }
+                    }
+                }
+            };
+            for (i, &(_, ty, _, is_rest)) in entry.args.iter().enumerate() {
+                if is_rest || ty.is_empty() { continue }
+                if i < scheme.params.len() { check(ty, &scheme.params[i], &format!("arg{i}")); }
+            }
+            if !entry.ret_type.is_empty() { check(entry.ret_type, &scheme.ret, "ret"); }
+            if ok { full_rt += 1 } else if !failing_rows.contains(&entry.name) { failing_rows.push(entry.name) }
+        }
+
+        eprintln!("\n=== CAN THE REGISTRY ABSORB THE SCHEMES? — census ===");
+        eprintln!("  registered rows WITH a checker scheme ....... {with_scheme}");
+        eprintln!("  round-trip EXACTLY (doc -> TypeExpr == scheme) {full_rt}");
+        eprintln!("  failed (parse error or mismatch) ............ {}", with_scheme - full_rt);
+        eprintln!("  schemes carrying type_params (generics) ..... {generic}");
+        eprintln!("    of those, every var NAMED in the doc types . {generic_recoverable}");
+        eprintln!("    quantifier NOT recoverable from the doc .... {}", generic - generic_recoverable);
+        eprintln!("  parse failures (sample):");
+        for e in &parse_fail_examples { eprintln!("     {e}"); }
+        eprintln!("  mismatches (sample):");
+        for e in &mismatch_examples { eprintln!("     {e}"); }
+        eprintln!("  generic schemes whose quantifier is NOT recoverable (sample):");
+        for e in &generic_examples { eprintln!("     {e}"); }
+
+        // ── The gate. Freeze the NAMES, never the count: a count cannot tell "+1 new, -1 fixed"
+        // from "nothing happened", and its failure message cannot name the offender.
+        // `[[feedback_a_gate_freezes_names_never_a_count]]`
+        //
+        // Both frozen rows are SPELLING normalizations, measured — not lost information:
+        //   `:wat::rete::lower` ret  — the parser canonicalizes `:wat::core::nil` to `Tuple([])`;
+        //                              the scheme holds `Path(":wat::core::nil")`. Same type.
+        //   `:wat::string::join` arg1 — the parser yields the type var as `Path(":T")`, the scheme
+        //                              as `Path("T")`. A leading colon. This is the recurring class:
+        //                              a comparison with one side normalized and the other not.
+        const FROZEN_SPELLING_MISMATCHES: &[&str] = &[":wat::rete::lower", ":wat::string::join"];
+        let unexpected: Vec<&str> = failing_rows
+            .iter()
+            .filter(|n| !FROZEN_SPELLING_MISMATCHES.contains(n))
+            .copied()
+            .collect();
+        assert!(
+            unexpected.is_empty(),
+            "a registered row's @arg/@ret types no longer reconstruct its checker TypeScheme: {unexpected:?}\n\
+             This probe measures whether the REGISTRY could become the type authority. A new name \
+             here means the doc and the scheme have diverged in a way the doc cannot express — \
+             either fix the doc, or record why the divergence is a real limit and add the name to \
+             FROZEN_SPELLING_MISMATCHES with its measured reason."
+        );
+        for n in FROZEN_SPELLING_MISMATCHES {
+            assert!(
+                failing_rows.contains(n),
+                "`{n}` is frozen as a known spelling mismatch but now round-trips — the freeze list \
+                 is stale; remove it. A frozen row that silently starts passing is how a gate rots \
+                 into decoration."
+            );
+        }
+    }
+
     #[test]
     fn doc_arg_ret_types_match_checker_scheme() {
         use crate::check::CheckEnv;
