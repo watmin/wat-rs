@@ -17,11 +17,10 @@
 //! `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-E-ii-the-vectors-get-their-homes.md`.
 //!
 //! ⚠ Measured against the actual corpus + `collection/eval.rs`, this family
-//! carries SIX verbs, not the five the brief names — `empty?` is real
-//! (`persistentvector_empty_q_inner`, 5 corpus call sites) and was simply
-//! omitted from the brief's list. `concat · conj · contains? · empty? · get ·
-//! length`. `extend` remains `Vector`-only (`intrinsic/vec.rs`) — the two
-//! verb sets are NOT symmetric.
+//! carries `concat · conj · contains? · empty? · get · length · set · drop-last`.
+//! `empty?` is real (`persistentvector_empty_q_inner`). `extend` remains
+//! `Vector`-only (`intrinsic/vec.rs`) — the two verb sets are NOT symmetric.
+//! `set` / `drop-last` expose rpds indexed update (perf-3).
 //!
 //! **Two homes** (same split as the string carve): this file is the REGISTRY
 //! home — dispatch shim + `///` preamble only. The algorithms these handlers
@@ -48,7 +47,7 @@ use wat_macros::wat_intrinsic;
 
 use crate::value::{EvalBreak, Value};
 
-// ─── the 6 verbs ────────────────────────────────────────────────────────────
+// ─── the vector verbs ───────────────────────────────────────────────────────
 //
 // arc 255 Stone O-iii — migrated to ALGEBRA. Each handler's leading params are now `&Value`
 // (not `&WatAST`), so `#[wat_intrinsic]` generates BOTH the AST door (the shim it always
@@ -177,4 +176,45 @@ pub(crate) fn persistentvector_conj(v: &Value, item: &Value) -> Result<Value, Ev
 #[wat_intrinsic(":wat::vector::concat")]
 pub(crate) fn persistentvector_concat(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
     crate::collection::eval::persistentvector_concat_inner(to, from)
+}
+
+/// `(:wat::vector::set v i item)` → a NEW `PersistentVector` with the element
+/// at index `i` replaced by `item`; the original `v` is UNCHANGED. Out-of-range
+/// is a located error naming the index and the length.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Total         Partial
+/// @Category      Transform
+/// @arg     v (:wat::core::PersistentVector :- [T]) the vector transformed
+/// @arg     i :wat::core::i64 the index written
+/// @arg     item :T the new element
+/// @ret     (:wat::core::PersistentVector :- [T]) `v` with index `i` replaced
+/// @example (:wat::vector::get (:wat::vector::set (:wat::core::PersistentVector 1 2 3) 1 9) 1) #=> (:wat::core::Some 9)
+/// @see     :wat::vector::get
+#[wat_intrinsic(":wat::vector::set")]
+pub(crate) fn persistentvector_set(
+    v: &Value,
+    i: &Value,
+    item: &Value,
+) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_set_inner(v, i, item)
+}
+
+/// `(:wat::vector::drop-last v)` → a NEW `PersistentVector` without the last
+/// element; the original `v` is UNCHANGED. Empty is a located error.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Total         Partial
+/// @Category      Transform
+/// @arg     v (:wat::core::PersistentVector :- [T]) the vector transformed
+/// @ret     (:wat::core::PersistentVector :- [T]) `v` without its last element
+/// @example (:wat::vector::length (:wat::vector::drop-last (:wat::core::PersistentVector 1 2 3))) #=> 2
+/// @see     :wat::vector::conj
+#[wat_intrinsic(":wat::vector::drop-last")]
+pub(crate) fn persistentvector_drop_last(v: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_drop_last_inner(v)
 }

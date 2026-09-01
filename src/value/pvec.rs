@@ -119,6 +119,45 @@ impl PVec {
         }
     }
 
+    /// Persistent indexed update. `None` if `index >= len`.
+    ///
+    /// Array at/above the promotion threshold becomes a tree so further
+    /// updates are rpds `set` (O(log n)), not a full copy. That is the
+    /// exposure DESIGN-STONE-the-indexed-vector-update asked for.
+    pub fn set(&self, index: usize, v: Value) -> Option<Self> {
+        if index >= self.len() {
+            return None;
+        }
+        match self {
+            PVec::Array(items) if items.len() >= PROMOTION_THRESHOLD => {
+                let mut t = tree_from_slice(items);
+                t.set_mut(index, v);
+                Some(PVec::Tree(t))
+            }
+            PVec::Array(items) => {
+                let mut next = (**items).clone();
+                next[index] = v;
+                Some(PVec::Array(Arc::new(next)))
+            }
+            PVec::Tree(t) => t.set(index, v).map(PVec::Tree),
+        }
+    }
+
+    /// Persistent drop of the last element. `None` if empty.
+    pub fn drop_last(&self) -> Option<Self> {
+        if self.is_empty() {
+            return None;
+        }
+        match self {
+            PVec::Array(items) => {
+                let mut next = (**items).clone();
+                next.pop();
+                Some(PVec::Array(Arc::new(next)))
+            }
+            PVec::Tree(t) => t.drop_last().map(PVec::Tree),
+        }
+    }
+
     /// Test-only: did persistent conj promote?
     pub fn is_tree(&self) -> bool {
         matches!(self, PVec::Tree(..))
@@ -220,6 +259,29 @@ mod tests {
         }
         assert!(!v.is_tree(), "unique mut build must stay Array");
         assert_eq!(v.len(), 64);
+    }
+
+    #[test]
+    fn set_updates_both_arms_and_equals_across_representation() {
+        let a = PVec::from_vec((0..4i64).map(k).collect());
+        let t = tree_of(4);
+        let a2 = a.set(1, k(99)).expect("in range");
+        let t2 = t.set(1, k(99)).expect("in range");
+        assert_eq!(a2.get(1), Some(&k(99)));
+        assert_eq!(a2, t2);
+        assert!(a.set(4, k(0)).is_none());
+        assert!(t.set(4, k(0)).is_none());
+    }
+
+    #[test]
+    fn drop_last_on_both_arms() {
+        let a = PVec::from_vec((0..4i64).map(k).collect());
+        let t = tree_of(4);
+        let a2 = a.drop_last().expect("non-empty");
+        let t2 = t.drop_last().expect("non-empty");
+        assert_eq!(a2.len(), 3);
+        assert_eq!(a2, t2);
+        assert!(PVec::new().drop_last().is_none());
     }
 
     #[test]

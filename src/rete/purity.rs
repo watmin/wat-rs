@@ -636,6 +636,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::vector::contains?"
             | ":wat::vector::get"
             | ":wat::vector::conj"
+            | ":wat::vector::set"
+            | ":wat::vector::drop-last"
             // PersistentMap / HashMap TYPE constructors — bare, no rename this stone
             // (arc 255 Stone E-i moved only the `/`-verb ops; the type constructors are a
             // separate future stone, per the numerics type/ops split precedent).

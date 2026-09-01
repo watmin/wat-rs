@@ -47,6 +47,12 @@
 ;; O(table). Hibernate/resume rebuilds the index from the table by construction (`:init` is
 ;; the only builder). `scan-index` is the hot path (queue `receive` is a scan-index on
 ;; `by-visible-at`).
+;;
+;; Writes: the durable table is an unordered bag keyed by `(pk, sk)` (no read path touches
+;; `Record/rows` except `:init` / `put` / `delete`). The index carries key → position.
+;; `put`-insert is `conj`; `put`-replace is `vector/set` at the known index; `delete` is
+;; swap-remove (`set` the last row into the hole, `drop-last`) with the moved row's
+;; position fixed up. Both halves are O(log n) given `:wat::vector::set` / `drop-last`.
 
 ;; ─── small pure helpers — filter/sort predicates shared by scan + scan-index ────────────────
 (:wat::core::defn :wat::query::sk-after-cursor?
@@ -111,7 +117,12 @@
   [by-pk    <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::PersistentVector :- [:wat::query::StoredRow])])
    by-index <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::HashMap :- [:wat::core::String (:wat::core::PersistentVector :- [:wat::query::StoredRow])])])
    live     <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::HashMap :- [:wat::core::String :wat::query::StoredRow])])
-   pk-dirty <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])])
+   pk-dirty <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+   pos      <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])])])
+
+(:wat::core::defrecord :wat::query::MemWrite
+  [rows  <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+   index <- :wat::query::MemIndex])
 
 (:wat::core::defrecord :wat::query::MemInsert
   [rows   <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
@@ -126,7 +137,8 @@
     :by-pk (:wat::core::HashMap :- [:wat::core::String (:wat::core::PersistentVector :- [:wat::query::StoredRow])])
     :by-index (:wat::core::HashMap :- [:wat::core::String (:wat::core::HashMap :- [:wat::core::String (:wat::core::PersistentVector :- [:wat::query::StoredRow])])])
     :live (:wat::core::HashMap :- [:wat::core::String (:wat::core::HashMap :- [:wat::core::String :wat::query::StoredRow])])
-    :pk-dirty (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])))
+    :pk-dirty (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+    :pos (:wat::core::HashMap :- [:wat::core::String (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])])))
 
 (:wat::core::defn :wat::query::mem-pk-rows
   [idx <- :wat::query::MemIndex pk <- :wat::core::String]
@@ -153,7 +165,8 @@
     :by-pk (:wat::hashmap::assoc (:wat::query::MemIndex/by-pk idx) pk rows)
     :by-index (:wat::query::MemIndex/by-index idx)
     :live (:wat::query::MemIndex/live idx)
-    :pk-dirty (:wat::query::MemIndex/pk-dirty idx)))
+    :pk-dirty (:wat::query::MemIndex/pk-dirty idx)
+    :pos (:wat::query::MemIndex/pos idx)))
 
 (:wat::core::defn :wat::query::mem-set-gsi-rows
   [idx <- :wat::query::MemIndex name <- :wat::core::String ipk <- :wat::core::String
@@ -168,7 +181,8 @@
       :by-pk (:wat::query::MemIndex/by-pk idx)
       :by-index (:wat::hashmap::assoc outer name (:wat::hashmap::assoc inner ipk rows))
       :live (:wat::query::MemIndex/live idx)
-      :pk-dirty (:wat::query::MemIndex/pk-dirty idx))))
+      :pk-dirty (:wat::query::MemIndex/pk-dirty idx)
+      :pos (:wat::query::MemIndex/pos idx))))
 
 (:wat::core::defn :wat::query::mem-mark-pk-dirty
   [idx <- :wat::query::MemIndex pk <- :wat::core::String] -> :wat::query::MemIndex
@@ -176,7 +190,8 @@
     :by-pk (:wat::query::MemIndex/by-pk idx)
     :by-index (:wat::query::MemIndex/by-index idx)
     :live (:wat::query::MemIndex/live idx)
-    :pk-dirty (:wat::hashmap::assoc (:wat::query::MemIndex/pk-dirty idx) pk true)))
+    :pk-dirty (:wat::hashmap::assoc (:wat::query::MemIndex/pk-dirty idx) pk true)
+    :pos (:wat::query::MemIndex/pos idx)))
 
 (:wat::core::defn :wat::query::mem-mark-pk-clean
   [idx <- :wat::query::MemIndex pk <- :wat::core::String] -> :wat::query::MemIndex
@@ -184,7 +199,8 @@
     :by-pk (:wat::query::MemIndex/by-pk idx)
     :by-index (:wat::query::MemIndex/by-index idx)
     :live (:wat::query::MemIndex/live idx)
-    :pk-dirty (:wat::hashmap::assoc (:wat::query::MemIndex/pk-dirty idx) pk false)))
+    :pk-dirty (:wat::hashmap::assoc (:wat::query::MemIndex/pk-dirty idx) pk false)
+    :pos (:wat::query::MemIndex/pos idx)))
 
 (:wat::core::defn :wat::query::live-get
   [idx <- :wat::query::MemIndex pk <- :wat::core::String sk <- :wat::core::String]
@@ -206,7 +222,8 @@
       :by-pk (:wat::query::MemIndex/by-pk idx)
       :by-index (:wat::query::MemIndex/by-index idx)
       :live (:wat::hashmap::assoc outer pk (:wat::hashmap::assoc inner sk row))
-      :pk-dirty (:wat::query::MemIndex/pk-dirty idx))))
+      :pk-dirty (:wat::query::MemIndex/pk-dirty idx)
+      :pos (:wat::query::MemIndex/pos idx))))
 
 (:wat::core::defn :wat::query::live-dissoc
   [idx <- :wat::query::MemIndex pk <- :wat::core::String sk <- :wat::core::String]
@@ -218,7 +235,44 @@
         :by-pk (:wat::query::MemIndex/by-pk idx)
         :by-index (:wat::query::MemIndex/by-index idx)
         :live (:wat::hashmap::assoc (:wat::query::MemIndex/live idx) pk (:wat::core::dissoc inner sk))
-        :pk-dirty (:wat::query::MemIndex/pk-dirty idx)))))
+        :pk-dirty (:wat::query::MemIndex/pk-dirty idx)
+        :pos (:wat::query::MemIndex/pos idx)))))
+
+(:wat::core::defn :wat::query::pos-get
+  [idx <- :wat::query::MemIndex pk <- :wat::core::String sk <- :wat::core::String]
+  -> (:wat::core::Option :- [:wat::core::i64])
+  (:wat::core::match (:wat::hashmap::get (:wat::query::MemIndex/pos idx) pk)
+    (:wat::core::None :wat::core::None)
+    ((:wat::core::Some inner) (:wat::hashmap::get inner sk))))
+
+(:wat::core::defn :wat::query::pos-assoc
+  [idx <- :wat::query::MemIndex pk <- :wat::core::String sk <- :wat::core::String
+   i <- :wat::core::i64]
+  -> :wat::query::MemIndex
+  (:wat::core::let
+    [outer (:wat::query::MemIndex/pos idx)
+     inner (:wat::core::match (:wat::hashmap::get outer pk)
+             (:wat::core::None (:wat::core::HashMap :- [:wat::core::String :wat::core::i64]))
+             ((:wat::core::Some m) m))]
+    (:wat::query::MemIndex
+      :by-pk (:wat::query::MemIndex/by-pk idx)
+      :by-index (:wat::query::MemIndex/by-index idx)
+      :live (:wat::query::MemIndex/live idx)
+      :pk-dirty (:wat::query::MemIndex/pk-dirty idx)
+      :pos (:wat::hashmap::assoc outer pk (:wat::hashmap::assoc inner sk i)))))
+
+(:wat::core::defn :wat::query::pos-dissoc
+  [idx <- :wat::query::MemIndex pk <- :wat::core::String sk <- :wat::core::String]
+  -> :wat::query::MemIndex
+  (:wat::core::match (:wat::hashmap::get (:wat::query::MemIndex/pos idx) pk)
+    (:wat::core::None idx)
+    ((:wat::core::Some inner)
+      (:wat::query::MemIndex
+        :by-pk (:wat::query::MemIndex/by-pk idx)
+        :by-index (:wat::query::MemIndex/by-index idx)
+        :live (:wat::query::MemIndex/live idx)
+        :pk-dirty (:wat::query::MemIndex/pk-dirty idx)
+        :pos (:wat::hashmap::assoc (:wat::query::MemIndex/pos idx) pk (:wat::core::dissoc inner sk))))))
 
 (:wat::core::defn :wat::query::rows-without-key
   [rows <- (:wat::core::PersistentVector :- [:wat::query::StoredRow]) k <- :wat::query::Key]
@@ -303,9 +357,7 @@
       (:wat::core::None idx)
       ((:wat::core::Some old)
         (:wat::core::let
-          [idx1 (:wat::query::live-dissoc idx pk sk)
-           idx2 (:wat::query::mem-set-pk-rows idx1 pk
-                   (:wat::query::rows-without-key (:wat::query::mem-pk-rows idx1 pk) k))
+          [idx1 (:wat::query::mem-mark-pk-dirty (:wat::query::live-dissoc idx pk sk) pk)
            names (:wat::hashmap::keys (:wat::query::StoredRow/index-keys old))]
           (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::query::MemIndex name <- :wat::core::String]
@@ -316,7 +368,7 @@
                   (:wat::core::let [ipk (:wat::query::IndexKey/ipk ik)]
                     (:wat::query::mem-set-gsi-rows acc name ipk
                       (:wat::query::rows-without-key (:wat::query::mem-gsi-rows acc name ipk) k))))))
-            idx2
+            idx1
             names))))))
 
 (:wat::core::defn :wat::query::index-add-row
@@ -324,11 +376,7 @@
   (:wat::core::let
     [pk (:wat::query::StoredRow/pk row)
      sk (:wat::query::StoredRow/sk row)
-     idx1 (:wat::query::live-assoc idx pk sk row)
-     idx2 (:wat::query::mem-mark-pk-dirty
-            (:wat::query::mem-set-pk-rows idx1 pk
-              (:wat::vector::conj (:wat::query::mem-pk-rows idx1 pk) row))
-            pk)
+     idx1 (:wat::query::mem-mark-pk-dirty (:wat::query::live-assoc idx pk sk row) pk)
      names (:wat::hashmap::keys (:wat::query::StoredRow/index-keys row))]
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::query::MemIndex name <- :wat::core::String]
@@ -339,15 +387,16 @@
             (:wat::core::let [ipk (:wat::query::IndexKey/ipk ik)]
               (:wat::query::mem-set-gsi-rows acc name ipk
                 (:wat::query::insert-sorted-by-isk name (:wat::query::mem-gsi-rows acc name ipk) row))))))
-      idx2
+      idx1
       names)))
 
-(:wat::core::defn :wat::query::index-put-row
-  [idx <- :wat::query::MemIndex row <- :wat::query::StoredRow] -> :wat::query::MemIndex
-  (:wat::query::index-add-row
-    (:wat::query::index-drop-key idx
-      (:wat::query::Key :pk (:wat::query::StoredRow/pk row) :sk (:wat::query::StoredRow/sk row)))
-    row))
+(:wat::core::defn :wat::query::live-pk-rows
+  [idx <- :wat::query::MemIndex pk <- :wat::core::String]
+  -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+  (:wat::core::match (:wat::hashmap::get (:wat::query::MemIndex/live idx) pk)
+    (:wat::core::None (:wat::query::empty-stored-rows))
+    ((:wat::core::Some inner)
+      (:wat::core::into (:wat::query::empty-stored-rows) (:wat::hashmap::values inner)))))
 
 (:wat::core::defn :wat::query::ensure-pk-sorted
   [idx <- :wat::query::MemIndex pk <- :wat::core::String] -> :wat::query::MemIndex
@@ -357,9 +406,61 @@
       (:wat::core::if dirty?
         (:wat::query::mem-mark-pk-clean
           (:wat::query::mem-set-pk-rows idx pk
-            (:wat::query::sort-rows-by-sk (:wat::query::mem-pk-rows idx pk)))
+            (:wat::query::sort-rows-by-sk (:wat::query::live-pk-rows idx pk)))
           pk)
         idx))))
+
+(:wat::core::defn :wat::query::durable-swap-remove
+  [rows <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+   idx  <- :wat::query::MemIndex
+   k    <- :wat::query::Key]
+  -> :wat::query::MemWrite
+  (:wat::core::let
+    [pk (:wat::query::Key/pk k)
+     sk (:wat::query::Key/sk k)]
+    (:wat::core::match (:wat::query::pos-get idx pk sk)
+      (:wat::core::None (:wat::query::MemWrite :rows rows :index idx))
+      ((:wat::core::Some i)
+        (:wat::core::let
+          [n (:wat::core::count rows)
+           last-i (:wat::core::- n 1)
+           idx1 (:wat::query::index-drop-key idx k)]
+          (:wat::core::if (:wat::core::= i last-i)
+            (:wat::query::MemWrite
+              :rows (:wat::vector::drop-last rows)
+              :index (:wat::query::pos-dissoc idx1 pk sk))
+            (:wat::core::let
+              [last-row (:wat::core::nth rows last-i)
+               rows1 (:wat::vector::set rows i last-row)
+               rows2 (:wat::vector::drop-last rows1)
+               idx2 (:wat::query::pos-assoc idx1
+                       (:wat::query::StoredRow/pk last-row)
+                       (:wat::query::StoredRow/sk last-row)
+                       i)
+               idx3 (:wat::query::pos-dissoc idx2 pk sk)]
+              (:wat::query::MemWrite :rows rows2 :index idx3))))))))
+
+(:wat::core::defn :wat::query::durable-put-row
+  [rows <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+   idx  <- :wat::query::MemIndex
+   row  <- :wat::query::StoredRow]
+  -> :wat::query::MemWrite
+  (:wat::core::let
+    [pk (:wat::query::StoredRow/pk row)
+     sk (:wat::query::StoredRow/sk row)]
+    (:wat::core::match (:wat::query::pos-get idx pk sk)
+      (:wat::core::None
+        (:wat::core::let
+          [i (:wat::core::count rows)
+           idx1 (:wat::query::pos-assoc (:wat::query::index-add-row idx row) pk sk i)]
+          (:wat::query::MemWrite :rows (:wat::vector::conj rows row) :index idx1)))
+      ((:wat::core::Some i)
+        (:wat::core::let
+          [k (:wat::query::Key :pk pk :sk sk)
+           idx1 (:wat::query::pos-assoc
+                  (:wat::query::index-add-row (:wat::query::index-drop-key idx k) row)
+                  pk sk i)]
+          (:wat::query::MemWrite :rows (:wat::vector::set rows i row) :index idx1))))))
 
 (:wat::core::defn :wat::query::index-add-row-raw
   [idx <- :wat::query::MemIndex row <- :wat::query::StoredRow] -> :wat::query::MemIndex
@@ -413,12 +514,21 @@
 
 (:wat::core::defn :wat::query::rebuild-mem-index
   [rows <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])] -> :wat::query::MemIndex
-  (:wat::query::sort-all-partitions
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::query::MemIndex r <- :wat::query::StoredRow] -> :wat::query::MemIndex
-        (:wat::query::index-add-row-raw acc r))
-      (:wat::query::empty-mem-index)
-      rows)))
+  (:wat::core::let
+    [n (:wat::core::count rows)
+     idx0 (:wat::core::foldl
+            (:wat::core::fn [acc <- :wat::query::MemIndex r <- :wat::query::StoredRow] -> :wat::query::MemIndex
+              (:wat::query::index-add-row-raw acc r))
+            (:wat::query::empty-mem-index)
+            rows)
+     idx1 (:wat::core::foldl
+            (:wat::core::fn [acc <- :wat::query::MemIndex i <- :wat::core::i64] -> :wat::query::MemIndex
+              (:wat::core::let [r (:wat::core::nth rows i)]
+                (:wat::query::pos-assoc acc
+                  (:wat::query::StoredRow/pk r) (:wat::query::StoredRow/sk r) i)))
+            idx0
+            (:wat::core::range 0 n))]
+    (:wat::query::sort-all-partitions idx1)))
 
 ;; skip while sk < lo or not after cursor; then take while sk <= hi; then take lim.
 ;; Sorted, so this stops at hi / limit and does not walk the rest of the partition.
@@ -504,73 +614,45 @@
      (:wat::service::Outcome::Reply s (:wat::query::Store::EnsureSchemaResponse::Success)))
 
    (put [s ctx req]
-     ;; PutItem: for each incoming row, drop any acc row with the same (pk,sk)
-     ;; (`key-hits-row?`, already the delete predicate) then conj. Later rows in
-     ;; the batch win — the same sequential replace sqlite's put-rows recursion
-     ;; produces. The ephemeral index is maintained the same way: drop the old
-     ;; (pk,sk) (and its GSI projections) then insert the new row into the
-     ;; sorted partitions.
+     ;; PutItem: replace-by-(pk,sk). Insert is conj at the end; replace is
+     ;; vector/set at the recorded position. Later rows in the batch win.
      (:wat::core::let
        [new-rows (:wat::query::Store::PutRequest/rows req)
         dur (:wat::query::mem-store::State/durable s)
-        merged (:wat::core::foldl
-                 (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                                  r   <- :wat::query::StoredRow]
-                   -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                   (:wat::core::let
-                     [k (:wat::query::Key :pk (:wat::query::StoredRow/pk r) :sk (:wat::query::StoredRow/sk r))
-                      kept (:wat::core::foldl
-                             (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                                              x <- :wat::query::StoredRow]
-                               -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                               (:wat::core::if (:wat::query::key-hits-row? k x)
-                                 a
-                                 (:wat::vector::conj a x)))
-                             (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                             acc)]
-                     (:wat::vector::conj kept r)))
-                 (:wat::query::mem-store::Record/rows dur)
-                 new-rows)
-        idx (:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::query::MemIndex r <- :wat::query::StoredRow]
-                -> :wat::query::MemIndex
-                (:wat::query::index-put-row acc r))
-              (:wat::query::mem-store::State/index s)
-              new-rows)]
+        written (:wat::core::foldl
+                  (:wat::core::fn [acc <- :wat::query::MemWrite r <- :wat::query::StoredRow]
+                    -> :wat::query::MemWrite
+                    (:wat::query::durable-put-row
+                      (:wat::query::MemWrite/rows acc) (:wat::query::MemWrite/index acc) r))
+                  (:wat::query::MemWrite
+                    :rows (:wat::query::mem-store::Record/rows dur)
+                    :index (:wat::query::mem-store::State/index s))
+                  new-rows)]
        (:wat::service::Outcome::Reply
          (:wat::query::mem-store::State
-           :durable (:wat::query::mem-store::Record merged)
-           :index idx)
+           :durable (:wat::query::mem-store::Record (:wat::query::MemWrite/rows written))
+           :index (:wat::query::MemWrite/index written))
          (:wat::query::Store::PutResponse::Success))))
 
    (delete [s ctx req]
-     ;; inverted put: fold the live table, keep rows whose (pk,sk) is not in the
-     ;; key batch. A missing key is a no-op (the fold just keeps every row) —
-     ;; PutResponse's arm list has no NotFound, so DeleteResponse cannot grow one;
-     ;; SQL DELETE of 0 rows is the same Success. Report, do not invent an arm.
-     ;; The ephemeral index drops the same keys.
+     ;; Missing key is a no-op. Swap-remove: last row fills the hole, drop-last,
+     ;; moved row's position is updated in the index.
      (:wat::core::let
        [keys (:wat::query::Store::DeleteRequest/keys req)
         dur (:wat::query::mem-store::State/durable s)
-        kept (:wat::core::foldl
-               (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                                r   <- :wat::query::StoredRow]
-                 -> (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-                 (:wat::core::if (:wat::query::row-in-delete-batch? r keys)
-                   acc
-                   (:wat::vector::conj acc r)))
-               (:wat::core::PersistentVector :- [:wat::query::StoredRow])
-               (:wat::query::mem-store::Record/rows dur))
-        idx (:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::query::MemIndex k <- :wat::query::Key]
-                -> :wat::query::MemIndex
-                (:wat::query::index-drop-key acc k))
-              (:wat::query::mem-store::State/index s)
-              keys)]
+        written (:wat::core::foldl
+                  (:wat::core::fn [acc <- :wat::query::MemWrite k <- :wat::query::Key]
+                    -> :wat::query::MemWrite
+                    (:wat::query::durable-swap-remove
+                      (:wat::query::MemWrite/rows acc) (:wat::query::MemWrite/index acc) k))
+                  (:wat::query::MemWrite
+                    :rows (:wat::query::mem-store::Record/rows dur)
+                    :index (:wat::query::mem-store::State/index s))
+                  keys)]
        (:wat::service::Outcome::Reply
          (:wat::query::mem-store::State
-           :durable (:wat::query::mem-store::Record kept)
-           :index idx)
+           :durable (:wat::query::mem-store::Record (:wat::query::MemWrite/rows written))
+           :index (:wat::query::MemWrite/index written))
          (:wat::query::Store::DeleteResponse::Success))))
 
    (scan [s ctx req]

@@ -909,6 +909,90 @@ pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Re
     }
 }
 
+/// `(:wat::vector::set pv i item)` — persistent indexed update. Out-of-range is a
+/// located error naming index and length (DESIGN-STONE-the-indexed-vector-update STOP-4).
+pub(crate) fn persistentvector_set_inner(
+    container: &Value,
+    index: &Value,
+    item: &Value,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::vector::set";
+    match container {
+        Value::wat__core__PersistentVector(pv) => {
+            let i = match index {
+                Value::i64(n) => *n,
+                other => {
+                    return Err(RuntimeError::new(
+                        crate::rust_caller_span!(),
+                        RuntimeErrorKind::TypeMismatch {
+                            op: OP.into(),
+                            expected: "i64 index",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        },
+                    )
+                    .into());
+                }
+            };
+            if i < 0 || (i as usize) >= pv.len() {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("index {i} out of range (length {})", pv.len()),
+                    },
+                )
+                .into());
+            }
+            Ok(Value::wat__core__PersistentVector(
+                pv.set(i as usize, item.clone())
+                    .expect("persistentvector_set_inner: bounds already checked"),
+            ))
+        }
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `(:wat::vector::drop-last pv)` — persistent drop of the last element.
+/// Empty is a located error naming length 0 (STOP-4).
+pub(crate) fn persistentvector_drop_last_inner(container: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::vector::drop-last";
+    match container {
+        Value::wat__core__PersistentVector(pv) => {
+            if pv.is_empty() {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "drop-last on empty vector (length 0)".into(),
+                    },
+                )
+                .into());
+            }
+            Ok(Value::wat__core__PersistentVector(
+                pv.drop_last()
+                    .expect("persistentvector_drop_last_inner: non-empty"),
+            ))
+        }
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
 /// `(:wat::core::Vector/extend to from)` — Arc 278: a Vector extended by every element of a
 /// Vector OR a PersistentVector, in ONE build.
 ///

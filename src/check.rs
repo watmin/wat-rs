@@ -21355,6 +21355,24 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
+        ":wat::vector::set".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var()), i64_ty(), t_var()],
+            ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::vector::drop-last".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![pv_of(t_var())],
+            ret: pv_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
         ":wat::vec::length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
