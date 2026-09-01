@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (tenth — TEN STRIKES; CLASS B CLOSED, A6 CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (eleventh — ELEVEN STRIKES; B1, A6, D3 CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline bb0256e38..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat bb0256e38..HEAD        # what they touched
+git log --oneline 057f9d494..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 057f9d494..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -90,6 +90,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **oracle** | `16f504e14` | **an accumulate result is SUPERSEDED, not extended** |
 | **B1** | `7319c1ea4` | **a `with-` form's scope is closed by a `Drop`, not by a release call** |
 | **A6** | `bb0256e38` | **wall 5 — the import door bounds its own recursion** |
+| **D3** | `057f9d494` | **an argument with no parameter is refused, not placed** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -186,11 +187,47 @@ operand). So the corpus could never have constrained this number at any bound ab
 real constraint is the 3,000–5,000 abort window. **The export/import corpus is broad in VARIANTS
 and flat in DEPTH; that coverage gap stands open.**
 
-**THE NEXT WORK — D3**, unchecked `CallUser` arity: a surplus argument written into an arbitrary
-slot. Same Class A root — an invariant proven at `compile-all` and assumed at the wire. Behind it:
-**A3** (the acc-form head admitted by `RETE_OPS` and dispatched through `sym.get`, with a failing
-harness already banked in `harness-experiri/` — read its ⛔ CORRECTION first: it is reconnaissance,
-not a gate), **A5**, **A7**, and **D1's residual**.
+✅ **D3 IS CLOSED (`057f9d494`) — and it was a SILENT WRONG ANSWER, not a missing check.** Driven
+through the public surface: the fixture fence answers **1** hit; a `CallUser` with two args for one
+declared param at slot 1 is **ACCEPTED and answers 0**, because a surplus argument was written into
+the slot whose NUMBER equals its POSITION and overwrote the parameter. Past the frame it was
+silently dropped (2 hits); missing, it surfaced as `unbound symbol: slot 1`. One missing check,
+three faces. **Class A a fifth time** — `lower_expr` builds `CallUser` from `lower_args` and
+`lower_rete_defn` without ever comparing them.
+
+The check went at `exec_program_on`, the one place args and params meet, and the surplus branch was
+**deleted** rather than made safe. **A sixth import wall was affirmatively cut** — it would have
+refused the tampered exports and turned every probe green while the executor still held no arity
+invariant.
+
+⛔ **THE FLOOR WENT RED AND THE RIDER COULD NOT HAVE SEEN IT.** `wat::lint
+no_loose_string_assert` — the new probe used `op.contains(…)` where the op is a fixed constant.
+Cured at the root with an exact `assert_eq!`, never a rune. **The gap was mine: a rider runs
+`binary_id(<subject>)`, and new TEST code trips lints in `wat::lint`. Any brief that adds tests
+must name that binary in the rider's scoped checks.**
+
+★★ **AND THE VACUITY MUTATION CORRECTED MY OWN SCORECARD.** Forcing the check to refuse EVERY call
+left my "untampered fixture answers 1" control **GREEN** — that path never reaches
+`exec_program_on`. Every green in this strike would have been consistent with a check that refuses
+everything, had the suite contained only what I specified. The control that carries the weight was
+the rider's own addition. **Ask of every control: what does it FAIL on?**
+
+⚠ **Recorded as an accepted consequence, so nobody bisects for it:** `lower_fn` compiles every
+literal `fn` to `CallUser{params, args: []}`, so a fn **value** reaching `exec` outside the four
+diverted HOF heads now answers `ArityMismatch` where it answered `UnboundSymbol`. Both are errors;
+the kind changed.
+
+⛔ **TWICE NOW I HAVE NAMED ONE SITE WHERE THERE WERE SEVERAL** — A6 (one tower, three) and D3 (one
+call site, six). A finding cites where it was NOTICED, not where it LIVES. Grep the callers and
+put the count in the brief. Promoted to memory.
+
+**THE NEXT WORK — A3**, the acc-form head: the fence admits on `primitive?` (= "has a `RETE_OPS`
+row") while `lower_named_rete_fn` dispatches through `sym.get`, the USER table, so
+`PersistentVector/length` fires in three positions and is unreachable as an accumulator head. ⚠
+**Read `harness-experiri/README.md`'s ⛔ CORRECTION first — the banked harness is RECONNAISSANCE,
+not a gate: ONE real assertion across EIGHT tests.** The strike must convert its recon into
+assertions before anything lands on the floor. Behind it: **A5**, **A7**, **D1's residual**, and
+Class E/F.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
