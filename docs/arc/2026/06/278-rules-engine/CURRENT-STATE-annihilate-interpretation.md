@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (fourteenth — FOURTEEN STRIKES; ⭐ CLASS A IS CLOSED, ALL SEVEN DOORS). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (fifteenth — FIFTEEN STRIKES; ⭐ CLASS A CLOSED, D1 CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline b0e3377e9..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat b0e3377e9..HEAD        # what they touched
+git log --oneline f22704f1f..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat f22704f1f..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -94,6 +94,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **A3** | `17fc5fb3e` | **the fence and the executor share one head-space** |
 | **A5** | `7e24c3257` | **a verdict that cannot say "I did not look" is not a verdict** |
 | **A7** | `b0e3377e9` | **the import door is a session's birth, and is charged like one** |
+| **D1r** | `f22704f1f` | **a misspelled variant is told it is a misspelled variant** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -315,13 +316,45 @@ removed, so a long-lived importing thread leaks one entry per session (pre-exist
 **a release-weighed floor ELIDES an allocation-only probe's ballast** — a 1 MiB `Vec` read as 121
 bytes until `black_box` was added. I hit that in my own recon and failed to warn about it.
 
-**THE NEXT WORK — the remainder, and it is no longer Class A.** In order: **D1's residual** (a
-`UnknownEnumVariant` kind so rete's refusal names what core's does — small, and it completes the
-agreement story), then **Class E** (5 rows, error shape and diagnostics), then **Class F**
-(greppability + 5 lints, the builder's directive: *greppability over correction*). Also open and
-recorded: `acc_refusal`'s span carries no information; the misnamed `probes/` dir; D2's structural
-fix (`sequi`'s newtype — must NOT be reaped); and the export/import corpus being **broad in variants
-and flat in depth** (max nesting 3), which is why A6's bound could never have been constrained by it.
+✅ **D1 IS FULLY CLOSED (`f22704f1f`).** D1 made the misspelled variant refuse; the refusal then
+NAMED THE WRONG THING — `UnknownField`, *"has no field `:evt::G::Hii`; available fields: [k,
+grade]"*, sending the author after a FIELD for a VARIANT typo. **A confidently wrong remedy costs
+more than none.** Now `#wat.rete/UnknownEnumVariant` — *"`:evt::G` has no variant `Hii`; available
+variants: [Hi, Lo]"*. `keyword_constant_segment`'s `_ => "keyword"` was the **fifth catch-all** in
+this arc; it is now a named three-state `KeywordConstant`.
+
+⚠ **Two corrections to what I had written here three stamps running.** (1) I recorded this row as
+needing *"a `UnknownEnumVariant` kind"* — a name that **existed nowhere in `src/`**. I invented it
+and then cited it, the second invented symbol in four strikes (D3's `callee_program`). It exists now
+only because the rider built it. (2) *"So rete names the same thing core does"* was the wrong
+target: driven, **core has the same blind spot** (*"expects keyword; got `:evt::G`"*, `remedies []`).
+The target is naming the mistake, not agreeing with a sibling that is also silent.
+
+⛔⛔ **AND MY OWN SKETCH WOULD HAVE SHIPPED A FALSE DIAGNOSTIC.** I drew the new arm as a guard
+placed AFTER the arity-0 arm — and a guard inherits everything the arms above it did not consume, so
+it catches `Some((_,_,n>0))`, a tagged variant that **EXISTS**, as well as `None`. It would have
+emitted *"`:tg::P` has no variant `Hi`; available variants: [Hi]"* — listing the variant it claims is
+missing, the exact class the strike deletes. **ARC DOCTRINE, fifth split and the first drawn wrong:
+SPLIT ON THE DISCRIMINATOR (the resolver's own `None`), NEVER ON A SYMPTOM that merely correlates
+with it.**
+
+⚠ **A third mistake is now PINNED, not fixed:** a *bare tagged variant used as a value* still gets
+the field-names remedy. The variant EXISTS, so "has no variant" would be false — it needs its own
+kind. Cut here, pinned with a golden so the day someone takes it, the pin reddens and names what
+moved.
+
+⚠ **`f22704f1f`'s commit message is MANGLED** — backticks inside `git commit -m` were
+command-substituted, and the amend would have rewritten already-pushed history on a shared branch,
+so I reset to the pushed commit instead. The intended text is in `strike-variant-diagnostic/SCORE.md`.
+**A commit message quoting an identifier goes in a `-F` file, never `-m`.**
+
+**THE NEXT WORK — Class E, then Class F.** **Class E** is 5 rows of error shape and diagnostics —
+and this strike is the argument for taking it next: the whole of D1's residual was a refusal that
+fired correctly and *said the wrong thing*, which is Class E's entire subject. Behind it: **Class F**
+(greppability + 5 lints; builder's directive *greppability over correction*). Also open and recorded:
+`acc_refusal`'s span carries no information; the misnamed `probes/` dir; D2's structural fix
+(`sequi`'s newtype — must NOT be reaped); the tagged-variant kind above; and the export/import corpus
+being **broad in variants and flat in depth** (max nesting 3).
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
