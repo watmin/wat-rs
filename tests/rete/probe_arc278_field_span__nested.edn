@@ -1,0 +1,44 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"2 rete rule validation errors\" :location nil :causes [] :errors [#wat.rete/UnknownField {:message \"defrule `fsn::r`: `:fsn::Inner` has no field `:nope`; available fields: [x]\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_field_span_nested.wat\" :line 37 :col 49 :end #wat.core.Option/Some [#wat.core/Pos {:line 37 :col 54}]} :causes [] :rule \"fsn::r\" :fact-type \"fsn::Inner\" :field \"nope\" :available-fields [\"x\"]} #wat.rete/RhsMissingFields {:message \"defrule `fsn::r`: `:then` insert of `:fsn::Inner` is missing required field(s): [x]\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_field_span_nested.wat\" :line 37 :col 36 :end #wat.core.Option/Some [#wat.core/Pos {:line 37 :col 58}]} :causes [] :rule \"fsn::r\" :fact-type \"fsn::Inner\" :missing [\"x\"]}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/UnknownField {
+          :rule "fsn::r"
+          :fact-type "fsn::Inner"
+          :field "nope"
+          :available-fields ["x"]
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_field_span_nested.wat"
+            :line 37
+            :col 49
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 37
+                :col 54
+              }
+            ]
+          }
+        }
+        #wat.rete/RhsMissingFields {
+          :rule "fsn::r"
+          :fact-type "fsn::Inner"
+          :missing ["x"]
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_field_span_nested.wat"
+            :line 37
+            :col 36
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 37
+                :col 58
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]

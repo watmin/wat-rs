@@ -24,9 +24,16 @@
 //! ## The paths, and what each one is worth
 //!
 //! Four call paths reach the producer, and they are separate: a mutation at one leaves the others
-//! green. Three are driven here (inline constraint, bind clause, kwargs fact). The fourth — the
-//! nested constructor — is **NOT REACHABLE**, which this file drives rather than asserts; see
-//! `nested_constructor_field_is_never_validated_at_all`.
+//! green. All four are driven here (inline constraint, bind clause, kwargs fact, nested
+//! constructor).
+//!
+//! ⚠ The fourth was **NOT REACHABLE** when this file was written, and its arm said so as a
+//! disconfirming pin rather than asserting a caret that could not be produced. The type had been
+//! moved out from under `walk_nested_constructors` by `defrecord`'s pre-freeze lowering — the wall
+//! was orphaned, not untaught. strike-nested-wall re-pointed it and this file's fourth arm was
+//! re-pointed with it, from asserting the acceptance to asserting the refusal. See
+//! `a_nested_constructor_names_the_field_keyword_not_the_whole_form`, and
+//! `probe_arc278_nested_wall.rs` for the four error kinds that branch produces.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -132,39 +139,58 @@ fn a_kwargs_then_fact_names_the_field_keyword_not_the_whole_form() {
     );
 }
 
-/// ROW 2 — **DISCONFIRMING. The nested-constructor producer cannot fire, so its span was never
-/// the defect.** This arm asserts the CURRENT, WRONG behaviour, and says so.
+/// ROW 2 — the NESTED-CONSTRUCTOR path (`walk_nested_constructors` → `check_field_kw`), and the
+/// arm this file's header used to call **NOT REACHABLE**.
 ///
-/// `walk_nested_constructors` looks for the record type as the HEAD of the nested form. By freeze
-/// time `defrecord`'s companion macro has lowered every record-constructor call to the
-/// post-lowering spelling, where the type is ARGUMENT 0 — `(:fsn::Inner :nope ?k)` arrives as
-/// `(:wat::core::kwargs-construct :fsn::Inner :nope ?k)`. Driven with an `eprintln!` inside the
-/// branch: the head received is `":wat::core::kwargs-construct"`, `types.get` on it is `None`, and
-/// that holds for the kwargs spelling, both positional spellings, and an outer item written
-/// positionally. So `UnknownField`, `RhsMissingFields`, `RhsArityMismatch` and
-/// `RhsPositionalConstructionRetired` are ALL unreachable there. The sibling enum-variant branch is
-/// live — an enum variant is not lowered — which is why the walk looks exercised from outside.
+/// **RE-POINTED, NOT REPLACED (strike-nested-wall).** It was written as a DISCONFIRMING pin: it
+/// asserted the wrong behaviour on purpose and said so, because the finding it carried — that the
+/// producer could not fire at all — belonged to a wall-reachability strike, not to this span
+/// strike. It said in its own body what must be asserted in its place the day someone wired that
+/// branch. That day came; this is that assertion.
 ///
-/// `purity.rs` hit the identical class and was taught the post-lowering shape; this walker never
-/// was. Teaching it is a wall-reachability strike across four error kinds, not a span strike, so
-/// it is affirmatively NOT taken here. What is taken is this: the gap is now a test. The day
-/// someone wires that branch, this arm goes red and names exactly what changed, instead of the
-/// finding living as a paragraph in a stone nobody re-derives.
+/// PRE, measured twice and printed by the fixture itself: **`"ACCEPTED-UNVALIDATED"`**.
+/// `walk_nested_constructors` looked for the record type as the HEAD of the nested form, but by
+/// freeze time `defrecord`'s companion macro has lowered every record-constructor call to
+/// `(:wat::core::kwargs-construct :fsn::Inner :nope ?k)` — the type is ARGUMENT 0. `types.get` on
+/// the macro's head was `None`, so the aggregate branch never opened and `UnknownField`,
+/// `RhsMissingFields`, `RhsArityMismatch` and `RhsPositionalConstructionRetired` were all
+/// unreachable there. The walker's sibling enum-variant branch IS live — an enum variant is not
+/// lowered — which is why the walk looked exercised. The wall now reads the lowered head and takes
+/// the type from index 1, the way `purity.rs`, `stratify.rs` and `expr_ir` were all re-pointed.
+///
+/// POST, and this is the row: `:nope` carries **its own** extent, not the nested form's. The
+/// lowering preserves source spans, so the caret lands on the text the author typed even though
+/// the form the wall inspected was synthesised by a macro — which is the whole reason a span
+/// golden, and not a "the error is located" assertion, is what proves this.
+///
+/// `RhsMissingFields` rides along (the nested form leaves `x` unsupplied) and keeps the NESTED
+/// FORM's span, asserted here on purpose for the same reason ROW 3 asserts it: "missing `x`" is a
+/// property of the whole form, not of any one keyword in it.
+///
+/// ⚠ ANTI-VACUITY. The old guard was `stdout == "ACCEPTED-UNVALIDATED"`, proving the fixture
+/// reached `main`; a refusal now means `main` never runs, so that guard cannot survive. Two things
+/// replace it, and neither is weaker: the golden pins the exact `Span` — so a fixture that broke
+/// for an unrelated reason produces a different error class, a different file, or different
+/// columns, and fails — and `every_shape_spelled_correctly_compiles_and_fires` above is the control
+/// that proves this file's shapes still compile when spelled correctly.
+///
+/// The four error kinds each get their own driving fixture in `probe_arc278_nested_wall.rs`; this
+/// arm's job is the CARET, which is this file's subject.
 #[test]
-fn nested_constructor_field_is_never_validated_at_all() {
+fn a_nested_constructor_names_the_field_keyword_not_the_whole_form() {
     let (ok, out, err) = run("tests/rete/probe_arc278_field_span_nested.wat");
     assert!(
-        ok,
-        "PIN, NOT ENDORSEMENT: this program nests `(:fsn::Inner :nope ?k)` — a field the record \
-         does not declare, and the declared field `x` left unsupplied. If it now REFUSES, the \
-         nested-constructor wall has been wired to the post-lowering `kwargs-construct` spelling; \
-         that is the fix this arm exists to detect, and the caret it produces for `:nope` is what \
-         must be asserted in its place.\n{out}{err}"
+        !ok,
+        "a nested constructor naming an undeclared field is a freeze refusal. If this program \
+         printed `ACCEPTED-UNVALIDATED` and exited 0, the nested-constructor wall has been \
+         orphaned again: some later lowering moved the form out from under \
+         `walk_nested_constructors` the same way `kwargs-construct` did, and all four of its error \
+         kinds are unreachable once more\n{out}{err}"
     );
-    assert_eq!(
-        out.trim(),
-        "\"ACCEPTED-UNVALIDATED\"",
-        "the fixture must reach `main` — if it does not, it is failing for some reason other than \
-         the unreachable wall and pins nothing\n{out}{err}"
+    wat::assert_edn_matches_file!(
+        err.trim().to_string(),
+        "probe_arc278_field_span__nested.edn",
+        "`UnknownField` must carry `:nope`'s own extent — preserved through the macro lowering — \
+         while `RhsMissingFields`, which is about the whole form, keeps the nested form's"
     );
 }

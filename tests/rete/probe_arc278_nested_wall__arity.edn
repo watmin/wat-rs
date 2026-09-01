@@ -1,0 +1,28 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/RhsArityMismatch {:message \"defrule `nwa::r`: `:then` insert of `:nwa::Inner` expects 2 positional argument(s); got 1\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_nested_wall_arity.wat\" :line 18 :col 36 :end #wat.core.Option/Some [#wat.core/Pos {:line 18 :col 52}]} :causes [] :rule \"nwa::r\" :fact-type \"nwa::Inner\" :expected 2 :got 1}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/RhsArityMismatch {
+          :rule "nwa::r"
+          :fact-type "nwa::Inner"
+          :expected 2
+          :got 1
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_nested_wall_arity.wat"
+            :line 18
+            :col 36
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 18
+                :col 52
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]

@@ -756,7 +756,10 @@ fn check_rhs_operands(
 ///
 /// Two constructor heads are recognized (both invisible to `lookup_fields`, which resolves only
 /// `TypeDef::Aggregate` by NAME, not by asking "is this keyword any kind of constructor head"):
-///   - a bare aggregate-type keyword (`:usr::Inner`) — validated with the SAME kwargs-coverage /
+///   - an aggregate-type keyword in the CONSTRUCTOR-TYPE SLOT — which after `defrecord`'s
+///     pre-freeze lowering is index 1 of `(:wat::core::kwargs-construct :usr::Inner …)`, not the
+///     head; see the ★ note in the body, and do not re-key this off `items[0]` — validated with
+///     the SAME kwargs-coverage /
 ///     positional-shape rules `validate_then_form` gives a `:then` item's own top-level
 ///     shape (#2's fix, generalized: unknown field, missing field, or — the shape #2's top-level
 ///     branch never has to consider, since `build_insert_fact`'s top-level fast path supports
@@ -778,8 +781,44 @@ fn walk_nested_constructors(
     if items.is_empty() {
         return;
     }
-    if let WatAST::Keyword(head, _) = &items[0] {
-        let args = &items[1..];
+    // ★ Arc 278 strike-nested-wall — READ THE FORM AS IT EXISTS AT THE WALL, NOT AS IT WAS
+    // WRITTEN. `defrecord`'s companion macro lowers EVERY record-constructor call before freeze
+    // (`macros/parse.rs:343`, `(:wat::core::kwargs-construct ~_kc-type ~@call-args)`), so the head
+    // this walker sees is the MACRO's and the type is at INDEX 1:
+    //
+    //     (:fsn::Inner :nope ?k)  ->  (:wat::core::kwargs-construct :fsn::Inner :nope ?k)
+    //
+    // Written against `items[0]` alone, `types.get(head)` was `None` for every record-constructor
+    // spelling and the aggregate branch below never opened — leaving `UnknownField`,
+    // `RhsMissingFields`, `RhsArityMismatch` and `RhsPositionalConstructionRetired` unreachable
+    // HERE. That is ORPHANING, not oversight: the walker was correct when written, and the fix
+    // that made a nested constructor WORK introduced the lowering that darkened it. Its three
+    // siblings were all re-pointed and this one was not — `purity.rs:349`, `purity.rs:829`,
+    // `kernel/stratify.rs:517`, `expr_ir/mod.rs:547`. This is the fourth site, same idiom.
+    //
+    // ⛔ `:wat::core::aggregate-new` is deliberately NOT recognised here, and its absence is
+    // driven rather than assumed. `purity.rs` and `stratify.rs` pair the two verbs, so the reflex
+    // is to mirror them — but (a) no surface spelling lowers to `aggregate-new` at this wall (the
+    // kwargs sugar, both positional spellings and a positionally-written outer item ALL arrive as
+    // `kwargs-construct`; the positional prime `:T'` arrives UN-lowered under its own primed head,
+    // which `types.get` does not resolve), and (b) `aggregate-new` IS the positional route, so
+    // `RhsPositionalConstructionRetired` — which exists to refuse positional construction at the
+    // bare kwargs-macro name — would be an actively WRONG refusal there, not merely a dead one.
+    // Recognising it would need its own rules, which is a different strike.
+    //
+    // The enum-variant sibling branch below keeps reading the same slot: an enum variant is NOT
+    // lowered, and when the lowered head is present the slot holds a record type, on which
+    // `enum_variant_ctor` is `None` anyway.
+    let type_idx = match &items[0] {
+        WatAST::Keyword(h, _) if h == ":wat::core::kwargs-construct" => 1,
+        _ => 0,
+    };
+    // STOP-3: the type slot is NOT assumed to be a keyword. The macro always emits one, but a
+    // hand-written `(:wat::core::kwargs-construct x 1)` over a non-keyword is expressible (it is
+    // the shape `is_declaration_derived_construction`'s own gate refuses, `purity.rs:829`). Such a
+    // form falls through to the generic recursion below rather than widening the match blind.
+    if let Some(WatAST::Keyword(head, _)) = items.get(type_idx) {
+        let args = &items[type_idx + 1..];
         // Bare aggregate-type constructor head.
         if let Some(TypeDef::Aggregate(_)) = types.get(head) {
             let nested_type = head.trim_start_matches(':').to_string();

@@ -148,6 +148,19 @@ pub enum ReteCheckErrorKind {
     /// reach `:wat::core::kwargs-construct`'s dispatch (`eval_kwargs_construct`, runtime.rs), that
     /// dispatch unconditionally retires multi-arg RAW POSITIONAL construction at a bare aggregate
     /// name (kwargs, or a single positional value, are the only two supported nested shapes) —
+    ///
+    /// ⛔⛔ **THAT LAST SENTENCE IS TRUE OF THE INTERPRETER AND FALSE OF RETE. Driven 2026-09-01.**
+    /// Native rete fire never reaches that dispatch: `arm.rs`'s `rhs_must_compile` says outright
+    /// *"Refuse — do not walk `build_insert_fact` on native fire"*, and the compiled path lowers
+    /// through `eval_insert.rs`'s `rete_kwargs_value_asts`, whose non-kwargs arm returns the args
+    /// verbatim — *"Positional is already declaration order BY DEFINITION"*. Driven at HEAD, a
+    /// nested `(:T ?k 99)` COMPILED, FIRED, and derived a correctly-valued fact. So the retirement
+    /// was never enforced on the rete path at all, and this variant firing from
+    /// `walk_nested_constructors` is **new enforcement**, not restored parity — a deliberate
+    /// alignment with the stated doctrine, taken on a corpus sweep showing zero uses
+    /// (1650 `.wat`, 460 `:then` clauses). The claim above was written from the interpreter's
+    /// behaviour and never checked against this path.
+    ///
     /// regardless of whether `got` happens to equal the type's field count, so this is NOT an
     /// arity mismatch (a correct count would still be refused); walled here with its own message
     /// rather than borrowing `RhsArityMismatch`'s "expected N" framing, which would misstate it.

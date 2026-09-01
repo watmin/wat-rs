@@ -1,0 +1,28 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/UnknownField {:message \"defrule `nwu::r`: `:nwu::Inner` has no field `:nope`; available fields: [x]\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_nested_wall_unknown_field.wat\" :line 19 :col 55 :end #wat.core.Option/Some [#wat.core/Pos {:line 19 :col 60}]} :causes [] :rule \"nwu::r\" :fact-type \"nwu::Inner\" :field \"nope\" :available-fields [\"x\"]}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/UnknownField {
+          :rule "nwu::r"
+          :fact-type "nwu::Inner"
+          :field "nope"
+          :available-fields ["x"]
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_nested_wall_unknown_field.wat"
+            :line 19
+            :col 55
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 19
+                :col 60
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]
