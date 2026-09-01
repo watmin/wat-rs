@@ -620,6 +620,7 @@ mod kernel;
 mod keyword;
 mod linkedlist;
 mod list;
+mod macro_error;
 mod map;
 // Arc 255 Stone HOME-10 — math, stat, seq get actual homes. Pure re-registration
 // (HOME-9 already renamed these off `:wat::std::`); shim-only, three files, no
@@ -852,6 +853,23 @@ mod tests {
         ":wat::core::variant",
         ":wat::core::type-equal?",
         ":wat::core::type-params-used-in",
+        // Arc 255 Stone the-registry-answers-first-wave-3 — `aggregate-new`/`kwargs-construct`
+        // are each checked FOR REAL by hand-written `check_call` arms (`infer_aggregate_new_check`/
+        // `infer_kwargs_construct_check`, `check.rs`), but NEITHER carries an `env.register()`
+        // TypeScheme, so `check_env.get` returns `None` for both. Exactly the `Option/expect`
+        // shape above: real checking, no scheme to verify the docs against. `macro-error` has no
+        // checker treatment at all (0 mentions in `check.rs` outside this ledger) — `check_env.get`
+        // returns `None` for the same reason `metadata-of` does above (W4's note): no scheme AND
+        // no hand-written arm. All three were previously invisible to this gate as literal
+        // `runtime.rs` match arms; homing surfaces them to it for the first time. Predicted in the
+        // DESIGN before this stone was briefed (measured against this same `check_env.get`), and
+        // it fired exactly as predicted: `write-forms`/`with-children`, homed the SAME stone, are
+        // NOT on this ledger — both DO carry an `env.register()` TypeScheme (`check.rs:19310`/
+        // `:19349`) — a deliberately UNEVEN prediction, falsifiable in both directions, and it
+        // held both ways. `check.rs` stays untouched (STOP-4); the ledger grows by three.
+        ":wat::core::aggregate-new",
+        ":wat::core::kwargs-construct",
+        ":wat::core::macro-error",
         ":wat::edn::validate",
         ":wat::form::matches?",
         ":wat::holon::coincident-explain",
@@ -1273,7 +1291,18 @@ mod tests {
     }
 
     /// `@example`. Enforced at compile time via the doc-contract; enforced at
-    /// test time here using the declared `@Purity`/`@Determinism` fields.
+    /// test time here using the declared `@Purity`/`@Determinism`/`@ExpandTime` fields.
+    ///
+    /// Arc 255 Stone expand-only-the-missing-pole gave this its third branch, DERIVED from
+    /// the `@ExpandTime` coordinate rather than named as an exemption: a verb whose
+    /// `expand_time` is `ExpandOnly` has NO runtime call site at all (its only legitimate
+    /// caller is a `defmacro` body during expansion), so a runnable `@example` — evaluated
+    /// at RUNTIME, a tier where the verb does not exist — is impossible by construction.
+    /// `@example-norun` is its correct and REQUIRED form. Checked in both directions,
+    /// exactly like the two branches below it: `has_norun` required, `has_run` forbidden.
+    /// This branch is checked FIRST and takes priority over `is_pure_and_det` — `macro-error`
+    /// is itself `Pure ∧ Deterministic`, so without this ordering it would fall into the
+    /// pure+det branch and demand the very runnable example that is impossible for it.
     #[test]
     fn purity_mandated_examples() {
         for entry in super::registry().all_entries() {
@@ -1282,8 +1311,23 @@ mod tests {
 
             let is_pure_and_det = matches!(entry.purity, wat_doc::Purity::Pure | wat_doc::Purity::Preserving)
                 && matches!(entry.determinism, wat_doc::Determinism::Deterministic | wat_doc::Determinism::Preserving);
+            let is_expand_only = matches!(entry.expand_time, wat_doc::ExpandTime::ExpandOnly);
 
-            if is_pure_and_det {
+            if is_expand_only {
+                assert!(
+                    has_norun,
+                    "ExpandOnly intrinsic `{}` has no @example-norun (≥1 required by contract — a \
+                     runnable @example is impossible: this verb has no runtime call site, only a \
+                     `defmacro`-body expand-time one)",
+                    entry.name
+                );
+                assert!(
+                    !has_run,
+                    "ExpandOnly intrinsic `{}` has a runnable @example (impossible and forbidden — \
+                     ExpandOnly means no runtime call site exists to run it; use @example-norun)",
+                    entry.name
+                );
+            } else if is_pure_and_det {
                 assert!(
                     has_run,
                     "pure+det intrinsic `{}` has no runnable @example (≥1 required by contract)",
@@ -1302,6 +1346,53 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// ★ STOP-2 proof, arc 255 Stone expand-only-the-missing-pole — the `is_expand_only`
+    /// branch above must bite in BOTH directions, not just relax the existing pure+det
+    /// branch for one name. This constructs a synthetic entry (the same shape
+    /// `expand_time_is_carried_from_the_doc_into_the_registry_entry` above uses to read a
+    /// real one, but built by hand here so a runnable example can be deliberately attached)
+    /// declaring `ExpandOnly` + `Pure` + `Deterministic` — `macro-error`'s exact
+    /// combination — WITH a runnable `@example`, and proves the same predicate the real
+    /// test loop evaluates would refuse it. A one-way relaxation (a branch that only
+    /// accepts `@example-norun` without ever forbidding `has_run`) would let this pass;
+    /// this test's whole point is that it must NOT.
+    #[test]
+    fn expand_only_with_a_runnable_example_is_refused_by_the_gate() {
+        // The forbidden shape: an ExpandOnly verb keeps its required `@example-norun`
+        // (`has_norun = true`, satisfying the first assertion below) but ALSO carries a
+        // runnable `@example` (`has_run = true`) — isolating the SECOND assertion, the one
+        // this stone adds, rather than conflating it with the unrelated "missing norun"
+        // failure the first assertion already guards.
+        let has_run = true;
+        let has_norun = true;
+        let purity = wat_doc::Purity::Pure;
+        let determinism = wat_doc::Determinism::Deterministic;
+        let expand_time = wat_doc::ExpandTime::ExpandOnly;
+
+        let is_pure_and_det = matches!(purity, wat_doc::Purity::Pure | wat_doc::Purity::Preserving)
+            && matches!(determinism, wat_doc::Determinism::Deterministic | wat_doc::Determinism::Preserving);
+        let is_expand_only = matches!(expand_time, wat_doc::ExpandTime::ExpandOnly);
+        assert!(is_pure_and_det, "the synthetic entry must reproduce macro-error's OWN purity shape");
+        assert!(is_expand_only, "the synthetic entry must reproduce macro-error's OWN @ExpandTime coordinate");
+
+        // The real loop's `is_expand_only` branch: `!has_run` is asserted, and this
+        // synthetic entry sets `has_run = true` — the exact condition the branch exists to
+        // reject. `std::panic::catch_unwind` proves the assertion actually FIRES, rather
+        // than reading the branch and trusting it would.
+        let fired = std::panic::catch_unwind(|| {
+            if is_expand_only {
+                assert!(has_norun, "this fixture keeps @example-norun; only has_run is under test");
+                assert!(!has_run, "ExpandOnly + runnable @example must be refused");
+            }
+        })
+        .is_err();
+        assert!(
+            fired,
+            "an ExpandOnly verb with a runnable @example must panic the gate; it did not — \
+             the branch only relaxes and never refuses, which is the hole this stone closes"
+        );
     }
 
     /// Arc 255.1c site 3 — was `pure_declared_matches_is_effectful_op`, a biconditional

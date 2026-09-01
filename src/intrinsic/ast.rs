@@ -40,6 +40,17 @@
 //! `src/ast/`) — a FILE-domain carve, reported but deliberately not acted on (STOP-5; see the
 //! rider's report for HOME-12).
 //!
+//! ## Two more joined arc 255 Stone the-registry-answers-first-wave-3
+//!
+//! `write-forms` and `with-children` stayed literal `runtime.rs` arms through HOME-12 (this
+//! file's own header above, and `runtime.rs`'s own comment at the time, both say so outright —
+//! "they are not this stone's ten"). Wave 3 homes them here, joining their AST-surface siblings:
+//! same file (`src/edn/render.rs`), same producer contract (both stamp
+//! `Provenance::RuntimeBuilt`), same "bodies stay where they lived" discipline. This file now
+//! hosts twelve verbs, not ten — the "ALL TEN ARE PRODUCERS" heading above is HOME-12's own
+//! historical claim about HOME-12's own ten and is left as that stone recorded it; both new
+//! arrivals are producers too, so the property it names still holds for all twelve.
+//!
 //! ## Six neighbours that are NOT this stone's territory
 //!
 //! `macroexpand`, `macroexpand-1`, `quasiquote`, `struct->form`, `forms`, `ann-form` are
@@ -376,4 +387,100 @@ pub(crate) fn eval_fresh_symbol_home(
     span: &Span,
 ) -> Result<TrackedValue, EvalBreak> {
     crate::edn::render::eval_fresh_symbol(std::slice::from_ref(base), span, env, sym).map_err(Into::into)
+}
+
+// ─── the write side, and the kind-preserving rebuild (2 producers) — arc 255 Stone
+// the-registry-answers-first-wave-3 ─────────────────────────────────────────
+
+/// `(:wat::core::write-forms ast)` → `:wat::core::String`. The write side of the homoiconic
+/// round-trip (arc 251.5a-ii): serialize a forms-value (as `read-string`/`quote` produce) to a
+/// clean EDN String, via `watast_to_edn` + `wat_edn::write`. NOT the general `:wat::edn::write` —
+/// this dials `::` → `.` (`:wat.core/fn`, not `:wat::core::fn`); use `ast->source` for a
+/// `::`-faithful round trip. `read-string → transform → write-forms` is the wat-to-wat fixer's
+/// full read→rewrite→write cycle. Homed here with its real (1) arity declared; the body is
+/// unchanged, still `crate::edn::render::eval_write_forms` — it stayed a literal `runtime.rs`
+/// arm through HOME-12 (not that stone's ten) and joins its AST-surface siblings now.
+///
+/// **Purity ground:** the one arg is evaluated by ordinary call-by-value (not itself an effect).
+/// Past that, the body only runs a pure structural transform over the already-evaluated AST — no
+/// `eval_inner`/`apply_function` on caller-supplied code, no IO, no ambient state. Pure ∧
+/// Deterministic.
+///
+/// **Totality ground — measured, `Partial`, conservatively:** the serializer's behavior over
+/// every `WatAST` variant was not independently verified here — no counted defect drove this,
+/// unlike `with-children` immediately below, but nothing here demonstrates the domain is
+/// unrestricted either, so DEFAULT-DENY stands rather than an unmeasured `Total`.
+///
+/// **Expand-time ground —** Pure ∧ Deterministic and safe to evaluate during expansion; a
+/// `Partial` verb can still be expand-time-legal. Legal.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     ast :wat::WatAST the forms-value to serialize
+/// @ret     :wat::core::String the EDN text (`::` dialected to `.`)
+/// @example (:wat::core::write-forms (:wat::core::quote (1 2 3))) #=> "(1 2 3)"
+/// @see     :wat::core::ast->source
+/// @see     :wat::core::with-children
+#[wat_intrinsic(":wat::core::write-forms")]
+pub(crate) fn eval_write_forms_home(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_write_forms(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
+}
+
+/// `(:wat::core::with-children template children)` → `:wat::WatAST` (arc 251.5a-iv). The
+/// kind-preserving REBUILD: a new AST node of the SAME kind as `template`, carrying `children` (a
+/// `(Vector :- [:wat::WatAST])`, as `ast->children` yields) as its children — the inverse of
+/// `ast->children` given the decomposed node: `(with-children n (ast->children n)) = n` for
+/// every node kind. Lets a recursive `fix-source` rebuild a walked tree without corrupting a
+/// Vector binder into a List call. Homed here with its real (2) arity declared; the hand-rolled
+/// `args.len() != 2` guard in `eval_with_children` retires. The body is unchanged, still
+/// `crate::edn::render::eval_with_children` — it stayed a literal `runtime.rs` arm through
+/// HOME-12 (not that stone's ten) and joins its AST-surface siblings now.
+///
+/// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an effect).
+/// Past that, the body only rebuilds a WatAST node of the template's own kind from the supplied
+/// children — no `eval_inner`/`apply_function` on caller-supplied code beyond the two argument
+/// evaluations, no IO, no ambient state. Pure ∧ Deterministic.
+///
+/// **Totality ground — measured, `Partial`:** a leaf template given non-empty children, or a
+/// `Map` template given an odd child count, both raise `MalformedForm`
+/// (`src/edn/render.rs`) — an `EvalBreak::Diagnostic`, which "surfaces to user code as an error"
+/// (`src/value/signal.rs`'s own doc on the variant), i.e. a raise, not a wat-level value the
+/// caller can `match`. Per `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`, a
+/// raise is not a matchable outcome regardless of how deterministic or well-located it is —
+/// exactly the well-typed-domain-restriction shape `i64::/` is `Partial` for.
+///
+/// **Expand-time ground —** Pure ∧ Deterministic and safe to evaluate during expansion; a
+/// `Partial` verb can still be expand-time-legal. Legal.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     template :wat::WatAST the node whose KIND (List/Vector/Set/Map/leaf) the rebuild preserves
+/// @arg     children (:wat::core::Vector :- [:wat::WatAST]) the new children; raises MalformedForm if the count/kind is incompatible with `template`
+/// @ret     :wat::WatAST a new node of `template`'s kind, carrying `children`
+/// @example (:wat::core::= (:wat::core::write-forms (:wat::core::quote (1 2 3))) (:wat::core::write-forms (:wat::core::with-children (:wat::core::quote (1 2 3)) (:wat::core::ast->children (:wat::core::quote (1 2 3)))))) #=> true
+/// @see     :wat::core::ast->children
+/// @see     :wat::core::write-forms
+#[wat_intrinsic(":wat::core::with-children")]
+pub(crate) fn eval_with_children_home(
+    template: &WatAST,
+    children: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_with_children(&[template.clone(), children.clone()], span, env, sym)
+        .map_err(Into::into)
 }

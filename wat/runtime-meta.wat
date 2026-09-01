@@ -255,6 +255,15 @@
 ;; the verb IS rather than for being refused, the same way `Effectful` and `Partial`
 ;; name their poles.
   :RuntimeOnly
+;; `RuntimeOnly`'s MIRROR, not a synonym for `Legal`: the verb has NO runtime call
+;; site at all — its only legitimate caller is a `defmacro` body during expansion.
+;; `Legal` means *also* callable there; this means *only* callable there. A
+;; runnable `@example` for a verb in this pole is impossible by construction — a
+;; runnable example is evaluated at RUNTIME, a tier where the verb does not exist —
+;; so `@example-norun` is its correct and required form. Named for what the verb
+;; IS, the same way `RuntimeOnly` names its own pole rather than the fact that it
+;; gets refused.
+  :ExpandOnly
 ;; A form whose expand-time legality is its SUB-FORMS' rather than its own: `if` is
 ;; legal at expand time exactly when its branches are. Mirrors `Purity`,
 ;; `Determinism` and `Totality`, which all carry this variant.

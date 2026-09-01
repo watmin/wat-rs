@@ -631,7 +631,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             "doc comment is missing a required `@Totality <Variant>` directive (known: Total, Partial, Preserving, Unreviewed)".into()
         }
         wat_doc::DocError::MissingExpandTime => {
-            "doc comment is missing a required `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, Preserving, Unreviewed)".into()
+            "doc comment is missing a required `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, ExpandOnly, Preserving, Unreviewed)".into()
         }
         wat_doc::DocError::InvalidPurityVariant { got } => {
             format!("unknown @Purity variant `{}`; known: Pure, Effectful, Preserving", got)
@@ -643,7 +643,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             format!("unknown @Totality variant `{}`; known: Total, Partial, Preserving, Unreviewed", got)
         }
         wat_doc::DocError::InvalidExpandTimeVariant { got } => {
-            format!("unknown @ExpandTime variant `{}`; known: Legal, RuntimeOnly, Preserving, Unreviewed", got)
+            format!("unknown @ExpandTime variant `{}`; known: Legal, RuntimeOnly, ExpandOnly, Preserving, Unreviewed", got)
         }
         wat_doc::DocError::InvalidCategoryVariant { got } => {
             format!("unknown @Category variant `{}`; known: {}", got, wat_doc::Category::variants().join(", "))
@@ -681,6 +681,7 @@ pub(crate) fn expand_time_token(t: wat_doc::ExpandTime) -> TokenStream2 {
     match t {
         wat_doc::ExpandTime::Legal => quote! { ::wat_doc::ExpandTime::Legal },
         wat_doc::ExpandTime::RuntimeOnly => quote! { ::wat_doc::ExpandTime::RuntimeOnly },
+        wat_doc::ExpandTime::ExpandOnly => quote! { ::wat_doc::ExpandTime::ExpandOnly },
         wat_doc::ExpandTime::Preserving => quote! { ::wat_doc::ExpandTime::Preserving },
         wat_doc::ExpandTime::Unreviewed => quote! { ::wat_doc::ExpandTime::Unreviewed },
     }
@@ -1364,8 +1365,8 @@ mod expand_time_axis_tests {
         assert_eq!(
             err.to_string(),
             "#[wat_intrinsic] :probe::add: doc comment is missing a required \
-             `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, Preserving, Unreviewed)",
-            "emit()'s refusal must name the verb, @ExpandTime, and all four legal values"
+             `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, ExpandOnly, Preserving, Unreviewed)",
+            "emit()'s refusal must name the verb, @ExpandTime, and all five legal values"
         );
     }
 
@@ -1377,6 +1378,7 @@ mod expand_time_axis_tests {
         let cases = [
             (wat_doc::ExpandTime::Legal, quote! { ::wat_doc::ExpandTime::Legal }),
             (wat_doc::ExpandTime::RuntimeOnly, quote! { ::wat_doc::ExpandTime::RuntimeOnly }),
+            (wat_doc::ExpandTime::ExpandOnly, quote! { ::wat_doc::ExpandTime::ExpandOnly }),
             (wat_doc::ExpandTime::Preserving, quote! { ::wat_doc::ExpandTime::Preserving }),
             (wat_doc::ExpandTime::Unreviewed, quote! { ::wat_doc::ExpandTime::Unreviewed }),
         ];
@@ -1386,16 +1388,16 @@ mod expand_time_axis_tests {
     }
 
     /// The `InvalidExpandTimeVariant` message (rendered by `render_doc_error`, the
-    /// SAME renderer a real `#[wat_intrinsic]` failure goes through) names all four
+    /// SAME renderer a real `#[wat_intrinsic]` failure goes through) names all five
     /// legal values. Quoted verbatim in the stone's report.
     #[test]
-    fn invalid_expand_time_message_names_all_four_variants() {
+    fn invalid_expand_time_message_names_all_five_variants() {
         let msg = render_doc_error(&wat_doc::DocError::InvalidExpandTimeVariant { got: "Bogus".into() });
         assert_eq!(
             msg,
-            "unknown @ExpandTime variant `Bogus`; known: Legal, RuntimeOnly, Preserving, Unreviewed"
+            "unknown @ExpandTime variant `Bogus`; known: Legal, RuntimeOnly, ExpandOnly, Preserving, Unreviewed"
         );
-        for name in ["Legal", "RuntimeOnly", "Preserving", "Unreviewed"] {
+        for name in ["Legal", "RuntimeOnly", "ExpandOnly", "Preserving", "Unreviewed"] {
             assert!(msg.contains(name), "message `{msg}` must name `{name}`");
         }
     }

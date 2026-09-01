@@ -59,11 +59,26 @@ fn every_dispatch_arm_calling_eval_threads_list_span() {
     // names arms the carve CANNOT take. These are polymorphic/structural heads, not
     // per-type verbs: nothing in the homes campaign relocates them, and if the parser
     // breaks they vanish together.
+    // ⛔ 2026-09-01 — `:wat::core::aggregate-new` REMOVED from this list. It was named here
+    // as an arm "no home carve relocates"; arc 255 wave 3 homed it (`src/intrinsic/record.rs`),
+    // so that claim is now FALSE and this gate went RED naming the exact verb. That is the
+    // gate WORKING: a name-anchor fails loudly and specifically where a count-bound would
+    // merely have been nudged again, which is why `[[feedback_a_gate_freezes_names_never_a_count]]`
+    // put names here in the first place. Removing a name that DEMONSTRABLY left the population
+    // is not the count-lowering rot — no information is hidden; the verb is gone because the
+    // campaign succeeded.
+    //
+    // ⚠ BUT THE ANCHOR IS TEMPORARY BY CONSTRUCTION, and the next reader should know it:
+    // arc 255's success condition is an EMPTY dispatch match, so eventually every name here
+    // leaves and this check becomes vacuous. The three below are still arms and still
+    // unregistered (verified 2026-09-01: apply, and, ann-form — dispatch-arm yes, registered
+    // no). When the last one goes, this positive control has nothing left to anchor on and
+    // should be DELETED rather than re-anchored — a parser-sanity check for a match that no
+    // longer exists is a test asserting the absence of its own subject.
     const MUST_FIND: &[&str] = &[
         ":wat::core::apply",
         ":wat::core::and",
         ":wat::core::ann-form",
-        ":wat::core::aggregate-new",
     ];
     for needle in MUST_FIND {
         assert!(

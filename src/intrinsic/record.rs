@@ -414,3 +414,108 @@ pub(crate) fn eval_variant(
 ) -> Result<Value, EvalBreak> {
     crate::runtime::eval_variant(xs, list_span, env, sym)
 }
+
+/// `(:wat::core::aggregate-new :T field…) -> :T` — arc 294.c.2a, arc 255 Stone
+/// the-registry-answers-first-wave-3.
+///
+/// The ONE nature-dispatched aggregate constructor: `:T` is a literal keyword naming a
+/// registered `TypeDef::Aggregate`; the remaining args are the field values, evaluated in
+/// declared order. `struct-new`/`defrecord`/`holon::defrecord` all route through this (via
+/// `construct_aggregate`, `src/runtime.rs`) — the macro-expanded form a record/struct's own
+/// prime constructor lowers to. Homed here with its real arity declared; the body is unchanged,
+/// still `crate::runtime::eval_aggregate_new` / `construct_aggregate`.
+///
+/// ⛔ **VARIADIC, real minimum ONE — read from the fn's own first guard**, `if args.is_empty()`
+/// (`src/runtime.rs:17429`+), same shape `struct-new`'s own arity correction above measured, not
+/// inferred from that sibling: `kwargs-construct` immediately below shares this same guard,
+/// confirmed independently at its own site.
+///
+/// **Purity ground:** arg0 (`:T`) is a literal keyword, never evaluated; every remaining arg is
+/// evaluated by ordinary call-by-value and bound into a new container — no
+/// `eval_inner`/`apply_function` on caller-supplied code beyond that. It opens nothing, reads no
+/// ambient state, mutates nothing. This holds regardless of the target's `Nature`: a Struct MAY
+/// hold a live resource, but resource ACQUISITION is a property of how a value was obtained, not
+/// of the assignment that later carries it — any acquisition is caught independently at THAT
+/// op's own head by the same recursive purity walk. `validate_aggregate_containment` (check.rs)
+/// additionally REJECTS STARTUP for any pure-nature aggregate declaring an impure field, so a
+/// pure aggregate can never smuggle one in either way. Pure ∧ Deterministic.
+///
+/// **Totality ground — measured, both named gaps CLOSED, not merely unarmed:** (a) was
+/// `aggregate-new`-only, a CHECKER hole — `infer_aggregate_new_check` (check.rs) now unifies the
+/// supplied positional values against the declared field count, closing the "wrong arity passes
+/// `--check`, raises only at runtime" gap. (b) both this verb and `kwargs-construct`, for
+/// `Nature::HolonRecord` — a FREEZE-TIME hole, closed by
+/// `freeze::validate_holon_record_capacity`, which rejects STARTUP for any over-budget
+/// HolonRecord before any rule ever compiles; the runtime bounds check in
+/// `build_holon_hologram` is now an unreachable backstop. `Total`.
+///
+/// **Expand-time ground —** Pure ∧ Deterministic ∧ Total; safe to evaluate during expansion.
+/// Legal.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     xs… :wat::core::Value arg0 is a literal keyword naming a registered aggregate type; the rest are the field values, evaluated in declaration order
+/// @ret     :T the newly constructed aggregate
+/// @example (:wat::core::do (:wat::core::defrecord :probe::AggNewExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::aggregate-new :probe::AggNewExample 7) 0)) #=> 7
+/// @see     :wat::core::kwargs-construct
+/// @see     :wat::core::struct-new
+#[wat_intrinsic(":wat::core::aggregate-new")]
+pub(crate) fn eval_aggregate_new_home(
+    xs: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_aggregate_new(xs, list_span, env, sym)
+}
+
+/// `(:wat::core::kwargs-construct :T :f1 v1 :f2 v2 … | :T v1 v2 …) -> :T` — arc 294 item (C),
+/// arc 255 Stone the-registry-answers-first-wave-3.
+///
+/// The LIVE kwargs-construction form the `defrecord`/`defstruct` companion macro emits: resolves
+/// `:T`'s (splice-merged) declared field order from the registry, reorders kwargs into that
+/// order, then constructs exactly like `aggregate-new` immediately above (the same
+/// `construct_aggregate` tail, `src/runtime.rs`). A positional (non-kwargs-shaped) `args[1..]`
+/// passes straight through unchanged, mirroring `build_insert_fact`'s kwargs-vs-positional test.
+/// Homed here with its real arity declared; the body is unchanged, still
+/// `crate::runtime::eval_kwargs_construct`.
+///
+/// ⛔ **VARIADIC, real minimum ONE — read from the fn's own first guard**, `if args.is_empty()`
+/// (`src/runtime.rs:17584`+) — the SAME minimum `aggregate-new` measures immediately above, but
+/// confirmed independently at this verb's own site, not inferred from that sibling (STOP-1: two
+/// verbs sharing a guard shape is not evidence either one's guard is correct without reading
+/// both).
+///
+/// **Purity/Determinism/Totality ground —** identical reasoning to `aggregate-new` immediately
+/// above: the kwargs reorder is a pure structural rearrangement of already-literal keyword/value
+/// pairs (no `eval_inner`/`apply_function` on caller-supplied code beyond ordinary argument
+/// evaluation) ahead of the SAME `construct_aggregate` tail, so the same two closed gaps
+/// (`infer_kwargs_construct_check`'s checker unification; `freeze::validate_holon_record_capacity`'s
+/// freeze-time HolonRecord capacity check) apply here too. Pure ∧ Deterministic ∧ Total.
+///
+/// **Expand-time ground —** Pure ∧ Deterministic ∧ Total; safe to evaluate during expansion.
+/// Legal.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     xs… :wat::core::Value arg0 is a literal keyword naming a registered aggregate type; the rest are either kwargs (`:field value …`) or positional field values
+/// @ret     :T the newly constructed aggregate
+/// @example (:wat::core::do (:wat::core::defrecord :probe::KwargsConstructExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::kwargs-construct :probe::KwargsConstructExample :sk 9) 0)) #=> 9
+/// @see     :wat::core::aggregate-new
+#[wat_intrinsic(":wat::core::kwargs-construct")]
+pub(crate) fn eval_kwargs_construct_home(
+    xs: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_kwargs_construct(xs, list_span, env, sym)
+}

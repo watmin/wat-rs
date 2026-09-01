@@ -298,68 +298,18 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // own body raises `ArityMismatch` on a zero-arg call, which `check.rs::infer_string_concat`
     // confirms the checker accepts as well-typed). The registry consult below now answers for
     // all 34 directly.
-    // `:wat::core::aggregate-new` / `:wat::core::kwargs-construct` (BRIEF-construction-inside-a-
-    // fn.md) — the two verbs a record/struct's macro-expanded kwargs/positional construction
-    // lowers to (`wat/Record.wat:183-190`, `wat/core.wat:1780-1788` — defstruct's OWN bare-name
-    // companion macro emits the identical `kwargs-construct` call a record's does).
-    //
-    // PURE: construction is assignment — it evaluates already-supplied field VALUES and binds
-    // them into a new container; it opens nothing, reads no ambient state, mutates nothing
-    // (`construct_aggregate`, runtime.rs:15519-15592, and `build_holon_hologram`'s structural
-    // `to_holon_inner` fold, runtime.rs:15426-15461 — no IO, no RNG on either path). This holds
-    // regardless of the target's `Nature`: a Struct MAY hold a live resource, but resource
-    // ACQUISITION is a property of how a value was obtained, not of the assignment that later
-    // carries it, and any acquisition (e.g. `:wat::io::IOReader/open-file`) is caught independently
-    // at THAT op's own head by this same walk (`classify_expr` recurses into every field-value
-    // argument on the same axis). A pure aggregate can never smuggle one in either way:
-    // `validate_aggregate_containment` (check.rs:12511-12573) is a post-registration freeze-time
-    // pass that REJECTS STARTUP for any `Nature::Record`/`HolonRecord` type declaring an impure
-    // field (`TypeErrorKind::ImpureFieldInPureAggregate`) — a pure-nature aggregate cannot even be
-    // registered with a resource-shaped field, let alone constructed holding one. Matches this
-    // file's own existing precedent for container ops (`PersistentVector/conj`, `HashMap/assoc`
-    // above): the ACT of binding a value into a structure is pure independent of what runtime type
-    // that value happens to be.
-    //
-    // DETERMINISTIC: true, unconditionally — no ambient/random dependency on either path.
-    //
-    // TOTAL: true — BOTH named gaps this classification originally found are now CLOSED, not
-    // merely unarmed-and-therefore-moot. Recorded so a future reader does not have to re-derive
-    // why this holds:
-    //
-    //   (a) was `aggregate-new`-only — a CHECKER hole. `infer_kwargs_construct_check`
-    //       (check.rs:11597-11727) closed unknown-field/bad-arity/retired-positional-shape for
-    //       `kwargs-construct` by delegating to the prime ctor's own checked call, but
-    //       `infer_aggregate_new_check` never unified the supplied positional values against the
-    //       declared field count, so a wrong arity passed `--check` and only raised at runtime
-    //       (`construct_aggregate`, runtime.rs:15560-15568). CLOSED (check.rs:11516-11607,
-    //       `infer_aggregate_new_check`) — but NOT by mirroring kwargs-construct's synthetic-call
-    //       approach verbatim: `aggregate-new` is invoked in exactly one place architecturally,
-    //       `:T'`'s own generated body (`register_aggregate_methods`, runtime.rs:1510-1559 mints
-    //       EVERY nature's ctor as `(:wat::core::aggregate-new :T field-syms…)`), so checking it
-    //       is always checking a definition against its OWN signature, not a call site. Routing it
-    //       through a synthetic re-call (as first attempted) minted a FRESH instantiation of the
-    //       type's own generics and broke every generic self-constructing type in the stdlib
-    //       (`Bound<S,R>`, `Launched<S,R,Sh,Lu>`, `Cache::Entry<K,V>`, …); the fix instead unifies
-    //       each field value against the scheme's RAW (un-instantiated) `params` and returns its
-    //       raw `ret` unchanged — see that function's own doc for the full account.
-    //   (b) BOTH verbs, for `Nature::HolonRecord` — a FREEZE-TIME-closeable hole, not a checker
-    //       one: `bundle_capacity_verdict` (runtime.rs, `pub(crate)`) checks a type's declared
-    //       field count against `ctx.capacity`, and BOTH are freeze-time constants per TYPE (not
-    //       per call or per instance), so a program that clears it can never reach the runtime
-    //       raise for that type again. CLOSED by `freeze::validate_holon_record_capacity`
-    //       (freeze.rs), a new post-registration pass mirroring `validate_aggregate_containment`'s
-    //       own timing, called from `FrozenWorld::freeze` right after `EncodingCtx` resolves
-    //       `dim_count` — rejecting STARTUP (`TypeErrorKind::HolonRecordCapacityExceeded`) for any
-    //       over-budget HolonRecord before any rule ever compiles. The runtime check in
-    //       `build_holon_hologram` is now an unreachable backstop, kept as defense in depth rather
-    //       than removed (a program that reaches `fire-rules` at all has, by definition, already
-    //       cleared freeze).
-    //
-    // `total?` is ARMED at both `compile-condition` and `then-item-fence`. Recorded as
-    // `true` because it genuinely is, with both closures on the board.
-    if head == ":wat::core::aggregate-new" || head == ":wat::core::kwargs-construct" {
-        return Some(OpMeta { pure: true, deterministic: true, total: true });
-    }
+    // Arc 255 Stone the-registry-answers-first-wave-3 — RETIRED. The fact this guard carried
+    // (`pure: true, deterministic: true, total: true` for both verbs — construction is
+    // assignment: it evaluates already-supplied field VALUES and binds them into a new
+    // container, opening nothing, reading no ambient state, mutating nothing) now lives at each
+    // verb's own registration (`src/intrinsic/record.rs`) as `@Purity Pure` /
+    // `@Determinism Deterministic` / `@Totality Total` — re-derived from `construct_aggregate`
+    // (`src/runtime.rs`) unchanged. Both named gaps this classification originally found are
+    // still CLOSED, confirmed unchanged: the `aggregate-new`-only checker hole
+    // (`infer_aggregate_new_check`, check.rs) and the `HolonRecord` freeze-time capacity hole
+    // (`freeze::validate_holon_record_capacity`). `total?` stays ARMED at both
+    // `compile-condition` and `then-item-fence`. The registry consult below now answers for both
+    // directly.
     // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED, and the re-derivation OVERTURNED
     // this guard's `total: true` for both verbs. `type-params-used-in`'s `@Totality` now lives at
     // its own registration (`src/intrinsic/reflect.rs:640`) as `Partial`: `param_name_of` raises
@@ -429,33 +379,40 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // `resolve_verify_payload` (never anchored at all). Each ruling below is read from the
     // implementation the widened scan exposed, not guessed to keep the count down (STOP-2).
     //
-    // `:wat::core::write-forms` (`dispatch_keyword_head`, `src/runtime.rs:5266` →
-    // `eval_write_forms`, `src/edn/render.rs:687-711`) — evaluates its one already-typed
-    // `:wat::WatAST` argument (ordinary call-by-value — the same thing every verb in the
-    // `pure_det` list below does to its own args, not itself an effect) and then runs a pure
-    // structural transform (`watast_to_edn` + `wat_edn::write`): no IO, no ambient state, nothing
-    // outlives the call. `total` left `false`, conservatively — the serializer's behavior over
-    // every WatAST variant was not independently verified here.
-    if head == ":wat::core::write-forms" {
-        return Some(OpMeta { pure: true, deterministic: true, total: false });
-    }
-    // `:wat::core::with-children` (`dispatch_keyword_head`, `src/runtime.rs:5271` →
-    // `eval_with_children`, `src/edn/render.rs:921-990`) — evaluates its two arguments, then
-    // rebuilds a WatAST node of the SAME kind as its template from the supplied children: a pure
-    // structural transform, no IO, no ambient state. `total: false` — verified PARTIAL on
-    // well-typed input: a leaf template given non-empty children, or a `Map` template given an
-    // odd child count, both raise `MalformedForm` (`src/edn/render.rs:970-989`), the same
-    // well-typed-domain-restriction shape `i64::/` is `total: false` for.
-    if head == ":wat::core::with-children" {
-        return Some(OpMeta { pure: true, deterministic: true, total: false });
-    }
-    // `:wat::core::macro-error` (`dispatch_keyword_head`, `src/runtime.rs:5285-5310`) — evaluates
-    // its one String argument (ordinary call-by-value) and then UNCONDITIONALLY returns
-    // `Err(MacroAbort)` or `Err(TypeMismatch)` — it never returns `Ok` on any input, so `total` is
-    // trivially `false`. No ambient read/write either way: pure, deterministic.
-    if head == ":wat::core::macro-error" {
-        return Some(OpMeta { pure: true, deterministic: true, total: false });
-    }
+    // Arc 255 Stone the-registry-answers-first-wave-3 — RETIRED, both re-derivations UNCHANGED.
+    // `write-forms`'s `@Totality` now lives at its own registration (`src/intrinsic/ast.rs`) —
+    // `eval_write_forms` (`src/edn/render.rs`) evaluates its one already-typed `:wat::WatAST`
+    // argument (ordinary call-by-value, not itself an effect) and runs a pure structural
+    // transform (`watast_to_edn` + `wat_edn::write`): no IO, no ambient state. `Partial`,
+    // conservatively — the serializer's behavior over every WatAST variant was not independently
+    // verified. `with-children`'s `@Totality` now lives at its own registration
+    // (`src/intrinsic/ast.rs`) as `Partial` too — verified: a leaf template given non-empty
+    // children, or a `Map` template given an odd child count, both raise `MalformedForm`
+    // (`src/edn/render.rs`), the same well-typed-domain-restriction shape `i64::/` is `Partial`
+    // for. The registry consult below now answers for both directly.
+    //
+    // ★ `macro-error`'s `@Totality` now lives at its own registration
+    // (`src/intrinsic/macro_error.rs`) as `Partial`, RULED (not transcribed) against
+    // `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`: the body evaluates its
+    // one String argument and UNCONDITIONALLY returns
+    // `Err(EvalBreak::Diagnostic(Box::new(RuntimeError::new(.., RuntimeErrorKind::MacroAbort
+    // {..}))))` — the SAME `Diagnostic` variant an ordinary `TypeMismatch`/`ArityMismatch` raise
+    // uses, whose own doc (`src/value/signal.rs:70-72`) says it plainly: "carries a source
+    // location and surfaces to user code as an error." That is the opposite variant from
+    // `Option/try`/`Result/try`'s `EvalBreak::Signal(EvalSignal::OptionPropagate |
+    // TryPropagate(_))` (`src/value/signal.rs:78-81`: "Caught at function boundaries; never
+    // surfaces to user code"), which `apply_function` catches and repackages as the ENCLOSING
+    // function's own checker-guaranteed `Option`/`Result` return — a real value the caller
+    // `match`es. `macro-error`'s `Diagnostic` is caught nowhere at the wat-value level: it
+    // unwinds past every enclosing wat form and is caught only by `macro_eval_pre_validated`
+    // (`src/macros/eval.rs:109-116`), which matches on `e.kind()` and repackages it as a Rust
+    // `MacroError` — a macro-EXPANSION-time (compile-time) failure, never a `Value` any wat code
+    // receives or branches on. Confirmed empirically against the pre-stone binary: a direct call
+    // passes `--check` (exit 0) and raises at run (`RuntimeError`/`MacroAbort`, exit 1) — the
+    // same "passes check, raises at run" signature every other `Partial` raise in this file has.
+    // `try`'s word "signal" and this verb's own doc comment calling it "first-class macro-abort"
+    // resemble each other; the operative Rust type does not — it is `Diagnostic`, never `Signal`.
+    // `Partial`. The registry consult below now answers for it directly.
     // `:wat::verify::string` / `:wat::verify::http-path` / `:wat::verify::s3-path`
     // (`resolve_verify_payload`, `src/runtime.rs:24271-24306` — never anchored, invisible to the
     // old two-anchor scan). `string` evaluates its one argument and returns it unchanged if it is

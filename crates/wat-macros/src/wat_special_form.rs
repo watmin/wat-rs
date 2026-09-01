@@ -85,6 +85,7 @@ pub(crate) fn expand_time_token(t: wat_doc::ExpandTime) -> TokenStream2 {
     match t {
         wat_doc::ExpandTime::Legal => quote! { ::wat_doc::ExpandTime::Legal },
         wat_doc::ExpandTime::RuntimeOnly => quote! { ::wat_doc::ExpandTime::RuntimeOnly },
+        wat_doc::ExpandTime::ExpandOnly => quote! { ::wat_doc::ExpandTime::ExpandOnly },
         wat_doc::ExpandTime::Preserving => quote! { ::wat_doc::ExpandTime::Preserving },
         wat_doc::ExpandTime::Unreviewed => quote! { ::wat_doc::ExpandTime::Unreviewed },
     }
@@ -408,6 +409,7 @@ mod expand_time_axis_tests {
         let cases = [
             (wat_doc::ExpandTime::Legal, quote! { ::wat_doc::ExpandTime::Legal }),
             (wat_doc::ExpandTime::RuntimeOnly, quote! { ::wat_doc::ExpandTime::RuntimeOnly }),
+            (wat_doc::ExpandTime::ExpandOnly, quote! { ::wat_doc::ExpandTime::ExpandOnly }),
             (wat_doc::ExpandTime::Preserving, quote! { ::wat_doc::ExpandTime::Preserving }),
             (wat_doc::ExpandTime::Unreviewed, quote! { ::wat_doc::ExpandTime::Unreviewed }),
         ];

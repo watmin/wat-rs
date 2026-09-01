@@ -423,7 +423,16 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 // enforces completeness (default-deny makes over-restriction the only drift direction).
 fn is_expand_time_legal(head: &str) -> bool {
     if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
-        return matches!(e.expand_time, wat_doc::ExpandTime::Legal | wat_doc::ExpandTime::Preserving);
+        // `matches!` does NOT go non-exhaustive when `ExpandTime` grows a variant — it
+        // silently returns `false` — so a new pole is REFUSED here unless named
+        // explicitly. `ExpandOnly` (arc 255 Stone expand-only-the-missing-pole) is an
+        // expand-time-only verb, by definition legal inside a macro body (its ONLY
+        // legitimate call site — `macro-error` is the one verb that declares it); omitting
+        // it here would refuse that verb at the one place it is allowed to be called.
+        return matches!(
+            e.expand_time,
+            wat_doc::ExpandTime::Legal | wat_doc::ExpandTime::ExpandOnly | wat_doc::ExpandTime::Preserving
+        );
     }
     // ★ THE RESIDUE — arc 255 Stone expand-T4b. NOT a hand-list of "which verbs are
     // expand-time legal": every name below is one for which `registry().lookup_entry`

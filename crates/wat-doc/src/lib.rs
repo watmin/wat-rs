@@ -1911,6 +1911,7 @@ mod tests {
         for (spelling, expected) in [
             ("Legal", ExpandTime::Legal),
             ("RuntimeOnly", ExpandTime::RuntimeOnly),
+            ("ExpandOnly", ExpandTime::ExpandOnly),
             ("Preserving", ExpandTime::Preserving),
             ("Unreviewed", ExpandTime::Unreviewed),
         ] {
@@ -2245,14 +2246,26 @@ mod probe_totality_axis {
 #[cfg(test)]
 mod probe_expand_time_axis {
     use super::ExpandTime;
-    /// FM 2-bis probe — the axis carries all FOUR variants by name and the match is
+    /// FM 2-bis probe — the axis carries all FIVE variants by name and the match is
     /// exhaustive (a variant added in the `.wat` without an arm here is `E0004`).
+    /// Arc 255 Stone expand-only-the-missing-pole minted `ExpandOnly` — `RuntimeOnly`'s
+    /// mirror — bringing the count from four to five; this probe's own claim would have
+    /// gone quietly stale (still green, silently no longer covering the new pole) had
+    /// only the exhaustive `match` below been extended without also widening the
+    /// enumerated array.
     #[test]
-    fn expand_time_has_four_named_variants() {
-        for v in [ExpandTime::Legal, ExpandTime::RuntimeOnly, ExpandTime::Preserving, ExpandTime::Unreviewed] {
+    fn expand_time_has_five_named_variants() {
+        for v in [
+            ExpandTime::Legal,
+            ExpandTime::RuntimeOnly,
+            ExpandTime::ExpandOnly,
+            ExpandTime::Preserving,
+            ExpandTime::Unreviewed,
+        ] {
             let name = match v {
                 ExpandTime::Legal => "Legal",
                 ExpandTime::RuntimeOnly => "RuntimeOnly",
+                ExpandTime::ExpandOnly => "ExpandOnly",
                 ExpandTime::Preserving => "Preserving",
                 ExpandTime::Unreviewed => "Unreviewed",
             };

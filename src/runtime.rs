@@ -5356,7 +5356,16 @@ fn dispatch_keyword_head(
         return handler(args, list_span, env, sym);
     }
     // Producers + forms that preserve provenance: return TrackedValue directly.
-    match head {
+    //
+    // ⛔ THIS WAS A `match` UNTIL 2026-09-01. Arc 255's wave-3 homing took its last
+    // non-`let` arm, leaving one live arm plus `_ => {}`, and clippy's `single_match`
+    // fired: "you seem to be trying to use `match` for an equality check." That lint is
+    // EARNED — it is the campaign's thesis showing up in the code's shape. The
+    // retirement record below is kept verbatim: it is the history of what left this
+    // match, and it outlives the match itself. When `let` finds a home too, this `if`
+    // and its whole comment block retire together and the function becomes a single
+    // delegation to `dispatch_keyword_head_value`.
+    {
         // Arc 255 Stone HOME-11 — `:wat::edn::{read,read-json,read-foreign}` RETIRED as literal
         // arms this stone; registry-routed via `src/intrinsic/edn.rs` (the registry-first door
         // above already reaches them, same reasoning as `keyword/from-string`'s note in
@@ -5365,18 +5374,16 @@ fn dispatch_keyword_head(
         // ast-kind, ast-name, ast-span, ast-end-span, symbol-node, fresh-symbol, keyword-node}`
         // RETIRED as literal arms this stone; registry-routed via `src/intrinsic/ast.rs` (the
         // registry-first door above already reaches them, same reasoning as above). `write-forms`
-        // and `with-children` stay literal arms here — they are not this stone's ten.
-        // Arc 251.5a-ii — write side: forms-as-data → clean EDN String (the inverse
-        // of read-string; the fixer's read→transform→write cycle closes here).
-        ":wat::core::write-forms" => {
-            return crate::edn::render::eval_write_forms(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 251.5a-iv — the kind-preserving REBUILD: same kind as template, new children.
-        // The inverse of ast->children given the decomposed node.
-        ":wat::core::with-children" => {
-            return crate::edn::render::eval_with_children(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
+        // and `with-children` stayed literal arms here at the time — they were not that stone's
+        // ten.
+        // Arc 255 Stone the-registry-answers-first-wave-3 — `:wat::core::write-forms` /
+        // `:wat::core::with-children` RETIRED as literal arms this stone; registry-routed via
+        // `src/intrinsic/ast.rs` (the registry-first door above already reaches them, joining
+        // HOME-12's ten — bodies unchanged, still `crate::edn::render::eval_write_forms` /
+        // `eval_with_children`). `:wat::core::macro-error` RETIRED the same stone; registry-
+        // routed via `src/intrinsic/macro_error.rs` (its body — previously inline here, the only
+        // one of the five with no pre-existing named fn — moved verbatim into
+        // `eval_macro_error`, logic unchanged).
         // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,
         // to-type-form-colon}` RETIRED this stone; their replacements
         // (`:wat::keyword::{to-symbol,to-type-form,to-type-form-colon}`,
@@ -5384,42 +5391,11 @@ fn dispatch_keyword_head(
         // reasoning as `keyword/from-string`'s note above (`RuntimeBuilt` provenance no longer
         // survives; downgraded to `Provenance::Unknown`, the same shape every other
         // registry-routed verb already has).
-        // Arc 258 Stone 258.2b — first-class macro-abort. Evaluates the one String arg and
-        // returns Err(MacroAbort) so the macro engine (macro_eval_pre_validated) wraps it into
-        // a clean MacroError without "runtime::eval failed:" prefix noise. Macro-body-only.
-        ":wat::core::macro-error" => {
-            let v = match crate::edn::render::require_one_arg(
-                ":wat::core::macro-error",
-                args,
-                env,
-                sym,
-                list_span,
-            ) {
-                Ok(v) => v,
-                Err(e) => return Err(EvalBreak::Diagnostic(Box::new(e))),
-            };
-            let message = match &v {
-                Value::String(s) => (**s).clone(),
-                other => {
-                    return Err(EvalBreak::Diagnostic(Box::new(RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: ":wat::core::macro-error".into(),
-                            expected: ":wat::core::String",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        },
-                    ))))
-                }
-            };
-            return Err(EvalBreak::Diagnostic(Box::new(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::MacroAbort { message },
-            ))));
-        }
         // Arc 233 Stone 233.2.k: let must return TrackedValue directly so provenance
         // from the last body expression flows through (not stripped by dispatch_keyword_head_value).
-        ":wat::core::let" => return eval_let(args, list_span, env, sym),
-        _ => {}
+        if head == ":wat::core::let" {
+            return eval_let(args, list_span, env, sym);
+        }
     }
     // All other arms: dispatch through value-returning inner and wrap.
     dispatch_keyword_head_value(head, args, list_span, env, sym).map(TrackedValue::from)
@@ -5520,22 +5496,11 @@ fn dispatch_keyword_head_value(
         // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
         // Error contract: well-formed known type names → bool; unknown name → Err.
         ":wat::core::subtype?" => eval_subtype(args, list_span, env, sym),
-        // Arc 294.c.2a — `:wat::core::aggregate-new` is the ONE nature-dispatched constructor.
-        // Signature: (:wat::core::aggregate-new :T field…) — varargs; `:T` is the type keyword.
-        // Looks up `:T`'s nature from the TypeEnv and builds the right AggregateValue:
-        //   Struct      → AggregateValue::struct_(class, fields)
-        //   Record      → AggregateValue::record(class, fields)
-        //   HolonRecord → AggregateValue::holon_record(class, fields, hologram)
-        // For HolonRecord, the hologram is derived internally by `build_holon_hologram`
-        // (no precomputed arg). struct-new / defrecord / holon::defrecord all route
-        // through this; arc 296 G-1b deleted the `Record::of` primitives that used to
-        // sit alongside it (finish the kill, arc 294.c.2a).
-        ":wat::core::aggregate-new" => eval_aggregate_new(args, list_span, env, sym),
-        // Arc 294 item (C) — `:wat::core::kwargs-construct` is the LIVE kwargs form the
-        // defrecord/defstruct companion emits: it resolves `:T`'s (splice-merged) field
-        // order from the registry, reorders the kwargs, then constructs like aggregate-new.
-        // Signature: (:wat::core::kwargs-construct :T :f v :f v …) — or positional passthrough.
-        ":wat::core::kwargs-construct" => eval_kwargs_construct(args, list_span, env, sym),
+        // Arc 255 Stone the-registry-answers-first-wave-3 — `:wat::core::aggregate-new` /
+        // `:wat::core::kwargs-construct` RETIRED as literal arms this stone; registry-routed via
+        // `src/intrinsic/record.rs` (the registry-first door above already reaches them, joining
+        // the rest of the record family — bodies unchanged, still `eval_aggregate_new` /
+        // `eval_kwargs_construct` below, now `pub(crate)`).
         // Arc 293 K3-revise — the TWO projection verbs (the PAIR): project a satisfier's
         // surface attributes into a new backing record at the pure tier the caller names.
         // Projection is ONE-WAY UP — you never project down to a struct (you already have
@@ -17471,7 +17436,7 @@ fn eval_subtype(
 /// (finish the kill, arc 294.c.2a — zero/one live callers, both superseded by this fn).
 /// This is intentional runtime-only dispatch — no check-side scheme registered (mirrors
 /// `:wat::core::struct-new`; the checker's fresh-TypeVar fallthrough handles callers silently).
-fn eval_aggregate_new(
+pub(crate) fn eval_aggregate_new(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -17626,7 +17591,7 @@ fn construct_aggregate(
 /// If args[1..] are POSITIONAL (the prime path / generated code — no leading-keyword
 /// kv shape), they pass straight through to positional construction, mirroring
 /// `build_insert_fact`'s kwargs-vs-positional test (`matcher.rs`).
-fn eval_kwargs_construct(
+pub(crate) fn eval_kwargs_construct(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
