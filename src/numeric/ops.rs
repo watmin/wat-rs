@@ -14,7 +14,20 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::value::{Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
-use crate::runtime::{bigint_component_to_value, eval_inner, eval_one_arg};
+use crate::runtime::{eval_inner, eval_one_arg};
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
+
+/// Shared by `rational/numerator` + `rational/denominator`: a `BigInt`
+/// component that fits in `i64` renders as `:wat::core::i64` (the common
+/// case); one that doesn't renders as `:wat::core::bigint` (never silently
+/// truncated).
+pub(crate) fn bigint_component_to_value(n: BigInt) -> Value {
+    match n.to_i64() {
+        Some(i) => Value::i64(i),
+        None => Value::wat__core__BigInt(Box::new(n)),
+    }
+}
 
 /// `:wat::core::rational/numerator` — slash-form accessor (cf `Uuid/version`).
 ///

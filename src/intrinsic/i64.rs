@@ -35,7 +35,7 @@
 use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
-use crate::runtime::I64ArithErr;
+use crate::numeric::arith::I64ArithErr;
 use crate::span::Span;
 use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
@@ -45,7 +45,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 // forwards to `crate::numeric::arith::eval_i64_arith` — the EXACT arity-check /
 // type-check / dispatch fn the old `:wat::i64::*` arm calls — with a
 // closure that forwards straight to the shared named op fn
-// (`crate::runtime::i64_add_op` etc). No arithmetic is re-implemented here.
+// (`crate::numeric::arith::i64_add_op` etc). No arithmetic is re-implemented here.
 
 /// `(:wat::i64::+ a b)` → the sum of `a` and `b`, strict i64 (no promotion
 /// from f64). Overflow raises a distinct `RuntimeErrorKind::IntegerOverflow`
@@ -79,7 +79,7 @@ pub(crate) fn eval_i64_add(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::+";
     crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
-        crate::runtime::i64_add_op(OP, x, y, b_span)
+        crate::numeric::arith::i64_add_op(OP, x, y, b_span)
     })
 }
 
@@ -131,7 +131,7 @@ pub(crate) fn eval_i64_sub(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::-";
     crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
-        crate::runtime::i64_sub_op(OP, x, y, b_span)
+        crate::numeric::arith::i64_sub_op(OP, x, y, b_span)
     })
 }
 
@@ -173,7 +173,7 @@ pub(crate) fn eval_i64_mul(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::*";
     crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
-        crate::runtime::i64_mul_op(OP, x, y, b_span)
+        crate::numeric::arith::i64_mul_op(OP, x, y, b_span)
     })
 }
 
@@ -216,7 +216,7 @@ pub(crate) fn eval_i64_div(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::/";
     crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
-        crate::runtime::i64_div_op(OP, x, y, b_span)
+        crate::numeric::arith::i64_div_op(OP, x, y, b_span)
     })
 }
 
@@ -263,7 +263,7 @@ pub(crate) fn eval_i64_mod(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::mod";
     crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
-        crate::runtime::i64_mod_op(OP, x, y, b_span)
+        crate::numeric::arith::i64_mod_op(OP, x, y, b_span)
     })
 }
 
@@ -315,7 +315,7 @@ pub(crate) fn eval_i64_quot(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::quot";
     crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
-        crate::runtime::i64_quot_op(OP, x, y, b_span)
+        crate::numeric::arith::i64_quot_op(OP, x, y, b_span)
     })
 }
 
@@ -362,7 +362,7 @@ pub(crate) fn eval_i64_rem(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::rem";
     crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
-        crate::runtime::i64_rem_op(OP, x, y, b_span)
+        crate::numeric::arith::i64_rem_op(OP, x, y, b_span)
     })
 }
 

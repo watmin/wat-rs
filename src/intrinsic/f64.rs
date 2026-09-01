@@ -84,7 +84,7 @@ use crate::value::{
 // Each handler clones its two `&WatAST` args into a 2-element array and
 // forwards to `crate::numeric::arith::eval_f64_arith` — the EXACT arity-check /
 // type-check / dispatch fn the old `:wat::f64::*` arm calls — with the
-// SAME named op fn (`crate::runtime::f64_add_op` etc.) the old arm now also
+// SAME named op fn (`crate::numeric::arith::f64_add_op` etc.) the old arm now also
 // calls. No arithmetic is re-implemented here.
 
 /// `(:wat::f64::+ a b)` → the sum of `a` and `b`, strict f64 (no promotion
@@ -116,7 +116,7 @@ pub(crate) fn eval_f64_add(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::+";
-    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_add_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::f64_add_op)
 }
 
 // Arc 255 Stone N — value-level twin, for `dispatch_substrate_impl`'s
@@ -155,7 +155,7 @@ pub(crate) fn eval_f64_sub(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::-";
-    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_sub_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::f64_sub_op)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
@@ -190,7 +190,7 @@ pub(crate) fn eval_f64_mul(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::*";
-    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_mul_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::f64_mul_op)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
@@ -226,7 +226,7 @@ pub(crate) fn eval_f64_div(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::/";
-    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_div_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::f64_div_op)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
@@ -268,7 +268,7 @@ pub(crate) fn eval_f64_max(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::max";
-    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_max_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::f64_max_op)
 }
 
 /// `(:wat::f64::min a b)` → the smaller of `a` and `b` (`f64::min`, IEEE 754
@@ -298,7 +298,7 @@ pub(crate) fn eval_f64_min(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::min";
-    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_min_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::f64_min_op)
 }
 
 // ─── comparisons: < <= > >= = not= ─────────────────────────────────────────

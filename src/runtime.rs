@@ -56,7 +56,6 @@ use crate::span::Span;
 use holon::{encode, HolonAST, Similarity, DEGENERATE_EPSILON};
 use num_bigint::BigInt;
 use num_rational::BigRational;
-use num_traits::ToPrimitive;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -4272,106 +4271,26 @@ fn eval_if(
 // Arc 109 Stone 1 — `eval_i64_arith` moved to `src/numeric/arith.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// ─── Arc 255 Stone A-i — the SHARED i64 op fns ─────────────────────────────
-//
-// Named, `pub(crate)` op fns for `+ - * / mod quot rem`, factored out of what
-// through Stone B were inline closures on BOTH the OLD `:wat::core::i64::*`
-// dispatch arm (retired at Stone C — `runtime.rs` no longer calls these
-// directly) and `intrinsic/i64.rs`'s `:wat::i64::*` registered handlers,
-// which are now these fns' only caller. One implementation of the
-// overflow/division contract, never two — the brief's STOP-1 concern.
-// `head` is a parameter (not a captured closure variable) so the
-// `IntegerOverflow`/`DivisionByZero` error's `op` field always names
-// whichever spelling the caller actually used.
+// Arc 109 Stone 1 — `i64_add_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-pub(crate) fn i64_add_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
-    a.checked_add(b).ok_or_else(|| {
-        RuntimeError::new(
-            b_span.clone(),
-            RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
-        )
-        .into()
-    })
-}
+// Arc 109 Stone 1 — `i64_sub_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-pub(crate) fn i64_sub_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
-    a.checked_sub(b).ok_or_else(|| {
-        RuntimeError::new(
-            b_span.clone(),
-            RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
-        )
-        .into()
-    })
-}
+// Arc 109 Stone 1 — `i64_mul_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-pub(crate) fn i64_mul_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
-    a.checked_mul(b).ok_or_else(|| {
-        RuntimeError::new(
-            b_span.clone(),
-            RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
-        )
-        .into()
-    })
-}
+// Arc 109 Stone 1 — `i64_div_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `/` — truncating division; `i64::MIN / -1` is the one division-overflow
-/// edge (`checked_div` returns `None` here since `b != 0` was already ruled
-/// out above).
-pub(crate) fn i64_div_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
-    if b == 0 {
-        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-    } else {
-        a.checked_div(b).ok_or_else(|| {
-            RuntimeError::new(
-                b_span.clone(),
-                RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
-            )
-            .into()
-        })
-    }
-}
+// Arc 109 Stone 1 — `i64_quot_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `quot` — truncate toward zero, same as `/` (clj's mod/rem/quot trio).
-pub(crate) fn i64_quot_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
-    if b == 0 {
-        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-    } else {
-        a.checked_div(b).ok_or_else(|| {
-            RuntimeError::new(
-                b_span.clone(),
-                RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
-            )
-            .into()
-        })
-    }
-}
+// Arc 109 Stone 1 — `i64_rem_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `rem` — sign of the DIVIDEND. Never overflows (`|remainder| < |divisor|`);
-/// `head` is unused (no `IntegerOverflow` branch exists for `rem`).
-pub(crate) fn i64_rem_op(_head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
-    if b == 0 {
-        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-    } else {
-        // i64::MIN rem -1 is mathematically 0 but `checked_rem` returns `None`
-        // (would need the same overflowing quotient as `/`) — clj-faithful
-        // special-case rather than IntegerOverflow (`rem` itself never
-        // overflows: |remainder| < |divisor|).
-        Ok(a.checked_rem(b).unwrap_or(0))
-    }
-}
-
-/// `mod` — sign of the DIVISOR, floored (adjust `rem`'s result by `+ b` when
-/// the remainder is nonzero and disagrees in sign with the divisor). Never
-/// overflows; `head` unused, same reason as `rem`.
-pub(crate) fn i64_mod_op(_head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
-    if b == 0 {
-        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-    } else {
-        // Same MIN/-1 special-case as `rem` above (mod(MIN,-1) = 0).
-        let r = a.checked_rem(b).unwrap_or(0);
-        Ok(if r != 0 && (r < 0) != (b < 0) { r + b } else { r })
-    }
-}
+// Arc 109 Stone 1 — `i64_mod_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// Arc 278 #55 (S3b+S4) slice one — generic dispatch for every row of THE ONE TABLE
 /// (`rete::vocabulary::RETE_OPS`). The `class`, never a per-op FQDN, drives the routing — this
@@ -4474,70 +4393,20 @@ fn dispatch_rete_op(
 // Arc 109 Stone 1 — `eval_bigint_arith` moved to `src/numeric/arith.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::core::bigint::/`'s op fn: divisible → `bigint` quotient;
-/// otherwise → `:wat::core::rational` (reduced via `BigRational::new`,
-/// REUSING Stone B's rational representation — no new rational impl).
-/// Division by zero is a clean runtime error, never a panic (BigInt's `Div`
-/// would otherwise panic on zero divisor like a primitive integer divide).
-pub(crate) fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value, EvalBreak> {
-    use num_traits::Zero;
-    if b.is_zero() {
-        return Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into());
-    }
-    let (q, r) = (a / b, a % b);
-    if r.is_zero() {
-        Ok(Value::wat__core__BigInt(Box::new(q)))
-    } else {
-        Ok(Value::wat__core__Rational(Box::new(
-            num_rational::BigRational::new(a.clone(), b.clone()),
-        )))
-    }
-}
+// Arc 109 Stone 1 — `bigint_div` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Coerce a `Value` to a `BigRational` for rational arithmetic — accepts
-/// `:wat::core::rational` directly AND `:wat::core::bigint` (self-promoted
-/// via `BigRational::from_integer`). Arc 300 stone C2: the bigint acceptance
-/// is NOT strictness relaxation for its own sake — it is what lets
-/// `wat/core.wat`'s N-ary rational fold reuse the SAME raw `rational::{+,-,*,/}`
-/// intrinsic as its fold step (mirroring i64/f64/bigint's fold shape exactly)
-/// even after an intermediate step COLLAPSES to bigint (see [`collapse_bigrational`]).
-/// An i64 arg is still a type error — callers promote i64 explicitly via
-/// `:wat::i64::to-rational` (mirrors C1's i64::to-bigint contagion pattern).
-pub(crate) fn to_bigrational(v: &Value) -> Option<BigRational> {
-    match v {
-        Value::wat__core__Rational(r) => Some((**r).clone()),
-        Value::wat__core__BigInt(n) => Some(BigRational::from_integer((**n).clone())),
-        _ => None,
-    }
-}
+// Arc 109 Stone 1 — `to_bigrational` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// The pinned C2 collapse: a `BigRational` arithmetic result that reduces to
-/// a whole number (`is_integer()`) becomes `:wat::core::bigint` (C1's type,
-/// reused as the collapse target — never a new "integer-valued rational"
-/// representation); otherwise it stays `:wat::core::rational`. Inverse of
-/// C1's `bigint::/` → rational collapse (that one collapses DOWN on failure
-/// to divide evenly; this one collapses UP whenever the ratio happens to
-/// reduce to an integer).
-pub(crate) fn collapse_bigrational(r: BigRational) -> Value {
-    if r.is_integer() {
-        Value::wat__core__BigInt(Box::new(r.to_integer()))
-    } else {
-        Value::wat__core__Rational(Box::new(r))
-    }
-}
+// Arc 109 Stone 1 — `collapse_bigrational` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // Arc 109 Stone 1 — `eval_rational_arith` moved to `src/numeric/arith.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::core::rational::/`'s op fn: division by zero is a clean runtime
-/// error, never a panic (mirrors `bigint_div`'s zero-divisor guard).
-pub(crate) fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> Result<BigRational, EvalBreak> {
-    use num_traits::Zero;
-    if b.is_zero() {
-        return Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into());
-    }
-    Ok(a / b)
-}
+// Arc 109 Stone 1 — `rational_div` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // Arc 109 Stone 1 — `eval_i64_to_rational` moved to `src/numeric/convert.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -4548,16 +4417,8 @@ pub(crate) fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> R
 // Arc 109 Stone 1 — `eval_rational_to_f64` moved to `src/numeric/convert.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Shared by `rational/numerator` + `rational/denominator`: a `BigInt`
-/// component that fits in `i64` renders as `:wat::core::i64` (the common
-/// case); one that doesn't renders as `:wat::core::bigint` (never silently
-/// truncated).
-pub(crate) fn bigint_component_to_value(n: BigInt) -> Value {
-    match n.to_i64() {
-        Some(i) => Value::i64(i),
-        None => Value::wat__core__BigInt(Box::new(n)),
-    }
-}
+// Arc 109 Stone 1 — `bigint_component_to_value` moved to `src/numeric/ops.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // Arc 109 Stone 1 — `eval_rational_numerator` moved to `src/numeric/ops.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -4571,56 +4432,23 @@ pub(crate) fn bigint_component_to_value(n: BigInt) -> Value {
 // Arc 109 Stone 1 — `eval_f64_arith` moved to `src/numeric/arith.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// Arc 255 Stone A-ii — the six `eval_f64_arith` op bodies, lifted out of the
-// inline closures the OLD `:wat::core::f64::{+,-,*,/,max,min}` dispatch arms
-// used to carry through Stone B; those arms are retired at Stone C, so the
-// `:wat::f64::*` home (`src/intrinsic/f64.rs`) is now these fns' only caller.
-// Unlike `i64_add_op` and
-// friends, these take NO `head` param and cannot fail: f64 arithmetic has no
-// overflow/division-by-zero error path (IEEE 754 gives ±Inf/NaN instead), so
-// there is no `:op` to attribute an error to.
-pub(crate) fn f64_add_op(
-    a: f64,
-    b: f64,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 addition is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
-) -> Result<f64, EvalBreak> {
-    Ok(a + b)
-}
-pub(crate) fn f64_sub_op(
-    a: f64,
-    b: f64,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 subtraction is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
-) -> Result<f64, EvalBreak> {
-    Ok(a - b)
-}
-pub(crate) fn f64_mul_op(
-    a: f64,
-    b: f64,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 multiplication is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
-) -> Result<f64, EvalBreak> {
-    Ok(a * b)
-}
-pub(crate) fn f64_div_op(
-    a: f64,
-    b: f64,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 division is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
-) -> Result<f64, EvalBreak> {
-    Ok(a / b)
-}
-pub(crate) fn f64_max_op(
-    a: f64,
-    b: f64,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 maximum is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
-) -> Result<f64, EvalBreak> {
-    Ok(a.max(b))
-}
-pub(crate) fn f64_min_op(
-    a: f64,
-    b: f64,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 minimum is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
-) -> Result<f64, EvalBreak> {
-    Ok(a.min(b))
-}
+// Arc 109 Stone 1 — `f64_add_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+
+// Arc 109 Stone 1 — `f64_sub_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+
+// Arc 109 Stone 1 — `f64_mul_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+
+// Arc 109 Stone 1 — `f64_div_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+
+// Arc 109 Stone 1 — `f64_max_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+
+// Arc 109 Stone 1 — `f64_min_op` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // arc 237 Stone 237.8a — eval_i64_f64_arith and eval_f64_i64_arith
 // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
@@ -5874,34 +5702,8 @@ pub(crate) fn dispatch_substrate_impl(
     Some(handler(vals, span))
 }
 
-/// Arc 148 slice 4 — Value-level arithmetic leaves used by
-/// `dispatch_substrate_impl` when a per-Type leaf is addressed directly.
-/// Two same-type helpers remain (i64-i64, f64-f64).
-///
-/// arc 237 Stone 237.8a — mixed-type helpers (i64-f64, f64-i64)
-/// DELETED under THE DECISION (`feedback_no_implicit_coercion`).
-///
-/// The `Err(())` channel signals divide-by-zero (the helper translates
-/// to `RuntimeError::DivisionByZero` with a synthesized span — the
-/// dispatch path doesn't have argument spans available, so the span
-/// is unknown).
-///
-/// Arc 300 stone C3 — the i64 leaves (only) enrich this to
-/// [`I64ArithErr`], a small kind distinguishing divide-by-zero from
-/// `checked_*` overflow (`None`); `f64`/`bigint`/`rational` are
-/// unaffected and keep the plain `Result<T, ()>` divide-by-zero-only
-/// channel.
-// Arc 255 Stone N — widened `pub(crate)` (both were private): the 19
-// arithmetic verbs' `value_handler` adapters (`src/intrinsic/{i64,f64,
-// bigint,rational}.rs`) call these SAME fns — the exact op this table's own
-// arms already used — from a different module, so the registry can serve
-// `apply` with no new arithmetic implementation.
-pub(crate) enum I64ArithErr {
-    DivByZero,
-    /// `checked_add/sub/mul/div` returned `None` — carries the operands
-    /// so the error names the exact overflowing expression.
-    Overflow(i64, i64),
-}
+// Arc 109 Stone 1 — `I64ArithErr` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // Arc 109 Stone 1 — `arith_i64_i64_inner` moved to `src/numeric/arith.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.

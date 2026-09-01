@@ -172,13 +172,13 @@ pub(crate) fn eval_bigint_div_intrinsic(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::/";
-    crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::bigint_div)
+    crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::bigint_div)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment
 // above. Body copied verbatim from `dispatch_substrate_impl`'s own
 // `:wat::bigint::/` arm (`src/runtime.rs`) — NOT the direct path's
-// `crate::runtime::bigint_div` (a different fn, `(&BigInt,&BigInt,&Span) ->
+// `crate::numeric::arith::bigint_div` (a different fn, `(&BigInt,&BigInt,&Span) ->
 // Result<Value, EvalBreak>`, incompatible with `arith_bigint_bigint_inner`'s
 // `Fn(&BigInt,&BigInt) -> Result<Value, ()>`).
 fn eval_bigint_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {

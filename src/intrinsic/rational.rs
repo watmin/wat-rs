@@ -170,13 +170,13 @@ pub(crate) fn eval_rational_div_intrinsic(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rational::/";
-    crate::numeric::arith::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::rational_div)
+    crate::numeric::arith::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::numeric::arith::rational_div)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s
 // comment above. Body copied verbatim from `dispatch_substrate_impl`'s own
 // `:wat::rational::/` arm (`src/runtime.rs`) — NOT the direct path's
-// `crate::runtime::rational_div` (incompatible signature, same reason as
+// `crate::numeric::arith::rational_div` (incompatible signature, same reason as
 // `bigint.rs`'s `eval_bigint_div_value`).
 fn eval_rational_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
     crate::numeric::arith::arith_rational_rational_inner(":wat::rational::/", vals, span, |a, b| {
