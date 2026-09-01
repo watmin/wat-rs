@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (seventeenth — SEVENTEEN STRIKES; ⭐ CLASS A CLOSED; D1, E1, E2, E5 CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (eighteenth — EIGHTEEN STRIKES; ⭐ CLASS A CLOSED; D1, E1, E2, E5 CLOSED + the nested wall WIRED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 1efb42fc7..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 1efb42fc7..HEAD        # what they touched
+git log --oneline c0c883082..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat c0c883082..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -97,6 +97,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **D1r** | `f22704f1f` | **a misspelled variant is told it is a misspelled variant** |
 | **E5** | `c9cdd9d32` | **threading the span is the cure AND the guard** |
 | **E1+E2** | `1efb42fc7` | **`UnknownField` has ONE producer, and it takes the keyword node** |
+| **nested wall** | `c0c883082` | **the wall reads the form as it exists there — four dead kinds now fire** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -415,13 +416,41 @@ ad-hoc measurement. And a deliberately-FAILING scratch `.wat` cannot live in
 `wat-scripts/scratch-pad/` without reddening `every_wat_scripts_file_loads`; durable ones belong
 beside the probes in `tests/rete/`.
 
-**THE NEXT WORK — the nested-constructor wall's reachability**, now pinned and named: teach
-`walk_nested_constructors` the post-lowering `kwargs-construct` spelling so its four error kinds can
-fire, copying what `purity.rs` already does. It is the largest live hole this arc currently knows
-about, and the pin will redden and name what changed. Behind it: **E3** (three doc blocks merged onto
-one variant), **E4** (`RuntimeErrorKind::ReteCeiling`, matched exhaustively — the last Class E row
-with a named structural fix), then **Class F** (greppability + 5 lints). Also open: the `file:line`
-citation-rot hole; `acc_refusal`'s span; the misnamed `probes/` dir; D2's `sequi` newtype.
+✅ **THE NESTED-CONSTRUCTOR WALL IS WIRED (`c0c883082`)** — the hole the previous strike PINNED
+rather than fixed, which is why it was drawable at all. `defrecord` lowers every record-constructor
+call to `(:wat::core::kwargs-construct :Type …)` before freeze, so the type sits at index 1 and
+`types.get` on the head returned `None`. **Four error kinds were unreachable; all four now fire**,
+each with its own probe and per-arm mutation separation. Reverting the head recognition reddens
+exactly five — the four kinds plus the re-pointed pin — with every control still compiling and
+firing.
+
+⛔⛔ **AND THE STRIKE SHIPS NEW ENFORCEMENT, WHICH ONLY A DRIVE FOUND.**
+`RhsPositionalConstructionRetired`'s doc claimed the runtime dispatch *"unconditionally retires
+multi-arg RAW POSITIONAL construction"*. **Driven at HEAD: a nested `(:T ?k 99)` COMPILED, FIRED and
+derived `y = 99`.** Both citations verified: `rhs_must_compile` says *"do not walk
+`build_insert_fact` on native fire"*, and the compiled path returns positional args verbatim —
+*"already declaration order BY DEFINITION"*. **The doc was written from the INTERPRETER's behaviour
+and never checked against this path.** So wiring the kind is not restored parity — this wall is now
+the only enforcement of that doctrine on the rete path. Accepted deliberately, on a corpus sweep
+(1650 `.wat`, 460 `:then`) showing **zero uses**; the false doc is corrected at the site. **Memory:
+*reviving a dead guard is a behaviour change — drive the live path first.***
+
+⚠ **MY OWN "OUT OF SCOPE" PREMISE WAS FALSE.** I wrote that all spellings arrive as
+`kwargs-construct`; a hand-written `aggregate-new` **does** arrive, head intact, type resolving — I
+generalised from four SOURCE spellings to all spellings. The arm is still omitted, but for a better
+reason than mine: `aggregate-new` **is** the positional route, so firing the retirement under it
+would be an actively **wrong refusal**. And my sketch would have regressed twice — an `_ => return`
+dropping nested constructors under a call form, and an unguarded `items[1]`.
+
+**THE NEXT WORK — E4**, the last Class E row with a named structural fix: the three converters'
+`_ =>` leaves the wall's completeness to a hand-maintained `CEILING_VARIANTS` list, and
+`no_ceiling_raise_in_rete` guards **construction**, not **routing**. Fix shape already named:
+`RuntimeErrorKind::ReteCeiling(ReteCeiling)`, matched exhaustively. Then **E3** (three doc blocks
+merged onto one variant; two carry none), then **Class F** (greppability + 5 lints). Also open, and
+now larger: the two NEW rows from this strike — `RhsMissingFields`/`RhsArityMismatch` render the
+**nested operand** as though it were the inserted fact, and the positional prime `:T'` reaches the
+wall **un-lowered** and is still silently unvalidated. Plus the `file:line` citation-rot hole,
+`acc_refusal`'s span, the misnamed `probes/` dir, and D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
