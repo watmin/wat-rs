@@ -117,7 +117,7 @@
                    [now (:wat::time::epoch-nanos (:wat::time::now))
                     rr  (:queue::Queue/receive q
                           (:queue::Queue::ReceiveRequest
-                            :queue name :now-ns now :visibility-ns vis :limit 1))]
+                            :queue name :now-ns now :visibility-ns vis :limit 1 :wait-ns 0))]
                    (:wat::core::match rr
                      ((:wat::kernel::RecvOutcome::Message r)
                        (:wat::core::match r
@@ -388,7 +388,7 @@
                         now (:wat::time::epoch-nanos (:wat::time::now))
                         rr (:queue::Queue/receive qp
                              (:queue::Queue::ReceiveRequest
-                               :queue (:fanout::qname i) :now-ns now :visibility-ns 1000000000000 :limit 1))]
+                               :queue (:fanout::qname i) :now-ns now :visibility-ns 1000000000000 :limit 1 :wait-ns 0))]
                        (:wat::core::match rr
                          ((:wat::kernel::RecvOutcome::Message r)
                            (:wat::core::match r

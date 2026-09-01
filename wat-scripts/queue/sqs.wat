@@ -53,12 +53,26 @@
      [queue         <- :wat::core::String
       now-ns        <- :wat::core::i64
       visibility-ns <- :wat::core::i64
-      limit         <- :wat::core::i64])
+      limit         <- :wat::core::i64
+      wait-ns       <- :wat::core::i64])
+   (:wat::core::defrecord :queue::Queue::StatsRequest [])
+   (:wat::core::defenum :queue::Queue::StatsResponse :wat::enum::Pure
+     :Ok [receive-calls <- :wat::core::i64  ticks <- :wat::core::i64]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defenum :queue::Queue::ReceiveResponse :wat::enum::Pure
      :Ok [envelopes <- (:wat::core::Vector :- [:queue::Envelope])]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
+
+   (:wat::core::defrecord :queue::Waiter
+     [conn-id        <- :wat::core::i64
+      queue          <- :wat::core::String
+      limit          <- :wat::core::i64
+      visibility-ns  <- :wat::core::i64
+      deadline-ns    <- :wat::core::i64])
 
    (:wat::core::defrecord :queue::Queue::AckRequest
      [queue <- :wat::core::String
@@ -74,13 +88,20 @@
    (receive [self <- :queue::Queue  req <- :queue::Queue::ReceiveRequest]
      -> :queue::Queue::ReceiveResponse :max-request-bytes 524288)
    (ack     [self <- :queue::Queue  req <- :queue::Queue::AckRequest]
-     -> :queue::Queue::AckResponse :max-request-bytes 524288)])
+     -> :queue::Queue::AckResponse :max-request-bytes 524288)
+   (stats   [self <- :queue::Queue  req <- :queue::Queue::StatsRequest]
+     -> :queue::Queue::StatsResponse :max-request-bytes 524288)])
 
 ;; ── service (holds a Store peer; init declares the GSI) ─────────────────────────
 (:wat::service::defservice :queue::queue
   :satisfies :queue::Queue
   :durable   []
-  :ephemeral [store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
+  :ephemeral [store         <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+              take          <- [:wat::core::String :wat::core::i64 :wat::core::i64 :wat::core::i64 :-> (:wat::core::Vector :- [:queue::Envelope])]
+              waiters       <- (:wat::core::PersistentVector :- [:queue::Waiter])
+              outbox        <- (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+              receive-calls <- :wat::core::i64
+              ticks         <- :wat::core::i64]
   :peers     [:wat::query::Store]
   :init (:wat::core::fn
           [record     <- :queue::queue::Record
@@ -100,8 +121,80 @@
                        :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
                        :indexes (:wat::core::Vector :- [:wat::query::IndexSchema]
                                   (:wat::query::IndexSchema
-                                    :name "by-visible-at" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))]
-            (:queue::queue::State :durable record :store store)))
+                                    :name "by-visible-at" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
+             ;; Closed over `store`. The one receive path — process children do not
+             ;; see sibling defns, so the body lives here, called via State/take.
+             take (:wat::core::fn
+                    [q <- :wat::core::String  now-ns <- :wat::core::i64
+                     vis-ns <- :wat::core::i64  lim <- :wat::core::i64]
+                    -> (:wat::core::Vector :- [:queue::Envelope])
+                    (:wat::core::let
+                      [lo (:wat::edn::write (:wat::time::at-nanos 0))
+                       hi (:wat::edn::write (:wat::time::at-nanos now-ns))
+                       scan (:wat::query::Store/scan-index store
+                               (:wat::query::Store::ScanIndexRequest
+                                 :index "by-visible-at" :ipk q :isk-lo lo :isk-hi hi :limit lim :cursor :wat::core::None))]
+                      (:wat::core::match scan
+                        ((:wat::kernel::RecvOutcome::Message sresp)
+                          (:wat::core::match sresp
+                            ((:wat::query::Store::ScanIndexResponse::Success irows _c)
+                              (:wat::core::if (:wat::core::empty? irows)
+                                (:wat::core::Vector :- [:queue::Envelope])
+                                (:wat::core::let
+                                  [hide-at (:wat::edn::write (:wat::time::at-nanos (:wat::core::+ now-ns vis-ns)))
+                                   put-rows (:wat::core::foldl
+                                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::StoredRow])
+                                                               r   <- :wat::query::IndexRow]
+                                                -> (:wat::core::Vector :- [:wat::query::StoredRow])
+                                                (:wat::core::conj acc
+                                                  (:wat::query::StoredRow
+                                                    :pk (:wat::query::IndexRow/pk r)
+                                                    :sk (:wat::query::IndexRow/sk r)
+                                                    :data (:wat::query::IndexRow/data r)
+                                                    :index-keys (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
+                                                                  "by-visible-at" (:wat::query::IndexKey
+                                                                                    :ipk (:wat::query::IndexRow/ipk r)
+                                                                                    :isk hide-at)))))
+                                              (:wat::core::Vector :- [:wat::query::StoredRow])
+                                              irows)
+                                   envs (:wat::core::foldl
+                                          (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Envelope])
+                                                           r   <- :wat::query::IndexRow]
+                                            -> (:wat::core::Vector :- [:queue::Envelope])
+                                            (:wat::core::conj acc
+                                              (:queue::Envelope
+                                                :id (:wat::query::IndexRow/sk r)
+                                                :body (:wat::query::IndexRow/data r))))
+                                          (:wat::core::Vector :- [:queue::Envelope])
+                                          irows)
+                                   put-resp (:wat::query::Store/put store
+                                              (:wat::query::Store::PutRequest put-rows))]
+                                  (:wat::core::match put-resp
+                                    ((:wat::kernel::RecvOutcome::Message presp)
+                                      (:wat::core::match presp
+                                        ((:wat::query::Store::PutResponse::Success) envs)
+                                        (_ (:wat::kernel::assertion-failed! "queue.take: re-put failed" :wat::core::None :wat::core::None))))
+                                    ((:wat::kernel::RecvOutcome::Lost cause)
+                                      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                                    (:wat::kernel::RecvOutcome::Stopped
+                                      (:wat::kernel::assertion-failed! "queue.take: stop requested mid re-put" :wat::core::None :wat::core::None))
+                                    (:wat::kernel::RecvOutcome::Closed
+                                      (:wat::kernel::assertion-failed! "queue.take: store peer closed" :wat::core::None :wat::core::None))))))
+                            (_ (:wat::kernel::assertion-failed! "queue.take: scan-index failed" :wat::core::None :wat::core::None))))
+                        ((:wat::kernel::RecvOutcome::Lost cause)
+                          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                        (:wat::kernel::RecvOutcome::Stopped
+                          (:wat::kernel::assertion-failed! "queue.take: stop requested" :wat::core::None :wat::core::None))
+                        (:wat::kernel::RecvOutcome::Closed
+                          (:wat::kernel::assertion-failed! "queue.take: store peer closed" :wat::core::None :wat::core::None)))))]
+            (:queue::queue::State
+              :durable record
+              :store store
+              :take take
+              :waiters (:wat::core::PersistentVector :- [:queue::Waiter])
+              :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+              :receive-calls 0
+              :ticks 0)))
   :impls
   [(send [s ctx req]
      (:wat::core::let
@@ -122,7 +215,10 @@
          ((:wat::kernel::RecvOutcome::Message sresp)
            (:wat::core::match sresp
              ((:wat::query::Store::PutResponse::Success)
-               (:wat::service::Outcome::Reply s (:queue::Queue::SendResponse::Ok)))
+               (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s))
+                 (:wat::service::Outcome::Reply s (:queue::Queue::SendResponse::Ok))
+                 (:wat::service::Outcome::ReplyAndArm s (:queue::Queue::SendResponse::Ok)
+                   [(:wat::service::Alarm :after (:wat::time::Nanosecond 0) :op :-tick)])))
              (_ (:wat::kernel::assertion-failed! "queue.send: store put failed" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost cause)
            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -138,67 +234,43 @@
         now-ns (:queue::Queue::ReceiveRequest/now-ns req)
         vis-ns (:queue::Queue::ReceiveRequest/visibility-ns req)
         lim    (:queue::Queue::ReceiveRequest/limit req)
-        lo     (:wat::edn::write (:wat::time::at-nanos 0))
-        hi     (:wat::edn::write (:wat::time::at-nanos now-ns))
-        scan  (:wat::query::Store/scan-index store
-                (:wat::query::Store::ScanIndexRequest
-                  :index "by-visible-at" :ipk q :isk-lo lo :isk-hi hi :limit lim :cursor :wat::core::None))]
-       (:wat::core::match scan
-         ((:wat::kernel::RecvOutcome::Message sresp)
-           (:wat::core::match sresp
-             ((:wat::query::Store::ScanIndexResponse::Success irows _c)
-               (:wat::core::if (:wat::core::empty? irows)
-                 (:wat::service::Outcome::Reply s
-                   (:queue::Queue::ReceiveResponse::Ok
-                     (:wat::core::Vector :- [:queue::Envelope])))
-                 (:wat::core::let
-                   [hide-at (:wat::edn::write (:wat::time::at-nanos (:wat::core::+ now-ns vis-ns)))
-                    put-rows (:wat::core::foldl
-                               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::StoredRow])
-                                                r   <- :wat::query::IndexRow]
-                                 -> (:wat::core::Vector :- [:wat::query::StoredRow])
-                                 (:wat::core::conj acc
-                                   (:wat::query::StoredRow
-                                     :pk (:wat::query::IndexRow/pk r)
-                                     :sk (:wat::query::IndexRow/sk r)
-                                     :data (:wat::query::IndexRow/data r)
-                                     :index-keys (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
-                                                   "by-visible-at" (:wat::query::IndexKey
-                                                                     :ipk (:wat::query::IndexRow/ipk r)
-                                                                     :isk hide-at)))))
-                               (:wat::core::Vector :- [:wat::query::StoredRow])
-                               irows)
-                    envs (:wat::core::foldl
-                           (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Envelope])
-                                            r   <- :wat::query::IndexRow]
-                             -> (:wat::core::Vector :- [:queue::Envelope])
-                             (:wat::core::conj acc
-                               (:queue::Envelope
-                                 :id (:wat::query::IndexRow/sk r)
-                                 :body (:wat::query::IndexRow/data r))))
-                           (:wat::core::Vector :- [:queue::Envelope])
-                           irows)
-                    put-resp (:wat::query::Store/put store
-                               (:wat::query::Store::PutRequest put-rows))]
-                   (:wat::core::match put-resp
-                     ((:wat::kernel::RecvOutcome::Message presp)
-                       (:wat::core::match presp
-                         ((:wat::query::Store::PutResponse::Success)
-                           (:wat::service::Outcome::Reply s (:queue::Queue::ReceiveResponse::Ok envs)))
-                         (_ (:wat::kernel::assertion-failed! "queue.receive: re-put failed" :wat::core::None :wat::core::None))))
-                     ((:wat::kernel::RecvOutcome::Lost cause)
-                       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                     (:wat::kernel::RecvOutcome::Stopped
-                       (:wat::kernel::assertion-failed! "queue.receive: stop requested mid re-put — the store peer was ALIVE" :wat::core::None :wat::core::None))
-                     (:wat::kernel::RecvOutcome::Closed
-                       (:wat::kernel::assertion-failed! "queue.receive: store peer closed" :wat::core::None :wat::core::None))))))
-             (_ (:wat::kernel::assertion-failed! "queue.receive: scan-index failed" :wat::core::None :wat::core::None))))
-         ((:wat::kernel::RecvOutcome::Lost cause)
-           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-         (:wat::kernel::RecvOutcome::Stopped
-           (:wat::kernel::assertion-failed! "queue.receive: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
-         (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "queue.receive: store peer closed" :wat::core::None :wat::core::None)))))
+        wait   (:queue::Queue::ReceiveRequest/wait-ns req)
+        calls  (:wat::i64::+ (:queue::queue::State/receive-calls s) 1)
+        s-n    (:queue::queue::State
+                 :durable (:queue::queue::State/durable s)
+                 :store store
+                 :take (:queue::queue::State/take s)
+                 :waiters (:queue::queue::State/waiters s)
+                 :outbox (:queue::queue::State/outbox s)
+                 :receive-calls calls
+                 :ticks (:queue::queue::State/ticks s))
+        envs   (:wat::core::apply (:queue::queue::State/take s) q [now-ns vis-ns lim])]
+       (:wat::core::if (:wat::core::not (:wat::core::empty? envs))
+         (:wat::service::Outcome::Reply s-n (:queue::Queue::ReceiveResponse::Ok envs))
+         (:wat::core::if (:wat::i64::<= wait 0)
+           (:wat::service::Outcome::Reply s-n
+             (:queue::Queue::ReceiveResponse::Ok
+               (:wat::core::Vector :- [:queue::Envelope])))
+           (:wat::core::let
+             [was-empty? (:wat::core::empty? (:queue::queue::State/waiters s-n))
+              w (:queue::Waiter
+                  :conn-id (:wat::service::Invocation/conn-id ctx)
+                  :queue q
+                  :limit lim
+                  :visibility-ns vis-ns
+                  :deadline-ns (:wat::core::+ (:wat::service::Invocation/start-ns ctx) wait))
+              s-w (:queue::queue::State
+                    :durable (:queue::queue::State/durable s-n)
+                    :store store
+                    :take (:queue::queue::State/take s-n)
+                    :waiters (:wat::vector::conj (:queue::queue::State/waiters s-n) w)
+                    :outbox (:queue::queue::State/outbox s-n)
+                    :receive-calls calls
+                    :ticks (:queue::queue::State/ticks s-n))]
+             (:wat::core::if was-empty?
+               (:wat::service::Outcome::NoReplyAndArm s-w
+                 [(:wat::service::Alarm :after (:wat::time::Nanosecond wait) :op :-tick)])
+               (:wat::service::Outcome::NoReply s-w)))))))
 
    (ack [s ctx req]
      (:wat::core::let
@@ -220,7 +292,106 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "queue.ack: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "queue.ack: store peer closed" :wat::core::None :wat::core::None)))))])
+           (:wat::kernel::assertion-failed! "queue.ack: store peer closed" :wat::core::None :wat::core::None)))))
+
+   (stats [s ctx req]
+     (:wat::service::Outcome::Reply s
+       (:queue::Queue::StatsResponse::Ok
+         (:queue::queue::State/receive-calls s)
+         (:queue::queue::State/ticks s))))
+
+   ;; Scanning tick: expire past-deadline waiters (ReplyTo empty) and try-receive
+   ;; the rest (same take-visible the receive arm uses). Internal ReplyTo sends
+   ;; the wire Reply as-is. Re-arm only while waiters remain; flush outbox on a
+   ;; 0-ns tick when we both ReplyTo and need to re-arm (no ReplyToAndArm).
+   (-tick [s ctx]
+     (:wat::core::let
+       [now   (:wat::service::SelfInvocation/start-ns ctx)
+        store (:queue::queue::State/store s)
+        ticks (:wat::i64::+ (:queue::queue::State/ticks s) 1)
+        pair  (:wat::core::foldl
+                (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::PersistentVector :- [:queue::Waiter])
+                                                               (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])])
+                                 w   <- :queue::Waiter]
+                  -> (:wat::core::Tuple :- [(:wat::core::PersistentVector :- [:queue::Waiter])
+                                            (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])])
+                  (:wat::core::let
+                    [keep (:wat::core::first acc)
+                     box  (:wat::core::second acc)
+                     empty-ok (:queue::Queue::Reply::Receive
+                                (:queue::Queue::ReceiveResponse::Ok
+                                  (:wat::core::Vector :- [:queue::Envelope])))]
+                    (:wat::core::if (:wat::i64::<= (:queue::Waiter/deadline-ns w) now)
+                      (:wat::core::Tuple keep
+                        (:wat::core::conj box
+                          (:wat::service::Directed :conn-id (:queue::Waiter/conn-id w) :reply empty-ok)))
+                      (:wat::core::let
+                        [envs (:wat::core::apply (:queue::queue::State/take s)
+                                 (:queue::Waiter/queue w)
+                                 [now
+                                  (:queue::Waiter/visibility-ns w)
+                                  (:queue::Waiter/limit w)])]
+                        (:wat::core::if (:wat::core::empty? envs)
+                          (:wat::core::Tuple (:wat::vector::conj keep w) box)
+                          (:wat::core::Tuple keep
+                            (:wat::core::conj box
+                              (:wat::service::Directed
+                                :conn-id (:queue::Waiter/conn-id w)
+                                :reply (:queue::Queue::Reply::Receive
+                                         (:queue::Queue::ReceiveResponse::Ok envs))))))))))
+                (:wat::core::Tuple
+                  (:wat::core::PersistentVector :- [:queue::Waiter])
+                  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]))
+                (:queue::queue::State/waiters s))
+        keep (:wat::core::first pair)
+        box  (:wat::core::second pair)
+        delay (:wat::core::foldl
+                (:wat::core::fn [d <- :wat::core::i64  w <- :queue::Waiter] -> :wat::core::i64
+                  (:wat::core::let [rem (:wat::core::- (:queue::Waiter/deadline-ns w) now)]
+                    (:wat::core::if (:wat::i64::< rem d) rem d)))
+                1000000000000000
+                keep)
+        delay0 (:wat::core::if (:wat::i64::< delay 0) 0 delay)
+        s' (:queue::queue::State
+             :durable (:queue::queue::State/durable s)
+             :store store
+             :take (:queue::queue::State/take s)
+             :waiters keep
+             :outbox box
+             :receive-calls (:queue::queue::State/receive-calls s)
+             :ticks ticks)]
+       (:wat::core::if (:wat::core::empty? box)
+         (:wat::core::if (:wat::core::empty? keep)
+           (:wat::service::Outcome::NoReply s')
+           (:wat::service::Outcome::NoReplyAndArm s'
+             [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-tick)]))
+         (:wat::core::if (:wat::core::empty? keep)
+           (:wat::service::Outcome::ReplyTo
+             (:queue::queue::State
+               :durable (:queue::queue::State/durable s)
+               :store store
+               :take (:queue::queue::State/take s)
+               :waiters keep
+               :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+               :receive-calls (:queue::queue::State/receive-calls s)
+               :ticks ticks)
+             box)
+           (:wat::service::Outcome::NoReplyAndArm s'
+             [(:wat::service::Alarm :after (:wat::time::Nanosecond 0) :op :-flush-outbox)
+              (:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-tick)])))))
+
+   (-flush-outbox [s ctx]
+     (:wat::core::let
+       [box (:queue::queue::State/outbox s)
+        s'  (:queue::queue::State
+              :durable (:queue::queue::State/durable s)
+              :store (:queue::queue::State/store s)
+              :take (:queue::queue::State/take s)
+              :waiters (:queue::queue::State/waiters s)
+              :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+              :receive-calls (:queue::queue::State/receive-calls s)
+              :ticks (:queue::queue::State/ticks s))]
+       (:wat::service::Outcome::ReplyTo s' box)))])
 
 ;; ── client helpers (the gate; Handle stays in the same let as the ops) ──────────
 (:wat::core::defn :user::dial-queue
@@ -248,12 +419,34 @@
   -> (:wat::core::Vector :- [:queue::Envelope])
   (:wat::core::match
     (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim))
+      (:queue::Queue::ReceiveRequest :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait-ns 0))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::ReceiveResponse::Ok envs) envs)
         (_ (:wat::kernel::assertion-failed! "receive not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "receive: recv failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :user::do-receive-wait
+  [q <- :queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64
+   vis-ns <- :wat::core::i64  lim <- :wat::core::i64  wait-ns <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:queue::Envelope])
+  (:wat::core::match
+    (:queue::Queue/receive q
+      (:queue::Queue::ReceiveRequest :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait-ns wait-ns))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::ReceiveResponse::Ok envs) envs)
+        (_ (:wat::kernel::assertion-failed! "receive-wait not Ok" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "receive-wait: recv failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :user::do-stats
+  [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::StatsResponse::Ok calls ticks) (:wat::core::Tuple calls ticks))
+        (_ (:wat::kernel::assertion-failed! "stats not Ok" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "stats: recv failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::do-ack
   [q <- :queue::Queue  name <- :wat::core::String  id <- :wat::core::String]
@@ -275,6 +468,64 @@
           (:wat::string::concat acc (:wat::string::concat "," b)))))
     ""
     envs))
+
+(:wat::core::defn :user::dial-queue-peer
+  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
+  -> (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
+  (:wat::core::match (:wat::kernel::connect a)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :user::send-ok!
+  [st <- :wat::kernel::SendOutcome] -> :wat::core::nil
+  (:wat::core::match st
+    (:wat::kernel::SendOutcome::Sent nil)
+    (_ (:wat::kernel::assertion-failed! "send-ok: not Sent" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :user::park-receive!
+  [c <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])  name <- :wat::core::String  now-ns <- :wat::core::i64
+   vis-ns <- :wat::core::i64  lim <- :wat::core::i64  wait-ns <- :wat::core::i64]
+  -> :wat::core::nil
+  (:wat::core::let
+    [_ (:user::send-ok!
+         (:wat::kernel::send c
+           (:queue::Queue::Op::Receive
+             (:queue::Queue::ReceiveRequest
+               :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait-ns wait-ns))))
+     _st (:user::send-ok!
+           (:wat::kernel::send c (:queue::Queue::Op::Stats (:queue::Queue::StatsRequest))))
+     _   (:wat::core::match (:wat::kernel::recv c)
+           ((:wat::kernel::RecvOutcome::Message recvd)
+             (:wat::core::match recvd
+               ((:queue::Queue::Reply::Stats _s) nil)
+               (_ (:wat::kernel::assertion-failed! "park-receive: expected Stats reply as barrier" :wat::core::None :wat::core::None))))
+           (_ (:wat::kernel::assertion-failed! "park-receive: stats barrier recv failed" :wat::core::None :wat::core::None)))]
+    nil))
+
+(:wat::core::defn :user::recv-envelopes!
+  [c <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])] -> (:wat::core::Vector :- [:queue::Envelope])
+  (:wat::core::match (:wat::kernel::recv c)
+    ((:wat::kernel::RecvOutcome::Message recvd)
+      (:wat::core::match recvd
+        ((:queue::Queue::Reply::Receive resp)
+          (:wat::core::match resp
+            ((:queue::Queue::ReceiveResponse::Ok envs) envs)
+            (_ (:wat::kernel::assertion-failed! "recv-envelopes: not Ok" :wat::core::None :wat::core::None))))
+        (_ (:wat::kernel::assertion-failed! "recv-envelopes: expected Reply::Receive" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (_ (:wat::kernel::assertion-failed! "recv-envelopes: recv failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :user::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
+  (:wat::core::match
+    (:wat::kernel::recv
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+    ((:wat::kernel::RecvOutcome::Message _m) nil)
+    ((:wat::kernel::RecvOutcome::Lost _c) nil)
+    (:wat::kernel::RecvOutcome::Stopped nil)
+    (:wat::kernel::RecvOutcome::Closed nil)))
 
 ;; lifecycle against ONE store. Handle lives in this let (same-ns lesson).
 (:wat::core::defn :user::lifecycle
@@ -315,6 +566,109 @@
       :r2 (:user::join-bodies r2)
       :r3 (:user::join-bodies r3)
       :redel (:user::join-bodies re))))
+
+;; ★ row 1: send wakes a parked receive; the visibility re-put is applied.
+(:wat::core::defn :user::lp-send-wakes [] -> :wat::core::String
+  (:wat::core::let
+    [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+            :record (:queue::queue::Record)
+            :store-addr (:wat::query::mem-store::Handle/addr msh))
+     a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
+     b   (:user::dial-queue (:queue::queue::Handle/addr qh))
+     T0  1000000000
+     vis 100
+     _   (:user::park-receive! a "q" T0 vis 1 200000000)
+     _   (:user::do-send b "q" "hello" T0)
+     got (:user::recv-envelopes! a)
+     again (:user::do-receive b "q" T0 vis 10)]
+    (:wat::core::format "got={got};hidden={hidden}"
+      :got (:user::join-bodies got)
+      :hidden (:wat::core::if (:wat::core::empty? again) "yes" (:user::join-bodies again)))))
+
+;; ★ row 2: parked receive times out empty; queue keeps serving.
+(:wat::core::defn :user::lp-timeout [] -> :wat::core::String
+  (:wat::core::let
+    [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+            :record (:queue::queue::Record)
+            :store-addr (:wat::query::mem-store::Handle/addr msh))
+     a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
+     b   (:user::dial-queue (:queue::queue::Handle/addr qh))
+     T0  1000000000
+     _   (:user::park-receive! a "q" T0 100 1 5000000)
+     got (:user::recv-envelopes! a)
+     ping (:user::do-receive b "q" T0 100 10)]
+    (:wat::core::format "empty={empty};serving={serving}"
+      :empty (:wat::core::if (:wat::core::empty? got) "yes" "no")
+      :serving (:wat::core::if (:wat::core::empty? ping) "yes" "no"))))
+
+;; row 8: FIFO — first parked is served.
+(:wat::core::defn :user::lp-fifo [] -> :wat::core::String
+  (:wat::core::let
+    [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+            :record (:queue::queue::Record)
+            :store-addr (:wat::query::mem-store::Handle/addr msh))
+     a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
+     c   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
+     b   (:user::dial-queue (:queue::queue::Handle/addr qh))
+     T0  1000000000
+     _   (:user::park-receive! a "q" T0 100 1 200000000)
+     _   (:user::park-receive! c "q" T0 100 1 200000000)
+     _   (:user::do-send b "q" "first" T0)
+     ga  (:user::recv-envelopes! a)
+     _   (:user::do-send b "q" "second" T0)
+     gc  (:user::recv-envelopes! c)]
+    (:wat::core::format "a={a};c={c}"
+      :a (:user::join-bodies ga)
+      :c (:user::join-bodies gc))))
+
+;; row 5: a drain that would have spun N times makes far fewer receive calls.
+(:wat::core::defn :user::lp-fewer-receives [] -> :wat::core::String
+  (:wat::core::let
+    [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+            :record (:queue::queue::Record)
+            :store-addr (:wat::query::mem-store::Handle/addr msh))
+     q   (:user::dial-queue (:queue::queue::Handle/addr qh))
+     T0  1000000000
+     _   (:user::do-send q "q" "a" T0)
+     _   (:user::do-send q "q" "b" T0)
+     _   (:user::do-send q "q" "c" T0)
+     got (:user::do-receive-wait q "q" T0 1000000000 10 20000000)
+     _   (:user::do-receive-wait q "q" T0 1000000000 10 5000000)
+     st  (:user::do-stats q)]
+    (:wat::core::format "n={n};calls={calls}"
+      :n (:wat::core::count got)
+      :calls (:wat::core::first st))))
+
+;; row 6: idle queue never ticks.
+(:wat::core::defn :user::lp-idle [] -> :wat::core::String
+  (:wat::core::let
+    [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+            :record (:queue::queue::Record)
+            :store-addr (:wat::query::mem-store::Handle/addr msh))
+     q   (:user::dial-queue (:queue::queue::Handle/addr qh))
+     _   (:user::nap-ms 20)
+     st  (:user::do-stats q)]
+    (:wat::core::format "ticks={ticks}"
+      :ticks (:wat::core::second st))))
+
+(:wat::core::defn :user::long-poll [] -> :wat::core::String
+  (:wat::core::format
+    "wakes={wakes};timeout={timeout};fifo={fifo};fewer={fewer};idle={idle}"
+    :wakes (:user::lp-send-wakes)
+    :timeout (:user::lp-timeout)
+    :fifo (:user::lp-fifo)
+    :fewer (:user::lp-fewer-receives)
+    :idle (:user::lp-idle)))
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
