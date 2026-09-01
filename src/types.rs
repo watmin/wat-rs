@@ -592,6 +592,16 @@ impl TypeEnv {
         self.types.get(name)
     }
 
+    /// Child→parent pairs from the typesub registry (`:wat::core::derive`).
+    /// Used by the `:impls` completeness guard to find surface-Op <: service-Op edges.
+    pub fn iter_subtype_edges(&self) -> impl Iterator<Item = (&str, &str)> + '_ {
+        self.subtype_edges.iter().flat_map(|(child, parents)| {
+            parents
+                .iter()
+                .map(move |parent| (child.as_str(), parent.as_str()))
+        })
+    }
+
     /// Register a name that has membership but no structure — a primitive, a
     /// built-in parametric container head, or an opaque capability/handle type.
     /// Stone 255-builtin-registry, storage option C (see the DESIGN's

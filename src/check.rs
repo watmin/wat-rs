@@ -821,10 +821,86 @@ pub fn check_program(
         }
     }
 
+    // :impls completeness — features ⊆ impls. Driven off the derive edge
+    // defservice emits (`surface::Op <: service::Op`). Extra internal arms
+    // (`-flush-logs`) live only on the parent and are not required.
+    check_impls_completeness(types, &mut errors);
+
     if errors.is_empty() {
         Ok(())
     } else {
         Err(CheckErrors(errors))
+    }
+}
+
+/// Every op in a `:satisfies` surface's `:features` must have an arm in `:impls`.
+/// One-directional: internal leading-dash ops on the service Op are legal extras.
+fn check_impls_completeness(types: &TypeEnv, errors: &mut Vec<CheckError>) {
+    for (child, parent) in types.iter_subtype_edges() {
+        let Some(surface_name) = child.strip_suffix("::Op") else {
+            continue;
+        };
+        let Some(service_name) = parent.strip_suffix("::Op") else {
+            continue;
+        };
+        // Only surface-protocol derives: the child must be a Surface's synthesized Op.
+        if !matches!(types.get(surface_name), Some(TypeDef::Surface(_))) {
+            continue;
+        }
+        let Some(TypeDef::Enum(child_enum)) = types.get(child) else {
+            continue;
+        };
+        let Some(TypeDef::Enum(parent_enum)) = types.get(parent) else {
+            continue;
+        };
+        let parent_names: std::collections::HashSet<&str> = parent_enum
+            .variants
+            .iter()
+            .map(enum_variant_name)
+            .collect();
+        let mut missing: Vec<String> = child_enum
+            .variants
+            .iter()
+            .map(enum_variant_name)
+            .filter(|n| !parent_names.contains(n))
+            .map(|n| op_variant_to_feature_name(n))
+            .collect();
+        if missing.is_empty() {
+            continue;
+        }
+        missing.sort();
+        let span = types
+            .source_form(parent)
+            .map(|ast| ast.span().clone())
+            .unwrap_or_else(|| crate::rust_caller_span!());
+        errors.push(CheckError {
+            span,
+            kind: CheckErrorKind::ImplsIncomplete {
+                service: service_name.to_string(),
+                surface: surface_name.to_string(),
+                missing,
+            },
+        });
+    }
+}
+
+fn enum_variant_name(v: &crate::types::EnumVariant) -> &str {
+    match v {
+        crate::types::EnumVariant::Unit(n) => n,
+        crate::types::EnumVariant::Tagged { name, .. } => name,
+    }
+}
+
+/// `Flush` → `flush`, `-FlushLogs` → `-flush-logs`. Empty acronym set: the
+/// check itself compares Pascal variant names; this is Display-only kebab.
+fn op_variant_to_feature_name(variant: &str) -> String {
+    if let Some(rest) = variant.strip_prefix('-') {
+        format!(
+            "-{}",
+            crate::string::pascal_to_kebab_with_acronyms(rest, &[])
+        )
+    } else {
+        crate::string::pascal_to_kebab_with_acronyms(variant, &[])
     }
 }
 

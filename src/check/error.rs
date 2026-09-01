@@ -400,6 +400,15 @@ pub enum CheckErrorKind {
         /// `None` when ownership is a creating call in this scope (stone 2).
         param: Option<String>,
     },
+    /// A `defservice` declared `:satisfies <Surface>` but `:impls` is missing
+    /// one or more of the surface's `:features`. The rule is one-directional
+    /// (`features ⊆ impls`): extra internal arms (`-tick`) are legal.
+    /// `missing` is EVERY absent op, not the first — a five-op gap is one error.
+    ImplsIncomplete {
+        service: String,
+        surface: String,
+        missing: Vec<String>,
+    },
 }
 
 /// Arc 296 S7 — the 5 structural failure modes for `:ensure :fn` validation.
@@ -870,6 +879,18 @@ impl CheckErrorKind {
                     prefix, function, tail_call, service, created_at,
                 ),
             },
+            CheckErrorKind::ImplsIncomplete {
+                service,
+                surface,
+                missing,
+            } => write!(
+                f,
+                "{}defservice {} :satisfies {} but :impls is missing op(s): {}",
+                prefix,
+                service,
+                surface,
+                missing.join(", "),
+            ),
         }
     }
 }
