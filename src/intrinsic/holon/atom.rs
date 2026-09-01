@@ -92,13 +92,14 @@ use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::holon::*;
+use crate::record::project::{parse_projection_args, project_surface_attrs};
 use crate::runtime::{
     coincident_of_two_values, coincident_q_from_values, cosine_outcome_from_values,
     dot_outcome_from_values, eval_form_digest_coincident_shared,
     eval_form_signed_coincident_shared, eval_inner, eval_quote, expect_string_value,
-    pair_values_to_vectors, parse_and_run, parse_projection_args, presence_q_from_values,
-    program_dim, project_surface_attrs, require_bundle, require_encoding_ctx, require_i64,
-    run_ast_arg_for_eval_coincident, wrap_as_eval_result, PairedVectors,
+    pair_values_to_vectors, parse_and_run, presence_q_from_values, program_dim, require_bundle,
+    require_encoding_ctx, require_i64, run_ast_arg_for_eval_coincident, wrap_as_eval_result,
+    PairedVectors,
 };
 use crate::span::Span;
 use crate::value::{
@@ -710,8 +711,8 @@ pub(crate) fn eval_to_holon_record(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::to-record";
     // `parse_projection_args` still takes a slice — it is shared verbatim with
-    // its other call site in `runtime.rs` (a projection verb outside this
-    // file's scope), so its own signature is untouched. The two named
+    // its other call site in `src/record/project.rs` (a projection verb outside
+    // this file's scope), so its own signature is untouched. The two named
     // params are re-packed into the 2-element slice it expects; its own
     // hand-rolled arity check is therefore unreachable through this call
     // site (the `#[wat_intrinsic]`-generated check now enforces arity 2

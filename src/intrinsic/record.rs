@@ -37,15 +37,15 @@
 use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
-use crate::runtime::{Environment, EvalBreak, SymbolTable, Value};
 use crate::span::Span;
+use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
 /// `(:wat::core::Record/field-at record index) -> :T` — arc 234 Stone 234.2a.
 ///
 /// Positional accessor for a Record/HolonRecord Aggregate: returns `fields[index]`. Consumed by
 /// the Stone 234.2b `defrecord` macro's per-field accessor codegen. Homed here arc 255 Stone
 /// A-2-ii-b-0 with its real (2) arity declared; the hand-rolled `args.len() != 2` guard in
-/// `eval_record_field_at` retires. The body is unchanged, still in `src/runtime.rs`.
+/// `eval_record_field_at` retires. The body is unchanged, now in `src/record/access.rs`.
 ///
 /// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an effect).
 /// Past that, the body only reads the already-evaluated receiver's `fields` vec (rejecting
@@ -85,7 +85,7 @@ pub(crate) fn eval_record_field_at(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_record_field_at(&[record.clone(), index.clone()], list_span, env, sym)
+    crate::record::access::eval_record_field_at(&[record.clone(), index.clone()], list_span, env, sym)
 }
 
 /// `(:wat::core::to-record x :S) -> :S$core-record` — arc 293 K3-revise.
@@ -106,8 +106,8 @@ pub(crate) fn eval_record_field_at(
 /// Applying a fixed, registry-resolved accessor is exactly the shape `Record/field-at` already
 /// counts as pure. Pure ∧ Deterministic.
 ///
-/// **Totality ground — measured, not copied.** `parse_projection_args` (`src/runtime.rs`) gates
-/// arity and the type registry; `project_surface_attrs` (`:17828`) is where the domain-level gate
+/// **Totality ground — measured, not copied.** `parse_projection_args` (`src/record/project.rs`) gates
+/// arity and the type registry; `project_surface_attrs` (same file) is where the domain-level gate
 /// (any `x`, any registered surface `:S`) meets a VALUE-level hole it does not close: for a
 /// surface member `fname`, `sym.get(&format!("{concrete_type_fqdn}/{fname}"))` can miss — the
 /// concrete type simply may not implement that surface member's accessor — and the `None` arm
@@ -137,7 +137,7 @@ pub(crate) fn eval_to_core_record(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_to_core_record(&[x.clone(), surface.clone()], list_span, env, sym)
+    crate::record::project::eval_to_core_record(&[x.clone(), surface.clone()], list_span, env, sym)
 }
 
 /// `(:wat::core::record->map record) -> (:wat::core::HashMap :- [:wat::core::keyword T])` — arc
@@ -182,7 +182,7 @@ pub(crate) fn eval_record_to_map(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_record_to_map(std::slice::from_ref(record), list_span, env, sym)
+    crate::record::update::eval_record_to_map(std::slice::from_ref(record), list_span, env, sym)
 }
 
 /// `(:wat::core::Record/assoc record key new-value) -> :wat::core::Record` — arc 234 Stone
@@ -230,7 +230,7 @@ pub(crate) fn eval_record_assoc(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_record_assoc(
+    crate::record::update::eval_record_assoc(
         &[record.clone(), key.clone(), new_value.clone()],
         list_span,
         env,
@@ -277,7 +277,7 @@ pub(crate) fn eval_record_same_data(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_record_same_data(&[a.clone(), b.clone()], list_span, env, sym)
+    crate::record::update::eval_record_same_data(&[a.clone(), b.clone()], list_span, env, sym)
 }
 
 /// `(:wat::core::struct-field record index) -> :T` — arc 293.R2.2.
@@ -323,7 +323,7 @@ pub(crate) fn eval_struct_field(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_struct_field(&[record.clone(), index.clone()], list_span, env, sym)
+    crate::record::access::eval_struct_field(&[record.clone(), index.clone()], list_span, env, sym)
 }
 
 /// `(:wat::core::struct-new :T field1 field2 ...) -> :T` — arc 296 G-1.
@@ -366,7 +366,7 @@ pub(crate) fn eval_struct_new(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_struct_new(xs, list_span, env, sym)
+    crate::record::construct::eval_struct_new(xs, list_span, env, sym)
 }
 
 /// `(:wat::core::variant :Enum :Variant field1 field2 ...) -> :Enum` — arc 048.
@@ -412,7 +412,7 @@ pub(crate) fn eval_variant(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_variant(xs, list_span, env, sym)
+    crate::record::construct::eval_variant(xs, list_span, env, sym)
 }
 
 /// `(:wat::core::aggregate-new :T field…) -> :T` — arc 294.c.2a, arc 255 Stone
@@ -421,9 +421,9 @@ pub(crate) fn eval_variant(
 /// The ONE nature-dispatched aggregate constructor: `:T` is a literal keyword naming a
 /// registered `TypeDef::Aggregate`; the remaining args are the field values, evaluated in
 /// declared order. `struct-new`/`defrecord`/`holon::defrecord` all route through this (via
-/// `construct_aggregate`, `src/runtime.rs`) — the macro-expanded form a record/struct's own
+/// `construct_aggregate`, `src/record/construct.rs`) — the macro-expanded form a record/struct's own
 /// prime constructor lowers to. Homed here with its real arity declared; the body is unchanged,
-/// still `crate::runtime::eval_aggregate_new` / `construct_aggregate`.
+/// still `crate::record::construct::eval_aggregate_new` / `construct_aggregate`.
 ///
 /// ⛔ **VARIADIC, real minimum ONE — read from the fn's own first guard**, `if args.is_empty()`
 /// (`src/runtime.rs:17429`+), same shape `struct-new`'s own arity correction above measured, not
@@ -470,7 +470,7 @@ pub(crate) fn eval_aggregate_new_home(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_aggregate_new(xs, list_span, env, sym)
+    crate::record::construct::eval_aggregate_new(xs, list_span, env, sym)
 }
 
 /// `(:wat::core::kwargs-construct :T :f1 v1 :f2 v2 … | :T v1 v2 …) -> :T` — arc 294 item (C),
@@ -479,10 +479,10 @@ pub(crate) fn eval_aggregate_new_home(
 /// The LIVE kwargs-construction form the `defrecord`/`defstruct` companion macro emits: resolves
 /// `:T`'s (splice-merged) declared field order from the registry, reorders kwargs into that
 /// order, then constructs exactly like `aggregate-new` immediately above (the same
-/// `construct_aggregate` tail, `src/runtime.rs`). A positional (non-kwargs-shaped) `args[1..]`
+/// `construct_aggregate` tail, `src/record/construct.rs`). A positional (non-kwargs-shaped) `args[1..]`
 /// passes straight through unchanged, mirroring `build_insert_fact`'s kwargs-vs-positional test.
 /// Homed here with its real arity declared; the body is unchanged, still
-/// `crate::runtime::eval_kwargs_construct`.
+/// `crate::record::construct::eval_kwargs_construct`.
 ///
 /// ⛔ **VARIADIC, real minimum ONE — read from the fn's own first guard**, `if args.is_empty()`
 /// (`src/runtime.rs:17584`+) — the SAME minimum `aggregate-new` measures immediately above, but
@@ -517,5 +517,5 @@ pub(crate) fn eval_kwargs_construct_home(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_kwargs_construct(xs, list_span, env, sym)
+    crate::record::construct::eval_kwargs_construct(xs, list_span, env, sym)
 }
