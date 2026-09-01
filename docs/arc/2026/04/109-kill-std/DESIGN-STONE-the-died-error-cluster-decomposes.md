@@ -42,7 +42,7 @@ and shipped two commits earlier. `[[feedback_i_cited_a_rule_instead_of_measuring
 
 | # | destination | items | lines | basis |
 |---|---|---:|---:|---|
-| **4a** | `src/kernel/error.rs` | 14 (+5 chain helpers) | ~581 | the edge file; one-edge-one-module |
+| **4a** | `src/kernel/error.rs` | **16** | ~643 | the edge file; one-edge-one-module |
 | **4b** | `src/process/died.rs` | **10** | ~130 | callers `process/verbs.rs` ×9, `distribution/mod.rs` ×5 |
 | **4c** | `src/freeze/stop.rs` | **8** | ~105 | callers `freeze.rs` ×5, `distribution/mod.rs` ×3 |
 | **4d** | ⬜ **STILL UNASSIGNED** | 12 | ~316 | the genuine residue — see below |
@@ -83,6 +83,29 @@ Running the visibility scan this DESIGN commits to, and then **ruling on each hi
   mentions.
 
 **Half 2 (imports orphaned by departure): none.** Derived, not assumed.
+
+### ⛔ AMENDED again, before briefing 4a — `eval_error_names` was never 4a's
+
+Re-running the scan **with comments stripped** (the contamination stone B's rider reported and I had
+only half-fixed) moved one item out of 4a and confirmed the rest:
+
+- **`eval_error_names` is NOT died-error vocabulary.** Its only caller is
+  `runtime_error_to_eval_error_value`, which sits beside `wrap_as_eval_result` and `eval_form_ast`
+  and builds `:wat::core::EvalError` for `intrinsic/holon/atom.rs`'s `eval-*` verbs. **I grouped it
+  into 4a on its `_names` suffix.** That is the third time this campaign a `_names`-suffixed helper
+  was placed by its name rather than by its caller — after `stop_failed_names` and `conj_died_chain`.
+  ★ **A suffix is a naming convention, not a membership test.**
+- The other five helpers verified genuinely 4a's, each by its callers:
+  `died_error_payload_message` ← the two `eval_died_error_*`; `edn_is_loci_died_chain` ←
+  `loci_died_error_from_reason`; `failure_error_field` ← both `eval_failure_*`; `single_died_chain` ←
+  both `thread_crash_*_edn`; and `thread_crash_{panic,runtime}_edn` ← **`src/kernel/spawn.rs` only**,
+  with zero callers left in `runtime.rs` — orphaned in the megafile exactly as stone A's
+  `accept_outcome_*` were.
+
+★★ **And 4a's confinement is the campaign's cleanest:** all 17 external call sites are
+`src/intrinsic/kernel/error.rs` (the edge) or `src/kernel/{message,outcome,spawn}.rs` (the home).
+The recast measured the whole cluster as *"kernel, process, distribution AND host"*; this subset is
+kernel-only, and stones A/B/4b/4c are why.
 
 ## ⬜ 4d — what stays unassigned, and why that is an answer
 
