@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (twelfth — TWELVE STRIKES; B1, A6, D3, A3 CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (thirteenth — THIRTEEN STRIKES; B1, A6, D3, A3, A5 CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 17fc5fb3e..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 17fc5fb3e..HEAD        # what they touched
+git log --oneline 7e24c3257..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 7e24c3257..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -92,6 +92,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **A6** | `bb0256e38` | **wall 5 — the import door bounds its own recursion** |
 | **D3** | `057f9d494` | **an argument with no parameter is refused, not placed** |
 | **A3** | `17fc5fb3e` | **the fence and the executor share one head-space** |
+| **A5** | `7e24c3257` | **a verdict that cannot say "I did not look" is not a verdict** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -252,12 +253,43 @@ COUNT that capped a rider's coverage, and a control that stayed GREEN under a ch
 call. **Run every scorecard row against HEAD before shipping the scorecard** — a row whose
 pre-value you cannot state is not a check. Promoted to memory.
 
-**THE NEXT WORK — A5**, the unqualified sentence: `arm.rs:1190` says *"`compile-all` is the one door
-EVERY rule passes"* — false at import and at hand-assembled Sessions — and `stratify.rs:852` meets
-the imported case, comments that *"saying so is the honest outcome"*, and then `continue`s, saying
-nothing to anyone. Two halves: qualify the sentence at the site, and make `:852` return an outcome
-the caller can see. Behind it: **A7** (import charges nothing to the session ceiling and builds
-O(N²)), **D1's residual**, and Classes E/F.
+✅ **A5 IS CLOSED (`7e24c3257`), and the row understated it.** `import_export` does not skip the
+termination analysis — it **never calls the verifier at all**; and `rete_arm_get_or_build` is a
+**SECOND** false door. So *"`compile-all` is the one door EVERY rule passes"* was false twice, and
+`stratify.rs:339-342` had been stating the gap correctly from its own side the whole time — two
+module docs on one boundary, one of them true. `Ok(())` came from **five** silent sites meaning
+three things. Driven: a `Rule` with empty `:lhs`/`:rhs` — the shape an imported Export's rules have
+— makes `compile-all` answer `"Compiled"`. Now `TerminationVerdict{Proven, NotAnalysable{rules},
+Refused}`; behaviour unchanged, the state merely **sayable**.
+
+★★ **THE RIDER CORRECTED MY STONE, AND WITHOUT IT THE STRIKE WOULD HAVE CHANGED NOTHING.** My
+DESIGN table classified the two early exits as *"proven"* **unconditionally** — and the strike's own
+repro reaches one of them, so an unconditional `Proven` would have shipped the type split with the
+defect exactly where it was. The cure: **the skip count TAINTS the proofs** — `Proven` iff zero
+skips. I had classified each site by what it structurally WAS, not by what it KNEW given a skip.
+**A proof over a filtered population is not a proof.** Promoted to memory.
+
+⛔ **THREE OF THE SIX THIN SPOTS WERE MINE, AND TWO ARE REPEATS.** My trap 1 gave the wrong
+MECHANISM (the early exit keys on whether an edge *computes*, not on `edges` being empty — a mixed
+set reaches it too). My table had four silent sites where there are **five** — the third consecutive
+strike where I under-enumerated. And my scorecard's single mutation over a four-site gate is
+**my own recorded lesson violated while WRITING expectations** rather than while reading a gate; the
+rider ran six, each predicted in advance with a distinct red set.
+
+★ **AND THE TIER INSTRUCTION PAID FOR ITSELF.** The rider's own first gate draft counted seven probe
+calls as doors and went red — caught by the mandated `binary_id(wat::lint)` run, the check added two
+strikes ago after a floor red a scoped probe structurally could not see.
+
+⚠ **Two totalities are now GATES, not prose** (`rete_header_claims_are_asserted`, +2 rows), because
+that lint's own law says *"if you cannot gate it, do not assert a totality about it."* Radius went
+to +1 file and that is correct.
+
+**THE NEXT WORK — A7**, the last Class A row: `export.rs:2128` + `pmap.rs:148`. Import builds the
+network **O(N²)** (`from_pairs` linear-scans the accumulator per pair) with **no node cap**, and
+calls neither `check_session_ceiling` nor `mark_session_origin` — so everything it allocates is
+charged to nothing. Note A4 (`42704d57b`) built the per-session origin machinery this needs, and
+A6's depth wall is the neighbouring precedent at the same door. After it, Class A is CLOSED and
+what remains is **D1's residual**, **Class E** (5 rows) and **Class F** (greppability + 5 lints).
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
