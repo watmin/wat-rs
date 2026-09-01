@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (sixteenth — SIXTEEN STRIKES; ⭐ CLASS A CLOSED, D1 CLOSED, E5 CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (seventeenth — SEVENTEEN STRIKES; ⭐ CLASS A CLOSED; D1, E1, E2, E5 CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline c9cdd9d32..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat c9cdd9d32..HEAD        # what they touched
+git log --oneline 1efb42fc7..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 1efb42fc7..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -96,6 +96,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **A7** | `b0e3377e9` | **the import door is a session's birth, and is charged like one** |
 | **D1r** | `f22704f1f` | **a misspelled variant is told it is a misspelled variant** |
 | **E5** | `c9cdd9d32` | **threading the span is the cure AND the guard** |
+| **E1+E2** | `1efb42fc7` | **`UnknownField` has ONE producer, and it takes the keyword node** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -378,13 +379,49 @@ it from misleading, and a hedge is not a correct table.
 `no_stale_path_in_doc` checks **paths, not lines**, so two accurate references in `arm.rs` rotted
 silently when a doc block shifted. Refreshed; the general gap is now a row in Class E.
 
-**THE NEXT WORK — E1, already driven and banked.** `check_field_at`'s doc promises *"the span of the
-FIELD rather than the clause so the caret lands on the offending keyword"*; **both** callers pass
-`clause.span()`. Driven: the caret spans **cols 31–76** (46 chars) where the offending keyword sits
-at **col 65, length 10**. Its own note has the structural cure: *"The parameter's type is `Span`, so
-nothing can tell the two apart."* Behind it: **E2** (a mis-documented AND unreachable arm — the dead
-one documents better behaviour than any live one), **E3**, **E4** (`RuntimeErrorKind::ReteCeiling`,
-matched exhaustively), then **Class F**.
+✅ **E1 AND E2 ARE CLOSED (`1efb42fc7`) — AS ONE CLASS.** Four sites produced `UnknownField` and
+pointed four different places; the only one naming the offending keyword **could not run**, and its
+doc was the clearest statement of the contract in the file. Now **one producer**,
+`check_field_kw(field_kw: &WatAST, …)` — **a bare `Span` no longer compiles at any call.** That is
+the strike: fixing three spans without changing the type would have left the next author to pass
+whatever span was nearest, which is exactly how three docs came to promise a behaviour three sites
+did not have. Caret **cols 31–76 → cols 65–75**, the keyword's exact extent.
+
+⛔⛔ **AND THE STRIKE CONTRADICTED MY OWN STONE: TWO OF FOUR PRODUCERS WERE DEAD.** I called the
+nested-constructor producer live and gave it a row and a mutation. **`defrecord` lowers every
+record-constructor call to `(:wat::core::kwargs-construct :Type …)` before the wall runs**, and
+`walk_nested_constructors` matches the record type as **HEAD** — so `types.get` returns `None` and
+FOUR error kinds are unreachable there. Re-driven: `(:fsn::Inner :nope ?k)`, an undeclared field with
+the declared field unsupplied, comes back **`"ACCEPTED-UNVALIDATED"`**. Its **sibling enum-variant
+branch IS live** (an enum variant is not lowered), which is why the walk looks exercised from
+outside. `purity.rs` hit this identical class and WAS taught the post-lowering shape; this walker
+never was.
+
+★ **NOT FIXED — PINNED, and the pin is the model.** That is a wall-reachability strike across four
+error kinds, not a span strike. The pin asserts the program is ACCEPTED **and** that it reached its
+sentinel, so it cannot pass by failing some other way, and it names what to assert when someone
+wires the branch. **A finding as a live gate beats a paragraph in a stone nobody re-derives.**
+Promoted to memory: *a check keyed on a pre-lowering shape is dead, and a live sibling arm makes the
+whole walker look exercised.*
+
+⚠ **My mutation for that row predicted "nothing reddens" and nothing did — I would have read a
+CORRECT observation as insensitivity.** The rider made the mutant `unreachable!` so silence proved
+non-execution rather than a blunt probe. And my kwargs mutation changed the field NAME as well as the
+span (9 reds); **a mutation that changes two things proves neither.**
+
+⚠ **Two frictions worth knowing:** `git stash` is denied to the rider tier, so it could not build a
+HEAD binary — the checked-in golden served as the pre-value, which is an argument for goldens over
+ad-hoc measurement. And a deliberately-FAILING scratch `.wat` cannot live in
+`wat-scripts/scratch-pad/` without reddening `every_wat_scripts_file_loads`; durable ones belong
+beside the probes in `tests/rete/`.
+
+**THE NEXT WORK — the nested-constructor wall's reachability**, now pinned and named: teach
+`walk_nested_constructors` the post-lowering `kwargs-construct` spelling so its four error kinds can
+fire, copying what `purity.rs` already does. It is the largest live hole this arc currently knows
+about, and the pin will redden and name what changed. Behind it: **E3** (three doc blocks merged onto
+one variant), **E4** (`RuntimeErrorKind::ReteCeiling`, matched exhaustively — the last Class E row
+with a named structural fix), then **Class F** (greppability + 5 lints). Also open: the `file:line`
+citation-rot hole; `acc_refusal`'s span; the misnamed `probes/` dir; D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
