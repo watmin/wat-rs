@@ -49,31 +49,56 @@
                     ((:wat::kernel::ConnectOutcome::Failed c)
                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
-  [;; incr — PURE: counters[name] + 1. Arm -flush-metrics on empty→non-empty.
+  [;; incr — PURE: counters[name] + 1. Size trigger calls flush-metrics ONLY (same
+   ;; shape as timed). Arm -flush-metrics on empty→non-empty. A size-triggered
+   ;; write failure is reported on this op; the arriving increment is still buffered.
    (incr [s ctx req]
      (:wat::core::let
        [name (:wat::telemetry::Span::IncrRequest/name req)
         rec  (:wat::telemetry::span::State/durable s)
         cs   (:wat::telemetry::span::Record/counters rec)
-        was-empty? (:wat::telemetry::span::metrics-empty? rec)
-        next (:wat::core::match (:wat::hashmap::get cs name)
-               (:wat::core::None 1)
-               ((:wat::core::Some v) (:wat::core::+ v 1)))
-        rec' (:wat::telemetry::span::record-accum rec
-               (:wat::hashmap::assoc cs name next)
-               (:wat::telemetry::span::Record/durations rec)
-               (:wat::telemetry::span::Record/logs rec))
-        s'   (:wat::telemetry::span::State :durable rec' :sink (:wat::telemetry::span::State/sink s))]
+        next-would (:wat::core::match (:wat::hashmap::get cs name)
+                     (:wat::core::None 1)
+                     ((:wat::core::Some v) (:wat::core::+ v 1)))
+        rec-would (:wat::telemetry::span::record-accum rec
+                    (:wat::hashmap::assoc cs name next-would)
+                    (:wat::telemetry::span::Record/durations rec)
+                    (:wat::telemetry::span::Record/logs rec))
+        now   (:wat::time::epoch-nanos (:wat::time::now))
+        bytes (:wat::string::length
+                (:wat::edn::write
+                  (:wat::telemetry::Journal::WriteMetricsRequest
+                    (:wat::telemetry::span::build-metrics rec-would now))))
+        cap   :wat::telemetry::Journal::WRITE-METRICS-MAX-REQUEST-BYTES
+        prior? (:wat::core::not (:wat::telemetry::span::metrics-empty? rec))
+        pair0 (:wat::core::if
+                (:wat::core::and (:wat::i64::>= bytes cap) prior?)
+                (:wat::telemetry::span::flush-metrics s)
+                (:wat::core::Tuple s (:wat::telemetry::Span::CloseResponse::Done)))
+        s1    (:wat::core::first pair0)
+        rec1  (:wat::telemetry::span::State/durable s1)
+        was-empty? (:wat::telemetry::span::metrics-empty? rec1)
+        cs1   (:wat::telemetry::span::Record/counters rec1)
+        next1 (:wat::core::match (:wat::hashmap::get cs1 name)
+                 (:wat::core::None 1)
+                 ((:wat::core::Some v) (:wat::core::+ v 1)))
+        rec2  (:wat::telemetry::span::record-accum rec1
+                (:wat::hashmap::assoc cs1 name next1)
+                (:wat::telemetry::span::Record/durations rec1)
+                (:wat::telemetry::span::Record/logs rec1))
+        s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))
+        resp  (:wat::telemetry::span::close-response->incr-response (:wat::core::second pair0))]
        (:wat::core::if was-empty?
-         (:wat::service::Outcome::ReplyAndArm s' (:wat::telemetry::Span::IncrResponse::Ok)
+         (:wat::service::Outcome::ReplyAndArm s' resp
            [(:wat::service::Alarm
               :after (:wat::time::Millisecond
-                       (:wat::telemetry::span::Record/metrics-flush-after-ms rec'))
+                       (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
               :op :-flush-metrics)])
-         (:wat::service::Outcome::Reply s' (:wat::telemetry::Span::IncrResponse::Ok)))))
+         (:wat::service::Outcome::Reply s' resp))))
 
    ;; timed — PURE: durations[name] ++ nanos. Size trigger calls flush-metrics ONLY.
    ;; Arm -flush-metrics on empty→non-empty of (counters AND durations).
+   ;; A size-triggered write failure is reported on this op; the arriving sample is still buffered.
    (timed [s ctx req]
      (:wat::core::let
        [name  (:wat::telemetry::Span::TimedRequest/name req)
@@ -109,17 +134,19 @@
                 (:wat::telemetry::span::Record/counters rec1)
                 (:wat::hashmap::assoc ds1 name (:wat::core::conj samples1 nanos))
                 (:wat::telemetry::span::Record/logs rec1))
-        s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))]
+        s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))
+        resp  (:wat::telemetry::span::close-response->timed-response (:wat::core::second pair0))]
        (:wat::core::if was-empty?
-         (:wat::service::Outcome::ReplyAndArm s' (:wat::telemetry::Span::TimedResponse::Ok)
+         (:wat::service::Outcome::ReplyAndArm s' resp
            [(:wat::service::Alarm
               :after (:wat::time::Millisecond
                        (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
               :op :-flush-metrics)])
-         (:wat::service::Outcome::Reply s' (:wat::telemetry::Span::TimedResponse::Ok)))))
+         (:wat::service::Outcome::Reply s' resp))))
 
-   ;; log — conj onto :durable logs, return Ok (buffered). Size trigger calls flush-logs ONLY.
+   ;; log — conj onto :durable logs. Size trigger calls flush-logs ONLY.
    ;; Arm -flush-logs on empty→non-empty of the current logs buffer.
+   ;; A size-triggered write failure is reported on this op; the arriving log is still buffered.
    (log [s ctx req]
      (:wat::core::let
        [rec (:wat::telemetry::span::State/durable s)
@@ -153,14 +180,15 @@
                 (:wat::telemetry::span::Record/counters rec1)
                 (:wat::telemetry::span::Record/durations rec1)
                 (:wat::core::conj (:wat::telemetry::span::Record/logs rec1) l))
-        s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))]
+        s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))
+        resp  (:wat::telemetry::span::close-response->log-response (:wat::core::second pair0))]
        (:wat::core::if was-empty?
-         (:wat::service::Outcome::ReplyAndArm s' (:wat::telemetry::Span::LogResponse::Ok)
+         (:wat::service::Outcome::ReplyAndArm s' resp
            [(:wat::service::Alarm
               :after (:wat::time::Millisecond
                        (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
               :op :-flush-logs)])
-         (:wat::service::Outcome::Reply s' (:wat::telemetry::Span::LogResponse::Ok)))))
+         (:wat::service::Outcome::Reply s' resp))))
 
    ;; flush — emit deltas since the last flush and RESET. THE emission path.
    (flush [s ctx req]
@@ -355,6 +383,57 @@
       (:wat::telemetry::Span::FlushResponse::RequestTooLarge bytes cap))
     ((:wat::telemetry::Span::CloseResponse::RequestMalformed mpath mexpected mgot)
       (:wat::telemetry::Span::FlushResponse::RequestMalformed mpath mexpected mgot))))
+
+;; Size-trigger mapping: copy of close-response->flush-response onto each accumulating
+;; op's response. Done → Ok (accepted). Failure variants pass through the same err.
+;; A `_` here would restore the swallow this stone removes.
+(:wat::core::defn :wat::telemetry::span::close-response->incr-response
+  [c <- :wat::telemetry::Span::CloseResponse] -> :wat::telemetry::Span::IncrResponse
+  (:wat::core::match c
+    ((:wat::telemetry::Span::CloseResponse::Done)
+      (:wat::telemetry::Span::IncrResponse::Ok))
+    ((:wat::telemetry::Span::CloseResponse::Constraint err)
+      (:wat::telemetry::Span::IncrResponse::Constraint err))
+    ((:wat::telemetry::Span::CloseResponse::Transient err)
+      (:wat::telemetry::Span::IncrResponse::Transient err))
+    ((:wat::telemetry::Span::CloseResponse::Fatal err)
+      (:wat::telemetry::Span::IncrResponse::Fatal err))
+    ((:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap)
+      (:wat::telemetry::Span::IncrResponse::RequestTooLarge bytes cap))
+    ((:wat::telemetry::Span::CloseResponse::RequestMalformed mpath mexpected mgot)
+      (:wat::telemetry::Span::IncrResponse::RequestMalformed mpath mexpected mgot))))
+
+(:wat::core::defn :wat::telemetry::span::close-response->timed-response
+  [c <- :wat::telemetry::Span::CloseResponse] -> :wat::telemetry::Span::TimedResponse
+  (:wat::core::match c
+    ((:wat::telemetry::Span::CloseResponse::Done)
+      (:wat::telemetry::Span::TimedResponse::Ok))
+    ((:wat::telemetry::Span::CloseResponse::Constraint err)
+      (:wat::telemetry::Span::TimedResponse::Constraint err))
+    ((:wat::telemetry::Span::CloseResponse::Transient err)
+      (:wat::telemetry::Span::TimedResponse::Transient err))
+    ((:wat::telemetry::Span::CloseResponse::Fatal err)
+      (:wat::telemetry::Span::TimedResponse::Fatal err))
+    ((:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap)
+      (:wat::telemetry::Span::TimedResponse::RequestTooLarge bytes cap))
+    ((:wat::telemetry::Span::CloseResponse::RequestMalformed mpath mexpected mgot)
+      (:wat::telemetry::Span::TimedResponse::RequestMalformed mpath mexpected mgot))))
+
+(:wat::core::defn :wat::telemetry::span::close-response->log-response
+  [c <- :wat::telemetry::Span::CloseResponse] -> :wat::telemetry::Span::LogResponse
+  (:wat::core::match c
+    ((:wat::telemetry::Span::CloseResponse::Done)
+      (:wat::telemetry::Span::LogResponse::Ok))
+    ((:wat::telemetry::Span::CloseResponse::Constraint err)
+      (:wat::telemetry::Span::LogResponse::Constraint err))
+    ((:wat::telemetry::Span::CloseResponse::Transient err)
+      (:wat::telemetry::Span::LogResponse::Transient err))
+    ((:wat::telemetry::Span::CloseResponse::Fatal err)
+      (:wat::telemetry::Span::LogResponse::Fatal err))
+    ((:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap)
+      (:wat::telemetry::Span::LogResponse::RequestTooLarge bytes cap))
+    ((:wat::telemetry::Span::CloseResponse::RequestMalformed mpath mexpected mgot)
+      (:wat::telemetry::Span::LogResponse::RequestMalformed mpath mexpected mgot))))
 
 ;; ONE emit-and-reset path for logs. Called by the logs size trigger, -flush-logs, and
 ;; flush-accumulators (close/flush). A second builder here is stone A's double-count.

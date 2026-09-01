@@ -241,6 +241,9 @@
      [name <- :wat::core::keyword])
    (:wat::core::defenum :wat::telemetry::Span::IncrResponse :wat::enum::Pure
      :Ok              []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
@@ -248,6 +251,9 @@
      [name <- :wat::core::keyword  nanos <- :wat::core::i64])
    (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure
      :Ok              []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
@@ -259,6 +265,9 @@
       message <- :wat::core::String])
    (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure
      :Ok              []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
@@ -287,7 +296,8 @@
    ;; record a duration sample (nanos) under a name — PURE (the timing widget already measured).
    (timed [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::TimedRequest]
      -> :wat::telemetry::Span::TimedResponse :max-request-bytes 524288)
-   ;; buffer a Log (item (c) stone A). LogResponse::Ok means buffered, not written.
+   ;; buffer a Log. Ok means accepted (always buffered). A size-triggered write failure
+   ;; is Constraint/Transient/Fatal — the sink's vocabulary, surfaced pass-through.
    (log [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::LogRequest]
      -> :wat::telemetry::Span::LogResponse :max-request-bytes 524288)
    ;; emit deltas since the last flush and RESET. close is this path for the remainder.
