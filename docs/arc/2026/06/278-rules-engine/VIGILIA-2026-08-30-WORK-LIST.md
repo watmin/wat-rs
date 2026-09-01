@@ -321,7 +321,11 @@ unbreakable by a future second call or a fifth writer, and it must NOT be simpli
 
 ---
 
-## CLASS E — error shape and diagnostics
+## CLASS E — error shape and diagnostics. **E5 CLOSED; E1 driven and ready.**
+
+> ⏭ **NEW (2026-09-01, found during E5):** nothing gates `file:line` citations in comments.
+> `no_stale_path_in_doc` checks **paths, not lines**, so every edit above a cited line rots the
+> citation undetected — two were found and refreshed in `arm.rs` during E5.
 
 | id | site | what | found by |
 |---|---|---|---|
@@ -329,7 +333,7 @@ unbreakable by a future second call or a fifth writer, and it must NOT be simpli
 | **E2** | `validate/mod.rs:1019` | unknown-field arm is mis-documented (claims `bad.span`, passes `fact_span`) **and unreachable** — `:976` returns before it. Four `UnknownField` producers, one dead, and the dead one documents better behaviour than any live one | `conformare` |
 | **E3** | `signal.rs:317-346` | three doc blocks merge onto one variant; `RuleSetMayNotTerminate` and `FixpointRoundCapExceeded` carry none. The wall's justification for the former being matchable is *"its diagnostic names an action the author can take"* — attached to a different failure | `conformare` |
 | **E4** | `outcome.rs:103,161,213` | the three converters' `_ =>` leaves the wall's completeness to a hand-maintained `CEILING_VARIANTS` list. `no_ceiling_raise_in_rete` guards **construction**, not **routing**. Fix: `RuntimeErrorKind::ReteCeiling(ReteCeiling)`, matched exhaustively | `conformare` |
-| **E5** | `fire/mod.rs:1038`, `rules.rs:658` | `refuse_export_without_arm` gets `rust_caller_span!()` at both call sites; the real `list_span` is one frame up and dropped. `span_substitution_justified` cannot see it because the enclosing fn takes no span param — **a general evasion of that lint** | `conformare` |
+| ~~**E5**~~ ✅ `c9cdd9d32` | `fire/mod.rs:1036`, `rules.rs:658` | both sites stamped `rust_caller_span!()` while the real wat span sat ONE FRAME UP, in hand and already spent on the same fn's arity refusal. `span_substitution_justified` could not see it: its "no span param" test is a **syntactic proxy** for its stated principle (*"never about the absence of a choice"*), and the choice lived one frame up. | ✅ threaded `span: &Span` into both fns — **the cure IS the guard**: it brings both bodies inside the EXISTING lint's view, so a future `rust_caller_span!()` there reddens it. Mutation driven on BOTH bodies. Lint **not widened** — measured first: 494 span-less sites under `src/`, 69 in rete, mostly leaves, **recorded with its instrument** in the lint's doc. ⛔ My own 534/71 was unreproducible and load-bearing; my caller table named a fn that never calls it. See `strike-refusal-span/`. |
 
 ---
 
