@@ -22,18 +22,19 @@
 ```
 floor ............ 5114/5114, 0 FAIL, 17 skipped, ~115s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-runtime.rs ....... 24,580   (was 34,152 — SIX decomposition stones, -9,572)
+runtime.rs ....... 24,103   (was 34,152 — SEVEN decomposition stones, -10,049)
 check.rs ......... 22,555   (untouched; its partire map still stands)
-impl homes built . src/numeric · src/declare · src/reflect · src/record   (+ defclause into src/function)
+impl homes built . src/numeric · src/declare · src/reflect · src/record · src/holon (completed)
 host ............. JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
-## ⛔⛔ A RIDER MAY BE IN FLIGHT — CHECK BEFORE YOU MOVE
+## ✅ THE RIDER LANDED — `d55c7d600`. No rider is in flight.
 
-At the moment this was written, a rider was executing **`BRIEF-STONE-holon-into-parity.md`**
-(arc 109). If the tree is dirty and you did not dirty it, that is its work.
-**`git status` before anything.** Its report will name the rewritten doctrine verbatim; weigh that
-against `src/holon/mod.rs` on the disk before crediting it.
+`BRIEF-STONE-holon-into-parity.md` shipped: the doctrine rewritten, twelve items moved
+(`src/holon/outcome.rs` +6, new `src/holon/coincident.rs` +6), floor 5114/5114, clippy 0.
+⚠ **The orchestrator had to fix one red the rider could not see** — three now-unused imports at
+`runtime.rs:56` that the twelve took with them. The rider is forbidden cargo *by design*; that red
+is the tier working, not a rider failure. **Expect one after every extraction stone.**
 
 ## WHAT HAPPENED — the registry campaign finished a phase, and the megafile campaign opened
 
@@ -115,8 +116,8 @@ scan to all of `src/` took dispatched 543→693 and the worklist 32→170.
 ## ⬜ NEXT — the live map is `109/NOTE-partire-RECAST-on-the-current-runtime.md`
 
 ⚠ **That NOTE supersedes the 2026-08-31 map for `runtime.rs`.** Its `check.rs` half still stands.
-Item 1 (`holon::outcome`) was refuted, then **re-opened by the builder's parity ruling** — that is the
-stone in flight.
+Its item 5 (`holon::outcome`) is **DONE** — refuted by me, re-opened by the builder's parity ruling,
+shipped at `d55c7d600`. Items 1–4, 6, 7 stand.
 
 ```
 kernel family      ~30 items, 7 sub-modules MIRRORING src/intrinsic/kernel/'s 7 edge files.
