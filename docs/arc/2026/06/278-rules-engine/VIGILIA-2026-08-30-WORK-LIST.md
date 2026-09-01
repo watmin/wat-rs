@@ -390,9 +390,14 @@ non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch
   scans `src/rete` only, so the impl side is spotless and the stones rotted. *(`conferre`)*
 - `reachability.rs:820,830,832` coverage prose; `:568-578` an orphaned doc block that merged onto
   `uniform_call`'s rustdoc; `:419,446` "four cells" vs six. *(`intueri`)*
-- `wat-scripts/fixes/rete-where-per-type-spelling.wat:80,96` — **the MANDATED codemod still
-  rewrites INTO `map`/`filter`, retired 2026-08-28.** The migration tool manufactures the phantom.
-  `every_wat_scripts_file_loads` is blind to `:wat::` heads by construction. *(`cernere`)*
+- ~~`wat-scripts/fixes/rete-where-per-type-spelling.wat:80,96`~~ ✅ `f4800ef97` — the row was right and
+  the drive found the doctrine claim underneath: **`CLAUDE.md`'s "all wat stays correct, always" was
+  FALSE**. Type-checking is not resolution — an invented head in an unforced `def` type-checks and
+  RUNS. The two rename rows are **DELETED (41→39), not re-pointed**: a pure head-rename to
+  `mapv`/`filterv` does not compile, because the eager form needs a different container. New gate
+  `rete_names_in_wat_scripts_resolve.rs` resolves every `:wat::rete::` name in **code**; **prose is
+  exempt by design** (`foldr`/`nth` are accurate history) and a deliberately unminted name carries a
+  per-name rune. See `strike-phantom-rete-names/`. *(`cernere`)*
 - `remedy/retirement.rs` — zero `:wat::rete::` rows; every rete retirement to date lands as a bare
   `unbound symbol` instead of the remediation the table exists to give. *(`cernere`)*
 
