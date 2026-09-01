@@ -321,7 +321,20 @@ unbreakable by a future second call or a fifth writer, and it must NOT be simpli
 
 ---
 
-## CLASS E — error shape and diagnostics. **E5 CLOSED; E1 driven and ready.**
+## CLASS E — error shape and diagnostics. **E1, E2, E5 CLOSED. E3, E4 open.**
+
+> ✅ **THE NESTED-CONSTRUCTOR WALL IS WIRED (`c0c883082`)** — the hole E1+E2 pinned. `defrecord`
+> lowers record constructors to `:wat::core::kwargs-construct` before the wall runs, so all four of
+> `walk_nested_constructors`' error kinds were unreachable; all four are now driven with per-arm
+> mutation separation. ⚠ **`RhsPositionalConstructionRetired` is NEW ENFORCEMENT, not restored
+> parity** — driven, rete fire never reached the retiring dispatch, so nested multi-arg positional
+> construction compiled and fired. Accepted on a zero-use corpus sweep; the false doc is corrected
+> at the site.
+>
+> ⏭ **NEW ROWS from that strike:** (a) `RhsMissingFields` / `RhsArityMismatch` render the NESTED
+> operand as though it were the inserted fact — messages written for the top-level producer, reused
+> verbatim. (b) The positional prime `:T'` reaches the wall **un-lowered** and `types.get` fails on
+> the suffix — still silently unvalidated, zero corpus uses.
 
 > ⏭ **NEW (2026-09-01, found during E5):** nothing gates `file:line` citations in comments.
 > `no_stale_path_in_doc` checks **paths, not lines**, so every edit above a cited line rots the
