@@ -411,8 +411,10 @@ fn validate_clause(
     // (that door is task #67: `_` silences the very gate that would have caught the mistake).
     let ClauseCtx { rule_name, fact_type, field_names, .. } = *ctx;
     match classify_rete_clause(clause) {
-        ReteClauseShape::Bind { field, .. } => {
-            check_field(field, clause, rule_name, fact_type, field_names, errors);
+        ReteClauseShape::Bind { field_kw, .. } => {
+            // The `:field` KEYWORD, not `clause`: this used to hand the whole `(?v <- :field)`
+            // form's span to a producer whose doc promised the field's.
+            check_field_kw(field_kw, rule_name, fact_type, field_names, errors);
         }
         // A boolean rete expression. Its operand TYPES are the expression's own business — there
         // is no per-type comparator to validate the way a `Constraint` has — and its field refs
@@ -790,17 +792,11 @@ fn walk_nested_constructors(
                         WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
                         _ => unreachable!("is_kwargs confirmed a Keyword at every even index"),
                     };
-                    if !field_names.iter().any(|f| f == &field) {
-                        errors.push(ReteCheckError {
-                            span: span.clone(),
-                            kind: ReteCheckErrorKind::UnknownField {
-                                rule: rule_name.to_string(),
-                                fact_type: nested_type.clone(),
-                                field: field.clone(),
-                                available_fields: field_names.clone(),
-                            },
-                        });
-                    }
+                    // Through the ONE producer, taking the key KEYWORD. This site used to
+                    // open-code the same error against `span` — the whole nested constructor
+                    // form — which is how a promise made in three docs was broken at three
+                    // sites: an inline `ReteCheckError { span, .. }` accepts any span in scope.
+                    check_field_kw(&pair[0], rule_name, &nested_type, &field_names, errors);
                     supplied.push(field);
                 }
                 let missing: Vec<String> =
@@ -931,27 +927,20 @@ fn validate_then_form(
 
     if is_kwargs {
         let mut kv_pairs: Vec<(String, WatAST)> = Vec::with_capacity(args.len() / 2);
+        // ONE walk, because the check needs the key NODE and the reorder needs the key TEXT.
+        // The old shape built `kv_pairs` first and then checked the names off it — by which point
+        // the keyword's span had been thrown away, so the error could only be located at
+        // `fact_span` (the whole fact form) while `check_field_at`'s doc promised the field's own.
+        // `&=` and not `&&`: no short-circuit, because batching every finding is this validator's
+        // contract.
+        let mut all_known = true;
         for pair in args.chunks(2) {
             let field = match &pair[0] {
                 WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
                 _ => unreachable!("is_kwargs confirmed a Keyword at every even index"),
             };
+            all_known &= check_field_kw(&pair[0], rule_name, &fact_type, &field_names, errors);
             kv_pairs.push((field, pair[1].clone()));
-        }
-        let mut all_known = true;
-        for (field, _) in &kv_pairs {
-            if !field_names.iter().any(|f| f == field) {
-                errors.push(ReteCheckError {
-                    span: fact_span.clone(),
-                    kind: ReteCheckErrorKind::UnknownField {
-                        rule: rule_name.to_string(),
-                        fact_type: fact_type.clone(),
-                        field: field.clone(),
-                        available_fields: field_names.clone(),
-                    },
-                });
-                all_known = false;
-            }
         }
         // Arc 278 BRIEF-construction-total-three-walls.md #2 — every declared field must be
         // supplied. STOP-A audited the corpus first (every kwargs `:then` found fully supplies
@@ -986,7 +975,7 @@ fn validate_then_form(
             walk_nested_constructors(v, rule_name, types, errors);
         }
 
-        reorder_then_kwargs(fact_items, &field_names, &kv_pairs, &fact_span, rule_name, &fact_type, errors);
+        reorder_then_kwargs(fact_items, &field_names, &kv_pairs, &fact_span);
     } else {
         // The wall, positional side. Independent of the arity verdict below: a rule can be both
         // wrong-arity AND carry an unresolvable operand, and batching every finding is this
@@ -1016,16 +1005,27 @@ fn validate_then_form(
 ///
 /// `fact_items.truncate(1)` keeps the head and drops the arguments before re-extending, so the
 /// rewrite is a replacement rather than an append — re-running it cannot accumulate duplicates.
-/// An unknown field name is reported against ITS OWN span (`bad.span`), not the fact's, so the
-/// caret lands on the offending keyword rather than the whole form.
+///
+/// ⛔ **THIS FUNCTION NO LONGER REPORTS AN UNKNOWN FIELD, AND ITS DOC USED TO BE THE ONLY PLACE
+/// THE CONTRACT WAS STATED.** It read: *"An unknown field name is reported against ITS OWN span
+/// (`bad.span`), not the fact's, so the caret lands on the offending keyword rather than the whole
+/// form."* That was the truest sentence in the file and it described **dead code** — the only one
+/// of four `UnknownField` producers that pointed at the right token was the one that could not
+/// run, while the three live ones pointed at an enclosing form. Keeping an unreachable arm because
+/// it documents better behaviour is a graveyard that reads like a spec. The contract now lives on
+/// `check_field_kw`, which is the ONE producer, takes the keyword NODE, and runs.
+///
+/// The `Err` arm is unreachable **by the caller's guard, not by hope**: the sole caller
+/// (`validate_then_form`) returns at `!all_known || has_missing` before reaching here, and
+/// `all_known` is false on exactly the condition `reorder_kwargs_by_field_name` errors on — a
+/// supplied kwarg naming no declared field. Both quantify over the same `kv_pairs` against the
+/// same `field_names`. Driven, not merely read: with this `unreachable!` in place, a `:then`
+/// naming an unknown kwarg field is reported by the check above and never arrives here.
 fn reorder_then_kwargs(
     fact_items: &mut Vec<WatAST>,
     field_names: &[String],
     kv_pairs: &[(String, WatAST)],
     fact_span: &crate::span::Span,
-    rule_name: &str,
-    fact_type: &str,
-    errors: &mut Vec<ReteCheckError>,
 ) {
     let field_order: Vec<&str> = field_names.iter().map(|s| s.as_str()).collect();
     let kv_ref: Vec<(&str, WatAST)> = kv_pairs.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
@@ -1034,17 +1034,12 @@ fn reorder_then_kwargs(
             fact_items.truncate(1);
             fact_items.extend(reordered);
         }
-        Err(bad) => {
-            errors.push(ReteCheckError {
-                span: bad.span,
-                kind: ReteCheckErrorKind::UnknownField {
-                    rule: rule_name.to_string(),
-                    fact_type: fact_type.to_string(),
-                    field: bad.field,
-                    available_fields: field_names.to_vec(),
-                },
-            });
-        }
+        Err(bad) => unreachable!(
+            "`validate_then_form` returns at `!all_known` before calling this, and `all_known` is \
+             false on exactly this condition — a kwarg naming no declared field, already reported \
+             by `check_field_kw` against the keyword's own span. Field: {}",
+            bad.field
+        ),
     }
 }
 

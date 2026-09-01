@@ -1,0 +1,28 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/UnknownField {:message \"defrule `fsi::r`: `:fsi::Src` has no field `:nofield`; available fields: [k]\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_field_span_inline.wat\" :line 12 :col 58 :end #wat.core.Option/Some [#wat.core/Pos {:line 12 :col 66}]} :causes [] :rule \"fsi::r\" :fact-type \"fsi::Src\" :field \"nofield\" :available-fields [\"k\"]}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/UnknownField {
+          :rule "fsi::r"
+          :fact-type "fsi::Src"
+          :field "nofield"
+          :available-fields ["k"]
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_field_span_inline.wat"
+            :line 12
+            :col 58
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 12
+                :col 66
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]

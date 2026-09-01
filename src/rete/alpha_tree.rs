@@ -328,7 +328,7 @@ fn analyze_condition(clauses: &[WatAST], field_names: &[String]) -> HashMap<usiz
 fn collect_binds(clauses: &[WatAST], out: &mut HashMap<String, String>) {
     for clause in clauses {
         match classify_rete_clause(clause) {
-            ReteClauseShape::Bind { var, field } => {
+            ReteClauseShape::Bind { var, field, .. } => {
                 out.insert(var.to_string(), field.to_string());
             }
             ReteClauseShape::And(subs) => collect_binds(subs, out),

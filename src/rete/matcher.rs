@@ -663,7 +663,7 @@ fn eval_clause(
 ) -> Option<BindAcc> {
     match classify_rete_clause(clause) {
         // ── bind clause: (?v <- :field) ──────────────────────────────────────
-        ReteClauseShape::Bind { var, field } => {
+        ReteClauseShape::Bind { var, field, .. } => {
             let field_value = read_fact_field(fact_fields, field_names, field)?;
             // Bind ?v → field value. If ?v was already bound in this condition,
             // treat it as a constraint: the bound value must equal the field value.

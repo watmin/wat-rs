@@ -1,0 +1,44 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"2 rete rule validation errors\" :location nil :causes [] :errors [#wat.rete/UnknownField {:message \"defrule `fsk::r`: `:fsk::Hit` has no field `:nope`; available fields: [k]\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_field_span_kwargs.wat\" :line 14 :col 21 :end #wat.core.Option/Some [#wat.core/Pos {:line 14 :col 26}]} :causes [] :rule \"fsk::r\" :fact-type \"fsk::Hit\" :field \"nope\" :available-fields [\"k\"]} #wat.rete/RhsMissingFields {:message \"defrule `fsk::r`: `:then` insert of `:fsk::Hit` is missing required field(s): [k]\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_field_span_kwargs.wat\" :line 14 :col 10 :end #wat.core.Option/Some [#wat.core/Pos {:line 14 :col 30}]} :causes [] :rule \"fsk::r\" :fact-type \"fsk::Hit\" :missing [\"k\"]}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/UnknownField {
+          :rule "fsk::r"
+          :fact-type "fsk::Hit"
+          :field "nope"
+          :available-fields ["k"]
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_field_span_kwargs.wat"
+            :line 14
+            :col 21
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 14
+                :col 26
+              }
+            ]
+          }
+        }
+        #wat.rete/RhsMissingFields {
+          :rule "fsk::r"
+          :fact-type "fsk::Hit"
+          :missing ["k"]
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_field_span_kwargs.wat"
+            :line 14
+            :col 10
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 14
+                :col 30
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]

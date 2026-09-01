@@ -34,7 +34,13 @@ use crate::form_match::keyword_payload;
 /// over the grammar (callers use `..`).
 pub(crate) enum ReteClauseShape<'a> {
     /// `(?v <- :field)` — a fresh/cross-condition-join bind.
-    Bind { var: &'a str, field: &'a str },
+    ///
+    /// `field_kw` is the `:field` KEYWORD NODE, carried alongside its own colon-stripped text.
+    /// The classifier held that node all along and dropped it (`keyword_payload(&items[2])`), so
+    /// the wall's `UnknownField` for a bad bind had no field span to report and fell back to the
+    /// whole clause's. `check_field_kw` takes the node, not a `Span` — see its doc — so this is
+    /// the field that makes the right caret reachable from the bind path at all.
+    Bind { var: &'a str, field: &'a str, field_kw: &'a WatAST },
     /// `(:wat::rete::core::<ty>::<op> a b)` — a binary FQDN comparison; operands unresolved (the
     /// caller resolves each via `resolve_operand`). The generic `:wat::core::<op>` spelling also
     /// classifies here, deliberately — see [`classify_constraint_head`]; it is recognized so the
@@ -330,7 +336,7 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
                         }
                         if items.len() == 3 {
                             let field = kw.strip_prefix(':').unwrap_or(kw);
-                            return ReteClauseShape::Bind { var: var_name, field };
+                            return ReteClauseShape::Bind { var: var_name, field, field_kw: &items[2] };
                         }
                     }
                 }

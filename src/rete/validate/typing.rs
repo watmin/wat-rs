@@ -52,7 +52,7 @@ pub(crate) fn check_operand_field_ref(
         // comparator — including `keyword::=`, where the old routing let it through as a
         // legitimate keyword constant — so the refusal cannot be conditioned on `op_type`.
         // It names the enum, the variant as written, and the variants that exist; it does NOT
-        // fall through to `check_field_at`, whose remedy (the record's field names) is the
+        // fall through to `check_field_kw`, whose remedy (the record's field names) is the
         // confidently-wrong one this kind exists to delete.
         let constant = classify_keyword_constant(k, types);
         if let KeywordConstant::UnknownVariant { enum_path, variant, available } = constant {
@@ -72,45 +72,70 @@ pub(crate) fn check_operand_field_ref(
         if op_type == Some(constant.segment()) {
             return;
         }
-        check_field_at(field, clause.span().clone(), rule_name, fact_type, field_names, errors);
+        // The OPERAND NODE, not `clause.span()`: the keyword IS the field reference, so its own
+        // span is the only one this producer can be handed (see `check_field_kw`).
+        check_field_kw(operand, rule_name, fact_type, field_names, errors);
     }
 }
 
-pub(crate) fn check_field(
-    field: &str,
-    clause: &WatAST,
-    rule_name: &str,
-    fact_type: &str,
-    field_names: &[String],
-    errors: &mut Vec<ReteCheckError>,
-) {
-    check_field_at(field, clause.span().clone(), rule_name, fact_type, field_names, errors);
-}
-
-/// Record an `UnknownField` unless `field` is one the fact type declares.
+/// ★ **THE ONE PRODUCER of a check-time `UnknownField`, and it takes the KEYWORD NODE.**
 ///
-/// Takes the span of the FIELD rather than the clause so the caret lands on the offending
-/// keyword. The error carries the available field names alongside the bad one — a
-/// did-you-mean the reader can act on without going to look up the record definition.
-fn check_field_at(
-    field: &str,
-    span: Span,
+/// Record an `UnknownField` unless the keyword names a field `fact_type` declares. Returns
+/// `true` when the field IS declared (nothing recorded), so a caller batching several kwargs can
+/// fold the verdicts without re-deriving the lookup.
+///
+/// ⛔ **It does not take a `Span`, and that is the whole point.** This function's predecessor
+/// (`check_field_at`) took `span: Span` under a doc promising *"the span of the FIELD rather than
+/// the clause so the caret lands on the offending keyword"* — and BOTH its callers passed
+/// `clause.span()`, while two more sites open-coded the same error against an enclosing form's
+/// span. A `Span` parameter accepts the clause's, the fact's and the field's with equal ease, so
+/// the promise had no way to be wrong out loud: three docs stated the behaviour and three sites
+/// did otherwise for the life of the wall. Taking the NODE makes the wrong span unwritable at the
+/// call — there is nothing to pass but the keyword the author actually mistyped.
+///
+/// The error carries the available field names alongside the bad one — a did-you-mean the reader
+/// can act on without going to look up the record definition.
+pub(crate) fn check_field_kw(
+    field_kw: &WatAST,
     rule_name: &str,
     fact_type: &str,
     field_names: &[String],
     errors: &mut Vec<ReteCheckError>,
-) {
-    if !field_names.iter().any(|f| f == field) {
-        errors.push(ReteCheckError {
-            span,
-            kind: ReteCheckErrorKind::UnknownField {
-                rule: rule_name.to_string(),
-                fact_type: fact_type.to_string(),
-                field: field.to_string(),
-                available_fields: field_names.to_vec(),
-            },
-        });
+) -> bool {
+    let WatAST::Keyword(k, span) = field_kw else {
+        // ⛔ LOUD, NOT SILENT — and the choice is the cure probing its own shape. Every span this
+        // strike deleted was an enclosing FORM's (`clause`, the nested constructor's, the fact's),
+        // and a form is a `List`. So the exact mistake the old code made now arrives HERE, and a
+        // `return true` would answer it by reporting NOTHING: the wrong caret would become a
+        // vanished refusal, which is worse in kind than the defect being fixed. A wrong span is
+        // visible in a golden; an absent error is visible in nothing.
+        //
+        // It cannot fire today. Each of the four callers arrives from a grammar position already
+        // proven to be a keyword: `check_operand_field_ref`'s own `if let Keyword`,
+        // `classify_rete_clause`'s `Bind` (whose `field_kw` is the node `keyword_payload` returned
+        // `Some` for — `Some` for `Keyword` alone), and the two kwargs walks, where
+        // `rete_is_kwargs` has confirmed a keyword at every even index and an even arity. This is
+        // the same guarantee those two walks already spell `unreachable!` three lines away.
+        unreachable!(
+            "check_field_kw takes the FIELD-NAMING KEYWORD; every caller reaches it from a \
+             position the grammar has already proven to be one. Got: {field_kw:?}"
+        )
+    };
+    let field = k.trim_start_matches(':');
+    if field_names.iter().any(|f| f == field) {
+        return true;
     }
+    errors.push(ReteCheckError {
+        // The KEYWORD's own span. Not reachable from anywhere else in this function.
+        span: span.clone(),
+        kind: ReteCheckErrorKind::UnknownField {
+            rule: rule_name.to_string(),
+            fact_type: fact_type.to_string(),
+            field: field.to_string(),
+            available_fields: field_names.to_vec(),
+        },
+    });
+    false
 }
 
 /// Design call 3 — accumulate's `:from` inner and (by extension) any bare fact-type-head-only
@@ -497,7 +522,7 @@ pub(crate) fn collect_rule_bind_types(
                     continue;
                 };
                 for clause in pat.clauses {
-                    if let ReteClauseShape::Bind { var, field } = classify_rete_clause(clause) {
+                    if let ReteClauseShape::Bind { var, field, .. } = classify_rete_clause(clause) {
                         if let Some(idx) = names.iter().position(|f| f == field) {
                             if let Some(t) = tys.get(idx) {
                                 out.insert(var.to_string(), t.clone());
