@@ -83,6 +83,57 @@ any count"* to *"accepts anything, right count"*.
 with **71/71** generic quantifiers recoverable. So the checker reading the registry for *types* is
 the same door this stone opens for *arity* — this is the floor of that work, not a detour from it.
 
+## ⛔ AMENDED — the builder asked whether the TYPE hole is tracked. It was not. Now it is.
+
+> **Builder:** *"but... we tracking to ensure this only accepts a linkedlist later?...."*
+
+The section above named the type hole and pointed at a probe commit. **That is prose, not tracking** —
+the same "out of scope, see elsewhere" shape the ledger discipline rejects when no mechanism carries
+it. A stone whose whole ruling is *the misconfiguration cannot occur* cannot leave its own residue
+tracked by a paragraph.
+
+### The mechanism — a SECOND frozen list, in the shape that already works here
+
+`FROZEN_CHECKER_DEBT_LEDGER` is gated by `checker_skip_debt_is_named_and_frozen`, a **bidirectional
+name-freeze** over a measured population: a new name fails, and a *resolved* name fails as STALE. It
+works, and its criterion is `check_env.get().is_none()` — "no TypeScheme". That criterion **cannot
+see** the distinction this stone found: of its 71 rows, which are type-checked by an `infer_*` arm
+and which by nothing at all.
+
+So this stone adds the sibling the ledger was missing:
+
+```
+FROZEN_TYPES_UNCHECKED — registered rows whose TYPES nothing checks.
+  measured by DRIVING THE CHECKER, not by grepping for an infer_ arm
+  (a text search for `infer_*` is exactly the wrong instrument — my own
+   text predicate said all twelve were unchecked and the behavioural probe
+   corrected it to eleven).
+```
+
+**Each row carries its own wrong-typed call.** A generic "wrong argument" cannot be synthesized —
+for a parameter declared `:T` no argument is wrong — so the probe is explicit per row, e.g.
+`(:wat::linkedlist::length "a string")`. Eleven rows, eleven one-line calls. The harness already
+exists and is `OnceLock`-cached: `check(src) -> Result<(), CheckErrors>` in `src/check.rs`'s test
+module, driving the real pipeline (`expand_all` → `register_types` → `register_defines` →
+`check_program`).
+
+### ★★ What that buys, and it is exactly what was asked
+
+The gate is bidirectional, so **the list can only shrink**:
+
+- a row **not** on the list that starts accepting its wrong-typed call → **NEW**, named, fails.
+- a row **on** the list that starts rejecting → **STALE**, named, fails until it is deleted.
+
+So the day anyone gives `:wat::linkedlist::length` a real type — a `TypeScheme`, an `infer_` arm, or
+the registry-as-type-authority work — **the gate goes red and forces the name off the list.** The
+answer to *"are we tracking that this only accepts a linkedlist later?"* is: the tree fails until
+someone removes the row, and the row cannot be removed while the hole is open.
+
+⚠ **This is a ratchet, not a fix.** It does not type `linkedlist::length`; it makes the untyped
+population visible, bounded, and unable to grow silently — which is the difference between a known
+flaw and an unknown one. The fix is the registry-as-type-authority ceiling, already measured at
+384/386.
+
 ## THE FOUR QUESTIONS — flat YES/NO
 
 | option | Obvious? | Simple? | Honest? | Good UX? | verdict |
@@ -108,7 +159,9 @@ the same door this stone opens for *arity* — this is the floor of that work, n
 
 ## Out of scope = REJECTED (not deferred)
 
-- **Types for the eleven.** Named above as the ceiling, with its measurement already committed.
+- **Typing the eleven.** The ceiling, measured at 384/386. ⚠ Their *untypedness* is NOT out of
+  scope — it is tracked by `FROZEN_TYPES_UNCHECKED` in this same stone (see the amendment above),
+  because a residue this stone creates is this stone's to bound.
 - **`macro-error`** — rejected by the `ExpandOnly` wall; not in this population.
 - **The 2 `Kind::SpecialForm` rows** (`if`, `let`) — a rank-1 arity check is the wrong shape for a
   special form, and the runtime precedent this mirrors does not cover them either.
@@ -127,6 +180,8 @@ the arity came off the handler's own signature.
 | what | command | expected |
 |---|---|---|
 | the eleven stop being silent | `wat --check` on `(<verb> 1 2 3 4 5 6 7 8 9)` for each | **11/11 rejected** |
+| the type residue is FROZEN BY NAME | `FROZEN_TYPES_UNCHECKED` + its bidirectional gate | 11 rows, each with its own wrong-typed call |
+| ⛔ the type gate can FAIL BOTH WAYS | sabotage: drop a name; add a name that now rejects | both arms fire, both name the offender |
 | the control still discriminates | same abuse on `first`/`join`/`assoc`/`nth` | rejected (as today) |
 | ⛔ the probe is not vacuous | the scaffold with NO call | must NOT produce the same error |
 | the checker can see the registry | `grep -c "crate::intrinsic::registry()" src/check.rs` | 0 → **≥1** |
