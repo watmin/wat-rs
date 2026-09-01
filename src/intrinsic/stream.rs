@@ -80,10 +80,14 @@ fn next_outcome_exhausted() -> Value {
 /// 255 expand-T4a; arc 118.2a), from its `:wat::stream::*` primitives group; the verdict is
 /// that list's.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `eval_stream_empty_intrinsic`
+/// immediately below: a zero-arg constructor with a single unconditional `Ok(...)` return, no
+/// argument to be malformed, no raise path at all. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @ret     (:wat::stream::Stream :- [T]) the Empty terminator
@@ -107,10 +111,16 @@ pub(crate) fn eval_stream_empty_intrinsic() -> Result<Value, EvalBreak> {
 /// 255 expand-T4a; arc 118.2a), from its `:wat::stream::*` primitives group; the verdict is
 /// that list's.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `eval_stream_cons_intrinsic`
+/// immediately below: `tail`'s declared type is `(:wat::stream::Stream :- [T])`, this verb is
+/// checked normally (not on `intrinsic/mod.rs`'s `FROZEN_CHECKER_DEBT_LEDGER`), so a well-typed
+/// call's `tail_val` is always `Value::wat__stream__Stream`; the `other =>` `TypeMismatch` arm
+/// is checker-impossible, same shape as `:wat::hashmap::keys`. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     head :T the value prepended, evaluated strictly

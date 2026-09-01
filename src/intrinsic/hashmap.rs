@@ -193,10 +193,17 @@ pub(crate) fn hashmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// `:wat::hashmap::values` block, for the fuller retraction record (this stone's rider
 /// first removed the blessing, was wrong, and put it back).
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `hashmap_keys_inner`
+/// (`src/collection/eval.rs`): given a well-typed `(HashMap :- [K V])` argument it always
+/// takes the `Value::wat__std__HashMap(m)` arm and returns `Ok`; the `other =>` `TypeMismatch`
+/// arm is checker-impossible (the checker enforces the declared `HashMap` arg type, so no
+/// well-typed call can reach it — same shape as `:wat::stream::cons`'s `tail`-type guard).
+/// Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected
@@ -220,10 +227,15 @@ pub(crate) fn hashmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// `:wat::hashmap::keys`'s doc block and `macros/eval.rs`'s `is_expand_time_legal` for
 /// the full record.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `hashmap_values_inner`
+/// (`src/collection/eval.rs`): same shape as `:wat::hashmap::keys` immediately above — the
+/// `other =>` `TypeMismatch` arm is checker-impossible for a well-typed `(HashMap :- [K V])`
+/// argument. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     m (:wat::core::HashMap :- [K V]) the map projected

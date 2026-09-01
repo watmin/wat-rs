@@ -159,10 +159,15 @@ pub(crate) fn persistentmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBr
 /// part of the contract (`src/value/pmap.rs`: "the trie has no meaningful
 /// order") — pure ∧ total, NOT deterministic.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `persistentmap_keys_inner`
+/// (`src/collection/eval.rs`): given a well-typed `(PersistentMap :- [K V])` argument it always
+/// takes the `Value::wat__core__PersistentMap(m)` arm and returns `Ok`; the `other =>`
+/// `TypeMismatch` arm is checker-impossible — same shape as `:wat::hashmap::keys`. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map projected
@@ -177,10 +182,15 @@ pub(crate) fn persistentmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// `(:wat::map::values m)` → a `Vector` of `m`'s values. Iteration ORDER is
 /// NOT part of the contract, same as `:wat::map::keys`.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `persistentmap_values_inner`
+/// (`src/collection/eval.rs`): same shape as `:wat::map::keys` immediately above — the
+/// `other =>` `TypeMismatch` arm is checker-impossible for a well-typed `(PersistentMap :- [K V])`
+/// argument. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map projected

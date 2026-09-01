@@ -251,12 +251,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if let Some(op) = crate::rete::vocabulary::rete_op_for(head) {
         return Some(op.meta);
     }
-    // Pure but NON-deterministic: random. Not corpus-demanded for `total` (Uuid/v4 can never
-    // reach a `where` fence today — it already fails the determinism conjunct — so DEFAULT-DENY
-    // stands; it is trivially total in the absolute sense but that claim was never measured).
-    if head == ":wat::uuid::v4" {
-        return Some(OpMeta { pure: true, deterministic: false, total: false });
-    }
+    // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED, a pure duplicate: `:wat::uuid::v4`'s
+    // own registration (`src/intrinsic/uuid.rs:57`) already declares `@Purity Pure` /
+    // `@Determinism Nondeterministic` / `@Totality Unreviewed`, byte-identical to this guard's
+    // `{pure: true, deterministic: false, total: false}`. Deleted rather than moved — there was no
+    // fact to move, only a copy to remove. The registry consult below now answers for it directly.
     // Keyed-collection ITERATION is pure and total but NOT deterministic — measured
     // 2026-08-26, three consecutive processes, three different orders, for BOTH containers:
     //
@@ -280,12 +279,13 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // PersistentMap}/{keys,values}` spelling retired this stone; `:wat::hashmap::{keys,values}`
     // and `:wat::map::{keys,values}` carry the identical non-deterministic classification
     // (name-only rename; the iteration-order argument is unchanged).
-    if matches!(head,
-        ":wat::hashmap::keys" | ":wat::hashmap::values"
-        | ":wat::map::keys" | ":wat::map::values")
-    {
-        return Some(OpMeta { pure: true, deterministic: false, total: true });
-    }
+    // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED. The fact this guard carried
+    // (`total: true`, alongside the `pure`/`deterministic` above it) now lives at each of the
+    // four verbs' own registration (`src/intrinsic/hashmap.rs:206,233`, `src/intrinsic/map.rs:
+    // 172,190`) as `@Totality Total` — re-derived from `hashmap_keys_inner`/`hashmap_values_inner`/
+    // `persistentmap_keys_inner`/`persistentmap_values_inner` (`src/collection/eval.rs`): each
+    // verb's `other =>` `TypeMismatch` arm is checker-impossible for a well-typed container
+    // argument. Confirmed unchanged. The registry consult below now answers for all four directly.
     // arc 255 Stone the-registry-answers-first — the `:wat::string::`/`:wat::regex::` prefix
     // guess and the `:wat::edn::` prefix guess (each a PREFIX GUESS outranking the registry,
     // DESIGN-STONE-the-registry-answers-first.md) are RETIRED. Both shadowed 34 registered
@@ -360,37 +360,25 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head == ":wat::core::aggregate-new" || head == ":wat::core::kwargs-construct" {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
-    // Arc 109 β-ii-c — `type-params-used-in` is a structural SEARCH over an AST: it reads the
-    // node, allocates nothing observable, touches no world state, and returns a subset of its own
-    // first argument in the order given. Pure ∧ deterministic ∧ total, and RULED here rather than
-    // parked in `KNOWN_UNREVIEWED` — the gate's own remedy says parking "is the LAST resort and is
-    // only honest for a verb whose ruling is genuinely open", and this one's is not. It is the
-    // first `#[wat_intrinsic]` verb to be classified rather than left to 255.3.
-    if head == ":wat::core::type-params-used-in" {
-        return Some(OpMeta { pure: true, deterministic: true, total: true });
-    }
-    // Arc 109 stone (`BRIEF-STONE-type-equal-the-missing-door.md`) — `type-equal?` reads two AST
-    // nodes, parses each once via `parse_type_node` (the one door that reads all four type
-    // surfaces), and compares the resulting `TypeExpr`s (`PartialEq, Eq`-derived). It allocates
-    // nothing observable, touches no world state, and returns a bool — same category as
-    // `type-params-used-in` immediately above, and RULED here rather than parked in
-    // `KNOWN_UNREVIEWED`: the gate's own remedy says parking "is the LAST resort and is only
-    // honest for a verb whose ruling is genuinely open", and this one's is not.
-    if head == ":wat::core::type-equal?" {
-        return Some(OpMeta { pure: true, deterministic: true, total: true });
-    }
-    // Arc 255 Stone P6-c-W2 — `:wat::stream::empty`/`cons` are pure constructors
-    // (`src/intrinsic/stream.rs`): `empty` allocates the fixed `Stream::Empty` terminator from
-    // nothing; `cons` stores exactly what it is handed as a new `Stream::Cons` cell and never
-    // enters `tail` to look inside (forcing is `next`'s job, not this one's). Neither can raise
-    // on a well-typed call (`cons`'s only error path is a checker-impossible non-Stream `tail`,
-    // per `:wat::stream::empty`/`cons`'s own `///` doc), so both are also `total`. RULED here,
-    // same shape as `type-params-used-in`/`type-equal?` immediately above, rather than parked in
-    // `KNOWN_UNREVIEWED` — the gate's own remedy names that "the LAST resort", and these two
-    // rulings are not open.
-    if matches!(head, ":wat::stream::empty" | ":wat::stream::cons") {
-        return Some(OpMeta { pure: true, deterministic: true, total: true });
-    }
+    // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED, and the re-derivation OVERTURNED
+    // this guard's `total: true` for both verbs. `type-params-used-in`'s `@Totality` now lives at
+    // its own registration (`src/intrinsic/reflect.rs:640`) as `Partial`: `param_name_of` raises
+    // `TypeMismatch` on a well-typed but non-Symbol/Keyword `params` element, and this verb is
+    // additionally on `intrinsic/mod.rs`'s `FROZEN_CHECKER_DEBT_LEDGER` (no TypeScheme at all), so
+    // nothing stops that shape from reaching a well-typed call. `type-equal?`'s `@Totality` now
+    // lives at `src/intrinsic/reflect.rs:745` as `Partial` too — its own doc already said outright
+    // "given a node that does not parse as a type at all, this RAISES rather than returning
+    // `false`," which `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md` makes
+    // `Partial`, not `Total`. Both confirmed empirically against the pre-stone binary: a call
+    // passing a malformed node passes `--check` and raises at run. The registry consult below now
+    // answers for both directly.
+    // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED. The fact this guard carried
+    // (`total: true` for both) now lives at each verb's own registration
+    // (`src/intrinsic/stream.rs:91,120`) as `@Totality Total` — re-derived: `empty` is a zero-arg
+    // constructor with a single unconditional `Ok`; `cons`'s `other =>` `TypeMismatch` arm on
+    // `tail` is checker-impossible (checked normally, not on the debt ledger, and `tail`'s
+    // declared type is exactly `(Stream :- [T])`). Confirmed unchanged. The registry consult
+    // below now answers for both directly.
     // Arc 255 Stone P6-c-W2 — `:wat::stream::next` (`src/intrinsic/stream.rs`) FORCES a thunk:
     // `crate::stream::realize` calls `apply_function` on a captured wat closure (a `Thunk`, the
     // body of `(:wat::stream::lazy <body>)`) or runs a Rust closure (a `NativeThunk`, backing
@@ -405,60 +393,36 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // `cons`/`empty`/`lazy` and already did NOT list `next`, before this stone touched either
     // file — the same conclusion, reached by an unrelated mechanism built for an unrelated
     // reason.
-    if head == ":wat::stream::next" {
-        return Some(OpMeta { pure: false, deterministic: false, total: false });
-    }
-    // Arc 255 Stone P6-c-W5a — the six `?` predicates in `:wat::rete::`'s read-only half
-    // (`src/intrinsic/rete.rs`). Each evaluates its one call argument via `eval_inner` first
-    // (standard call-by-value — the SAME thing `:wat::stream::cons`'s `head`/`tail` params do
-    // above, not itself an effect this verb's own body performs) and then runs a read-only
-    // structural walk over the resulting `WatAST` + a `&SymbolTable` reference:
-    //   - `pure?`/`deterministic?`/`total?`/`primitive?` all delegate to `classify_expr` (this
-    //     file, `is_pure_expr`/`is_deterministic_expr`/`is_total_expr`/`is_rete_primitive_expr`)
-    //     with a FRESH `seen: HashSet` per call — the same cycle-guard `find_axis_violation`
-    //     already relies on for `axis-violation` (unhomed, this wave). No IO, no mutation
-    //     outside that local set, and the `seen` bound guarantees termination even over a
-    //     mutually-recursive user fn body, so all three axes hold: Pure, Deterministic, Total.
-    //   - `vocabulary-admitted?` (`rete_vocabulary_admitted`, `src/rete/vocabulary.rs`) is
-    //     `RETE_MODULES.iter().any(|m| head.starts_with(m))` — a fixed prefix-table lookup on a
-    //     string, nothing else.
-    //   - `cond-has-deferred-constraint?` (`cond_has_deferred_constraint`, `src/rete/matcher.rs`)
-    //     walks the already-evaluated condition's clauses (`collect_bind_vars` +
-    //     `clause_has_unbound_qvar`), a finite structural recursion with no cycle risk (a
-    //     condition form is a tree, not a symbol-table graph) and no unwraps/panics.
-    if matches!(
-        head,
-        ":wat::rete::pure?"
-            | ":wat::rete::deterministic?"
-            | ":wat::rete::total?"
-            | ":wat::rete::primitive?"
-            | ":wat::rete::vocabulary-admitted?"
-            | ":wat::rete::cond-has-deferred-constraint?"
-    ) {
-        return Some(OpMeta { pure: true, deterministic: true, total: true });
-    }
-    // Arc 255 Stone P6-c-W5a — the three alpha-matchers (`src/intrinsic/rete.rs`, delegating to
-    // `eval_alpha_match_kind`/`eval_alpha_match_under` in `src/rete/matcher.rs`). Each evaluates
-    // its `cond`/`fact`(/`bindings`) call arguments via `eval_inner` (ordinary call-by-value, not
-    // itself an effect — see the six predicates above) and then hands the ALREADY-EVALUATED
-    // `WatAST` + fact fields to `alpha_match_inner`/`alpha_match_inner_local`/
-    // `alpha_match_inner_seeded` — each documented on itself as "the pure core: no `Environment`,
-    // no `eval_inner`" — which reads the condition's clauses and the fact's field slice
-    // structurally and either returns a binding array or `None` (Clara no-error: a
-    // non-matching/malformed condition is a miss, never a raise; the lone `unreachable!()` in
-    // `eval_clauses` guards an invariant `classify_rete_clause` itself enforces, not a reachable
-    // input). The one non-obvious call inside that core, `crate::rete::kernel::census_count`, is
-    // a `#[cfg(test)]`-only thread-local counter INCREMENT gated further by an explicit
-    // `with_count_census` opt-in — under `#[cfg(not(test))]` (every release build) it is a
-    // literal empty-body no-op, so it changes no observable behavior or return value on any
-    // input, in test or release: not the kind of effect `apply`/`:wat::stream::next` are left
-    // unclassified for. Pure, Deterministic, Total on all three.
-    if matches!(
-        head,
-        ":wat::rete::alpha-match" | ":wat::rete::alpha-match-local" | ":wat::rete::alpha-match-under"
-    ) {
-        return Some(OpMeta { pure: true, deterministic: true, total: true });
-    }
+    // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED, a pure duplicate:
+    // `:wat::stream::next`'s own registration (`src/intrinsic/stream.rs:177`) already declares
+    // `@Purity Effectful` / `@Determinism Nondeterministic` / `@Totality Unreviewed`,
+    // byte-identical to this guard's `{pure: false, deterministic: false, total: false}`. Deleted
+    // rather than moved — no fact to move, only a copy to remove. The registry consult below now
+    // answers for it directly.
+    // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED, and the re-derivation OVERTURNED
+    // this guard's `total: true` for `vocabulary-admitted?`. `pure?`/`deterministic?`/`total?`/
+    // `primitive?`/`cond-has-deferred-constraint?`'s `@Totality` now live at their own
+    // registrations (`src/intrinsic/rete.rs:139,164,190,219,308`) as `Total`, confirmed unchanged:
+    // each unwraps its `Value::wat__WatAST` arg (checker-impossible to miss — the WHOLE type has
+    // one runtime representation regardless of AST shape) and delegates to a walk that collapses
+    // every malformed-AST arm to `false` rather than raising. `vocabulary-admitted?`'s `@Totality`
+    // (`src/intrinsic/rete.rs:249`) now reads `Partial` instead — its body destructures the
+    // unwrapped AST a SECOND level, requiring specifically `WatAST::Keyword`, and nothing in the
+    // declared `:wat::WatAST` type rules out a quoted List/Symbol/number reaching that `other =>`
+    // `TypeMismatch` arm on a well-typed call (confirmed empirically against the pre-stone
+    // binary). The registry consult below now answers for all six directly.
+    // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED. The fact this guard carried
+    // (`total: true` for all three) now lives at each verb's own registration
+    // (`src/intrinsic/rete.rs:407,436,464`) as `@Totality Total` — re-derived: `cond`'s
+    // `Value::wat__WatAST` unwrap is checker-impossible to miss; `fact`'s declared
+    // `:wat::core::Record` type roots `Nature::Struct` at a DIFFERENT keyword with no subtype
+    // edge to `:wat::core::Record` (`Nature::root_keyword`, `src/types.rs`), so `fact_from_value`'s
+    // `None` (Struct/non-Aggregate) arm is checker-impossible for a well-typed argument; and
+    // `alpha_match_inner`'s malformed-`cond` paths degrade to `None` via `alpha_pattern`'s `?`,
+    // with the lone `unreachable!()` in `eval_clause` guarding an invariant the SAME table
+    // (`classify_rete_clause`/`classify_constraint_head`) enforces on both sides, not a reachable
+    // external input. Confirmed unchanged. The registry consult below now answers for all three
+    // directly.
     // ── STONE meter-2 — seven verbs the widened `dispatch_verbs` scan newly finds, dispatched
     // all along from `dispatch_keyword_head` (one word off the anchored
     // `dispatch_keyword_head_value` — the exact miss `DESIGN-STONE-meter-2` names) and from

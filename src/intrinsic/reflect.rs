@@ -624,10 +624,25 @@ fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>,
 /// subset. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255 expand-T4a;
 /// arc 109 β-ii-c); the verdict is that list's.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — OVERTURNS its own guard's `total: true`.
+/// Re-derived by reading `param_name_of` (this file, immediately above): `params`'s declared
+/// element type is the BROAD `:wat::WatAST` (any AST node), but `param_name_of` requires each
+/// element to be specifically a `Symbol` or `Keyword` — anything else (a `List`, `Map`, literal,
+/// …) raises `TypeMismatch` (*"non-name AST node in `params`"*), and nothing in the declared
+/// signature rules that shape out (this verb is also on `intrinsic/mod.rs`'s
+/// `FROZEN_CHECKER_DEBT_LEDGER` — it carries no `env.register()` TypeScheme at all, so the
+/// checker does not even enforce the outer `:wat::WatAST` wrapping, let alone the inner
+/// Symbol/Keyword shape). Empirically confirmed against the pre-stone binary: a call passing a
+/// quoted `(1 2)` list as a `params` element passes `--check` (exit 0) and raises `TypeMismatch`
+/// at run. Same class as `:wat::core::with-children`'s already-`Partial` ruling
+/// (`src/rete/purity.rs`'s `intrinsic_meta`, an unregistered head this stone leaves untouched),
+/// and the same RULING this campaign already applied to `:wat::string::concat`
+/// (`RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`).
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg params (:wat::core::Vector :- [:wat::WatAST]) the candidate type-param name nodes (Symbols, or Keywords), in declaration order
@@ -728,10 +743,22 @@ pub(crate) fn eval_type_params_used_in(
 /// 255 expand-T4a; arc 109, `BRIEF-STONE-type-equal-the-missing-door.md`); the verdict is that
 /// list's.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — OVERTURNS its own guard's `total: true`.
+/// Re-derived by reading this fn's own doc two paragraphs up ("★ Contract: given a node that
+/// does not parse as a type at all, this RAISES rather than returning `false`") and its body
+/// (`parse_type_node` raising `TypeMismatch` for a non-type node): the declared arg type is the
+/// BROAD `:wat::WatAST`, and this verb is on `intrinsic/mod.rs`'s `FROZEN_CHECKER_DEBT_LEDGER`
+/// (no `env.register()` TypeScheme — the checker enforces nothing about `a`/`b` beyond parsing).
+/// Empirically confirmed against the pre-stone binary: a call passing a quoted `(1 2 3)` list as
+/// `a` passes `--check` (exit 0) and raises `TypeMismatch` ("not a type") at run. This is a
+/// documented, deliberate raise-on-malformed-input — not a bug — but per
+/// `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md` a raise is not a matchable
+/// outcome, so the verb is `Partial`, not `Total`.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg a :wat::WatAST a type-expression node — keyword, `wat.type/` symbol, parametric form `(Head :- [args])`, or fn-type bracket `[arg… :-> ret]`

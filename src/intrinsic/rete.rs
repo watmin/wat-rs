@@ -127,10 +127,18 @@ fn eval_axis_predicate_impl_ctx(
 /// Arity was previously a hand-rolled `args.len() != 1` check inside `rete/purity.rs`'s shared
 /// `eval_axis_predicate` (arc 255 Stone P6-c-W5a retired it); now the shim's real declared arity.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `eval_axis_predicate_impl_ctx`
+/// / `eval_quoted_ast_arg` (this file, above): `expr`'s declared type is `:wat::WatAST`, and
+/// `Value::wat__WatAST` is the SOLE runtime representation of that type regardless of which AST
+/// node shape it wraps — the `other =>` `TypeMismatch` arm there is checker-impossible. The
+/// walk itself (`is_pure_expr` → `classify_expr`, `src/rete/purity.rs`) never panics on a
+/// malformed AST: every "malformed X" arm returns `Err(AxisViolation)`, which `is_pure_expr`
+/// collapses to `false` via `.is_ok()`, never a raise. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
@@ -152,10 +160,15 @@ pub(crate) fn eval_rete_pure_intrinsic(
 /// even though it is pure — the two axes are genuinely orthogonal. Same walk, same
 /// `OpMeta`/default-deny discipline as `pure?`.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived, same grounding as
+/// `:wat::rete::pure?` immediately above: the `Value::wat__WatAST` unwrap is checker-impossible
+/// to miss, and `is_deterministic_expr` → `classify_expr`'s walk collapses every malformed-AST
+/// arm to `false` rather than raising. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
@@ -178,10 +191,17 @@ pub(crate) fn eval_rete_deterministic_intrinsic(
 /// `first`/`i64::/`/`i64::mod` are all pure AND deterministic yet **partial** (undefined on an
 /// empty vector / a zero divisor) — `total?` is the axis that catches what the other two cannot.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived, same grounding as
+/// `:wat::rete::pure?` above: the `Value::wat__WatAST` unwrap is checker-impossible to miss, and
+/// `is_total_expr` → `classify_expr`'s walk collapses every malformed-AST arm to `false` rather
+/// than raising. Total. ★ STOP-1: this verb is itself one of the seventeen and is the reporter
+/// this very probe reads — re-deriving it did NOT change its own answer (still reports `true`
+/// for itself, matching what it declared before this stone), so the instrument stays trustworthy.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
@@ -207,10 +227,15 @@ pub(crate) fn eval_rete_total_intrinsic(
 /// separate, stricter question than purity, and only the rete-namespaced twin
 /// (`:wat::rete::core::cond`) is admitted.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived, same grounding as
+/// `:wat::rete::pure?` above: the `Value::wat__WatAST` unwrap is checker-impossible to miss, and
+/// `is_rete_primitive_expr` → `classify_expr`'s `RetePrimitive`-axis walk collapses every
+/// malformed-AST arm to `false` rather than raising. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
@@ -237,10 +262,22 @@ pub(crate) fn eval_rete_primitive_intrinsic(
 /// naming a REGISTERED function resolves at check time to that function's `Fn` type, not a
 /// `:wat::core::keyword` value, so an unquoted head name cannot reach this predicate as data.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — OVERTURNS its own guard's `total: true`.
+/// Re-derived from the body (this file, below): `head`'s declared type is the BROAD
+/// `:wat::WatAST` (any AST node), but after unwrapping `Value::wat__WatAST` — checker-guaranteed,
+/// same as `pure?`/`deterministic?`/`total?`/`primitive?` above — the body match a SECOND level
+/// deeper, on the wrapped AST's OWN shape: `WatAST::Keyword(k, _) => …` vs an `other =>` arm that
+/// raises `TypeMismatch`. Nothing in the declared `:wat::WatAST` type restricts an argument to
+/// the Keyword variant specifically — a quoted `List`/`Symbol`/number is an equally well-typed
+/// `:wat::WatAST` value. Empirically confirmed against the pre-stone binary: `(:wat::rete::
+/// vocabulary-admitted? (:wat::core::quote (1 2 3)))` passes `--check` (exit 0) and raises
+/// `TypeMismatch` at run. Same class as `:wat::core::type-params-used-in`'s `param_name_of`
+/// (this campaign, same wave) and `:wat::core::with-children`'s existing `Partial` ruling.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Partial
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     head :wat::WatAST a `:wat::WatAST` holding a quoted Keyword (a head name), from `:wat::core::quote`
@@ -296,10 +333,19 @@ pub(crate) fn eval_rete_vocabulary_admitted_intrinsic(
 /// never resolves `cond`'s type head against the type registry, so a fictional/undeclared type
 /// name in `cond` does not stop it from answering.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from the body immediately below:
+/// the `Value::wat__WatAST` unwrap is checker-impossible to miss (same as `pure?` et al. above —
+/// `cond` is used only through the outer wrapping, never destructured into a specific variant
+/// the way `vocabulary-admitted?`'s `head` is). `cond_has_deferred_constraint`
+/// (`src/rete/matcher.rs`) degrades gracefully on any malformed shape — `alpha_pattern` returns
+/// `None` for a non-`List`/empty/unrecognized `cond`, short-circuiting to `false` via `?` — with
+/// no unwrap/panic anywhere in its call chain (`collect_bind_vars`, `clause_has_unbound_qvar`,
+/// `operand_is_unbound_qvar`). Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form (from `:wat::core::quote`), walked structurally, never evaluated
@@ -394,10 +440,24 @@ fn eval_alpha_match_kind_impl(
 /// head AND every clause holds; `None` otherwise (Clara no-error — a failed CONSTRAINT is never a
 /// raise). Bindings key logic-var name strings (`"?t"`) to their field-typed values.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `eval_alpha_match_kind_impl`
+/// (this file, above): `cond`'s `Value::wat__WatAST` unwrap is checker-impossible to miss (used
+/// only through the outer wrapping, never destructured further — same shape as
+/// `cond-has-deferred-constraint?`). `fact`'s declared type is `:wat::core::Record`, and the
+/// type registry roots `Nature::Struct` at the DIFFERENT keyword `:wat::core::Struct`
+/// (`Nature::root_keyword`, `src/types.rs`) with no subtype edge to `:wat::core::Record` — only
+/// `Nature::Record` and `Nature::HolonRecord` (via its own registered `:wat::holon::Record <:
+/// :wat::core::Record` edge) do — so `fact_from_value`'s `None` arm (Struct/non-Aggregate) is
+/// checker-impossible for a well-typed `:wat::core::Record`-typed argument; the `TypeMismatch`
+/// it backs never fires. `alpha_match_inner`/`attach_fact_bind` degrade to `None`/no-op on any
+/// malformed `cond_ast` shape (`alpha_pattern` short-circuits via `?`), and `eval_clause`'s one
+/// `unreachable!()` guards an invariant the SAME table (`classify_rete_clause` /
+/// `classify_constraint_head`) enforces on both sides, not a reachable external input. Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
@@ -423,10 +483,14 @@ pub(crate) fn eval_rete_alpha_match_intrinsic(
 /// against the token's left-accumulated bindings at beta time via `alpha-match-under`. Join
 /// alphas must not use this variant — a deferred join constraint would be lost.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived, identical grounding to
+/// `:wat::rete::alpha-match` above (shared body, `eval_alpha_match_kind_impl` with `local: true`).
+/// Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
@@ -450,10 +514,15 @@ pub(crate) fn eval_rete_alpha_match_local_intrinsic(
 /// constraint naming a left-bound var (`?v < ?m` after an accum) is checked as a real beta
 /// constraint, not silently lost as an alpha miss.
 ///
+/// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived, same grounding as
+/// `:wat::rete::alpha-match` above; `bindings`'s declared type is `(:wat::core::PersistentMap :-
+/// [:wat::core::String V])`, consumed here only as an already-typed seed for the clause fold
+/// (no further destructuring that could raise). Total.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
