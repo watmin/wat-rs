@@ -40,6 +40,40 @@ pub enum ReteCheckErrorKind {
         field: String,
         available_fields: Vec<String>,
     },
+    /// A `::`-qualified keyword CONSTANT in a `:when` constraint whose PREFIX names a known enum
+    /// but whose variant that enum does not declare — `:evt::G::Hii` where `:evt::G` has `Hi`/`Lo`.
+    ///
+    /// ⛔ **THIS IS THE THIRD FACT `keyword_constant_segment`'s `_ => "keyword"` ARM USED TO HOLD**
+    /// (arc 278, driven 2026-08-31). D1 made the typo REFUSE; it refused by falling through to the
+    /// keyword-constant route, where the operand names no declared field and so came out as a
+    /// located `UnknownField`: *"`:evt::Req` has no field `:evt::G::Hii`; available fields:
+    /// [k, grade]"*. Both halves of that remedy are wrong — the author did not mistype a FIELD, and
+    /// no field name is the fix. **A confidently wrong remedy costs more than none** (R29
+    /// `RVINA ERVDIT`: the ruin must teach). Core does not name it either — it refuses the same
+    /// expression as a bare `TypeMismatch` with `:remedies []` — so agreement with core was never
+    /// the target; naming the mistake is.
+    ///
+    /// SCOPE, and it is narrow by construction: the prefix must resolve to a `TypeDef::Enum`. A
+    /// `::`-free constant (`:alpha`) and a `::` name whose prefix is not a registered enum are
+    /// LEGITIMATE keyword constants and keep their existing route untouched — an over-wide arm
+    /// here would refuse correct programs while every new probe went green.
+    ///
+    /// ⚠ A correctly-spelled but TAGGED variant (`:tg::P::Hi`, arity 1) does **NOT** reach this
+    /// kind, and must not: that variant EXISTS, so "has no variant `Hi`; available variants: [Hi]"
+    /// would be self-contradicting. It resolves through `enum_variant_ctor` and keeps D1's
+    /// `UnknownField` route. That its message is ALSO wrong is a separate, still-open finding —
+    /// `strike-variant-diagnostic/DESIGN.md` affirmatively cuts it from this strike.
+    UnknownEnumVariant {
+        rule: String,
+        fact_type: String,
+        /// The enum the prefix names, colon-stripped the way `UnknownField.fact_type` is.
+        enum_path: String,
+        /// The variant AS WRITTEN — the misspelling itself, so the reader sees their own typo.
+        variant: String,
+        /// The variants that DO exist, declaration order. The remedy `UnknownField` could not
+        /// give: mirrors `available_fields`, and is the whole point of the kind.
+        available_variants: Vec<String>,
+    },
     /// A positional `:then` fact-form's argument count does not match the fact type's declared
     /// field count. Arc 278 BRIEF-construction-total-three-walls.md #1/#3 — also reused for a
     /// NESTED constructor operand's own arity, closing the two counterparts the audit measured
@@ -242,6 +276,18 @@ impl fmt::Display for ReteCheckErrorKind {
                 f,
                 "defrule `{rule}`: `:{fact_type}` has no field `:{field}`; available fields: [{}]",
                 available_fields.join(", ")
+            ),
+            ReteCheckErrorKind::UnknownEnumVariant {
+                rule,
+                fact_type,
+                enum_path,
+                variant,
+                available_variants,
+            } => write!(
+                f,
+                "defrule `{rule}` (`:{fact_type}`): `:{enum_path}` has no variant `{variant}`; \
+                 available variants: [{}]",
+                available_variants.join(", ")
             ),
             ReteCheckErrorKind::RhsArityMismatch { rule, fact_type, expected, got } => write!(
                 f,

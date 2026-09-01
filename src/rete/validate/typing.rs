@@ -47,8 +47,29 @@ pub(crate) fn check_operand_field_ref(
         if field_names.iter().any(|f| f == field) {
             return; // a declared field — the field reference wins, exactly as before.
         }
+        // ★ THE THIRD STATE, ahead of the comparator question and deliberately so. A `::` name
+        // whose prefix is a known enum and whose variant does not exist is a MISTAKE at every
+        // comparator — including `keyword::=`, where the old routing let it through as a
+        // legitimate keyword constant — so the refusal cannot be conditioned on `op_type`.
+        // It names the enum, the variant as written, and the variants that exist; it does NOT
+        // fall through to `check_field_at`, whose remedy (the record's field names) is the
+        // confidently-wrong one this kind exists to delete.
+        let constant = classify_keyword_constant(k, types);
+        if let KeywordConstant::UnknownVariant { enum_path, variant, available } = constant {
+            errors.push(ReteCheckError {
+                span: clause.span().clone(),
+                kind: ReteCheckErrorKind::UnknownEnumVariant {
+                    rule: rule_name.to_string(),
+                    fact_type: fact_type.to_string(),
+                    enum_path: enum_path.trim_start_matches(':').to_string(),
+                    variant: variant.to_string(),
+                    available_variants: available,
+                },
+            });
+            return;
+        }
         // A usable constant AT THIS COMPARATOR is legitimate; say nothing.
-        if op_type == Some(keyword_constant_segment(k, types)) {
+        if op_type == Some(constant.segment()) {
             return;
         }
         check_field_at(field, clause.span().clone(), rule_name, fact_type, field_names, errors);
@@ -203,10 +224,7 @@ fn is_non_field_keyword(operand: &WatAST, field_names: &[String]) -> bool {
     }
 }
 
-/// The rete type a bare keyword CONSTANT carries: `enum` when it names a UNIT variant that
-/// EXISTS, else `keyword`.
-///
-/// ⚠ **THIS TYPED BY PREFIX ALONE AND NEVER CHECKED THE VARIANT EXISTED** (vigilia Class D1,
+/// ⚠ **THE CLASSIFIER TYPED BY PREFIX ALONE AND NEVER CHECKED THE VARIANT EXISTED** (vigilia Class D1,
 /// driven 2026-08-31). `rsplit_once("::")` + "is that path a `TypeDef::Enum`" typed `:evt::G::Hii`
 /// — a variant the enum does not declare — as `"enum"`, the checker saw enum-vs-enum and passed,
 /// and the RUNTIME then resolved the same keyword through `expr_ir::keyword_value` ->
@@ -225,13 +243,89 @@ fn is_non_field_keyword(operand: &WatAST, field_names: &[String]) -> bool {
 ///      write one, which is why core refuses that too (`expects [:wat::core::i64 :-> :tg::P]`) —
 ///      so resolving is not enough. Without this clause the tagged arm stays broken.
 ///
-/// Everything else falls to `keyword`, where the existing `UnknownField` /
-/// `ConstraintTypeMismatch` machinery produces the located diagnostic. Note such a keyword could
-/// never have been a field reference: it carries `::`, and a field name is a bare identifier.
-fn keyword_constant_segment(k: &str, types: &TypeEnv) -> &'static str {
+/// ⛔ **AND THE PARAGRAPH THAT STOOD HERE WAS THE NEXT DEFECT, IN THIS FILE, IN ITS OWN DOC.** It
+/// read: *"Everything else falls to `keyword`, where the existing `UnknownField` /
+/// `ConstraintTypeMismatch` machinery produces the located diagnostic."* True about the LOCATION
+/// and silent about the MESSAGE — that route reports the constant as an unknown FIELD and offers
+/// the record's field names as the remedy, so `:evt::G::Hii` was refused with *"`:evt::Req` has no
+/// field `:evt::G::Hii`; available fields: [k, grade]"*: a reader sent hunting for a field when
+/// they mistyped a variant. Its own next sentence had the disproof in it — *"such a keyword could
+/// never have been a field reference: it carries `::`"* — and still concluded the field diagnostic
+/// was the right one. Split out below (`UnknownEnumVariant`, 2026-08-31).
+///
+/// What a bare keyword CONSTANT in operand position actually is — **THREE states, not two.**
+///
+/// ⛔ `keyword_constant_segment`'s `_ => "keyword"` arm held two facts (arc 278, the fifth
+/// catch-all of this class after A2b's `Option`, D3's missing arity, A6's `None => true` and A5's
+/// `Ok(())`): *"this is a genuine keyword constant"* **and** *"this is a `::`-qualified name whose
+/// prefix is a known enum and whose variant does not exist."* The second is a diagnosable mistake
+/// being typed as the first, and the cost was not a missing refusal — D1 already made it refuse —
+/// it was the refusal naming the WRONG THING: the keyword route reports the operand as an unknown
+/// FIELD and offers the record's field names as the remedy. Same cure as the other four: climb to
+/// the type, and let each state carry what only it knows.
+///
+/// The `'a` lifetime is the KEYWORD's, not the `TypeEnv`'s: `enum_path`/`variant` are slices of the
+/// constant as the author wrote it, so the diagnostic shows their own text back to them.
+enum KeywordConstant<'a> {
+    /// A UNIT variant that EXISTS. Types as `enum` — D1's arity-0 clause, unchanged.
+    UnitVariant,
+    /// A genuine keyword constant: no `::`, or a `::` name whose prefix is not a registered enum,
+    /// or (see `UnknownEnumVariant`'s doc) a correctly-spelled TAGGED variant, which resolves.
+    Keyword,
+    /// The third state. The prefix names a `TypeDef::Enum`; the enum does not declare the variant.
+    UnknownVariant { enum_path: &'a str, variant: &'a str, available: Vec<String> },
+}
+
+impl KeywordConstant<'_> {
+    /// The rete module segment the constant denotes. `UnknownVariant` answers `keyword` because
+    /// that is what the RUNTIME does with it (`sym.unit_variant` misses and falls back) — but
+    /// nothing type-checks on that answer: `check_operand_field_ref` refuses the constant before
+    /// any comparator comparison, and `resolve_operand_type` routes it to
+    /// `OperandType::MistypedEnumVariant` rather than through here.
+    fn segment(&self) -> &'static str {
+        match self {
+            KeywordConstant::UnitVariant => "enum",
+            KeywordConstant::Keyword | KeywordConstant::UnknownVariant { .. } => "keyword",
+        }
+    }
+}
+
+/// The ONE classification. Asks `matcher::enum_variant_ctor` — the same single resolver the
+/// lowerer, the purity classifier and `walk_nested_constructors` use, and the one D1 routed this
+/// file through — and then asks it a SECOND question, not a different one: when it declines, was
+/// the prefix an enum anyway?
+///
+/// ⚠ ORDER IS LOAD-BEARING. `enum_variant_ctor` resolves Unit **and** Tagged, so a resolved
+/// non-unit variant falls to `Keyword`, NOT to `UnknownVariant` — `:tg::P::Hi` (arity 1) exists,
+/// and telling its author the enum "has no variant `Hi`" would be a false statement in a
+/// diagnostic built to stop false statements in diagnostics. A guard placed after the arity-0 arm
+/// (rather than on the `None` case specifically) would swallow it; that is the trap this order
+/// closes.
+fn classify_keyword_constant<'a>(k: &'a str, types: &TypeEnv) -> KeywordConstant<'a> {
     match crate::rete::matcher::enum_variant_ctor(types, k) {
-        Some((_, _, 0)) => "enum",
-        _ => "keyword",
+        Some((_, _, 0)) => KeywordConstant::UnitVariant,
+        // Resolved but not arity 0: a TAGGED variant, which EXISTS. D1's route, deliberately kept.
+        Some(_) => KeywordConstant::Keyword,
+        None => match k.rsplit_once("::") {
+            Some((enum_path, variant)) => match types.get(enum_path) {
+                Some(TypeDef::Enum(e)) => KeywordConstant::UnknownVariant {
+                    enum_path,
+                    variant,
+                    available: e
+                        .variants
+                        .iter()
+                        .map(|v| match v {
+                            crate::types::EnumVariant::Unit(n)
+                            | crate::types::EnumVariant::Tagged { name: n, .. } => n.clone(),
+                        })
+                        .collect(),
+                },
+                // The prefix is not a registered enum — a legitimate `::`-bearing keyword.
+                _ => KeywordConstant::Keyword,
+            },
+            // No `::` at all: `:alpha`. Always a keyword, and the anti-vacuity control.
+            None => KeywordConstant::Keyword,
+        },
     }
 }
 
@@ -357,6 +451,11 @@ pub(crate) fn check_constraint_head(
                     // holds a `TypeEnv`, not the checker. Same action, separate name — the whole
                     // point of the variant.
                     OperandType::ComputedNotDerivableHere => {}
+                    // Refused by NAME in `check_operand_field_ref` (`UnknownEnumVariant`). Silent
+                    // here for the same reason the keyword arm at the top of this match is: two
+                    // ruins pointing opposite ways teach worse than one, and the located
+                    // variant-not-found message is the one that names the actual mistake.
+                    OperandType::MistypedEnumVariant => {}
                 }
             }
         }
@@ -453,6 +552,16 @@ enum OperandType {
     /// is different, and collapsing two reasons into one outcome is the exact conflation that has
     /// now cost this arc four separate defects.
     ComputedNotDerivableHere,
+    /// A keyword constant whose `::`-prefix names a known enum and whose variant that enum does
+    /// not declare — already refused, by NAME, in `check_operand_field_ref`.
+    ///
+    /// ⛔ Not `Resolved("keyword")`, which is what it used to be. That answer is what the runtime
+    /// does with the constant, not what it IS, and returning it here put the refused constant back
+    /// into the same catch-all the strike split — where the CoreGeneric branch would then have
+    /// read a type off a rejected operand to build its did-you-mean. Same ruling as
+    /// `ComputedNotDerivableHere` one line above: the caller's ACTION is "report nothing", the
+    /// REASON is its own, and collapsing reasons into outcomes is what cost this arc four defects.
+    MistypedEnumVariant,
 }
 
 /// An operand's type — field ref, then bound `?var` (rule-wide), then literal.
@@ -472,7 +581,12 @@ fn resolve_operand_type(
                 // Not a declared field -> a CONSTANT, and its type is the constant's own. This
                 // used to return `UnboundInThisRule`, which is why `(keyword::= :v :alpha)` had
                 // no type at all and `:alpha` could only ever be reported as a missing field.
-                None => return OperandType::Resolved(keyword_constant_segment(k, types)),
+                None => {
+                    return match classify_keyword_constant(k, types) {
+                        KeywordConstant::UnknownVariant { .. } => OperandType::MistypedEnumVariant,
+                        other => OperandType::Resolved(other.segment()),
+                    };
+                }
             }
         }
         // 2. `?var` — the field its bind names, anywhere in the rule.
