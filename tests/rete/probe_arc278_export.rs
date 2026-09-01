@@ -848,3 +848,282 @@ fn import_refuses_a_driver_tower_past_the_depth_bound() {
         ),
     }
 }
+
+// ── strike-calluser-arity (arc 278, class D3) ───────────────────────────────
+//
+// `exec_program_on` never compared `args.len()` to `program.params.len()`, and its `else if
+// i < inner.len()` branch gave a surplus argument a MEANING: it landed in the slot whose number
+// happened to equal the argument's POSITION. One missing check with several faces —
+//
+//   * a surplus that collides with a declared parameter slot **overwrites it**, and a live fence
+//     answers 0 hits where it answered 1: a silent wrong answer from wire input;
+//   * a surplus past the frame is **silently dropped**, and the same fence answers 2;
+//   * a surplus into a callee that declares NO parameters at all **fabricates** a binding for a
+//     slot the program never named a parameter;
+//   * a MISSING argument surfaces as `UnboundSymbol { "slot 1" }` — a diagnostic naming a
+//     compiler-internal slot index, with a span on the CALLER's wat line and no arity and no
+//     callee in it.
+//
+// Every probe below replaces the fixture fence's root with a synthetic `[:user prog args…]` call
+// whose body is `(slot N) < 20`, so it runs on the real import → seed → fire → query path and the
+// hit count is the observation. `:user::import-and-hits` is that mouth.
+//
+// ⛔ The refusal is asserted STRUCTURALLY — `RuntimeErrorKind::ArityMismatch` with BOTH counts
+// checked — never merely "an error happened". Two of these arms already errored before the fix,
+// so a probe asserting only that an error occurred would pass in both states and prove nothing.
+
+/// `Temp{10}` and `Temp{30}` are the fixture's facts, and every synthetic fence compares against
+/// this bound. `10 < 20` holds and `30 < 20` does not, which is what makes a hit count able to
+/// name WHICH value reached the slot.
+const FENCE_BOUND: i64 = 20;
+
+/// Export → hit count, through the real `import` + `seed` + `fire-rules` + `query`. The mouth the
+/// arity arms observe through: `import-one` stops at the Session and would see none of this.
+fn import_and_hits(
+    world: &wat::freeze::FrozenWorld,
+    exp: Value,
+) -> Result<Value, wat::runtime::RuntimeError> {
+    let f = world
+        .symbols()
+        .get(":user::import-and-hits")
+        .expect("import-and-hits")
+        .clone();
+    apply_function(f, vec![exp], world.symbols(), wat::rust_caller_span!())
+}
+
+/// The `RETE_OPS` index of an op, derived from the vocabulary rather than hard-coded — a pinned
+/// literal would silently address a different op the day a row is inserted above it.
+fn rete_op_index(name: &str) -> i64 {
+    rete_ops_names()
+        .iter()
+        .position(|n| *n == name)
+        .unwrap_or_else(|| panic!("RETE_OPS declares no {name}")) as i64
+}
+
+/// A packed `[:user [:prog …] args…]` whose callee body is `(slot read_slot) < 20`.
+///
+/// `frame_len` and `params` are the two dials the arms turn: together they decide whether a
+/// surplus argument collides with a declared slot, falls past the end of the frame, or writes
+/// into a program that declared no parameters at all. `names` is packed empty on purpose, so an
+/// unbound slot renders as `slot N` — that raw rendering is arm 3's whole finding.
+fn synthetic_user_fence(frame_len: i64, params: Vec<i64>, read_slot: i64, args: Vec<Value>) -> Value {
+    let lt = rete_op_index(":wat::rete::core::i64::<");
+    let body = vec_of(vec![
+        kw(":call"),
+        Value::i64(lt),
+        vec_of(vec![kw(":slot"), Value::i64(read_slot)]),
+        vec_of(vec![kw(":lit"), Value::i64(FENCE_BOUND)]),
+    ]);
+    let prog = vec_of(vec![
+        kw(":prog"),
+        Value::i64(frame_len),
+        vec_of(params.into_iter().map(Value::i64).collect()),
+        vec_of(vec![]), // names — empty, so an unbound slot renders as `slot N`
+        vec_of(vec![]), // reads — the synthetic fence reads no token bindings
+        body,
+    ]);
+    let mut xs = vec![kw(":user"), prog];
+    xs.extend(args);
+    vec_of(xs)
+}
+
+/// `[:lit n]` — an argument expression evaluated in the CALLER's frame.
+fn lit(n: i64) -> Value {
+    vec_of(vec![kw(":lit"), Value::i64(n)])
+}
+
+/// Assert a refusal is an `ArityMismatch` naming BOTH counts. Row 5's trap: two of these arms
+/// already produced *an* error before the fix, so only the KIND and the COUNTS separate the fixed
+/// runtime from the broken one.
+fn expect_arity_mismatch(
+    r: Result<Value, wat::runtime::RuntimeError>,
+    expected: usize,
+    got: usize,
+    arm: &str,
+) {
+    match r {
+        Ok(v) => panic!(
+            "{arm}: the call was ACCEPTED and the fence answered {v:?}. \
+             `exec_program_on` compared no arity: a {got}-argument call ran against a \
+             {expected}-parameter program."
+        ),
+        Err(e) => match e.kind() {
+            wat::RuntimeErrorKind::ArityMismatch {
+                op,
+                expected: exp,
+                got: g,
+            } => {
+                assert_eq!(*exp, expected, "{arm}: wrong `expected` count in {e:?}");
+                assert_eq!(*g, got, "{arm}: wrong `got` count in {e:?}");
+                // Exact, not `contains`: `CALL_USER_OP` (`expr_ir/eval.rs:381`) is a fixed
+                // constant, so a loose check would pass on any op whose name merely embeds it.
+                assert_eq!(
+                    &**op, ":wat::rete::call-user",
+                    "{arm}: the refusal must name the call form"
+                );
+            }
+            other => panic!(
+                "{arm}: refused, but NOT as an arity mismatch — got {other:?}. \
+                 An error alone is not the contract: this arm errored before the check existed \
+                 too, and only an ArityMismatch carrying expected={expected} got={got} \
+                 distinguishes the two runtimes."
+            ),
+        },
+    }
+}
+
+/// CONTROL — the mouth works and the fixture is live. Nothing is tampered.
+#[test]
+fn untampered_export_answers_one_hit() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let v = import_and_hits(&world, exp).expect("untampered import must fire");
+    assert_eq!(
+        v,
+        Value::i64(1),
+        "the fixture fence is `(?c < 20)` over Temp 10 and Temp 30"
+    );
+}
+
+/// ⚠ ANTI-VACUITY CONTROL — green BEFORE and AFTER, and it is what makes the other arms mean
+/// something.
+///
+/// A synthetic `:user` call with **matching** arity: one parameter at slot 0, one argument. The
+/// callee answers `10 < 20` = true for every fact, so the fence admits BOTH Temps and the count
+/// is 2, not the fixture's 1. That number proves three things at once — the synthetic fence
+/// really replaced the real one, it really executed, and the new length check does **not** refuse
+/// a well-formed call. Without this arm, every green below is consistent with "the check refuses
+/// everything".
+#[test]
+fn a_well_formed_user_call_still_runs() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        synthetic_user_fence(1, vec![0], 0, vec![lit(10)])
+    });
+    let v = import_and_hits(&world, tampered).expect("a matched-arity call must run");
+    assert_eq!(
+        v,
+        Value::i64(2),
+        "the synthetic fence is constantly `10 < 20`, so both Temps pass"
+    );
+}
+
+/// ⚠ ARM 1 — A SURPLUS ARGUMENT COLLIDES WITH A DECLARED PARAMETER SLOT.
+///
+/// The worst face, and the reason this is not a tidiness fix: **a silent wrong answer through the
+/// public surface.** One parameter at slot **1**, two arguments. Pre-fix, `i=0` wrote `10` into
+/// slot 1 as declared; then `i=1` found no parameter, fell into the `else if`, and wrote the
+/// surplus `30` into `inner[1]` — the SAME slot — by argument position. `30 < 20` is false, the
+/// fence rejected every fact, and the import was ACCEPTED and answered **0** where the fixture
+/// answers 1. (Had the surplus merely been ignored it would have answered 2; no reading of the
+/// input makes 0 correct.)
+#[test]
+fn arity_refuses_a_surplus_that_collides_with_a_declared_slot() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        synthetic_user_fence(2, vec![1], 1, vec![lit(10), lit(30)])
+    });
+    expect_arity_mismatch(
+        import_and_hits(&world, tampered),
+        1,
+        2,
+        "arm 1 (surplus collides with slot 1; pre-fix ACCEPTED, 0 hits — a silent wrong answer)",
+    );
+}
+
+/// ⚠ ARM 2 — A SURPLUS ARGUMENT PAST THE END OF THE FRAME IS SILENTLY DROPPED.
+///
+/// The same missing check answering the opposite way. One parameter at slot **0** and
+/// `frame_len` 1, so the frame is one wide: `i=1` failed the `i < inner.len()` guard and the
+/// argument vanished. Pre-fix the import was ACCEPTED and the fence — left as the constant
+/// `10 < 20` — answered **2**. A dropped argument is not a smaller error than a misplaced one:
+/// the caller's second operand had no effect anyone could observe.
+#[test]
+fn arity_refuses_a_surplus_that_falls_past_the_frame() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        synthetic_user_fence(1, vec![0], 0, vec![lit(10), lit(30)])
+    });
+    expect_arity_mismatch(
+        import_and_hits(&world, tampered),
+        1,
+        2,
+        "arm 2 (surplus past a 1-wide frame; pre-fix ACCEPTED, 2 hits — the argument was dropped)",
+    );
+}
+
+/// ⚠ ARM 3 — A SURPLUS INTO A CALLEE THAT DECLARES NO PARAMETERS AT ALL.
+///
+/// Distinct from arms 1 and 2 in mechanism, not just in numbers: with `params` EMPTY, every
+/// `params.get(i)` was `None`, so the deleted branch was the ONLY thing that ran and it
+/// **fabricated** bindings — `inner[0] = 10` — for a slot the program never declared a parameter.
+/// Pre-fix the import was ACCEPTED and the fence read that fabricated slot as `10 < 20`,
+/// answering **2**. This is the branch at its purest: a zero-parameter program executing against
+/// arguments.
+#[test]
+fn arity_refuses_arguments_to_a_zero_parameter_callee() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        synthetic_user_fence(1, vec![], 0, vec![lit(10), lit(30)])
+    });
+    expect_arity_mismatch(
+        import_and_hits(&world, tampered),
+        0,
+        2,
+        "arm 3 (two arguments into a 0-param callee; pre-fix ACCEPTED, 2 hits — slot 0 fabricated)",
+    );
+}
+
+/// ⚠ ARM 4 — A MISSING ARGUMENT, DIAGNOSED AS AN INTERNAL SLOT INDEX.
+///
+/// ⛔ **THIS ARM ALREADY ERRORED BEFORE THE FIX**, which is exactly why it may not assert that an
+/// error occurred. One parameter at slot 1, ZERO arguments: pre-fix nothing wrote slot 1, the
+/// body read it, and the refusal was
+/// `#wat.runtime/UnboundSymbol {:message "unbound symbol: slot 1"}` — a compiler-internal slot
+/// number, on the CALLER's wat span, naming neither the arity nor the callee. A probe saying
+/// "this errors" is green in both runtimes and proves nothing; only `ArityMismatch { expected: 1,
+/// got: 0 }` separates them.
+///
+/// This arm also reaches `exec`'s `args.is_empty()` short-circuit, the one path DESIGN's ⚠
+/// section flags — see its sibling below, which reaches the evaluating path instead.
+#[test]
+fn arity_refuses_a_call_with_no_arguments_at_all() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        synthetic_user_fence(2, vec![1], 1, vec![])
+    });
+    expect_arity_mismatch(
+        import_and_hits(&world, tampered),
+        1,
+        0,
+        "arm 4 (zero args to a 1-param callee; pre-fix `UnboundSymbol: slot 1`, not an arity error)",
+    );
+}
+
+/// ⚠ ARM 5 — TOO FEW ARGUMENTS, BUT NOT ZERO: the check on the EVALUATING path.
+///
+/// Arm 4 enters `exec`'s `Expr::CallUser` arm through its `args.is_empty()` short-circuit, which
+/// hands `&[]` straight to `exec_program_on`. This arm has ONE argument for TWO parameters, so it
+/// takes the other branch — the one that evaluates each operand into a `Vec` first. Without it,
+/// arm 4 alone cannot tell "the arity check runs" from "the arity check runs only on the empty
+/// path". Pre-fix this was the same `UnboundSymbol: slot 1` as arm 4, arriving by a different
+/// route.
+#[test]
+fn arity_refuses_too_few_arguments_on_the_evaluating_path() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        synthetic_user_fence(2, vec![0, 1], 1, vec![lit(10)])
+    });
+    expect_arity_mismatch(
+        import_and_hits(&world, tampered),
+        2,
+        1,
+        "arm 5 (one arg to a 2-param callee, evaluating path; pre-fix `UnboundSymbol: slot 1`)",
+    );
+}

@@ -374,6 +374,12 @@ pub(crate) fn exec(
     }
 }
 
+/// The `op` an arity refusal from [`exec_program_on`] names. A `Program` carries no callee
+/// name (see the struct in `expr_ir/mod.rs`), so this names the call FORM — the counts and the
+/// call-site span carry the rest. Adding a name field to `Program` to make the message prettier
+/// is a wider change than this contract needs.
+const CALL_USER_OP: &str = ":wat::rete::call-user";
+
 /// Run a `Program` against `args`, optionally over a PARENT frame.
 ///
 /// `parent` is what makes a nested program see its enclosing scope's slots — a user fold's body
@@ -388,6 +394,37 @@ fn exec_program_on(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
+    // ── THE ARITY CONTRACT — one integer comparison, on the fire path ────────────────────────
+    //
+    // `args` and `program.params` meet HERE and nowhere else: this function is downstream of the
+    // wire (`unpack_expr`'s `:user` arm), of the lowering (`lower_expr` builds `CallUser` from
+    // `lower_args` and `lower_rete_defn` without comparing them), of `exec_call`, and of all four
+    // HOF arms (`foldl` / `reduce` / `mapv` / `filterv`). A wall at the import door would be a
+    // second COPY of an invariant the executor still would not hold. Put the check where the two
+    // quantities meet and there is no other door left to assume.
+    //
+    // ⛔ There is no `else` for a surplus argument, and there must never be one again. The branch
+    // this replaces wrote an argument with NO parameter into the slot whose number happened to
+    // equal its ARGUMENT POSITION, and it was driven: with one param at slot 1 and args [10, 30]
+    // the surplus overwrote the declared parameter and a live fence answered 0 hits instead of 1
+    // — a silent wrong answer from wire input. Making that write "safe" (clamped, guarded,
+    // skipped) would leave an argument with no parameter still MEANING something. It has no
+    // meaning to be given; the call is refused.
+    //
+    // `Program` carries no callee identity — only `frame_len`, `root`, `reads`, `params`, `names`
+    // (slot -> binder) and its body `span` — so `op` names the CALL FORM, which is the most this
+    // struct can honestly say. The counts are the payload.
+    if args.len() != program.params.len() {
+        return Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: CALL_USER_OP.into(),
+                expected: program.params.len(),
+                got: args.len(),
+            },
+        )
+        .into());
+    }
     let max_param = program
         .params
         .iter()
@@ -404,15 +441,12 @@ fn exec_program_on(
                 inner[i] = v.clone();
             }
         }
+        // TOTAL, and by construction rather than by discipline: the lengths are equal (checked
+        // above), and `n` is at least `max_param` = max(params) + 1, so every `idx` indexes
+        // `inner`. Neither a `get` nor a bounds guard can fire here.
         for (i, v) in args.iter().enumerate() {
-            if let Some(&slot) = program.params.get(i) {
-                let idx = slot as usize;
-                if idx < inner.len() {
-                    inner[idx] = Some(v.clone());
-                }
-            } else if i < inner.len() {
-                inner[i] = Some(v.clone());
-            }
+            let idx = program.params[i] as usize;
+            inner[idx] = Some(v.clone());
         }
         exec(&program.root, inner, &program.names, sym, span)
     })
