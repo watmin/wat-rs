@@ -89,3 +89,52 @@ hand-list of helper names — move it and read the screams
 
 That ordering is derivable from the table above, and it is the opposite of "start with the biggest
 file." It is the builder's ruling.
+
+---
+
+## ⛔ AMENDED 2026-09-01 — MOST OF THOSE CYCLES ARE RE-EXPORT ARTIFACTS
+
+The table above counts `crate::runtime::` references and calls each one a back-edge. **That
+over-states the coupling badly**, and the mechanism is one line-range:
+
+```
+src/runtime.rs:759-784   pub use crate::value::{ Environment, SymbolTable, Function,
+                                                 EvalBreak, Value, TrackedValue, … }   22 names
+```
+
+`runtime.rs` **re-exports the whole `value` module**. So a home that writes
+`use crate::runtime::SymbolTable` is not depending on the runtime at all — it is reaching a
+`crate::value::` type through a facade. `src/check.rs:56` does exactly this:
+`use crate::runtime::{Function, FunctionBody, SymbolTable};` — all three live in `src/value/`.
+
+**Re-measured, splitting each home's references into re-exported-`value` versus genuine-`runtime`:**
+
+```
+                 refs   re-exported value types      genuine runtime
+  resolve           6     5   (83%)                    1
+  macros           31    26   (83%)                    5
+  rete            172   128   (74%)                   44
+  edn              66    46   (69%)                   20
+  collection       33    22   (66%)                   11
+  intrinsic       278    27    (9%)                  251   ← the outlier
+```
+
+★★ **Re-pointing an import dissolves a cycle without moving a line of implementation.** `resolve`
+is ONE genuine reference away from acyclic; `macros` is five. That is a mechanical sweep, not a
+decomposition.
+
+★★★ **And `intrinsic`'s 9% is the exception that proves the shape.** Its 251 genuine references are
+the DELEGATE-BACKS — the edge calling implementations that never got a home and are still squatting
+in `runtime.rs`. That is not an import artifact and cannot be swept; it is fixed by giving those
+impls homes (`[[DESIGN-STONE-the-numeric-home]]` is the first).
+
+## So the crate campaign is TWO distinct moves, not one hard one
+
+1. **Re-point re-exported imports** — `crate::runtime::X` → `crate::value::X` wherever `X` is one of
+   the 22 re-exported names. Mechanical, no logic moves, dissolves most of the cycle count.
+2. **Home the squatting impls** — the 69 domain implementations behind 11 homeless edges. Real work,
+   one home at a time, numeric first.
+
+⚠ **And this reframes the ORDER question the NOTE closed on.** It is no longer "which home moves
+first" — move 1 is nearly free and independent of move 2, and it is what makes the *other* homes
+liftable. Whether it goes first is still the builder's ruling; what changed is that it is cheap.
