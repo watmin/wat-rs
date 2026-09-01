@@ -429,6 +429,48 @@ pub(crate) fn compile_user_fold_programs(
         }
         let program = crate::rete::expr_ir::lower_named_rete_fn(head, acc_form.span(), sym)
             .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+
+        // ── THE ACC-FORM ARITY FENCE — compile time, because the author is HERE ──────────────
+        //
+        // ⛔ `expr_ir`'s module law (`expr_ir/mod.rs:14-19`): *"`lower` IS TOTAL OR IT REFUSES.
+        // A `Program` that exists is one `exec` can run — every name resolved, **every arity
+        // checked**, every head known. … A refusal that belongs at compile time and lands at fire
+        // time is a defect in this file, because it moves a diagnostic from the rule the author is
+        // writing to the millionth row of someone's data."*
+        //
+        // The arity is knowable only HERE, and that is the whole reason this check is not in the
+        // lowering. `lower_named_rete_fn` receives `(head, span, sym)` — it can read the row's
+        // DECLARED arity but has no idea how many operands the call site supplies. This caller
+        // does: the acc-form IS the call site, so `items[1..]` is the argument list, counted rather
+        // than assumed to be 1.
+        //
+        // Before this fence, a minted row of the wrong arity lowered cleanly and was caught only by
+        // `exec_program_on`'s contract — correct, but at FIRE time, with the span pointing into
+        // `src/rete/kernel/fire/acc.rs` instead of at the author's `.wat` line. Driven, on
+        // `(:wat::rete::core::PersistentVector/contains? ?v)` as an acc head:
+        //
+        //   before:  ArityMismatch … :location {:file "src/rete/kernel/fire/acc.rs" :line 488}
+        //   after:   ArityMismatch … :location {:file "<the author's file>" :line 7}
+        //
+        // ⛔ **THIS DOES NOT REPLACE D3's WALL, AND MUST NOT.** `exec_program_on` stays exactly as
+        // it is: it is the one place `args` and `params` meet for EVERY caller — the wire, the four
+        // HOF arms, `exec_call` — and this fence guards one of them. A fence in front of a wall is
+        // a better diagnostic for this path; removing the wall would be a second copy of an
+        // invariant the executor still has to hold. Same reasoning the sibling below states from
+        // the other side: a miss at fire time is a bug in the compile-time fence, not a door.
+        let supplied = items.len().saturating_sub(1);
+        if program.params.len() != supplied {
+            return Err(RuntimeError::new(
+                acc_form.span().clone(),
+                RuntimeErrorKind::ArityMismatch {
+                    op: head.into(),
+                    expected: program.params.len(),
+                    got: supplied,
+                },
+            )
+            .into());
+        }
+
         out.insert(*node_id, program);
     }
     Ok(out)

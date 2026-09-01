@@ -55,17 +55,34 @@
 
 use crate::ast::WatAST;
 use crate::freeze::startup_from_source;
-use crate::rete::vocabulary::{ReteOp, RETE_OPS};
+use crate::rete::vocabulary::{ParamType, Ret, ReteOp, RETE_OPS};
 use crate::runtime::{apply_function, Value};
 use std::sync::Arc;
 
 /// WHERE a rete op is written. The ledger's second axis — the thing the keyword case proves is
 /// not derivable from the row.
 ///
-/// Only the two positions with a KNOWN divergence are modelled here. `:then` and the user
-/// accumulator fold are the other two the vocabulary's own module doc names ("every rete verb a
-/// `where` / `:then` / user accum fold may call") and are deliberately not guessed at yet — an
-/// un-calibrated position would add a column of findings nobody can trust.
+/// These two are the positions the LEDGER SWEEPS, and they are together here because they share
+/// one `Cell` shape: the same `expr` text with `{f}` rendered as a field reference inline and as a
+/// bound variable in a fence, which is exactly what makes their two columns comparable row for row.
+///
+/// ⚠ **THE USER ACCUMULATOR FOLD IS MODELLED TOO NOW — but NOT as a variant of this enum.** This
+/// paragraph used to say that position was "deliberately not guessed at yet". That stopped being
+/// true on 2026-08-31, when class A3 was driven: `:wat::rete::core::PersistentVector/length` used
+/// DIRECTLY as an acc-form head was refused with `unknown rete-defn` — naming a row of the very
+/// table whose `primitive?` predicate had just admitted it — while the SAME op in the SAME
+/// position behind a one-line user `(:wat::rete::core::defn …)` fired. The acc position is now
+/// driven by [`every_acc_head_shaped_row_runs_as_an_acc_head`] at the bottom of this file.
+///
+/// It lives there rather than as a third variant because its program is **not a `Cell`**: it needs
+/// a `:from` clause, its operand is the accumulated COLLECTION rather than a field, and its
+/// evidence is a differential against the wrapped control rather than a hit/miss discrimination.
+/// Stretching `Cell` over it would have made `synth` render a shape it cannot hold — one axis, two
+/// program shapes, said out loud instead of one shape forced onto a position it does not fit.
+///
+/// `:then` — the fourth position the vocabulary's module doc names ("every rete verb a `where` /
+/// `:then` / user accum fold may call") — remains deliberately unmodelled, with its own separate
+/// defect. An un-calibrated position would add a column of findings nobody can trust.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CallSite {
     /// Inside a fact pattern, beside its bindings: `(:R (?k <- :k) (OP :v 10))`.
@@ -1913,5 +1930,230 @@ fn a_mistyped_field_still_names_the_field_and_only_once() {
     assert!(
         msg.contains("1 rete rule validation error"),
         "exactly ONE error — a second, mismatch-flavoured one would teach the wrong fix; got:\n{msg}"
+    );
+}
+
+// ─── THE THIRD POSITION: THE USER ACCUMULATOR FOLD (class A3) ──────────────────────────────────
+//
+// ⛔ **THE CLASS THIS GATES: a site that ADMITS by one registry and DISPATCHES by another.**
+//
+// The acc-form fence (`wat/rete/compile.wat`'s `primitive?`) admits an acc-form head because that
+// head has a `RETE_OPS` row. Until 2026-08-31 the executor then resolved it through
+// `expr_ir::lower_named_rete_fn`, whose ONLY lookup was `sym.get(head)` — the USER function table
+// — so the two halves of one contract consulted two different tables. Driven at HEAD `e38a5de20`:
+//
+//     experiri-acc-head.wat     ->  MalformedForm "unknown rete-defn
+//                                   :wat::rete::core::PersistentVector/length"
+//     experiri-acc-wrapped.wat  ->  "fired"        (same op, same position, wrapped in a user defn)
+//
+// `holon_rete_ops_have_opexec` (`expr_ir/eval.rs`) gates one such pair and its own doc says **"DO
+// NOT WIDEN IT HERE"**, pointing at this file as strictly better because this file DRIVES every
+// row and requires a verdict rather than reading a table. So the class gate is here.
+
+/// The rows whose declared signature fits the acc-form's `(HEAD ?v)` convention.
+///
+/// ⛔ **COMPUTED FROM `RETE_OPS`, NEVER NAMED.** A gate that hard-coded
+/// `:wat::rete::core::PersistentVector/length` would prove that ONE row works and say nothing
+/// about the class — and the class is the whole finding, since what was broken is "a site that
+/// admits by one registry and dispatches by another", not "this row is broken". Naming the row
+/// would also make the sweep silently narrower than the surface the moment a second row of this
+/// shape is minted: it would join the acc position for real users and never be driven here.
+///
+/// **The shape is derived from what the form DOES, not from what today's table happens to hold.**
+/// An accumulator gathers the `?v` binding of every fact matching its `:from` clause into a
+/// `PersistentVector` and hands that ONE collection to the acc-form head. So a row fits iff it
+/// declares exactly one parameter and that parameter is a `PersistentVector<T>`. Everything else
+/// in the table takes a different arity or a different container, and the acc-form supplies
+/// neither — a row of arity != 1 is refused downstream by `exec_program_on`'s arity contract with
+/// both counts named, which is a different (and already-walled) question from this one.
+///
+/// Today this returns exactly one row. That is not a weakness of the computation; it is a
+/// measurement of the table, and it is asserted non-empty below because a sweep over an empty set
+/// passes by reaching nothing.
+fn acc_head_shaped_rows() -> Vec<&'static ReteOp> {
+    RETE_OPS
+        .iter()
+        .filter(|row| matches!(row.params, [ParamType::PersistentVectorOf(_)]))
+        .collect()
+}
+
+/// The wat type a `ParamType` is WRITTEN as inside a generated probe, with every row-level type
+/// variable instantiated at `i64` — the element type the generated `:probe::In` fact supplies.
+///
+/// `None` means this probe cannot state the type, which is a loud failure and never a quiet skip:
+/// a row that fits the acc-head shape but whose result the probe cannot declare is a row this gate
+/// must report rather than drop, because dropping it is how a position goes unmeasured.
+fn probe_type_of(p: &ParamType) -> Option<&'static str> {
+    Some(match p {
+        ParamType::I64 => ":wat::core::i64",
+        ParamType::Bool => ":wat::core::bool",
+        ParamType::Keyword => ":wat::core::keyword",
+        ParamType::String => ":wat::core::String",
+        ParamType::F64 => ":wat::core::f64",
+        // The row's own type variable, instantiated at the probe's element type.
+        ParamType::Var(_) => ":wat::core::i64",
+        _ => return None,
+    })
+}
+
+/// The rete-surface equality row that compares two values of this type — the comparator the
+/// differential's `where` clause needs.
+///
+/// Returned as a NAME and then checked against `rete_op_index` by the caller, so this table cannot
+/// rot into a spelling `RETE_OPS` does not carry: if an equality row is ever renamed, the gate goes
+/// red naming the row it could not find, instead of synthesizing a program that refuses for a
+/// reason belonging to the template.
+fn probe_eq_for(p: &ParamType) -> Option<&'static str> {
+    Some(match p {
+        ParamType::I64 | ParamType::Var(_) => ":wat::rete::core::i64::=",
+        ParamType::Bool => ":wat::rete::core::bool::=",
+        ParamType::Keyword => ":wat::rete::core::keyword::=",
+        ParamType::String => ":wat::rete::core::string::=",
+        ParamType::F64 => ":wat::rete::core::f64::=",
+        _ => return None,
+    })
+}
+
+/// Build the acc-position probe for one row: the head used DIRECTLY beside the SAME head wrapped
+/// in a user `defn`, in one rule, joined on equality.
+///
+/// ⛔ **THE DIFFERENTIAL IS THE POINT, AND A BARE "IT FIRED" WOULD NOT BE.** The lowering this
+/// gates synthesizes a `Program` whose root is `Expr::Call { op }` where `op` is the row's INDEX
+/// into `RETE_OPS`. A liveness check — "the rule compiled and produced a fact" — is green for
+/// every index that names *some* runnable row, so an off-by-one there computes a different op's
+/// answer and still fires. The wrapped control pins the VALUE: `:probe::wrapped` reaches the same
+/// op through the path that already worked (`sym.get`, the user function table), so `?a` and `?b`
+/// disagree the instant the direct head resolves to anything else, the `where` admits nothing, and
+/// the cell lands as `MatchedNothing` rather than as a green.
+///
+/// Two facts, not one, so the accumulated collection has a length the identity function could not
+/// have produced by accident.
+fn synth_acc(row: &ReteOp) -> Result<String, String> {
+    let Ret::Is(ret) = row.ret else {
+        return Err(format!(
+            "{} fits the acc-head shape but states no return type (`Ret::NoScheme`), so this probe \
+             cannot declare the `:probe::Out` field that receives the accumulator's result",
+            row.rete_name
+        ));
+    };
+    let ret_ty = probe_type_of(&ret).ok_or_else(|| {
+        format!(
+            "{} fits the acc-head shape but this probe cannot WRITE its return type — extend \
+             `probe_type_of`; do not drop the row",
+            row.rete_name
+        )
+    })?;
+    let eq = probe_eq_for(&ret).ok_or_else(|| {
+        format!(
+            "{} fits the acc-head shape but this probe has no equality row for its return type, so \
+             the direct head and the wrapped control cannot be compared — extend `probe_eq_for`; \
+             do not weaken the cell to a liveness check",
+            row.rete_name
+        )
+    })?;
+    if crate::rete::vocabulary::rete_op_index(eq).is_none() {
+        return Err(format!(
+            "the comparator {eq} chosen for {} is not a RETE_OPS row — `probe_eq_for` has drifted \
+             from the table and every verdict built on it would be about the template",
+            row.rete_name
+        ));
+    }
+    let head = row.rete_name;
+    Ok(format!(
+        r#"(:wat::core::defrecord :probe::In  [v <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [a <- {ret_ty}  b <- {ret_ty}])
+
+(:wat::rete::core::defn :probe::wrapped [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> {ret_ty}
+  ({head} xs))
+
+(:wat::rete::defrule :probe::acc
+  :when  [(?a <- ({head} ?v) :from (:probe::In (?v <- :v)))
+          (?b <- (:probe::wrapped ?w) :from (:probe::In (?w <- :v)))
+          (:wat::rete::where ({eq} ?a ?b))]
+  :then  [(:probe::Out :a ?a :b ?b)])
+
+(:wat::rete::defquery :probe::q
+  :params []
+  :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q))) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None)))
+     session (:wat::core::match (:wat::rete::insert session (:probe::In :v 1)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+     session (:wat::core::match (:wat::rete::insert session (:probe::In :v 2)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None)))
+     fired   (:wat::core::match (:wat::rete::fire-rules session) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#
+    ))
+}
+
+/// ★★ EVERY ROW THE ACC-FORM FENCE ADMITS MUST BE A ROW THE EXECUTOR CAN RUN — class A3, closed.
+///
+/// One drive per eligible row, in the acc-form head position, against the wrapped control. RED
+/// before `lower_named_rete_fn` gained its `rete_op_index` ladder (the direct head is REFUSED,
+/// naming the row), green after.
+///
+/// ⛔ **WHAT THIS FAILS ON — asked and answered by reverting the ladder, not by reasoning.**
+/// With the ladder removed the direct head refuses with `unknown rete-defn <row>`, `attribute`
+/// files that as `Refused` because the diagnostic names the row under test, and the assertion
+/// below reports it as a row the fence admits and the executor cannot run. It also fails on the
+/// two quieter shapes: a row that compiles but disagrees with the wrapped control lands as
+/// `MatchedNothing` (the `where` admits neither fact), and an empty eligible set is refused
+/// outright rather than passing by reaching nothing.
+#[test]
+fn every_acc_head_shaped_row_runs_as_an_acc_head() {
+    let rows = acc_head_shaped_rows();
+
+    // NON-VACUITY, and it is not a formality. This gate's whole risk is passing because it drove
+    // nothing: if the predicate ever stops matching — a `ParamType` variant renamed, the acc-form's
+    // container changed — every drive below disappears and every assertion holds trivially.
+    assert!(
+        !rows.is_empty(),
+        "NO `RETE_OPS` row fits the acc-form's `(HEAD ?v)` shape (exactly one parameter, a \
+         `PersistentVector<T>`) — so this gate would pass having driven NOTHING. Either the \
+         accumulator's calling convention moved or `ParamType::PersistentVectorOf` was renamed; \
+         fix the predicate, never delete the assertion. Rows in the table: {}",
+        RETE_OPS.len()
+    );
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut matrix: Vec<String> = Vec::new();
+
+    for row in &rows {
+        let src = match synth_acc(row) {
+            Ok(s) => s,
+            Err(why) => {
+                matrix.push(format!("{:<46} {:>17}", row.rete_name, "NOT-SYNTHESIZABLE"));
+                failures.push(format!("  {why}"));
+                continue;
+            }
+        };
+        let verdict = drive(&src, row.rete_name);
+        match &verdict {
+            Verdict::Fires => matrix.push(format!("{:<46} {:>17}", row.rete_name, "FIRES")),
+            other => {
+                matrix.push(format!("{:<46} {:>17}", row.rete_name, "NOT-FIRING"));
+                failures.push(format!(
+                    "  {} @ acc-form-head: {other:?}\n\
+                     The acc-form fence admits this row because it HAS a `RETE_OPS` row, so the \
+                     executor must be able to run it there. A `Refused` naming the row is the A3 \
+                     split reopened — the fence admitting by one registry while \
+                     `lower_named_rete_fn` dispatches against another. A `MatchedNothing` is worse: \
+                     the direct head resolved to something the wrapped control disagrees with.\n\
+                     ─── the program driven ───\n{src}",
+                    row.rete_name
+                ));
+            }
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "A ROW THE ACC-FORM FENCE ADMITS IS A ROW THE EXECUTOR CANNOT RUN.\n\
+         ─── acc-form-head position, {} eligible row(s) computed from RETE_OPS ───\n{}\n\n{}",
+        rows.len(),
+        matrix.join("\n"),
+        failures.join("\n\n")
     );
 }

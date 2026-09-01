@@ -944,6 +944,48 @@ pub(crate) fn lower_named_rete_fn(
     span: &Span,
     sym: &SymbolTable,
 ) -> Result<Arc<Program>, LowerError> {
+    // ── THE MINTED-ROW LADDER — admitted by `RETE_OPS`, so resolvable by `RETE_OPS` ──────────
+    //
+    // ⛔ **THE FENCE AND THIS LOWERING MUST SHARE ONE HEAD-SPACE.** The acc-form fence
+    // (`wat/rete/compile.wat`'s `primitive?`) admits a head precisely because it HAS a `RETE_OPS`
+    // row. Until 2026-08-31 the only lookup below was `sym.get(head)` — the USER function table —
+    // so a head the fence admitted by one registry was dispatched against a different one, and
+    // the refusal read `unknown rete-defn :wat::rete::core::PersistentVector/length` about a row
+    // of the very table that admitted it. Driven both ways: that op used directly as an acc-form
+    // head was refused, while the SAME op in the SAME position behind a one-line user
+    // `(:wat::rete::core::defn :probe::len [xs] -> i64 (PersistentVector/length xs))` fired. The
+    // capability was real and the operand was good; only naming the row directly failed.
+    //
+    // The cure is the ladder the sibling `lower_list` has had all along (see its
+    // `rete_op_index` branch): a minted row lowers to a synthesized `Program` whose root is the
+    // `Expr::Call` that row's opcode names, over one slot per declared param. Tightening the
+    // fence instead was REJECTED on that driven evidence — it would delete a working capability
+    // to make two registries agree, and would leave the split standing for every future row.
+    //
+    // ⛔ **NO ARITY FILTER HERE, DELIBERATELY.** A row whose declared arity is not the one the
+    // acc-form supplies (the form passes exactly one argument, `(head ?v)`) is refused downstream
+    // by `exec_program_on`'s arity contract with BOTH counts named — strictly more informative
+    // than the `unknown rete-defn` this replaces. A second refusal here would be a duplicate wall
+    // that can only drift from the one that already holds.
+    if let Some(op) = crate::rete::vocabulary::rete_op_index(head) {
+        let n = RETE_OPS[op].params.len();
+        return Ok(Arc::new(Program {
+            frame_len: n as u16,
+            root: Expr::Call {
+                op: op as u16,
+                args: (0..n).map(|k| Expr::Slot(k as u16)).collect(),
+            },
+            reads: Arc::from([]),
+            params: (0..n).map(|k| k as u16).collect::<Vec<_>>().into_boxed_slice(),
+            // A synthesized frame has NO source-level binder for any slot, and `None` says exactly
+            // that: `Program::names`' own doc states a missing entry renders as `slot N`. Inventing
+            // a plausible name here (`arg0`, or the row's param TYPE) would put a string a user
+            // never wrote into a diagnostic they are meant to believe.
+            names: vec![None; n].into_boxed_slice(),
+            span: span.clone(),
+        }));
+    }
+
     let func = match sym.get(head) {
         Some(f) => f,
         None => {
