@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (ninth — NINE STRIKES; CLASS B IS CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (tenth — TEN STRIKES; CLASS B CLOSED, A6 CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 7319c1ea4..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 7319c1ea4..HEAD        # what they touched
+git log --oneline bb0256e38..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat bb0256e38..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -89,6 +89,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | D1 | `2733b9bd9` | a bare keyword types as `enum` only for a UNIT variant that EXISTS |
 | **oracle** | `16f504e14` | **an accumulate result is SUPERSEDED, not extended** |
 | **B1** | `7319c1ea4` | **a `with-` form's scope is closed by a `Drop`, not by a release call** |
+| **A6** | `bb0256e38` | **wall 5 — the import door bounds its own recursion** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -158,12 +159,38 @@ arm would have falsified my own row before I ran it. Two real arms went undriven
 arithmetic. Pin a floor-bound and a direction, never an equality. Full reasoning in
 `strike-lease-unwind/SCORE.md` § "Where MY brief was thin".
 
-**THE NEXT WORK — A6**, the last unbounded recursion: `unpack_expr` / `check_expr_slots`
-(`export.rs:746,296,275`) recurse over wire-chosen nesting with no depth bound → SIGSEGV, no wat
-error, no span, reachable from a wat program building nesting iteratively into
-`(:wat::rete::import …)`. Same Class A root as A1/A2/A4 — an invariant proven at one door and
-assumed at the others. Behind it: **D3** (unchecked `CallUser` arity), **A3/A5/A7**, and **D1's
-residual**.
+✅ **A6 IS CLOSED (`bb0256e38`), and BOTH the severity and the scope on the work list were wrong.**
+It is not a SIGSEGV but a stack-guard **ABORT** — no `catch_unwind` reaches it. And the defect is
+not "deep input crashes": the **same** 20,000-deep Export is **ACCEPTED on a 256 MiB thread and
+aborts on a 2 MiB one**, both driven. Import had **no depth criterion at all** — acceptance was a
+property of the importing THREAD, so two processes running identical code disagreed about whether
+the same bytes were a valid network, and the disagreement was settled by an abort.
+
+★ **THE FINDING NAMED ONE TOWER AND THERE WERE THREE.** My brief listed four sites as *entries
+into* `unpack_prog`. Two of them live in functions that are **themselves self-recursive** —
+`unpack_driver` and `unpack_cond_op` — which I never checked. Wall 5 is therefore ONE budget
+(`MAX_IMPORT_DEPTH = 300`) threaded through **five** mutually recursive unpackers. The mutation,
+re-driven here: with the budget in `unpack_expr` only, the `:and` probe goes **GREEN** and the
+other three go RED. The obvious fix passes the obvious probe and leaves three towers open.
+
+⛔ **AND THE REASON I WALKED PAST `unpack_driver` IS THE LESSON.** Its doc comment read, verbatim:
+*"a driver tree of any depth round-trips **without a depth parameter** — the wire's nesting IS the
+recursion."* Every word true. It is also the exact statement of the vulnerability. **An accurate
+comment in the wrong register is a defect's alibi** — nothing drifts, so nothing checks it, and it
+reads as settled. Promoted to memory. When a comment explains HOW a mechanism works, ask separately
+whether it is RIGHT; treat *"without needing Y"* as a missing guard phrased as economy.
+
+⚠ **The bound was MEASURED and the measurement is itself a finding:** the corpus max nesting depth
+is **3** (423 tests; every packed program bottoms out at `unpack_prog` → `unpack_expr` → one
+operand). So the corpus could never have constrained this number at any bound above 3 — the only
+real constraint is the 3,000–5,000 abort window. **The export/import corpus is broad in VARIANTS
+and flat in DEPTH; that coverage gap stands open.**
+
+**THE NEXT WORK — D3**, unchecked `CallUser` arity: a surplus argument written into an arbitrary
+slot. Same Class A root — an invariant proven at `compile-all` and assumed at the wire. Behind it:
+**A3** (the acc-form head admitted by `RETE_OPS` and dispatched through `sym.get`, with a failing
+harness already banked in `harness-experiri/` — read its ⛔ CORRECTION first: it is reconnaissance,
+not a gate), **A5**, **A7**, and **D1's residual**.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
