@@ -8867,7 +8867,7 @@ fn validate_def_position_with_wrapper(
 /// 4. On success, the form's type is `T` — the `Ok`-inner of the
 ///    argument's `Result`.
 ///
-/// Runtime behavior (see `crate::runtime::eval_try`):
+/// Runtime behavior (see `crate::result::eval_try`):
 /// - `Ok(v)` → evaluates to `v`.
 /// - `Err(e)` → raises `EvalSignal::TryPropagate(e)`; the innermost
 ///   `apply_function` packages it as the function's own `Err(e)`
@@ -8984,7 +8984,7 @@ fn infer_try(
 /// 4. On success, the form's type is `T` — the Some-inner of the
 ///    argument's Option.
 ///
-/// Runtime behavior (see `crate::runtime::eval_option_try`):
+/// Runtime behavior (see `crate::option::eval_option_try`):
 /// - `Some(v)` → evaluates to `v`.
 /// - `:None` → raises `EvalSignal::OptionPropagate`; the innermost
 ///   `apply_function` packages it as the function's own

@@ -1426,7 +1426,7 @@ mod tests {
 
         for entry in super::registry().all_entries() {
             let declared_effectful = matches!(entry.purity, wat_doc::Purity::Effectful);
-            let prefix_guess = crate::runtime::effectful_by_prefix(entry.name);
+            let prefix_guess = crate::rete::purity::effectful_by_prefix(entry.name);
 
             if declared_effectful != prefix_guess {
                 census.push((entry.name, entry.purity, prefix_guess));

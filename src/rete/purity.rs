@@ -59,6 +59,17 @@
 //! **`compile-condition`
 //! consults `total?`** as the third conjunct of the four-axis fence (pure ∧ det ∧ total ∧ rete).
 //! Partial core ops enter rete only as `OpClass::Fallback` + a mandatory `:undefined`.
+//!
+//! ## `effectful_by_prefix` / `is_effectful_op` — arc 109 Stone the-last-two-map-items
+//!
+//! Moved verbatim out of `src/runtime.rs`'s megafile
+//! (`docs/arc/2026/04/109-kill-std/DESIGN-STONE-the-last-two-map-items.md`), item 7 of the map:
+//! a two-tier classifier — `is_effectful_op` consults `crate::intrinsic::registry()` first and
+//! falls back to `effectful_by_prefix` — that moves as a pair (splitting them would put one tier
+//! of a two-tier classifier in each of two homes). This file already calls
+//! `crate::intrinsic::registry()` (the `intrinsic_meta`/`constructor_meta` machinery above), so
+//! the move adds no new dependency; `Axis::Pure`'s leaf decision, just below, is the pair's own
+//! first caller in this file.
 
 use wat_macros::wat_intrinsic;
 
@@ -991,7 +1002,7 @@ fn head_ok(
     match axis {
         // Pure: effectful namespaces are an explicit deny; otherwise the metadata must declare pure.
         Axis::Pure => {
-            if crate::runtime::is_effectful_op(head) {
+            if is_effectful_op(head) {
                 return Err(AxisViolation::at(at.clone(), head, axis));
             }
             if intrinsic_meta(head).is_some_and(|m| m.pure) {
@@ -2018,6 +2029,86 @@ pub(crate) fn eval_axis_violation(
         }
     };
     Ok(out)
+}
+
+// ─── The effectful-op classifier (arc 109 Stone the-last-two-map-items) ─────────
+
+/// Prefix-based effectful guess — the pre-arc-255 classifier, kept as a
+/// named fallback for verbs not yet carved into the intrinsic registry.
+/// Anything under `:wat::kernel::*`, `:wat::io::*`, `:wat::holon::*`, or the
+/// eval/load family is rejected in step mode — the consumer falls back to
+/// `:wat::eval-ast!` for those sub-forms.
+///
+/// This is a GUESS about a namespace, not a fact about a body — a
+/// registered row's declared purity is a stronger signal (`is_effectful_op`
+/// consults it first, and every `:wat::holon::*` verb is registered as of
+/// Stone HOME-8, so this prefix never actually fires for one of them today).
+/// Kept `pub(crate)` for `src/intrinsic/mod.rs`'s test module (arc 255.1c
+/// site 3's census).
+///
+/// `:wat::holon::*` joined this list at Stone HOME-8: several verbs
+/// (`Hologram/put`/`remove`, `OnlineSubspace/new`/`update`,
+/// `Reckoner/new-discrete`/`new-continuous`/`observe`/`resolve`/`curve`,
+/// `EngramLibrary/new`/`add`/`match-vec`, `Engram/residual`, and the six
+/// `eval-*-coincident?` forms) are honestly `@Purity Effectful` — they mutate
+/// a native `ThreadOwnedCell`-backed handle via `with_mut`, or (the
+/// `eval-*-coincident?` family) evaluate arbitrary embedded wat source.
+/// `declared_purity_vs_effectful_by_prefix_census` asserts `Effectful ⇒
+/// effectful_by_prefix` for every registered row — leaving `:wat::holon::`
+/// off this list would have left that assertion failing not because the
+/// verbs are mis-declared, but because the fallback oracle hadn't caught up
+/// to a namespace that used to have zero registry presence. Unlike
+/// `string.rs`'s `declare-acronyms` (Stone HOME-4), which had the honest
+/// escape hatch of a genuinely side-effect-free body at eval time, these
+/// verbs do not: reclassifying them `Pure` would be the dishonest fix.
+///
+/// `:wat::stream::` joined this list at arc 255 Stone P6-c-W2, for the identical reason:
+/// `:wat::stream::next` (`src/intrinsic/stream.rs`) is honestly `@Purity Effectful` — forcing
+/// a thunk calls `apply_function` on a captured wat closure (or runs a native closure for the
+/// lazy `map`/`filter`/`take`/`drop` family), which can run arbitrary code. No escape hatch:
+/// `next`'s body genuinely can have a side effect, so `Pure` would be the dishonest fix, the
+/// same non-choice `:wat::holon::`'s effectful members faced. `:wat::stream::empty`/`cons`
+/// (same wave, same file) stay `Pure` and simply add two more entries to this census's
+/// tolerated Pure-declared-under-an-effectful-prefix inventory — the same shape
+/// `:wat::config::*` (four rows) already established below.
+///
+/// `:wat::rete::` joined this list at arc 255 Stone P6-c-W5b, for six verbs that mutate a
+/// rete session: `arm-session`/`release-session` (`src/rete/kernel/arm.rs`) take/drop a lease
+/// on the thread-local `ARM_TABLE` intern cache; `export`/`import` (`src/rete/export.rs`)
+/// touch the same table on a build-and-intern MISS; `eval-insert`/`eval-test`
+/// (`src/rete/eval_insert.rs`, `src/rete/eval_test.rs`) can run a caller-supplied expression
+/// via `eval_inner`/`apply_function` — arbitrary code this verb has no way to bound, the same
+/// shape `:wat::stream::next` is effectful for. All six are honestly `@Purity Effectful`; no
+/// escape hatch, `Pure` would be the dishonest fix. ⚠ Unlike `:wat::stream::`'s two tolerated
+/// Pure rows, this widening also puts W5a's NINE already-homed PURE `:wat::rete::` verbs
+/// (`pure?`/`deterministic?`/`total?`/`primitive?`/`vocabulary-admitted?`/
+/// `cond-has-deferred-constraint?`/`alpha-match`/`alpha-match-local`/`alpha-match-under`)
+/// under this prefix — legal (the census's surviving assertion is one-directional, `Effectful
+/// ⇒ effectful_by_prefix`; `prefix ⇒ Effectful` is a counted census, not a rule), but it is
+/// the reason `declared_purity_vs_effectful_by_prefix_census`'s disagreement count rises by
+/// about nine at this stone: those nine now disagree (declared Pure, prefix says effectful)
+/// the same way `:wat::config::`'s four Pure rows already did.
+pub(crate) fn effectful_by_prefix(head: &str) -> bool {
+    head.starts_with(":wat::kernel::")
+        || head.starts_with(":wat::io::")
+        || head.starts_with(":wat::holon::")
+        || head.starts_with(":wat::eval-")
+        || head.starts_with(":wat::load")
+        || head.starts_with(":wat::config::")
+        || head.starts_with(":wat::stream::")
+        || head.starts_with(":wat::rete::")
+}
+
+/// Effectful-op classifier — the registry is the authority (arc 255.1c). A
+/// registered row DECLARED its purity from its body; the prefix cannot see
+/// inside one. `Pure` and `Preserving` both mean not-effectful, so
+/// `matches!(.., Effectful)` is the whole test. Falls back to the prefix
+/// guess only for verbs not yet carved into the registry.
+pub(crate) fn is_effectful_op(head: &str) -> bool {
+    if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
+        return matches!(e.purity, wat_doc::Purity::Effectful);
+    }
+    effectful_by_prefix(head)
 }
 
 // ─── The purity-COMPLETENESS gate (arc 278, 2026-08-01) ─────────────────────────

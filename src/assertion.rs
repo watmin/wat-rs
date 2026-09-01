@@ -29,12 +29,29 @@
 //! `Guest::run_assert`, say), it can wrap its invocation in its own
 //! `catch_unwind` + the same downcast this crate uses — the machinery
 //! is public for that reason.
+//!
+//! ## `expect_panic` / `extract_panics` — arc 109 Stone the-last-two-map-items
+//!
+//! Moved verbatim out of `src/runtime.rs`'s megafile
+//! (`docs/arc/2026/04/109-kill-std/DESIGN-STONE-the-last-two-map-items.md`).
+//! Both are called only by `eval_option_expect` (`src/option/mod.rs`) and
+//! `eval_result_expect` (`src/result/mod.rs`) — the shared panic-and-build
+//! machinery behind `option::expect` / `result::expect`. Their home is
+//! neither `option` nor `result`: `expect_panic` builds, and `extract_panics`
+//! reads toward, an [`AssertionPayload`] — the type THIS module owns and
+//! already builds from an identical shape in
+//! [`eval_kernel_assertion_failed`] (evaluate, build payload, panic). Both
+//! promoted from private to `pub(crate)` so the two new homes can call in;
+//! bodies otherwise unchanged.
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::value::TrackedValue;
-use crate::value::{FrameInfo, snapshot_call_stack};
+use crate::value::{EvalBreak, FrameInfo, ValueSnapshot, snapshot_call_stack};
 use crate::span::Span;
+// `eval_inner` is genuinely defined in `crate::runtime` (not a facade re-export of a
+// `crate::value` type — see STOP-5); it is the evaluator's own entry point.
+use crate::runtime::eval_inner;
 
 /// Structured payload panic'd by [`eval_kernel_assertion_failed`] and
 /// downcast by the sandbox's catch_unwind handling.
@@ -189,4 +206,74 @@ fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, Runtime
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
         })),
     }
+}
+
+/// Arc 113 slice 2 — pull the `Vec<*DiedError>` chain out of a
+/// `Value::Result`'s Err arm so `result::expect` can carry it
+/// through the panic. The Err arg's runtime shape post-arc-113
+/// slice 1 is a `Value::Vec` of `Value::Aggregate(Struct)` (each one a
+/// `:wat::kernel::ThreadDiedError` or `:wat::kernel::ProcessDiedError`).
+///
+/// Returns `Some(chain)` when the Err arg is a Vec (the post-slice-1
+/// shape); `None` otherwise (defensive — pre-slice-1 shapes or
+/// user-code that put a non-Vec in the Err arm of a custom
+/// `(Result :- [T E])` they own). Falling back to `None` keeps the
+/// chain machinery additive: callers without chains see no
+/// behavior change.
+pub(crate) fn extract_panics(err: &Value) -> Option<Vec<Value>> {
+    match err {
+        Value::Vec(items) => Some((**items).clone()),
+        _ => None,
+    }
+}
+
+/// Shared panic helper for `option::expect` / `result::expect`. Evals
+/// the msg expression (refusing non-String payloads), captures the
+/// call stack, builds an `AssertionPayload` with the supplied span as
+/// `location`, then `panic_any`s. Never returns.
+///
+/// The `upstream_chain` arg is `Some(chain)` only when called from
+/// `result::expect` on an Err arm whose payload was a `Vec<*DiedError>`
+/// (arc 113 slice 2). The chain rides through the panic so the
+/// surrounding spawn driver can conj this thread's death onto the
+/// front when synthesizing the join outcome — the cascade
+/// accumulation. `option::expect` always passes `None` (Option has no
+/// upstream).
+pub(crate) fn expect_panic(
+    op: &str,
+    msg_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    location: crate::span::Span,
+    upstream_chain: Option<Vec<Value>>,
+) -> Result<Value, EvalBreak> {
+    let msg = match eval_inner(msg_ast, env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::new(
+                msg_ast.span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: op.into(),
+                    expected: "String",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into());
+        }
+    };
+    let frames = snapshot_call_stack();
+    let payload = crate::assertion::AssertionPayload {
+        message: msg,
+        actual: None,
+        expected: None,
+        location: Some(location),
+        frames,
+        upstream_chain,
+        // Arc 138 F-NAMES-1d — capture name on the panicking thread.
+        thread_name: std::thread::current().name().map(String::from),
+        // Arc 278 — `expect` panics carry a bare message; the death-carrier
+        // synthesizes a Fault. Any upstream cause rides `upstream_chain`.
+        raised_error: None,
+    };
+    std::panic::panic_any(payload);
 }

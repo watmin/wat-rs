@@ -1718,7 +1718,8 @@ fn eval_list(
     // `dispatch_keyword_head` below already checks the registry FIRST
     // (`crate::intrinsic::registry().lookup(head)`) before falling through to its own
     // match — so a `WatAST::Keyword` head naming any of the three now reaches the SAME
-    // `eval_some_ctor`/`eval_ok_ctor`/`eval_err_ctor` bodies (unchanged, still below)
+    // `eval_some_ctor`/`eval_ok_ctor`/`eval_err_ctor` bodies (unchanged; arc 109 Stone
+    // the-last-two-map-items moved them to `src/option/mod.rs`/`src/result/mod.rs`)
     // through the registry instead of through this now-redundant guard.
     //
     // STONE: the bare-symbol shorthand dies — the bare-Symbol constructor exceptions
@@ -6806,401 +6807,36 @@ fn eval_positional_accessor(
 // different calling convention, not a renaming of this fn (see that module's
 // header). `require_vec` (used here) has other live callers and is untouched.
 
-/// `(Some <expr>)` — tagged constructor of the built-in `(:Option :- [T])`
-/// enum (058-030). Reserved bare identifier; users cannot shadow it.
-/// Arity 1. Evaluates `expr` and wraps it in `Value::Option(Some(_))`.
-///
-/// The dual is `:None` (keyword literal, nullary) handled directly in
-/// [`eval`]. Together they are the only way to produce `Value::Option`;
-/// callers consume via `(:wat::core::match ...)`.
-///
-/// Arc 255 Stone A-2-ii-b-1 — `pub(crate)` so `src/intrinsic/option.rs`'s thin
-/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
-pub(crate) fn eval_some_ctor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: "Some".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::Option(Arc::new(Some(v))))
-}
+// Arc 109 Stone — the last two map items — `eval_some_ctor` moved to
+// `src/option/mod.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `(Ok <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
-/// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
-/// in `Value::Result(Ok(_))`.
-///
-/// Arc 255 Stone A-2-ii-b-1 — `pub(crate)` so `src/intrinsic/result.rs`'s thin
-/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
-pub(crate) fn eval_ok_ctor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: "Ok".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::Result(Arc::new(Ok(v))))
-}
+// Arc 109 Stone — the last two map items — `eval_ok_ctor` moved to
+// `src/result/mod.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `(Err <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
-/// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
-/// in `Value::Result(Err(_))`.
-///
-/// Arc 255 Stone A-2-ii-b-1 — `pub(crate)` so `src/intrinsic/result.rs`'s thin
-/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
-pub(crate) fn eval_err_ctor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: "Err".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::Result(Arc::new(Err(v))))
-}
+// Arc 109 Stone — the last two map items — `eval_err_ctor` moved to
+// `src/result/mod.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `(:wat::core::Result/try <result-expr>)` — unwrap a `(:Result :- [T E])`
-/// to its inner `T`, or short-circuit the enclosing Result-returning
-/// function with `Err(e)`.
-///
-/// Pre-slice-1j spelling: `:wat::core::try`. The dispatcher passes the
-/// user-typed head string in `op` so error messages reflect the form
-/// the user wrote.
-///
-/// Semantics on the inner Result:
-/// - `(Ok v)` — evaluates to `v`; execution continues.
-/// - `(Err e)` — raises [`EvalSignal::TryPropagate(e)`]. The walker
-///   unwinds through `let` / `match` / `if` / any nested form until it
-///   reaches the innermost enclosing [`apply_function`], which catches
-///   the signal and packages it as the function's own `Err(e)` return
-///   value.
-///
-/// The type checker guarantees the enclosing function is Result-typed
-/// and that the propagated `E` matches. This dispatcher assumes both
-/// and does not re-verify at runtime.
-///
-/// Type error (not a checker guarantee — the runtime still guards):
-/// arg is not a `Value::Result`. Caller surfaces `TypeMismatch`.
-///
-/// Arc 255 Stone — the option/result siblings — `pub(crate)` so
-/// `src/intrinsic/result.rs`'s thin `#[wat_intrinsic]` delegate (`eval_result_try`) can call
-/// straight into this unchanged body.
-pub(crate) fn eval_try(
-    op: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
-            Ok(std::result::Result::Ok(ok)) => Ok(ok),
-            Ok(std::result::Result::Err(e)) => {
-                Err(EvalBreak::Signal(EvalSignal::TryPropagate(Box::new(e))))
-            }
-            Err(shared) => match &*shared {
-                std::result::Result::Ok(ok) => Ok(ok.clone()),
-                std::result::Result::Err(e) => Err(EvalBreak::Signal(EvalSignal::TryPropagate(
-                    Box::new(e.clone()),
-                ))),
-            },
-        },
-        other => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "(Result :- [T E])",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone — the last two map items — `eval_try` moved to
+// `src/result/mod.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `(:wat::core::Option/try <option-expr>)` — Arc 109 slice 1j. The
-/// Option-side mirror of `Result/try`: unwrap a `(:Option :- [T])` to its
-/// inner `T`, or short-circuit the enclosing Option-returning
-/// function with `:None`.
-///
-/// Semantics on the inner Option:
-/// - `(Some v)` — evaluates to `v`; execution continues.
-/// - `:None` — raises [`EvalSignal::OptionPropagate`]. The walker
-///   unwinds through `let` / `match` / `if` / any nested form until
-///   it reaches the innermost enclosing [`apply_function`], which
-///   catches the signal and packages it as the function's own
-///   `Value::Option(Arc::new(None))` return value.
-///
-/// The type checker (see `crate::check::infer_option_try`) guarantees
-/// the enclosing function returns `(:Option :- [_])`. The dispatcher
-/// assumes this invariant and does not re-verify at runtime.
-///
-/// Arc 255 Stone — the option/result siblings — `pub(crate)` so
-/// `src/intrinsic/option.rs`'s thin `#[wat_intrinsic]` delegate can call straight into this
-/// unchanged body.
-pub(crate) fn eval_option_try(
-    op: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
-            Ok(Some(inner)) => Ok(inner),
-            Ok(None) => Err(EvalBreak::Signal(EvalSignal::OptionPropagate)),
-            Err(shared) => match &*shared {
-                Some(inner) => Ok(inner.clone()),
-                None => Err(EvalBreak::Signal(EvalSignal::OptionPropagate)),
-            },
-        },
-        other => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "(Option :- [T])",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone — the last two map items — `eval_option_try` moved to
+// `src/option/mod.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `(:wat::core::option::expect -> :T <opt> <msg>)` — the
-/// panic-on-:None companion to `:wat::core::try`'s propagation form.
-/// Arc 108.
-///
-/// `args[0]` is the `->` symbol; `args[1]` is the declared arm-result
-/// type keyword `:T`; `args[2]` is the opt-expr (must evaluate to
-/// `(:Option :- [T])`); `args[3]` is the msg-expr (must evaluate to
-/// `:String`). Type declared at HEAD position before any value
-/// producer — see `infer_option_expect` in check.rs for the
-/// rationale.
-///
-/// On `Some(v)` returns `v`. On `:None` evaluates the msg, snapshots
-/// the wat call stack, builds an `AssertionPayload` with the
-/// opt-expression's span as `location`, and `panic_any`s. Caught by
-/// the substrate's catch_unwind in run-sandboxed-ast / by Rust's
-/// default panic handler outside a sandbox.
-///
-/// Arc 255 Stone A-2-ii-b-0 — `pub(crate)` so `src/intrinsic/option.rs`'s thin
-/// `#[wat_intrinsic]` delegate can call straight into this unchanged body.
-pub(crate) fn eval_option_expect(
-    op: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let opt = eval_inner(&args[0], env, sym)?.value_owned();
-    match opt {
-        Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
-            Ok(Some(v)) => Ok(v),
-            Ok(None) => expect_panic(op, &args[1], env, sym, args[0].span().clone(), None),
-            Err(shared) => match &*shared {
-                Some(v) => Ok(v.clone()),
-                None => expect_panic(op, &args[1], env, sym, args[0].span().clone(), None),
-            },
-        },
-        other => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "(Option :- [T])",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone — the last two map items — `eval_option_expect` moved to
+// `src/option/mod.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `(:wat::core::result::expect -> :T <res> <msg>)` — the panic-on-Err
-/// sibling of `option::expect`. Arc 108.
-///
-/// Arc 255 Stone — the option/result siblings — `pub(crate)` so
-/// `src/intrinsic/result.rs`'s thin `#[wat_intrinsic]` delegate can call straight into this
-/// unchanged body.
-pub(crate) fn eval_result_expect(
-    op: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let res = eval_inner(&args[0], env, sym)?.value_owned();
-    match res {
-        Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
-            Ok(std::result::Result::Ok(ok)) => Ok(ok),
-            Ok(std::result::Result::Err(e)) => {
-                let chain = extract_panics(&e);
-                expect_panic(op, &args[1], env, sym, args[0].span().clone(), chain)
-            }
-            Err(shared) => match &*shared {
-                std::result::Result::Ok(ok) => Ok(ok.clone()),
-                std::result::Result::Err(e) => {
-                    let chain = extract_panics(e);
-                    expect_panic(op, &args[1], env, sym, args[0].span().clone(), chain)
-                }
-            },
-        },
-        other => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "(Result :- [T E])",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone — the last two map items — `eval_result_expect` moved to
+// `src/result/mod.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 113 slice 2 — pull the `Vec<*DiedError>` chain out of a
-/// `Value::Result`'s Err arm so `result::expect` can carry it
-/// through the panic. The Err arg's runtime shape post-arc-113
-/// slice 1 is a `Value::Vec` of `Value::Aggregate(Struct)` (each one a
-/// `:wat::kernel::ThreadDiedError` or `:wat::kernel::ProcessDiedError`).
-///
-/// Returns `Some(chain)` when the Err arg is a Vec (the post-slice-1
-/// shape); `None` otherwise (defensive — pre-slice-1 shapes or
-/// user-code that put a non-Vec in the Err arm of a custom
-/// `(Result :- [T E])` they own). Falling back to `None` keeps the
-/// chain machinery additive: callers without chains see no
-/// behavior change.
-fn extract_panics(err: &Value) -> Option<Vec<Value>> {
-    match err {
-        Value::Vec(items) => Some((**items).clone()),
-        _ => None,
-    }
-}
+// Arc 109 Stone — the last two map items — `extract_panics` moved to
+// `src/assertion.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged;
+// shared by `eval_option_expect`/`eval_result_expect`, so it lives with the
+// `AssertionPayload` type it destructures, not with either mover alone.
 
-/// Shared panic helper for `option::expect` / `result::expect`. Evals
-/// the msg expression (refusing non-String payloads), captures the
-/// call stack, builds an `AssertionPayload` with the supplied span as
-/// `location`, then `panic_any`s. Never returns.
-///
-/// The `upstream_chain` arg is `Some(chain)` only when called from
-/// `result::expect` on an Err arm whose payload was a `Vec<*DiedError>`
-/// (arc 113 slice 2). The chain rides through the panic so the
-/// surrounding spawn driver can conj this thread's death onto the
-/// front when synthesizing the join outcome — the cascade
-/// accumulation. `option::expect` always passes `None` (Option has no
-/// upstream).
-fn expect_panic(
-    op: &str,
-    msg_ast: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    location: crate::span::Span,
-    upstream_chain: Option<Vec<Value>>,
-) -> Result<Value, EvalBreak> {
-    let msg = match eval_inner(msg_ast, env, sym)?.value_owned() {
-        Value::String(s) => (*s).clone(),
-        other => {
-            return Err(RuntimeError::new(
-                msg_ast.span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "String",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let frames = snapshot_call_stack();
-    let payload = crate::assertion::AssertionPayload {
-        message: msg,
-        actual: None,
-        expected: None,
-        location: Some(location),
-        frames,
-        upstream_chain,
-        // Arc 138 F-NAMES-1d — capture name on the panicking thread.
-        thread_name: std::thread::current().name().map(String::from),
-        // Arc 278 — `expect` panics carry a bare message; the death-carrier
-        // synthesizes a Fault. Any upstream cause rides `upstream_chain`.
-        raised_error: None,
-    };
-    std::panic::panic_any(payload);
-}
+// Arc 109 Stone — the last two map items — `expect_panic` moved to
+// `src/assertion.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged;
+// shared by `eval_option_expect`/`eval_result_expect`, so it lives with the
+// `AssertionPayload` type it builds, not with either mover alone.
 
 // Arc 109 Stone B — the seven kernel sub-modules — `eval_kernel_raise` moved to
 // `src/kernel/abort.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -9194,7 +8830,7 @@ pub fn apply_function(
 // in-module use.
 
 use crate::value::{replace_top_frame, FrameGuard};
-use crate::value::{snapshot_call_stack, FrameInfo};
+use crate::value::FrameInfo;
 
 // ─── Seven eval forms ────────────────────────────────────────────────────
 //
@@ -11153,7 +10789,7 @@ fn step_list(
         }
     };
 
-    if is_effectful_op(&head_kw) {
+    if crate::rete::purity::is_effectful_op(&head_kw) {
         return Err(RuntimeError::new(
             head.span().clone(),
             RuntimeErrorKind::EffectfulInStep { op: head_kw },
@@ -11252,83 +10888,13 @@ fn step_list(
     }
 }
 
-/// Prefix-based effectful guess — the pre-arc-255 classifier, kept as a
-/// named fallback for verbs not yet carved into the intrinsic registry.
-/// Anything under `:wat::kernel::*`, `:wat::io::*`, `:wat::holon::*`, or the
-/// eval/load family is rejected in step mode — the consumer falls back to
-/// `:wat::eval-ast!` for those sub-forms.
-///
-/// This is a GUESS about a namespace, not a fact about a body — a
-/// registered row's declared purity is a stronger signal (`is_effectful_op`
-/// consults it first, and every `:wat::holon::*` verb is registered as of
-/// Stone HOME-8, so this prefix never actually fires for one of them today).
-/// Kept `pub(crate)` for `src/intrinsic/mod.rs`'s test module (arc 255.1c
-/// site 3's census).
-///
-/// `:wat::holon::*` joined this list at Stone HOME-8: several verbs
-/// (`Hologram/put`/`remove`, `OnlineSubspace/new`/`update`,
-/// `Reckoner/new-discrete`/`new-continuous`/`observe`/`resolve`/`curve`,
-/// `EngramLibrary/new`/`add`/`match-vec`, `Engram/residual`, and the six
-/// `eval-*-coincident?` forms) are honestly `@Purity Effectful` — they mutate
-/// a native `ThreadOwnedCell`-backed handle via `with_mut`, or (the
-/// `eval-*-coincident?` family) evaluate arbitrary embedded wat source.
-/// `declared_purity_vs_effectful_by_prefix_census` asserts `Effectful ⇒
-/// effectful_by_prefix` for every registered row — leaving `:wat::holon::`
-/// off this list would have left that assertion failing not because the
-/// verbs are mis-declared, but because the fallback oracle hadn't caught up
-/// to a namespace that used to have zero registry presence. Unlike
-/// `string.rs`'s `declare-acronyms` (Stone HOME-4), which had the honest
-/// escape hatch of a genuinely side-effect-free body at eval time, these
-/// verbs do not: reclassifying them `Pure` would be the dishonest fix.
-///
-/// `:wat::stream::` joined this list at arc 255 Stone P6-c-W2, for the identical reason:
-/// `:wat::stream::next` (`src/intrinsic/stream.rs`) is honestly `@Purity Effectful` — forcing
-/// a thunk calls `apply_function` on a captured wat closure (or runs a native closure for the
-/// lazy `map`/`filter`/`take`/`drop` family), which can run arbitrary code. No escape hatch:
-/// `next`'s body genuinely can have a side effect, so `Pure` would be the dishonest fix, the
-/// same non-choice `:wat::holon::`'s effectful members faced. `:wat::stream::empty`/`cons`
-/// (same wave, same file) stay `Pure` and simply add two more entries to this census's
-/// tolerated Pure-declared-under-an-effectful-prefix inventory — the same shape
-/// `:wat::config::*` (four rows) already established below.
-///
-/// `:wat::rete::` joined this list at arc 255 Stone P6-c-W5b, for six verbs that mutate a
-/// rete session: `arm-session`/`release-session` (`src/rete/kernel/arm.rs`) take/drop a lease
-/// on the thread-local `ARM_TABLE` intern cache; `export`/`import` (`src/rete/export.rs`)
-/// touch the same table on a build-and-intern MISS; `eval-insert`/`eval-test`
-/// (`src/rete/eval_insert.rs`, `src/rete/eval_test.rs`) can run a caller-supplied expression
-/// via `eval_inner`/`apply_function` — arbitrary code this verb has no way to bound, the same
-/// shape `:wat::stream::next` is effectful for. All six are honestly `@Purity Effectful`; no
-/// escape hatch, `Pure` would be the dishonest fix. ⚠ Unlike `:wat::stream::`'s two tolerated
-/// Pure rows, this widening also puts W5a's NINE already-homed PURE `:wat::rete::` verbs
-/// (`pure?`/`deterministic?`/`total?`/`primitive?`/`vocabulary-admitted?`/
-/// `cond-has-deferred-constraint?`/`alpha-match`/`alpha-match-local`/`alpha-match-under`)
-/// under this prefix — legal (the census's surviving assertion is one-directional, `Effectful
-/// ⇒ effectful_by_prefix`; `prefix ⇒ Effectful` is a counted census, not a rule), but it is
-/// the reason `declared_purity_vs_effectful_by_prefix_census`'s disagreement count rises by
-/// about nine at this stone: those nine now disagree (declared Pure, prefix says effectful)
-/// the same way `:wat::config::`'s four Pure rows already did.
-pub(crate) fn effectful_by_prefix(head: &str) -> bool {
-    head.starts_with(":wat::kernel::")
-        || head.starts_with(":wat::io::")
-        || head.starts_with(":wat::holon::")
-        || head.starts_with(":wat::eval-")
-        || head.starts_with(":wat::load")
-        || head.starts_with(":wat::config::")
-        || head.starts_with(":wat::stream::")
-        || head.starts_with(":wat::rete::")
-}
+// Arc 109 Stone — the last two map items — `effectful_by_prefix` moved to
+// `src/rete/purity.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged;
+// moves together with `is_effectful_op` (the two-tier classifier), never
+// split — see that file for the doc this comment used to carry.
 
-/// Effectful-op classifier — the registry is the authority (arc 255.1c). A
-/// registered row DECLARED its purity from its body; the prefix cannot see
-/// inside one. `Pure` and `Preserving` both mean not-effectful, so
-/// `matches!(.., Effectful)` is the whole test. Falls back to the prefix
-/// guess only for verbs not yet carved into the registry.
-pub(crate) fn is_effectful_op(head: &str) -> bool {
-    if let Some(e) = crate::intrinsic::registry().lookup_entry(head) {
-        return matches!(e.purity, wat_doc::Purity::Effectful);
-    }
-    effectful_by_prefix(head)
-}
+// Arc 109 Stone — the last two map items — `is_effectful_op` moved to
+// `src/rete/purity.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// True iff `form` is a primitive literal — Phase 2's notion of
 /// canonicity for arithmetic/comparison/logical fire conditions.
@@ -12757,6 +12323,7 @@ pub(crate) fn reply_failed_reason(v: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::value::snapshot_call_stack;
     use crate::config::Config;
     use std::sync::OnceLock;
 

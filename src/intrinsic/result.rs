@@ -12,9 +12,11 @@
 //! `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-the-option-result-siblings.md`
 //! (`Result/expect`, `Result/try`).
 //!
-//! Thin `#[wat_intrinsic]` delegates over pre-existing named fns (`src/runtime.rs`) — bodies do
-//! not move, per the brief's two-layer architecture (`src/intrinsic/<ns>.rs` registers and
-//! delegates, the implementation stays where it lived).
+//! Thin `#[wat_intrinsic]` delegates over pre-existing named fns — bodies do not move, per the
+//! brief's two-layer architecture (`src/intrinsic/<ns>.rs` registers and delegates, the
+//! implementation stays where it lived; arc 109 Stone the-last-two-map-items moved that
+//! implementation out of the `src/runtime.rs` megafile into `src/result/mod.rs`, but the shape
+//! is unchanged).
 
 use wat_macros::wat_intrinsic;
 
@@ -27,7 +29,8 @@ use crate::span::Span;
 ///
 /// Homed here arc 255 Stone A-2-ii-b-1 with its real (1) arity declared; the hand-rolled
 /// `args.len() != 1` guard in `eval_ok_ctor` retires (unreachable once the shim itself enforces
-/// arity 1 before calling in). The body is unchanged, still in `src/runtime.rs`. Its
+/// arity 1 before calling in). The body is unchanged; arc 109 Stone the-last-two-map-items moved
+/// it out of the `src/runtime.rs` megafile into `src/result/mod.rs`. Its
 /// `WatAST::Keyword(k, _) if k == ":wat::core::Ok"` guard arm in `eval_list` is retired too —
 /// `dispatch_keyword_head` now reaches this same body through the registry. The pre-existing
 /// bare-Symbol form (`(Ok v)`, no `:wat::core::` prefix) is untouched: a different dispatch
@@ -64,7 +67,7 @@ pub(crate) fn eval_ok_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_ok_ctor(std::slice::from_ref(v), list_span, env, sym)
+    crate::result::eval_ok_ctor(std::slice::from_ref(v), list_span, env, sym)
 }
 
 /// `(:wat::core::Err v) -> (:wat::core::Result :- [T E])` — the `Err`-arm tagged constructor of
@@ -78,7 +81,8 @@ pub(crate) fn eval_ok_ctor(
 ///
 /// Homed here arc 255 Stone A-2-ii-b-1 with its real (1) arity declared; the hand-rolled
 /// `args.len() != 1` guard in `eval_err_ctor` retires (unreachable once the shim itself enforces
-/// arity 1 before calling in). The body is unchanged, still in `src/runtime.rs`. Its
+/// arity 1 before calling in). The body is unchanged; arc 109 Stone the-last-two-map-items moved
+/// it out of the `src/runtime.rs` megafile into `src/result/mod.rs`. Its
 /// `WatAST::Keyword(k, _) if k == ":wat::core::Err"` guard arm in `eval_list` is retired too —
 /// `dispatch_keyword_head` now reaches this same body through the registry. The pre-existing
 /// bare-Symbol form (`(Err v)`, no `:wat::core::` prefix) is untouched: a different dispatch
@@ -115,7 +119,7 @@ pub(crate) fn eval_err_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_err_ctor(std::slice::from_ref(v), list_span, env, sym)
+    crate::result::eval_err_ctor(std::slice::from_ref(v), list_span, env, sym)
 }
 
 /// `(:wat::core::Result/expect res msg) -> :T` — the panic-on-`Err` sibling of
@@ -126,7 +130,8 @@ pub(crate) fn eval_err_ctor(
 /// mechanics, including the `*DiedError` chain it carries through the panic on a spawn-driver
 /// `Err`. Homed here arc 255 Stone the-option-result-siblings with its real (2) arity declared;
 /// the hand-rolled `args.len() != 2` guard in `eval_result_expect` retires. The body is
-/// unchanged, still in `src/runtime.rs`.
+/// unchanged; arc 109 Stone the-last-two-map-items moved it out of the `src/runtime.rs`
+/// megafile into `src/result/mod.rs`.
 ///
 /// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an effect).
 /// Past that, the body only matches the already-evaluated `Result` and either returns the
@@ -136,8 +141,9 @@ pub(crate) fn eval_err_ctor(
 ///
 /// **Totality ground — pinned in the DESIGN, ruled by
 /// `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md`:** on `Err`, this verb
-/// `expect_panic`s (`runtime.rs`'s `eval_result_expect` body, the `Err(e) => { ... expect_panic(...) }`
-/// arms) — a raise, not a matchable outcome. Same shape as `Option/expect`. `Partial`.
+/// `expect_panic`s (`src/result/mod.rs`'s `eval_result_expect` body, the `Err(e) => { ...
+/// expect_panic(...) }` arms) — a raise, not a matchable outcome. Same shape as `Option/expect`.
+/// `Partial`.
 ///
 /// **Expand-time ground —** Pure ∧ Deterministic and safe to evaluate during expansion; a
 /// `Partial` verb can still be expand-time-legal, exactly as `Option/expect`'s doc says. Legal.
@@ -162,7 +168,7 @@ pub(crate) fn eval_result_expect(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_result_expect(
+    crate::result::eval_result_expect(
         ":wat::core::Result/expect",
         &[res.clone(), msg.clone()],
         list_span,
@@ -177,8 +183,8 @@ pub(crate) fn eval_result_expect(
 ///
 /// Homed here arc 255 Stone the-option-result-siblings with its real (1) arity declared; the
 /// hand-rolled `args.len() != 1` guard in the underlying `eval_try` retires. The body is
-/// unchanged, still in `src/runtime.rs` (`eval_try` — pre-slice-1j spelling
-/// `:wat::core::try`).
+/// unchanged; arc 109 Stone the-last-two-map-items moved it out of the `src/runtime.rs`
+/// megafile into `src/result/mod.rs` (`eval_try` — pre-slice-1j spelling `:wat::core::try`).
 ///
 /// **Purity ground:** the one arg is evaluated by ordinary call-by-value (not itself an
 /// effect). Past that, the body only matches the already-evaluated `Result` and either returns
@@ -217,7 +223,7 @@ pub(crate) fn eval_result_try(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_try(
+    crate::result::eval_try(
         ":wat::core::Result/try",
         std::slice::from_ref(res),
         list_span,

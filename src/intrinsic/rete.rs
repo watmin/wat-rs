@@ -12,10 +12,15 @@
 //! twins, plus `lower`/`collect-rules`/`step-payload`/`axis-violation`/`eval-test`/`eval-insert`)
 //! are NOT this wave and stay in the giant match, per the brief's affirmative cut.
 //!
-//! ★ `:wat::rete::` is deliberately ABSENT from `effectful_by_prefix` (`src/runtime.rs`) — this
-//! wave's whole premise is that these nine are read-only, so nothing here widens that list.
-//! `declared_purity_vs_effectful_by_prefix_census` (`src/intrinsic/mod.rs`) would go RED the
-//! moment any of the nine were wrongly declared `@Purity Effectful`; none is.
+//! ★ `:wat::rete::` was LATER widened into `effectful_by_prefix` (`src/rete/purity.rs`) — arc 255
+//! Stone P6-c-W5b added it, for six session-mutating verbs (`arm-session`/`release-session`/
+//! `export`/`import`/`eval-insert`/`eval-test`) that are NOT this wave's nine. The claim that used
+//! to stand here — "deliberately ABSENT … nothing here widens that list" — was true when this wave
+//! landed (`e01428497`) and was overturned by W5b (`2bc1135aa`, whose own commit title names the
+//! widening); it stood false on disk from then until this correction. This wave's own premise
+//! still holds unchanged: the nine read-only predicates below needed no widening themselves, and
+//! none is wrongly declared `@Purity Effectful` — `declared_purity_vs_effectful_by_prefix_census`
+//! (`src/intrinsic/mod.rs`) would go RED the moment one were.
 //!
 //! ## The six `?` predicates
 //!

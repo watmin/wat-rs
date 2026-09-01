@@ -9,7 +9,7 @@
 //!   non-Result-returning enclosing scope, mismatched `Err` types.
 //! - Integration with `let`, `match` arms, and fns.
 //!
-//! Runtime design matches `crate::runtime::eval_try` +
+//! Runtime design matches `crate::result::eval_try` +
 //! `apply_function`'s `TryPropagate` catch; type-check design matches
 //! `crate::check::infer_try`. See `src/runtime.rs` and
 //! `src/check.rs` for the implementations.

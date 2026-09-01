@@ -12,7 +12,7 @@
 //!
 //! ## The point of this home — a row the prefix rule gets WRONG
 //!
-//! `runtime::is_effectful_op` classifies by NAMESPACE PREFIX:
+//! `rete::purity::is_effectful_op` classifies by NAMESPACE PREFIX:
 //! `head.starts_with(":wat::kernel::")` is effectful, full stop. It cannot
 //! see inside a body. The four readers here — `stopped?`, `sigusr1?`,
 //! `sigusr2?`, `sighup?` — each do nothing but `AtomicBool::load`: no

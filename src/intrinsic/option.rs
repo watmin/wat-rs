@@ -11,9 +11,11 @@
 //! (`Some`), `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-the-option-result-siblings.md`
 //! (`Option/try`).
 //!
-//! Thin `#[wat_intrinsic]` delegates over pre-existing named fns (`src/runtime.rs`) — bodies do
-//! not move, per the brief's two-layer architecture (`src/intrinsic/<ns>.rs` registers and
-//! delegates, the implementation stays where it lived). `Option/expect` is homed here (not left
+//! Thin `#[wat_intrinsic]` delegates over pre-existing named fns — bodies do not move, per the
+//! brief's two-layer architecture (`src/intrinsic/<ns>.rs` registers and delegates, the
+//! implementation stays where it lived; arc 109 Stone the-last-two-map-items moved that
+//! implementation out of the `src/runtime.rs` megafile into `src/option/mod.rs`, but the shape
+//! is unchanged). `Option/expect` is homed here (not left
 //! as a literal match arm) so a generated record accessor that raises through it en route to
 //! `Record/field-at` stops classifying `impure`/`Unreviewed` when reached through an environment
 //! binding — see `DESIGN-STONE-A-2-ii-b-0-the-accessor-path-verbs-get-homes.md`. `Some` is homed
@@ -32,8 +34,8 @@ use crate::span::Span;
 /// On `Some(v)` returns `v`. On `None`, evaluates `msg` and raises (`panic_any`, caught by the
 /// substrate's `catch_unwind`) — see `eval_option_expect`'s own doc for the full raise mechanics.
 /// Homed here arc 255 Stone A-2-ii-b-0 with its real (2) arity declared; the hand-rolled
-/// `args.len() != 2` guard in `eval_option_expect` retires. The body is unchanged, still in
-/// `src/runtime.rs`.
+/// `args.len() != 2` guard in `eval_option_expect` retires. The body is unchanged; arc 109 Stone
+/// the-last-two-map-items moved it out of the `src/runtime.rs` megafile into `src/option/mod.rs`.
 ///
 /// **Purity ground:** both args are evaluated by ordinary call-by-value (not itself an effect).
 /// Past that, the body only matches the already-evaluated `Option` and either returns the
@@ -69,7 +71,7 @@ pub(crate) fn eval_option_expect(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_option_expect(
+    crate::option::eval_option_expect(
         ":wat::core::Option/expect",
         &[opt.clone(), msg.clone()],
         list_span,
@@ -85,7 +87,8 @@ pub(crate) fn eval_option_expect(
 ///
 /// Homed here arc 255 Stone A-2-ii-b-1 with its real (1) arity declared; the hand-rolled
 /// `args.len() != 1` guard in `eval_some_ctor` retires (unreachable once the shim itself
-/// enforces arity 1 before calling in). The body is unchanged, still in `src/runtime.rs`. Its
+/// enforces arity 1 before calling in). The body is unchanged; arc 109 Stone
+/// the-last-two-map-items moved it out of the `src/runtime.rs` megafile into `src/option/mod.rs`. Its
 /// `WatAST::Keyword(k, _) if k == ":wat::core::Some"` guard arm in `eval_list` is retired too —
 /// `dispatch_keyword_head` now reaches this same body through the registry. The pre-existing
 /// bare-Symbol form (`(Some v)`, no `:wat::core::` prefix) is untouched: a different dispatch
@@ -123,7 +126,7 @@ pub(crate) fn eval_some_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_some_ctor(std::slice::from_ref(v), list_span, env, sym)
+    crate::option::eval_some_ctor(std::slice::from_ref(v), list_span, env, sym)
 }
 
 /// `(:wat::core::Option/try <option-expr>) -> :T` — the Option-side mirror of
@@ -132,8 +135,9 @@ pub(crate) fn eval_some_ctor(
 /// Option-returning function with `:None`.
 ///
 /// Homed here arc 255 Stone the-option-result-siblings with its real (1) arity declared; the
-/// hand-rolled `args.len() != 1` guard in `eval_option_try` retires. The body is unchanged,
-/// still in `src/runtime.rs`.
+/// hand-rolled `args.len() != 1` guard in `eval_option_try` retires. The body is unchanged; arc
+/// 109 Stone the-last-two-map-items moved it out of the `src/runtime.rs` megafile into
+/// `src/option/mod.rs`.
 ///
 /// **Purity ground:** the one arg is evaluated by ordinary call-by-value (not itself an
 /// effect). Past that, the body only matches the already-evaluated `Option` and either returns
@@ -173,7 +177,7 @@ pub(crate) fn eval_option_try(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_option_try(
+    crate::option::eval_option_try(
         ":wat::core::Option/try",
         std::slice::from_ref(opt),
         list_span,
