@@ -53,7 +53,7 @@ use crate::declare::register::register_defines;
 use crate::declare::typevar::{angle_minted_name_reason, angle_type_head_in_name};
 use crate::holon::*;
 use crate::span::Span;
-use holon::{encode, HolonAST, Similarity, DEGENERATE_EPSILON};
+use holon::HolonAST;
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use std::os::fd::{AsRawFd, FromRawFd};
@@ -8869,110 +8869,11 @@ fn eval_subtype(
 // the absence of a classifier is an honest "not this type" signal.
 
 
-/// Arc 052 — polymorphic-input helper for cosine/dot. Accepts
-/// HolonAST or Vector in either position; returns a (Vector, Vector)
-/// pair at a consistent d.
-///
-/// Dimension-resolution rule:
-/// - Both Vector → dims must match; returns the shared dim.
-/// - Both AST → dim from ambient `pick_d_for_pair` (arc 037 router).
-/// - Mixed (one AST, one Vector) → use the Vector's dim; encode the
-///   AST at that dim.
-///
-/// Cross-dim Vector pairs error with `TypeMismatch`. There's no
-/// auto-promotion: a raw Vector at d=10000 has no source AST to
-/// re-encode at d=4096; the caller must produce matching-dim inputs.
-/// The measured outcome of resolving a `(Value, Value)` pair to a
-/// same-dimension `(Vector, Vector)` pair. Arc 278 the cosine outcome wall
-/// (`BRIEF-cosine-outcome-wall.md`) — a dimension disagreement between two
-/// operands used to make this helper RAISE a `TypeMismatch`, uncatchable,
-/// unwinding past every caller alike. It is now a domain fact this enum
-/// carries, so each of the five callers (`cosine`, `dot`, `coincident?`,
-/// `presence?` — which never reaches this helper at all, see its own
-/// comment — and `coincident-explain`) decides for itself what to DO with a
-/// mismatch, per its own return-shape contract. A value that is neither
-/// Vector nor HolonAST/Record still raises via this function's `Err` arm —
-/// that is a call-site type bug, not a domain hole this wall covers.
-pub(crate) enum PairedVectors {
-    Paired(holon::Vector, holon::Vector),
-    DimensionMismatch { expected: i64, got: i64 },
-}
+// Arc 109 Stone — holon into parity — `PairedVectors` moved to
+// `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-pub(crate) fn pair_values_to_vectors(
-    op: &'static str,
-    a: Value,
-    b: Value,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<PairedVectors, EvalBreak> {
-    let ctx = require_encoding_ctx(op, sym, list_span)?;
-    // Arc 234 Stone 234.5 — D3: normalize Value::Aggregate(HolonRecord) → HolonAST before dispatch.
-    // HolonRecord carries a pre-built hologram; coerce both sides so the existing
-    // HolonAST arms handle them. Vector and HolonAST pass through unchanged.
-    //
-    // Arc 294.a — widen: any other value is lifted via to_holon_inner (which accepts
-    // any EdnRepresentable value — plain maps, vectors, scalars, etc. — and errors
-    // honestly on non-EDN types like Struct or resources). The base-record reject
-    // ("has no holon flavor") dies into to_holon_inner's own honest error for now;
-    // to_holon_inner must be extended to lift base records (STOP-1 gap, 294.a report).
-    // Arc 293.R2.1 — HolonRecord exposes hologram; else lift via to_holon_inner.
-    let normalize_for_cosine = |v: Value, span: &Span| -> Result<Value, EvalBreak> {
-        match v {
-            Value::Aggregate(ref a) => match &a.holon {
-                HolonForm::Hologram(h) => Ok(Value::holon__HolonAST(h.clone())),
-                HolonForm::Empty => to_holon_inner(v, span),
-            },
-            Value::holon__HolonAST(h) => Ok(Value::holon__HolonAST(h)),
-            Value::Vector(v) => Ok(Value::Vector(v)),
-            other => to_holon_inner(other, span),
-        }
-    };
-    let a = normalize_for_cosine(a, list_span)?;
-    let b = normalize_for_cosine(b, list_span)?;
-    match (a, b) {
-        (Value::Vector(va), Value::Vector(vb)) => {
-            if va.dimensions() != vb.dimensions() {
-                return Ok(PairedVectors::DimensionMismatch {
-                    expected: va.dimensions() as i64,
-                    got: vb.dimensions() as i64,
-                });
-            }
-            Ok(PairedVectors::Paired(
-                va.as_ref().clone(),
-                vb.as_ref().clone(),
-            ))
-        }
-        (Value::Vector(va), Value::holon__HolonAST(b)) => {
-            let d = va.dimensions();
-            let enc = ctx.encoders.get(d);
-            let vb = encode(&b, &enc.vm, &enc.scalar);
-            Ok(PairedVectors::Paired(va.as_ref().clone(), vb))
-        }
-        (Value::holon__HolonAST(a), Value::Vector(vb)) => {
-            let d = vb.dimensions();
-            let enc = ctx.encoders.get(d);
-            let va = encode(&a, &enc.vm, &enc.scalar);
-            Ok(PairedVectors::Paired(va, vb.as_ref().clone()))
-        }
-        (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => {
-            let d = program_dim(op, sym, list_span)?;
-            let enc = ctx.encoders.get(d);
-            let va = encode(&a, &enc.vm, &enc.scalar);
-            let vb = encode(&b, &enc.vm, &enc.scalar);
-            Ok(PairedVectors::Paired(va, vb))
-        }
-        (a, _) => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::holon::HolonAST, wat::core::Record, or wat::holon::Vector",
-                got: Box::new(ValueSnapshot::of(&a)),
-                // arc 138: no per-arg AST span (takes a Value pair) — list_span (the call site) used instead
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone — holon into parity — `pair_values_to_vectors` moved to
+// `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// Arc 296 G′ — empty `EnumValue.names`, shared so unit-variant (and
 /// zero-field tagged-variant) constructors don't each allocate their own.
@@ -9134,413 +9035,35 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
 }
 
 
-/// Value-in cosine. Shared by `eval_algebra_cosine` (AST eval) and native
-/// `apply_op` (compiled `where`). One measurement; two mouths.
-pub(crate) fn cosine_outcome_from_values(
-    a: Value,
-    b: Value,
-    list_span: &Span,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    let (vt, vr) = match pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)? {
-        PairedVectors::DimensionMismatch { expected, got } => {
-            return Ok(cosine_outcome_dimension_mismatch(expected, got));
-        }
-        PairedVectors::Paired(vt, vr) => (vt, vr),
-    };
-    // Arc 278 the cosine outcome wall — face the zero-magnitude case BEFORE
-    // calling `Similarity::cosine`, rather than letting holon-rs's guarded
-    // `0.0` sail through as data. `holon::Vector::norm()` is pub for exactly
-    // this: test each operand's own norm, decide which side (if any) is
-    // degenerate, and answer with the fact instead of a fabricated measurement.
-    let (na, nb) = (vt.norm(), vr.norm());
-    let side = match (na < DEGENERATE_EPSILON, nb < DEGENERATE_EPSILON) {
-        (true, true) => Some(degenerate_side_both()),
-        (true, false) => Some(degenerate_side_target()),
-        (false, true) => Some(degenerate_side_reference()),
-        (false, false) => None,
-    };
-    match side {
-        Some(side) => Ok(cosine_outcome_degenerate(side)),
-        None => {
-            // Clamp to [-1, 1]: cosine similarity is mathematically bounded to
-            // this range, but floating-point arithmetic can produce values
-            // slightly outside (e.g., 1.0000000000000002 for identical
-            // vectors). Clamping is the honest substrate-level fix — the VSA
-            // semantics are defined on [-1, 1].
-            Ok(cosine_outcome_similarity(
-                Similarity::cosine(&vt, &vr).clamp(-1.0, 1.0),
-            ))
-        }
-    }
-}
+// Arc 109 Stone — holon into parity — `cosine_outcome_from_values` moved to
+// `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
+// Arc 109 Stone — holon into parity — `presence_q_from_values` moved to
+// `src/holon/coincident.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Value-in `presence?`. Shared by AST eval and native `apply_op`.
-pub(crate) fn presence_q_from_values(
-    target: Value,
-    reference: Value,
-    list_span: &Span,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    let target = require_holon(":wat::holon::presence?", &target)?;
-    let reference = require_holon(":wat::holon::presence?", &reference)?;
-    let ctx = require_encoding_ctx(":wat::holon::presence?", sym, list_span)?;
+// Arc 109 Stone — holon into parity — `coincident_q_from_values` moved to
+// `src/holon/coincident.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-    // Arc 037 slice 3: normalize UP via ambient router. Presence
-    // sigma is computed at the ACTUAL encoding d via arc 024's
-    // formula `sqrt(d)/2 - 1` — it adapts by design (Ch 28
-    // slack-lemma). Using config.presence_sigma directly would
-    // over-threshold at smaller d (sigma was calibrated at
-    // config.dims).
-    let d = program_dim(":wat::holon::presence?", sym, list_span)?;
-    let enc = ctx.encoders.get(d);
-    let vt = encode(&target, &enc.vm, &enc.scalar);
-    let vr = encode(&reference, &enc.vm, &enc.scalar);
-    let cosine = Similarity::cosine(&vt, &vr);
-    Ok(Value::bool(cosine > enc.presence_floor(sym)))
-}
+// Arc 109 Stone — holon into parity — `run_ast_arg_for_eval_coincident` moved to
+// `src/holon/coincident.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
+// Arc 109 Stone — holon into parity — `coincident_of_two_values` moved to
+// `src/holon/coincident.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Value-in `coincident?`. Shared by AST eval and native `apply_op`.
-pub(crate) fn coincident_q_from_values(
-    a: Value,
-    b: Value,
-    list_span: &Span,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::coincident?";
-    // Arc 061 — polymorphic over (HolonAST, Vector) pairs in any
-    // combination, mirroring arc 052's `cosine` shape. Pre-encoded
-    // Vector inputs short-circuit the encoding step; mixed inputs
-    // promote the AST side at the Vector side's d. Coincident
-    // sigma stays at 1 (the 1σ native-granularity floor — Ch 28),
-    // applied at the actual encoding d.
-    let (va, vb) = match pair_values_to_vectors(OP, a, b, sym, list_span)? {
-        // Arc 278 the cosine outcome wall — `coincident?` is a PREDICATE
-        // (THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT): an undefined
-        // comparison is not below the floor, so the honest answer to the
-        // question actually asked ("are these the same point?") is `false`,
-        // by documented total contract — never a raise.
-        PairedVectors::DimensionMismatch { .. } => return Ok(Value::bool(false)),
-        PairedVectors::Paired(va, vb) => (va, vb),
-    };
-    let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    let enc = ctx.encoders.get(va.dimensions());
-    let cosine = Similarity::cosine(&va, &vb);
-    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
-}
+// Arc 109 Stone — holon into parity — `eval_form_digest_coincident_shared` moved to
+// `src/holon/coincident.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
+// Arc 109 Stone — holon into parity — `eval_form_signed_coincident_shared` moved to
+// `src/holon/coincident.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Per-side helper for `eval-coincident?`: eval the arg to a
-/// `Value::wat__WatAST`, then run that AST under the constrained
-/// discipline (mutation forms refused) and return the inner Value.
-/// Shared across the four eval-coincident-family variants for the
-/// AST side of each (the AST variant's ENTIRE side; the edn/digest/
-/// signed variants use different resolvers to obtain the AST).
-pub(crate) fn run_ast_arg_for_eval_coincident(
-    arg: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &'static str,
-) -> Result<Value, EvalBreak> {
-    let ast = match eval_inner(arg, env, sym)?.value_owned() {
-        Value::wat__WatAST(a) => a,
-        other => {
-            return Err(RuntimeError::new(
-                arg.span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "Ast",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    run_constrained(&ast, env, sym)
-}
+// Arc 109 Stone — holon into parity — `FallbackVerdict` moved to
+// `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Shared finalizer: lift both sides via `to_holon_inner`, encode
-/// both HolonASTs, cosine, compare against `coincident_floor`. Returns
-/// `Value::bool`. Used by all four eval-coincident-family variants —
-/// the per-variant resolver produces the two Values via its own
-/// verification discipline, then hands them here for the coincidence
-/// measurement.
-pub(crate) fn coincident_of_two_values(
-    value_a: Value,
-    value_b: Value,
-    sym: &SymbolTable,
-    op: &'static str,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    // arc 138: no per-arg AST span — values produced by evaluation; fall
-    // back to list_span (the call site), which is real user source.
-    let atom_a = to_holon_inner(value_a, list_span)?;
-    let atom_b = to_holon_inner(value_b, list_span)?;
-    let holon_a = require_holon(op, &atom_a)?;
-    let holon_b = require_holon(op, &atom_b)?;
-    let ctx = require_encoding_ctx(op, sym, list_span)?;
-    // Arc 037 slice 3: normalize UP via ambient router. Coincident
-    // floor at actual encoding d.
-    let d = program_dim(op, sym, list_span)?;
-    let enc = ctx.encoders.get(d);
-    let va = encode(&holon_a, &enc.vm, &enc.scalar);
-    let vb = encode(&holon_b, &enc.vm, &enc.scalar);
-    let cosine = Similarity::cosine(&va, &vb);
-    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
-}
+// Arc 109 Stone — holon into parity — `classify_fallback_outcome` moved to
+// `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-
-pub(crate) fn eval_form_digest_coincident_shared(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    is_string: bool,
-) -> Result<Value, EvalBreak> {
-    let op: &'static str = if is_string {
-        ":wat::holon::eval-digest-string-coincident?"
-    } else {
-        ":wat::holon::eval-digest-coincident?"
-    };
-    if args.len() != 8 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "({} <4-arg side A> <4-arg side B>) takes exactly 8 arguments; got {}",
-                    op,
-                    args.len()
-                ),
-            },
-        )
-        .into());
-    }
-    wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
-        // Side A — 4-arg block [0..4).
-        let src_a = if is_string {
-            expect_string_value(op, &args[0], env, sym)?
-        } else {
-            read_source_via_loader(op, &args[0], env, sym)?
-        };
-        let algo_a = parse_verify_algo_keyword(&args[1], "digest-", op)?;
-        let hex_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
-        crate::hash::verify_source_hash(src_a.as_bytes(), &algo_a, hex_a.trim()).map_err(
-            |err| {
-                RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
-                )
-            },
-        )?;
-        let value_a = parse_and_run(&src_a, env, sym)?;
-
-        // Side B — 4-arg block [4..8).
-        let src_b = if is_string {
-            expect_string_value(op, &args[4], env, sym)?
-        } else {
-            read_source_via_loader(op, &args[4], env, sym)?
-        };
-        let algo_b = parse_verify_algo_keyword(&args[5], "digest-", op)?;
-        let hex_b = resolve_verify_payload(&args[6], &args[7], env, sym)?;
-        crate::hash::verify_source_hash(src_b.as_bytes(), &algo_b, hex_b.trim()).map_err(
-            |err| {
-                RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
-                )
-            },
-        )?;
-        let value_b = parse_and_run(&src_b, env, sym)?;
-
-        coincident_of_two_values(value_a, value_b, sym, op, list_span)
-    })())
-}
-
-
-pub(crate) fn eval_form_signed_coincident_shared(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    is_string: bool,
-) -> Result<Value, EvalBreak> {
-    let op: &'static str = if is_string {
-        ":wat::holon::eval-signed-string-coincident?"
-    } else {
-        ":wat::holon::eval-signed-coincident?"
-    };
-    if args.len() != 12 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "({} <6-arg side A> <6-arg side B>) takes exactly 12 arguments; got {}",
-                    op,
-                    args.len()
-                ),
-            },
-        )
-        .into());
-    }
-    wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
-        // Side A — 6-arg block [0..6).
-        let src_a = if is_string {
-            expect_string_value(op, &args[0], env, sym)?
-        } else {
-            read_source_via_loader(op, &args[0], env, sym)?
-        };
-        let algo_a = parse_verify_algo_keyword(&args[1], "signed-", op)?;
-        let sig_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
-        let pk_a = resolve_verify_payload(&args[4], &args[5], env, sym)?;
-        let ast_a = parse_program(&src_a, op)?;
-        crate::hash::verify_program_signature(&ast_a, &algo_a, sig_a.trim(), pk_a.trim()).map_err(
-            |err| {
-                RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
-                )
-            },
-        )?;
-        let value_a = run_program(&ast_a, env, sym)?;
-
-        // Side B — 6-arg block [6..12).
-        let src_b = if is_string {
-            expect_string_value(op, &args[6], env, sym)?
-        } else {
-            read_source_via_loader(op, &args[6], env, sym)?
-        };
-        let algo_b = parse_verify_algo_keyword(&args[7], "signed-", op)?;
-        let sig_b = resolve_verify_payload(&args[8], &args[9], env, sym)?;
-        let pk_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
-        let ast_b = parse_program(&src_b, op)?;
-        crate::hash::verify_program_signature(&ast_b, &algo_b, sig_b.trim(), pk_b.trim()).map_err(
-            |err| {
-                RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
-                )
-            },
-        )?;
-        let value_b = run_program(&ast_b, env, sym)?;
-
-        coincident_of_two_values(value_a, value_b, sym, op, list_span)
-    })())
-}
-
-
-/// What a fallback-carrying op's outcome MEANS for this row: use the value, or take
-/// the caller's `:undefined` expression.
-///
-/// The recursion is deliberately NOT in here. Each caller reaches its fallback
-/// expression differently — `eval_inner` in the core evaluator, `exec_dim` in the
-/// where-tree, `exec` in the compiled-expression walk — and that is the caller's own
-/// business. What must NOT differ, and used to, is the CLASSIFICATION.
-pub(crate) enum FallbackVerdict {
-    /// Use this value as the op's result.
-    Value(Value),
-    /// This row reached its undefined point — evaluate the caller's `:undefined` arg.
-    UseFallback,
-}
-
-/// THE one classification of a fallback-carrying op's outcome. Was written by hand
-/// three times (`runtime.rs`, `where_tree.rs`'s `exec_dim`, `expr_ir.rs`'s `exec`),
-/// and the copies DIVERGED: only this one guarded on the row's declared `ret`, so a
-/// generic-`ret` row (`get`/`first`, `ret: Var("T")`) returning a non-finite float
-/// took the fallback in the rete paths and not here — native answering `1` where the
-/// `$oracle` answered `0`, on a total op. Gated by
-/// `tests/rete/probe_arc278_fallback_generic_ret`.
-///
-/// A fallback-carrying op is TOTAL, so it must face EVERY way its core op reaches its
-/// undefined point, and the families reach it differently:
-///
-/// 1. **A non-finite `f64`, and ONLY when the row DECLARES `ret: F64`.** The f64
-///    arithmetic family fails by RETURNING — `eval_f64_arith` is raw IEEE 754 with no
-///    overflow guard, so a domain failure surfaces as an `Ok` holding NaN or ±Inf,
-///    never an `Err`. Decided from the row's declared `ret`, NEVER by sniffing the
-///    runtime value's type: a value-sniff silently changes behaviour for any row that
-///    returns a float for a non-arithmetic reason, and six such rows already exist.
-///    `!is_finite()` is exactly the predicate — true for NaN, +Inf, -Inf and nothing
-///    else; ordinary finites, `-0.0` and subnormals pass through.
-/// 2. **`Option::None`** — an op that reports absence by `Option` (`get` today; any
-///    future `(Option :- [T])`-returning verb). `Value::Option` is NOT `Value::Enum`,
-///    so the holon projection below cannot fire on it; it needs its own arm.
-/// 3. **A holon outcome enum** whose variant means degenerate/mismatch. `Scalar`
-///    unwraps to its number and `NotHolon` passes the value through untouched — only
-///    the middle case is a fallback.
-/// 4. **`IntegerOverflow` / `DivisionByZero`** — the i64 arithmetic family fails by
-///    RAISING. With args already checked as (i64, i64) this is EXHAUSTIVE for that
-///    family, not a catch-all: a type or arity error is a caller bug and propagates.
-/// 5. **`MalformedForm` whose head is this op's own `core_name`** — the sequence
-///    accessors (`first`, `eval_positional_accessor`) fail by raising on an empty
-///    container. The head test is what keeps this narrow: a `MalformedForm` raised
-///    DEEPER carries that callee's head, and the `:undefined`-marker check raises with
-///    the RETE name, so both stay structurally distinguishable and both propagate.
-///
-/// Everything else propagates. Widening any of the five turns a real error into a
-/// silently-substituted value, which is the one failure this shape exists to prevent.
-pub(crate) fn classify_fallback_outcome(
-    outcome: Result<Value, EvalBreak>,
-    ret: &crate::rete::vocabulary::ParamType,
-    core_name: &str,
-    holon_name: &str,
-    span: &Span,
-) -> Result<FallbackVerdict, EvalBreak> {
-    match outcome {
-        Ok(Value::f64(x))
-            if matches!(ret, crate::rete::vocabulary::ParamType::F64) && !x.is_finite() =>
-        {
-            Ok(FallbackVerdict::UseFallback)
-        }
-        Ok(Value::Option(opt)) => match opt.as_ref() {
-            Some(v) => Ok(FallbackVerdict::Value(v.clone())),
-            None => Ok(FallbackVerdict::UseFallback),
-        },
-        Ok(v) => match project_holon_rete_fallback(&v, holon_name, span)? {
-            HolonReteProject::Scalar(x) => Ok(FallbackVerdict::Value(Value::f64(x))),
-            HolonReteProject::Fallback => Ok(FallbackVerdict::UseFallback),
-            HolonReteProject::NotHolon => Ok(FallbackVerdict::Value(v)),
-        },
-        Err(EvalBreak::Diagnostic(e))
-            if matches!(
-                e.kind(),
-                RuntimeErrorKind::IntegerOverflow { .. } | RuntimeErrorKind::DivisionByZero
-            ) =>
-        {
-            Ok(FallbackVerdict::UseFallback)
-        }
-        Err(EvalBreak::Diagnostic(e))
-            if matches!(
-                e.kind(),
-                RuntimeErrorKind::MalformedForm { head, .. } if head.as_str() == core_name
-            ) =>
-        {
-            Ok(FallbackVerdict::UseFallback)
-        }
-        Err(e) => Err(e),
-    }
-}
-
-
-/// Value-in `dot`. Shared by AST eval and native `apply_op`.
-pub(crate) fn dot_outcome_from_values(
-    a: Value,
-    b: Value,
-    list_span: &Span,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    let (vx, vy) = match pair_values_to_vectors(":wat::holon::dot", a, b, sym, list_span)? {
-        PairedVectors::DimensionMismatch { expected, got } => {
-            return Ok(dot_outcome_dimension_mismatch(expected, got));
-        }
-        PairedVectors::Paired(vx, vy) => (vx, vy),
-    };
-    Ok(dot_outcome_computed(Similarity::dot(&vx, &vy)))
-}
-
+// Arc 109 Stone — holon into parity — `dot_outcome_from_values` moved to
+// `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // ─── Vector portability (arc 061) — vector-bytes / bytes-vector ──────
 //
@@ -14857,7 +14380,7 @@ pub(crate) fn expect_string_value(
 /// Evaluate a path arg and read the file's source via the outer
 /// SymbolTable's loader. Shared helper for eval-file!, eval-digest!,
 /// eval-signed! — each takes its path directly as the first arg.
-fn read_source_via_loader(
+pub(crate) fn read_source_via_loader(
     op: &'static str,
     arg: &WatAST,
     env: &Environment,
@@ -14893,7 +14416,7 @@ fn read_source_via_loader(
 /// Verify payloads retain the two-shape keyword dispatch because the
 /// verification location can be inline (`:wat::verify::string`) or a
 /// sidecar file (`:wat::verify::file-path`).
-fn resolve_verify_payload(
+pub(crate) fn resolve_verify_payload(
     iface_ast: &WatAST,
     locator_ast: &WatAST,
     env: &Environment,
@@ -14965,7 +14488,7 @@ fn resolve_verify_payload(
 /// Parse a `:wat::verify::<kind>-<algo>` keyword and extract the algo.
 /// `expected_kind` is `"digest-"` or `"signed-"` depending on which
 /// form called this.
-fn parse_verify_algo_keyword(
+pub(crate) fn parse_verify_algo_keyword(
     ast: &WatAST,
     expected_kind: &str,
     form: &str,
@@ -15024,7 +14547,7 @@ fn parse_verify_algo_keyword(
 }
 
 /// Parse a source string into one or more top-level forms.
-fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, EvalBreak> {
+pub(crate) fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, EvalBreak> {
     crate::parser::parse_all_with_file(source, "<runtime-eval>").map_err(|e| {
         EvalBreak::from(RuntimeError::new(
             crate::rust_caller_span!(),
@@ -15047,7 +14570,7 @@ pub(crate) fn parse_and_run(source: &str, env: &Environment, sym: &SymbolTable) 
 
 /// Run a sequence of pre-parsed forms under the constrained-eval
 /// discipline: each form has mutation heads refused before execution.
-fn run_program(forms: &[WatAST], env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn run_program(forms: &[WatAST], env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let mut last = Value::Unit;
     for form in forms {
         last = run_constrained(form, env, sym)?;
@@ -15057,7 +14580,7 @@ fn run_program(forms: &[WatAST], env: &Environment, sym: &SymbolTable) -> Result
 
 /// Refuse mutation forms in the given AST, then delegate to the
 /// normal `eval` dispatcher against the (frozen) symbol table.
-fn run_constrained(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn run_constrained(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     refuse_mutation_forms_in(ast)?;
     eval_inner(ast, env, sym).map(|tv| tv.value_owned())
 }

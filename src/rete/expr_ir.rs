@@ -11,12 +11,14 @@ use std::sync::{Arc, OnceLock};
 use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
+use crate::holon::{
+    classify_fallback_outcome, coincident_q_from_values, cosine_outcome_from_values,
+    dot_outcome_from_values, presence_q_from_values, FallbackVerdict,
+};
 use crate::rete::matcher::{compare_values, Bindings, FieldNames};
 use crate::rete::vocabulary::{resolve_core_name, OpClass, RETE_OPS};
 use crate::runtime::{
-    coincident_q_from_values, cosine_outcome_from_values, dot_outcome_from_values,
-    presence_q_from_values, EvalBreak, FunctionBody,
-    RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
+    EvalBreak, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
 use crate::types::{EnumVariant, TypeDef};
@@ -1053,15 +1055,15 @@ fn exec(
             }
             // ONE classification — see `where_tree.rs`'s twin and
             // `classify_fallback_outcome`. Only the recursion is this site's own.
-            match crate::runtime::classify_fallback_outcome(
+            match classify_fallback_outcome(
                 apply_op(*op, &vs, span, Some(sym)),
                 &row.ret,
                 row.core_name,
                 row.rete_name,
                 span,
             )? {
-                crate::runtime::FallbackVerdict::Value(v) => Ok(v),
-                crate::runtime::FallbackVerdict::UseFallback => {
+                FallbackVerdict::Value(v) => Ok(v),
+                FallbackVerdict::UseFallback => {
                     exec(fallback, frame, names, sym, span)
                 }
             }

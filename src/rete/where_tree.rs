@@ -27,6 +27,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::holon::{classify_fallback_outcome, FallbackVerdict};
 use crate::rete::expr_ir::{apply_op, Expr, Program};
 use crate::rete::clause::CmpKind;
 use crate::rete::matcher::{compare_values, Bindings};
@@ -493,8 +494,8 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             apply_op(*op, &vs, span, None)
         }
         // `CallFallback` is `Call` plus a rule for "this op has no answer for THIS row",
-        // and that rule is NOT stated here: `runtime::classify_fallback_outcome` is its
-        // single home, with the five no-answer shapes and why each is narrow.
+        // and that rule is NOT stated here: `classify_fallback_outcome` (`src/holon/outcome.rs`)
+        // is its single home, with the five no-answer shapes and why each is narrow.
         //
         // It used to be restated here in full — and this file's copy was WRONG. It
         // sniffed the runtime value instead of guarding on the row's declared `ret`, so
@@ -515,15 +516,15 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             // ONE classification, shared with `expr_ir`'s walk and the core evaluator.
             // It used to be hand-written here, and the copies diverged — see
             // `classify_fallback_outcome`. Only the RECURSION is this site's own.
-            match crate::runtime::classify_fallback_outcome(
+            match classify_fallback_outcome(
                 apply_op(*op, &vs, span, None),
                 &row.ret,
                 row.core_name,
                 row.rete_name,
                 span,
             )? {
-                crate::runtime::FallbackVerdict::Value(v) => Ok(v),
-                crate::runtime::FallbackVerdict::UseFallback => exec_dim(fallback, bindings, span),
+                FallbackVerdict::Value(v) => Ok(v),
+                FallbackVerdict::UseFallback => exec_dim(fallback, bindings, span),
             }
         }
         DimKey::Field { recv, idx } => {

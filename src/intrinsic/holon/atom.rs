@@ -94,12 +94,8 @@ use crate::ast::WatAST;
 use crate::holon::*;
 use crate::record::project::{parse_projection_args, project_surface_attrs};
 use crate::runtime::{
-    coincident_of_two_values, coincident_q_from_values, cosine_outcome_from_values,
-    dot_outcome_from_values, eval_form_digest_coincident_shared,
-    eval_form_signed_coincident_shared, eval_inner, eval_quote, expect_string_value,
-    pair_values_to_vectors, parse_and_run, presence_q_from_values, program_dim, require_bundle,
-    require_encoding_ctx, require_i64, run_ast_arg_for_eval_coincident, wrap_as_eval_result,
-    PairedVectors,
+    eval_inner, eval_quote, expect_string_value, parse_and_run, program_dim, require_bundle,
+    require_encoding_ctx, require_i64, wrap_as_eval_result,
 };
 use crate::span::Span;
 use crate::value::{
