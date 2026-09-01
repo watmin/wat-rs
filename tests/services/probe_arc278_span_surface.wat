@@ -16,6 +16,11 @@
   [(incr  [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::IncrResponse::Ok)))
    (timed [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::TimedResponse::Ok)))
    (log   [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::LogResponse::Ok)))
+   ;; item (c) stone A — `flush` joined the surface. This toy satisfier compiled WITHOUT it,
+   ;; because serve-op-arms folds over `:impls` and an unimplemented surface op simply gets no arm:
+   ;; nothing checks `:impls` against the surface's `:features`. See NOTE-impls-completeness-is-
+   ;; unenforced.md. Implemented here so this gate keeps meaning "EVERY declared op replies".
+   (flush [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::FlushResponse::Done)))
    (close [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::CloseResponse::Done)))])
 
 ;; :user::compute — start the toy on a thread, dial it, drive all four ops, return 1 iff close -> Done.
@@ -29,6 +34,7 @@
      _l   (:wat::telemetry::Span/log span
             (:wat::telemetry::Span::LogRequest :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
               :message (:wat::edn::write (:probe::Note :text "hello"))))
+     _f   (:wat::telemetry::Span/flush span (:wat::telemetry::Span::FlushRequest))
      c    (:wat::telemetry::Span/close span (:wat::telemetry::Span::CloseRequest))]
     (:wat::core::match c ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Span::CloseResponse::Done) 1)

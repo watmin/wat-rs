@@ -2,9 +2,10 @@
 ;;
 ;; The call-site ergonomics: `with-span` (inline open/use/close) + `timed` (the timing widget).
 ;; Inside one with-span: incr :requests TWICE + `timed` a body once. On the macro's close, span'
-;; emits exactly THREE Metrics — :requests (ONE aggregated counter, value 2), :fetch/count, and
-;; :fetch/duration. A client then scans the store and returns the row count, which must be 3
-;; (proving with-span opened+closed, timed fed Span/timed, and incr aggregated rather than fanned out).
+;; emits FOUR Metrics — :requests (ONE aggregated counter, value 2), :fetch/count, :fetch/duration,
+;; and one :fetch/sample. A client then scans the store and returns the row count, which must be 4
+;; (proving with-span opened+closed, timed fed Span/timed, incr aggregated rather than fanned out,
+;; and close emits fidelity samples).
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let

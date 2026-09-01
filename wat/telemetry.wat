@@ -229,13 +229,12 @@
 
 ;; ─── Span — arc 278 stone Span.1: the PRODUCER surface (a unit of work). ──────────
 ;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.
-;; `incr`/`timed` accumulate PURE state (counters + duration samples); `log` writes through the sink
-;; NOW; `close` emits the accumulated counters + durations as Metrics to the sink (each counter -> 1
-;; Metric; each duration name -> count + sum Metrics) — so CloseResponse passes through the sink's
-;; write outcome (the shared :wat::query:: error vocab, derive-is-the-wall). `span'` (the satisfier,
-;; stone Span.2) holds a `:wat::telemetry'::Journal` peer. Nesting is a call-site `open` with the same
-;; sink (NOT a surface op). `timed` the OP (`Span/timed`) is distinct from the `timed` call-site widget
-;; macro (`:wat::telemetry'::timed`) — FQDN disambiguates.
+;; `incr`/`timed`/`log` accumulate PURE state (counters + duration samples + logs); `flush` emits
+;; deltas since the last flush and RESETS; `close` is flush-the-remainder. CloseResponse / FlushResponse
+;; pass through the sink's write outcome (the shared :wat::query:: error vocab, derive-is-the-wall).
+;; `span'` (the satisfier, stone Span.2) holds a `:wat::telemetry'::Journal` peer. Nesting is a
+;; call-site `open` with the same sink (NOT a surface op). `timed` the OP (`Span/timed`) is distinct
+;; from the `timed` call-site widget macro (`:wat::telemetry'::timed`) — FQDN disambiguates.
 (:wat::core::defsurface :wat::telemetry::Span :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::telemetry::Span::IncrRequest
@@ -270,18 +269,31 @@
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+
+   ;; item (c) stone A — mid-life flush (the SAME emit-and-reset path close uses for the remainder).
+   (:wat::core::defrecord :wat::telemetry::Span::FlushRequest [])
+   (:wat::core::defenum :wat::telemetry::Span::FlushResponse :wat::enum::Pure
+     :Done           []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
-  [;; increment a named counter by 1 — a PURE state transition (emitted on close).
+  [;; increment a named counter by 1 — a PURE state transition (emitted on flush/close as a delta).
    (incr [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::IncrRequest]
      -> :wat::telemetry::Span::IncrResponse :max-request-bytes 524288)
    ;; record a duration sample (nanos) under a name — PURE (the timing widget already measured).
    (timed [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::TimedRequest]
      -> :wat::telemetry::Span::TimedResponse :max-request-bytes 524288)
-   ;; write a Log NOW through the sink, correlated by this span's scope.
+   ;; buffer a Log (item (c) stone A). LogResponse::Ok means buffered, not written.
    (log [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::LogRequest]
      -> :wat::telemetry::Span::LogResponse :max-request-bytes 524288)
-   ;; close the unit of work: emit accumulated counters + durations as Metrics to the sink.
+   ;; emit deltas since the last flush and RESET. close is this path for the remainder.
+   (flush [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::FlushRequest]
+     -> :wat::telemetry::Span::FlushResponse :max-request-bytes 524288)
+   ;; close the unit of work: flush the remainder.
    (close [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::CloseRequest]
      -> :wat::telemetry::Span::CloseResponse :max-request-bytes 524288)])
 
