@@ -1025,7 +1025,18 @@ pub(crate) fn production_pass(
 /// Public `fire-once`. One round of the delta walk (alpha → join → accum/filter
 /// → production), no cascade. Mirrors `fire-once$oracle` (`wat/rete/oracle/fire.wat`):
 /// populate-then-emit including Test/Neg/Exists/Accum; keeps alpha and beta.
-pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+///
+/// `span` is the caller's WAT location — the `list_span` of the `(fire-once …)` form the
+/// author wrote. Same contract as `fire_rules_on_session`: this fn can REFUSE
+/// (`refuse_export_without_arm`), so it takes the span the user wrote rather than minting a
+/// Rust one, and the used `span: &Span` is what puts this body inside
+/// `span_substitution_justified`'s view
+/// (`docs/arc/2026/06/278-rules-engine/strike-refusal-span/DESIGN.md`).
+pub(crate) fn fire_once_session(
+    session: &Value,
+    span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let rules = session_rules(session);
     let rules_empty = matches!(&rules, Value::wat__core__PersistentVector(pv) if pv.is_empty());
     if rules_empty {
@@ -1033,10 +1044,7 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
             if rete_arm_lookup(network_identity(net).unwrap_or(0)).is_none()
                 && network_has_production(net)
             {
-                return Err(refuse_export_without_arm(
-                    ":wat::rete::fire-once",
-                    &crate::rust_caller_span!(),
-                ));
+                return Err(refuse_export_without_arm(":wat::rete::fire-once", span));
             }
         }
     }
@@ -1349,7 +1357,7 @@ pub(crate) fn eval_fire_once_native(
     // becomes a wat value, so it is the one place the ceilings become matchable arms rather than
     // a raise that unwinds past the caller. See `rete::kernel::outcome`.
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    crate::rete::kernel::outcome::fire_result_to_outcome(fire_once_session(&session, sym))
+    crate::rete::kernel::outcome::fire_result_to_outcome(fire_once_session(&session, list_span, sym))
 }
 
 // ── Cascade fixpoint helpers (P4a) ───────────────────────────────────────────

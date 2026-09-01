@@ -1304,11 +1304,11 @@ pub(crate) fn eval_arm_session(
     //   - `import_export` (`rete/export.rs`) — `grep 'refuse_non_terminating\|verify_termination'`
     //     over that file has NO hit. Not a weaker check: the verifier is not on that path at all.
     //     Nor should it be — an imported Export carries no rule AST (`rules_lack_ast`,
-    //     `fire/rules.rs:814`), so there would be nothing to analyse and the call could only ever
+    //     `fire/rules.rs:828`), so there would be nothing to analyse and the call could only ever
     //     answer `NotAnalysable`. The runtime round cap is the answer there, as `stratify.rs` says.
     //   - A HAND-ASSEMBLED `Session`. `(:wat::rete::Session :network … :rules …)` is writable in
     //     wat — `tests/rete/probe_arc278_1a_data_model.wat:13` does exactly that — and
-    //     `fire_rules_on_session` (`fire/rules.rs:629`) reaches its arm through
+    //     `fire_rules_on_session` (`fire/rules.rs:642`) reaches its arm through
     //     `rete_arm_get_or_build`, which does not call this. Only `rete_arm_lease_or_build`, below
     //     this line, is behind the verifier.
     //

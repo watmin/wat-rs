@@ -1217,7 +1217,7 @@ fn dbeta_gather_volume() {
         .value_owned();
 
         let (_fired, counts) = super::with_count_census(|| {
-            fire_rules_on_session(&staged, world.symbols(), None)
+            fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None)
                 .unwrap_or_else(|e| panic!("{label} fire raised: {e:?}"))
         });
         let get = |n: &str| -> u64 {

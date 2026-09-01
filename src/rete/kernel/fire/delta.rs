@@ -838,7 +838,7 @@ pub(crate) fn eval_fire_rules_explain(
     //
     // Same stratify-or-delta door as fire-rules; support records on both arms.
     let mut idx: HashMap<Value, (String, Value)> = HashMap::new();
-    let session_out = match fire_rules_on_session(&session, sym, Some(&mut idx)) {
+    let session_out = match fire_rules_on_session(&session, list_span, sym, Some(&mut idx)) {
         Ok(s) => s,
         // A breach: hand the Err straight to the converter, which turns it into the matchable
         // ceiling arm. There is no half-built `Explained` to discard — the fire never returned one.
