@@ -56,8 +56,13 @@
       limit         <- :wat::core::i64
       wait-ns       <- :wat::core::i64])
    (:wat::core::defrecord :queue::Queue::StatsRequest [])
+   ;; pending = visible (not yet received). in-flight = received, not yet acked.
+   ;; Both: stopping a worker that holds an unacked message loses that outcome —
+   ;; the message stays invisible until its visibility timeout and the run ends
+   ;; first. SQS exposes the same pair for the same reason.
    (:wat::core::defenum :queue::Queue::StatsResponse :wat::enum::Pure
-     :Ok [receive-calls <- :wat::core::i64  ticks <- :wat::core::i64]
+     :Ok [receive-calls <- :wat::core::i64  ticks <- :wat::core::i64
+          pending <- :wat::core::i64  in-flight <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
@@ -101,7 +106,9 @@
               waiters       <- (:wat::core::PersistentVector :- [:queue::Waiter])
               outbox        <- (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               receive-calls <- :wat::core::i64
-              ticks         <- :wat::core::i64]
+              ticks         <- :wat::core::i64
+              pending       <- :wat::core::i64
+              in-flight     <- :wat::core::i64]
   :peers     [:wat::query::Store]
   :init (:wat::core::fn
           [record     <- :queue::queue::Record
@@ -194,7 +201,9 @@
               :waiters (:wat::core::PersistentVector :- [:queue::Waiter])
               :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               :receive-calls 0
-              :ticks 0)))
+              :ticks 0
+              :pending 0
+              :in-flight 0)))
   :impls
   [(send [s ctx req]
      (:wat::core::let
@@ -215,10 +224,21 @@
          ((:wat::kernel::RecvOutcome::Message sresp)
            (:wat::core::match sresp
              ((:wat::query::Store::PutResponse::Success)
-               (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s))
-                 (:wat::service::Outcome::Reply s (:queue::Queue::SendResponse::Ok))
-                 (:wat::service::Outcome::ReplyAndArm s (:queue::Queue::SendResponse::Ok)
-                   [(:wat::service::Alarm :after (:wat::time::Nanosecond 0) :op :-tick)])))
+               (:wat::core::let
+                 [s' (:queue::queue::State
+                       :durable (:queue::queue::State/durable s)
+                       :store store
+                       :take (:queue::queue::State/take s)
+                       :waiters (:queue::queue::State/waiters s)
+                       :outbox (:queue::queue::State/outbox s)
+                       :receive-calls (:queue::queue::State/receive-calls s)
+                       :ticks (:queue::queue::State/ticks s)
+                       :pending (:wat::i64::+ (:queue::queue::State/pending s) 1)
+                       :in-flight (:queue::queue::State/in-flight s))]
+                 (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s'))
+                   (:wat::service::Outcome::Reply s' (:queue::Queue::SendResponse::Ok))
+                   (:wat::service::Outcome::ReplyAndArm s' (:queue::Queue::SendResponse::Ok)
+                     [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))))
              (_ (:wat::kernel::assertion-failed! "queue.send: store put failed" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost cause)
            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -236,6 +256,13 @@
         lim    (:queue::Queue::ReceiveRequest/limit req)
         wait   (:queue::Queue::ReceiveRequest/wait-ns req)
         calls  (:wat::i64::+ (:queue::queue::State/receive-calls s) 1)
+        envs   (:wat::core::apply (:queue::queue::State/take s) q [now-ns vis-ns lim])
+        n      (:wat::core::count envs)
+        p0     (:queue::queue::State/pending s)
+        f0     (:queue::queue::State/in-flight s)
+        p1     (:wat::core::if (:wat::core::empty? envs) p0
+                 (:wat::core::if (:wat::i64::< p0 n) 0 (:wat::i64::- p0 n)))
+        f1     (:wat::core::if (:wat::core::empty? envs) f0 (:wat::i64::+ f0 n))
         s-n    (:queue::queue::State
                  :durable (:queue::queue::State/durable s)
                  :store store
@@ -243,8 +270,9 @@
                  :waiters (:queue::queue::State/waiters s)
                  :outbox (:queue::queue::State/outbox s)
                  :receive-calls calls
-                 :ticks (:queue::queue::State/ticks s))
-        envs   (:wat::core::apply (:queue::queue::State/take s) q [now-ns vis-ns lim])]
+                 :ticks (:queue::queue::State/ticks s)
+                 :pending p1
+                 :in-flight f1)]
        (:wat::core::if (:wat::core::not (:wat::core::empty? envs))
          (:wat::service::Outcome::Reply s-n (:queue::Queue::ReceiveResponse::Ok envs))
          (:wat::core::if (:wat::i64::<= wait 0)
@@ -266,7 +294,9 @@
                     :waiters (:wat::vector::conj (:queue::queue::State/waiters s-n) w)
                     :outbox (:queue::queue::State/outbox s-n)
                     :receive-calls calls
-                    :ticks (:queue::queue::State/ticks s-n))]
+                    :ticks (:queue::queue::State/ticks s-n)
+                    :pending p1
+                    :in-flight f1)]
              (:wat::core::if was-empty?
                (:wat::service::Outcome::NoReplyAndArm s-w
                  [(:wat::service::Alarm :after (:wat::time::Nanosecond wait) :op :-tick)])
@@ -285,7 +315,20 @@
          ((:wat::kernel::RecvOutcome::Message sresp)
            (:wat::core::match sresp
              ((:wat::query::Store::DeleteResponse::Success)
-               (:wat::service::Outcome::Reply s (:queue::Queue::AckResponse::Ok)))
+               (:wat::core::let
+                 [f0 (:queue::queue::State/in-flight s)
+                  f1 (:wat::core::if (:wat::i64::<= f0 0) 0 (:wat::i64::- f0 1))
+                  s' (:queue::queue::State
+                       :durable (:queue::queue::State/durable s)
+                       :store store
+                       :take (:queue::queue::State/take s)
+                       :waiters (:queue::queue::State/waiters s)
+                       :outbox (:queue::queue::State/outbox s)
+                       :receive-calls (:queue::queue::State/receive-calls s)
+                       :ticks (:queue::queue::State/ticks s)
+                       :pending (:queue::queue::State/pending s)
+                       :in-flight f1)]
+                 (:wat::service::Outcome::Reply s' (:queue::Queue::AckResponse::Ok))))
              (_ (:wat::kernel::assertion-failed! "queue.ack: store delete failed" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost cause)
            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -298,7 +341,9 @@
      (:wat::service::Outcome::Reply s
        (:queue::Queue::StatsResponse::Ok
          (:queue::queue::State/receive-calls s)
-         (:queue::queue::State/ticks s))))
+         (:queue::queue::State/ticks s)
+         (:queue::queue::State/pending s)
+         (:queue::queue::State/in-flight s))))
 
    ;; Scanning tick: expire past-deadline waiters (ReplyTo empty) and try-receive
    ;; the rest (same take-visible the receive arm uses). Internal ReplyTo sends
@@ -311,20 +356,24 @@
         ticks (:wat::i64::+ (:queue::queue::State/ticks s) 1)
         pair  (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::PersistentVector :- [:queue::Waiter])
-                                                               (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])])
+                                                               (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+                                                               :wat::core::i64])
                                  w   <- :queue::Waiter]
                   -> (:wat::core::Tuple :- [(:wat::core::PersistentVector :- [:queue::Waiter])
-                                            (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])])
+                                            (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+                                            :wat::core::i64])
                   (:wat::core::let
                     [keep (:wat::core::first acc)
                      box  (:wat::core::second acc)
+                     taken (:wat::core::third acc)
                      empty-ok (:queue::Queue::Reply::Receive
                                 (:queue::Queue::ReceiveResponse::Ok
                                   (:wat::core::Vector :- [:queue::Envelope])))]
                     (:wat::core::if (:wat::i64::<= (:queue::Waiter/deadline-ns w) now)
                       (:wat::core::Tuple keep
                         (:wat::core::conj box
-                          (:wat::service::Directed :conn-id (:queue::Waiter/conn-id w) :reply empty-ok)))
+                          (:wat::service::Directed :conn-id (:queue::Waiter/conn-id w) :reply empty-ok))
+                        taken)
                       (:wat::core::let
                         [envs (:wat::core::apply (:queue::queue::State/take s)
                                  (:queue::Waiter/queue w)
@@ -332,26 +381,36 @@
                                   (:queue::Waiter/visibility-ns w)
                                   (:queue::Waiter/limit w)])]
                         (:wat::core::if (:wat::core::empty? envs)
-                          (:wat::core::Tuple (:wat::vector::conj keep w) box)
+                          (:wat::core::Tuple (:wat::vector::conj keep w) box taken)
                           (:wat::core::Tuple keep
                             (:wat::core::conj box
                               (:wat::service::Directed
                                 :conn-id (:queue::Waiter/conn-id w)
                                 :reply (:queue::Queue::Reply::Receive
-                                         (:queue::Queue::ReceiveResponse::Ok envs))))))))))
+                                         (:queue::Queue::ReceiveResponse::Ok envs))))
+                            (:wat::i64::+ taken (:wat::core::count envs))))))))
                 (:wat::core::Tuple
                   (:wat::core::PersistentVector :- [:queue::Waiter])
-                  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]))
+                  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+                  0)
                 (:queue::queue::State/waiters s))
         keep (:wat::core::first pair)
         box  (:wat::core::second pair)
+        taken (:wat::core::third pair)
+        p0 (:queue::queue::State/pending s)
+        f0 (:queue::queue::State/in-flight s)
+        p1 (:wat::core::if (:wat::i64::< p0 taken) 0 (:wat::i64::- p0 taken))
+        f1 (:wat::i64::+ f0 taken)
         delay (:wat::core::foldl
                 (:wat::core::fn [d <- :wat::core::i64  w <- :queue::Waiter] -> :wat::core::i64
                   (:wat::core::let [rem (:wat::core::- (:queue::Waiter/deadline-ns w) now)]
                     (:wat::core::if (:wat::i64::< rem d) rem d)))
                 1000000000000000
                 keep)
-        delay0 (:wat::core::if (:wat::i64::< delay 0) 0 delay)
+        ;; Process-tier timerfd treats it_value=0 as disarm, and a 1ns
+        ;; expiry can be missed by edge-triggered poll. 1ms is the
+        ;; smallest duration proven to fire at both loci.
+        delay0 (:wat::core::if (:wat::i64::< delay 1000000) 1000000 delay)
         s' (:queue::queue::State
              :durable (:queue::queue::State/durable s)
              :store store
@@ -359,7 +418,9 @@
              :waiters keep
              :outbox box
              :receive-calls (:queue::queue::State/receive-calls s)
-             :ticks ticks)]
+             :ticks ticks
+             :pending p1
+             :in-flight f1)]
        (:wat::core::if (:wat::core::empty? box)
          (:wat::core::if (:wat::core::empty? keep)
            (:wat::service::Outcome::NoReply s')
@@ -374,10 +435,12 @@
                :waiters keep
                :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                :receive-calls (:queue::queue::State/receive-calls s)
-               :ticks ticks)
+               :ticks ticks
+               :pending p1
+               :in-flight f1)
              box)
            (:wat::service::Outcome::NoReplyAndArm s'
-             [(:wat::service::Alarm :after (:wat::time::Nanosecond 0) :op :-flush-outbox)
+             [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-flush-outbox)
               (:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-tick)])))))
 
    (-flush-outbox [s ctx]
@@ -390,7 +453,9 @@
               :waiters (:queue::queue::State/waiters s)
               :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               :receive-calls (:queue::queue::State/receive-calls s)
-              :ticks (:queue::queue::State/ticks s))]
+              :ticks (:queue::queue::State/ticks s)
+              :pending (:queue::queue::State/pending s)
+              :in-flight (:queue::queue::State/in-flight s))]
        (:wat::service::Outcome::ReplyTo s' box)))])
 
 ;; ── client helpers (the gate; Handle stays in the same let as the ops) ──────────
@@ -444,9 +509,20 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok calls ticks) (:wat::core::Tuple calls ticks))
+        ((:queue::Queue::StatsResponse::Ok calls ticks _pending _inflight)
+          (:wat::core::Tuple calls ticks))
         (_ (:wat::kernel::assertion-failed! "stats not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "stats: recv failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :user::do-depth
+  [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks pending inflight)
+          (:wat::core::Tuple pending inflight))
+        (_ (:wat::kernel::assertion-failed! "depth not Ok" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "depth: recv failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::do-ack
   [q <- :queue::Queue  name <- :wat::core::String  id <- :wat::core::String]
@@ -660,6 +736,31 @@
      st  (:user::do-stats q)]
     (:wat::core::format "ticks={ticks}"
       :ticks (:wat::core::second st))))
+
+;; depth counters: send increments pending; receive moves pending → in-flight; ack decrements in-flight.
+(:wat::core::defn :user::depth [] -> :wat::core::String
+  (:wat::core::let
+    [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+            :record (:queue::queue::Record)
+            :store-addr (:wat::query::mem-store::Handle/addr msh))
+     q   (:user::dial-queue (:queue::queue::Handle/addr qh))
+     T0  1000000000
+     vis 1000000000
+     _   (:user::do-send q "q" "a" T0)
+     _   (:user::do-send q "q" "b" T0)
+     _   (:user::do-send q "q" "c" T0)
+     d0  (:user::do-depth q)
+     r   (:user::do-receive q "q" T0 vis 2)
+     d1  (:user::do-depth q)
+     _   (:user::do-ack q "q" (:queue::Envelope/id (:wat::core::first r)))
+     d2  (:user::do-depth q)]
+    (:wat::core::format
+      "send=p={p0},f={f0};recv=p={p1},f={f1};ack=p={p2},f={f2}"
+      :p0 (:wat::core::first d0) :f0 (:wat::core::second d0)
+      :p1 (:wat::core::first d1) :f1 (:wat::core::second d1)
+      :p2 (:wat::core::first d2) :f2 (:wat::core::second d2))))
 
 (:wat::core::defn :user::long-poll [] -> :wat::core::String
   (:wat::core::format
