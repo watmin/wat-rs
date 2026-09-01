@@ -7,7 +7,7 @@
 //! caller-held value addresses) and `kernel_stdio.rs` (`:Io`: an ambient OS
 //! stream with no caller-held handle).
 //!
-//! Every one of the five delegates to the SAME `crate::runtime::eval_*` fn
+//! Every one of the five delegates to the SAME `crate::kernel::message::eval_*` fn
 //! that already existed as a literal-match arm in `runtime.rs` — see
 //! `kernel/mod.rs` for the tier-wide "bodies do not live here" claim this
 //! home is an instance of.
@@ -50,7 +50,8 @@
 //! (`sel.select_raw()`, `runtime.rs:33615`) does the analogous consuming
 //! read off the io_uring ring. The listener arm doesn't just notice a
 //! pending connection either — it completes the accept and mints a new
-//! `Peer'` (`wrap_connect_request`). None of poll's three arms (self-peer,
+//! `Peer'` (`crate::kernel::message::wrap_connect_request`, arc 109 Stone B).
+//! None of poll's three arms (self-peer,
 //! listener, client) is idle observation; every one drains something.
 //!
 //! So `poll` declares `@Purity Effectful` — the SAME answer as its four
@@ -102,7 +103,7 @@ pub(crate) fn eval_peer_send_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_send_prime(&[peer.clone(), payload.clone()], list_span, env, sym)
+    crate::kernel::message::eval_peer_send_prime(&[peer.clone(), payload.clone()], list_span, env, sym)
 }
 
 /// `(:wat::kernel::try-send peer payload)` → `:wat::kernel::TrySendOutcome`.
@@ -138,7 +139,7 @@ pub(crate) fn eval_peer_try_send_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_try_send_prime(&[peer.clone(), payload.clone()], list_span, env, sym)
+    crate::kernel::message::eval_peer_try_send_prime(&[peer.clone(), payload.clone()], list_span, env, sym)
 }
 
 /// `(:wat::kernel::recv peer)` → `:wat::kernel::RecvOutcome<O>`. Blocks for
@@ -173,7 +174,7 @@ pub(crate) fn eval_peer_recv_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_recv_prime(std::slice::from_ref(peer), list_span, env, sym)
+    crate::kernel::message::eval_peer_recv_prime(std::slice::from_ref(peer), list_span, env, sym)
 }
 
 /// `(:wat::kernel::select peers)` → `:wat::spawn::ServiceEvent<I,O,A>`.
@@ -209,7 +210,7 @@ pub(crate) fn eval_peer_select_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_select_prime(std::slice::from_ref(peers), list_span, env, sym)
+    crate::kernel::message::eval_peer_select_prime(std::slice::from_ref(peers), list_span, env, sym)
 }
 
 /// `(:wat::kernel::poll self-peer listener peers)` → `:wat::spawn::ServiceEvent<I,O,A>`.
@@ -256,7 +257,7 @@ pub(crate) fn eval_poll_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_poll_prime(
+    crate::kernel::message::eval_poll_prime(
         &[self_peer.clone(), listener.clone(), peers.clone()],
         list_span,
         env,

@@ -84,6 +84,11 @@ use crate::runtime::{
     apply_function, eval_inner, Environment, EvalBreak, RuntimeError, RuntimeErrorKind,
     SymbolTable, Value,
 };
+// Arc 109 Stone B — `format_panic_payload` stays in `runtime.rs` (its canonical
+// home; a shared machinery reach-back, not this stone's to move) — imported
+// separately from the pre-existing facade block above, which STOP-4 (Stone B's
+// brief) says to leave exactly as it is.
+use crate::runtime::format_panic_payload;
 use crate::rust_deps::custodia::ThreadOwnedCell;
 use crate::rust_deps::marshal::make_rust_opaque;
 use crate::span::Span;
@@ -789,7 +794,7 @@ pub fn spawn_thread_peer(
                 // Rust panic — a structured AssertionPayload (arc 209 C0b) rides in
                 // Panic.failure as a Failure record; a plain panic has failure: None.
                 Err(payload) => {
-                    let (message, assertion) = crate::runtime::extract_panic_payload(payload);
+                    let (message, assertion) = extract_panic_payload(payload);
                     let reason =
                         crate::runtime::thread_crash_panic_edn(message, assertion, crash_types);
                     let _ = crash_tx.send(reason);
@@ -1110,6 +1115,37 @@ pub fn spawn_process_peer(
         Box::new(bundle),
     ))));
     Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, wrapped))
+}
+
+// Arc 109 Stone B — the seven kernel sub-modules — `extract_panic_payload` moved
+// here from `src/runtime.rs` (docs/arc/2026/04/109-kill-std/): its sole caller in
+// the tree is this file. Behaviour unchanged; only the visibility keyword did not
+// need to change (already `pub(crate)`).
+
+/// Owning extraction. Arc 105c widened the panic-payload extraction
+/// to carry both the message string AND the structured
+/// `AssertionPayload` (when present) so arc 064's "assert-eq
+/// surfaces actual / expected through run-sandboxed" promise
+/// survives the substrate-shrinkage cleanup.
+///
+/// Takes the payload by value so we can `downcast::<T>()` (which
+/// transfers ownership and lets us keep the AssertionPayload's
+/// owned String fields). On non-AssertionPayload payloads, falls
+/// back to formatting via the same logic as `format_panic_payload`.
+pub(crate) fn extract_panic_payload(
+    payload: Box<dyn std::any::Any + Send>,
+) -> (String, Option<crate::assertion::AssertionPayload>) {
+    match payload.downcast::<crate::assertion::AssertionPayload>() {
+        Ok(boxed) => {
+            let p = *boxed;
+            (p.message.clone(), Some(p))
+        }
+        Err(p) => {
+            // Not an AssertionPayload — format via the borrow-taking
+            // helper. Same string the previous shape produced.
+            (format_panic_payload(&p), None)
+        }
+    }
 }
 
 // ─── Lib-safe tests ───────────────────────────────────────────────────────────

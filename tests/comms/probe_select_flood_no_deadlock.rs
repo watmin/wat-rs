@@ -3,7 +3,7 @@
 //!
 //! ## The bug (unfixed HEAD)
 //!
-//! `eval_peer_select_prime`'s process arm (src/runtime.rs ~24755) handles
+//! `eval_peer_select_prime`'s process arm (`src/kernel/message.rs`) handles
 //! `SelectOutcome::Recv { result: Err(_) }` with a single `Err(_)` arm that
 //! calls `classify_peer_death(err_rxs[index.0].recv())` regardless of whether
 //! the error is `RecvError::FrameTooLarge` or `RecvError::Disconnected`.

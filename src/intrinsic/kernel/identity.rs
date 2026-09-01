@@ -20,7 +20,7 @@
 //! gaining nothing, since `:CheckGate`/`:Probe`/`:Projection` are each
 //! already true per-row via `@Category`.
 //!
-//! All five delegate to a `crate::runtime::eval_*` fn that already existed
+//! All five delegate to a `crate::kernel::identity::eval_*` fn that already existed
 //! as a literal-match arm in `runtime.rs` — see `kernel/mod.rs` for the
 //! tier-wide "bodies do not live here" claim this home is an instance of.
 //!
@@ -186,7 +186,7 @@ pub(crate) fn eval_require_wire_address(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_require_wire_address(std::slice::from_ref(x), list_span, env, sym)
+    crate::kernel::identity::eval_require_wire_address(std::slice::from_ref(x), list_span, env, sym)
 }
 
 /// `(:wat::kernel::peer-wire? peer)` → `:wat::core::bool`. `true` iff the
@@ -231,7 +231,7 @@ pub(crate) fn eval_peer_wire(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_wire(std::slice::from_ref(peer), list_span, env, sym)
+    crate::kernel::identity::eval_peer_wire(std::slice::from_ref(peer), list_span, env, sym)
 }
 
 /// `(:wat::kernel::address-wire? addr)` → `:wat::core::bool`. `true` iff
@@ -269,7 +269,7 @@ pub(crate) fn eval_address_wire(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_address_wire(std::slice::from_ref(addr), list_span, env, sym)
+    crate::kernel::identity::eval_address_wire(std::slice::from_ref(addr), list_span, env, sym)
 }
 
 /// `(:wat::kernel::peer-pid peer)` → `(:wat::core::Option :- [wat::core::i64])`.
@@ -321,7 +321,7 @@ pub(crate) fn eval_peer_pid(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_pid(std::slice::from_ref(peer), list_span, env, sym)
+    crate::kernel::identity::eval_peer_pid(std::slice::from_ref(peer), list_span, env, sym)
 }
 
 /// `(:wat::kernel::peer-process peer)` → `(:wat::core::Option :- [(wat::kernel::Process :- [I O])])`.
@@ -362,5 +362,5 @@ pub(crate) fn eval_peer_process(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_process(std::slice::from_ref(peer), list_span, env, sym)
+    crate::kernel::identity::eval_peer_process(std::slice::from_ref(peer), list_span, env, sym)
 }

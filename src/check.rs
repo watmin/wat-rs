@@ -4203,7 +4203,7 @@ fn infer_list(
             // Arc 278 Stone 2 (Option A) — `retag-op'`: the `<service>::Op`
             // superset RE-TAG. `(retag-op' op :<surface>::Op :<service>::Op)`
             // embeds a surface-tagged client op into its service-Op counterpart
-            // (runtime concern — see `eval_retag_op`); its RESULT type is the
+            // (runtime concern — see `eval_retag_op`, `src/kernel/serve.rs`); its RESULT type is the
             // service Op named by arg[2] (a type-keyword literal, parsed the same
             // way as `self-peer`'s S/R args). op (arg[0]) is inferred for error
             // coverage only. See `infer_retag_op`.
@@ -9895,7 +9895,7 @@ fn infer_listener_prime(
             // protocol): a locus-blind `(listener' locus :S :R)` inside
             // defservice's `start [locus <- :Locus]`. Shape mirrors the thread
             // tier (3 args: locus, :S, :R → (Bound :- [S R T]) with T fresh); runtime
-            // `eval_listener_prime` dispatches on the concrete locus value the
+            // `eval_listener_prime` (`src/kernel/resource.rs`) dispatches on the concrete locus value the
             // caller actually passes.
             if args.len() != 3 {
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -10865,7 +10865,7 @@ fn infer_kernel_after(
     //
     // arc 278 Stone 2 (STEP 0) — the INPUT type `I` is `:wat::core::Never`, the honest named
     // BOTTOM (the DUAL of `:wat::core::Value`'s top), not `nil`. A timer never sends (runtime
-    // `eval_kernel_after` builds a receive-only peer with a dead tx), so its send-type is
+    // `eval_kernel_after` (`src/kernel/resource.rs`) builds a receive-only peer with a dead tx), so its send-type is
     // genuinely UNINHABITED — `Never` names that, and makes `send'`-to-a-standalone-timer a
     // compile error (Never has no inhabitant to send). Because `Never <: T` for every `T`
     // (is_subtype, types.rs), a `(Peer' :- [Never O])` timer assigns into a service's `selectables`
@@ -11633,7 +11633,7 @@ fn infer_serve_dispatch_op(
 /// surface Op type-keyword (the runtime discriminator; parsed/validated as a
 /// type keyword), and the service Op type-keyword. The result type is the
 /// service Op (arg[2]) — the same "return the type a keyword literal names"
-/// pattern as `self-peer`. Runtime behavior is in `eval_retag_op`.
+/// pattern as `self-peer`. Runtime behavior is in `eval_retag_op` (`src/kernel/serve.rs`).
 fn infer_retag_op(
     args: &[WatAST],
     head_span: &Span,

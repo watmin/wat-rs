@@ -5,7 +5,7 @@
 //! process-global state that no value the caller holds addresses
 //! (`wat/runtime-meta.wat:163–169`).
 //!
-//! Every one of the seven delegates to a `crate::runtime::eval_kernel_stopped`
+//! Every one of the seven delegates to a `crate::kernel::ambient::eval_kernel_stopped`
 //! / `eval_user_signal_query` / `eval_user_signal_reset` fn that already
 //! existed as a literal-match arm in `runtime.rs` — see `kernel/mod.rs` for
 //! the tier-wide "bodies do not live here" claim this home is an instance of.
@@ -92,7 +92,7 @@ use crate::value::{EvalBreak, Value};
 /// @example-norun (:wat::kernel::stopped?) #=> false
 #[wat_intrinsic(":wat::kernel::stopped?")]
 pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_kernel_stopped(&[], list_span)
+    crate::kernel::ambient::eval_kernel_stopped(&[], list_span)
 }
 
 /// `(:wat::kernel::sigusr1?)` → `:wat::core::bool`. Reads the SIGUSR1
@@ -109,7 +109,7 @@ pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @example-norun (:wat::kernel::sigusr1?) #=> false
 #[wat_intrinsic(":wat::kernel::sigusr1?")]
 pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_user_signal_query(
+    crate::kernel::ambient::eval_user_signal_query(
         &[], ":wat::kernel::sigusr1?", &crate::runtime::KERNEL_SIGUSR1, list_span,
     )
 }
@@ -127,7 +127,7 @@ pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @example-norun (:wat::kernel::sigusr2?) #=> false
 #[wat_intrinsic(":wat::kernel::sigusr2?")]
 pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_user_signal_query(
+    crate::kernel::ambient::eval_user_signal_query(
         &[], ":wat::kernel::sigusr2?", &crate::runtime::KERNEL_SIGUSR2, list_span,
     )
 }
@@ -145,7 +145,7 @@ pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @example-norun (:wat::kernel::sighup?) #=> false
 #[wat_intrinsic(":wat::kernel::sighup?")]
 pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_user_signal_query(
+    crate::kernel::ambient::eval_user_signal_query(
         &[], ":wat::kernel::sighup?", &crate::runtime::KERNEL_SIGHUP, list_span,
     )
 }
@@ -165,7 +165,7 @@ pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
 /// @example-norun (:wat::kernel::reset-sigusr1!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sigusr1!")]
 pub(crate) fn eval_kernel_reset_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_user_signal_reset(
+    crate::kernel::ambient::eval_user_signal_reset(
         &[], ":wat::kernel::reset-sigusr1!", &crate::runtime::KERNEL_SIGUSR1, list_span,
     )
 }
@@ -183,7 +183,7 @@ pub(crate) fn eval_kernel_reset_sigusr1(list_span: &Span) -> Result<Value, EvalB
 /// @example-norun (:wat::kernel::reset-sigusr2!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sigusr2!")]
 pub(crate) fn eval_kernel_reset_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_user_signal_reset(
+    crate::kernel::ambient::eval_user_signal_reset(
         &[], ":wat::kernel::reset-sigusr2!", &crate::runtime::KERNEL_SIGUSR2, list_span,
     )
 }
@@ -201,7 +201,7 @@ pub(crate) fn eval_kernel_reset_sigusr2(list_span: &Span) -> Result<Value, EvalB
 /// @example-norun (:wat::kernel::reset-sighup!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sighup!")]
 pub(crate) fn eval_kernel_reset_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_user_signal_reset(
+    crate::kernel::ambient::eval_user_signal_reset(
         &[], ":wat::kernel::reset-sighup!", &crate::runtime::KERNEL_SIGHUP, list_span,
     )
 }

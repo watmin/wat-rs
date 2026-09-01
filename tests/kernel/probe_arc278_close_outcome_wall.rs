@@ -133,4 +133,4 @@ fn process_clean_close_yields_closed_some_zero() {
 // hard-to-reach path. They are constructed by the SAME `close_outcome_*` helpers the
 // two Closed cases exercise (identical enum-value construction, differing only in
 // variant + payload), and mapped from the `Signaled`/`Stopped`/wait-fail/join-panic
-// arms of `eval_peer_close_prime` (runtime.rs). No live probe asserts them here.
+// arms of `eval_peer_close_prime` (`src/kernel/resource.rs`). No live probe asserts them here.

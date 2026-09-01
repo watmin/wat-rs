@@ -4,7 +4,7 @@
 //! never returns a value to its caller. Both are `@Category ControlFlow`.
 //!
 //! Both delegate to a `pub fn` that already existed before this carve
-//! (`crate::runtime::eval_kernel_raise` for `raise!`;
+//! (`crate::kernel::abort::eval_kernel_raise` for `raise!`;
 //! `crate::assertion::eval_kernel_assertion_failed` for
 //! `assertion-failed!`) — see `kernel/mod.rs` for the tier-wide "bodies do
 //! not live here" claim this home is an instance of.
@@ -77,7 +77,7 @@ pub(crate) fn eval_kernel_raise(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_kernel_raise(std::slice::from_ref(error), list_span, env, sym)
+    crate::kernel::abort::eval_kernel_raise(std::slice::from_ref(error), list_span, env, sym)
 }
 
 /// `(:wat::kernel::assertion-failed! message actual expected)` → `:T`.

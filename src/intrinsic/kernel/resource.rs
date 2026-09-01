@@ -14,7 +14,7 @@
 //! types have no live constructor). This home's fourteen rows are now
 //! `:Resource`'s whole population.
 //!
-//! All fourteen delegate to the SAME `crate::runtime::eval_*` fn (or, for
+//! All fourteen delegate to the SAME `crate::kernel::resource::eval_*` fn (or, for
 //! `pipe`, `crate::io::eval_kernel_pipe`; for `spawn-thread`/`spawn-process`,
 //! `crate::kernel::spawn::eval_kernel_spawn_*_prime`) that already existed
 //! as a literal-match arm in `runtime.rs` — see `kernel/mod.rs` for the
@@ -192,7 +192,7 @@ pub(crate) fn eval_handle_pool_new(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_handle_pool_new(&[name.clone(), handles.clone()], env, sym, list_span)
+    crate::kernel::resource::eval_handle_pool_new(&[name.clone(), handles.clone()], env, sym, list_span)
 }
 
 /// `(:wat::kernel::HandlePool::pop pool)` → `:T`. Claims one handle from
@@ -228,7 +228,7 @@ pub(crate) fn eval_handle_pool_pop(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_handle_pool_pop(std::slice::from_ref(pool), env, sym, list_span)
+    crate::kernel::resource::eval_handle_pool_pop(std::slice::from_ref(pool), env, sym, list_span)
 }
 
 /// `(:wat::kernel::HandlePool::finish pool)` → `:()`. Asserts the pool is
@@ -283,7 +283,7 @@ pub(crate) fn eval_handle_pool_finish(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_handle_pool_finish(std::slice::from_ref(pool), env, sym, list_span)
+    crate::kernel::resource::eval_handle_pool_finish(std::slice::from_ref(pool), env, sym, list_span)
 }
 
 /// `(:wat::kernel::pipe)` → `:(wat::io::IOWriter, wat::io::IOReader)`.
@@ -491,7 +491,7 @@ pub(crate) fn eval_kernel_after(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_kernel_after(
+    crate::kernel::resource::eval_kernel_after(
         &[peer_kind.clone(), duration.clone(), msg.clone()],
         list_span,
         env,
@@ -536,7 +536,7 @@ pub(crate) fn eval_peer_close_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_peer_close_prime(std::slice::from_ref(peer), list_span, env, sym)
+    crate::kernel::resource::eval_peer_close_prime(std::slice::from_ref(peer), list_span, env, sym)
 }
 
 /// `(:wat::kernel::signal peer sig)` → `:wat::kernel::SignalOutcome`.
@@ -579,7 +579,7 @@ pub(crate) fn eval_signal(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_signal(&[peer.clone(), sig.clone()], list_span, env, sym)
+    crate::kernel::resource::eval_signal(&[peer.clone(), sig.clone()], list_span, env, sym)
 }
 
 /// `(:wat::kernel::listener locus …)` → `:(wat::kernel::Listener<S,R>, wat::kernel::Address<S,R>)`
@@ -621,7 +621,7 @@ pub(crate) fn eval_listener_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_listener_prime(xs, list_span, env, sym)
+    crate::kernel::resource::eval_listener_prime(xs, list_span, env, sym)
 }
 
 /// `(:wat::kernel::connect addr)` → `(:wat::kernel::Peer :- [S R])`. Dials
@@ -659,7 +659,7 @@ pub(crate) fn eval_connect_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_connect_prime(std::slice::from_ref(addr), list_span, env, sym)
+    crate::kernel::resource::eval_connect_prime(std::slice::from_ref(addr), list_span, env, sym)
 }
 
 /// `(:wat::kernel::accept listener)` → `(:wat::kernel::Peer :- [R S])`. Blocks
@@ -699,7 +699,7 @@ pub(crate) fn eval_accept_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_accept_prime(std::slice::from_ref(listener), list_span, env, sym)
+    crate::kernel::resource::eval_accept_prime(std::slice::from_ref(listener), list_span, env, sym)
 }
 
 /// `(:wat::kernel::allow listener pid)` → `:()`. Inserts `pid` into the
@@ -741,7 +741,7 @@ pub(crate) fn eval_allow_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_allow_prime(&[listener.clone(), pid.clone()], list_span, env, sym)
+    crate::kernel::resource::eval_allow_prime(&[listener.clone(), pid.clone()], list_span, env, sym)
 }
 
 /// `(:wat::kernel::deny listener pid)` → `:()`. Removes `pid` from the
@@ -774,5 +774,5 @@ pub(crate) fn eval_deny_prime(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_deny_prime(&[listener.clone(), pid.clone()], list_span, env, sym)
+    crate::kernel::resource::eval_deny_prime(&[listener.clone(), pid.clone()], list_span, env, sym)
 }

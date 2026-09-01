@@ -98,7 +98,8 @@ pub trait CommListener: Send + Sync {
 /// `connect'`), then unpacks the server's raw halves and wraps them as a
 /// unified `Peer` via `Peer::from_thread`.
 ///
-/// Verbatim body from the former thread arm of `eval_accept_prime`.
+/// Verbatim body from the former thread arm of `eval_accept_prime`
+/// (now `src/kernel/resource.rs`).
 pub struct CrossbeamListener {
     pub(crate) rx: crate::comms::thread::Receiver<Value>,
 }
@@ -234,7 +235,8 @@ impl CommListener for CrossbeamListener {
 /// `Ok(stream)` → wrap as `Peer`. Spurious wakeup (`WouldBlock`) → re-poll.
 /// Shutdown → clean error.
 ///
-/// Verbatim body from the former socket arm of `eval_accept_prime`.
+/// Verbatim body from the former socket arm of `eval_accept_prime`
+/// (now `src/kernel/resource.rs`).
 pub struct SocketListener {
     pub(crate) listener: UnixListener,
     /// Arc 209 C0b.3b-b — the allow-set: a pid is in it or it isn't. Birth-seeded with

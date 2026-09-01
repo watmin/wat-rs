@@ -82,7 +82,7 @@ pub fn snapshot_call_stack() -> Vec<FrameInfo> {
 // ─── Arc 278 §4 — macro-invocation call-site stack ───────────────────────────
 //
 // The expand-time twin of `CALL_STACK` above. `:wat::kernel::macro-call-site`
-// (runtime.rs, beside `eval_kernel_call_site`) needs the SOURCE SPAN of the
+// (`src/kernel/source.rs`, beside `eval_kernel_call_site`) needs the SOURCE SPAN of the
 // macro invocation currently being expanded — not a runtime call-stack frame
 // (macro expansion runs before any wat fn-call happens, so `CALL_STACK` is
 // empty/irrelevant at expand time). `expand_macro_call` (src/macros/expand.rs)

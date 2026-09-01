@@ -2094,7 +2094,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // pidfd returns `Ok(())`, not ESRCH — delivery to a zombie is a silent
     // no-op, not an error. ESRCH appeared ONLY after the pidfd had already
     // been reaped — and in this substrate nothing reaps a `Process` peer's
-    // pidfd except `close` (`eval_peer_close_prime`), which CONSUMES the peer
+    // pidfd except `close` (`eval_peer_close_prime`, `src/kernel/resource.rs`), which CONSUMES the peer
     // (`Option::take`). So the only way to reach an already-reaped pidfd
     // through this verb is to call it on an already-closed peer, and that path
     // is intercepted before the syscall (the same "peer already closed" guard

@@ -262,7 +262,7 @@ pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
 /// gone", instead of collapsing both into a bare `bool`. Mirrors
 /// `comms::TrySendError`'s two failure arms plus the success arm; the
 /// checker-level twin is `:wat::kernel::TrySendOutcome`
-/// (`eval_peer_try_send_prime` in `runtime.rs` maps this 1:1).
+/// (`eval_peer_try_send_prime` in `src/kernel/message.rs` maps this 1:1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrySendResult {
     /// The value was accepted.
@@ -468,7 +468,7 @@ impl Peer {
 /// a `defservice` serve loop's `clients` Vector (arc 278 RST stone).
 ///
 /// Called ONLY from `serve-dispatch-op'`'s panic-catch arm
-/// (`runtime.rs::eval_kernel_serve_dispatch_op_tail`), which has just caught
+/// (`src/kernel/serve.rs::eval_kernel_serve_dispatch_op_tail`), which has just caught
 /// a genuine handler panic and is about to `resume_unwind` the original
 /// payload — `clients` is still reachable there (the ONE hook that can reach
 /// it before the crash propagates past `serve`'s own recursion). Silently

@@ -6,8 +6,8 @@
 //! `@Category Reflection`.
 //!
 //! All four delegate to a `pub fn` that already existed before this carve
-//! (`crate::runtime::eval_kernel_here`, `crate::runtime::eval_kernel_call_site`,
-//! `crate::runtime::eval_kernel_macro_call_site`, or, for `fn-forms`,
+//! (`crate::kernel::source::eval_kernel_here`, `crate::kernel::source::eval_kernel_call_site`,
+//! `crate::kernel::source::eval_kernel_macro_call_site`, or, for `fn-forms`,
 //! `crate::closure_extract::eval_kernel_fn_forms`) — see `kernel/mod.rs` for
 //! the tier-wide "bodies do not live here" claim this home is an instance of.
 //!
@@ -79,7 +79,7 @@ pub(crate) fn eval_kernel_here(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     let _ = (env, sym);
-    crate::runtime::eval_kernel_here(&[], list_span)
+    crate::kernel::source::eval_kernel_here(&[], list_span)
 }
 
 /// `(:wat::kernel::call-site)` → `:wat::kernel::Frame`. Returns the caller's
@@ -117,7 +117,7 @@ pub(crate) fn eval_kernel_call_site(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     let _ = (env, sym);
-    crate::runtime::eval_kernel_call_site(&[], list_span)
+    crate::kernel::source::eval_kernel_call_site(&[], list_span)
 }
 
 /// `(:wat::kernel::macro-call-site)` → `:wat::WatAST`. The expand-time twin
@@ -157,7 +157,7 @@ pub(crate) fn eval_kernel_macro_call_site(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     let _ = (env, sym);
-    crate::runtime::eval_kernel_macro_call_site(&[], list_span)
+    crate::kernel::source::eval_kernel_macro_call_site(&[], list_span)
 }
 
 /// `(:wat::kernel::fn-forms f name)` → `(:wat::core::Vector :- [wat::WatAST])`.

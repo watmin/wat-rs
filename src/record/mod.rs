@@ -28,11 +28,13 @@
 //! split by role as above. Behaviour is unchanged — every aggregate verb
 //! resolves identically; only the location moved.
 //!
-//! **`eval_retag_op` did NOT move.** It sits between `eval_variant` and
+//! **`eval_retag_op` did NOT move here.** It sat between `eval_variant` and
 //! `eval_struct_field` in `runtime.rs` and reads like a record verb (it retags a
-//! variant), but its sole caller is `src/intrinsic/kernel/serve.rs` — `kernel::serve`'s
-//! business, not this home's, when the kernel family gets its own stone. The
-//! eighth intruder this campaign has found sitting inside a proposed module range.
+//! variant), but its sole caller was `src/intrinsic/kernel/serve.rs` —
+//! `kernel::serve`'s business, not this home's. That call was correct: arc 109
+//! Stone B (the seven kernel sub-modules) has since homed it in
+//! `src/kernel/serve.rs`, exactly the module this note predicted. The eighth
+//! intruder this campaign found sitting inside a proposed module range.
 //!
 //! ## EDGE vs IMPL — the architecture this module is one instance of
 //!

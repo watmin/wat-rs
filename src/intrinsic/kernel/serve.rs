@@ -8,7 +8,7 @@
 //! here rather than deferred again — `retag-op` lands `:Transform`,
 //! `serve-dispatch-op` lands `:ControlFlow`.
 //!
-//! `retag-op` delegates to `crate::runtime::eval_retag_op`, a `pub(crate) fn`
+//! `retag-op` delegates to `crate::kernel::serve::eval_retag_op`, a `pub(crate) fn`
 //! that already existed as a literal-match arm — an instance of `kernel/mod.rs`'s
 //! tier-wide "bodies do not live here" claim. `serve-dispatch-op` is NOT a
 //! same-shape wrapper — see below.
@@ -151,7 +151,7 @@ pub(crate) fn eval_retag_op(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_retag_op(
+    crate::kernel::serve::eval_retag_op(
         &[op.clone(), surface_path.clone(), service_path.clone()],
         list_span,
         env,
@@ -223,7 +223,7 @@ pub(crate) fn eval_kernel_serve_dispatch_op(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_kernel_serve_dispatch_op_tail(
+    crate::kernel::serve::eval_kernel_serve_dispatch_op_tail(
         &[clients.clone(), body.clone()],
         list_span,
         env,

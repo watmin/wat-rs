@@ -93,7 +93,8 @@ pub trait CommAddress: Send + Sync {
 /// end locally, then ships the server's raw halves `(req_rx, resp_tx)` over
 /// the rendezvous `tx` — blocking until the server's `accept'` is ready.
 ///
-/// Verbatim body from the former thread arm of `eval_connect_prime`.
+/// Verbatim body from the former thread arm of `eval_connect_prime`
+/// (now `src/kernel/resource.rs`).
 pub struct ThreadAddress {
     pub(crate) tx: crate::comms::thread::Sender<Value>,
 }
@@ -152,7 +153,8 @@ impl CommAddress for ThreadAddress {
 /// `connect` calls `UnixStream::connect_addr` on the abstract name, then
 /// wraps the stream as a `Peer` via `Peer::from_socket`.
 ///
-/// Verbatim body from the former socket arm of `eval_connect_prime`.
+/// Verbatim body from the former socket arm of `eval_connect_prime`
+/// (now `src/kernel/resource.rs`).
 pub struct SocketAddress {
     /// The abstract-namespace UDS name as RAW BYTES. Arc 272: an autobind address is
     /// kernel-minted (5 random bytes), NOT UTF-8 — a `String` would corrupt it. The name is

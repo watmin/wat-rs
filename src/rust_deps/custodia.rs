@@ -109,8 +109,9 @@ impl<T: Send> ThreadOwnedCell<T> {
     ///    a `RefGuard` is live** — `with_mut` takes `&self` (interior
     ///    mutability is the cell's design), so Rust cannot see the conflict.
     ///    Soundness is a CALLER CONTRACT: do not call `with_mut` on a cell
-    ///    while any of its guards is live. `eval_peer_select_prime` (the sole
-    ///    caller) upholds it by construction: guards are scoped to the eval
+    ///    while any of its guards is live. `eval_peer_select_prime`
+    ///    (`src/kernel/message.rs`, the sole caller) upholds it by
+    ///    construction: guards are scoped to the eval
     ///    fn, and no user code runs while they are held (the select blocks,
     ///    then the guards drop before return). Any future caller inherits
     ///    this contract — it is the same discipline `with_ref`'s closure

@@ -38,14 +38,24 @@
 //!
 //! ## Scope boundary
 //!
-//! - The polymorphic kernel verbs (`send'`/`recv'`/`close'`/`select'`/`poll'`)
-//!   SHIPPED in Stone 4.6a-ii/4.6b — live in `src/runtime.rs`
-//!   (`eval_peer_send_prime` / `eval_peer_recv_prime` / `eval_peer_close_prime`,
-//!   registered at runtime.rs:4206-4218). Homing those impls INTO this kernel
-//!   home is the structurally-right next step; that migration rides the
-//!   runtime.rs flat-sea (Phoenix) warding campaign.
-// rune:exigere(scope-affirmative) — verb-homing into kernel/ rides the
-// runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home's scope.
+//! - The polymorphic kernel verbs (`send'`/`recv'`/`close'`/`select'`/`poll'`,
+//!   plus the rest of the kernel intrinsics — `raise!`, the ambient-state
+//!   family, the peer/address identity family, `try-send'`, the resource
+//!   family, `retag-op'`/`serve-dispatch-op'`, and the source-reflection
+//!   family) SHIPPED in Stone 4.6a-ii/4.6b and lived in `src/runtime.rs`
+//!   until arc 109 Stone B (docs/arc/2026/04/109-kill-std/) homed all
+//!   thirty-four of them here, one sub-module per `src/intrinsic/kernel/`
+//!   edge file: [`abort`], [`ambient`], [`identity`], [`message`],
+//!   [`outcome`] (Stone A), [`resource`], [`serve`], [`source`]. The
+//!   scope-affirmative `exigere` rune this paragraph used to carry deferred
+//!   exactly this homing to "the runtime.rs flat-sea (Phoenix) warding
+//!   campaign" — that campaign has now arrived and the migration shipped, so
+//!   the rune is STRUCK here: an exemption whose reason has expired is the
+//!   defect `excusare` exists to catch. The eval spine itself
+//!   (`eval`/`eval_inner`/`eval_tail`/`step_*`/…) stays in `src/runtime.rs`
+//!   by design — membership in this layer comes from the `src/intrinsic/kernel/`
+//!   edge, never from the call graph (see Stone B's DESIGN, "the ONE CONTRACT
+//!   DECISION").
 //! - No-prime wat-level type registration (`:wat::kernel::Thread<I,O>` /
 //!   `Process<I,O>`) — still pending Stone 4.6.
 //!   rune:exigere(attested-arc) — arc 214 Stone 4.6 design at
@@ -60,8 +70,15 @@
 //! See `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md` §
 //! "Slice 4 — Kernel layer" for the full rationale.
 
+pub mod abort;
 pub mod address;
+pub mod ambient;
+pub mod identity;
 pub mod listener;
+pub mod message;
 pub mod outcome;
 pub mod peer;
+pub mod resource;
+pub mod serve;
+pub mod source;
 pub mod spawn;
