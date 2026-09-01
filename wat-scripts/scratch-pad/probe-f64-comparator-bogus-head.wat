@@ -12,6 +12,10 @@
 ;; EXPECTED: running this file (not `--check`ing it) raises a located `UnknownFunction` at the
 ;; call site — proving the mint did not accidentally admit a typo'd head as a silent no-op or a
 ;; vacuous pass.
+;;
+;; rune:lint(rete-name-unminted) :wat::rete::f64::>X — this head is the NEGATIVE CONTROL; being unminted IS the experiment, and spelling it as a real row destroys the proof.
+;; (`tests/lint/rete_names_in_wat_scripts_resolve.rs` would otherwise read this deliberate absence
+;; as the rot it hunts.)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

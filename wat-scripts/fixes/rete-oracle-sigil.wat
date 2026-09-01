@@ -36,6 +36,13 @@
   [src <- :wat::core::String] -> :wat::core::String
   ;; Innermost applies first. Oracle names, then fire-once (unprimed oracle),
   ;; then native primes drop their `'`.
+  ;;
+  ;; The three `-spec` names below are this migration's OLD column: names it EXISTS to eliminate.
+  ;; They are unminted by construction — a recorded codemod must be able to say what it removes —
+  ;; so `tests/lint/rete_names_in_wat_scripts_resolve.rs` is told so here, per name:
+  ;; rune:lint(rete-name-unminted) :wat::rete::insert-spec — pre-`$oracle` spelling of the wat reference impl, retired by the very rewrite recorded below.
+  ;; rune:lint(rete-name-unminted) :wat::rete::insert-all-spec — pre-`$oracle` spelling of the wat reference impl, retired by the very rewrite recorded below.
+  ;; rune:lint(rete-name-unminted) :wat::rete::fire-rules-spec — pre-`$oracle` spelling of the wat reference impl, retired by the very rewrite recorded below.
   (:wat::fix::rename-keyword-exact ":wat::rete::step-payload'" ":wat::rete::step-payload"
     (:wat::fix::rename-keyword-exact ":wat::rete::arm-session'" ":wat::rete::arm-session"
       (:wat::fix::rename-keyword-exact ":wat::rete::insert'" ":wat::rete::insert"

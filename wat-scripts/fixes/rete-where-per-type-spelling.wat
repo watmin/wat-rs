@@ -65,6 +65,33 @@
 ;; and heads with NO twin at all, which are per-type by RULING and never get a generic form:
 ;;     :wat::core::{> < >= +}
 ;; The lookup simply returns None for all of these, so they are left byte-identical for hand work.
+;;
+;; ⛔ NO-RENAME-EXISTS — `map` AND `filter` ARE DELETED ROWS, AND THEY CANNOT BE "CORRECTED".
+;; Removed 2026-09-01. Both rows targeted names that have NEVER been in RETE_OPS:
+;;
+;;     ":wat::core::map"    -> ":wat::rete::core::map"       ← target never existed
+;;     ":wat::core::filter" -> ":wat::rete::core::filter"    ← target never existed
+;;
+;; They read as pure spelling changes exactly like the 39 rows that remain, which is how they
+;; survived; nothing resolved them, because a `.wat` under `wat-scripts/` only had to PARSE.
+;; `tests/lint/rete_names_in_wat_scripts_resolve.rs` now resolves them, and this is the fix it
+;; forced.
+;;
+;; ⚠ THE OBVIOUS REPAIR — re-point them at `mapv`/`filterv` — IS WORSE THAN THE DEFECT, and a
+;; future hand will reach for it by symmetry with the 39. Do not. `src/rete/vocabulary.rs`
+;; (2026-08-28) took `mapv`/`filterv` for rete precisely BECAUSE `:wat::core::map`/`filter`
+;; return a LAZY `Stream`, and `src/rete/expr_ir/eval.rs` records that a `Stream` is
+;; "deliberately absent: the compiled executor has no stream machinery". So
+;; `:wat::core::map` -> `:wat::rete::core::mapv` is NOT a spelling change: it swaps a lazy
+;; `Stream` for an eager `Vector`. A rename table cannot express a semantic change, and a
+;; codemod that did it would silently alter what every rewritten program computes.
+;;
+;; There is therefore NO valid rename for either head. A `where` fence that wants eager
+;; materialisation must be hand-written against `:wat::rete::core::mapv`/`filterv` by someone
+;; who has decided that eagerness is what the expression means. Checked at deletion, over 1653
+;; `.wat` files and 328 `(:wat::rete::where …)` subtrees: ZERO sites in the corpus hold
+;; `:wat::core::map` or `:wat::core::filter` inside a `where`, so no live program needed either
+;; row.
 (:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
     (:wat::core::Tuple ":wat::core::and" ":wat::rete::core::and")
@@ -77,7 +104,8 @@
     (:wat::core::Tuple ":wat::core::f64::>=" ":wat::rete::core::f64::>=")
     (:wat::core::Tuple ":wat::core::f64::not=" ":wat::rete::core::f64::not=")
     (:wat::core::Tuple ":wat::core::f64::to-string" ":wat::rete::core::f64::to-string")
-    (:wat::core::Tuple ":wat::core::filter" ":wat::rete::core::filter")
+    ;; `:wat::core::filter`'s row is DELETED, not corrected — see the ⛔ NO-RENAME-EXISTS block in
+    ;; the header. It targeted `:wat::rete::core::filter`, which has never been a RETE_OPS row.
     (:wat::core::Tuple ":wat::core::fn" ":wat::rete::core::fn")
     (:wat::core::Tuple ":wat::core::foldl" ":wat::rete::core::foldl")
     ;; Arc 118.B6b: `:wat::core::foldr`/`:wat::rete::core::foldr` retired — the pair that used to
@@ -93,7 +121,8 @@
     (:wat::core::Tuple ":wat::core::i64::to-string" ":wat::rete::core::i64::to-string")
     (:wat::core::Tuple ":wat::core::if" ":wat::rete::core::if")
     (:wat::core::Tuple ":wat::core::let" ":wat::rete::core::let")
-    (:wat::core::Tuple ":wat::core::map" ":wat::rete::core::map")
+    ;; `:wat::core::map`'s row is DELETED, not corrected — see the ⛔ NO-RENAME-EXISTS block in
+    ;; the header. It targeted `:wat::rete::core::map`, which has never been a RETE_OPS row.
     (:wat::core::Tuple ":wat::core::match" ":wat::rete::core::match")
     (:wat::core::Tuple ":wat::core::not" ":wat::rete::core::not")
     (:wat::core::Tuple ":wat::core::or" ":wat::rete::core::or")

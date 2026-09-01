@@ -46,25 +46,46 @@
 ;; wearing a name borrowed from Haskell, distinct only under laziness wat does not have), so
 ;; `:wat::rete::core::foldr`'s `Redispatch` row was deleted alongside it (a dangling alias
 ;; otherwise). The replacement composition, `(reduce f init (reverse coll))`, has NO rete
-;; spelling — the rete vocabulary has `foldl`/`map`/`filter`/`reduce` but no `reverse` row, and
+;; spelling — the rete vocabulary has `foldl`/`mapv`/`filterv`/`reduce` but no `reverse` row (it
+;; has never had `map`/`filter`: those are the lazy core heads, corrected here 2026-09-01), and
 ;; minting one is a language-surface addition, the builder's ruling, not this stone's. So this
 ;; file drops from five HOF probes to four; there is currently no rete-spelled right fold to
 ;; probe here at all.
 
-(def :probe-map
-  (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::rete::core::map
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
-      (:wat::core::PersistentVector 1 2 3))))
+;; ⛔ `:probe-map` / `:probe-filter` RE-POINTED at `mapv`/`filterv`, 2026-09-01 — and the two
+;; lines below are NOT the old bodies with a renamed head. What was here named
+;; `:wat::rete::core::map` and `:wat::rete::core::filter`, which have NEVER been RETE_OPS rows:
+;; the rete surface's eager/lazy split (`src/rete/vocabulary.rs`, 2026-08-28) took `mapv`/`filterv`
+;; because `map`/`filter` return a lazy `Stream` and a compiled `where` fence has no stream
+;; machinery. So these two probes proved nothing for three months — an unforced `def` body is
+;; never resolved, so the invented heads type-checked and this file loaded green.
+;;
+;; They are re-pointed rather than deleted because `mapv`/`filterv` ARE the Redispatch HOF rows
+;; this file exists to sanity-check, so the re-pointed probes prove exactly what the header
+;; claims. The `(:wat::core::into (:wat::core::PersistentVector) …)` wrapper is GONE with them:
+;; it was there to force a lazy `Stream` to a Vector, and the whole reason rete took the `v`
+;; forms is that they are already eager — `wat/seq.wat`: "the eager forms". Wrapping an eager
+;; Vector in `into` would misdescribe the row under test.
+;;
+;; The container is a `Vector` literal, not a `PersistentVector`: `wat/seq.wat`'s `filterv` clauses
+;; are `(Vector :- [T])` and `(Stream :- [T])` only. Measured, not assumed — the first re-point kept
+;; the old `PersistentVector` argument and `every_wat_scripts_file_loads` went RED on it with
+;; `NoMatchingClauseAtCallSite`. That red is itself the point: with a head that RESOLVES, the loader
+;; gate finally has something to check, which it never did while the head was invented.
+;;
+;; The HOF count is unchanged at four: `foldl` · `mapv` · `filterv` · `reduce`.
+(def :probe-mapv
+  (:wat::rete::core::mapv
+    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+    [1 2 3]))
 
-(def :probe-filter
-  (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::rete::core::filter
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))
-      (:wat::core::PersistentVector 1 2 3))))
+(def :probe-filterv
+  (:wat::rete::core::filterv
+    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))
+    [1 2 3]))
 
 ;; `reduce` is a wat-level `defclause` (`wat/seq.wat`), not a checker special form like its
-;; three siblings above (foldl/map/filter) — its rete row re-dispatches by AST head-substitution
+;; three siblings above (foldl/mapv/filterv) — its rete row re-dispatches by AST head-substitution
 ;; into the SAME defclause-dispatch machinery a core-spelled call reaches (see check.rs's
 ;; infer_rete_form, the `:wat::core::reduce` arm).
 (def :probe-reduce

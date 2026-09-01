@@ -71,6 +71,7 @@
         false))
     false))
 
+;; rune:lint(rete-name-unminted) :wat::rete::query-by-type-string — the head this codemod detects and eliminates; retired by the migration recorded in this file, so its absence is the tool working.
 (:wat::core::defn :user::qbts?
   [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::fix::calls-to? node ":wat::rete::query-by-type-string"))
