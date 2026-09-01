@@ -102,7 +102,7 @@ fn thread_clean_close_yields_closed_none() {
 
 /// A `:process` peer whose main returns nil → child exits 0 → `close'` waits →
 /// `CloseOutcome::Closed[Some(0)]`. This is the ONLY case exercising the `Some(code)`
-/// branch of `close_outcome_closed` + the `ExitStatus::Exited` arm.
+/// branch of `crate::kernel::outcome::close_outcome_closed` + the `ExitStatus::Exited` arm.
 ///
 /// `#[ignore]` — process-tier: forks via `spawn-program' :process`; run under
 /// setsid + timeout to prevent fd/lock inheritance from the multi-threaded test

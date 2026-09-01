@@ -337,11 +337,11 @@ impl Address {
                     PEER_TYPE_PATH,
                     Arc::new(ThreadOwnedCell::new(Some(peer))),
                 );
-                Ok(crate::runtime::connect_outcome_connected(peer_val))
+                Ok(crate::kernel::outcome::connect_outcome_connected(peer_val))
             }
-            Err(ConnectFail::Refused(reason)) => Ok(crate::runtime::connect_outcome_refused(reason)),
-            Err(ConnectFail::Rejected(reason)) => Ok(crate::runtime::connect_outcome_rejected(reason)),
-            Err(ConnectFail::Failed(reason)) => Ok(crate::runtime::connect_outcome_failed(reason)),
+            Err(ConnectFail::Refused(reason)) => Ok(crate::kernel::outcome::connect_outcome_refused(reason)),
+            Err(ConnectFail::Rejected(reason)) => Ok(crate::kernel::outcome::connect_outcome_rejected(reason)),
+            Err(ConnectFail::Failed(reason)) => Ok(crate::kernel::outcome::connect_outcome_failed(reason)),
         }
     }
 }

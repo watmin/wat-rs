@@ -62,5 +62,6 @@
 
 pub mod address;
 pub mod listener;
+pub mod outcome;
 pub mod peer;
 pub mod spawn;

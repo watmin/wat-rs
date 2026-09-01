@@ -467,10 +467,10 @@ impl Listener {
                     PEER_TYPE_PATH,
                     Arc::new(ThreadOwnedCell::new(Some(peer))),
                 );
-                Ok(crate::runtime::accept_outcome_accepted(peer_val))
+                Ok(crate::kernel::outcome::accept_outcome_accepted(peer_val))
             }
-            Err(AcceptFail::Closed) => Ok(crate::runtime::accept_outcome_closed()),
-            Err(AcceptFail::Failed(reason)) => Ok(crate::runtime::accept_outcome_failed(reason)),
+            Err(AcceptFail::Closed) => Ok(crate::kernel::outcome::accept_outcome_closed()),
+            Err(AcceptFail::Failed(reason)) => Ok(crate::kernel::outcome::accept_outcome_failed(reason)),
         }
     }
 }

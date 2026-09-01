@@ -46,7 +46,8 @@ use crate::value::{
 const NEXT_OUTCOME_TYPE: &str = ":wat::stream::NextOutcome";
 
 /// `NextOutcome::Item [value <- T, rest <- (Stream :- [T])]` — the forced head plus the
-/// undrained tail, both from the SAME single force. Mirrors `recv_outcome_message`.
+/// undrained tail, both from the SAME single force. Mirrors
+/// `crate::kernel::outcome::recv_outcome_message`.
 fn next_outcome_item(value: Value, rest: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: NEXT_OUTCOME_TYPE.into(),
@@ -57,7 +58,7 @@ fn next_outcome_item(value: Value, rest: Value) -> Value {
 }
 
 /// `NextOutcome::Exhausted []` — the named end; no more elements. Mirrors
-/// `recv_outcome_closed`.
+/// `crate::kernel::outcome::recv_outcome_closed`.
 fn next_outcome_exhausted() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: NEXT_OUTCOME_TYPE.into(),
