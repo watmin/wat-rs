@@ -36,9 +36,10 @@ what `src/numeric/arith.rs:20` does today and what
 ```
 30   functions the 7 edge files delegate to        (the map's number)
 26   peer-outcome constructors                     ⬅ THE OMITTED VOCABULARY
+ 7   *_OUTCOME_TYPE type-path consts               ⬅ FOUND BY THE RANGE SWEEP, AMENDED IN
  4   exclusive helpers (SIGNAL_TYPE, bound_names, extract_panic_payload, wrap_connect_request)
 ───
-60   items, ~4,477 lines.   runtime.rs 24,103 -> ~19,626
+67   items, ~4,500 lines.   runtime.rs 24,103 -> ~19,603
 ```
 
 ★ **I derived the closure rather than reading the edges' `use` lines**, because reading the edges is
@@ -73,7 +74,7 @@ which verb happens to use each member today would fuse a shared vocabulary into 
 
 | | stone | items | lines | what it delivers |
 |---|---|---|---|---|
-| **A** | the outcome vocabulary → `src/kernel/outcome.rs` | 26 | ~364 | **dissolves 8 existing `crate::runtime::` call sites in `src/kernel/`** |
+| **A** | the outcome vocabulary → `src/kernel/outcome.rs` | **33** | ~385 | **dissolves 8 existing `crate::runtime::` call sites in `src/kernel/`** |
 | **B** | the seven edge-mirroring sub-modules | 34 | ~4,113 | `abort · ambient · identity · message · resource · serve · source` |
 
 ★ **A-first is derived, not preferred.** B-first would land the seven impl modules in `src/kernel/`
@@ -86,9 +87,17 @@ remaining kernel verbs import the vocabulary from `crate::kernel::outcome`. `run
 does exactly this with `use crate::holon::*;`, and the direction is the one the campaign wants —
 things leaving, not arriving.
 
-## Stone A — the vocabulary
+## Stone A — the vocabulary (33 items)
 
-The 26, all measured: `recv_outcome_{message,closed,lost,shutdown,from_decoded}` ·
+⚠ **AMENDED before briefing.** The span sweep this DESIGN's own range-trap rule demanded found
+**seven `*_OUTCOME_TYPE` type-path consts** interleaved with the constructors —
+`RECV_`/`SEND_`/`TRY_SEND_`/`CLOSE_`/`SIGNAL_`/`ACCEPT_`/`CONNECT_OUTCOME_TYPE`. Each is referenced
+**only** by its own constructors (measured, every reference inside that constructor group's lines).
+A vocabulary of 26 constructors that leaves its 7 type paths behind is the half-migration at const
+granularity. `[[feedback_a_lesson_learned_and_then_dropped]]` — caught pre-flight this time, by the
+sweep rather than by a rider five stones later.
+
+The 26 constructors, all measured: `recv_outcome_{message,closed,lost,shutdown,from_decoded}` ·
 `send_outcome_{sent,closed,stopped,from_error,lost}` ·
 `try_send_outcome_{sent,would_block,closed,lost}` · `close_outcome_{closed,signaled,failed}` ·
 `signal_outcome_{delivered,failed}` · `accept_outcome_{accepted,closed,failed}` ·
@@ -133,7 +142,8 @@ excluded from the record stone; this is the stone it was excluded *for*.
 | `KERNEL_STOPPED` · `KERNEL_SIGUSR1/2` · `KERNEL_SIGHUP` · `request_kernel_stop` | same trio; consumed by four other homes |
 | `no_field_names` · `builtin_enum_variant_names` | ninth and tenth intruders; 10 and 7 consuming homes |
 | `message_only_failure` · `record_field_by_name` | died-error cluster (item 4), home unassigned |
-| `loci_died_from_send_error` · `thread_died_error_runtime` | item 4; they CALL into A's vocabulary, they do not join it |
+| ⛔ **`loci_died_error_from_reason` (11794) · `loci_died_disconnected` (11875) · `loci_died_from_send_error` (11900)** | **Twelfth, thirteenth, fourteenth intruders — woven THROUGH stone A's block**, between the `recv_` and `send_` constructors. Died-error cluster (item 4), home unassigned. A contiguous cut takes all three. |
+| `thread_died_error_runtime` | item 4; CALLS into A's vocabulary, does not join it |
 
 ## The prose the move falsifies — half the stone, and the half that rots silently
 
@@ -195,6 +205,8 @@ line citations kept rotting. Cite by grep-token, never by line number.
 | what | command | expected |
 |---|---|---|
 | A: the vocabulary is whole | `grep -c "^pub(crate) fn .*_outcome_" src/kernel/outcome.rs` | **26** |
+| A: its type paths came too | `grep -c "^pub(crate) const .*_OUTCOME_TYPE" src/kernel/outcome.rs` | **7** |
+| ⛔ A: the woven intruders stayed | `grep -c "fn loci_died_error_from_reason\|fn loci_died_disconnected\|fn loci_died_from_send_error" src/runtime.rs` | **3** |
 | A: the home stops reaching back | `grep -c "crate::runtime::\(accept\|connect\|send\)_outcome" src/kernel/*.rs` | 8 → **0** |
 | A: none left behind | `grep -c "fn .*_outcome_[a-z]*(" src/runtime.rs` | **0** |
 | B: each edge's delegations resolve to the new home | per edge file, `crate::runtime::eval_*` → `crate::kernel::*` | 30 → **0** in `intrinsic/kernel/` |
