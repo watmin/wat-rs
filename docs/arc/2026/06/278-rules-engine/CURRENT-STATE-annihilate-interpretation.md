@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-31 (eleventh — ELEVEN STRIKES; B1, A6, D3 CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-08-31 (twelfth — TWELVE STRIKES; B1, A6, D3, A3 CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 057f9d494..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 057f9d494..HEAD        # what they touched
+git log --oneline 17fc5fb3e..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 17fc5fb3e..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -91,6 +91,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **B1** | `7319c1ea4` | **a `with-` form's scope is closed by a `Drop`, not by a release call** |
 | **A6** | `bb0256e38` | **wall 5 — the import door bounds its own recursion** |
 | **D3** | `057f9d494` | **an argument with no parameter is refused, not placed** |
+| **A3** | `17fc5fb3e` | **the fence and the executor share one head-space** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -221,13 +222,42 @@ the kind changed.
 call site, six). A finding cites where it was NOTICED, not where it LIVES. Grep the callers and
 put the count in the brief. Promoted to memory.
 
-**THE NEXT WORK — A3**, the acc-form head: the fence admits on `primitive?` (= "has a `RETE_OPS`
-row") while `lower_named_rete_fn` dispatches through `sym.get`, the USER table, so
-`PersistentVector/length` fires in three positions and is unreachable as an accumulator head. ⚠
-**Read `harness-experiri/README.md`'s ⛔ CORRECTION first — the banked harness is RECONNAISSANCE,
-not a gate: ONE real assertion across EIGHT tests.** The strike must convert its recon into
-assertions before anything lands on the floor. Behind it: **A5**, **A7**, **D1's residual**, and
-Class E/F.
+✅ **A3 IS CLOSED (`17fc5fb3e`).** The acc-form fence admits on `primitive?` — *"has a `RETE_OPS`
+row"* — while `lower_named_rete_fn` looked the head up only in the USER table, so a minted row was
+refused with `unknown rete-defn` **about a row of the very table that admitted it**. Driven both
+halves: direct → refused; the SAME op behind a one-line user `defn`, SAME position → `"fired"`.
+**The capability was real and only the ladder was missing**, which is why tightening the fence was
+rejected — it would delete a working capability to make two registries agree.
+
+★ **THE CLASS GATE COMPUTES ITS OWN POPULATION.** `reachability.rs` now drives every `RETE_OPS` row
+whose param shape fits `(head ?v)` — 1 of 79 today, **never named** — and was proven to fail three
+ways: ladder reverted, predicate mutated to match nothing, and a **wrong-opcode differential** (the
+op is an INDEX, so an off-by-one runs a *different* row and still produces a fact; "it fired" would
+not catch it). ⛔ **The banked `harness-experiri` recon was NOT appended** — ONE real assertion
+across EIGHT tests, counted, not inherited.
+
+⛔⛔ **AND MY OWN BRIEF AUTHORIZED A REGRESSION.** Trap 2 told the rider that D3's wall handles
+acc-head arity, so not to add a second refusal. `expr_ir/mod.rs:14-19` says otherwise: *"`lower` IS
+TOTAL OR IT REFUSES … **every arity checked** … a refusal that belongs at compile time and lands at
+fire time is a defect in this file."* An arity-2 acc head was refused at FIRE with the span pointing
+into `fire/acc.rs`. The rider cited the law, refused to ship it silently, and the instruction was
+reversed: a compile-time fence at `arm.rs:430` — the sole caller, the only place that knows the
+operand count — moves the **location, the op name and the timing**. D3's wall is untouched as the
+backstop for every other caller. **No scorecard row could have caught this: the row I wrote endorsed
+the behaviour.**
+
+★★ **THIRD SCORECARD ROW THIS SESSION THAT COULD NOT DO ITS JOB.** Row 7 asked for a grep to return
+0; it returns **1 at HEAD**, because a pre-existing sweep hard-codes that row. Before it: a pinned
+COUNT that capped a rider's coverage, and a control that stayed GREEN under a check refusing every
+call. **Run every scorecard row against HEAD before shipping the scorecard** — a row whose
+pre-value you cannot state is not a check. Promoted to memory.
+
+**THE NEXT WORK — A5**, the unqualified sentence: `arm.rs:1190` says *"`compile-all` is the one door
+EVERY rule passes"* — false at import and at hand-assembled Sessions — and `stratify.rs:852` meets
+the imported case, comments that *"saying so is the honest outcome"*, and then `continue`s, saying
+nothing to anyone. Two halves: qualify the sentence at the site, and make `:852` return an outcome
+the caller can see. Behind it: **A7** (import charges nothing to the session ceiling and builds
+O(N²)), **D1's residual**, and Classes E/F.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
