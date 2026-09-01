@@ -41,7 +41,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 // ─── binary arithmetic: + - * / ─────────────────────────────────────────────
 //
 // Each handler clones its two `&WatAST` args into a 2-element array and
-// forwards to `crate::runtime::eval_rational_arith` — the EXACT arity-check /
+// forwards to `crate::numeric::arith::eval_rational_arith` — the EXACT arity-check /
 // type-check / dispatch fn the old `:wat::core::rational::*` arm calls —
 // with the SAME closure that arm supplies (every op COLLAPSES via
 // `collapse_bigrational` inside `eval_rational_arith` itself). No arithmetic
@@ -69,7 +69,7 @@ pub(crate) fn eval_rational_add(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rational::+";
-    crate::runtime::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
+    crate::numeric::arith::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(x + y)
     })
 }
@@ -80,7 +80,7 @@ pub(crate) fn eval_rational_add(
 // before this stone — see `i64.rs`'s `eval_i64_add_value` comment for why
 // this is deliberately not merged with `eval_rational_arith` above.
 fn eval_rational_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::+", vals, span, |a, b| Ok(a + b))
+    crate::numeric::arith::arith_rational_rational_inner(":wat::rational::+", vals, span, |a, b| Ok(a + b))
 }
 
 /// `(:wat::rational::- a b)` → `a` minus `b`. Collapses to `:wat::core::bigint`
@@ -105,14 +105,14 @@ pub(crate) fn eval_rational_sub(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rational::-";
-    crate::runtime::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
+    crate::numeric::arith::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(x - y)
     })
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s comment above.
 fn eval_rational_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::-", vals, span, |a, b| Ok(a - b))
+    crate::numeric::arith::arith_rational_rational_inner(":wat::rational::-", vals, span, |a, b| Ok(a - b))
 }
 
 /// `(:wat::rational::* a b)` → `a` times `b`. Collapses to `:wat::core::bigint`
@@ -137,14 +137,14 @@ pub(crate) fn eval_rational_mul(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rational::*";
-    crate::runtime::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
+    crate::numeric::arith::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(x * y)
     })
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s comment above.
 fn eval_rational_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::*", vals, span, |a, b| Ok(a * b))
+    crate::numeric::arith::arith_rational_rational_inner(":wat::rational::*", vals, span, |a, b| Ok(a * b))
 }
 
 /// `(:wat::rational::/ a b)` → `a` divided by `b`. `b = 0` raises
@@ -170,7 +170,7 @@ pub(crate) fn eval_rational_div_intrinsic(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rational::/";
-    crate::runtime::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::rational_div)
+    crate::numeric::arith::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::rational_div)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s
@@ -179,7 +179,7 @@ pub(crate) fn eval_rational_div_intrinsic(
 // `crate::runtime::rational_div` (incompatible signature, same reason as
 // `bigint.rs`'s `eval_bigint_div_value`).
 fn eval_rational_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::/", vals, span, |a, b| {
+    crate::numeric::arith::arith_rational_rational_inner(":wat::rational::/", vals, span, |a, b| {
         use num_traits::Zero;
         if b.is_zero() {
             return Err(());
@@ -212,7 +212,7 @@ pub(crate) fn eval_rational_to_f64_intrinsic(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_rational_to_f64(std::slice::from_ref(n), span, env, sym, ":wat::rational::to-f64")
+    crate::numeric::convert::eval_rational_to_f64(std::slice::from_ref(n), span, env, sym, ":wat::rational::to-f64")
 }
 
 /// `(:wat::rational::numerator n)` → the numerator of `n`. Renders as
@@ -235,7 +235,7 @@ pub(crate) fn eval_rational_numerator_intrinsic(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_rational_numerator(std::slice::from_ref(n), span, env, sym, ":wat::rational::numerator")
+    crate::numeric::ops::eval_rational_numerator(std::slice::from_ref(n), span, env, sym, ":wat::rational::numerator")
 }
 
 /// `(:wat::rational::denominator n)` → the denominator of `n`. Renders as
@@ -258,5 +258,5 @@ pub(crate) fn eval_rational_denominator_intrinsic(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_rational_denominator(std::slice::from_ref(n), span, env, sym, ":wat::rational::denominator")
+    crate::numeric::ops::eval_rational_denominator(std::slice::from_ref(n), span, env, sym, ":wat::rational::denominator")
 }

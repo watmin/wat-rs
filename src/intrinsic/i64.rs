@@ -42,7 +42,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 // ─── binary arithmetic: + - * / mod quot rem ───────────────────────────────
 //
 // Each handler clones its two `&WatAST` args into a 2-element array and
-// forwards to `crate::runtime::eval_i64_arith` — the EXACT arity-check /
+// forwards to `crate::numeric::arith::eval_i64_arith` — the EXACT arity-check /
 // type-check / dispatch fn the old `:wat::i64::*` arm calls — with a
 // closure that forwards straight to the shared named op fn
 // (`crate::runtime::i64_add_op` etc). No arithmetic is re-implemented here.
@@ -78,7 +78,7 @@ pub(crate) fn eval_i64_add(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::+";
-    crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
+    crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_add_op(OP, x, y, b_span)
     })
 }
@@ -96,7 +96,7 @@ pub(crate) fn eval_i64_add(
 // ever gain real spans and would risk widening today's `apply`-only
 // synthesized-span behavior onto the direct path instead.
 fn eval_i64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::+", vals, span, |a, b| {
+    crate::numeric::arith::arith_i64_i64_inner(":wat::i64::+", vals, span, |a, b| {
         a.checked_add(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
@@ -130,7 +130,7 @@ pub(crate) fn eval_i64_sub(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::-";
-    crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
+    crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_sub_op(OP, x, y, b_span)
     })
 }
@@ -138,7 +138,7 @@ pub(crate) fn eval_i64_sub(
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
 fn eval_i64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::-", vals, span, |a, b| {
+    crate::numeric::arith::arith_i64_i64_inner(":wat::i64::-", vals, span, |a, b| {
         a.checked_sub(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
@@ -172,7 +172,7 @@ pub(crate) fn eval_i64_mul(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::*";
-    crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
+    crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_mul_op(OP, x, y, b_span)
     })
 }
@@ -180,7 +180,7 @@ pub(crate) fn eval_i64_mul(
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
 fn eval_i64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::*", vals, span, |a, b| {
+    crate::numeric::arith::arith_i64_i64_inner(":wat::i64::*", vals, span, |a, b| {
         a.checked_mul(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
@@ -215,7 +215,7 @@ pub(crate) fn eval_i64_div(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::/";
-    crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
+    crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_div_op(OP, x, y, b_span)
     })
 }
@@ -223,7 +223,7 @@ pub(crate) fn eval_i64_div(
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
 fn eval_i64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::/", vals, span, |a, b| {
+    crate::numeric::arith::arith_i64_i64_inner(":wat::i64::/", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {
@@ -262,7 +262,7 @@ pub(crate) fn eval_i64_mod(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::mod";
-    crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
+    crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_mod_op(OP, x, y, b_span)
     })
 }
@@ -270,7 +270,7 @@ pub(crate) fn eval_i64_mod(
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
 fn eval_i64_mod_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::mod", vals, span, |a, b| {
+    crate::numeric::arith::arith_i64_i64_inner(":wat::i64::mod", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {
@@ -314,7 +314,7 @@ pub(crate) fn eval_i64_quot(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::quot";
-    crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
+    crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_quot_op(OP, x, y, b_span)
     })
 }
@@ -322,7 +322,7 @@ pub(crate) fn eval_i64_quot(
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
 fn eval_i64_quot_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::quot", vals, span, |a, b| {
+    crate::numeric::arith::arith_i64_i64_inner(":wat::i64::quot", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {
@@ -361,7 +361,7 @@ pub(crate) fn eval_i64_rem(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::i64::rem";
-    crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
+    crate::numeric::arith::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_rem_op(OP, x, y, b_span)
     })
 }
@@ -369,7 +369,7 @@ pub(crate) fn eval_i64_rem(
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
 fn eval_i64_rem_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::rem", vals, span, |a, b| {
+    crate::numeric::arith::arith_i64_i64_inner(":wat::i64::rem", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {
@@ -635,7 +635,7 @@ pub(crate) fn eval_i64_to_bigint(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_bigint(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-bigint")
+    crate::numeric::convert::eval_i64_to_bigint(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-bigint")
 }
 
 /// `(:wat::i64::to-f64 n)` → `n` cast to `:wat::core::f64`. Lossy beyond
@@ -670,7 +670,7 @@ pub(crate) fn eval_i64_to_f64(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_f64(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-f64")
+    crate::numeric::convert::eval_i64_to_f64(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-f64")
 }
 
 /// `(:wat::i64::to-rational n)` → `n` promoted to `:wat::core::rational`.
@@ -697,7 +697,7 @@ pub(crate) fn eval_i64_to_rational(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_rational(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-rational")
+    crate::numeric::convert::eval_i64_to_rational(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-rational")
 }
 
 /// `(:wat::i64::to-string n)` → the base-10 rendering of `n`.
@@ -731,5 +731,5 @@ pub(crate) fn eval_i64_to_string(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_string(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-string")
+    crate::numeric::convert::eval_i64_to_string(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-string")
 }

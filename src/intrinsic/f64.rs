@@ -82,7 +82,7 @@ use crate::value::{
 // ─── binary arithmetic: + - * / ─────────────────────────────────────────────
 //
 // Each handler clones its two `&WatAST` args into a 2-element array and
-// forwards to `crate::runtime::eval_f64_arith` — the EXACT arity-check /
+// forwards to `crate::numeric::arith::eval_f64_arith` — the EXACT arity-check /
 // type-check / dispatch fn the old `:wat::f64::*` arm calls — with the
 // SAME named op fn (`crate::runtime::f64_add_op` etc.) the old arm now also
 // calls. No arithmetic is re-implemented here.
@@ -116,7 +116,7 @@ pub(crate) fn eval_f64_add(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::+";
-    crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_add_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_add_op)
 }
 
 // Arc 255 Stone N — value-level twin, for `dispatch_substrate_impl`'s
@@ -125,7 +125,7 @@ pub(crate) fn eval_f64_add(
 // used before this stone — see `i64.rs`'s `eval_i64_add_value` comment for
 // why this is deliberately not merged with `eval_f64_arith` above.
 fn eval_f64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::+", vals, span, |a, b| Ok(a + b))
+    crate::numeric::arith::arith_f64_f64_inner(":wat::f64::+", vals, span, |a, b| Ok(a + b))
 }
 
 /// `(:wat::f64::- a b)` → `a` minus `b`, strict f64. Same shared op fn as
@@ -155,12 +155,12 @@ pub(crate) fn eval_f64_sub(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::-";
-    crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_sub_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_sub_op)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
 fn eval_f64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::-", vals, span, |a, b| Ok(a - b))
+    crate::numeric::arith::arith_f64_f64_inner(":wat::f64::-", vals, span, |a, b| Ok(a - b))
 }
 
 /// `(:wat::f64::* a b)` → `a` times `b`, strict f64. Same shared op fn as
@@ -190,12 +190,12 @@ pub(crate) fn eval_f64_mul(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::*";
-    crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_mul_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_mul_op)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
 fn eval_f64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::*", vals, span, |a, b| Ok(a * b))
+    crate::numeric::arith::arith_f64_f64_inner(":wat::f64::*", vals, span, |a, b| Ok(a * b))
 }
 
 /// `(:wat::f64::/ a b)` → `a` divided by `b`. IEEE 754 division: `b = 0.0`
@@ -226,12 +226,12 @@ pub(crate) fn eval_f64_div(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::/";
-    crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_div_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_div_op)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
 fn eval_f64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::/", vals, span, |a, b| Ok(a / b))
+    crate::numeric::arith::arith_f64_f64_inner(":wat::f64::/", vals, span, |a, b| Ok(a / b))
 }
 
 // ─── max / min (binary) ─────────────────────────────────────────────────────
@@ -268,7 +268,7 @@ pub(crate) fn eval_f64_max(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::max";
-    crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_max_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_max_op)
 }
 
 /// `(:wat::f64::min a b)` → the smaller of `a` and `b` (`f64::min`, IEEE 754
@@ -298,12 +298,12 @@ pub(crate) fn eval_f64_min(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::min";
-    crate::runtime::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_min_op)
+    crate::numeric::arith::eval_f64_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::f64_min_op)
 }
 
 // ─── comparisons: < <= > >= = not= ─────────────────────────────────────────
 //
-// `crate::runtime::eval_f64_compare` is the SAME engine
+// `crate::numeric::compare::eval_f64_compare` is the SAME engine
 // `:wat::f64::{<,<=,>,>=,=,not=}` calls (already NaN-correct — IEEE 754
 // falls out of a bare `a < b` / `a == b` with no special-casing). Each
 // predicate closure below is trivial (not an algorithm) and is duplicated
@@ -343,7 +343,7 @@ pub(crate) fn eval_f64_lt(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::<";
-    crate::runtime::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a < b)
+    crate::numeric::compare::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a < b)
 }
 
 /// `(:wat::f64::<= a b)` → whether `a` is less than or equal to `b`.
@@ -378,7 +378,7 @@ pub(crate) fn eval_f64_lte(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::<=";
-    crate::runtime::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a <= b)
+    crate::numeric::compare::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a <= b)
 }
 
 /// `(:wat::f64::> a b)` → whether `a` is greater than `b`.
@@ -413,7 +413,7 @@ pub(crate) fn eval_f64_gt(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::>";
-    crate::runtime::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a > b)
+    crate::numeric::compare::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a > b)
 }
 
 /// `(:wat::f64::>= a b)` → whether `a` is greater than or equal to `b`.
@@ -448,7 +448,7 @@ pub(crate) fn eval_f64_gte(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::>=";
-    crate::runtime::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a >= b)
+    crate::numeric::compare::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a >= b)
 }
 
 /// `(:wat::f64::= a b)` → whether `a` equals `b`. IEEE 754 equality: `NaN =
@@ -485,7 +485,7 @@ pub(crate) fn eval_f64_eq(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::=";
-    crate::runtime::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a == b)
+    crate::numeric::compare::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a == b)
 }
 
 /// `(:wat::f64::not= a b)` → whether `a` does not equal `b`.
@@ -521,7 +521,7 @@ pub(crate) fn eval_f64_not_eq(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::f64::not=";
-    crate::runtime::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a != b)
+    crate::numeric::compare::eval_f64_compare(OP, &[a.clone(), b.clone()], span, env, sym, |a, b| a != b)
 }
 
 // ─── unary: abs round to-i64 to-string ─────────────────────────────────────
@@ -549,12 +549,12 @@ pub(crate) fn eval_f64_abs(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_unary(std::slice::from_ref(n), span, env, sym, ":wat::f64::abs", f64::abs)
+    crate::numeric::ops::eval_f64_unary(std::slice::from_ref(n), span, env, sym, ":wat::f64::abs", f64::abs)
 }
 
 /// `(:wat::f64::round v digits)` → `v` rounded to `digits` decimal places,
 /// round-half-away-from-zero. `digits` must be non-negative. Delegates to
-/// the SAME `crate::runtime::eval_f64_round` as `:wat::f64::round`;
+/// the SAME `crate::numeric::ops::eval_f64_round` as `:wat::f64::round`;
 /// its `:op` in any raised error names the OLD spelling regardless of which
 /// name the caller used (see this module's header) — a pre-existing
 /// property of the shared fn, not new here.
@@ -582,7 +582,7 @@ pub(crate) fn eval_f64_round(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_round(&[v.clone(), digits.clone()], span, env, sym, ":wat::f64::round")
+    crate::numeric::ops::eval_f64_round(&[v.clone(), digits.clone()], span, env, sym, ":wat::f64::round")
 }
 
 /// `(:wat::f64::to-i64 n)` → `(Some n)` truncated to `:wat::core::i64` when
@@ -612,7 +612,7 @@ pub(crate) fn eval_f64_to_i64(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_to_i64(std::slice::from_ref(n), span, env, sym, ":wat::f64::to-i64")
+    crate::numeric::convert::eval_f64_to_i64(std::slice::from_ref(n), span, env, sym, ":wat::f64::to-i64")
 }
 
 /// `(:wat::f64::to-string n)` → the rendering of `n`. Same shared op fn as
@@ -648,7 +648,7 @@ pub(crate) fn eval_f64_to_string(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_to_string(std::slice::from_ref(n), span, env, sym, ":wat::f64::to-string")
+    crate::numeric::convert::eval_f64_to_string(std::slice::from_ref(n), span, env, sym, ":wat::f64::to-string")
 }
 
 // ─── ternary: clamp ─────────────────────────────────────────────────────────
@@ -693,7 +693,7 @@ pub(crate) fn eval_f64_clamp(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_clamp(&[v.clone(), lo.clone(), hi.clone()], span, env, sym, ":wat::f64::clamp")
+    crate::numeric::ops::eval_f64_clamp(&[v.clone(), lo.clone(), hi.clone()], span, env, sym, ":wat::f64::clamp")
 }
 
 // ─── variadic: max-of min-of ────────────────────────────────────────────────

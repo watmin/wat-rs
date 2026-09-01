@@ -5882,7 +5882,7 @@ fn dispatch_keyword_head_value(
         // `src/collection/transform.rs`'s note beside the deleted `eval_vec_map_with_index`.
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
-        ":wat::core::u8" => eval_u8_cast(args, list_span, env, sym),
+        ":wat::core::u8" => crate::numeric::convert::eval_u8_cast(args, list_span, env, sym),
 
         // Arc 255 Stone C — the old `:wat::core::i64::{+,-,*,/,mod,rem,quot}` arms
         // that lived here are RETIRED. The registry-first door above
@@ -5934,7 +5934,7 @@ fn dispatch_keyword_head_value(
         //
         // Arc 234 Stone 234.4 — slash-form alias for i64::to-f64 (untouched — a
         // different naming scheme, not part of this stone's `::`-retirement).
-        ":wat::core::i64/to-f64" => eval_i64_to_f64(args, list_span, env, sym, ":wat::core::i64/to-f64"),
+        ":wat::core::i64/to-f64" => crate::numeric::convert::eval_i64_to_f64(args, list_span, env, sym, ":wat::core::i64/to-f64"),
         // `:wat::string::to-i64` / `to-f64` / `to-bool` are REGISTERED now
         // (`intrinsic/string.rs`, arc 255 home #4 phase 2) — no arm here; see the
         // registry-hoist note a few dozen lines up this match.
@@ -5972,7 +5972,7 @@ fn dispatch_keyword_head_value(
         }),
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
-        ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
+        ":wat::core::i64/to-string" => crate::numeric::convert::eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
 
         // Arc 255 Stone F — the `String/` namespace aliases (Stone 237.3) that lived here
         // (concat/starts-with?/ends-with?/contains?/empty?) are RETIRED. Their replacement is
@@ -9359,60 +9359,8 @@ fn eval_if(
 
 // ─── Built-ins ──────────────────────────────────────────────────────────
 
-/// Integer arith: `:wat::i64::{+,-,*,/}`. Strictly i64 × i64 →
-/// i64. No promotion; a f64 arg is a type error.
-///
-/// `pub(crate)` — arc 255 Stone A-i: `intrinsic/i64.rs`'s `:wat::i64::*`
-/// registered handlers call this SAME fn (not a second copy) so both
-/// spellings share one arity/type-check/dispatch path.
-pub(crate) fn eval_i64_arith<F>(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(i64, i64, &Span) -> Result<i64, EvalBreak>,
-{
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: head.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
-    match (a.value(), b.value()) {
-        (Value::i64(x), Value::i64(y)) => Ok(Value::i64(op(*x, *y, &b_span)?)),
-        (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::new(
-            a_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "i64",
-                got: Box::new(ValueSnapshot::of(a.value())),
-            },
-        )
-        .into()),
-        (_, _) => Err(RuntimeError::new(
-            b_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "i64",
-                got: Box::new(ValueSnapshot::of(b.value())),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `eval_i64_arith` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // ─── Arc 255 Stone A-i — the SHARED i64 op fns ─────────────────────────────
 //
@@ -9613,62 +9561,8 @@ fn dispatch_rete_op(
     }
 }
 
-/// Bigint arith: `:wat::core::bigint::{+,-,*,/}`. Strictly bigint × bigint.
-/// No promotion; an i64 arg is a type error — callers promote explicitly via
-/// `:wat::i64::to-bigint` (the `wat/core.wat` contagion arms do this).
-/// Arc 300 stone C1 — arbitrary precision: `op` never sees an overflow case
-/// (contrast `eval_i64_arith`'s wrapping semantics). `op` returns a `Value`
-/// directly (not a `BigInt`) because `/` can collapse to EITHER
-/// `Value::wat__core__BigInt` (divisible) or `Value::wat__core__Rational`
-/// (else) — a single-output-type shape can't express that.
-pub(crate) fn eval_bigint_arith<F>(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(&BigInt, &BigInt, &Span) -> Result<Value, EvalBreak>,
-{
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: head.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
-    match (a.value(), b.value()) {
-        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => op(x, y, &b_span),
-        (other, _) if !matches!(other, Value::wat__core__BigInt(_)) => Err(RuntimeError::new(
-            a_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "bigint",
-                got: Box::new(ValueSnapshot::of(a.value())),
-            },
-        )
-        .into()),
-        (_, _) => Err(RuntimeError::new(
-            b_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "bigint",
-                got: Box::new(ValueSnapshot::of(b.value())),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `eval_bigint_arith` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// `:wat::core::bigint::/`'s op fn: divisible → `bigint` quotient;
 /// otherwise → `:wat::core::rational` (reduced via `BigRational::new`,
@@ -9699,7 +9593,7 @@ pub(crate) fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value,
 /// even after an intermediate step COLLAPSES to bigint (see [`collapse_bigrational`]).
 /// An i64 arg is still a type error — callers promote i64 explicitly via
 /// `:wat::i64::to-rational` (mirrors C1's i64::to-bigint contagion pattern).
-fn to_bigrational(v: &Value) -> Option<BigRational> {
+pub(crate) fn to_bigrational(v: &Value) -> Option<BigRational> {
     match v {
         Value::wat__core__Rational(r) => Some((**r).clone()),
         Value::wat__core__BigInt(n) => Some(BigRational::from_integer((**n).clone())),
@@ -9714,7 +9608,7 @@ fn to_bigrational(v: &Value) -> Option<BigRational> {
 /// C1's `bigint::/` → rational collapse (that one collapses DOWN on failure
 /// to divide evenly; this one collapses UP whenever the ratio happens to
 /// reduce to an integer).
-fn collapse_bigrational(r: BigRational) -> Value {
+pub(crate) fn collapse_bigrational(r: BigRational) -> Value {
     if r.is_integer() {
         Value::wat__core__BigInt(Box::new(r.to_integer()))
     } else {
@@ -9722,64 +9616,8 @@ fn collapse_bigrational(r: BigRational) -> Value {
     }
 }
 
-/// Rational arith: `:wat::core::rational::{+,-,*,/}`. Modeled on
-/// `eval_bigint_arith` above, one type over — but EVERY op here can
-/// COLLAPSE (contrast bigint, where only `/` collapses): `op` returns the
-/// raw `BigRational` result and this wrapper applies [`collapse_bigrational`]
-/// uniformly. Operands are coerced via [`to_bigrational`] (rational or
-/// bigint; i64 is still a type error — promote explicitly via
-/// `:wat::i64::to-rational`).
-pub(crate) fn eval_rational_arith<F>(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(&BigRational, &BigRational, &Span) -> Result<BigRational, EvalBreak>,
-{
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: head.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?;
-    let b = eval_inner(&args[1], env, sym)?;
-    match (to_bigrational(a.value()), to_bigrational(b.value())) {
-        (Some(x), Some(y)) => {
-            let r = op(&x, &y, &b_span)?;
-            Ok(collapse_bigrational(r))
-        }
-        (None, _) => Err(RuntimeError::new(
-            a_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "rational",
-                got: Box::new(ValueSnapshot::of(a.value())),
-            },
-        )
-        .into()),
-        (_, None) => Err(RuntimeError::new(
-            b_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "rational",
-                got: Box::new(ValueSnapshot::of(b.value())),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `eval_rational_arith` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// `:wat::core::rational::/`'s op fn: division by zero is a clean runtime
 /// error, never a panic (mirrors `bigint_div`'s zero-divisor guard).
@@ -9791,269 +9629,37 @@ pub(crate) fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> R
     Ok(a / b)
 }
 
-/// `:wat::i64::to-rational` — infallible promotion (mirrors C1's
-/// `i64::to-bigint`). Used by the `wat/core.wat` `+ - * /` defclauses'
-/// i64⊕rational contagion arms.
-///
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::i64::to-rational` literal through Stone B) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_i64_to_rational(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let n = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "i64",
-        |v| match v {
-            Value::i64(n) => Ok(n),
-            other => Err(other),
-        },
-    )?;
-    Ok(Value::wat__core__Rational(Box::new(
-        BigRational::from_integer(BigInt::from(n)),
-    )))
-}
+// Arc 109 Stone 1 — `eval_i64_to_rational` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::core::bigint::to-rational` — infallible promotion. Used by the
-/// `wat/core.wat` `+ - * /` defclauses' bigint⊕rational contagion arms.
-///
-/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::bigint::to-rational` literal through Stone C) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_bigint_to_rational(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let n = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "bigint",
-        |v| match v {
-            Value::wat__core__BigInt(n) => Ok(n),
-            other => Err(other),
-        },
-    )?;
-    Ok(Value::wat__core__Rational(Box::new(
-        BigRational::from_integer(*n),
-    )))
-}
+// Arc 109 Stone 1 — `eval_bigint_to_rational` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::core::rational::to-f64` — `BigRational::to_f64` via num-traits
-/// `ToPrimitive` (mirrors `eval_bigint_to_f64`'s posture). Also the float-
-/// contagion path (`rational ⊕ f64 → f64`) used by the `core.wat` defclauses.
-///
-/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::rational::to-f64` literal through Stone C) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_rational_to_f64(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let r = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "rational",
-        |v| match v {
-            Value::wat__core__Rational(r) => Ok(r),
-            other => Err(other),
-        },
-    )?;
-    let x = r.to_f64().unwrap_or_else(|| {
-        use num_traits::Signed;
-        if r.is_negative() {
-            f64::NEG_INFINITY
-        } else {
-            f64::INFINITY
-        }
-    });
-    Ok(Value::f64(x))
-}
+// Arc 109 Stone 1 — `eval_rational_to_f64` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// Shared by `rational/numerator` + `rational/denominator`: a `BigInt`
 /// component that fits in `i64` renders as `:wat::core::i64` (the common
 /// case); one that doesn't renders as `:wat::core::bigint` (never silently
 /// truncated).
-fn bigint_component_to_value(n: BigInt) -> Value {
+pub(crate) fn bigint_component_to_value(n: BigInt) -> Value {
     match n.to_i64() {
         Some(i) => Value::i64(i),
         None => Value::wat__core__BigInt(Box::new(n)),
     }
 }
 
-/// `:wat::core::rational/numerator` — slash-form accessor (cf `Uuid/version`).
-///
-/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::rational/numerator` literal through Stone C) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_rational_numerator(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let r = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "rational",
-        |v| match v {
-            Value::wat__core__Rational(r) => Ok(r),
-            other => Err(other),
-        },
-    )?;
-    Ok(bigint_component_to_value(r.numer().clone()))
-}
+// Arc 109 Stone 1 — `eval_rational_numerator` moved to `src/numeric/ops.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::core::rational/denominator` — slash-form accessor (cf `Uuid/version`).
-///
-/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::rational/denominator` literal through Stone C) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_rational_denominator(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let r = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "rational",
-        |v| match v {
-            Value::wat__core__Rational(r) => Ok(r),
-            other => Err(other),
-        },
-    )?;
-    Ok(bigint_component_to_value(r.denom().clone()))
-}
+// Arc 109 Stone 1 — `eval_rational_denominator` moved to `src/numeric/ops.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::core::u8 <i64-expr>` — range-checked cast from `:i64` to
-/// `:u8`. Arc 008 slice 1. Rejects values outside 0..=255 at runtime
-/// with a MalformedForm describing the offending value. The argument
-/// type is enforced statically; this primitive only runs if the
-/// checker saw an `:i64` at the call site.
-fn eval_u8_cast(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::u8".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_span = args[0].span().clone();
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        Value::i64(n) => {
-            if !(0..=255).contains(&n) {
-                return Err(RuntimeError::new(
-                    arg_span,
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::u8".into(),
-                        reason: format!("value {} out of :u8 range 0..=255", n),
-                    },
-                )
-                .into());
-            }
-            Ok(Value::u8(n as u8))
-        }
-        other => Err(RuntimeError::new(
-            arg_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::u8".into(),
-                expected: "i64",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `eval_u8_cast` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Float arith: `:wat::f64::{+,-,*,/}`. Strictly f64 × f64 →
-/// f64. No promotion; an i64 arg is a type error.
-pub(crate) fn eval_f64_arith<F>(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(f64, f64, &Span) -> Result<f64, EvalBreak>,
-{
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: head.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    match (a, b) {
-        (Value::f64(x), Value::f64(y)) => Ok(Value::f64(op(x, y, &b_span)?)),
-        (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::new(
-            a_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-        (_, other) => Err(RuntimeError::new(
-            b_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `eval_f64_arith` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // Arc 255 Stone A-ii — the six `eval_f64_arith` op bodies, lifted out of the
 // inline closures the OLD `:wat::core::f64::{+,-,*,/,max,min}` dispatch arms
@@ -10119,7 +9725,7 @@ pub(crate) fn f64_min_op(
 // implicit coercion at arithmetic / comparison sites; users opt in
 // to each conversion by name at the call site.
 
-fn eval_one_arg<T>(
+pub(crate) fn eval_one_arg<T>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -10153,354 +9759,32 @@ fn eval_one_arg<T>(
     })
 }
 
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::i64::to-string` literal through Stone B) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_i64_to_string(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let n = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "i64",
-        |v| match v {
-            Value::i64(n) => Ok(n),
-            other => Err(other),
-        },
-    )?;
-    Ok(Value::String(Arc::new(n.to_string())))
-}
+// Arc 109 Stone 1 — `eval_i64_to_string` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::i64::to-f64` literal through Stone B) so a raised error names
-/// whichever spelling the caller actually used.
-pub(crate) fn eval_i64_to_f64(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let n = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "i64",
-        |v| match v {
-            Value::i64(n) => Ok(n),
-            other => Err(other),
-        },
-    )?;
-    Ok(Value::f64(n as f64))
-}
+// Arc 109 Stone 1 — `eval_i64_to_f64` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::i64::to-bigint` — infallible promotion (arbitrary precision
-/// never loses i64 range). Arc 300 stone C1: used by the `wat/core.wat`
-/// `+ - * /` defclauses' i64⊕bigint contagion arms.
-///
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::i64::to-bigint` literal through Stone B) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_i64_to_bigint(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let n = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "i64",
-        |v| match v {
-            Value::i64(n) => Ok(n),
-            other => Err(other),
-        },
-    )?;
-    Ok(Value::wat__core__BigInt(Box::new(BigInt::from(n))))
-}
+// Arc 109 Stone 1 — `eval_i64_to_bigint` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `:wat::core::bigint::to-f64` — lossy beyond f64's 53-bit mantissa (same
-/// posture as `:wat::i64::to-f64`). Arc 300 stone C1.
-///
-/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::bigint::to-f64` literal through Stone C) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_bigint_to_f64(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let n = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "bigint",
-        |v| match v {
-            Value::wat__core__BigInt(n) => Ok(n),
-            other => Err(other),
-        },
-    )?;
-    let x = n.to_f64().unwrap_or_else(|| {
-        if *n < BigInt::from(0) {
-            f64::NEG_INFINITY
-        } else {
-            f64::INFINITY
-        }
-    });
-    Ok(Value::f64(x))
-}
+// Arc 109 Stone 1 — `eval_bigint_to_f64` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::f64::to-string` literal through Stone B) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_f64_to_string(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let f = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "f64",
-        |v| match v {
-            Value::f64(f) => Ok(f),
-            other => Err(other),
-        },
-    )?;
-    Ok(Value::String(Arc::new(format!("{}", f))))
-}
+// Arc 109 Stone 1 — `eval_f64_to_string` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::f64::to-i64` literal through Stone B) so a raised error names
-/// whichever spelling the caller actually used.
-pub(crate) fn eval_f64_to_i64(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    let f = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "f64",
-        |v| match v {
-            Value::f64(f) => Ok(f),
-            other => Err(other),
-        },
-    )?;
-    let result = if f.is_finite() && f >= (i64::MIN as f64) && f <= (i64::MAX as f64) {
-        Some(Value::i64(f as i64))
-    } else {
-        None
-    };
-    Ok(Value::Option(Arc::new(result)))
-}
+// Arc 109 Stone 1 — `eval_f64_to_i64` moved to `src/numeric/convert.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 019 — `(:wat::f64::round v digits)`. Rounds `v` to
-/// `digits` decimal places using round-half-away-from-zero (wraps
-/// Rust's `f64::round()` after scaling). `digits=0` rounds to the
-/// nearest integer; `digits=2` rounds to two decimals. Negative
-/// `digits` is rejected as MalformedForm — "round to nearest 10"
-/// has no load-bearing use case and feels like asking for a
-/// divide-by-zero answer; if a real caller surfaces, a future
-/// arc extends. NaN and ±∞ pass through unchanged.
-///
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::f64::round` `const OP` through Stone B) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_f64_round(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg0_span = args[0].span().clone();
-    let arg1_span = args[1].span().clone();
-    let v = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::f64(x) => x,
-        other => {
-            return Err(RuntimeError::new(
-                arg0_span,
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "f64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    let digits = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::i64(d) => d,
-        other => {
-            return Err(RuntimeError::new(
-                arg1_span.clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "i64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    if digits < 0 {
-        return Err(RuntimeError::new(arg1_span, RuntimeErrorKind::MalformedForm {
-            head: op.into(),
-            reason: format!(
-                "`digits` must be non-negative; got {}. Negative digits (round to nearest 10 / 100 / ...) has no load-bearing use case today",
-                digits
-            )
-        }).into());
-    }
-    let factor = 10f64.powi(digits as i32);
-    Ok(Value::f64((v * factor).round() / factor))
-}
+// Arc 109 Stone 1 — `eval_f64_round` moved to `src/numeric/ops.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 046 — strict-f64 unary helper for the `:wat::core::f64`
-/// namespace primitives. Mirrors `eval_math_unary`
-/// (`:wat::math::*` namespace, arc 255 Stone HOME-9) but takes the full op name as a
-/// string and rejects `i64` arguments — the `:wat::core::f64`
-/// family is consistently strict (matches `eval_f64_arith`'s
-/// `f64::+/-/*//` discipline), while `:wat::math::*` permits
-/// `i64 -> f64` promotion for ergonomic transcendental calls.
-pub(crate) fn eval_f64_unary(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-    f: fn(f64) -> f64,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_span = args[0].span().clone();
-    let v = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::f64(x) => x,
-        other => {
-            return Err(RuntimeError::new(
-                arg_span,
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "f64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::f64(f(v)))
-}
+// Arc 109 Stone 1 — `eval_f64_unary` moved to `src/numeric/ops.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 046 — `(:wat::f64::clamp v lo hi)`. Bounds `v` into
-/// `[lo, hi]` via `f64::clamp`. Strict-f64 (no `i64` promotion);
-/// matches the `:wat::f64` family discipline. Rust's
-/// `f64::clamp` panics if `lo > hi` or either is NaN — we surface
-/// that as a `MalformedForm` rather than letting it propagate as
-/// a panic, since wat-side errors should be catchable.
-///
-/// Arc 255 Stone C — `op` is now a caller-supplied parameter (was a hardcoded
-/// `:wat::core::f64::clamp` `const OP` through Stone B) so a raised error
-/// names whichever spelling the caller actually used.
-pub(crate) fn eval_f64_clamp(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: &str,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: op.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let mut vs = [0.0_f64; 3];
-    for (i, slot) in vs.iter_mut().enumerate() {
-        let arg_span = args[i].span().clone();
-        *slot = match eval_inner(&args[i], env, sym)?.value_owned() {
-            Value::f64(x) => x,
-            other => {
-                return Err(RuntimeError::new(
-                    arg_span,
-                    RuntimeErrorKind::TypeMismatch {
-                        op: op.into(),
-                        expected: "f64",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                    },
-                )
-                .into());
-            }
-        };
-    }
-    let [v, lo, hi] = vs;
-    if lo.is_nan() || hi.is_nan() || lo > hi {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "lo must be ≤ hi and neither may be NaN; got lo={}, hi={}",
-                    lo, hi
-                ),
-            },
-        )
-        .into());
-    }
-    Ok(Value::f64(v.clamp(lo, hi)))
-}
+// Arc 109 Stone 1 — `eval_f64_clamp` moved to `src/numeric/ops.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 fn eval_bool_to_string(
     args: &[WatAST],
@@ -11398,49 +10682,8 @@ pub(crate) fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     Ok(Value::bool(result))
 }
 
-/// Stone 237.8b — NaN-correct f64 ordering primitive.
-///
-/// Uses direct f64 IEEE 754 comparison predicates rather than routing through
-/// `values_compare` (which maps NaN→Equal via `unwrap_or`). IEEE 754 guarantees:
-/// - any ordered comparison involving NaN returns false
-/// - `a < NaN` = false, `NaN < a` = false, `NaN <= NaN` = false, etc.
-///
-/// This is correct per the DESIGN gate `gate_4b_f64_nan_ordering`.
-pub(crate) fn eval_f64_compare<F: Fn(f64, f64) -> bool>(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    pred: F,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: head.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a_span = args[0].span().clone();
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
-    match (a, b) {
-        (Value::f64(x), Value::f64(y)) => Ok(Value::bool(pred(x, y))),
-        (other, _) => Err(RuntimeError::new(
-            a_span,
-            RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `eval_f64_compare` moved to `src/numeric/compare.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // Stone 237.8b — HARD CUT:
 //   - ArithOp enum + impl (Add/Sub/Mul/Div, allows_zero_ary, one_ary_inserts_identity, identity_i64)
@@ -11750,152 +10993,17 @@ pub(crate) enum I64ArithErr {
     Overflow(i64, i64),
 }
 
-// Arc 255 Stone Q-2 — gained `span: &Span`. This helper is called ONLY by the 19
-// value-door twins (`src/intrinsic/{i64,f64,bigint,rational}.rs`), never by the AST
-// door's `eval_i64_arith`/`i64_add_op` (STOP-3: those keep their own spans untouched).
-// Every error below now carries the caller's real span instead of a synthesized one.
-pub(crate) fn arith_i64_i64_inner<F>(
-    impl_name: &str,
-    vals: &[Value],
-    span: &Span,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(i64, i64) -> Result<i64, I64ArithErr>,
-{
-    let a = vals.first().expect("arity-checked");
-    let b = vals.get(1).expect("arity-checked");
-    match (a, b) {
-        (Value::i64(x), Value::i64(y)) => match op(*x, *y) {
-            Ok(r) => Ok(Value::i64(r)),
-            Err(I64ArithErr::DivByZero) => {
-                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
-            }
-            Err(I64ArithErr::Overflow(a, b)) => Err(RuntimeError::new(
-                span.clone(),
-                RuntimeErrorKind::IntegerOverflow {
-                    op: impl_name.into(),
-                    a,
-                    b,
-                },
-            )
-            .into()),
-        },
-        _ => Err(RuntimeError::new(
-            span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: impl_name.into(),
-                expected: "(i64, i64)",
-                got: Box::new(ValueSnapshot::of(a)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `arith_i64_i64_inner` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// Arc 255 Stone Q-2 — gained `span: &Span`; see `arith_i64_i64_inner`'s comment above.
-pub(crate) fn arith_f64_f64_inner<F>(
-    impl_name: &str,
-    vals: &[Value],
-    span: &Span,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(f64, f64) -> Result<f64, ()>,
-{
-    let a = vals.first().expect("arity-checked");
-    let b = vals.get(1).expect("arity-checked");
-    match (a, b) {
-        (Value::f64(x), Value::f64(y)) => match op(*x, *y) {
-            Ok(r) => Ok(Value::f64(r)),
-            Err(()) => {
-                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
-            }
-        },
-        _ => Err(RuntimeError::new(
-            span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: impl_name.into(),
-                expected: "(f64, f64)",
-                got: Box::new(ValueSnapshot::of(a)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `arith_f64_f64_inner` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 300 stone C1 — bigint substrate-addressed arithmetic leaf, mirroring
-/// `arith_i64_i64_inner`/`arith_f64_f64_inner` above. `op` returns a `Value`
-/// directly (not a `BigInt`) so `/` can produce EITHER
-/// `Value::wat__core__BigInt` or `Value::wat__core__Rational` — same
-/// two-output-type reason as `eval_bigint_arith`.
-// Arc 255 Stone Q-2 — gained `span: &Span`; see `arith_i64_i64_inner`'s comment above.
-pub(crate) fn arith_bigint_bigint_inner<F>(
-    impl_name: &str,
-    vals: &[Value],
-    span: &Span,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(&BigInt, &BigInt) -> Result<Value, ()>,
-{
-    let a = vals.first().expect("arity-checked");
-    let b = vals.get(1).expect("arity-checked");
-    match (a, b) {
-        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => match op(x, y) {
-            Ok(v) => Ok(v),
-            Err(()) => {
-                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
-            }
-        },
-        _ => Err(RuntimeError::new(
-            span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: impl_name.into(),
-                expected: "(bigint, bigint)",
-                got: Box::new(ValueSnapshot::of(a)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `arith_bigint_bigint_inner` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Arc 300 stone C2 — rational substrate-addressed arithmetic leaf, mirroring
-/// `arith_bigint_bigint_inner` above. `op` returns the raw `BigRational`
-/// (not a `Value`) because EVERY rational op collapses (contrast bigint,
-/// where only `/` does) — this helper applies `collapse_bigrational`
-/// uniformly after `op`. Operands are coerced via `to_bigrational` (rational
-/// or bigint — see its doc for why bigint is accepted here too).
-// Arc 255 Stone Q-2 — gained `span: &Span`; see `arith_i64_i64_inner`'s comment above.
-pub(crate) fn arith_rational_rational_inner<F>(
-    impl_name: &str,
-    vals: &[Value],
-    span: &Span,
-    op: F,
-) -> Result<Value, EvalBreak>
-where
-    F: Fn(&BigRational, &BigRational) -> Result<BigRational, ()>,
-{
-    let a = vals.first().expect("arity-checked");
-    let b = vals.get(1).expect("arity-checked");
-    match (to_bigrational(a), to_bigrational(b)) {
-        (Some(x), Some(y)) => match op(&x, &y) {
-            Ok(r) => Ok(collapse_bigrational(r)),
-            Err(()) => {
-                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
-            }
-        },
-        _ => Err(RuntimeError::new(
-            span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: impl_name.into(),
-                expected: "(rational, rational)",
-                got: Box::new(ValueSnapshot::of(a)),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 109 Stone 1 — `arith_rational_rational_inner` moved to `src/numeric/arith.rs` (the numeric home;
+// docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // arc 237 Stone 237.8a — arith_i64_f64_inner and arith_f64_i64_inner
 // DELETED under THE DECISION (`feedback_no_implicit_coercion`).

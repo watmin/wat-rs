@@ -38,7 +38,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 // ─── binary arithmetic: + - * / ─────────────────────────────────────────────
 //
 // Each handler clones its two `&WatAST` args into a 2-element array and
-// forwards to `crate::runtime::eval_bigint_arith` — the EXACT arity-check /
+// forwards to `crate::numeric::arith::eval_bigint_arith` — the EXACT arity-check /
 // type-check / dispatch fn the old `:wat::core::bigint::*` arm calls — with
 // the SAME closure that arm supplies. No arithmetic is re-implemented here.
 
@@ -64,7 +64,7 @@ pub(crate) fn eval_bigint_add(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::+";
-    crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
+    crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(Value::wat__core__BigInt(Box::new(x + y)))
     })
 }
@@ -75,7 +75,7 @@ pub(crate) fn eval_bigint_add(
 // before this stone — see `i64.rs`'s `eval_i64_add_value` comment for why
 // this is deliberately not merged with `eval_bigint_arith` above.
 fn eval_bigint_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::+", vals, span, |a, b| {
+    crate::numeric::arith::arith_bigint_bigint_inner(":wat::bigint::+", vals, span, |a, b| {
         Ok(Value::wat__core__BigInt(Box::new(a + b)))
     })
 }
@@ -102,14 +102,14 @@ pub(crate) fn eval_bigint_sub(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::-";
-    crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
+    crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(Value::wat__core__BigInt(Box::new(x - y)))
     })
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
 fn eval_bigint_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::-", vals, span, |a, b| {
+    crate::numeric::arith::arith_bigint_bigint_inner(":wat::bigint::-", vals, span, |a, b| {
         Ok(Value::wat__core__BigInt(Box::new(a - b)))
     })
 }
@@ -136,14 +136,14 @@ pub(crate) fn eval_bigint_mul(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::*";
-    crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
+    crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(Value::wat__core__BigInt(Box::new(x * y)))
     })
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
 fn eval_bigint_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::*", vals, span, |a, b| {
+    crate::numeric::arith::arith_bigint_bigint_inner(":wat::bigint::*", vals, span, |a, b| {
         Ok(Value::wat__core__BigInt(Box::new(a * b)))
     })
 }
@@ -172,7 +172,7 @@ pub(crate) fn eval_bigint_div_intrinsic(
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::/";
-    crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::bigint_div)
+    crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::bigint_div)
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment
@@ -182,7 +182,7 @@ pub(crate) fn eval_bigint_div_intrinsic(
 // Result<Value, EvalBreak>`, incompatible with `arith_bigint_bigint_inner`'s
 // `Fn(&BigInt,&BigInt) -> Result<Value, ()>`).
 fn eval_bigint_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::/", vals, span, |a, b| {
+    crate::numeric::arith::arith_bigint_bigint_inner(":wat::bigint::/", vals, span, |a, b| {
         use num_traits::Zero;
         if b.is_zero() {
             return Err(());
@@ -223,7 +223,7 @@ pub(crate) fn eval_bigint_to_f64_intrinsic(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_bigint_to_f64(std::slice::from_ref(n), span, env, sym, ":wat::bigint::to-f64")
+    crate::numeric::convert::eval_bigint_to_f64(std::slice::from_ref(n), span, env, sym, ":wat::bigint::to-f64")
 }
 
 /// `(:wat::bigint::to-rational n)` → `n` promoted to `:wat::core::rational`.
@@ -245,5 +245,5 @@ pub(crate) fn eval_bigint_to_rational_intrinsic(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_bigint_to_rational(std::slice::from_ref(n), span, env, sym, ":wat::bigint::to-rational")
+    crate::numeric::convert::eval_bigint_to_rational(std::slice::from_ref(n), span, env, sym, ":wat::bigint::to-rational")
 }
