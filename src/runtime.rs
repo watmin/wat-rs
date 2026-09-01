@@ -576,16 +576,11 @@ pub(crate) fn fault_names() -> Arc<Vec<String>> {
     N.get_or_init(|| crate::value::value::names_arc_from_static(FAULT_FIELDS))
         .clone()
 }
-fn stop_failure_names() -> Arc<Vec<String>> {
-    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(STOP_FAILURE_FIELDS))
-        .clone()
-}
-fn stop_failed_names() -> Arc<Vec<String>> {
-    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(STOP_FAILED_FIELDS))
-        .clone()
-}
+// Arc 109 Stone 4c — the freeze stop vocabulary — `stop_failure_names` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+
+// Arc 109 Stone 4c — the freeze stop vocabulary — `stop_failed_names` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// Convert a `RuntimeError` into a `:wat::core::Fault` (`wat/core.wat`) — the canonical minimal
 /// record that structurally satisfies the `:wat::core::Error` surface: `message`, `location` (a
@@ -606,17 +601,8 @@ pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
     )))
 }
 
-/// Build one `:wat::kernel::StopFailure` — the service's display name + its structured cause.
-pub(crate) fn stop_failure_value(service: &str, err: &RuntimeError) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::kernel::StopFailure".to_string(),
-        stop_failure_names(),
-        Arc::new(vec![
-            Value::String(Arc::new(service.to_string())),
-            fault_from_runtime_error(err),
-        ]),
-    )))
-}
+// Arc 109 Stone 4c — the freeze stop vocabulary — `stop_failure_value` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// Convert a caught panic payload into a `:wat::core::Fault`. Ground truth, verified by hand
 /// (not assumed): `:wat::kernel::assertion-failed!` — the arm the generated `<fqdn>/stop` caller's
@@ -665,66 +651,20 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
     }
 }
 
-/// Build one `:wat::kernel::StopFailure` from a caught panic (see [`fault_from_panic_payload`]).
-pub(crate) fn stop_failure_from_panic(
-    service: &str,
-    payload: &(dyn std::any::Any + Send),
-) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::kernel::StopFailure".to_string(),
-        stop_failure_names(),
-        Arc::new(vec![
-            Value::String(Arc::new(service.to_string())),
-            fault_from_panic_payload(payload),
-        ]),
-    )))
-}
+// Arc 109 Stone 4c — the freeze stop vocabulary — `stop_failure_from_panic` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Build `:wat::kernel::StopFailed { :services [...] }` from main's collected failures.
-/// `pub(crate)` — the exit path (`src/distribution/mod.rs`) calls this after
-/// [`take_stop_failures`] to build the value it serializes to stderr.
-pub(crate) fn stop_failed_value(failures: Vec<Value>) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::kernel::StopFailed".to_string(),
-        stop_failed_names(),
-        Arc::new(vec![Value::Vec(Arc::new(failures))]),
-    )))
-}
+// Arc 109 Stone 4c — the freeze stop vocabulary — `stop_failed_value` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Main's collected `StopFailure` values, published ONCE (if non-empty) by
-/// `ProcessRuntime::ask_stop_and_collect_failures` (`src/freeze.rs`), read ONCE by the exit path
-/// (`src/distribution/mod.rs`) right after `invoke_user_main` returns. `null` = no failures were
-/// recorded — either no stop ever happened, or one happened with nothing to report.
-///
-/// Same-thread hand-off now (both the write and the read happen on main, in the same call chain,
-/// with no other thread able to observe or race this slot in between) — kept as a global rather
-/// than threaded through `invoke_user_main`'s return type because that signature is public API
-/// dozens of tests call directly and don't care about this.
-static STOP_FAILURES_PTR: std::sync::atomic::AtomicPtr<Vec<Value>> =
-    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+// Arc 109 Stone 4c — the freeze stop vocabulary — `STOP_FAILURES_PTR` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Publish main's collected failures. Called at most once per `:user::main` return that observed
-/// `KERNEL_STOPPED`.
-pub(crate) fn publish_stop_failures(failures: Vec<Value>) {
-    let boxed = Box::into_raw(Box::new(failures));
-    let old = STOP_FAILURES_PTR.swap(boxed, Ordering::SeqCst);
-    if !old.is_null() {
-        unsafe { drop(Box::from_raw(old)) };
-    }
-}
+// Arc 109 Stone 4c — the freeze stop vocabulary — `publish_stop_failures` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Take the collected stop failures (swap-to-null; idempotent — a second call sees null and
-/// returns empty). See [`STOP_FAILURES_PTR`]'s doc.
-pub(crate) fn take_stop_failures() -> Vec<Value> {
-    let ptr = STOP_FAILURES_PTR.swap(std::ptr::null_mut(), Ordering::SeqCst);
-    if ptr.is_null() {
-        Vec::new()
-    } else {
-        // SAFETY: ptr was Box::into_raw'd in publish_stop_failures and is no longer
-        // reachable via STOP_FAILURES_PTR after this swap.
-        *unsafe { Box::from_raw(ptr) }
-    }
-}
+// Arc 109 Stone 4c — the freeze stop vocabulary — `take_stop_failures` moved to
+// `src/freeze/stop.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// `true` while a `ProcessRuntime` (`src/freeze.rs`) is alive in this process — i.e. there are
 /// Handles main might be about to (or already) ask to stop. Set by `bootstrap_wat_vm_process`
@@ -9858,7 +9798,7 @@ fn thread_died_error_panic(
 /// other panic (assert-* failures, `expect`, plain panics) has no structured
 /// error, so a `:wat::core::Fault` is SYNTHESIZED from the payload's `message`
 /// + `location` — honest (a panic IS an error with that message), not fabrication.
-fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
+pub(crate) fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
     let crate::assertion::AssertionPayload {
         message,
         actual,
@@ -10200,132 +10140,35 @@ pub(crate) fn thread_crash_runtime_edn(
     wat_edn::write(&edn)
 }
 
-/// Arc 113 slice 2 — conj a fresh DiedError onto the FRONT of an
-/// existing chain (or build a singleton when no upstream exists).
-///
-/// Cascade semantics: when `result::expect` panics on an Err that
-/// carried a chain, that chain rides through the panic on the
-/// `AssertionPayload`. The spawn driver's catch_unwind reads it
-/// here and pushes THIS thread's death (`fresh`) onto the head of
-/// the inherited chain. Future joiners walking from the front see
-/// the death-chain in causality order: head = the thread the
-/// joiner waited on; second = whoever killed it; … last = the
-/// originating cause.
-fn conj_died_chain(fresh: Value, upstream: Option<Vec<Value>>) -> Value {
-    let mut chain = vec![fresh];
-    if let Some(tail) = upstream {
-        chain.extend(tail);
-    }
-    Value::Vec(Arc::new(chain))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `conj_died_chain` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Cross-module sibling of [`conj_died_chain`] for `src/fork.rs`'s
-/// child-branch panic emission (arc 113 slice 3 — chain rendered
-/// to stderr as EDN). Renames-but-otherwise-identical so the
-/// fork-side call site reads naturally; the `_value` suffix signals
-/// "produces a runtime Value" the way the parallel
-/// `process_died_error_panic_value` does.
-pub(crate) fn conj_died_chain_value(fresh: Value, upstream: Option<Vec<Value>>) -> Value {
-    conj_died_chain(fresh, upstream)
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `conj_died_chain_value` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Build a `:wat::kernel::ProcessDiedError::Panic` enum value
-/// (arc 112). Sibling of `thread_died_error_panic` for the
-/// (Process :- [I O]) subject. Same payload shape; the type_path
-/// distinguishes them at runtime + at the type-checker.
-fn process_died_error_panic(
-    message: String,
-    assertion: Option<crate::assertion::AssertionPayload>,
-) -> Value {
-    let failure_field = match assertion {
-        Some(p) => Value::Option(Arc::new(Some(failure_value_from_assertion_payload(p)))),
-        None => Value::Option(Arc::new(None)),
-    };
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "Panic".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "Panic"),
-        fields: vec![Value::String(Arc::new(message)), failure_field],
-    }))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_panic` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Cross-module sibling of [`process_died_error_panic`] for
-/// `src/fork.rs`'s child-branch panic emission (arc 113 slice 3).
-/// The child renders its own ProcessDiedError::Panic to EDN on
-/// stderr so the parent's wat-side `extract-panics` can read
-/// it back into matching Value shapes.
-pub(crate) fn process_died_error_panic_value(
-    message: String,
-    assertion: Option<crate::assertion::AssertionPayload>,
-) -> Value {
-    process_died_error_panic(message, assertion)
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_panic_value` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Build a `:wat::kernel::ProcessDiedError::RuntimeError(message)`
-/// enum value (arc 112).
-fn process_died_error_runtime(message: String) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "RuntimeError".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "RuntimeError"),
-        fields: vec![Value::String(Arc::new(message))],
-    }))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_runtime` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs
-/// (arc 170 slice 1i — structured runtime-error exit path).
-///
-/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]: the payload
-/// is produced from the error's `WatError::error_edn()` via
-/// [`crate::edn::contract::to_wire_edn`], so a non-`WatError` type cannot reach this
-/// wire boundary (it is a compile error). The floor (:message :location :causes)
-/// is always present in the wire payload.
-pub(crate) fn process_died_error_runtime_value(e: &impl crate::edn::contract::WatError) -> Value {
-    process_died_error_runtime(crate::edn::contract::to_wire_edn(e))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_runtime_value` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Build a `:wat::kernel::ProcessDiedError::MainSignature(message)`
-/// enum value (arc 170 slice 1i). Emitted by fork child branches when
-/// `validate_user_main_signature` returns `Err`.
-fn process_died_error_main_signature(message: String) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "MainSignature".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "MainSignature"),
-        fields: vec![Value::String(Arc::new(message))],
-    }))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_main_signature` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Cross-module pub(crate) accessor.
-///
-/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]. The
-/// main-signature validation message is a flat message carried via a
-/// [`crate::edn::contract::FlatMessage`] (itself a `WatError`), so it too crosses
-/// through the floor.
-pub(crate) fn process_died_error_main_signature_value(e: &impl crate::edn::contract::WatError) -> Value {
-    process_died_error_main_signature(crate::edn::contract::to_wire_edn(e))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_main_signature_value`
+// moved to `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Build a `:wat::kernel::ProcessDiedError::BadReturn(message)`
-/// enum value (arc 170 slice 1i). Emitted by fork / spawn-process child
-/// branches when `:user::main` returns a non-nil value at runtime.
-fn process_died_error_bad_return(message: String) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "BadReturn".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "BadReturn"),
-        fields: vec![Value::String(Arc::new(message))],
-    }))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_bad_return` moved to
+// `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Cross-module pub(crate) accessor.
-///
-/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]. The bad-return
-/// type name is a flat message carried via a [`crate::edn::contract::FlatMessage`]
-/// (itself a `WatError`), so it too crosses through the floor.
-pub(crate) fn process_died_error_bad_return_value(e: &impl crate::edn::contract::WatError) -> Value {
-    process_died_error_bad_return(crate::edn::contract::to_wire_edn(e))
-}
+// Arc 109 Stone 4b — the process died-error vocabulary — `process_died_error_bad_return_value`
+// moved to `src/process/died.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// Derive the human message from a `LociDiedError` variant's carried payload.
 ///

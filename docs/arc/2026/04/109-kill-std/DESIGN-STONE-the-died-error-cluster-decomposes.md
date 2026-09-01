@@ -141,7 +141,7 @@ first. None of the three depends on another; the order is by risk, not by need.
 | what | command | expected |
 |---|---|---|
 | 4c: the home holds it | `grep -c "^pub(crate) fn " src/freeze/stop.rs` | **7** |
-| 4b: the home holds it | `grep -c "^pub(crate) fn " src/process/died.rs` | **9** |
+| 4b: the home holds it | `grep -c "^pub(crate) fn " src/process/died.rs` | **10** — ⚠ was **9**; the row predated this DESIGN's own AMENDED section, which made `conj_died_chain` a member. The rider flagged it rather than reading a correct stone as a regression. Fifth acceptance row this campaign that was itself the broken instrument. |
 | 4a: one edge, one module | `ls src/kernel/error.rs` + `grep -c "crate::runtime::eval_" src/intrinsic/kernel/error.rs` | exists, **0** |
 | ⛔ the residue was NOT swept in | `grep -c "fn fault_value\|fn fault_with_cause\|fn check_failed_cause\|fn failure_names" src/runtime.rs` | **4** |
 | ⛔ the intruder fence | `grep -c "fn no_field_names\|fn builtin_enum_variant_names" src/runtime.rs` | **2** |

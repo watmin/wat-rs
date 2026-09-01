@@ -50,6 +50,10 @@
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
 pub(crate) mod env;
+// Arc 109 Stone 4c — the `:wat::kernel::StopFailure`/`StopFailed` diagnostic
+// vocabulary (`docs/arc/2026/04/109-kill-std/`), a genuinely internal builder
+// like `env`.
+pub(crate) mod stop;
 // `pub`, not `pub(crate)` — unlike `env` (a genuinely internal builder), `validator` is the
 // extension point ITSELF: any crate depending on `wat` must be able to name
 // `wat::freeze::validator::{FreezeValidator, FreezeValidatorError}` to `inventory::submit!`
@@ -162,7 +166,7 @@ impl ProcessRuntime {
     /// (`src/assertion.rs::eval_kernel_assertion_failed`), never a returned `Err` — ground-truthed
     /// by hand (see the arc 170 report). Every failure — announce or ask — is collected, never
     /// discarded (builder ruling: "any failure must be loud and obvious"); the caller publishes
-    /// the result via `crate::runtime::publish_stop_failures` for the exit path
+    /// the result via `crate::freeze::stop::publish_stop_failures` for the exit path
     /// (`src/distribution/mod.rs`) to report.
     pub(crate) fn ask_stop_and_collect_failures(&self) -> Vec<Value> {
         let mut failures: Vec<Value> = Vec::new();
@@ -192,8 +196,8 @@ impl ProcessRuntime {
             )
         })) {
             Ok(Ok(())) => {}
-            Ok(Err(e)) => failures.push(crate::runtime::stop_failure_value("stdout-svc", &e)),
-            Err(payload) => failures.push(crate::runtime::stop_failure_from_panic(
+            Ok(Err(e)) => failures.push(crate::freeze::stop::stop_failure_value("stdout-svc", &e)),
+            Err(payload) => failures.push(crate::freeze::stop::stop_failure_from_panic(
                 "stdout-svc",
                 &*payload,
             )),
@@ -209,8 +213,8 @@ impl ProcessRuntime {
                 )
             })) {
                 Ok(Ok(_)) => {}
-                Ok(Err(e)) => failures.push(crate::runtime::stop_failure_value(target.name, &e)),
-                Err(payload) => failures.push(crate::runtime::stop_failure_from_panic(
+                Ok(Err(e)) => failures.push(crate::freeze::stop::stop_failure_value(target.name, &e)),
+                Err(payload) => failures.push(crate::freeze::stop::stop_failure_from_panic(
                     target.name,
                     &*payload,
                 )),
@@ -1536,7 +1540,7 @@ fn invoke_user_main_orchestrated(
     if crate::runtime::KERNEL_STOPPED.load(std::sync::atomic::Ordering::SeqCst) {
         let failures = runtime.ask_stop_and_collect_failures();
         if !failures.is_empty() {
-            crate::runtime::publish_stop_failures(failures);
+            crate::freeze::stop::publish_stop_failures(failures);
         }
         // NOW it is safe: the ask-then-await is fully done, so severing `SHUTDOWN_TX_PTR` cannot
         // race any of its `recv'`s anymore.

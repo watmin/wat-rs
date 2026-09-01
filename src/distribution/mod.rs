@@ -449,7 +449,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
             {
                 crate::process::emit_structured_exit(
                     None,
-                    crate::runtime::process_died_error_panic_value(
+                    crate::process::died::process_died_error_panic_value(
                         payload.message.clone(),
                         Some(payload.clone()),
                     ),
@@ -464,7 +464,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
                 };
                 crate::process::emit_structured_exit(
                     None,
-                    crate::runtime::process_died_error_panic_value(msg, None),
+                    crate::process::died::process_died_error_panic_value(msg, None),
                 );
             }
             return ExitCode::from(crate::process::EXIT_STARTUP_ERROR as u8);
@@ -484,7 +484,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         if let Err(msg) = validate_user_grep_signature(&world) {
             crate::process::emit_structured_exit(
                 Some(&world),
-                crate::runtime::process_died_error_runtime_value(&crate::edn::contract::FlatMessage {
+                crate::process::died::process_died_error_runtime_value(&crate::edn::contract::FlatMessage {
                     tag: "GrepSignatureError",
                     key: "message",
                     message: &msg,
@@ -505,7 +505,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
             Err(e) => {
                 crate::process::emit_structured_exit(
                     Some(&world),
-                    crate::runtime::process_died_error_runtime_value(&e),
+                    crate::process::died::process_died_error_runtime_value(&e),
                 );
                 return ExitCode::from(crate::process::EXIT_RUNTIME_ERROR as u8);
             }
@@ -563,7 +563,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     if let Err(msg) = crate::freeze::validate_user_main_signature(&world) {
         crate::process::emit_structured_exit(
             Some(&world),
-            crate::runtime::process_died_error_main_signature_value(&crate::edn::contract::FlatMessage {
+            crate::process::died::process_died_error_main_signature_value(&crate::edn::contract::FlatMessage {
                 tag: "MainSignatureError",
                 key: "message",
                 message: &msg,
@@ -585,13 +585,13 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // any, already happened synchronously, on this thread, before `invoke_user_main` returned —
     // unlike the retired worker-thread version, there is no OTHER thread to wait for here.
     if crate::runtime::KERNEL_STOPPED.load(std::sync::atomic::Ordering::SeqCst) {
-        let failures = crate::runtime::take_stop_failures();
+        let failures = crate::freeze::stop::take_stop_failures();
         if !failures.is_empty() {
             // The one channel this belongs on: stderr is the dying-declaration channel
             // (`emit_panic_envelope`, `src/process/stdio.rs`), written only immediately before a
             // non-zero exit — and this write IS immediately before one. Exit 0 would claim the
             // stop was clean when it was not.
-            let stop_failed = crate::runtime::stop_failed_value(failures);
+            let stop_failed = crate::freeze::stop::stop_failed_value(failures);
             let edn = crate::edn::render::value_to_edn_with(&stop_failed, Some(world.types()));
             let line = format!("{}\n", wat_edn::write(&edn));
             crate::process::stdio::emit_panic_envelope(&line);

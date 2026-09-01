@@ -122,7 +122,7 @@ pub(crate) fn emit_structured_exit(
     world: Option<&crate::freeze::FrozenWorld>,
     value: crate::runtime::Value,
 ) {
-    let chain = crate::runtime::conj_died_chain_value(value, None);
+    let chain = crate::process::died::conj_died_chain_value(value, None);
     let types = world.map(|w| w.types());
     emit_chain_envelope(chain, types);
 }
@@ -139,12 +139,12 @@ fn emit_panics_to_stderr(
     world: &crate::freeze::FrozenWorld,
     payload: &crate::assertion::AssertionPayload,
 ) {
-    let fresh = crate::runtime::process_died_error_panic_value(
+    let fresh = crate::process::died::process_died_error_panic_value(
         payload.message.clone(),
         Some(payload.clone()),
     );
     let upstream = payload.upstream_chain.clone();
-    let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
+    let chain = crate::process::died::conj_died_chain_value(fresh, upstream);
     emit_chain_envelope(chain, Some(world.types()));
 }
 
@@ -178,7 +178,7 @@ fn finish_forked_child(
             // FlatMessage (the string IS the datum — no structure to lose).
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
+                crate::process::died::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
                     tag: "BadReturnType",
                     key: "got-type",
                     message: other.type_name(),
@@ -193,7 +193,7 @@ fn finish_forked_child(
             // machine-consumable EDN rather than opaque text.
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_runtime_value(&runtime_err),
+                crate::process::died::process_died_error_runtime_value(&runtime_err),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
@@ -215,7 +215,7 @@ fn finish_forked_child(
                 };
                 emit_structured_exit(
                     Some(world),
-                    crate::runtime::process_died_error_panic_value(msg, None),
+                    crate::process::died::process_died_error_panic_value(msg, None),
                 );
             }
             unsafe { libc::_exit(EXIT_PANIC) };
@@ -244,7 +244,7 @@ pub(crate) fn finish_in_process(
         Ok(Ok(other)) => {
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
+                crate::process::died::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
                     tag: "BadReturnType",
                     key: "got-type",
                     message: other.type_name(),
@@ -255,7 +255,7 @@ pub(crate) fn finish_in_process(
         Ok(Err(runtime_err)) => {
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_runtime_value(&runtime_err),
+                crate::process::died::process_died_error_runtime_value(&runtime_err),
             );
             EXIT_RUNTIME_ERROR
         }
@@ -274,7 +274,7 @@ pub(crate) fn finish_in_process(
                 };
                 emit_structured_exit(
                     Some(world),
-                    crate::runtime::process_died_error_panic_value(msg, None),
+                    crate::process::died::process_died_error_panic_value(msg, None),
                 );
             }
             EXIT_PANIC

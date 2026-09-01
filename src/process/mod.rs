@@ -45,6 +45,9 @@ pub mod child;
 pub mod handle;
 pub mod verbs;
 pub mod stdio;
+/// Arc 109 Stone 4b — the `:wat::kernel::LociDiedError` process-tier
+/// construction vocabulary (`docs/arc/2026/04/109-kill-std/`).
+pub(crate) mod died;
 /// Arc 170 — the boot wire: how a spawned child receives its program. Ships
 /// BEFORE the exec so the stream path is proven while the closure is still the
 /// control (see the module doc, and `170/DESIGN-execve-every-fork.md`).
