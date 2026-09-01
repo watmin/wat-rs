@@ -71,7 +71,9 @@
     :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
     :logs (:wat::core::Vector :- [:wat::telemetry::Log])
     :logs-flush-after-ms 600000
-    :metrics-flush-after-ms 600000))
+    :metrics-flush-after-ms 600000
+    :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+    :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX))
 
 ;; 0=Ok 1=Constraint 2=Transient 3=Fatal 4=RTL 5=Malformed. Wire death is fatal to the probe.
 (:wat::core::defn :probe::classify-log
@@ -80,6 +82,7 @@
     ((:wat::kernel::RecvOutcome::Message resp)
       (:wat::core::match resp
         ((:wat::telemetry::Span::LogResponse::Ok) 0)
+        ((:wat::telemetry::Span::LogResponse::Dropped _buffered _cap) 6)
         ((:wat::telemetry::Span::LogResponse::Constraint _err) 1)
         ((:wat::telemetry::Span::LogResponse::Transient _err) 2)
         ((:wat::telemetry::Span::LogResponse::Fatal _err) 3)
@@ -98,6 +101,7 @@
     ((:wat::kernel::RecvOutcome::Message resp)
       (:wat::core::match resp
         ((:wat::telemetry::Span::TimedResponse::Ok) 0)
+        ((:wat::telemetry::Span::TimedResponse::Dropped _buffered _cap) 6)
         ((:wat::telemetry::Span::TimedResponse::Constraint _err) 1)
         ((:wat::telemetry::Span::TimedResponse::Transient _err) 2)
         ((:wat::telemetry::Span::TimedResponse::Fatal _err) 3)
@@ -258,7 +262,9 @@
              :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
              :logs (:wat::core::Vector :- [:wat::telemetry::Log])
              :logs-flush-after-ms :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS
-             :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS)
+             :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS
+             :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+             :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record rec :sink-addr jaddr)
      span  (:probe::connect-span (:wat::telemetry::span::Handle/addr sph))

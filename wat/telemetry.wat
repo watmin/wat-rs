@@ -251,6 +251,7 @@
      [name <- :wat::core::keyword  nanos <- :wat::core::i64])
    (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure
      :Ok              []
+     :Dropped        [buffered <- :wat::core::i64  cap <- :wat::core::i64]
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
@@ -265,6 +266,7 @@
       message <- :wat::core::String])
    (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure
      :Ok              []
+     :Dropped        [buffered <- :wat::core::i64  cap <- :wat::core::i64]
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]

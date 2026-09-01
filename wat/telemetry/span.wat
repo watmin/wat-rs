@@ -17,6 +17,42 @@
 ;; Defaults: logs 1s (fast), metrics 30s (slow beat). Tests override to milliseconds.
 (:wat::core::def :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS 1000)
 (:wat::core::def :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS 30000)
+;; Memory bound, in ITEMS, beside the cadences. Bytes are the wire cap's question.
+(:wat::core::def :wat::telemetry::span::DEFAULT-LOGS-MAX 4096)
+(:wat::core::def :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX 4096)
+
+(:wat::core::defn :wat::telemetry::span::overflow-count
+  [have <- :wat::core::i64  max <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::let
+    [o (:wat::i64::- (:wat::core::+ have 1) max)]
+    (:wat::core::if (:wat::i64::> o 0) o 0)))
+
+(:wat::core::defn :wat::telemetry::span::bump-counter
+  [cs  <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+   name <- :wat::core::keyword
+   k    <- :wat::core::i64]
+  -> (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+  (:wat::core::if (:wat::core::= k 0)
+    cs
+    (:wat::core::match (:wat::hashmap::get cs name)
+      (:wat::core::None (:wat::hashmap::assoc cs name k))
+      ((:wat::core::Some v) (:wat::hashmap::assoc cs name (:wat::core::+ v k))))))
+
+(:wat::core::defn :wat::telemetry::span::drop-front-logs
+  [logs <- (:wat::core::Vector :- [:wat::telemetry::Log])  n <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:wat::telemetry::Log])
+  (:wat::core::if (:wat::i64::<= n 0)
+    logs
+    (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
+      (:wat::core::drop logs n))))
+
+(:wat::core::defn :wat::telemetry::span::drop-front-samples
+  [samples <- (:wat::core::Vector :- [:wat::core::i64])  n <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::if (:wat::i64::<= n 0)
+    samples
+    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+      (:wat::core::drop samples n))))
 
 ;; ── the service ─────────────────────────────────────────────────────────────────
 (:wat::service::defservice :wat::telemetry::span
@@ -29,7 +65,9 @@
               durations     <- (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
               logs          <- (:wat::core::Vector :- [:wat::telemetry::Log])
               logs-flush-after-ms    <- :wat::core::i64
-              metrics-flush-after-ms <- :wat::core::i64]
+              metrics-flush-after-ms <- :wat::core::i64
+              logs-max               <- :wat::core::i64
+              duration-samples-max   <- :wat::core::i64]
   :ephemeral [sink <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
@@ -130,12 +168,23 @@
         samples1 (:wat::core::match (:wat::hashmap::get ds1 name)
                    (:wat::core::None (:wat::core::Vector :- [:wat::core::i64]))
                    ((:wat::core::Some v) v))
+        smax  (:wat::telemetry::span::Record/duration-samples-max rec1)
+        ndrop (:wat::telemetry::span::overflow-count (:wat::core::count samples1) smax)
+        samples' (:wat::core::conj
+                   (:wat::telemetry::span::drop-front-samples samples1 ndrop)
+                   nanos)
+        cs'   (:wat::telemetry::span::bump-counter
+                (:wat::telemetry::span::Record/counters rec1) :samples-dropped ndrop)
         rec2  (:wat::telemetry::span::record-accum rec1
-                (:wat::telemetry::span::Record/counters rec1)
-                (:wat::hashmap::assoc ds1 name (:wat::core::conj samples1 nanos))
+                cs'
+                (:wat::hashmap::assoc ds1 name samples')
                 (:wat::telemetry::span::Record/logs rec1))
         s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))
-        resp  (:wat::telemetry::span::close-response->timed-response (:wat::core::second pair0))]
+        flush-resp (:wat::telemetry::span::close-response->timed-response (:wat::core::second pair0))
+        resp  (:wat::core::if (:wat::i64::> ndrop 0)
+                (:wat::telemetry::Span::TimedResponse::Dropped
+                  (:wat::core::count samples') smax)
+                flush-resp)]
        (:wat::core::if was-empty?
          (:wat::service::Outcome::ReplyAndArm s' resp
            [(:wat::service::Alarm
@@ -175,20 +224,50 @@
                 (:wat::core::Tuple s (:wat::telemetry::Span::CloseResponse::Done)))
         s1    (:wat::core::first pair0)
         rec1  (:wat::telemetry::span::State/durable s1)
-        was-empty? (:wat::core::= (:wat::core::count (:wat::telemetry::span::Record/logs rec1)) 0)
+        logs1 (:wat::telemetry::span::Record/logs rec1)
+        was-empty? (:wat::core::= (:wat::core::count logs1) 0)
+        was-metrics-empty? (:wat::telemetry::span::metrics-empty? rec1)
+        lmax  (:wat::telemetry::span::Record/logs-max rec1)
+        ndrop (:wat::telemetry::span::overflow-count (:wat::core::count logs1) lmax)
+        logs' (:wat::core::conj
+                (:wat::telemetry::span::drop-front-logs logs1 ndrop)
+                l)
+        cs'   (:wat::telemetry::span::bump-counter
+                (:wat::telemetry::span::Record/counters rec1) :logs-dropped ndrop)
         rec2  (:wat::telemetry::span::record-accum rec1
-                (:wat::telemetry::span::Record/counters rec1)
+                cs'
                 (:wat::telemetry::span::Record/durations rec1)
-                (:wat::core::conj (:wat::telemetry::span::Record/logs rec1) l))
+                logs')
         s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))
-        resp  (:wat::telemetry::span::close-response->log-response (:wat::core::second pair0))]
+        flush-resp (:wat::telemetry::span::close-response->log-response (:wat::core::second pair0))
+        resp  (:wat::core::if (:wat::i64::> ndrop 0)
+                (:wat::telemetry::Span::LogResponse::Dropped
+                  (:wat::core::count logs') lmax)
+                flush-resp)
+        met-arm? (:wat::core::and (:wat::i64::> ndrop 0) was-metrics-empty?)]
        (:wat::core::if was-empty?
-         (:wat::service::Outcome::ReplyAndArm s' resp
-           [(:wat::service::Alarm
-              :after (:wat::time::Millisecond
-                       (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
-              :op :-flush-logs)])
-         (:wat::service::Outcome::Reply s' resp))))
+         (:wat::core::if met-arm?
+           (:wat::service::Outcome::ReplyAndArm s' resp
+             [(:wat::service::Alarm
+                :after (:wat::time::Millisecond
+                         (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
+                :op :-flush-logs)
+              (:wat::service::Alarm
+                :after (:wat::time::Millisecond
+                         (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
+                :op :-flush-metrics)])
+           (:wat::service::Outcome::ReplyAndArm s' resp
+             [(:wat::service::Alarm
+                :after (:wat::time::Millisecond
+                         (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
+                :op :-flush-logs)]))
+         (:wat::core::if met-arm?
+           (:wat::service::Outcome::ReplyAndArm s' resp
+             [(:wat::service::Alarm
+                :after (:wat::time::Millisecond
+                         (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
+                :op :-flush-metrics)])
+           (:wat::service::Outcome::Reply s' resp)))))
 
    ;; flush — emit deltas since the last flush and RESET. THE emission path.
    (flush [s ctx req]
@@ -297,7 +376,9 @@
     :durations ds
     :logs logs
     :logs-flush-after-ms (:wat::telemetry::span::Record/logs-flush-after-ms rec)
-    :metrics-flush-after-ms (:wat::telemetry::span::Record/metrics-flush-after-ms rec)))
+    :metrics-flush-after-ms (:wat::telemetry::span::Record/metrics-flush-after-ms rec)
+    :logs-max (:wat::telemetry::span::Record/logs-max rec)
+    :duration-samples-max (:wat::telemetry::span::Record/duration-samples-max rec)))
 
 (:wat::core::defn :wat::telemetry::span::reset-accumulators
   [rec <- :wat::telemetry::span::Record] -> :wat::telemetry::span::Record
@@ -630,7 +711,9 @@
                      :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                      :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                      :logs-flush-after-ms :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS
-                     :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS)
+                     :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS
+                     :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                     :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
         ~h-sym     (:wat::telemetry::span/start :locus (:wat::spawn::thread)
                      :record ~rec-sym :sink-addr ~sink-addr)
         ;; arc 278 the connect'-outcome wall — the generated dial faces all four arms;

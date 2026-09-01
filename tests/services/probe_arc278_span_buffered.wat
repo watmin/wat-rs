@@ -32,7 +32,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS
-                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS)
+                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -75,7 +77,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS
-                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS)
+                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -115,7 +119,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS
-                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS)
+                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -169,7 +175,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS
-                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS)
+                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

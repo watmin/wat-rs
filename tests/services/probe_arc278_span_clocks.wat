@@ -64,7 +64,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms 20
-                :metrics-flush-after-ms 2000)
+                :metrics-flush-after-ms 2000
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -90,7 +92,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms 2000
-                :metrics-flush-after-ms 20)
+                :metrics-flush-after-ms 20
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -116,7 +120,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms 20
-                :metrics-flush-after-ms 2000)
+                :metrics-flush-after-ms 2000
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -143,7 +149,9 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms 20
-                :metrics-flush-after-ms 20)
+                :metrics-flush-after-ms 20
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -170,14 +178,18 @@
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms 20
-                :metrics-flush-after-ms 2000)
+                :metrics-flush-after-ms 2000
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      slow-rec (:wat::telemetry::span::Record
                 :namespace "slow-ns" :uuid (:wat::uuid::nil) :tags tags :start-time-ns 0
                 :counters (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
                 :logs (:wat::core::Vector :- [:wat::telemetry::Log])
                 :logs-flush-after-ms 2000
-                :metrics-flush-after-ms 2000)
+                :metrics-flush-after-ms 2000
+                :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+                :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX)
      fasth (:wat::telemetry::span/start :locus (:wat::spawn::thread) :record fast-rec :sink-addr jaddr)
      slowh (:wat::telemetry::span/start :locus (:wat::spawn::thread) :record slow-rec :sink-addr jaddr)
      fast  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr fasth)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

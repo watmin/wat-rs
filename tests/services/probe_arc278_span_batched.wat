@@ -129,7 +129,9 @@
     :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
     :logs (:wat::core::Vector :- [:wat::telemetry::Log])
     :logs-flush-after-ms 600000
-    :metrics-flush-after-ms 600000))
+    :metrics-flush-after-ms 600000
+    :logs-max :wat::telemetry::span::DEFAULT-LOGS-MAX
+    :duration-samples-max :wat::telemetry::span::DEFAULT-DURATION-SAMPLES-MAX))
 
 (:wat::core::defn :probe::script-rec
   [fail-on <- (:wat::core::Vector :- [:wat::core::i64])] -> :probe::script-journal::Record
@@ -143,6 +145,7 @@
     ((:wat::kernel::RecvOutcome::Message resp)
       (:wat::core::match resp
         ((:wat::telemetry::Span::LogResponse::Ok) 0)
+        ((:wat::telemetry::Span::LogResponse::Dropped _buffered _cap) 6)
         ((:wat::telemetry::Span::LogResponse::Constraint _err) 1)
         ((:wat::telemetry::Span::LogResponse::Transient _err) 2)
         ((:wat::telemetry::Span::LogResponse::Fatal _err) 3)
