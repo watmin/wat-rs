@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (twenty-first — 21 STRIKES; ⭐⭐ CLASSES A and E CLOSED; CLASS F OPENED — its deepest row first). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (twenty-second — 22 STRIKES; ⭐⭐ CLASSES A and E CLOSED; CLASS F in progress — and a CLAUDE.md doctrine claim was driven FALSE and struck). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 58a10e1f8..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 58a10e1f8..HEAD        # what they touched
+git log --oneline f4800ef97..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat f4800ef97..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -101,6 +101,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **E4** | `452953cb9` | **the ceiling set is a closed type, matched exhaustively** |
 | **E3** | `76e221bbb` | **each variant carries its own doc — and a broken link cannot be added** |
 | **F1.5** | `58a10e1f8` | **every walking gate declares how it knows it reached something** |
+| **F2.codemod** | `f4800ef97` | **every rete name in wat-scripts CODE resolves — prose may name a retired form** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -540,17 +541,52 @@ collector cannot see what it visits — it took instrumenting 27 population site
 `--no-capture` run. Unnamed, a rider reads the collectors, calls it driven, and row 1 is lost.
 **Any future "drive it" instruction must name HOW.**
 
-**THE NEXT WORK — the rest of Class F, in this order.** **F1's other four lints** (backticked
-identifiers must resolve; bare `*.rs` filenames must resolve — the sibling `no_stale_path_in_doc`
-misses because it needs a `/`; the `perspicere`/`purgare` closed vocabularies; `MINIMUM of` vs
-`/= r`). Then **F2's rotted claims, shipped WITH F0's rule** — notably **83 of 207 stones naming
-`src/rete/kernel.rs`**, deleted 2026-08-20, and the **mandated codemod at
-`wat-scripts/fixes/rete-where-per-type-spelling.wat:80,96` that still rewrites INTO retired forms**.
-Then **F3**'s clusters (`temperare` ×7 with measurement plans; `partire` ×4 with verified seams).
-Also open: three rows this strike reported — `no_loose_string_assert` reads comment lines,
-`gen_doc_surface_matches`'s extractor is unguarded, and the new gate is file-level not test-level —
-plus the nested-wall rows, `#[to_edn(transparent)]`, the `file:line` citation-rot hole,
-`acc_refusal`'s span, the misnamed `probes/` dir, and D2's `sequi` newtype.
+✅ **F2's CODEMOD ROW IS CLOSED (`f4800ef97`) — AND IT STRUCK A CLAIM IN `CLAUDE.md`.**
+
+⛔⛔ **"ALL WAT STAYS CORRECT, ALWAYS" WAS FALSE, AND STOOD FOR MONTHS.** Type-checking is **not**
+resolution: a `def` body nothing forces is never resolved, so a file under `wat-scripts/` could name
+a head that has never existed anywhere. **Driven** — `(:wat::rete::core::THIS-HEAD-NEVER-EXISTED …)`
+type-checked and the program **ran**. Two phantom rete names lived on that licence, one pair of them
+**inside the very codemod that file mandates for every `.wat` migration**. `CLAUDE.md` now names both
+gates, says what each proves, and states plainly what is still unproven.
+
+★ **DELETED, NOT RE-POINTED** — 41 pairs → 39. And the rider's evidence beat mine: a pure head-rename
+to `mapv`/`filterv` **does not compile** (*"no clause of `:wat::core::filterv` matches arity 2"*),
+because the eager form needs a different container. **That RED is the best single fact in the
+strike:** with a head that resolves, the loader gate finally had something to check — it had nothing
+for three months while the head was invented.
+
+⛔ **MY ★ CONTRACT WAS FALSE AS WRITTEN.** *"A `:wat::rete::` name in CODE resolves"* — but **a
+recorded codemod's OLD column is code and must name what it removes**, and a negative-control probe
+deliberately calls an unminted head **as another brief's non-vacuity proof**. Four names, three
+files. Enforcing my sentence literally would have destroyed that proof. They carry a per-name
+`rune:lint(rete-name-unminted)` now.
+
+⛔⛔ **AND A NAIVE UNION WOULD HAVE VOUCHED FOR ITSELF.** Measured: **all 79 `RETE_OPS` rows are also
+attested in code elsewhere**, so under a flat `rows ∪ attested` universe the registry half resolves
+**exactly zero** names — emptying it changes no verdict and the blinding mutation passes **green**.
+**A non-vacuity floor does not save you: it fires on "I read zero rows", which is a different failure
+from "the rows I read decided nothing".** Split by namespace, both halves now bite (71 / 63).
+Promoted to memory.
+
+⚠ **CLIPPY WENT RED and the tier split is why it was caught** — `unnecessary_get_then_check` in a new
+unit test, while the rider's `binary_id(wat::lint)` was **153/153 green**. **Nextest runs tests;
+clippy lints.** Cured with clippy's own prescription.
+
+★ **A discipline the rider surfaced unprompted, worth carrying into every mutation:** its first run
+of one mutation reported GREEN because **the mutation had not landed** (a `perl` substitution silently
+failed without a UTF-8 flag). *A mutation that does not land is indistinguishable from a gate that
+does not fire.* **Assert the mutation landed before believing its result.**
+
+**THE NEXT WORK — the rest of Class F.** **F1's four remaining lints** (backticked identifiers must
+resolve; bare `*.rs` filenames must resolve — `no_stale_path_in_doc` misses them because it needs a
+`/`; the `perspicere`/`purgare` closed vocabularies; `MINIMUM of` vs `/= r`). Then **F2's remaining
+rotted claims under F0's rule** — notably **83 of 207 stones naming `src/rete/kernel.rs`**, deleted
+2026-08-20 — and **`remedy/retirement.rs`, which has ZERO `:wat::rete::` rows**, so every rete
+retirement lands as a bare `unbound symbol` instead of the remediation that table exists to give.
+Then **F3**'s clusters. Also open: the three rows from the vacuity strike, the two nested-wall rows,
+`#[to_edn(transparent)]`, the `file:line` citation-rot hole, `acc_refusal`'s span, the misnamed
+`probes/` dir, and D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
