@@ -1023,10 +1023,12 @@ pub(crate) fn refuse_non_terminating(rules: &Value, sym: &SymbolTable) -> Termin
             return TerminationVerdict::Refused(
                 crate::runtime::RuntimeError::new(
                     span.clone(),
-                    crate::runtime::RuntimeErrorKind::RuleSetMayNotTerminate {
-                        rule: e.name.clone(),
-                        fact_type: fact_type.clone(),
-                    },
+                    crate::runtime::RuntimeErrorKind::ReteCeiling(
+                        crate::runtime::ReteCeiling::RuleSetMayNotTerminate {
+                            rule: e.name.clone(),
+                            fact_type: fact_type.clone(),
+                        },
+                    ),
                 )
                 .into(),
             );

@@ -170,6 +170,127 @@ impl From<crate::resolve::Rejection> for RuntimeError {
     }
 }
 
+/// The CLOSED set of rete ceiling breaches — a TYPE, not a list someone remembers to update.
+///
+/// ── WHY THIS IS ITS OWN ENUM ─────────────────────────────────────────────────────────────
+///
+/// Three converters in `rete/kernel/outcome.rs` turn a ceiling breach into a matchable
+/// outcome, and each owns a DISJOINT subset (fire: the two fire ceilings; insert: the staging
+/// ceiling; compile: the termination verdict). Before this type they each matched the
+/// [`RuntimeErrorKind`] variants they owned and ended in `_ => Err(..)`, which meant a FIFTH
+/// ceiling would land in all three wildcards at once and silently become a raise on every
+/// path — the exact hole the outcome wall exists to close, arriving without a single build
+/// failure to announce it.
+///
+/// Closing the set moves that from discipline to type-checking: every converter narrows to
+/// `RuntimeErrorKind::ReteCeiling(c)` and then matches `c` with NO wildcard, so a new member
+/// here breaks all three until each states its answer. A converter that does not own a
+/// ceiling still RAISES it — an insert breach reaching the fire door is a bug elsewhere — but
+/// that refusal is now WRITTEN as a named arm rather than fallen into by default.
+///
+/// ⚠ The exhaustiveness is over THIS enum only. [`RuntimeErrorKind`] has hundreds of
+/// non-ceiling variants and each converter's OUTER `_ =>` stays; making that match exhaustive
+/// is not the contract and would be absurd.
+///
+/// The construction wall (`tests/lint/no_ceiling_raise_in_rete.rs`) is unaffected and stays:
+/// it guards WHERE a ceiling may be constructed, which is a different question from how one
+/// is routed. Its `CEILING_VARIANTS` match these variant names verbatim, which is why the
+/// names below are unchanged from when they were [`RuntimeErrorKind`] members.
+/// ⚠ **THIS WRAPPING CHANGES THE DERIVED EDN TAG, DELIBERATELY AND WITH A COST (arc 278, E4).**
+/// These four were flat `RuntimeErrorKind` variants. Nesting them is what buys the compile-time
+/// completeness the outcome wall needs — a fifth ceiling now fails to build in FOUR places (the
+/// three converters in `rete/kernel/outcome.rs`, and `fmt_with_span` below, which carries no `_`
+/// so the variant cannot exist without a message). The price is the rendered form:
+///
+///   before  `#wat.runtime/FixpointRoundCapExceeded {:cap 50 :still-deriving 12 :span …}`
+///   after   `#wat.runtime/ReteCeiling {:ceiling #wat.runtime/FixpointRoundCapExceeded {…} :span …}`
+///
+/// It is unavoidable under that decision: the `ToEdn` derive's grammar is namespace / literal /
+/// via / key / skip — there is no flatten, transparent, or per-variant namespace, and a newtype
+/// variant always emits tag-plus-one-key (cf. `#wat.load/Fetch {:cause …}`). Accepted on measured
+/// grounds, not assumed: **the prose messages are byte-identical** (verified by extracting both
+/// revisions' literals), no test or `.edn` golden asserts these tags, every wat-level match is on
+/// `FireOutcome`/`InsertOutcome`/`CompileOutcome` — untouched — and each of these four converts to
+/// an outcome before reaching wat, so the tag is observable only to a Rust embedder's
+/// `Debug`/`Display`. **If the wire form must be preserved, the cure is a `#[to_edn(transparent)]`
+/// variant directive (~30 lines; this derive is write-only `ToEdn`, not `Edn`), and that is its own
+/// strike — it is a new wire directive, not a side effect of this one.**
+#[derive(Debug, wat_edn::ToEdn)]
+#[to_edn(namespace = crate::error_ns::RUNTIME)]
+pub enum ReteCeiling {
+    /// The cascade fixpoint ran past its round cap — the rule set does not terminate.
+    ///
+    /// Its own variant rather than `MalformedForm`, deliberately: the forms are WELL FORMED and
+    /// saying otherwise would teach the wrong fix (R29 `RVINA ERVDIT` — the same call
+    /// `NonReteConstraint` made against reusing `MalformedClause`). Nothing is malformed; the
+    /// program diverges.
+    ///
+    /// `DESIGN-STONE-4b-cascade-fixpoint` argued termination from "facts is monotone-growing,
+    /// dedup-bounded, FINITE DOMAIN -> stops". The premise is false whenever a `:then` COMPUTES a
+    /// value: `N(k) :- N(k-1)` mints a structurally novel fact every round, so the dedup that
+    /// bounds the fixpoint never bites. Measured 2026-08-27 in 11 lines of legal wat — the process
+    /// died on `memory allocation of 545259536 bytes failed`, with no wat error, no span and no
+    /// rule named. This variant is what an embedder gets instead.
+    /// A rule set that cannot be proven to terminate — refused at `compile-all`, before a fact is
+    /// ever inserted. The eBPF-verifier rung: refuse at load what you cannot prove.
+    ///
+    /// Datalog terminates because its fact domain is FINITE: every head value comes from the body,
+    /// so no rule can mint a value that was not already there. A `:then` that COMPUTES breaks that
+    /// RANGE RESTRICTION, and inside a derivation cycle it means a structurally novel fact every
+    /// round, forever. Outside a cycle a computed head is fine and stays legal.
+    /// A `fire-rules` round boundary found the session past `max-session-bytes`.
+    ///
+    /// The ceiling counts from `compile-all`, not from fire entry, so a breach here can be
+    /// growth this fire derived, memory `insert` staged beforehand, or both — `rounds` and the
+    /// session's staged fact count are what separate them.
+    ///
+    /// Distinct from [`RuntimeErrorKind::FixpointRoundCapExceeded`] on purpose: the round cap
+    /// counts ROUNDS and a fanout diverges WITHIN one, so a branching derivation reaches the
+    /// allocator while the round counter is still in single digits (measured 2026-08-29: an
+    /// allocator abort at 6.2s, no wat error, no rule named). This is the ceiling that fires there.
+    SessionMemoryCeilingExceeded {
+        /// The configured ceiling, in bytes.
+        limit: usize,
+        /// Bytes this session's thread had live when the round boundary was reached.
+        used: usize,
+        /// Rounds COMPLETED before the ceiling was hit. **`0` is the common and most informative
+        /// value** — it says the breach happened inside the very first round, i.e. the growth was
+        /// per-round FANOUT rather than depth. A large value means depth, which the round cap
+        /// would also have caught.
+        rounds: usize,
+    },
+    /// `insert` / `insert-all` grew its session past `max-session-bytes`.
+    ///
+    /// Distinct from [`RuntimeErrorKind::SessionMemoryCeilingExceeded`] on purpose, and the
+    /// distinction is not cosmetic: that one reports ROUNDS COMPLETED, which is meaningless at a
+    /// door that runs no rounds. One variant serving both would force every insert-site reader to
+    /// interpret a `rounds` that is always zero — a value carrying two facts, which is the exact
+    /// shape this arc has pulled out repeatedly. A session grows through two doors; each reports
+    /// how far IT had got.
+    SessionMemoryCeilingExceededOnInsert {
+        /// The configured ceiling, in bytes.
+        limit: usize,
+        /// Bytes this session's thread had live when the fact was staged.
+        used: usize,
+        /// Facts already staged in the session when the ceiling was reached — the insert door's
+        /// answer to "how far had this got", and the tell for whether the cost is the fact COUNT
+        /// or the fact SIZE. A low `staged` against a large `used` means wide or string-heavy
+        /// records, not a runaway loop.
+        staged: usize,
+    },
+    RuleSetMayNotTerminate {
+        rule: String,
+        /// The `:then` fact type whose value is computed rather than copied.
+        fact_type: String,
+    },
+    FixpointRoundCapExceeded {
+        cap: usize,
+        /// Facts still being derived in the round that hit the cap — the evidence that the
+        /// fixpoint was still GROWING rather than merely deep.
+        still_deriving: usize,
+    },
+}
+
 /// Variant data for [`RuntimeError`]. Spans live in the outer struct; variants
 /// carry ONLY data unique to each failure kind.
 ///
@@ -314,77 +435,16 @@ pub enum RuntimeErrorKind {
     /// user-level channel primitives produces this variant. It
     /// remains only for the join-on-panic case.
     ChannelDisconnected { op: String },
-    /// The cascade fixpoint ran past its round cap — the rule set does not terminate.
+    /// The CLOSED set of rete ceiling breaches — every member of [`ReteCeiling`].
     ///
-    /// Its own variant rather than `MalformedForm`, deliberately: the forms are WELL FORMED and
-    /// saying otherwise would teach the wrong fix (R29 `RVINA ERVDIT` — the same call
-    /// `NonReteConstraint` made against reusing `MalformedClause`). Nothing is malformed; the
-    /// program diverges.
-    ///
-    /// `DESIGN-STONE-4b-cascade-fixpoint` argued termination from "facts is monotone-growing,
-    /// dedup-bounded, FINITE DOMAIN -> stops". The premise is false whenever a `:then` COMPUTES a
-    /// value: `N(k) :- N(k-1)` mints a structurally novel fact every round, so the dedup that
-    /// bounds the fixpoint never bites. Measured 2026-08-27 in 11 lines of legal wat — the process
-    /// died on `memory allocation of 545259536 bytes failed`, with no wat error, no span and no
-    /// rule named. This variant is what an embedder gets instead.
-    /// A rule set that cannot be proven to terminate — refused at `compile-all`, before a fact is
-    /// ever inserted. The eBPF-verifier rung: refuse at load what you cannot prove.
-    ///
-    /// Datalog terminates because its fact domain is FINITE: every head value comes from the body,
-    /// so no rule can mint a value that was not already there. A `:then` that COMPUTES breaks that
-    /// RANGE RESTRICTION, and inside a derivation cycle it means a structurally novel fact every
-    /// round, forever. Outside a cycle a computed head is fine and stays legal.
-    /// A `fire-rules` round boundary found the session past `max-session-bytes`.
-    ///
-    /// The ceiling counts from `compile-all`, not from fire entry, so a breach here can be
-    /// growth this fire derived, memory `insert` staged beforehand, or both — `rounds` and the
-    /// session's staged fact count are what separate them.
-    ///
-    /// Distinct from [`RuntimeErrorKind::FixpointRoundCapExceeded`] on purpose: the round cap
-    /// counts ROUNDS and a fanout diverges WITHIN one, so a branching derivation reaches the
-    /// allocator while the round counter is still in single digits (measured 2026-08-29: an
-    /// allocator abort at 6.2s, no wat error, no rule named). This is the ceiling that fires there.
-    SessionMemoryCeilingExceeded {
-        /// The configured ceiling, in bytes.
-        limit: usize,
-        /// Bytes this session's thread had live when the round boundary was reached.
-        used: usize,
-        /// Rounds COMPLETED before the ceiling was hit. **`0` is the common and most informative
-        /// value** — it says the breach happened inside the very first round, i.e. the growth was
-        /// per-round FANOUT rather than depth. A large value means depth, which the round cap
-        /// would also have caught.
-        rounds: usize,
-    },
-    /// `insert` / `insert-all` grew its session past `max-session-bytes`.
-    ///
-    /// Distinct from [`RuntimeErrorKind::SessionMemoryCeilingExceeded`] on purpose, and the
-    /// distinction is not cosmetic: that one reports ROUNDS COMPLETED, which is meaningless at a
-    /// door that runs no rounds. One variant serving both would force every insert-site reader to
-    /// interpret a `rounds` that is always zero — a value carrying two facts, which is the exact
-    /// shape this arc has pulled out repeatedly. A session grows through two doors; each reports
-    /// how far IT had got.
-    SessionMemoryCeilingExceededOnInsert {
-        /// The configured ceiling, in bytes.
-        limit: usize,
-        /// Bytes this session's thread had live when the fact was staged.
-        used: usize,
-        /// Facts already staged in the session when the ceiling was reached — the insert door's
-        /// answer to "how far had this got", and the tell for whether the cost is the fact COUNT
-        /// or the fact SIZE. A low `staged` against a large `used` means wide or string-heavy
-        /// records, not a runaway loop.
-        staged: usize,
-    },
-    RuleSetMayNotTerminate {
-        rule: String,
-        /// The `:then` fact type whose value is computed rather than copied.
-        fact_type: String,
-    },
-    FixpointRoundCapExceeded {
-        cap: usize,
-        /// Facts still being derived in the round that hit the cap — the evidence that the
-        /// fixpoint was still GROWING rather than merely deep.
-        still_deriving: usize,
-    },
+    /// ⛔ **A NEW CEILING GOES IN [`ReteCeiling`], NEVER HERE.** That enum is matched
+    /// EXHAUSTIVELY — with no wildcard — by all three converters in
+    /// `rete/kernel/outcome.rs`, so a fifth member FAILS TO COMPILE until each of the
+    /// three states its own answer for it. Adding a fifth ceiling as a sibling of this
+    /// variant instead would land in each converter's outer `_ =>` and silently become a
+    /// raise on all three paths — the one thing the outcome wall exists to prevent.
+    #[to_edn(key = "ceiling")]
+    ReteCeiling(ReteCeiling),
     /// A vector-level primitive (`:wat::holon::cosine`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
     /// [`SymbolTable`] has no attached [`EncodingCtx`]. Reachable from
@@ -745,70 +805,72 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 write!(f, "eval verification failed: {}", err)
             }
-            RuntimeErrorKind::SessionMemoryCeilingExceeded { limit, used, rounds } => write!(
-                f,
-                "{}rete fire-rules: this session's thread has taken {} bytes since the session \
-                 was compiled, past the {}-byte `max-session-bytes` ceiling, after {} completed \
-                 round(s) — 0 means it breached inside the FIRST round. The ceiling is PER \
-                 SESSION, not per fire: it counts from `compile-all`, so facts STAGED by `insert` \
-                 before this fire are included (they are the session's memory too). It is measured \
-                 on this session's own thread, so a sibling session on another thread cannot have \
-                 caused it. A LOW round count means the growth was \
-                 FANOUT — a `:then` deriving several novel facts per fact, which multiplies within \
-                 one round and never reaches the round cap. Either bound the derivation (a \
-                 `:then` that copies rather than computes, or a fact type with finitely many \
-                 inhabitants), or raise the ceiling with \
-                 `(:wat::config::rete::set-max-session-bytes! n)` if the workload genuinely needs \
-                 the memory — raising it is a claim about YOUR rule set, never a fix for one that \
-                 diverges.",
-                prefix, used, limit, rounds
-            ),
-            RuntimeErrorKind::SessionMemoryCeilingExceededOnInsert { limit, used, staged } => write!(
-                f,
-                "{}rete insert: this session's thread has taken {} bytes since the session was \
-                 compiled, past the {}-byte `max-session-bytes` ceiling, with {} fact(s) staged \
-                 and no `fire-rules` yet. STAGING IS NOT FREE: `insert` holds every fact until a \
-                 fire consumes it, so a fold that inserts without firing grows the session exactly \
-                 as derivation does. ⚠ WHAT IS MEASURED is bytes live on this session's OWN thread \
-                 since `compile-all` — not a walk of the session's own structures, which `Arc` \
-                 sharing makes ambiguous. So anything else your program allocates on this thread \
-                 alongside the session is charged too. That is deliberate and it is the SAFE \
-                 direction: this ceiling exists to raise a diagnostic before the allocator aborts, \
-                 and the allocator does not care whose bytes they are. **READ THE TWO NUMBERS \
-                 TOGETHER** — a large byte count against a SMALL `staged` says the memory is not \
-                 the facts, so look at what else the thread built after `compile-all`. Either fire \
-                 in batches (insert, fire, insert, fire — each fire consumes what is staged), or \
-                 raise the ceiling with `(:wat::config::rete::set-max-session-bytes! n)` if the \
-                 workload genuinely needs the memory.",
-                prefix, used, limit, staged
-            ),
-            RuntimeErrorKind::RuleSetMayNotTerminate { rule, fact_type } => write!(
-                f,
-                "{}rete compile-all: rule `{}` derives `:{}` with a COMPUTED value, and `:{}` feeds \
-                 back into this rule's own `:when` — so a round can mint a fact that did not exist \
-                 before, and NOTHING IN THE RULE BOUNDS THE ROUNDS. A Datalog rule set is PROVABLY \
-                 terminating because every head value comes FROM THE BODY (range restriction); \
-                 computing one breaks the proof. This is a refusal to certify, not a proof of \
-                 divergence — the check is structural (it reads the derivation graph, never your \
-                 `where` fence), so a genuinely bounded shape like `(where (< ?k 500))` is refused \
-                 too, though it does terminate. Either copy a bound variable (`:k ?k` rather than \
-                 `:k (+ ?k 1)`), or derive into a type that does not feed back. Computing OUTSIDE \
-                 a derivation cycle is fine and stays legal — the refusal is about the cycle, not \
-                 the arithmetic.",
-                prefix, rule, fact_type, fact_type
-            ),
-            RuntimeErrorKind::FixpointRoundCapExceeded { cap, still_deriving } => write!(
-                f,
-                "{}rete fire-rules: the cascade fixpoint ran past {} rounds and was still deriving \
-                 {} fact(s) — this rule set does not terminate. A Datalog fixpoint stops because \
-                 its fact domain is FINITE; a `:then` that COMPUTES a value breaks that, since \
-                 `(:N :k (:wat::rete::core::i64::+ ?k 1 :undefined 0))` mints a structurally novel \
-                 fact every round and the dedup never bites. Look for a rule whose `:then` derives \
-                 the same class its `:when` reads, with a computed field. The cap bounds \
-                 NON-TERMINATION, not memory: one round may still derive without bound, which is a \
-                 legitimate workload shape and is deliberately not limited here.",
-                prefix, cap, still_deriving
-            ),
+            RuntimeErrorKind::ReteCeiling(c) => match c {
+                ReteCeiling::SessionMemoryCeilingExceeded { limit, used, rounds } => write!(
+                    f,
+                    "{}rete fire-rules: this session's thread has taken {} bytes since the session \
+                     was compiled, past the {}-byte `max-session-bytes` ceiling, after {} completed \
+                     round(s) — 0 means it breached inside the FIRST round. The ceiling is PER \
+                     SESSION, not per fire: it counts from `compile-all`, so facts STAGED by `insert` \
+                     before this fire are included (they are the session's memory too). It is measured \
+                     on this session's own thread, so a sibling session on another thread cannot have \
+                     caused it. A LOW round count means the growth was \
+                     FANOUT — a `:then` deriving several novel facts per fact, which multiplies within \
+                     one round and never reaches the round cap. Either bound the derivation (a \
+                     `:then` that copies rather than computes, or a fact type with finitely many \
+                     inhabitants), or raise the ceiling with \
+                     `(:wat::config::rete::set-max-session-bytes! n)` if the workload genuinely needs \
+                     the memory — raising it is a claim about YOUR rule set, never a fix for one that \
+                     diverges.",
+                    prefix, used, limit, rounds
+                ),
+                ReteCeiling::SessionMemoryCeilingExceededOnInsert { limit, used, staged } => write!(
+                    f,
+                    "{}rete insert: this session's thread has taken {} bytes since the session was \
+                     compiled, past the {}-byte `max-session-bytes` ceiling, with {} fact(s) staged \
+                     and no `fire-rules` yet. STAGING IS NOT FREE: `insert` holds every fact until a \
+                     fire consumes it, so a fold that inserts without firing grows the session exactly \
+                     as derivation does. ⚠ WHAT IS MEASURED is bytes live on this session's OWN thread \
+                     since `compile-all` — not a walk of the session's own structures, which `Arc` \
+                     sharing makes ambiguous. So anything else your program allocates on this thread \
+                     alongside the session is charged too. That is deliberate and it is the SAFE \
+                     direction: this ceiling exists to raise a diagnostic before the allocator aborts, \
+                     and the allocator does not care whose bytes they are. **READ THE TWO NUMBERS \
+                     TOGETHER** — a large byte count against a SMALL `staged` says the memory is not \
+                     the facts, so look at what else the thread built after `compile-all`. Either fire \
+                     in batches (insert, fire, insert, fire — each fire consumes what is staged), or \
+                     raise the ceiling with `(:wat::config::rete::set-max-session-bytes! n)` if the \
+                     workload genuinely needs the memory.",
+                    prefix, used, limit, staged
+                ),
+                ReteCeiling::RuleSetMayNotTerminate { rule, fact_type } => write!(
+                    f,
+                    "{}rete compile-all: rule `{}` derives `:{}` with a COMPUTED value, and `:{}` feeds \
+                     back into this rule's own `:when` — so a round can mint a fact that did not exist \
+                     before, and NOTHING IN THE RULE BOUNDS THE ROUNDS. A Datalog rule set is PROVABLY \
+                     terminating because every head value comes FROM THE BODY (range restriction); \
+                     computing one breaks the proof. This is a refusal to certify, not a proof of \
+                     divergence — the check is structural (it reads the derivation graph, never your \
+                     `where` fence), so a genuinely bounded shape like `(where (< ?k 500))` is refused \
+                     too, though it does terminate. Either copy a bound variable (`:k ?k` rather than \
+                     `:k (+ ?k 1)`), or derive into a type that does not feed back. Computing OUTSIDE \
+                     a derivation cycle is fine and stays legal — the refusal is about the cycle, not \
+                     the arithmetic.",
+                    prefix, rule, fact_type, fact_type
+                ),
+                ReteCeiling::FixpointRoundCapExceeded { cap, still_deriving } => write!(
+                    f,
+                    "{}rete fire-rules: the cascade fixpoint ran past {} rounds and was still deriving \
+                     {} fact(s) — this rule set does not terminate. A Datalog fixpoint stops because \
+                     its fact domain is FINITE; a `:then` that COMPUTES a value breaks that, since \
+                     `(:N :k (:wat::rete::core::i64::+ ?k 1 :undefined 0))` mints a structurally novel \
+                     fact every round and the dedup never bites. Look for a rule whose `:then` derives \
+                     the same class its `:when` reads, with a computed field. The cap bounds \
+                     NON-TERMINATION, not memory: one round may still derive without bound, which is a \
+                     legitimate workload shape and is deliberately not limited here.",
+                    prefix, cap, still_deriving
+                ),
+            },
             RuntimeErrorKind::ChannelDisconnected { op } => write!(
                 f,
                 "{}{}: channel disconnected — receiver was dropped. `recv` is now Option-returning (disconnect yields :None); only `send` to a dropped receiver raises this error.",

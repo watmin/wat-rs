@@ -44,7 +44,7 @@ pub use environment::{Function, FunctionBody, Environment, EnvBuilder, BoundEntr
 pub use frame::{FrameInfo, snapshot_call_stack};
 pub(crate) use frame::{FrameGuard, replace_top_frame, MacroCallSiteGuard, current_macro_call_site, ANON_FN_SYMBOL};
 pub use observe::{Provenance, TrackedValue, ValueSnapshot};
-pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
+pub use signal::{EvalBreak, EvalSignal, ReteCeiling, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;
 pub use value::{Value, AggregateValue, HolonForm, EnumValue,
     Clause, ClauseSet, ClauseAttempt, ClauseFailureReason,

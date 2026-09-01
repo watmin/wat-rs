@@ -779,7 +779,7 @@ pub use crate::value::{Provenance, TrackedValue, ValueSnapshot};
 // Stone 251.2b — signal types (EvalSignal/EvalBreak/RuntimeError/RuntimeErrorKind) moved to
 // src/value/signal.rs. Re-exported here for zero-churn.
 // RuntimeError(25+)/RuntimeErrorKind(22)/EvalBreak(3)/EvalSignal(3) → RE-EXPORT.
-pub use crate::value::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
+pub use crate::value::{EvalBreak, EvalSignal, ReteCeiling, RuntimeError, RuntimeErrorKind};
 
 /// Arc 170 #13 — which of the three `register_defclause` effects a given call
 /// lands. See [`register_defclause`]'s doc comment for the full shape.
