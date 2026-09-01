@@ -196,6 +196,7 @@ impl From<crate::resolve::Rejection> for RuntimeError {
 /// it guards WHERE a ceiling may be constructed, which is a different question from how one
 /// is routed. Its `CEILING_VARIANTS` match these variant names verbatim, which is why the
 /// names below are unchanged from when they were [`RuntimeErrorKind`] members.
+///
 /// ⚠ **THIS WRAPPING CHANGES THE DERIVED EDN TAG, DELIBERATELY AND WITH A COST (arc 278, E4).**
 /// These four were flat `RuntimeErrorKind` variants. Nesting them is what buys the compile-time
 /// completeness the outcome wall needs — a fifth ceiling now fails to build in FOUR places (the
@@ -218,33 +219,13 @@ impl From<crate::resolve::Rejection> for RuntimeError {
 #[derive(Debug, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::RUNTIME)]
 pub enum ReteCeiling {
-    /// The cascade fixpoint ran past its round cap — the rule set does not terminate.
-    ///
-    /// Its own variant rather than `MalformedForm`, deliberately: the forms are WELL FORMED and
-    /// saying otherwise would teach the wrong fix (R29 `RVINA ERVDIT` — the same call
-    /// `NonReteConstraint` made against reusing `MalformedClause`). Nothing is malformed; the
-    /// program diverges.
-    ///
-    /// `DESIGN-STONE-4b-cascade-fixpoint` argued termination from "facts is monotone-growing,
-    /// dedup-bounded, FINITE DOMAIN -> stops". The premise is false whenever a `:then` COMPUTES a
-    /// value: `N(k) :- N(k-1)` mints a structurally novel fact every round, so the dedup that
-    /// bounds the fixpoint never bites. Measured 2026-08-27 in 11 lines of legal wat — the process
-    /// died on `memory allocation of 545259536 bytes failed`, with no wat error, no span and no
-    /// rule named. This variant is what an embedder gets instead.
-    /// A rule set that cannot be proven to terminate — refused at `compile-all`, before a fact is
-    /// ever inserted. The eBPF-verifier rung: refuse at load what you cannot prove.
-    ///
-    /// Datalog terminates because its fact domain is FINITE: every head value comes from the body,
-    /// so no rule can mint a value that was not already there. A `:then` that COMPUTES breaks that
-    /// RANGE RESTRICTION, and inside a derivation cycle it means a structurally novel fact every
-    /// round, forever. Outside a cycle a computed head is fine and stays legal.
     /// A `fire-rules` round boundary found the session past `max-session-bytes`.
     ///
     /// The ceiling counts from `compile-all`, not from fire entry, so a breach here can be
     /// growth this fire derived, memory `insert` staged beforehand, or both — `rounds` and the
     /// session's staged fact count are what separate them.
     ///
-    /// Distinct from [`RuntimeErrorKind::FixpointRoundCapExceeded`] on purpose: the round cap
+    /// Distinct from [`ReteCeiling::FixpointRoundCapExceeded`] on purpose: the round cap
     /// counts ROUNDS and a fanout diverges WITHIN one, so a branching derivation reaches the
     /// allocator while the round counter is still in single digits (measured 2026-08-29: an
     /// allocator abort at 6.2s, no wat error, no rule named). This is the ceiling that fires there.
@@ -261,7 +242,7 @@ pub enum ReteCeiling {
     },
     /// `insert` / `insert-all` grew its session past `max-session-bytes`.
     ///
-    /// Distinct from [`RuntimeErrorKind::SessionMemoryCeilingExceeded`] on purpose, and the
+    /// Distinct from [`ReteCeiling::SessionMemoryCeilingExceeded`] on purpose, and the
     /// distinction is not cosmetic: that one reports ROUNDS COMPLETED, which is meaningless at a
     /// door that runs no rounds. One variant serving both would force every insert-site reader to
     /// interpret a `rounds` that is always zero — a value carrying two facts, which is the exact
@@ -278,12 +259,47 @@ pub enum ReteCeiling {
         /// records, not a runaway loop.
         staged: usize,
     },
+    /// A rule set that cannot be proven to terminate — refused at `compile-all`, before a fact is
+    /// ever inserted. The eBPF-verifier rung: refuse at load what you cannot prove.
+    ///
+    /// Datalog terminates because its fact domain is FINITE: every head value comes from the body,
+    /// so no rule can mint a value that was not already there. A `:then` that COMPUTES breaks that
+    /// RANGE RESTRICTION, and inside a derivation cycle it means a structurally novel fact every
+    /// round, forever. Outside a cycle a computed head is fine and stays legal.
+    ///
+    /// ★ **The one ceiling the wall CONVERTS rather than raises**, and the justification is the
+    /// wall's own (`compile_result_to_outcome`, `src/rete/kernel/outcome.rs`): this is a judgement
+    /// about the caller's DATA — reachable only for rule sets built at runtime, since declared
+    /// rules are refused at freeze — and *"its diagnostic names an action the author can take"*.
+    /// The other three ceilings reach that converter's written refusal arm. It is recorded HERE,
+    /// on the verdict it justifies, because until arc 278 E3 this whole block rendered on
+    /// [`ReteCeiling::SessionMemoryCeilingExceeded`]: three doc blocks were stacked, and Rust
+    /// accumulates every one of them onto the NEXT item.
     RuleSetMayNotTerminate {
+        /// The rule whose `:then` computes a head value inside a derivation cycle — the one the
+        /// author rewrites to clear the verdict.
         rule: String,
         /// The `:then` fact type whose value is computed rather than copied.
         fact_type: String,
     },
+    /// The cascade fixpoint ran past its round cap — the rule set does not terminate.
+    ///
+    /// Its own variant rather than `MalformedForm`, deliberately: the forms are WELL FORMED and
+    /// saying otherwise would teach the wrong fix (R29 `RVINA ERVDIT` — the same call
+    /// `NonReteConstraint` made against reusing `MalformedClause`). Nothing is malformed; the
+    /// program diverges.
+    ///
+    /// `DESIGN-STONE-4b-cascade-fixpoint` argued termination from "facts is monotone-growing,
+    /// dedup-bounded, FINITE DOMAIN -> stops". The premise is false whenever a `:then` COMPUTES a
+    /// value: `N(k) :- N(k-1)` mints a structurally novel fact every round, so the dedup that
+    /// bounds the fixpoint never bites. Measured 2026-08-27 in 11 lines of legal wat — the process
+    /// died on `memory allocation of 545259536 bytes failed`, with no wat error, no span and no
+    /// rule named. This variant is what an embedder gets instead.
+    ///
+    /// The DEPTH ceiling. [`ReteCeiling::SessionMemoryCeilingExceeded`] is the FANOUT one — a
+    /// branching derivation reaches the allocator while this counter is still in single digits.
     FixpointRoundCapExceeded {
+        /// The configured round cap the cascade ran past.
         cap: usize,
         /// Facts still being derived in the round that hit the cap — the evidence that the
         /// fixpoint was still GROWING rather than merely deep.
@@ -416,7 +432,7 @@ pub enum RuntimeErrorKind {
     /// Freeze pair — no span; construct with outer `crate::rust_caller_span!()`.
     UserMainMissing,
     /// Verification failed for a `:wat::eval-digest!` /
-    /// `:wat::eval-signed!` call. The wrapped [`HashError`]
+    /// `:wat::eval-signed!` call. The wrapped [`HashError`](crate::hash::HashError)
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
     /// Freeze pair — no span; construct with outer `crate::rust_caller_span!()`.
@@ -447,23 +463,26 @@ pub enum RuntimeErrorKind {
     ReteCeiling(ReteCeiling),
     /// A vector-level primitive (`:wat::holon::cosine`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
-    /// [`SymbolTable`] has no attached [`EncodingCtx`]. Reachable from
+    /// [`SymbolTable`](crate::value::SymbolTable) has no attached
+    /// [`EncodingCtx`](crate::value::EncodingCtx). Reachable from
     /// test harnesses that don't go through freeze; the frozen startup
     /// pipeline always installs one.
     NoEncodingCtx { op: String },
     /// A file-reading primitive (`:wat::eval-file!`, file-path
     /// variants of the verified eval/load forms, `:wat::verify::file-path`
-    /// payloads) was invoked but the [`SymbolTable`] has no attached
+    /// payloads) was invoked but the [`SymbolTable`](crate::value::SymbolTable) has no attached
     /// source loader. The frozen startup pipeline attaches the loader
     /// handed to `startup_from_source`; test harnesses that build a
-    /// SymbolTable directly must call [`SymbolTable::set_source_loader`]
+    /// SymbolTable directly must call
+    /// [`SymbolTable::set_source_loader`](crate::value::SymbolTable::set_source_loader)
     /// to grant file-I/O capability.
     NoSourceLoader { op: String },
     /// `:wat::core::macroexpand` / `macroexpand-1` was invoked but the
-    /// [`SymbolTable`] has no attached macro registry. The frozen
+    /// [`SymbolTable`](crate::value::SymbolTable) has no attached macro registry. The frozen
     /// startup pipeline attaches the registry; test harnesses that
     /// build a SymbolTable directly must call
-    /// [`SymbolTable::set_macro_registry`] to grant macro-expansion
+    /// [`SymbolTable::set_macro_registry`](crate::value::SymbolTable::set_macro_registry) to
+    /// grant macro-expansion
     /// capability. Arc 030.
     NoMacroRegistry { op: String },
     /// `:wat::core::macroexpand` / `macroexpand-1` surfaced a macro-
