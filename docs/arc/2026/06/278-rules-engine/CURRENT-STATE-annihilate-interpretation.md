@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (eighteenth — EIGHTEEN STRIKES; ⭐ CLASS A CLOSED; D1, E1, E2, E5 CLOSED + the nested wall WIRED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (nineteenth — NINETEEN STRIKES; ⭐ CLASS A CLOSED; D1, E1, E2, E4, E5 CLOSED + the nested wall WIRED. E3 is the last Class E row). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline c0c883082..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat c0c883082..HEAD        # what they touched
+git log --oneline 452953cb9..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 452953cb9..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -98,6 +98,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **E5** | `c9cdd9d32` | **threading the span is the cure AND the guard** |
 | **E1+E2** | `1efb42fc7` | **`UnknownField` has ONE producer, and it takes the keyword node** |
 | **nested wall** | `c0c883082` | **the wall reads the form as it exists there — four dead kinds now fire** |
+| **E4** | `452953cb9` | **the ceiling set is a closed type, matched exhaustively** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -442,15 +443,45 @@ reason than mine: `aggregate-new` **is** the positional route, so firing the ret
 would be an actively **wrong refusal**. And my sketch would have regressed twice — an `_ => return`
 dropping nested constructors under a call form, and an unguarded `items[1]`.
 
-**THE NEXT WORK — E4**, the last Class E row with a named structural fix: the three converters'
-`_ =>` leaves the wall's completeness to a hand-maintained `CEILING_VARIANTS` list, and
-`no_ceiling_raise_in_rete` guards **construction**, not **routing**. Fix shape already named:
-`RuntimeErrorKind::ReteCeiling(ReteCeiling)`, matched exhaustively. Then **E3** (three doc blocks
-merged onto one variant; two carry none), then **Class F** (greppability + 5 lints). Also open, and
-now larger: the two NEW rows from this strike — `RhsMissingFields`/`RhsArityMismatch` render the
-**nested operand** as though it were the inserted fact, and the positional prime `:T'` reaches the
-wall **un-lowered** and is still silently unvalidated. Plus the `file:line` citation-rot hole,
-`acc_refusal`'s span, the misnamed `probes/` dir, and D2's `sequi` newtype.
+✅ **E4 IS CLOSED (`452953cb9`).** Three converters ended in `_ =>`; driven, their owned sets are
+**disjoint**, so those catch-alls were load-bearing and **there was no live gap** — exactly four
+ceiling variants, exactly four listed. The defect was that nothing forced the **fifth** to be
+considered: it would land in all three wildcards at once and become a raise, the one thing the
+outcome wall exists to prevent. Now `RuntimeErrorKind::ReteCeiling(ReteCeiling)`, matched
+exhaustively, cross-converter arms **written** rather than defaulted.
+
+★ **RE-DRIVEN HERE, AND IT FIRES IN FOUR PLACES, NOT THE THREE I PREDICTED** — the three converters
+**plus `signal.rs:790`**, whose `fmt_with_span` match carries no wildcard at all. **A fifth ceiling
+now cannot compile until it is both ROUTED and GIVEN A MESSAGE.** Better than the scorecard asked
+for.
+
+⚠ **ACCEPTED WITH A COST, AND THE COST IS RECORDED AT THE ENUM.** `RuntimeErrorKind` derives `ToEdn`
+and `Display` **is** `to_wire_edn`, so nesting changes the rendered tag to
+`#wat.runtime/ReteCeiling {:ceiling …}`. Unavoidable — the derive has no flatten or transparent.
+Accepted on measurement, not assumption: **prose messages byte-identical**, no test or `.edn` golden
+asserts the tags, every wat-level match is on the outcome enums, and all four convert before reaching
+wat. `#[to_edn(transparent)]` is filed as its own strike.
+
+⛔ **MY SKETCH WOULD HAVE DEFANGED THE GATE.** It renamed the four variants;
+`no_ceiling_raise_in_rete` matches them by `line.contains` and asserts four hits, so the renames stop
+matching at **all four doors** — and my own trap 5 told the rider to *"update them so the lint still
+fires"*, i.e. to re-point a live gate at strings I had just invented. The rider kept the names
+verbatim and the gate stayed **unmodified**. **A gate re-pointed at the strings of the change it
+polices is not a gate.**
+
+⛔ **AND MY RADIUS WAS WRONG A THIRD TIME — the failure mode is now NAMED: SUBSTRING.**
+`SessionMemoryCeilingExceeded` is a **prefix of** `…OnInsert`, so `grep -c` counted six twice. 30,
+not 36. All three bad estimates came from naive greps. **Use `-w` / `\b` whenever a name family
+shares a prefix — error families almost always do.** Memory updated.
+
+**THE NEXT WORK — E3, the last Class E row.** `signal.rs:317-346`: three doc blocks merged onto one
+variant, while `RuleSetMayNotTerminate` and `FixpointRoundCapExceeded` carry none — and the wall's
+justification for the former being matchable (*"its diagnostic names an action the author can
+take"*) is attached to a **different failure**. Note E4 just moved all four of these into
+`ReteCeiling`, so the doc blocks moved verbatim with them; re-read at the new site before drawing.
+Then **Class F** (greppability + 5 lints, *greppability over correction*). Also open: the two rows
+from the nested wall (nested-operand messages; the un-lowered `:T'`), `#[to_edn(transparent)]`, the
+`file:line` citation-rot hole, `acc_refusal`'s span, the misnamed `probes/` dir, D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
