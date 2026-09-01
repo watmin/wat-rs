@@ -1162,7 +1162,7 @@ mod tests {
     fn typeexpr_to_type_arg_string(ty: &crate::types::TypeExpr) -> String {
         match ty {
             crate::types::TypeExpr::Path(p) => {
-                if crate::runtime::is_type_var_path(p) {
+                if crate::declare::parse::is_type_var_path(p) {
                     p.strip_prefix(':').unwrap_or(p).to_string()
                 } else {
                     p.clone()

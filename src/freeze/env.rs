@@ -27,13 +27,14 @@ use crate::macros::{
     expand_all, register_aggregate_kwargs_companions, register_defmacros,
     register_stdlib_defmacros, MacroRegistry,
 };
-use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
-use crate::runtime::{
-    preregister_acronyms, preregister_stdlib_defclause_stub, register_aggregate_methods,
-    register_defines, register_enum_methods, register_newtype_methods, register_stdlib_defines,
-    register_stdlib_runtime_defs, register_struct_methods, register_type_predicates, Environment,
-    EvalBreak, SymbolTable,
+use crate::declare::preregister::{preregister_acronyms, preregister_stdlib_defclause_stub};
+use crate::declare::register::{
+    register_aggregate_methods, register_defines, register_enum_methods, register_newtype_methods,
+    register_stdlib_defines, register_stdlib_runtime_defs, register_struct_methods,
+    register_type_predicates,
 };
+use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
+use crate::runtime::{Environment, EvalBreak, SymbolTable};
 use crate::load::stdlib::stdlib_forms;
 use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
 
@@ -454,7 +455,7 @@ fn preregister_extend_type_in_do_let(
     };
     match head {
         ":wat::core::extend-type" => {
-            crate::runtime::register_extend_type_surface_impls(form, symbols, false)
+            crate::declare::register::register_extend_type_surface_impls(form, symbols, false)
         }
         ":wat::core::do" => {
             for child in &items[1..] {

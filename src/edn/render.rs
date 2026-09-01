@@ -1154,10 +1154,10 @@ pub fn eval_symbol_node(
     // STONE-the-last-mint — the third door. Genuinely unwalled until now; harmless only
     // because the checker's surface arm keys on Keyword rather than Symbol. Same predicate,
     // same message as `keyword-node` / `keyword/from-string` above.
-    if crate::runtime::angle_type_head_in_name(&s) {
+    if crate::declare::typevar::angle_type_head_in_name(&s) {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: crate::runtime::angle_minted_name_reason(&s),
+            reason: crate::declare::typevar::angle_minted_name_reason(&s),
         }));
     }
     let node = WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!());
@@ -1209,10 +1209,10 @@ pub fn eval_keyword_node(
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
-    if crate::runtime::angle_type_head_in_name(&s) {
+    if crate::declare::typevar::angle_type_head_in_name(&s) {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: crate::runtime::angle_minted_name_reason(&s),
+            reason: crate::declare::typevar::angle_minted_name_reason(&s),
         }));
     }
     if !s.starts_with(':') {
@@ -2329,7 +2329,7 @@ fn edn_to_typed_value_inner(
             //
             // The var test is the substrate's own (`runtime::is_type_var_path`): bare, no
             // `::`, first alphabetic char uppercase — so no FQDN type can land here.
-            _ if crate::runtime::is_type_var_path(p) => {
+            _ if crate::declare::parse::is_type_var_path(p) => {
                 edn_to_value(edn, types, ctx).map_err(|e| EdnCoerceError {
                     expected: crate::check::format_type(target),
                     got: e.to_string(),

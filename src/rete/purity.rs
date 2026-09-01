@@ -2316,9 +2316,7 @@ mod completeness_gate {
         // `derive`, already parked above under the identical open question (registration-time
         // forms that mutate the symbol table rather than compute a value). Parked for the same
         // reason as those three, not ruled, for consistency with how they are already treated.
-        ":wat::core::defalias",
-        ":wat::core::extend-type",
-    ];
+            ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: every literal or keyword-guard
     /// match arm anywhere in `runtime.rs` keyed on a wat FQDN, and every `#[wat_intrinsic]`-
@@ -2523,6 +2521,21 @@ mod completeness_gate {
 
     #[test]
     fn every_dispatched_verb_is_classified_or_disposed() {
+        // ⚠ SCOPE, and arc 109's decomposition tested it: this reads ONLY `src/runtime.rs`,
+        // so the population is "verbs the EVALUATOR dispatches", not "every match arm mentioning a
+        // verb keyword". The declare stone moved `:wat::core::defalias` / `extend-type`'s arms into
+        // `src/declare/register.rs` and this gate correctly reported them as leaving the population
+        // — they are DECLARATION heads handled at load time, never evaluated as expressions
+        // (`check.rs` returns early for both: "declaration forms, not value-producing expressions").
+        //
+        // ⛔ Widening the scan to all of `src/` was TRIED and is WRONG: it takes the dispatched
+        // count 543 -> 693 and the unreviewed worklist 32 -> 170 by sweeping in `check.rs`'s
+        // inference arms and `freeze/env.rs`'s declaration matches — consumers of verb names, not
+        // dispatch. Narrow blinds the gate; wide captures the wrong population.
+        // `[[feedback_a_predicate_can_be_wrong_in_both_directions]]`
+        //
+        // ⬜ OPEN, recorded not ruled: this anchor is a FILE, and arc 109 will keep moving dispatch
+        // out of it. See `NOTE-the-completeness-gate-is-anchored-to-a-file-the-campaign-is-emptying`.
         let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/runtime.rs"))
             .expect(
                 "runtime.rs must be readable — it holds the verbs still dispatched \

@@ -64,6 +64,7 @@ pub mod ast;
 pub mod check;
 pub mod closure_extract;
 pub(crate) mod collection;
+pub(crate) mod declare;
 pub(crate) mod numeric;
 pub(crate) mod rete;
 pub mod argspec;
@@ -423,9 +424,11 @@ macro_rules! assert_startup_error {
 }
 
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
-pub use runtime::{
-    eval, register_aggregate_methods, register_defines, register_struct_methods,
-};
+pub use runtime::eval;
+// Arc 109 Stone the-declare-home — the three `register_*` re-exports moved with their
+// implementations to `crate::declare::register`; the crate's public surface is unchanged,
+// only the path behind it.
+pub use declare::register::{register_aggregate_methods, register_defines, register_struct_methods};
 pub use value::{AggregateValue, HolonForm, EncodingCtx, EnvBuilder, Environment, Function, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 pub use types::{
     parse_type_expr, register_stdlib_types, register_types, register_types_with_acronyms,

@@ -100,8 +100,9 @@ pub use walk::resolve_references;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::declare::register::register_defines;
     use crate::macros::{register_defmacros, MacroRegistry};
-    use crate::runtime::{register_defines, Environment, SymbolTable};
+    use crate::runtime::{Environment, SymbolTable};
 
     /// Full pipeline helper: parse → register-defmacros → expand → register-defines → resolve.
     ///

@@ -620,7 +620,7 @@ impl FrozenWorld {
         // primitives see a fully-equipped SymbolTable. Parallels the
         // sigma-fn evaluation above — same pattern, broader scope.
         let env = crate::runtime::Environment::new();
-        crate::runtime::register_runtime_defs(&program, &env, &mut symbols, &declared_rete_defns)
+        crate::declare::register::register_runtime_defs(&program, &env, &mut symbols, &declared_rete_defns)
             .map_err(|e| match e {
             EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
             // A Signal at the freeze boundary is an interpreter bug.

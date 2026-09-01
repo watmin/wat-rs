@@ -2685,7 +2685,7 @@ fn infer_list(
             // Returns unit type — a declaration, not a value expression.
             ":wat::string::declare-acronyms" => {
                 let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
-                if let Err(e) = crate::runtime::parse_declare_acronyms_form(&form_as_list) {
+                if let Err(e) = crate::declare::parse::parse_declare_acronyms_form(&form_as_list) {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                         head: k.to_string(),
                         reason: format!("{e}"),
@@ -5438,7 +5438,7 @@ fn infer_list(
                 // path (`instantiate` at ~13553) and 251.7's fn-generics recipe.
                 // When var_names is empty (non-generic clause), mapping is empty →
                 // rename is identity → inst == original → behavior unchanged.
-                let var_names = crate::runtime::collect_free_type_vars(clause_arg_types, clause_ret);
+                let var_names = crate::declare::typevar::collect_free_type_vars(clause_arg_types, clause_ret);
                 let mapping: HashMap<String, TypeExpr> = var_names
                     .iter()
                     .map(|n| (n.clone(), fresh.fresh()))
@@ -21715,9 +21715,8 @@ mod tests {
     use super::*;
     use crate::macros::{expand_all, register_defmacros, MacroRegistry};
     use crate::resolve::Privilege;
-    use crate::runtime::{
-        register_defclause, register_defines, ClauseRegPhase, Environment, SymbolTable,
-    };
+    use crate::declare::register::{register_defclause, register_defines};
+    use crate::runtime::{ClauseRegPhase, Environment, SymbolTable};
     use crate::types::{parse_type_expr, parse_type_node, register_types, TypeEnv};
     use crate::value::{RuntimeError, RuntimeErrorKind};
     use std::sync::OnceLock;

@@ -168,7 +168,7 @@ pub(crate) fn eval_intrinsic_examples(
 ///     test: a capability-only map (e.g. `{:restricted-to […]}`) is stored in
 ///     `binding_metadata` and declares nothing, so accepting it on presence
 ///     alone would point a reader at a verb with no documentation — the exact
-///     dead link this rule forbids. `crate::runtime::meta_has_doc_axis_key` is
+///     dead link this rule forbids. `crate::declare::register::meta_has_doc_axis_key` is
 ///     the SAME predicate the storage door (`record_binding_metadata`) and the
 ///     `metadata-of` reflection surface already use — reused here, not
 ///     restated, so the three cannot drift apart on what counts as "declared".
@@ -184,7 +184,7 @@ pub(crate) fn see_target_resolves(
 ) -> bool {
     let is_registered_intrinsic = reg.lookup_entry(target).is_some();
     let is_declared_wat_verb =
-        wat_binding_metadata.get(target).is_some_and(crate::runtime::meta_has_doc_axis_key);
+        wat_binding_metadata.get(target).is_some_and(crate::declare::register::meta_has_doc_axis_key);
     is_registered_intrinsic || is_declared_wat_verb
 }
 

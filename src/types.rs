@@ -4041,7 +4041,7 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
 ///   wall to be sound against the surface declarations that already exist.
 ///
 /// Consumption itself walks NESTED type expressions — delegated to
-/// `crate::runtime::collect_free_type_vars_in`, which already recurses through `Parametric`,
+/// `crate::declare::typevar::collect_free_type_vars_in`, which already recurses through `Parametric`,
 /// `Fn`, and `Tuple` (stone 251.8a's single door; this reuses it rather than re-walking).
 fn check_type_params_consumed(def: &TypeDef, decl_span: &Span) -> Result<(), TypeError> {
     let type_params: &[String] = match def {
@@ -4089,7 +4089,7 @@ fn check_type_params_consumed(def: &TypeDef, decl_span: &Span) -> Result<(), Typ
             .collect(),
     };
 
-    let consumed = crate::runtime::collect_free_type_vars_in(&member_types);
+    let consumed = crate::declare::typevar::collect_free_type_vars_in(&member_types);
     for p in type_params {
         if !consumed.contains(p) {
             return Err(TypeError::new(

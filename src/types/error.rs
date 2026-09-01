@@ -259,7 +259,7 @@ pub enum TypeErrorKind {
     /// unused param still discriminates types (nominal tagging, `PhantomData`'s use case); the
     /// declaration is rejected for READABILITY: a reader cannot tell a deliberate tag from a
     /// leftover edit unless every param is written into the shape somewhere. Consumption walks
-    /// nested type expressions (`crate::runtime::collect_free_type_vars_in`), so
+    /// nested type expressions (`crate::declare::typevar::collect_free_type_vars_in`), so
     /// `[x <- (Vector <- [T])]` counts as consuming `T` — only a param absent from EVERY
     /// reachable type expression, at any depth, fires this.
     UnconsumedTypeParam {
