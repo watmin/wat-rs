@@ -1291,15 +1291,44 @@ pub(crate) fn eval_arm_session(
         .into());
     }
     // THE TERMINATION VERIFIER — before the arm is built, and before a fact can be inserted.
-    // Here rather than in the freeze-time `defrule` wall because `compile-all` is the one door
-    // EVERY rule passes: rules built at runtime as `Rule` values (both differential fuzzers do
-    // this) never see that wall. See `stratify::refuse_non_terminating`.
+    // Here rather than in the freeze-time `defrule` wall because `compile-all` is the door every
+    // LOCALLY COMPILED rule passes: rules built at runtime as `Rule` values (both differential
+    // fuzzers do this) never see that wall. See `stratify::refuse_non_terminating`.
+    //
+    // ⛔ IT IS NOT "THE ONE DOOR EVERY RULE PASSES" — that is what this comment used to claim,
+    // unqualified, and `stratify.rs`'s own module doc has always said the opposite from its side.
+    // The verifier has exactly ONE call site in the tree — this one — so every other route to an
+    // arm reaches it unverified. That count is not asserted here in prose, where it would rot: it
+    // is pinned by `tests/lint/rete_header_claims_are_asserted.rs`, along with the import door's
+    // absence below. Two such routes, both checked on the disk (not claimed to be all of them):
+    //   - `import_export` (`rete/export.rs`) — `grep 'refuse_non_terminating\|verify_termination'`
+    //     over that file has NO hit. Not a weaker check: the verifier is not on that path at all.
+    //     Nor should it be — an imported Export carries no rule AST (`rules_lack_ast`,
+    //     `fire/rules.rs:814`), so there would be nothing to analyse and the call could only ever
+    //     answer `NotAnalysable`. The runtime round cap is the answer there, as `stratify.rs` says.
+    //   - A HAND-ASSEMBLED `Session`. `(:wat::rete::Session :network … :rules …)` is writable in
+    //     wat — `tests/rete/probe_arc278_1a_data_model.wat:13` does exactly that — and
+    //     `fire_rules_on_session` (`fire/rules.rs:629`) reaches its arm through
+    //     `rete_arm_get_or_build`, which does not call this. Only `rete_arm_lease_or_build`, below
+    //     this line, is behind the verifier.
+    //
     // ⛔ THE WALL, at the wat boundary. The termination verdict becomes a matchable
     // `(:wat::rete::CompileOutcome)` rather than a raise — see `kernel::outcome` for why THIS
-    // refusal converts while `arm-session`'s ArityMismatch/TypeMismatch do not. The `?` is gone
+    // refusal converts while `arm-session`'s ArityMismatch/TypeMismatch do not. The `?` is absent
     // deliberately: the verdict must reach the converter, not unwind past it.
-    if let Err(e) = crate::rete::kernel::stratify::refuse_non_terminating(rules, sym) {
-        return crate::rete::kernel::outcome::compile_result_to_outcome(Err(e));
+    match crate::rete::kernel::stratify::refuse_non_terminating(rules, sym) {
+        // Every rule carried an AST and no unbounded derivation cycle exists. Proceed.
+        crate::rete::kernel::stratify::TerminationVerdict::Proven => {}
+        // Some rules carried no AST to analyse. PROCEEDS EXACTLY AS `Proven` DOES — this arm is
+        // not a refusal and must not become one (see the type's own ⚠): refusing here would break
+        // every session whose rules legitimately carry no AST. What changed is that the state is
+        // now SAYABLE and distinct at this site, rather than arriving as the same `Ok(())` a proof
+        // arrives as. Surfacing the count to wat would need a new `CompileOutcome` variant behind
+        // the outcome wall — affirmatively out of scope; its own strike if it is wanted.
+        crate::rete::kernel::stratify::TerminationVerdict::NotAnalysable { rules: _unanalysed } => {}
+        crate::rete::kernel::stratify::TerminationVerdict::Refused(e) => {
+            return crate::rete::kernel::outcome::compile_result_to_outcome(Err(e));
+        }
     }
     rete_arm_lease_or_build(network, rules, sym)?;
     // THE SESSION'S ZERO POINT. `compile-all` calls `arm-session` for every session it builds, so

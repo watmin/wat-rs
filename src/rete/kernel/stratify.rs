@@ -826,20 +826,58 @@ fn computed_head_is_monotone_bounded(
     bounded.then_some(TerminationProof::BoundedMeasure)
 }
 
+/// What the termination verifier LEARNED about a rule set — three states, three names.
+///
+/// ⛔ `Proven` AND `NotAnalysable` MAY NOT BE THE SAME VALUE. Until 2026-08-31 both were `Ok(())`,
+/// returned from four places meaning three different things: the rules were not a vector, nothing
+/// computed so no cycle could be unbounded, the derivation graph closed — and, silently, *this rule
+/// carried no AST so it was skipped*. The skip's own comment said "saying so is the honest outcome
+/// rather than passing it as proven" and then said it to nobody: `compile-all` answered `Compiled`
+/// for a `Rule` with empty `:lhs`/`:rhs`, which is exactly the shape an imported Export's rules
+/// have. Driven at `wat-scripts/scratch-pad/a5-termination-silence.wat`. The conflation now has no
+/// representation, so a future arm cannot re-mint it.
+///
+/// ⚠ THIS IS NOT A REFUSAL. `NotAnalysable` proceeds exactly as `Proven` does at the one caller —
+/// making it fatal would break every session whose rules legitimately carry no AST (every imported
+/// Export), and that is a policy question this type does not open. The runtime round cap is what
+/// bounds those, exactly as the module doc above says.
+pub(crate) enum TerminationVerdict {
+    /// Every rule in the set carried an AST, and no unbounded derivation cycle exists among them.
+    Proven,
+    /// The set was accepted, but `rules` of it could not be analysed — an imported Export's rules
+    /// carry no `:lhs`/`:rhs` AST, and a value that is not a `Rule` at all has no `name` to key on.
+    ///
+    /// `rules: 0` paired with this variant means the argument was **not a rule vector**, so no rule
+    /// was even seen — not that everything was analysed. A count of zero with `Proven` is the only
+    /// "nothing was skipped" reading.
+    NotAnalysable { rules: usize },
+    /// A cyclic computed head with neither proof available. The caller converts this to a
+    /// `(:wat::rete::CompileOutcome::MayNotTerminate)`; it does not unwind.
+    Refused(crate::runtime::EvalBreak),
+}
+
 /// Refuse a rule set that cannot be proven to terminate.
 ///
 /// See the doctrine block above. Called from `arm-session`, so it covers every rule that reaches
 /// `compile-all` — declared or built at runtime.
-pub(crate) fn refuse_non_terminating(
-    rules: &Value,
-    sym: &SymbolTable,
-) -> Result<(), crate::runtime::EvalBreak> {
+pub(crate) fn refuse_non_terminating(rules: &Value, sym: &SymbolTable) -> TerminationVerdict {
+    // How many rules were SKIPPED rather than analysed. Every `continue` below that walks past a
+    // rule without building an edge for it increments this, so a skip cannot leave the verdict
+    // reading as a proof.
+    let mut unanalysable: usize = 0;
+    let verdict = |unanalysable: usize| match unanalysable {
+        0 => TerminationVerdict::Proven,
+        rules => TerminationVerdict::NotAnalysable { rules },
+    };
     let Value::wat__core__PersistentVector(pv) = rules else {
-        return Ok(());
+        // Not a rule vector at all: nothing was analysed, and there is no rule to count.
+        return TerminationVerdict::NotAnalysable { rules: 0 };
     };
     let mut edges: Vec<RuleEdge> = Vec::new();
     for r in pv.iter() {
         let Some(name) = crate::rete::kernel::session::rule_named_field(r, "name") else {
+            // Not a `Rule` shape — no `name` field to key an edge on, so it is skipped, not proven.
+            unanalysable += 1;
             continue;
         };
         let name = match name {
@@ -849,8 +887,10 @@ pub(crate) fn refuse_non_terminating(
         let lhs = crate::rete::kernel::session::rule_asts_field(r, "lhs");
         let rhs = crate::rete::kernel::session::rule_asts_field(r, "rhs");
         // An imported Export carries no AST — nothing to analyse, and saying so is the honest
-        // outcome rather than passing it as proven.
+        // outcome rather than passing it as proven. It is now SAID: the count reaches the verdict,
+        // so the set comes back `NotAnalysable` instead of wearing a proof it never earned.
         if lhs.is_empty() && rhs.is_empty() {
+            unanalysable += 1;
             continue;
         }
         // `produced_type`, NOT `fact_type_head` — the two disagree on exactly one shape and the
@@ -891,7 +931,12 @@ pub(crate) fn refuse_non_terminating(
     if edges.iter().all(|e| e.computed.is_none()) {
         // The overwhelmingly common case: nothing computes, so no cycle can be unbounded and the
         // graph never has to be built. Measured 2026-08-27: 371 of 381 corpus rules take this exit.
-        return Ok(());
+        //
+        // ⛔ THIS IS A PROOF, NOT A SKIP, and it must keep coming back `Proven` — folding it into
+        // `NotAnalysable` would make the overwhelming majority of the corpus read as unverified.
+        // It reports `NotAnalysable` ONLY when a rule was skipped on the way here, because then
+        // the proof covers the edges that were built and says nothing about the ones that were not.
+        return verdict(unanalysable);
     }
 
     // ── the derivation graph, consumed -> produced ────────────────────────────────────────────
@@ -975,15 +1020,20 @@ pub(crate) fn refuse_non_terminating(
                 let _ = proof;
                 continue;
             }
-            return Err(crate::runtime::RuntimeError::new(
-                span.clone(),
-                crate::runtime::RuntimeErrorKind::RuleSetMayNotTerminate {
-                    rule: e.name.clone(),
-                    fact_type: fact_type.clone(),
-                },
-            )
-            .into());
+            return TerminationVerdict::Refused(
+                crate::runtime::RuntimeError::new(
+                    span.clone(),
+                    crate::runtime::RuntimeErrorKind::RuleSetMayNotTerminate {
+                        rule: e.name.clone(),
+                        fact_type: fact_type.clone(),
+                    },
+                )
+                .into(),
+            );
         }
     }
-    Ok(())
+    // The derivation graph closed with no unbounded cycle — a proof, and the second of the two.
+    // Same qualification as the early exit above: a rule skipped on the way here is not covered by
+    // it, so a non-zero skip count downgrades the verdict rather than hiding inside it.
+    verdict(unanalysable)
 }

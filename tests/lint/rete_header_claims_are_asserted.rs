@@ -194,3 +194,94 @@ fn alpha_class_lookup_is_still_the_linear_scan_the_benchmark_calls_the_engine() 
          measuring something the engine does not do."
     );
 }
+
+/// The termination verifier's REACH — the claim `arm.rs` used to make in prose and get wrong.
+///
+/// That comment said `compile-all` is *"the one door EVERY rule passes"*, unqualified, while
+/// `stratify.rs`'s own module doc said the opposite from its side: an imported Export carries no
+/// rule AST, so there is nothing there to analyse. Both cannot be true, and a reader landing on
+/// either had no route to the correction. The prose is now qualified; the two facts it rests on
+/// are here, where a future hand who wires the verifier into a second door — or unwires it from
+/// this one — gets a red build instead of a comment that quietly stops describing the tree.
+///
+/// This gate cannot check that the two doors named in that comment are ALL of them. It checks the
+/// count of call sites, which is the half that is decidable.
+#[test]
+fn the_termination_verifier_still_has_exactly_one_call_site() {
+    fn rs_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                rs_files(&p, out);
+            } else if p.extension().and_then(|x| x.to_str()) == Some("rs") {
+                out.push(p);
+            }
+        }
+    }
+
+    let src_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rs_files(&src_root, &mut files);
+    files.sort();
+
+    // Call sites only: the definition line (`fn refuse_non_terminating`) and prose mentions inside
+    // `//` comments are not callers, and counting them would make this gate green for the wrong
+    // reason the first time someone documents the function twice.
+    //
+    // ⛔ AND NOT THE PROBES. `src/rete/kernel/tests/` drives the verifier directly — that is what a
+    // probe for a `pub(crate)` fn IS — and the first draft of this gate counted those seven calls
+    // as doors, going red the moment it was written. The claim is about which ENGINE paths reach
+    // the verifier; a test that calls it reaches nothing.
+    let mut callers: Vec<String> = Vec::new();
+    for f in &files {
+        if f.components().any(|c| c.as_os_str() == "tests") {
+            continue;
+        }
+        let Ok(src) = std::fs::read_to_string(f) else { continue };
+        for (i, line) in src.lines().enumerate() {
+            let t = line.trim_start();
+            if t.starts_with("//") || t.starts_with("fn refuse_non_terminating") {
+                continue;
+            }
+            if line.contains("refuse_non_terminating(") && !line.contains("pub(crate) fn ") {
+                let rel = f.strip_prefix(&src_root).unwrap_or(f).display().to_string();
+                callers.push(format!("src/{rel}:{}", i + 1));
+            }
+        }
+    }
+
+    assert_eq!(
+        callers.len(),
+        1,
+        "the termination verifier has {} call sites ({callers:?}), expected 1. `arm.rs`'s comment \
+         above the call names the doors that reach an arm WITHOUT it; a second caller means that \
+         account is now wrong, and a zero means the verifier is dead.",
+        callers.len()
+    );
+    assert_eq!(
+        callers[0].split(':').next().unwrap_or(""),
+        "src/rete/kernel/arm.rs",
+        "the one call site moved: {callers:?}. It belongs at `arm-session`, which is the door the \
+         comment there describes."
+    );
+}
+
+/// The import door does NOT call the verifier — stated in `arm.rs`'s comment, and deliberately so.
+///
+/// An imported Export carries no rule AST (`rules_lack_ast`), so a call there could only ever
+/// answer `NotAnalysable`; the runtime round cap is the real answer on that path. This row exists
+/// so the comment's *"NO hit"* is a fact the build checks rather than a grep someone once ran.
+#[test]
+fn the_import_door_still_does_not_call_the_termination_verifier() {
+    let src = rete_source("src/rete/export.rs");
+    let hits =
+        src.matches("refuse_non_terminating").count() + src.matches("verify_termination").count();
+    assert_eq!(
+        hits, 0,
+        "`src/rete/export.rs` now mentions the termination verifier ({hits} hits). If the import \
+         path genuinely gained a call, `arm.rs`'s comment above the one call site must stop naming \
+         import as the door that skips it — and the call itself needs a reason, because with no \
+         AST to walk it can only answer `NotAnalysable`."
+    );
+}
