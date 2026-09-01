@@ -437,6 +437,8 @@
 
 ;; ONE emit-and-reset path for logs. Called by the logs size trigger, -flush-logs, and
 ;; flush-accumulators (close/flush). A second builder here is stone A's double-count.
+;; Item (b): the batched writer fragments an over-cap buffer; we reset to the un-written
+;; suffix (drop written) rather than empty-on-success / original-on-failure.
 (:wat::core::defn :wat::telemetry::span::flush-logs
   [s <- :wat::telemetry::span::State]
   -> (:wat::core::Tuple :- [:wat::telemetry::span::State :wat::telemetry::Span::CloseResponse])
@@ -447,20 +449,87 @@
     (:wat::core::if (:wat::core::= (:wat::core::count logs) 0)
       (:wat::core::Tuple s (:wat::telemetry::Span::CloseResponse::Done))
       (:wat::core::let
-        [cresp (:wat::telemetry::span::map-write-logs-recv
-                 (:wat::telemetry::Journal/write-logs sink
-                   (:wat::telemetry::Journal::WriteLogsRequest logs)))]
-        (:wat::core::match cresp
-          ((:wat::telemetry::Span::CloseResponse::Done)
-            (:wat::core::Tuple
-              (:wat::telemetry::span::State
-                :durable (:wat::telemetry::span::record-accum rec
-                           (:wat::telemetry::span::Record/counters rec)
-                           (:wat::telemetry::span::Record/durations rec)
-                           (:wat::core::Vector :- [:wat::telemetry::Log]))
-                :sink sink)
-              (:wat::telemetry::Span::CloseResponse::Done)))
-          (_ (:wat::core::Tuple s cresp)))))))
+        [pair    (:wat::telemetry::write-logs-batched sink logs)
+         written (:wat::core::first pair)
+         cresp   (:wat::telemetry::span::map-write-logs-recv (:wat::core::second pair))
+         suffix  (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
+                   (:wat::core::drop logs written))
+         s'      (:wat::telemetry::span::State
+                   :durable (:wat::telemetry::span::record-accum rec
+                              (:wat::telemetry::span::Record/counters rec)
+                              (:wat::telemetry::span::Record/durations rec)
+                              suffix)
+                   :sink sink)]
+        (:wat::core::Tuple s' cresp)))))
+
+;; Rebuild counters + duration samples from the un-written Metric suffix so a partial
+;; metrics flush does not duplicate the landed prefix or drop remaining samples.
+(:wat::core::defn :wat::telemetry::span::metric-i64
+  [m <- :wat::telemetry::Metric] -> :wat::core::i64
+  (:wat::core::match (:wat::telemetry::Metric/value m)
+    ((:wat::telemetry::Numeric::I64 n) n)
+    ((:wat::telemetry::Numeric::F64 _f) 0)))
+
+(:wat::core::defn :wat::telemetry::span::collect-samples
+  [suffix <- (:wat::core::Vector :- [:wat::telemetry::Metric])
+   sample-name <- :wat::core::keyword]
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::i64])
+                     m   <- :wat::telemetry::Metric]
+      -> (:wat::core::Vector :- [:wat::core::i64])
+      (:wat::core::if (:wat::core::= (:wat::telemetry::Metric/name m) sample-name)
+        (:wat::core::conj acc (:wat::telemetry::span::metric-i64 m))
+        acc))
+    (:wat::core::Vector :- [:wat::core::i64])
+    suffix))
+
+(:wat::core::defn :wat::telemetry::span::find-counter
+  [suffix <- (:wat::core::Vector :- [:wat::telemetry::Metric])
+   name   <- :wat::core::keyword]
+  -> (:wat::core::Option :- [:wat::core::i64])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Option :- [:wat::core::i64])
+                     m   <- :wat::telemetry::Metric]
+      -> (:wat::core::Option :- [:wat::core::i64])
+      (:wat::core::if (:wat::core::= (:wat::telemetry::Metric/name m) name)
+        (:wat::core::Some (:wat::telemetry::span::metric-i64 m))
+        acc))
+    :wat::core::None
+    suffix))
+
+(:wat::core::defn :wat::telemetry::span::metrics-suffix-to-record
+  [rec    <- :wat::telemetry::span::Record
+   suffix <- (:wat::core::Vector :- [:wat::telemetry::Metric])]
+  -> :wat::telemetry::span::Record
+  (:wat::core::let
+    [cs (:wat::telemetry::span::Record/counters rec)
+     ds (:wat::telemetry::span::Record/durations rec)
+     cs' (:wat::core::foldl
+           (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+                            name <- :wat::core::keyword]
+             -> (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+             (:wat::core::match (:wat::telemetry::span::find-counter suffix name)
+               (:wat::core::None acc)
+               ((:wat::core::Some v) (:wat::hashmap::assoc acc name v))))
+           (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+           (:wat::hashmap::keys cs))
+     ds' (:wat::core::foldl
+           (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
+                            name <- :wat::core::keyword]
+             -> (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
+             (:wat::core::let
+               [sample-name (:wat::keyword::from-string
+                              (:wat::core::format "{base}/sample"
+                                :base (:wat::keyword::to-string name)))
+                samples (:wat::telemetry::span::collect-samples suffix sample-name)]
+               (:wat::core::if (:wat::core::= (:wat::core::count samples) 0)
+                 acc
+                 (:wat::hashmap::assoc acc name samples))))
+           (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
+           (:wat::hashmap::keys ds))]
+    (:wat::telemetry::span::record-accum rec cs' ds'
+      (:wat::telemetry::span::Record/logs rec))))
 
 ;; ONE emit-and-reset path for counters+durations. Called by the metrics size trigger,
 ;; -flush-metrics, and flush-accumulators (close/flush).
@@ -475,20 +544,19 @@
     (:wat::core::if (:wat::core::= (:wat::core::count metrics) 0)
       (:wat::core::Tuple s (:wat::telemetry::Span::CloseResponse::Done))
       (:wat::core::let
-        [cresp (:wat::telemetry::span::map-write-metrics-recv
-                 (:wat::telemetry::Journal/write-metrics sink
-                   (:wat::telemetry::Journal::WriteMetricsRequest metrics)))]
-        (:wat::core::match cresp
-          ((:wat::telemetry::Span::CloseResponse::Done)
-            (:wat::core::Tuple
-              (:wat::telemetry::span::State
-                :durable (:wat::telemetry::span::record-accum rec
-                           (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
-                           (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
-                           (:wat::telemetry::span::Record/logs rec))
-                :sink sink)
-              (:wat::telemetry::Span::CloseResponse::Done)))
-          (_ (:wat::core::Tuple s cresp)))))))
+        [pair    (:wat::telemetry::write-metrics-batched sink metrics)
+         written (:wat::core::first pair)
+         cresp   (:wat::telemetry::span::map-write-metrics-recv (:wat::core::second pair))
+         suffix  (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Metric])
+                   (:wat::core::drop metrics written))
+         rec'    (:wat::core::if (:wat::core::= (:wat::core::count suffix) 0)
+                   (:wat::telemetry::span::record-accum rec
+                     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+                     (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
+                     (:wat::telemetry::span::Record/logs rec))
+                   (:wat::telemetry::span::metrics-suffix-to-record rec suffix))
+         s'      (:wat::telemetry::span::State :durable rec' :sink sink)]
+        (:wat::core::Tuple s' cresp)))))
 
 ;; close / Span/flush: both groups, logs then metrics. Still one builder per group.
 (:wat::core::defn :wat::telemetry::span::flush-accumulators

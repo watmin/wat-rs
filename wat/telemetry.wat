@@ -355,3 +355,167 @@
 (:wat::core::def :wat::telemetry::LOG-MSG-CAPACITY
   (:wat::i64::- :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES
     (:wat::telemetry::framing-floor-of :wat::telemetry::Log)))
+
+;; ─── batched writers — item (b). Fragment a Vector into submissions that each fit
+;; the op's declared cap. Cut at `>` (the server rejects at `>`; `>=` is the span's
+;; when-to-flush heuristic, not a what-fits rule). Return (written-count, last recv)
+;; so the caller can drop EXACTLY the landed prefix. No Stream, no WriteResult.
+
+(:wat::core::defn :wat::telemetry::write-logs-request-bytes
+  [batch <- (:wat::core::Vector :- [:wat::telemetry::Log])] -> :wat::core::i64
+  (:wat::string::length
+    (:wat::edn::write (:wat::telemetry::Journal::WriteLogsRequest batch))))
+
+(:wat::core::defn :wat::telemetry::write-metrics-request-bytes
+  [batch <- (:wat::core::Vector :- [:wat::telemetry::Metric])] -> :wat::core::i64
+  (:wat::string::length
+    (:wat::edn::write (:wat::telemetry::Journal::WriteMetricsRequest batch))))
+
+(:wat::core::defn :wat::telemetry::take-logs-chunk
+  [remaining <- (:wat::core::Vector :- [:wat::telemetry::Log])
+   acc       <- (:wat::core::Vector :- [:wat::telemetry::Log])]
+  -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::telemetry::Log])
+                            (:wat::core::Vector :- [:wat::telemetry::Log])])
+  (:wat::core::if (:wat::core::= (:wat::core::count remaining) 0)
+    (:wat::core::Tuple acc remaining)
+    (:wat::core::let
+      [item (:wat::core::nth remaining 0)
+       candidate (:wat::core::conj acc item)
+       bytes (:wat::telemetry::write-logs-request-bytes candidate)
+       cap   :wat::telemetry::Journal::WRITE-LOGS-MAX-REQUEST-BYTES]
+      (:wat::core::if (:wat::i64::> bytes cap)
+        (:wat::core::Tuple acc remaining)
+        (:wat::telemetry::take-logs-chunk
+          (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
+            (:wat::core::drop remaining 1))
+          candidate)))))
+
+(:wat::core::defn :wat::telemetry::take-metrics-chunk
+  [remaining <- (:wat::core::Vector :- [:wat::telemetry::Metric])
+   acc       <- (:wat::core::Vector :- [:wat::telemetry::Metric])]
+  -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::telemetry::Metric])
+                            (:wat::core::Vector :- [:wat::telemetry::Metric])])
+  (:wat::core::if (:wat::core::= (:wat::core::count remaining) 0)
+    (:wat::core::Tuple acc remaining)
+    (:wat::core::let
+      [item (:wat::core::nth remaining 0)
+       candidate (:wat::core::conj acc item)
+       bytes (:wat::telemetry::write-metrics-request-bytes candidate)
+       cap   :wat::telemetry::Journal::WRITE-METRICS-MAX-REQUEST-BYTES]
+      (:wat::core::if (:wat::i64::> bytes cap)
+        (:wat::core::Tuple acc remaining)
+        (:wat::telemetry::take-metrics-chunk
+          (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Metric])
+            (:wat::core::drop remaining 1))
+          candidate)))))
+
+(:wat::core::defn :wat::telemetry::write-logs-batched-from
+  [sink      <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])
+   remaining <- (:wat::core::Vector :- [:wat::telemetry::Log])
+   written   <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::i64
+                            (:wat::kernel::RecvOutcome :- [:wat::telemetry::Journal::WriteLogsResponse])])
+  (:wat::core::if (:wat::core::= (:wat::core::count remaining) 0)
+    (:wat::core::Tuple written
+      (:wat::kernel::RecvOutcome::Message
+        (:wat::telemetry::Journal::WriteLogsResponse::Success)))
+    (:wat::core::let
+      [cut (:wat::telemetry::take-logs-chunk remaining
+              (:wat::core::Vector :- [:wat::telemetry::Log]))
+       chunk (:wat::core::first cut)
+       rest  (:wat::core::second cut)]
+      (:wat::core::if (:wat::core::= (:wat::core::count chunk) 0)
+        ;; single item over the cap — never skip, never empty-chunk-loop.
+        (:wat::core::let
+          [bytes (:wat::telemetry::write-logs-request-bytes remaining)
+           cap   :wat::telemetry::Journal::WRITE-LOGS-MAX-REQUEST-BYTES]
+          (:wat::core::Tuple written
+            (:wat::kernel::RecvOutcome::Message
+              (:wat::telemetry::Journal::WriteLogsResponse::RequestTooLarge bytes cap))))
+        (:wat::core::let
+          [recv (:wat::telemetry::Journal/write-logs sink
+                  (:wat::telemetry::Journal::WriteLogsRequest chunk))]
+          (:wat::core::match recv
+            ((:wat::kernel::RecvOutcome::Message sresp)
+              (:wat::core::match sresp
+                ((:wat::telemetry::Journal::WriteLogsResponse::Success)
+                  (:wat::telemetry::write-logs-batched-from sink rest
+                    (:wat::core::+ written (:wat::core::count chunk))))
+                ((:wat::telemetry::Journal::WriteLogsResponse::Constraint _err)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteLogsResponse::Transient _err)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteLogsResponse::Fatal _err)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteLogsResponse::RequestTooLarge _bytes _cap)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteLogsResponse::RequestMalformed _mpath _mexpected _mgot)
+                  (:wat::core::Tuple written recv))))
+            ((:wat::kernel::RecvOutcome::Lost _cause)
+              (:wat::core::Tuple written recv))
+            (:wat::kernel::RecvOutcome::Stopped
+              (:wat::core::Tuple written recv))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::core::Tuple written recv))))))))
+
+(:wat::core::defn :wat::telemetry::write-metrics-batched-from
+  [sink      <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])
+   remaining <- (:wat::core::Vector :- [:wat::telemetry::Metric])
+   written   <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::i64
+                            (:wat::kernel::RecvOutcome :- [:wat::telemetry::Journal::WriteMetricsResponse])])
+  (:wat::core::if (:wat::core::= (:wat::core::count remaining) 0)
+    (:wat::core::Tuple written
+      (:wat::kernel::RecvOutcome::Message
+        (:wat::telemetry::Journal::WriteMetricsResponse::Success)))
+    (:wat::core::let
+      [cut (:wat::telemetry::take-metrics-chunk remaining
+              (:wat::core::Vector :- [:wat::telemetry::Metric]))
+       chunk (:wat::core::first cut)
+       rest  (:wat::core::second cut)]
+      (:wat::core::if (:wat::core::= (:wat::core::count chunk) 0)
+        (:wat::core::let
+          [bytes (:wat::telemetry::write-metrics-request-bytes remaining)
+           cap   :wat::telemetry::Journal::WRITE-METRICS-MAX-REQUEST-BYTES]
+          (:wat::core::Tuple written
+            (:wat::kernel::RecvOutcome::Message
+              (:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap))))
+        (:wat::core::let
+          [recv (:wat::telemetry::Journal/write-metrics sink
+                  (:wat::telemetry::Journal::WriteMetricsRequest chunk))]
+          (:wat::core::match recv
+            ((:wat::kernel::RecvOutcome::Message sresp)
+              (:wat::core::match sresp
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Success)
+                  (:wat::telemetry::write-metrics-batched-from sink rest
+                    (:wat::core::+ written (:wat::core::count chunk))))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Constraint _err)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Transient _err)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Fatal _err)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge _bytes _cap)
+                  (:wat::core::Tuple written recv))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::RequestMalformed _mpath _mexpected _mgot)
+                  (:wat::core::Tuple written recv))))
+            ((:wat::kernel::RecvOutcome::Lost _cause)
+              (:wat::core::Tuple written recv))
+            (:wat::kernel::RecvOutcome::Stopped
+              (:wat::core::Tuple written recv))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::core::Tuple written recv))))))))
+
+(:wat::core::defn :wat::telemetry::write-logs-batched
+  [sink  <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])
+   items <- (:wat::core::Vector :- [:wat::telemetry::Log])]
+  -> (:wat::core::Tuple :- [:wat::core::i64
+                            (:wat::kernel::RecvOutcome :- [:wat::telemetry::Journal::WriteLogsResponse])])
+  (:wat::telemetry::write-logs-batched-from sink items 0))
+
+(:wat::core::defn :wat::telemetry::write-metrics-batched
+  [sink  <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])
+   items <- (:wat::core::Vector :- [:wat::telemetry::Metric])]
+  -> (:wat::core::Tuple :- [:wat::core::i64
+                            (:wat::kernel::RecvOutcome :- [:wat::telemetry::Journal::WriteMetricsResponse])])
+  (:wat::telemetry::write-metrics-batched-from sink items 0))
