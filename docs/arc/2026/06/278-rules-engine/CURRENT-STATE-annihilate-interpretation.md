@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (twentieth — TWENTY STRIKES; ⭐⭐ CLASS A **and** CLASS E BOTH CLOSED; D1 closed + the nested wall WIRED. Class F is what remains). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (twenty-first — 21 STRIKES; ⭐⭐ CLASSES A and E CLOSED; CLASS F OPENED — its deepest row first). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 76e221bbb..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 76e221bbb..HEAD        # what they touched
+git log --oneline 58a10e1f8..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 58a10e1f8..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -100,6 +100,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **nested wall** | `c0c883082` | **the wall reads the form as it exists there — four dead kinds now fire** |
 | **E4** | `452953cb9` | **the ceiling set is a closed type, matched exhaustively** |
 | **E3** | `76e221bbb` | **each variant carries its own doc — and a broken link cannot be added** |
+| **F1.5** | `58a10e1f8` | **every walking gate declares how it knows it reached something** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -507,12 +508,49 @@ recorded failure of a check reporting success without running.
 lives at `outcome.rs:226` and was correctly placed all along. **Third Class E row this session whose
 detail did not survive an audit** — an inherited row is a past act of looking.
 
-**THE NEXT WORK — CLASS F**, the description layer, and the builder's directive governs it:
-**greppability over correction**. Five lints plus the greppability work. Also open and now
-accumulating: the two nested-wall rows (nested-operand messages; the un-lowered `:T'`),
-`#[to_edn(transparent)]`, the `file:line` citation-rot hole (rustdoc cannot see a line number in
-prose — the sibling this gate does NOT cover), `acc_refusal`'s span, the misnamed `probes/` dir, and
-D2's `sequi` newtype.
+✅ **CLASS F IS OPEN, AND ITS DEEPEST ROW WENT FIRST (`58a10e1f8`).** `tests/lint/` is where every
+guarantee in this arc is proven, and **a gate that walks an empty set asserts nothing and reports
+PASS.** So the suite's own credibility was the right first Class F strike.
+
+★★ **THE DRIVE CAME BEFORE THE LINT, AND THAT ORDERING WAS THE STRIKE.** A missing guard is a risk;
+a **vacuous gate is a defect**. Every discovering gate was instrumented at the point its population
+is computed and run under `--no-capture`: **no gate is vacuous today** — 4 parity scripts, 11 grid
+axes, 57 `src/rete` files, 125 path references, 34 diagnostics, 445 `.wat`, up to 998 `.rs`. Because
+that ran first, **all 18 new guards are MEASURED floors**, not numbers chosen for symmetry with a
+sibling.
+
+★ **F0 WORKED EXACTLY AS THE BUILDER SPECIFIED.** The stone deliberately carried **no count** — the
+row said *"10 of 15"*, my own audit grep said *"16 of 24"*, and mine was demonstrably wrong. The
+instrument answered: **24 in scope, 19 undeclared**, of which **six already had a real guard** and
+only lacked a declaration. *A number in prose is replaced by the command that derives it.*
+
+⛔⛔ **AND THE STRIKE BIT ITS OWN EXECUTOR — the "one level down" failure, one strike after I promoted
+it to memory.** The gate scans `tests/lint/`, so **its own prose is data**: the `///` doc on its
+`Declaration::Rune` variant parsed as a rune declaration, and it was **one run from vouching for
+itself with its own documentation**. Invisible by reading; caught in the first driven run.
+
+⚠ **My own re-run then found the CURE's doc overstated.** Turning a `NON-VACUITY` marker into
+`/// NON-VACUITY` left the gate GREEN — `DOC_HEADS` is consulted at exactly one site, the rune path.
+The behaviour is right and the asymmetry is now stated at the constant: **a rune's REASON TEXT is its
+evidence, so a description reads as an answer; a marker's evidence is the ASSERTION beneath it**,
+which `is_assert` refuses to read from any comment.
+
+⚠ **The most expensive thin spot: "drive every walking gate" named no mechanism.** Reading a
+collector cannot see what it visits — it took instrumenting 27 population sites and a full
+`--no-capture` run. Unnamed, a rider reads the collectors, calls it driven, and row 1 is lost.
+**Any future "drive it" instruction must name HOW.**
+
+**THE NEXT WORK — the rest of Class F, in this order.** **F1's other four lints** (backticked
+identifiers must resolve; bare `*.rs` filenames must resolve — the sibling `no_stale_path_in_doc`
+misses because it needs a `/`; the `perspicere`/`purgare` closed vocabularies; `MINIMUM of` vs
+`/= r`). Then **F2's rotted claims, shipped WITH F0's rule** — notably **83 of 207 stones naming
+`src/rete/kernel.rs`**, deleted 2026-08-20, and the **mandated codemod at
+`wat-scripts/fixes/rete-where-per-type-spelling.wat:80,96` that still rewrites INTO retired forms**.
+Then **F3**'s clusters (`temperare` ×7 with measurement plans; `partire` ×4 with verified seams).
+Also open: three rows this strike reported — `no_loose_string_assert` reads comment lines,
+`gen_doc_surface_matches`'s extractor is unguarded, and the new gate is file-level not test-level —
+plus the nested-wall rows, `#[to_edn(transparent)]`, the `file:line` citation-rot hole,
+`acc_refusal`'s span, the misnamed `probes/` dir, and D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
