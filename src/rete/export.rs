@@ -54,7 +54,7 @@
 //! forgot to read is a located raise at run time, not a build failure. So when you add a
 //! variant, the compiler will find the pack arm for you and nothing will find the unpack arm.
 //!
-//! **3. Unpacking a value is not trusting it. Four independent walls stand between the wire and
+//! **3. Unpacking a value is not trusting it. Five independent walls stand between the wire and
 //! the evaluator**, and each catches what the one before it cannot:
 //!
 //! - **Range refusal, at the read** — `expect_u16` / `expect_op` / `expect_idx` refuse
@@ -78,6 +78,14 @@
 //!   every child id exceeds its parent's — the ascending-id topological order the alpha /
 //!   root-join / hash-join passes require, which the compile path gets from minting ids increasing
 //!   and the wire path gets from nobody. It refuses; it never repairs.
+//! - **Nesting depth, threaded through the descent** — `deeper` / `MAX_IMPORT_DEPTH`. The four
+//!   walls above are all about what a value *says*; this one is about how deep the reader goes to
+//!   find out. Without it `import` had no depth criterion at all: what it accepted was whatever
+//!   the importing THREAD's remaining stack allowed, so the same bytes were a valid network on a
+//!   256 MiB thread and `fatal runtime error: stack overflow, aborting` on a 2 MiB one. A stack
+//!   guard abort is not a panic and no `catch_unwind` reaches it, so refusing BEFORE the recursion
+//!   is the only available cure. One budget is shared across every mutually recursive `unpack_*`
+//!   — see `deeper` for why a per-function counter is walked past by the `:user` ↔ `:prog` cycle.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
@@ -269,6 +277,52 @@ fn check_slot(slot: u16, frame_len: u16, span: &Span, what: &str) -> Result<(), 
         ));
     }
     Ok(())
+}
+
+/// WALL 5 — the recursive descent's ONE depth budget.
+///
+/// **MEASURED, not chosen for roundness.** The whole finding this bound answers is that
+/// `import` had no depth criterion *at all*: the same 20,000-deep Export was ACCEPTED on a
+/// 256 MiB thread and killed a 2 MiB one with `fatal runtime error: stack overflow, aborting`
+/// — an abort, not a panic, so nothing catches it. Acceptance was a property of the importing
+/// THREAD. Replacing that with an unmeasured constant would swap one unstated criterion for
+/// another, so both numbers behind this one are written down:
+///
+/// * **3** — the deepest nesting the corpus actually produces, measured by instrumenting
+///   [`deeper`] to record its running maximum and running the whole `wat::rete` binary
+///   (423 tests, 26 of them importing). Every packed program in the corpus bottoms out at
+///   `unpack_prog` → `unpack_expr` → one operand. The corpus is a floor on what is real, not a
+///   ceiling: it is thin, and that is exactly why the headroom below is two orders of magnitude.
+/// * **3,000–5,000** — the window in which the smallest stack observed here (a 2 MiB test
+///   thread) aborts. The bound must sit far below the low end to be honest on the smallest
+///   thread that will ever import.
+///
+/// 300 is `3 × 100` headroom over the measured maximum and one tenth of the low end of the
+/// abort window. Raise it only with a new measurement; the 3,000 ceiling is the hard constraint.
+const MAX_IMPORT_DEPTH: u32 = 300;
+
+/// Descend one level, or refuse. Every mutually recursive `unpack_*` on the import path calls
+/// this as its first statement and shadows its own `depth` with the result, so ONE budget is
+/// shared across `unpack_expr`, `unpack_prog`, `unpack_pat`, `unpack_cond_op` and
+/// `unpack_driver` rather than each counting its own.
+///
+/// That sharing is the contract, not an implementation detail. `unpack_expr`'s `:user` arm
+/// calls `unpack_prog`, whose root calls `unpack_expr` again — a tower of `:user` nodes
+/// alternates between the two and is walked past by any counter that only one of them
+/// increments. `unpack_pat` (through `:match`) and `unpack_driver` / `unpack_cond_op` (through
+/// their own composite arms) are three more towers at the same door. The probes named
+/// `*_tower_past_the_depth_bound` in `tests/rete/probe_arc278_export.rs` drive one each, and
+/// the `:user` one is sized so that an expr-only budget would still ACCEPT it.
+fn deeper(depth: u32, span: &Span) -> Result<u32, EvalBreak> {
+    let d = depth + 1;
+    if d > MAX_IMPORT_DEPTH {
+        return Err(malformed(
+            span,
+            IMPORT_OP,
+            format!("import nesting depth {d} exceeds MAX_IMPORT_DEPTH {MAX_IMPORT_DEPTH}"),
+        ));
+    }
+    Ok(d)
 }
 
 /// Wall 2 for patterns — every slot a `Pat` binds into must lie inside the frame it will run
@@ -564,7 +618,8 @@ fn pack_pat(p: &Pat) -> Value {
 /// Inverse of `pack_pat`. `:pfields` is the one arm with an arity law rather than a fixed
 /// shape — the tail is flat `"field" slot` pairs, so its check is one `% 2` (see `pack_pat`,
 /// which flattens them for exactly that reason) rather than a nested sequence per binding.
-fn unpack_pat(v: &Value, span: &Span) -> Result<Pat, EvalBreak> {
+fn unpack_pat(v: &Value, span: &Span, depth: u32) -> Result<Pat, EvalBreak> {
+    let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty pat"))?;
     match expect_kw(tag, IMPORT_OP, span)? {
@@ -613,7 +668,7 @@ fn unpack_pat(v: &Value, span: &Span) -> Result<Pat, EvalBreak> {
             )?
             .to_string();
             let payload = match items.get(2) {
-                Some(inner) => Some(Box::new(unpack_pat(inner, span)?)),
+                Some(inner) => Some(Box::new(unpack_pat(inner, span, depth)?)),
                 None => None,
             };
             Ok(Pat::Variant { name, payload })
@@ -720,7 +775,8 @@ fn pack_expr(e: &Expr) -> Value {
 /// tags and missing fields raise `MalformedForm` under `IMPORT_OP` rather than
 /// defaulting, because a silently-defaulted field would import a DIFFERENT rule
 /// than the one exported.
-fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
+fn unpack_expr(v: &Value, span: &Span, depth: u32) -> Result<Expr, EvalBreak> {
+    let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty expr"))?;
     match expect_kw(tag, IMPORT_OP, span)? {
@@ -749,7 +805,7 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
             )?;
             let mut args = Vec::new();
             for x in items.iter().skip(2) {
-                args.push(unpack_expr(x, span)?);
+                args.push(unpack_expr(x, span, depth)?);
             }
             Ok(Expr::Call {
                 op,
@@ -765,10 +821,10 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
             )?;
             let fallback = Box::new(unpack_expr(items.get(2).ok_or_else(|| {
                 malformed(span, IMPORT_OP, "call-fb missing fallback")
-            })?, span)?);
+            })?, span, depth)?);
             let mut args = Vec::new();
             for x in items.iter().skip(3) {
-                args.push(unpack_expr(x, span)?);
+                args.push(unpack_expr(x, span, depth)?);
             }
             Ok(Expr::CallFallback {
                 op,
@@ -781,11 +837,11 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
                 items
                     .get(1)
                     .ok_or_else(|| malformed(span, IMPORT_OP, "user missing prog"))?,
-                span,
+                span, depth
             )?);
             let mut args = Vec::new();
             for x in items.iter().skip(2) {
-                args.push(unpack_expr(x, span)?);
+                args.push(unpack_expr(x, span, depth)?);
             }
             Ok(Expr::CallUser {
                 program,
@@ -797,7 +853,7 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
                 items
                     .get(1)
                     .ok_or_else(|| malformed(span, IMPORT_OP, "field missing recv"))?,
-                span,
+                span, depth
             )?),
             idx: expect_idx(
                 items
@@ -829,7 +885,7 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
             }
             let mut fields = Vec::new();
             for x in items.iter().skip(3) {
-                fields.push(unpack_expr(x, span)?);
+                fields.push(unpack_expr(x, span, depth)?);
             }
             if ns.len() != fields.len() {
                 return Err(malformed(
@@ -874,7 +930,7 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
             }
             let mut fields = Vec::new();
             for x in items.iter().skip(4) {
-                fields.push(unpack_expr(x, span)?);
+                fields.push(unpack_expr(x, span, depth)?);
             }
             if ns.len() != fields.len() {
                 return Err(malformed(
@@ -897,28 +953,28 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
         ":if" => Ok(Expr::If {
             cond: Box::new(unpack_expr(
                 items.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "if"))?,
-                span,
+                span, depth
             )?),
             then_: Box::new(unpack_expr(
                 items.get(2).ok_or_else(|| malformed(span, IMPORT_OP, "if"))?,
-                span,
+                span, depth
             )?),
             else_: Box::new(unpack_expr(
                 items.get(3).ok_or_else(|| malformed(span, IMPORT_OP, "if"))?,
-                span,
+                span, depth
             )?),
         }),
         ":and" => {
             let mut xs = Vec::new();
             for x in items.iter().skip(1) {
-                xs.push(unpack_expr(x, span)?);
+                xs.push(unpack_expr(x, span, depth)?);
             }
             Ok(Expr::And(xs.into_boxed_slice()))
         }
         ":or" => {
             let mut xs = Vec::new();
             for x in items.iter().skip(1) {
-                xs.push(unpack_expr(x, span)?);
+                xs.push(unpack_expr(x, span, depth)?);
             }
             Ok(Expr::Or(xs.into_boxed_slice()))
         }
@@ -939,7 +995,7 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
                     span,
                     "let bind",
                 )?;
-                let e = unpack_expr(p.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "let bind"))?, span)?;
+                let e = unpack_expr(p.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "let bind"))?, span, depth)?;
                 binds.push((slot, e));
             }
             Ok(Expr::Let {
@@ -948,7 +1004,7 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
                     items
                         .get(2)
                         .ok_or_else(|| malformed(span, IMPORT_OP, "let missing body"))?,
-                    span,
+                    span, depth
                 )?),
             })
         }
@@ -957,7 +1013,7 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
                 items
                     .get(1)
                     .ok_or_else(|| malformed(span, IMPORT_OP, "match missing scrut"))?,
-                span,
+                span, depth
             )?);
             let arms_pv = expect_seq(
                 items
@@ -970,8 +1026,8 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
             for a in arms_pv.iter() {
                 let p = expect_seq(a, IMPORT_OP, span)?;
                 arms.push((
-                    unpack_pat(p.first().ok_or_else(|| malformed(span, IMPORT_OP, "arm"))?, span)?,
-                    unpack_expr(p.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "arm"))?, span)?,
+                    unpack_pat(p.first().ok_or_else(|| malformed(span, IMPORT_OP, "arm"))?, span, depth)?,
+                    unpack_expr(p.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "arm"))?, span, depth)?,
                 ));
             }
             Ok(Expr::Match {
@@ -1008,7 +1064,8 @@ fn pack_prog(p: &Program) -> Value {
 /// Inverse of `pack_prog`, and the caller of wall 2 for programs: the slot bounds cannot be
 /// checked until `frame_len` and the root expression have both been read, so
 /// `check_program_slots` runs at the end of this function rather than inside the reads.
-fn unpack_prog(v: &Value, span: &Span) -> Result<Program, EvalBreak> {
+fn unpack_prog(v: &Value, span: &Span, depth: u32) -> Result<Program, EvalBreak> {
+    let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
     if expect_kw(
         items
@@ -1075,7 +1132,7 @@ fn unpack_prog(v: &Value, span: &Span) -> Result<Program, EvalBreak> {
         items
             .get(5)
             .ok_or_else(|| malformed(span, IMPORT_OP, "prog root"))?,
-        span,
+        span, depth
     )?;
     let program = Program {
         frame_len,
@@ -1132,7 +1189,8 @@ fn pack_cond_op(op: &Op) -> Value {
 /// Inverse of `pack_cond_op`. Every slot-bearing arm reads through `expect_idx` (wall 1,
 /// no wrap-into-range); the resulting op is bounds-checked as a set by `check_cond_ops`
 /// (wall 2) once `n_slots` is known — one read cannot see the frame it will run in.
-fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
+fn unpack_cond_op(v: &Value, span: &Span, depth: u32) -> Result<Op, EvalBreak> {
+    let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(
         items
@@ -1150,18 +1208,18 @@ fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
             slot: expect_idx(expect_at(&items, 2, span, "bchk slot")?, span, "bchk slot")?,
         }),
         ":eval" => Ok(Op::Eval {
-            expr: unpack_expr(expect_at(&items, 1, span, "eval expr")?, span)?,
+            expr: unpack_expr(expect_at(&items, 1, span, "eval expr")?, span, depth)?,
             slot: expect_idx(expect_at(&items, 2, span, "eval slot")?, span, "eval slot")?,
         }),
         ":cmp" => Ok(Op::Cmp {
             op: unpack_cmp(expect_at(&items, 1, span, "cmp op")?, span)?,
-            lhs: unpack_expr(expect_at(&items, 2, span, "cmp lhs")?, span)?,
-            rhs: unpack_expr(expect_at(&items, 3, span, "cmp rhs")?, span)?,
+            lhs: unpack_expr(expect_at(&items, 2, span, "cmp lhs")?, span, depth)?,
+            rhs: unpack_expr(expect_at(&items, 3, span, "cmp rhs")?, span, depth)?,
         }),
         ":scmp" => Ok(Op::SeedCmp {
             op: unpack_cmp(expect_at(&items, 1, span, "scmp op")?, span)?,
-            lhs: unpack_expr(expect_at(&items, 2, span, "scmp lhs")?, span)?,
-            rhs: unpack_expr(expect_at(&items, 3, span, "scmp rhs")?, span)?,
+            lhs: unpack_expr(expect_at(&items, 2, span, "scmp lhs")?, span, depth)?,
+            rhs: unpack_expr(expect_at(&items, 3, span, "scmp rhs")?, span, depth)?,
         }),
         ":or-c" => {
             let mut branches = Vec::new();
@@ -1169,7 +1227,7 @@ fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
                 let bp = expect_seq(b, IMPORT_OP, span)?;
                 let mut ops = Vec::new();
                 for x in bp.iter() {
-                    ops.push(unpack_cond_op(x, span)?);
+                    ops.push(unpack_cond_op(x, span, depth)?);
                 }
                 branches.push(ops);
             }
@@ -1178,7 +1236,7 @@ fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
         ":not-c" => {
             let mut inner = Vec::new();
             for x in items.iter().skip(1) {
-                inner.push(unpack_cond_op(x, span)?);
+                inner.push(unpack_cond_op(x, span, depth)?);
             }
             Ok(Op::Not(inner))
         }
@@ -1248,7 +1306,9 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
     let ops_pv = expect_seq(expect_at(&items, 6, span, "ops")?, IMPORT_OP, span)?;
     let mut ops = Vec::new();
     for x in ops_pv.iter() {
-        ops.push(unpack_cond_op(x, span)?);
+        // Top-level entry: a compiled cond is not reachable from inside the descent, so it
+        // opens a fresh budget rather than continuing one.
+        ops.push(unpack_cond_op(x, span, 0)?);
     }
     for s in output_slots.iter() {
         if *s >= n_slots {
@@ -1321,10 +1381,16 @@ fn pack_driver(d: &CondDriver) -> Value {
     }
 }
 
-/// Inverse of `pack_driver`. The composite arms (`:and`, `:or`, `:not`, `:exists`) recurse,
-/// so a driver tree of any depth round-trips without a depth parameter — the wire's nesting IS
-/// the recursion.
-fn unpack_driver(v: &Value, span: &Span) -> Result<CondDriver, EvalBreak> {
+/// Inverse of `pack_driver`. The composite arms (`:and`, `:or`, `:not`, `:exists`) recurse, and
+/// `:where` re-enters `unpack_prog`, so this is a second unbounded tower at the import door
+/// independent of `unpack_expr`'s.
+///
+/// ⚠ This doc used to read *"a driver tree of any depth round-trips WITHOUT A DEPTH PARAMETER —
+/// the wire's nesting IS the recursion"*, which stated wall 5's absence as a feature. It was
+/// true and it was the defect: the wire's nesting being the recursion is precisely how an
+/// attacker picks this process's stack depth. It now carries the shared budget (`deeper`).
+fn unpack_driver(v: &Value, span: &Span, depth: u32) -> Result<CondDriver, EvalBreak> {
+    let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(expect_at(&items, 0, span, "driver tag")?, IMPORT_OP, span)? {
         ":leaf" => Ok(CondDriver::Leaf(expect_i64(
@@ -1335,28 +1401,28 @@ fn unpack_driver(v: &Value, span: &Span) -> Result<CondDriver, EvalBreak> {
         ":and" => {
             let mut ks = Vec::new();
             for x in items.iter().skip(1) {
-                ks.push(unpack_driver(x, span)?);
+                ks.push(unpack_driver(x, span, depth)?);
             }
             Ok(CondDriver::And(ks))
         }
         ":or" => {
             let mut ks = Vec::new();
             for x in items.iter().skip(1) {
-                ks.push(unpack_driver(x, span)?);
+                ks.push(unpack_driver(x, span, depth)?);
             }
             Ok(CondDriver::Or(ks))
         }
         ":not" => Ok(CondDriver::Not(Box::new(unpack_driver(
             expect_at(&items, 1, span, "not inner")?,
-            span,
+            span, depth
         )?))),
         ":exists" => Ok(CondDriver::Exists(Box::new(unpack_driver(
             expect_at(&items, 1, span, "exists inner")?,
-            span,
+            span, depth
         )?))),
         ":where" => Ok(CondDriver::Where(Arc::new(unpack_prog(
             expect_at(&items, 1, span, "where program")?,
-            span,
+            span, depth
         )?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown driver {other}"))),
     }
@@ -1398,7 +1464,8 @@ fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
         ":group" => Ok(AccFold::GroupBy(expect_at(&items, 1, span, "group key")?.clone())),
         ":ufold" => Ok(AccFold::User {
             var: expect_at(&items, 1, span, "ufold var")?.clone(),
-            program: Arc::new(unpack_prog(expect_at(&items, 2, span, "ufold program")?, span)?),
+            // Top-level entry — fresh budget (a fold is not reached from inside the descent).
+            program: Arc::new(unpack_prog(expect_at(&items, 2, span, "ufold program")?, span, 0)?),
         }),
         other => Err(malformed(span, IMPORT_OP, format!("unknown fold {other}"))),
     }
@@ -1451,7 +1518,7 @@ fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
         ":rlit" => Ok(RhsOp::Lit(expect_at(&items, 1, span, "rlit value")?.clone())),
         ":rexpr" => Ok(RhsOp::Expr(Arc::new(unpack_prog(
             expect_at(&items, 1, span, "rexpr prog")?,
-            span,
+            span, 0, // top-level entry — fresh budget
         )?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown rhs-op {other}"))),
     }
@@ -1509,7 +1576,8 @@ fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
                 ops,
             })
         }
-        ":rcall" => Ok(CompiledRhs::Call(Arc::new(unpack_prog(expect_at(&items, 1, span, "slot 1")?, span)?))),
+        // Top-level entry — fresh budget.
+        ":rcall" => Ok(CompiledRhs::Call(Arc::new(unpack_prog(expect_at(&items, 1, span, "slot 1")?, span, 0)?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown rhs {other}"))),
     }
 }
@@ -2239,7 +2307,7 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
         let p = expect_seq(&pair, IMPORT_OP, span)?;
         compiled_drivers.insert(
             expect_i64(expect_at(&p, 0, span, "driver id")?, IMPORT_OP, span)?,
-            unpack_driver(expect_at(&p, 1, span, "driver")?, span)?,
+            unpack_driver(expect_at(&p, 1, span, "driver")?, span, 0)?,
         );
     }
     let mut compiled_wheres = HashMap::new();
@@ -2247,7 +2315,7 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
         let p = expect_seq(&pair, IMPORT_OP, span)?;
         compiled_wheres.insert(
             expect_i64(expect_at(&p, 0, span, "prog id")?, IMPORT_OP, span)?,
-            unpack_prog(expect_at(&p, 1, span, "prog")?, span)?,
+            unpack_prog(expect_at(&p, 1, span, "prog")?, span, 0)?,
         );
     }
     let mut compiled_acc_folds = HashMap::new();
