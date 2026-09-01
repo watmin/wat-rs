@@ -106,10 +106,22 @@ pub(crate) fn eval_edn_read_json_home(
 /// body) instead of raising `UnknownTag` — recursive, so a nested unknown tag decodes all the way
 /// down. TOTAL — parse/decode failure is `Malformed[cause]`, never a raise.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** The one arg is domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, `:wat::edn::read-foreign`'s `TypeScheme`, `params: [String]`, no
+/// `rest_param_type`). The `#[wat_intrinsic]` delegate hands the render-layer fn exactly one
+/// arg via `std::slice::from_ref(s)`, so its own internal `require_one_arg` arity check is
+/// unreachable. Within that domain (`src/edn/render.rs::eval_edn_read_foreign`), both the
+/// `wat_edn::parse_owned` failure arm and the `edn_to_value_foreign` failure arm construct a
+/// `Malformed[cause]` outcome value rather than raising — the only raise in the fn is the
+/// non-`String`-arg `TypeMismatch`, which the checker's scheme already excludes from the
+/// declared domain (same class as the record-accessor precedent's "outside the declared
+/// domain" carve).
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     s :wat::core::String the EDN text parsed
@@ -267,10 +279,20 @@ pub(crate) fn eval_edn_validate_home(
 /// Navigate a foreign record BY KEY (the consumer holds no type). Same contract as
 /// `HashMap/get`/`PersistentMap/get`: miss is `None`, never a raise.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** Both args are domain-gated (`ForeignRecord`, `keyword`) by the checker's
+/// fixed scheme (`check.rs`, `:wat::edn::ForeignRecord/get`'s `TypeScheme`, `params:
+/// [ForeignRecord, keyword]`). The `#[wat_intrinsic]` delegate always calls the render-layer fn
+/// with exactly 2 args (`&[fr.clone(), key.clone()]`), so its internal `args.len() != 2` arm is
+/// unreachable. Within that domain (`src/edn/render.rs::eval_foreign_record_get`),
+/// `fr.fields.iter().find(...)` always yields `Some`/`None`, wrapped as `Value::Option` — no
+/// raise. The two `TypeMismatch` arms guard `fr_v`/`key_v` against the wrong runtime shape,
+/// which the checker's scheme already excludes from the declared domain.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record navigated
@@ -294,10 +316,20 @@ pub(crate) fn eval_foreign_record_get_home(
 /// `(:wat::edn::ForeignRecord/class fr)` → `:wat::core::String`. The record's fully-qualified
 /// (colon-free) class string.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** The one arg is domain-gated `ForeignRecord` by the checker's fixed scheme
+/// (`check.rs`, `:wat::edn::ForeignRecord/class`'s `TypeScheme`, `params: [ForeignRecord]`).
+/// The `#[wat_intrinsic]` delegate hands the render-layer fn exactly one arg via
+/// `std::slice::from_ref(fr)`, so its internal `require_one_arg` arity check is unreachable.
+/// Within that domain (`src/edn/render.rs::eval_foreign_record_class`), the
+/// `Value::ForeignRecord(fr) => Ok(...)` arm always matches and returns `fr.class.clone()` — no
+/// raise. The `TypeMismatch` arm guards the wrong runtime shape, which the checker's scheme
+/// already excludes from the declared domain.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record probed

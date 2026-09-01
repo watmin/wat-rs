@@ -51,6 +51,44 @@ The guess **agrees** on purity and determinism for all 34 — so those two axes 
 
 For these eleven the registry says `Unreviewed` and the shadow says `total: true`.
 
+## ⛔⛔ REFUTED 2026-08-31 BY THE RIDER — THE FENCE CLAIM BELOW WAS FALSE
+
+The section below said eleven `Unreviewed` verbs **"are admitted into `where` fences today."**
+**They are not, and never were.** The rider built the probe this DESIGN asked for, ran it, and got a
+refusal the DESIGN did not predict. Re-verified by the orchestrator against the pre-stone binary:
+
+```
+(where (:wat::rete::i64::> (:wat::string::length ?s) 3))
+  => "where expr is not a rete primitive — ':wat::string::length' is not a rete primitive;
+      a where admits only :wat::rete:: ops"
+```
+
+`wat/rete/compile.wat`'s `compile-condition` requires **`is-pure ∧ is-det ∧ is-total ∧ is-rete`**,
+and `classify_expr`'s own doc says it outright: *"being pure, deterministic and total does not make
+an op rete — `:wat::core::>` is all three and is still refused."* **None of the eleven are rete
+vocabulary members**, so Law A refuses them unconditionally, before and after this stone. Their
+totality never reached the fence at all.
+
+⚠ **I had the instrument and did not point it at the claim.** The fence probes were built earlier
+the same session, for a different stone. I asserted a consequence I never tested — the SECOND time in
+two consecutive stones that a bar was written from what I expected rather than derived from the rule
+(`struct-field`'s "REFUSED → ADMITTED" was the first).
+`[[feedback_an_acceptance_row_is_a_pin_unless_it_derives_its_bar]]`
+
+## ★ WHAT SURVIVES, AND WHY THE STONE IS STILL RIGHT
+
+The **two-authorities defect is real and unchanged**: the registry declares `Unreviewed`, a prefix
+guess asserts `total: true`, and the guess wins because it answers first. What was wrong was only the
+CONSEQUENCE I claimed. The real consumers are the single-axis reflection verbs —
+`:wat::rete::total?` / `pure?` / `deterministic?` — which read one axis with no Law A conjunct, and
+which the guess answers for today.
+
+★★ And the re-derivation contract earned its place immediately: `:wat::string::concat` came back
+**`Partial`**, not `Total`. It is variadic and `check.rs:14944` says *"the checker accepts arity 0 …
+so the runtime owns the diagnostic"* — a well-typed program reaches a raise. The guess's comment
+claimed *"always return for any two strings"*, quietly assuming arity 2. **The stranded fact was not
+merely stranded; it was WRONG**, and transcription would have carried it in.
+
 ⛔ **That defeats the default-deny.** `wat/runtime-meta.wat` on `Unreviewed`:
 
 > *"NOBODY HAS MEASURED THIS VERB YET. Not a pole, not a guess. **Default-deny: it does NOT satisfy
@@ -126,8 +164,8 @@ name**, verified individually — that is the claim, and it is the only one that
 | what | command | expected |
 |---|---|---|
 | ★ the eleven carry real verdicts | their `@Totality` lines | measured per verb, each citing its body |
-| ★ the fence is UNCHANGED | a `where` using `:wat::string::concat`, via `compile-all` | ADMITTED, exactly as today |
-| ★ the fence still denies | a `where` using an untouched `Unreviewed` string verb | REFUSED, exactly as today |
+| ★ the single-axis reflection is UNCHANGED | `:wat::rete::total?` on each of the eleven | same answer as before the cut |
+| ★ Law A is untouched | a `where` using any of the eleven | REFUSED as "not a rete primitive", before AND after |
 | the three guesses are gone | `grep 'starts_with(":wat::string::' src/rete/purity.rs` | 0 hits |
 | the registry moved up | `intrinsic_meta`'s lookup | three fewer verdicts above it |
 | no purity/determinism drift | the 34 declarations | still `Pure ∧ Deterministic`, unedited |

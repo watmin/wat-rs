@@ -286,56 +286,18 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     {
         return Some(OpMeta { pure: true, deterministic: false, total: true });
     }
-    // Pure ∧ deterministic by namespace prefix — every op here is referentially transparent.
-    // `total` is NOT blanket over the prefix (unlike pure/deterministic): `string::subs` is
-    // GENUINELY PARTIAL — verified `intrinsic/string.rs::eval_string_subs` raises `MalformedForm` when
-    // `start`/`end` fall outside the string's char-length (out-of-range indices), the exact
-    // domain-fault shape this axis exists to catch. The three below are the ones the where-corpus
-    // (`where-string.wat`) demonstrates a need for, each verified total by reading its own
-    // implementation (`intrinsic/string.rs`): `length`/`trim`/`to-lowercase` always return, for any
-    // string input, no raise. Every other `string::`/`regex::` verb (incl. `subs`, `split`,
-    // `to-uppercase`, the whole `regex::` family) is left `false` — undemanded, unmeasured.
-    if head.starts_with(":wat::string::") || head.starts_with(":wat::regex::") {
-        let total = matches!(
-            head,
-            ":wat::string::length" | ":wat::string::trim" | ":wat::string::to-lowercase"
-            // Arc 255 Stone F — the five verbs carried over from `:wat::core::String/*`.
-            // `intrinsic_meta` is consulted with the CORE-spelled head (e.g. a `where` clause
-            // written as `(:wat::string::concat ...)` directly, not through the rete-prefixed
-            // alias), which does NOT hit `rete_op_for`'s early return (that keys on
-            // `rete_name`, a different string) — so it falls through to this prefix block.
-            // Their totality was previously carried by the two hand-lists this stone deletes
-            // (`purity.rs`'s old pure_det/total lists, `:wat::core::String/*`-keyed); listed
-            // here so the fact survives the move, not merely the classification mechanism.
-            // Each is total by construction: `concat`/`contains?`/`starts-with?`/`ends-with?`
-            // always return for any two strings; `empty?` always returns for any one string.
-            | ":wat::string::concat" | ":wat::string::contains?"
-            | ":wat::string::starts-with?" | ":wat::string::ends-with?"
-            | ":wat::string::empty?"
-        );
-        return Some(OpMeta { pure: true, deterministic: true, total });
-    }
-    // The whole `:wat::edn::` namespace is pure data transforms — parse/serialize/navigate
-    // (read, read-foreign, write, write-pretty, write-json, write-json-natural,
-    // ForeignRecord/get, ForeignRecord/class, ForeignVariant/variant, ForeignVariant/enum-class,
-    // ForeignVariant/fields), no IO, no entropy. Root-level by namespace, not a per-verb
-    // hand-list — the next foreign verb slips past a hand-list.
-    // `total`: DEFAULT-DENY, then carve the verbs measured total by reading their
-    // implementation (the string:: prefix pattern). `read` still raises on
-    // malformed input (domain-fault). `read-foreign` returns ReadForeignOutcome
-    // (Malformed on junk, never a raise — read-json's contract). `ForeignRecord/get`
-    // returns Option (miss is None — HashMap/get's contract). `ForeignRecord/class`
-    // always returns a String for a well-typed ForeignRecord (type mismatch is
-    // the checker's concern, not this axis).
-    if head.starts_with(":wat::edn::") {
-        let total = matches!(
-            head,
-            ":wat::edn::read-foreign"
-                | ":wat::edn::ForeignRecord/get"
-                | ":wat::edn::ForeignRecord/class"
-        );
-        return Some(OpMeta { pure: true, deterministic: true, total });
-    }
+    // arc 255 Stone the-registry-answers-first — the `:wat::string::`/`:wat::regex::` prefix
+    // guess and the `:wat::edn::` prefix guess (each a PREFIX GUESS outranking the registry,
+    // DESIGN-STONE-the-registry-answers-first.md) are RETIRED. Both shadowed 34 registered
+    // verbs that already declared `@Purity Pure`/`@Determinism Deterministic` at their own
+    // registration; the eleven the guesses additionally claimed `total: true` for
+    // (`:wat::string::{length,trim,to-lowercase,contains?,starts-with?,ends-with?,empty?}`,
+    // `:wat::edn::{read-foreign,ForeignRecord/get,ForeignRecord/class}`) now carry that fact as
+    // `@Totality` at their own registration instead — re-derived from each body, not
+    // transcribed, and `:wat::string::concat` came back `Partial` (not the guess's `Total`: its
+    // own body raises `ArityMismatch` on a zero-arg call, which `check.rs::infer_string_concat`
+    // confirms the checker accepts as well-typed). The registry consult below now answers for
+    // all 34 directly.
     // `:wat::core::aggregate-new` / `:wat::core::kwargs-construct` (BRIEF-construction-inside-a-
     // fn.md) — the two verbs a record/struct's macro-expanded kwargs/positional construction
     // lowers to (`wat/Record.wat:183-190`, `wat/core.wat:1780-1788` — defstruct's OWN bare-name

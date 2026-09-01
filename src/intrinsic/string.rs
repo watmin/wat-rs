@@ -115,10 +115,18 @@ fn arg_i64(
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a), from its "String ops" group; the verdict is that list's.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** Both args are domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, the `contains?`/`starts-with?`/`ends-with?` `TypeScheme` triple, `params:
+/// [string_ty(), string_ty()]`, no `rest_param_type`), so a well-typed call always hands this
+/// body two real `String`s. Given those, `hay.contains(needle.as_str())` always returns a
+/// `bool` — no raise path, no partial arm. Fixed (2) arity, structurally enforced by the same
+/// scheme, so no `ArityMismatch` is reachable either.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string searched
@@ -147,10 +155,18 @@ pub(crate) fn eval_string_contains(
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a), from its "String ops" group; the verdict is that list's.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** Both args are domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, the `contains?`/`starts-with?`/`ends-with?` `TypeScheme` triple, `params:
+/// [string_ty(), string_ty()]`, no `rest_param_type`), so a well-typed call always hands this
+/// body two real `String`s. Given those, `hay.starts_with(prefix.as_str())` always returns a
+/// `bool` — no raise path, no partial arm. Fixed (2) arity, structurally enforced by the same
+/// scheme, so no `ArityMismatch` is reachable either.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
@@ -179,10 +195,18 @@ pub(crate) fn eval_string_starts_with(
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a), from its "String ops" group; the verdict is that list's.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** Both args are domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, the `contains?`/`starts-with?`/`ends-with?` `TypeScheme` triple, `params:
+/// [string_ty(), string_ty()]`, no `rest_param_type`), so a well-typed call always hands this
+/// body two real `String`s. Given those, `hay.ends_with(suffix.as_str())` always returns a
+/// `bool` — no raise path, no partial arm. Fixed (2) arity, structurally enforced by the same
+/// scheme, so no `ArityMismatch` is reachable either.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     haystack :wat::core::String the string examined
@@ -218,10 +242,17 @@ pub(crate) fn eval_string_ends_with(
 /// own body. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a; Stone F); the verdict is that list's.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** The one arg is domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, `:wat::string::empty?`'s `TypeScheme`, `params: [string_ty()]`, no
+/// `rest_param_type`), so a well-typed call always hands this body a real `String`. Given that,
+/// `s.is_empty()` always returns a `bool` — no raise path. Fixed (1) arity, structurally
+/// enforced by the same scheme, so no `ArityMismatch` is reachable either.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     s :wat::core::String the string to test
@@ -249,10 +280,17 @@ pub(crate) fn eval_string_empty(
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a), from its "String ops" group; the verdict is that list's.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** The one arg is domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, `:wat::string::length`'s `TypeScheme`, `params: [string_ty()]`, no
+/// `rest_param_type`), so a well-typed call always hands this body a real `String`. Given that,
+/// `s.chars().count() as i64` always returns — no raise path. Fixed (1) arity, structurally
+/// enforced by the same scheme, so no `ArityMismatch` is reachable either.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to measure
@@ -276,10 +314,17 @@ pub(crate) fn eval_string_length(
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a), from its "String ops" group; the verdict is that list's.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** The one arg is domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, `:wat::string::trim`'s `TypeScheme`, `params: [string_ty()]`, no
+/// `rest_param_type`), so a well-typed call always hands this body a real `String`. Given that,
+/// `s.trim().to_string()` always returns — no raise path. Fixed (1) arity, structurally
+/// enforced by the same scheme, so no `ArityMismatch` is reachable either.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to trim
@@ -307,10 +352,17 @@ pub(crate) fn eval_string_trim(
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a), from its "String ops" group; the verdict is that list's.
 ///
+/// **Totality ground — measured `Total`, re-derived from the body (arc 255, the-registry-
+/// answers-first).** The one arg is domain-gated `String` by the checker's fixed scheme
+/// (`check.rs`, `:wat::string::to-lowercase`'s `TypeScheme`, `params: [string_ty()]`, no
+/// `rest_param_type`), so a well-typed call always hands this body a real `String`. Given that,
+/// `s.to_lowercase()` always returns — no raise path. Fixed (1) arity, structurally enforced by
+/// the same scheme, so no `ArityMismatch` is reachable either.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to lowercase
@@ -692,10 +744,28 @@ pub(crate) fn eval_string_join(
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
 /// expand-T4a), from its "String ops" group; the verdict is that list's.
 ///
+/// **Totality ground — measured `Partial`, re-derived from the body (arc 255, the-registry-
+/// answers-first) — NOT the `Total` the retired prefix guess carried.** This fn is variadic
+/// (`args: &[WatAST]` taken directly, not delegated through a fixed-arity `slice::from_ref`
+/// shim the way `contains?`/`starts-with?`/`ends-with?`/`empty?`/`length`/`trim`/
+/// `to-lowercase` are), and its own body raises `RuntimeErrorKind::ArityMismatch` when
+/// `args.is_empty()`. `check.rs`'s `infer_string_concat` says outright that this is a REAL,
+/// well-typed-reachable arm, not a checker-excluded shape: *"the type checker has no
+/// first-class variadic-arity scheme today … Empty arg list errors at the runtime; the checker
+/// accepts arity 0 and returns `:String` so the runtime owns the diagnostic."* So
+/// `(:wat::string::concat)` passes `--check` and raises at runtime — a raise on a
+/// checker-admitted input, exactly the shape
+/// `RULING-a-raise-is-not-an-outcome-so-a-raising-verb-is-partial.md` rules `Partial`: *"A raise
+/// or a panic → NOT an outcome … The test is matchability, not whether the failure is
+/// deterministic, located, or well-diagnosed."* The retired guess's comment argued
+/// `concat`/`contains?`/`starts-with?`/`ends-with?` "always return for any two strings" — true
+/// for the fixed-arity three, but concat is not binary, and "any two strings" silently assumed
+/// away the zero-arg call its own signature admits.
+///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality         Unreviewed
+/// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args… :wat::core::String the strings to concatenate, in order
