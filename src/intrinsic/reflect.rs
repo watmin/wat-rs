@@ -345,8 +345,8 @@ pub(crate) fn eval_show_source(
     }
 
     // User-form path: look up via the symbol table and write-forms the body.
-    match crate::runtime::lookup_form(&name, sym) {
-        Some(crate::runtime::Binding::UserFunction { f, .. }) => {
+    match crate::reflect::lookup::lookup_form(&name, sym) {
+        Some(crate::reflect::lookup::Binding::UserFunction { f, .. }) => {
             match &f.body {
                 crate::value::FunctionBody::Wat(ast) => {
                     let edn = crate::edn::bridge::watast_to_edn(ast.as_ref());
@@ -362,14 +362,14 @@ pub(crate) fn eval_show_source(
                 }
             }
         }
-        Some(crate::runtime::Binding::Macro { def, .. }) => {
+        Some(crate::reflect::lookup::Binding::Macro { def, .. }) => {
             let edn = crate::edn::bridge::watast_to_edn(&def.body);
             let text = wat_edn::write(&edn);
             Ok(Value::String(Arc::new(text)))
         }
-        Some(crate::runtime::Binding::Primitive { .. })
-        | Some(crate::runtime::Binding::SpecialForm { .. })
-        | Some(crate::runtime::Binding::Type { .. }) => {
+        Some(crate::reflect::lookup::Binding::Primitive { .. })
+        | Some(crate::reflect::lookup::Binding::SpecialForm { .. })
+        | Some(crate::reflect::lookup::Binding::Type { .. }) => {
             Ok(Value::String(Arc::new(format!(
                 ";; {} — substrate primitive (no source available in this context)",
                 name
