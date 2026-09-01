@@ -17,22 +17,23 @@
 //! Functions lifted out of `runtime.rs` — see `src/kernel/mod.rs` for
 //! the layer's scope.
 
-// `message_only_failure`/`no_field_names`/`builtin_enum_variant_names` and the
-// died-error-cluster helpers `loci_died_error_from_reason`/
-// `loci_died_from_send_error` are genuinely defined in `crate::runtime` (not
-// facade re-exports of `crate::value` types — see STOP-4): the first three are
-// generic Value/EnumValue field-name + Failure-building machinery shared by
-// other impl homes, not this vocabulary's to own; the died-error pair belongs
-// to map item 4 (the died-error cluster), whose home is deliberately
-// unassigned — a stays-caller reaching into this moved home is the ordinary
-// direction, not the reverse (`recv_outcome_lost` calls
-// `loci_died_error_from_reason`; `send_outcome_from_error` calls
-// `loci_died_from_send_error`). `reply_failed_reason` (runtime.rs) is the
-// protocol-tier `Reply::Failed` detector `recv_outcome_from_decoded` uses to
-// decide Lost vs Message; it is not itself outcome vocabulary and stays put.
+// `message_only_failure`/`no_field_names`/`builtin_enum_variant_names` are
+// genuinely defined in `crate::runtime` (not facade re-exports of
+// `crate::value` types — see STOP-4): generic Value/EnumValue field-name +
+// Failure-building machinery shared by other impl homes, not this
+// vocabulary's to own. The died-error-cluster helpers
+// `loci_died_error_from_reason`/`loci_died_from_send_error` are genuinely
+// defined in `crate::kernel::error` — arc 109 Stone 4a homed the died-error
+// cluster (map item 4a) there (docs/arc/2026/04/109-kill-std/); a
+// stays-caller reaching into that sibling home is the ordinary direction,
+// not the reverse (`recv_outcome_lost` calls `loci_died_error_from_reason`;
+// `send_outcome_from_error` calls `loci_died_from_send_error`).
+// `reply_failed_reason` (runtime.rs) is the protocol-tier `Reply::Failed`
+// detector `recv_outcome_from_decoded` uses to decide Lost vs Message; it is
+// not itself outcome vocabulary and stays put.
+use crate::kernel::error::{loci_died_error_from_reason, loci_died_from_send_error};
 use crate::runtime::{
-    builtin_enum_variant_names, loci_died_error_from_reason, loci_died_from_send_error,
-    message_only_failure, no_field_names, reply_failed_reason,
+    builtin_enum_variant_names, message_only_failure, no_field_names, reply_failed_reason,
 };
 
 use crate::value::{EnumValue, Value};

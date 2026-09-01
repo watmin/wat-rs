@@ -11,16 +11,14 @@
 //! layer's scope. Bodies verbatim; only the visibility keyword changed.
 
 use crate::ast::WatAST;
+use crate::kernel::error::loci_died_disconnected;
 use crate::kernel::outcome::{
     recv_outcome_closed, recv_outcome_from_decoded, recv_outcome_lost, recv_outcome_message,
     recv_outcome_shutdown, send_outcome_closed, send_outcome_from_error, send_outcome_sent,
     try_send_outcome_closed, try_send_outcome_lost, try_send_outcome_sent,
     try_send_outcome_would_block,
 };
-use crate::runtime::{
-    builtin_enum_variant_names, eval_inner, loci_died_disconnected, message_only_failure,
-    no_field_names,
-};
+use crate::runtime::{builtin_enum_variant_names, eval_inner, message_only_failure, no_field_names};
 use crate::span::Span;
 use crate::value::{
     EnumValue, Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value,

@@ -12,8 +12,9 @@
 //! `process_died_error_panic`) stays in `runtime.rs` — it is the shared
 //! `:wat::core::Fault`/`Failure` diagnostic language (map item 4d), not this
 //! vocabulary's to own; it is bumped to `pub(crate)` for this move (its only
-//! other caller, `thread_died_error_panic`, stays in `runtime.rs` too — that
-//! is 4a's, a later stone).
+//! other caller, `thread_died_error_panic`, went to `src/kernel/error.rs` in
+//! stone 4a — so both of its callers now live outside `runtime.rs`, and it
+//! remains there as 4d residue on its own merits, not for want of a mover).
 //!
 //! Functions lifted out of `runtime.rs` — bodies verbatim; only the
 //! visibility keyword changed.

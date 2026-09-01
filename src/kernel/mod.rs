@@ -45,8 +45,8 @@
 //!   family) SHIPPED in Stone 4.6a-ii/4.6b and lived in `src/runtime.rs`
 //!   until arc 109 Stone B (docs/arc/2026/04/109-kill-std/) homed all
 //!   thirty-four of them here, one sub-module per `src/intrinsic/kernel/`
-//!   edge file: [`abort`], [`ambient`], [`identity`], [`message`],
-//!   [`outcome`] (Stone A), [`resource`], [`serve`], [`source`]. The
+//!   edge file: [`abort`], [`ambient`], [`error`] (Stone 4a), [`identity`],
+//!   [`message`], [`outcome`] (Stone A), [`resource`], [`serve`], [`source`]. The
 //!   scope-affirmative `exigere` rune this paragraph used to carry deferred
 //!   exactly this homing to "the runtime.rs flat-sea (Phoenix) warding
 //!   campaign" — that campaign has now arrived and the migration shipped, so
@@ -73,6 +73,7 @@
 pub mod abort;
 pub mod address;
 pub mod ambient;
+pub mod error;
 pub mod identity;
 pub mod listener;
 pub mod message;

@@ -795,8 +795,11 @@ pub fn spawn_thread_peer(
                 // Panic.failure as a Failure record; a plain panic has failure: None.
                 Err(payload) => {
                     let (message, assertion) = extract_panic_payload(payload);
-                    let reason =
-                        crate::runtime::thread_crash_panic_edn(message, assertion, crash_types);
+                    let reason = crate::kernel::error::thread_crash_panic_edn(
+                        message,
+                        assertion,
+                        crash_types,
+                    );
                     let _ = crash_tx.send(reason);
                 }
                 // wat RuntimeError out of the body — a genuine death; carry its reason
@@ -805,7 +808,7 @@ pub fn spawn_thread_peer(
                 // the process tier). apply_function already unwraps EvalSignals
                 // (TailCall/try/option), so the Err here is a bare RuntimeError.
                 Ok(Err(re)) => {
-                    let reason = crate::runtime::thread_crash_runtime_edn(&re, crash_types);
+                    let reason = crate::kernel::error::thread_crash_runtime_edn(&re, crash_types);
                     let _ = crash_tx.send(reason);
                 }
                 // Clean exit — no crash reason to carry.

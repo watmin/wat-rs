@@ -29,10 +29,11 @@
 //!
 //! ## ★ The bodies do NOT live here
 //!
-//! Every one of the four delegates to the SAME `crate::runtime::eval_*` fn
-//! that already existed as a literal-match arm in `runtime.rs` — see
-//! `kernel/mod.rs` for the tier-wide "bodies do not live here" claim this
-//! home is an instance of.
+//! Every one of the four delegates to the SAME `crate::kernel::error::eval_*`
+//! fn — arc 109 Stone 4a homed the died-error cluster in `src/kernel/error.rs`
+//! (docs/arc/2026/04/109-kill-std/); it previously existed as a literal-match
+//! arm in `runtime.rs`. See `kernel/mod.rs` for the tier-wide "bodies do not
+//! live here" claim this home is an instance of.
 //!
 //! ## ★ The gate is LIVE here — unlike home #5
 //!
@@ -85,7 +86,7 @@ pub(crate) fn eval_died_error_message(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_died_error_message(
+    crate::kernel::error::eval_died_error_message(
         std::slice::from_ref(err),
         env,
         sym,
@@ -124,7 +125,7 @@ pub(crate) fn eval_failure_message(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_failure_message(std::slice::from_ref(f), env, sym, list_span)
+    crate::kernel::error::eval_failure_message(std::slice::from_ref(f), env, sym, list_span)
 }
 
 /// `(:wat::kernel::Failure/location f)` → `(:wat::core::Option :- [wat::kernel::Location])`.
@@ -155,7 +156,7 @@ pub(crate) fn eval_failure_location(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_failure_location(std::slice::from_ref(f), env, sym, list_span)
+    crate::kernel::error::eval_failure_location(std::slice::from_ref(f), env, sym, list_span)
 }
 
 /// `(:wat::kernel::LociDiedError/to-failure err)` → `:wat::kernel::Failure`.
@@ -195,7 +196,7 @@ pub(crate) fn eval_died_error_to_failure(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_died_error_to_failure(
+    crate::kernel::error::eval_died_error_to_failure(
         std::slice::from_ref(err),
         env,
         sym,
