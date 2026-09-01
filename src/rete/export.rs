@@ -54,7 +54,7 @@
 //! forgot to read is a located raise at run time, not a build failure. So when you add a
 //! variant, the compiler will find the pack arm for you and nothing will find the unpack arm.
 //!
-//! **3. Unpacking a value is not trusting it. Five independent walls stand between the wire and
+//! **3. Unpacking a value is not trusting it. Six independent walls stand between the wire and
 //! the evaluator**, and each catches what the one before it cannot:
 //!
 //! - **Range refusal, at the read** — `expect_u16` / `expect_op` / `expect_idx` refuse
@@ -86,6 +86,32 @@
 //!   guard abort is not a panic and no `catch_unwind` reaches it, so refusing BEFORE the recursion
 //!   is the only available cure. One budget is shared across every mutually recursive `unpack_*`
 //!   — see `deeper` for why a per-function counter is walked past by the `:user` ↔ `:prog` cycle.
+//! - **Node count, before a single node is unpacked** — `MAX_IMPORT_NODES`. The five walls above
+//!   are each about the CONTENT of the wire: what a value says, and how deep the reader descends
+//!   to find out. This one is about HOW MUCH the door will build. `import_export` assembles the
+//!   network through `PMap::from_pairs`, whose accumulator scans everything already accumulated
+//!   once per pair, so the build is quadratic in the node count — measured, 1.05 µs/pair at 500
+//!   pairs and 4.87 µs/pair at 4 000 — and nothing bounded that count. What `import` accepted was
+//!   therefore whatever the caller was willing to WAIT for, the same unstated-criterion shape the
+//!   depth wall answers for the stack. The constant carries the corpus maximum it clears and the
+//!   worst-case milliseconds it costs at its own limit; a cap without that arithmetic would move
+//!   the unstated criterion rather than remove it.
+//!
+//! **4. The import door OPENS A SESSION, and what it allocates is charged to that session.**
+//! `arm-session` is the door a compiled session is born through and it marks the session's byte
+//! origin there (`alloc_counter::mark_session_origin`). `import` is the OTHER birth door and used
+//! to mark nothing — which is worse than uncounted, because `alloc_counter::session_bytes` files
+//! an unmarked session's origin at its FIRST CHECK: every byte the import allocated became
+//! retroactively free and the ceiling began after the network already existed. Driven, on the same
+//! 2 MB: marked-at-birth reads `2097268`, never-marked reads `0`.
+//!
+//! The cure is split in two because the ORIGIN CANNOT BE KEYED UNTIL THE THING IT KEYS EXISTS: the
+//! key is the built network `PMap`'s identity, so `import_export` reads `thread_bytes()` as its
+//! first statement, builds, and files THAT captured reading under the new identity through
+//! `alloc_counter::mark_session_origin_at`. Reading at the moment the key appears — the natural
+//! placement, and the one this law exists to forbid — excludes the whole build and reproduces the
+//! defect while an origin is visibly filed. The filing does not clobber, so a `PMap` identity that
+//! already carries an origin keeps the older one.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
@@ -278,6 +304,48 @@ fn check_slot(slot: u16, frame_len: u16, span: &Span, what: &str) -> Result<(), 
     }
     Ok(())
 }
+
+/// WALL 6 — the largest network `import` will BUILD, and the only thing bounding the quadratic.
+///
+/// **MEASURED, not chosen for roundness**, the same way [`MAX_IMPORT_DEPTH`] is and for a finding
+/// of the same shape: `import` had no SIZE criterion at all, so what it accepted was whatever the
+/// caller happened to be willing to wait for. `import_export` assembles the network with
+/// `PMap::from_pairs`, whose accumulator does `acc.iter_mut().find(...)` once per pair
+/// (`value/pmap.rs`) — a linear scan of everything accumulated so far — so the build is QUADRATIC
+/// in the node count, on bytes some other process wrote. Driven 2026-08-31, six samples per point,
+/// minimum taken:
+///
+/// | pairs | total | per pair |
+/// |---:|---:|---:|
+/// | 500 | 523 µs | 1.05 µs |
+/// | 1 000 | 1 954 µs | 1.95 µs |
+/// | 2 000 | 5 143 µs | 2.57 µs |
+/// | 4 000 | 19 473 µs | 4.87 µs |
+///
+/// Per-pair cost DOUBLES as N doubles — the quadratic signature. Fitting the 4 000 point gives
+/// `t(N) ≈ 1.217e-3 · N² µs`, and the two numbers behind this constant are:
+///
+/// * **63** — the largest node count the corpus actually produces, measured by logging
+///   `nodes.len()` at this door and running the whole `wat::rete` binary (434 tests, of which 34
+///   reach an import). It is the datamancer program (`tests/rete/datamancer.rete.edn`, reached by
+///   `probe_arc278_rete_edn`); every other import in the tree is 6–28 nodes. The corpus is a floor
+///   on what is real and not a ceiling — which is exactly why the headroom below is two orders of
+///   magnitude.
+/// * **~122 ms** — what 10 000 costs on that curve (`1.217e-3 × 10 000² µs`): the worst case a
+///   single `import` call may spend inside `from_pairs`. The next round numbers are 50 000 → ~3.0 s
+///   and 100 000 → ~12 s, and neither is a bound worth calling one.
+///
+/// 10 000 is ~158× the measured maximum and the largest round cap whose worst case stays inside a
+/// fifth of a second. Raise it only with a new measurement, and state what the new number COSTS.
+///
+/// ⚠ **THE CAP IS WHAT MAKES THE QUADRATIC SAFE; it is not a stand-in for a linear `from_pairs`.**
+/// Making that accumulator linear is a `value/pmap.rs` change whose blast radius is every `PMap`
+/// in the tree, and the table above is its recorded before-curve. Bounding N bounds the worst case
+/// without touching it.
+///
+/// It is checked against the DECLARED length of the `nodes` vector, before a single node is
+/// unpacked — refusing a claim is the only refusal that costs nothing.
+const MAX_IMPORT_NODES: usize = 10_000;
 
 /// WALL 5 — the recursive descent's ONE depth budget.
 ///
@@ -2178,29 +2246,44 @@ fn check_node_graph(network: &Value, span: &Span) -> Result<(), EvalBreak> {
 ///    fingerprint recomputed from the export's own classes/fields, then the HOST `TypeEnv`
 ///    field order. The third catches what the second structurally cannot — an export that is
 ///    internally consistent but describes records this process declares differently.
-/// 3. **Nodes** — `unpack_node` per entry into a network `PMap`, with each alpha's class index
+/// 3. **The node cap** (module header, law 3, wall six) — `MAX_IMPORT_NODES`, against the
+///    DECLARED length of the `nodes` vector, before anything is unpacked. Phase 4's build is
+///    quadratic in this count; the constant carries the curve.
+/// 4. **Nodes** — `unpack_node` per entry into a network `PMap`, with each alpha's class index
 ///    resolved back to a class NAME through the export's interned table.
-/// 4. **The graph wall** (module header, law 3, wall four) — `check_node_graph` proves the
+/// 5. **The graph wall** (module header, law 3, wall four) — `check_node_graph` proves the
 ///    assembled node map is one the fire passes can legally walk: every child id names a node,
 ///    every reference-field alpha id names a node that is an `Alpha`, and every child id exceeds
 ///    its parent's. It runs BEFORE the side tables, because everything after it assumes an edge
 ///    can be followed and that ascending id is topological. It refuses; it never repairs.
-/// 5. **The five side tables** — conds, drivers, progs, folds (node-id keyed) and rhs (rule-name
+/// 6. **The five side tables** — conds, drivers, progs, folds (node-id keyed) and rhs (rule-name
 ///    keyed), each re-read into a `HashMap`.
-/// 6. **Derived structure is REBUILT, never transported** — `NetworkEdges`, `AlphaTree`,
+/// 7. **Derived structure is REBUILT, never transported** — `NetworkEdges`, `AlphaTree`,
 ///    `WhereTree`, `kind_ids`, `joins_fed_by`, `compiled_max_slots` are all recomputed here from
 ///    the data above. This is why the wire format carries none of them: an index is a function of
 ///    the network, so shipping one would create a second thing that can disagree with the first,
 ///    and an importer that trusted it could be handed a stale index over a valid network.
-/// 7. **Intern and return** — the assembled `InternedNetwork` is registered via
+/// 8. **Intern and return** — the assembled `InternedNetwork` is registered via
 ///    `rete_arm_intern` so the imported program fires through the same arm path a locally
 ///    compiled one does.
+/// 9. **Charge the session this door just opened** (module header, law 4) — the byte origin
+///    captured as this function's FIRST statement is filed under the new network's identity, and
+///    the session ceiling is then read against it. This is why the reading and the filing are
+///    separate calls: the key does not exist until phase 4 has run, and a reading taken here would
+///    exclude every phase above.
 ///
 /// Its 194 lines are phase COUNT rather than depth — brace nesting peaks at 3 inside the body,
 /// and every level of it is a `for` over one table's pairs. Splitting it would put six one-caller
 /// helpers between a gate and the gate that must follow it, which is the ordering the phase list
 /// above exists to make legible.
 fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+    // ★ THE SESSION'S ZERO POINT, CAPTURED BEFORE IT CAN BE FILED. See phase 8 below and
+    // `alloc_counter::mark_session_origin_at` for why the reading and the filing are split: the
+    // key is the built network's identity, which does not exist yet, and reading `thread_bytes()`
+    // at the moment the key appears would exclude the entire build from the session it created.
+    // This is the FIRST statement at the door on purpose — everything the import allocates, from
+    // the compat gates onward, belongs to the session it is about to hand back.
+    let session_origin = crate::alloc_counter::thread_bytes();
     let agg = match export {
         Value::Aggregate(a) if a.nature != Nature::Struct && a.class.as_ref() == "wat::rete::Export" => a,
         other => {
@@ -2273,6 +2356,19 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
     }
 
     let nodes_pv = expect_seq(export_named(export, "nodes", span)?, IMPORT_OP, span)?;
+    // WALL 6 — how much this door will BUILD, refused on the declared count before any node is
+    // unpacked. The build below is quadratic in this number; see `MAX_IMPORT_NODES` for the curve
+    // and for what the cap costs at its own limit.
+    if nodes_pv.len() > MAX_IMPORT_NODES {
+        return Err(malformed(
+            span,
+            IMPORT_OP,
+            format!(
+                "import node count {} exceeds MAX_IMPORT_NODES {MAX_IMPORT_NODES} —                  the network build is quadratic in this count",
+                nodes_pv.len()
+            ),
+        ));
+    }
     let mut network_pairs = Vec::new();
     let mut alpha_by_type: AlphasByType = HashMap::new();
     let mut max_id = 0i64;
@@ -2381,6 +2477,46 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
         // Import is an arm-session equivalent: MISS leases=1, HIT increments
         // (`DESIGN-STONE-intern-eviction`). Drop without release-session leaks until thread end.
         rete_arm_intern(id, &arm);
+    }
+
+    // ★ THE IMPORT DOOR IS A SESSION'S BIRTH, AND IS CHARGED LIKE ONE.
+    //
+    // `arm-session` marks its origin the moment the session exists; this door could not, because
+    // its key IS the network it had to build first. So the reading was taken at the top of this
+    // function and only the FILING happens here — everything above is charged to the session
+    // below. Filing the reading taken HERE would zero the whole import, which is the defect:
+    // `session_bytes` sets an unmarked session's origin at the FIRST CHECK, so an import that
+    // never marked began its ceiling after its network already existed.
+    //
+    // `network_identity` is `Some` for any `PersistentMap`, which is what phase 4 built.
+    // `mark_session_origin_at` does not clobber, so an identity already carrying an origin — the
+    // same `PMap` intern arriving twice — keeps the older one, per A4.
+    let origin_key = network_identity(&network);
+    crate::alloc_counter::mark_session_origin_at(origin_key, session_origin);
+
+    // And now the reading is meaningful: bytes this thread took since the top of this call, which
+    // is precisely what the import allocated. It refuses the way its five neighbours refuse —
+    // `malformed`, at the door — rather than inventing an outcome shape behind this arc's outcome
+    // wall for a door whose every other refusal is a raise.
+    //
+    // ⚠ THIS MEASURES; IT DOES NOT PREVENT. The bytes are already spent when this runs, because
+    // the quantity being judged does not exist until the work is done. That is why WALL 6 is a
+    // separate mechanism and not an optimisation of this one: the cap refuses a CLAIM before the
+    // build, this refuses a MEASUREMENT after it, and neither substitutes for the other. What this
+    // one buys is that the session cannot go on to be used, and — by way of the origin filed two
+    // lines up — that every later `insert` and fixpoint round is charged for the network too.
+    if let Some(breach) =
+        crate::rete::kernel::session::session_ceiling_breach(sym, origin_key)
+    {
+        return Err(malformed(
+            span,
+            IMPORT_OP,
+            format!(
+                "import allocated {} bytes, past max-session-bytes {} — the session an import \
+                 opens is charged for the network it builds",
+                breach.used, breach.limit
+            ),
+        ));
     }
 
     Ok(Value::Aggregate(Arc::new(AggregateValue::record(
