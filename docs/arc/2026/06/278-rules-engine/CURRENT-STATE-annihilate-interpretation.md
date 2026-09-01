@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (fifteenth — FIFTEEN STRIKES; ⭐ CLASS A CLOSED, D1 CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (sixteenth — SIXTEEN STRIKES; ⭐ CLASS A CLOSED, D1 CLOSED, E5 CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline f22704f1f..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat f22704f1f..HEAD        # what they touched
+git log --oneline c9cdd9d32..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat c9cdd9d32..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -95,6 +95,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **A5** | `7e24c3257` | **a verdict that cannot say "I did not look" is not a verdict** |
 | **A7** | `b0e3377e9` | **the import door is a session's birth, and is charged like one** |
 | **D1r** | `f22704f1f` | **a misspelled variant is told it is a misspelled variant** |
+| **E5** | `c9cdd9d32` | **threading the span is the cure AND the guard** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -348,13 +349,42 @@ command-substituted, and the amend would have rewritten already-pushed history o
 so I reset to the pushed commit instead. The intended text is in `strike-variant-diagnostic/SCORE.md`.
 **A commit message quoting an identifier goes in a `-F` file, never `-m`.**
 
-**THE NEXT WORK — Class E, then Class F.** **Class E** is 5 rows of error shape and diagnostics —
-and this strike is the argument for taking it next: the whole of D1's residual was a refusal that
-fired correctly and *said the wrong thing*, which is Class E's entire subject. Behind it: **Class F**
-(greppability + 5 lints; builder's directive *greppability over correction*). Also open and recorded:
-`acc_refusal`'s span carries no information; the misnamed `probes/` dir; D2's structural fix
-(`sequi`'s newtype — must NOT be reaped); the tagged-variant kind above; and the export/import corpus
-being **broad in variants and flat in depth** (max nesting 3).
+✅ **E5 IS CLOSED (`c9cdd9d32`), and the finding was sharper than "a wrong span".** Both
+`refuse_export_without_arm` sites stamped `rust_caller_span!()` while the real wat span sat **one
+frame up, in hand, already spent** on the same function's arity refusal. The lint that exists for
+this could not see it: `span_substitution_justified` tests for **no span PARAMETER** as a proxy for
+its stated principle, *"never about the absence of a choice"* — and the choice lived one frame up,
+so the proxy admitted a site the principle refuses.
+
+★ **THE CURE IS THE GUARD.** Threading `span: &Span` into both fns fixes the diagnostic **and brings
+both bodies inside the existing lint's view** — a future `rust_caller_span!()` there now reddens it,
+with no new lint and no widened predicate. **The proxy is not evaded; it is made TRUE.** Driven on
+BOTH bodies (the rider's own call — one mutation cannot prove a two-site claim).
+
+⛔⛔ **AND MY LOAD-BEARING NUMBER COULD NOT BE CHECKED.** I put *"534 sites tree-wide, 71 in rete"*
+in the stone as the **entire justification** for not widening the lint. It reproduces under **no
+definition** at its own stated commit — it came from an ad-hoc regex script I ran in my terminal and
+never committed. The rider ported the **lint's own walker** with its predicate inverted and got
+**494/69**. The decision survives on the measured figure; the figure did not deserve to be trusted.
+**The lint's doc now carries the numbers AND the instrument** (`violations_in` with `carries_span`
+inverted). **Second instance of this failure** — memory updated, not duplicated. *If a number
+justifies a decision, the thing that computed it goes in the tree beside it.*
+
+⚠ **My caller table also named a fn that never calls it** — `fire/mod.rs` is not a caller of
+`fire_rules_on_session`. Real count **10 + 1**, not 9 + 1. Only the "count them yourself" hedge kept
+it from misleading, and a hedge is not a correct table.
+
+⏭ **A NEW HOLE, FOUND IN PASSING AND FILED:** nothing gates `file:line` citations in comments.
+`no_stale_path_in_doc` checks **paths, not lines**, so two accurate references in `arm.rs` rotted
+silently when a doc block shifted. Refreshed; the general gap is now a row in Class E.
+
+**THE NEXT WORK — E1, already driven and banked.** `check_field_at`'s doc promises *"the span of the
+FIELD rather than the clause so the caret lands on the offending keyword"*; **both** callers pass
+`clause.span()`. Driven: the caret spans **cols 31–76** (46 chars) where the offending keyword sits
+at **col 65, length 10**. Its own note has the structural cure: *"The parameter's type is `Span`, so
+nothing can tell the two apart."* Behind it: **E2** (a mis-documented AND unreachable arm — the dead
+one documents better behaviour than any live one), **E3**, **E4** (`RuntimeErrorKind::ReteCeiling`,
+matched exhaustively), then **Class F**.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
