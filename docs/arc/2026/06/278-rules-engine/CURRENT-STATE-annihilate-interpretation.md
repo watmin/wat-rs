@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (nineteenth — NINETEEN STRIKES; ⭐ CLASS A CLOSED; D1, E1, E2, E4, E5 CLOSED + the nested wall WIRED. E3 is the last Class E row). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (twentieth — TWENTY STRIKES; ⭐⭐ CLASS A **and** CLASS E BOTH CLOSED; D1 closed + the nested wall WIRED. Class F is what remains). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 452953cb9..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 452953cb9..HEAD        # what they touched
+git log --oneline 76e221bbb..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 76e221bbb..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -99,6 +99,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **E1+E2** | `1efb42fc7` | **`UnknownField` has ONE producer, and it takes the keyword node** |
 | **nested wall** | `c0c883082` | **the wall reads the form as it exists there — four dead kinds now fire** |
 | **E4** | `452953cb9` | **the ceiling set is a closed type, matched exhaustively** |
+| **E3** | `76e221bbb` | **each variant carries its own doc — and a broken link cannot be added** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -474,14 +475,44 @@ polices is not a gate.**
 not 36. All three bad estimates came from naive greps. **Use `-w` / `\b` whenever a name family
 shares a prefix — error families almost always do.** Memory updated.
 
-**THE NEXT WORK — E3, the last Class E row.** `signal.rs:317-346`: three doc blocks merged onto one
-variant, while `RuleSetMayNotTerminate` and `FixpointRoundCapExceeded` carry none — and the wall's
-justification for the former being matchable (*"its diagnostic names an action the author can
-take"*) is attached to a **different failure**. Note E4 just moved all four of these into
-`ReteCeiling`, so the doc blocks moved verbatim with them; re-read at the new site before drawing.
-Then **Class F** (greppability + 5 lints, *greppability over correction*). Also open: the two rows
-from the nested wall (nested-operand messages; the un-lowered `:T'`), `#[to_edn(transparent)]`, the
-`file:line` citation-rot hole, `acc_refusal`'s span, the misnamed `probes/` dir, D2's `sequi` newtype.
+⭐⭐ **CLASS E IS CLOSED (E1, E2, E3, E4, E5) — AND SO IS CLASS A. Class F is what remains.**
+
+✅ **E3 (`76e221bbb`).** Three doc blocks stacked onto ONE variant — **Rust accumulates a doc comment
+onto the NEXT item** — so the two failures with the most to explain rendered with **no doc at all**.
+Split onto four variants and **verified in the rendered HTML**, not the source. `signal.rs`'s 9
+broken intra-doc links → 0; **only two were E4's, seven were older**, so the file had been citing
+four unreachable items before that strike touched it. Tree-wide 50 → 41.
+
+★ **THE CLASS CURE: `tests/lint/no_new_broken_doc_link.rs`.** Nothing in this tree ran rustdoc and
+the lint was not enabled, so **every intra-doc link was unverified** — I broke two in E4 with a green
+floor and a clean clippy. The gate now runs rustdoc and freezes the remaining 41 sites as **34 NAMED
+`(file, target, sites)` keys**: a ratchet both ways — unlisted is red, listed-but-resolving is red.
+Six arms driven, including a **genuinely `flock`'d cargo lock**.
+
+⛔⛔ **AND MY OWN SKETCH REOPENED THE WARNING I HAD JUST WRITTEN.** The stone quotes `purity.rs` —
+*"wanted SET MEMBERSHIP and measured CARDINALITY"* — as the reason for a named list; then prescribes
+a `(file, target)` key. **7 of the 34 keys hold two sites**, so fixing one would have left the gate
+green: **the same defect, one level down, inside the cure for it.** The per-key site count is the
+rider's. Its defense is the keeper: *a count scoped inside a NAME still names the offender.*
+Promoted to memory.
+
+⚠ **My trap named the wrong risk.** Duration was never it (~0 against a 131.9s lint binary). The
+hazard is the **nested target-dir lock** — an unbounded spawned `cargo doc` **BLOCKS** rather than
+fails. Bounded at 300s against a worst observed 10.68s; an expiry is a named red quoting cargo's own
+`Blocking waiting for file lock` line. **Ruled and recorded at the constant: keep the bound, refuse
+the separate `CARGO_TARGET_DIR`** — red-when-it-cannot-measure is CORRECT, and the alternative is the
+recorded failure of a check reporting success without running.
+
+⚠ **The row's second claim was WRONG**: the *"names an action the author can take"* justification
+lives at `outcome.rs:226` and was correctly placed all along. **Third Class E row this session whose
+detail did not survive an audit** — an inherited row is a past act of looking.
+
+**THE NEXT WORK — CLASS F**, the description layer, and the builder's directive governs it:
+**greppability over correction**. Five lints plus the greppability work. Also open and now
+accumulating: the two nested-wall rows (nested-operand messages; the un-lowered `:T'`),
+`#[to_edn(transparent)]`, the `file:line` citation-rot hole (rustdoc cannot see a line number in
+prose — the sibling this gate does NOT cover), `acc_refusal`'s span, the misnamed `probes/` dir, and
+D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
