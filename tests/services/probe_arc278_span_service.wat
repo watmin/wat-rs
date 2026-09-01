@@ -19,7 +19,9 @@
                 :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :start-time-ns 0
                 :counters (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
                 :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])
-                :logs (:wat::core::Vector :- [:wat::telemetry::Log]))
+                :logs (:wat::core::Vector :- [:wat::telemetry::Log])
+                :logs-flush-after-ms :wat::telemetry::span::DEFAULT-LOGS-FLUSH-AFTER-MS
+                :metrics-flush-after-ms :wat::telemetry::span::DEFAULT-METRICS-FLUSH-AFTER-MS)
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
