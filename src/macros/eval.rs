@@ -530,3 +530,91 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::Error/message"
     )
 }
+
+// ─── The mirror wall — arc 255 Stone expand-only-the-mirror-wall ─────────────
+//
+// `is_expand_time_legal` (above) refuses a head found INSIDE a macro body unless the
+// registry names it `Legal`/`ExpandOnly`/`Preserving`. This is its mirror: refuse a head
+// found OUTSIDE one — i.e. anywhere in ordinary program code — when the registry names it
+// `ExpandOnly`. `RuntimeOnly` is the OTHER half's mirror (refused inside a macro body,
+// since it has no expand-time behaviour); `ExpandOnly` is THIS half's target (refused
+// outside one, since it has no runtime call site at all). `macro-error` is, today, the
+// sole `ExpandOnly` declarer (measured — `crate::intrinsic::macro_error`).
+//
+// Per DESIGN-STONE-expand-only-the-mirror-wall.md's probe A, this walk needs no "am I
+// inside a macro body?" context. A `defmacro` form's ENTIRE shape — name, argspec, body —
+// is a declaration, not a value-producing expression: it stays verbatim in the tree after
+// registration (`hoist_top_level_form`'s doc, this file's own module) but is never walked
+// as program code, the same way `check.rs`'s `:4871-4883` returns for the same head
+// without descending. A `quasiquote` template is skipped the same way — data, not code,
+// reusing `resolve::boundary`'s own AllData/Quasiquote classification rather than a second
+// hand-rolled copy of the same language fact. Both skips are decided by the CURRENT node's
+// head alone; no flag threads across the recursion. The one place an `ExpandOnly` verb is
+// legal is therefore structurally unreachable by this walk — it can only ever see misuse:
+// a direct call in ordinary code, or a macro template that QUOTED the call into its own
+// expansion (a real defect, invisible until the emitted code ran and raised).
+pub(super) fn refuse_expand_only_in_program(form: &WatAST) -> Result<(), MacroError> {
+    match form {
+        WatAST::List(items, span) => {
+            if let Some(WatAST::Keyword(head, _)) = items.first() {
+                // Declaration form: the WHOLE form is not walked as program code. This is
+                // the one place an ExpandOnly verb is legal, and it is unreachable from here.
+                if head == ":wat::core::defmacro" {
+                    return Ok(());
+                }
+                // Data, not code — reuse resolve::boundary's established classification
+                // (quote/forms/holon::literal are AllData; quasiquote is its own pole).
+                if matches!(
+                    crate::resolve::boundary::quote_boundary(head),
+                    crate::resolve::boundary::Boundary::AllData
+                        | crate::resolve::boundary::Boundary::Quasiquote
+                ) {
+                    return Ok(());
+                }
+                let is_expand_only = crate::intrinsic::registry()
+                    .lookup_entry(head)
+                    .is_some_and(|e| matches!(e.expand_time, wat_doc::ExpandTime::ExpandOnly));
+                if is_expand_only {
+                    return Err(MacroError {
+                        span: span.clone(),
+                        kind: MacroErrorKind::ExpandOnlyOutsideMacro { head: head.clone() },
+                    });
+                }
+            }
+            for child in items {
+                refuse_expand_only_in_program(child)?;
+            }
+            Ok(())
+        }
+        WatAST::Vector(items, _) => {
+            for child in items {
+                refuse_expand_only_in_program(child)?;
+            }
+            Ok(())
+        }
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                refuse_expand_only_in_program(k)?;
+                refuse_expand_only_in_program(v)?;
+            }
+            Ok(())
+        }
+        WatAST::Set(items, _) => {
+            for item in items {
+                refuse_expand_only_in_program(item)?;
+            }
+            Ok(())
+        }
+        // Leaf nodes — no sub-forms to check.
+        WatAST::IntLit(_, _)
+        | WatAST::FloatLit(_, _)
+        | WatAST::RationalLit(_, _)
+        | WatAST::BigIntLit(_, _)
+        | WatAST::CharLit(_, _)
+        | WatAST::BoolLit(_, _)
+        | WatAST::StringLit(_, _)
+        | WatAST::NilLit(_)
+        | WatAST::Keyword(_, _)
+        | WatAST::Symbol(_, _) => Ok(()),
+    }
+}

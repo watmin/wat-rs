@@ -1,0 +1,12 @@
+;; arc 255 Stone expand-only-the-mirror-wall — CASE C, the quoted-template defect: a
+;; macro whose TEMPLATE quotes a macro-error call. The macro's own program body is legal
+;; (a bare quasiquote, no computed-unquote), so it registers cleanly; expanding a call
+;; to it splices a literal macro-error call into ordinary program code, where — before
+;; this stone — it would only raise at RUNTIME. Must now be REFUSED at expand time, same
+;; MacroErrorKind::ExpandOnlyOutsideMacro as case B.
+(:wat::core::defmacro :probe::emit-boom [] -> :wat::WatAST
+  `(:wat::core::macro-error "boom — quoted-template: emitted into expanded program code"))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do
+    (:probe::emit-boom)
+    (:wat::kernel::println "unreachable")))

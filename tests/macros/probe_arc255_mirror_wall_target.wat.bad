@@ -1,0 +1,7 @@
+;; arc 255 Stone expand-only-the-mirror-wall — CASE B, the target: a direct call to an
+;; ExpandOnly verb in ordinary program code (a defn body), not inside any defmacro. Must
+;; be REFUSED at expand time — MacroErrorKind::ExpandOnlyOutsideMacro.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::core::macro-error "boom — target: refused, not inside a defmacro body")
+    (:wat::kernel::println "unreachable")))

@@ -97,6 +97,18 @@ pub enum MacroErrorKind {
     /// totality, so "Impure" would assert a false cause for a non-total-but-pure
     /// head (a user-`defn` reference, `apply`, `eval-ast!`).
     RefusedInMacro { head: String },
+    /// A call head whose registry entry declares `ExpandTime::ExpandOnly` was found in
+    /// PROGRAM code — the mirror of `RefusedInMacro` above, and the OPPOSITE claim: that
+    /// variant refuses a head found INSIDE a macro body; this one refuses a head found
+    /// OUTSIDE one. `ExpandOnly` means the verb has no runtime call site at all — its only
+    /// legitimate caller is a `defmacro` body during expansion (`macro-error` is, today,
+    /// the sole declarer) — so seeing it here, in ordinary program code, means either a
+    /// direct misuse (called where only a macro author may call it) or a macro template
+    /// that quoted the call into its own expansion, emitting code that would otherwise
+    /// raise at runtime instead of being caught at expand time.
+    ///
+    /// Arc 255 Stone expand-only-the-mirror-wall.
+    ExpandOnlyOutsideMacro { head: String },
     /// A program-body quasiquote template introduces a literal name in a
     /// binder position (`:wat::core::let` or `:wat::core::fn`), which could
     /// capture caller-site names silently. Default-deny per the hygiene bound:
@@ -198,6 +210,14 @@ impl fmt::Display for MacroErrorKind {
                 "keyword head `{}` refused at macro expand time — not on the pure-combinator \
                  allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total \
                  heads are permitted",
+                head
+            ),
+            MacroErrorKind::ExpandOnlyOutsideMacro { head } => write!(
+                f,
+                "keyword head `{}` is expand-time-only (arc 255 Stone expand-only-the-missing-pole) \
+                 and was found outside a macro body — it is legal ONLY inside a `defmacro` program \
+                 body, evaluated during expansion; it has no runtime call site to be invoked from \
+                 here",
                 head
             ),
             MacroErrorKind::ProgramBodyIntroducesName { macro_name, binder } => write!(

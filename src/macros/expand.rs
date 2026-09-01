@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::error::{MacroError, MacroErrorKind};
+use super::eval::refuse_expand_only_in_program;
 use super::registry::{MacroDef, MacroRegistry};
 use super::parse::{is_defmacro_form, parse_defmacro_form};
 
@@ -84,6 +85,14 @@ pub fn expand_all_with(
         } else {
             out.extend(hoist_top_level_form(expanded, registry, privilege)?);
         }
+    }
+    // Arc 255 Stone expand-only-the-mirror-wall — the wall's other half. `out` is every
+    // top-level form of the fully-expanded program (macro calls already resolved to their
+    // emitted code); refuse any `ExpandTime::ExpandOnly` head found in it. See
+    // `refuse_expand_only_in_program`'s doc (macros/eval.rs) for why no macro-body context
+    // is needed here.
+    for form in &out {
+        refuse_expand_only_in_program(form)?;
     }
     Ok(out)
 }

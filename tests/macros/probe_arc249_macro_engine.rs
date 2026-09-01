@@ -6,6 +6,8 @@
 //!   - C MINT: a macro body that is an `if` (not a bare quasiquote) must expand.
 //!   - D MINT: a fold-shaped program body must expand.
 //!   - E HYGIENE BOUND: a program body with literal binder in quasiquote is REFUSED.
+//!   - F MIRROR WALL (arc 255 Stone expand-only-the-mirror-wall): an `ExpandOnly` head
+//!     found OUTSIDE a macro body is REFUSED; found INSIDE one, unchanged.
 //!
 //! Run: cargo nextest run --release -E 'binary(macros)' -F probe_arc249_macro_engine
 
@@ -90,5 +92,46 @@ fn hygiene_bound_program_body_literal_binder_refused() {
             kind: MacroErrorKind::ProgramBodyIntroducesName { macro_name, binder },
             ..
         }) if macro_name == ":my::capturing" && binder == "tmp"
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F — THE MIRROR WALL (arc 255 Stone expand-only-the-mirror-wall): `is_expand_time_legal`
+// above (B, E) refuses a head found INSIDE a macro body; this is its mirror — refuse an
+// `ExpandTime::ExpandOnly` head found OUTSIDE one. `:wat::core::macro-error` is, today,
+// the sole `ExpandOnly` declarer.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// CASE A — the control, written first: `macro-error` as the entire program body of a
+/// `defmacro`, never invoked, must still load and compute unchanged. If this ever goes
+/// red, the wall fired at macro-error's only legitimate call site and the mirror wall is
+/// worse than not shipping — do not adjust this fixture to match the wall.
+#[test]
+fn mirror_wall_control_macro_error_inside_defmacro_still_legal() {
+    let result = compute_from_file("tests/macros/probe_arc255_mirror_wall_control.wat");
+    assert_eq!(result, Value::bool(true));
+}
+
+/// CASE B — the target: a direct `macro-error` call in a `defn` body (ordinary program
+/// code, no enclosing `defmacro`) is refused at expand time.
+#[test]
+fn mirror_wall_direct_call_outside_macro_refused() {
+    let result = startup_from_file("tests/macros/probe_arc255_mirror_wall_target.wat.bad");
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError { kind: MacroErrorKind::ExpandOnlyOutsideMacro { head }, .. })
+            if head == ":wat::core::macro-error"
+    );
+}
+
+/// CASE C — the quoted-template defect: a macro whose TEMPLATE quotes a `macro-error`
+/// call registers cleanly (its own program body is a bare quasiquote — legal), but
+/// expanding a call to it splices the literal call into ordinary program code, where it
+/// would otherwise only raise at runtime. Refused at expand time, same error kind as B.
+#[test]
+fn mirror_wall_quoted_template_emitting_macro_error_refused() {
+    let result = startup_from_file("tests/macros/probe_arc255_mirror_wall_quoted_template.wat.bad");
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError { kind: MacroErrorKind::ExpandOnlyOutsideMacro { head }, .. })
+            if head == ":wat::core::macro-error"
     );
 }
