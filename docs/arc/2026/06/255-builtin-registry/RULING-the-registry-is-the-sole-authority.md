@@ -49,6 +49,24 @@ instruments; they are wrong as destinations.
 | `constructor_meta` / `accessor_meta` | `src/rete/purity.rs` | derived | properties (⚠ derived from `TypeEnv`, cannot go stale) |
 | `step_list`'s table | `src/runtime.rs` | 19 | the stepper's competence (⚠ a capability, not a duplicate) |
 
+### ⛔ AMENDED 2026-09-01 — the census MISSED a third registry, found by the `solvere` cast
+
+| **`SPECIAL_FORMS`** | `src/special_forms.rs` | **19** | names · syntax sketches · a `doc_string` placeholder |
+
+Its own header, verbatim: *"Arc 144 slice 2 — **special-form registry**… This registry lets
+`:wat::runtime::lookup-form` return `Binding::SpecialForm` for each known form, exposing a
+synthesized signature sketch… and a placeholder `None` doc_string (**arc 141 will populate it**)."*
+
+★★★ **It calls itself a registry, it answers the RULING's items 1, 4 and 7, and its single consumer
+is `src/reflect/lookup.rs:197` — reflection.** It predates the intrinsic registry (arc 144 vs arc
+255) and still waits on a doc_string an arc-141 stone was to supply, while `IntrinsicEntry` now
+carries prose, args, ret, examples and all five axes.
+
+⚠ **My census had ten entries and this was not one of them** (`grep special_forms` on the original
+returned 0). A census written from what I had been reading all session, not from a search. The cast
+found it by following `OpClass::Form`'s rows to their targets and discovering two of them —
+`:wat::core::and`, `:wat::core::or` — are registered *here* and nowhere else.
+
 And the four **absence ledgers** — instruments that exist only because the split does:
 
 ```
