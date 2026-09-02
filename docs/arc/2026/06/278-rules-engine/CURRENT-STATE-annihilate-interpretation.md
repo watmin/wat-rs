@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (twenty-third — 23 STRIKES; ⭐⭐ CLASSES A and E CLOSED; CLASS F — 3 of 5 F1 lints landed, F2 codemod row closed). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (twenty-fourth — 24 STRIKES; ⭐⭐⭐ CLASSES A, E and F1 ALL CLOSED. F2/F3 remain). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 2c7200802..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 2c7200802..HEAD        # what they touched
+git log --oneline 9d4b68088..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 9d4b68088..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -103,6 +103,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **F1.5** | `58a10e1f8` | **every walking gate declares how it knows it reached something** |
 | **F2.codemod** | `f4800ef97` | **every rete name in wat-scripts CODE resolves — prose may name a retired form** |
 | **F1.1+2** | `2c7200802` | **a cited name in a rete comment resolves, or declares why it cannot** |
+| **F1.3** | `9d4b68088` | **two ward rune vocabularies copied in and gated — and both my premises refuted** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -611,15 +612,53 @@ three vocabularies (clippy lints, memory slugs, `_`-prefixed); the rider built n
 spelling rule makes the correct form the only passing one and the failure text teaches it.** A rung
 above what I asked for.
 
-**THE NEXT WORK — F1's last two lints**, then F2 and F3. (1) The **`perspicere`/`purgare` closed
-vocabularies** — `no_unknown_sequi_rune.rs` is the working model in-tree, and there is a live finding
-attached: `perspicere`'s own `read-once` category is falsified by the file that declares it, and
-`purgare`'s `trait-contract` names a mechanism absent at all three sites. (2) **`MINIMUM of` header
-may not co-occur with `/= r`** — C1's class, found twice independently. Then **F2's remaining rot**
-(**83 of 207 stones name `src/rete/kernel.rs`**, deleted 2026-08-20) and **F3**'s clusters
-(`temperare` ×7 with measurement plans, `partire` ×4 with verified seams). Also open: the three rows
-from the vacuity strike, the two nested-wall rows, `#[to_edn(transparent)]`, `acc_refusal`'s span,
-the misnamed `probes/` dir, and D2's `sequi` newtype.
+⭐⭐⭐ **F1 IS CLOSED — all five lints. Classes A, E and F1 are done; F2 and F3 remain.**
+
+✅ **F1 row 4 was STRUCK, not built** — C1 itself had already shipped
+`minimum_label_matches_its_estimator.rs` (446 lines) the day after the vigilia filed the row. **F0's
+own thesis: a claim that was true when written.**
+
+✅ **F1 row 3 (`9d4b68088`)** — both vocabularies copied into `CONVENTIONS.md` with provenance and
+gated by `no_unknown_ward_rune.rs`, seven arms mutation-proven, scanning wider than the `sequi` gate.
+
+⛔⛔ **AND THE RIDER REFUTED BOTH OF MY PREMISES. I VERIFIED BOTH REFUTATIONS MYSELF.**
+
+**(1) The vocabularies were never undefined.** My stone said *"nothing says what any of them mean."*
+I fetched `perspicere` from the signed channel: its § **The rune** defines all three categories
+verbatim. **I grepped `CONVENTIONS.md`, got zero, and concluded "undefined" — which proved the COPY
+was missing and nothing about the thing.** The authority is the ward spell, from the same MCP I had
+used at the top of this session. *An empty local grep is evidence about transcription.* Memory.
+
+**(2) The live finding was worse than wrong — acting on it would have caused the defect.** I reported
+six `census.rs` runes reasoned *"alias would be a mumble"*. That clause is **shared boilerplate at 18
+sites across four files**; I saw a quarter of the population and read it as a per-site argument.
+Against the authored definition the six are **correctly labelled** — `mumble-alias` requires a *Level
+2 mumble*, and `CensusLog` reads better than the type. **Following my instruction would have split 6
+of 18 identical sites — the exact `ARM_TABLE`/`EXEC_ARENA` divergence `sequi` exists to prevent.**
+The rider made **zero `src/` edits**, correctly, and reported instead of rewriting.
+
+⚠ My site counts were off by **more than 2×** (46 `perspicere` tree-wide, not 18).
+
+⚠ **STOP-3 CONFIRMED AND SHARPER THAN THE ROW.** No trait exists at any `trait-contract` site; the
+two sites that genuinely **are** trait impls carry **`public-api`** — the categories look **swapped**
+— and no category covers *"retained for structural completeness"*, a gap in the **ward's own**
+vocabulary. Named in the table, not silently patched. **That is now an open row against the ward,
+not against this repo.**
+
+★ **WHAT THE GATE DOES NOT DO, driven not asserted:** swapping a category for another in-set member
+leaves it **green**. **Spelling is machine-checkable; fit is not.** Stated at the gate so a passing
+floor cannot imply more than it proved.
+
+**THE NEXT WORK — F3 first, then F2.** My read, and the reason for that order: **F3 is the last block
+where the CODE is still wrong rather than under-described.** `temperare` ×7 each ship a measurement
+plan — `alpha.rs:82,94` hashes the class FQDN **twice per fact**, in the subsystem whose own stone
+measured that at 3.26 ms; `join_extend`'s three per-pair map probes. `partire` ×4 carry **verified
+one-directional seams** (`fire/mod.rs` → `gather.rs` + `query.rs`; `compiled_cond.rs` at its own
+banner; `stratify.rs` → `termination.rs`; `expr_ir/eval.rs` → `ops.rs`). **F2's remaining rot — 83 of
+207 stones naming `src/rete/kernel.rs`, deleted 2026-08-20 — is the largest COUNT and the smallest
+RISK, and after this session's citation gates it is the kind of thing an instrument finds rather than
+a strike hunts.** Also open: the three vacuity-strike rows, the two nested-wall rows,
+`#[to_edn(transparent)]`, `acc_refusal`'s span, the misnamed `probes/` dir, and D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
