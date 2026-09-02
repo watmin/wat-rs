@@ -59,8 +59,11 @@ SPECIAL_FORMS     src/special_forms.rs     35 rows  — 23 unregistered; calls I
 register_builtins src/check.rs            350 env.register schemes
 literal arms      src/check.rs            118 type-grammar arms
 RETIREMENT_TABLE  src/remedy/retirement.rs 144 rows
-residues          intrinsic_meta 37 · is_expand_time_legal 54 · effectful_by_prefix 8 prefixes
-is_reserved_prefix src/resolve/walk.rs     THE ARC'S FOUNDING TARGET, still on disk
+residues          intrinsic_meta 37 · is_expand_time_legal 54 (16 already DEAD) · effectful_by_prefix 8
+⛔ NINE MORE       NOTE-the-sloppy-registries-a-measured-census.md — incl. FIVE hand-lists of
+                  "what kind of form is this head", INCONSISTENT on disk (`def` is a mutation to
+                  freeze.rs and is not one to runtime.rs). @Category is the vehicle; 1a unblocks it.
+is_reserved_prefix src/resolve/reserved.rs  THE ARC'S FOUNDING TARGET, still on disk
 ```
 
 ⚠ **NOT duplicates — do not delete these:** `constructor_meta`/`accessor_meta` DERIVE from the frozen
