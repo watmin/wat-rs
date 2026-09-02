@@ -62,6 +62,28 @@ a single waiter.
 from the report. It is recorded as the strike's finding with the strike's numbers, and it should be
 confirmed before anything is built on the workaround.
 
+> ⛔ **VERIFIED FALSE 2026-09-02.** `wat-scripts/scratch-pad/probe-parked-waiters-stop.wat`: one
+> queue and J parker services, all at **process** locus, each parked inside a `Queue/receive` with
+> `wait-ns > 0` on a permanently empty queue, then `Admin::Stop`. J = 1, 2, 3, 4, 5, 8.
+> **Every J stops cleanly.** There is no ≥4 threshold.
+>
+> One variable — the park duration:
+>
+> ```
+> park = 5 s     j=1: 5990 ms   j=4: 6991 ms   j=8: 8336 ms
+> park = 50 ms   j=1: 1275 ms   j=4: 2399 ms   j=8: 3580 ms
+> ```
+>
+> Step time tracks **`wait-ns`**, not waiter count. At j=1 the difference is 4715 ms — the 5 s park
+> minus the 250 ms settle, exactly. Growth with J is ~350 ms per parker, which is process spawn.
+>
+> **What actually happens:** `Stop` waits for the in-flight parked receive to return, because a
+> `defservice` is a serializing actor and the arm must finish before the serve loop can take
+> `Admin::Stop`. That is correct, it is **bounded by `wait-ns`**, and it does not depend on how many
+> waiters exist. A long `wait-ns` makes shutdown slow; it never makes it hang. Read as a hang, it
+> produced a workaround — workers polling at `wait-ns 0`, re-arming every 1 ms — that generates
+> **144,485 receive calls to deliver 8,000 messages, 94% of them empty.**
+
 ★ Both findings share a shape worth naming: **a capability that works at thread tier and silently
 does not at process tier.** Every stone today has treated `:locus` as a parameter. These are the
 first two places where that promise measurably fails, and neither announces itself.
