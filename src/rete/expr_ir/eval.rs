@@ -121,6 +121,12 @@ thread_local! {
 /// borrow before `f` so nested calls take real arena windows — a hot-path redesign owing its own
 /// measurement. If that lands, the cursor must be owned by a guard, never restored by a line
 /// after the call.
+///
+/// rune:lint(cited-name-absent) EXEC_SP — the deleted cursor, named because its absence is what
+/// this section states. A reader who meets it in an older revision, in a profile, or in the D4
+/// strike record has to be able to learn that it was REMOVED on purpose and not renamed; a
+/// paragraph that explained the deletion without naming the thing deleted would leave that reader
+/// hunting for a successor there is none of.
 fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> R {
     EXEC_ARENA.with(|arena| {
         match arena.try_borrow_mut() {
