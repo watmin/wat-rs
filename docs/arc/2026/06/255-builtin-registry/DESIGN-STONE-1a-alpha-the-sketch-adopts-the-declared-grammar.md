@@ -86,12 +86,37 @@ substrate's own reader, and therefore the only honest authority on what a wat fo
 **`@syntax` is rendered VERBATIM, through the reader, with no substitution of any kind — exactly
 as `render-doc` renders it.**
 
-⚠ This is deliberate and it has a visible consequence: `@syntax` names the form with its **short**
-head (`let`, `match`, `fn`), where the displaced sketch used the **FQDN** (`:wat.core/let`). The
-temptation is to splice the FQDN back in and keep both. **Rejected** — that mints a THIRD rendering
-of the same question, authored by the renderer rather than declared by the row, which is the defect
-this stone exists to remove. One authority, one string, one rendering. `render-doc` already ships
-the short head; after this stone the two agree.
+⚠ Verbatim means the renderer never edits the string — the row's declaration is the answer. The
+temptation is to "fix up" a head at the consumer; **rejected**, because that mints a THIRD rendering
+of the same question, authored by the renderer rather than declared by the row.
+
+## ⛔ AMENDED 2026-09-01, AFTER THE STONE SHIPPED — the paragraph that stood here was WRONG
+
+It read: *"`@syntax` names the form with its **short** head (`let`, `match`, `fn`) … `render-doc`
+already ships the short head; after this stone the two agree."* Both sentences were true as
+descriptions and wrong as a decision.
+
+> **Builder:** *"wait.... we had short hand `if` not `:wat::core::if` nor `wat.core/if` ?.......
+> we are grinding through this registry to force ourselves into clojure/edn compliant syntax......
+> wat is fqdn.... always.... anything that in not a binder... is illegal.... even bound symbols.....
+> are shadow fqdn.... belong to the `$bound` namespace........"*
+
+**A short head is not a rendering style. It is not-wat.** The whole clojure-ination migration exists
+to force FQDN compliance, and this stone shipped a doc surface teaching the spelling it is trying to
+eliminate. `render-doc` shipping it first made it precedent, not correct.
+
+★ **And my probe measured the wrong thing.** It proved the reader PARSES those strings — it does.
+Parsing is not legality: the reader takes a bare head, `resolve`/`check` is what must refuse it (and
+today does not — `(zorble [x 1] x)` also type-checks clean, which is this arc's founding target
+restated). `[[feedback_a_probe_answers_the_question_you_asked_not_the_one_you_meant]]`
+
+★★ **The contract survived the correction intact, and that is the evidence for it.** Because the
+renderer edits nothing, the fix landed in the three DECLARATIONS and the arm never changed —
+correcting the row corrected BOTH renderers at once. A consumer that had spliced a head locally would
+have left `render-doc` still printing the illegal form. What the correction also exposed:
+`render-doc`'s DERIVED path built its head with `identifier::leaf(entry.name)`, a second copy of the
+same defect in code rather than in a declaration, and for a nested name (`:wat::core::Bytes::to-hex`
+→ `to-hex`) the short head was not merely illegal but **ambiguous**. Both paths now emit the FQDN.
 
 ## What changes, exhaustively — three goldens, and nothing else
 

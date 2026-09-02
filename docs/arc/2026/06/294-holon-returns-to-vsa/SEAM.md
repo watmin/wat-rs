@@ -124,6 +124,10 @@ replaced the disarmed one one-for-one.** Only clippy's `dead_code` saw it.
 - ⛔ **A brief's every pairing must be verified against the ARM, not a grep's first hit.** Lesson 2.
 - ⛔ **REVERTING IS A LOSS.** The builder stopped me mid-revert. Get it green instead — the fix was
   one honest narrowing away.
+- ⛔ **WAT IS FQDN, ALWAYS.** Anything that is not a binder is illegal; bound symbols are shadow-FQDN
+  in `$bound`. ★ A short head is not a rendering style, it is not-wat — the whole clojure-ination
+  migration exists to force this. I shipped short heads in 1a-α citing a probe that proved the reader
+  PARSES them. It does. **Parsing is not legality.**
 
 ## ⬜ NEXT — Phase 1a, and one named gap
 
