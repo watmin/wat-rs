@@ -521,10 +521,21 @@ fn accum_leftover_split() {
         "ROUND LOOP",
         "OUT: to_persistent",
     ];
+    // These four marks NO LONGER EXIST. `c9d751049` ("bind-value intern through retiring per-fact
+    // alpha timers") took the per-fact alpha child timers out of the engine, and the list stays so
+    // the split table comes back for free if they ever return. The reader below is sound without
+    // them, and the reason is exactly the distinction `unwrap_or(0)` destroys: it takes `(ns,
+    // pairs)` and branches on `kids_retired = kid_pairs.all(== 0)` — it asks whether the mark
+    // FIRED, and never lets the nanoseconds answer whether the mark EXISTS. Contrast the
+    // `setup:seen:insert` row this file used to carry, which trusted a 0 it had invented.
     const ALPHA_KIDS: [&str; 4] = [
+        // rune:lint(census-name-retired) — retired by c9d751049 (per-fact alpha timers off); read via kid_pairs == 0, never via ns.
         "  ├ alpha:candidates",
+        // rune:lint(census-name-retired) — retired by c9d751049 (per-fact alpha timers off); read via kid_pairs == 0, never via ns.
         "  ├ alpha:match",
+        // rune:lint(census-name-retired) — retired by c9d751049 (per-fact alpha timers off); read via kid_pairs == 0, never via ns.
         "  ├ alpha:element",
+        // rune:lint(census-name-retired) — retired by c9d751049 (per-fact alpha timers off); read via kid_pairs == 0, never via ns.
         "  └ alpha:push",
     ];
     const PROD_KIDS: [&str; 2] = ["  ├ prod:compiled-rhs", "  ├ prod:dedup-store"];
@@ -1525,8 +1536,31 @@ fn accum_exec_ops_split() {
     assert!(o > 0.0, "exec_ops recorded 0 — the loop never ran:{table}");
 }
 
-/// In-fire `setup:seen` alloc vs insert, plus isolated on real seeded facts
+/// In-fire `setup:seen` against the same work isolated on real seeded facts
 /// (`DESIGN-STONE-seen-fire-context`).
+///
+/// ⛔ **`setup:seen` covers ALLOCATION ONLY, and is COEXTENSIVE with `setup:seen:alloc`.** It is
+/// not a parent with an alloc half and an insert half. `fire/delta.rs:270-276` opens both marks
+/// back to back, allocates the two `FxHashSet`s, and closes both — the two marks wrap the same
+/// region and nothing else, which is why they read the same near-zero number.
+///
+/// **The insert cost is real, and it is already counted — in another phase.** `seen_insert` is
+/// called from `fire/pass/alpha.rs:58` and `fire/pass/production.rs:114`, inside the `alpha` and
+/// `production` phases, both of which time it. There is no unmarked region here, so there is
+/// nothing for a `setup:seen:insert` mark to name and adding one would double-count.
+///
+/// This table used to claim otherwise. It read a `"  │  setup:seen:insert"` row the engine has
+/// never emitted; `of`'s `unwrap_or(0)` returned 0, the table printed `insert 0.00 ms` as though
+/// it were a measurement, and `in-fire insert − S` printed exactly `0 − S` — the whole isolated
+/// cost, negated, dressed as a difference between two readings when only one was ever taken. The
+/// giveaway is an identity, not a magnitude: that row and `S` were always the same number with
+/// opposite signs, on every box and every run. Both rows are gone.
+/// `tests/lint/census_name_read_by_a_cost_test_is_emitted.rs` now REDs on any census name a cost
+/// test reads that the engine does not emit, so the next one cannot reach a table at all.
+///
+/// `in-fire seen − S` survives and is negative BY CONSTRUCTION, not by absence: it compares an
+/// allocation-only phase against the full isolated insert loop. That is the point of the row —
+/// it shows how little of `S` lives in this phase.
 #[test]
 fn accum_seen_fire_context_split() {
     use rustc_hash::FxHashSet;
@@ -1585,11 +1619,10 @@ fn accum_seen_fire_context_split() {
         }));
     }
 
-    // The three micro-arms above already took the minimum; these three did not, and that split
+    // The three micro-arms above already took the minimum; these two did not, and that split
     // inside one test is arc 278 C1 in miniature — same header, two estimators.
     let mut fire_seen = f64::INFINITY;
     let mut fire_alloc = f64::INFINITY;
-    let mut fire_ins = f64::INFINITY;
     for _ in 0..RUNS {
         let rows = accum_phase_census(G, W);
         let of = |name: &str| -> u64 {
@@ -1600,15 +1633,14 @@ fn accum_seen_fire_context_split() {
         };
         fire_seen = fire_seen.min(of("  ├ setup:seen") as f64);
         fire_alloc = fire_alloc.min(of("  │  setup:seen:alloc") as f64);
-        fire_ins = fire_ins.min(of("  │  setup:seen:insert") as f64);
     }
     let table = format!(
         "\nseen fire-context split — accum [{G} {W}], {n} facts, MINIMUM of {RUNS}\n\
              \n\
-             in-fire\n\
+             in-fire — ALLOCATION ONLY; the two marks below are coextensive\n\
+             (insert is not in this phase: seen_insert runs inside alpha + production)\n\
              setup:seen                    {:>7.2} ms\n\
-               alloc                       {:>7.2} ms\n\
-               insert                      {:>7.2} ms\n\
+             setup:seen:alloc              {:>7.2} ms\n\
              \n\
              isolated (same seeded PV)\n\
              A  HashSet with_capacity      {:>7.2} ms\n\
@@ -1616,16 +1648,17 @@ fn accum_seen_fire_context_split() {
              S  seen_insert loop           {:>7.2} ms\n\
              \n\
              S−A  insert beyond alloc      {:>7.2} ms\n\
-             in-fire insert − S            {:>7.2} ms\n\
-             in-fire seen − S              {:>7.2} ms\n",
+             in-fire seen − S              {:>7.2} ms\n\
+             \n\
+             (in-fire seen − S is negative BY CONSTRUCTION, not by an absent mark: it is an\n\
+             allocation-only phase minus the full isolated insert loop. That IS the finding —\n\
+             almost none of S is inside setup:seen; it is inside alpha and production.)\n",
         ms(fire_seen),
         ms(fire_alloc),
-        ms(fire_ins),
         ms(a),
         ms(x),
         ms(s),
         ms(s - a),
-        ms(fire_ins - s),
         ms(fire_seen - s),
     );
     println!("{table}");
