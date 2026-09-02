@@ -2232,10 +2232,14 @@ mod completeness_gate {
     ":wat::core::quasiquote",
     ":wat::core::quote",
     ":wat::core::seqable->stream",
-    ":wat::core::show",
     ":wat::core::struct->form",
     ":wat::core::subtype?",
     ":wat::core::use!",
+    // `:wat::core::show` DELETED from this ledger arc 255 Stone the-seven-that-need-no-
+    // extraction: homed into a `#[wat_intrinsic]` handler (`src/runtime.rs`'s `eval_show`)
+    // with its full directive block, so `intrinsic_meta` now classifies it from the registry
+    // — it is no longer unreviewed. The DESIGN predicted this exact deletion by name (the
+    // stone's own "★★ Expect THREE ledgers to move").
     // `:wat::form::matches?` DELETED from this ledger 2026-08-28 (arc 255 Stone P6-c-1):
     // homing it into the intrinsic registry gave it `intrinsic_meta` purity, so it is no longer
     // unreviewed. This gate went RED demanding the deletion — the ratchet shrinking as the debt

@@ -4466,6 +4466,35 @@ pub(crate) fn eval_one_arg<T>(
 // Arc 109 Stone 1 — `eval_f64_clamp` moved to `src/numeric/ops.rs` (the numeric home;
 // docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
+/// `(:wat::core::bool::to-string b)` → the literal `"true"` or `"false"` for `b`.
+///
+/// **Purity ground —** the sole arg is evaluated by ordinary call-by-value
+/// (`eval_one_arg`'s `eval_inner`, not itself an effect); past that the body only matches
+/// `Value::bool` and formats one of two fixed string literals — no `eval_inner`/
+/// `apply_function` on caller-supplied code beyond the initial argument evaluation.
+///
+/// **Totality ground —** every `bool` is one of exactly two values, and each maps to its own
+/// fixed literal with no failure path inside the domain; the only error `eval_one_arg` can
+/// raise is a `TypeMismatch` for a non-bool argument, which is outside the declared `bool ->
+/// String` domain (the same reasoning `:wat::i64::to-f64`/`:wat::i64::to-string` use for
+/// their own `Total`).
+///
+/// **Expand-time ground —** on `macros/eval.rs`'s `is_expand_time_legal` residue list today
+/// (the "value/control-flow ops" group names `bool::to-string` explicitly), so it is legal
+/// inside a macro body today; registering it here REPLACES that residue entry, so it must
+/// declare the SAME verdict — `Legal` — or the registration silently revokes today's
+/// legality (arc 255 the `fn` lesson).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :wat::core::bool the boolean to render
+/// @ret     :wat::core::String `"true"` when `args` is `true`, `"false"` otherwise
+/// @example (:wat::core::bool::to-string true) #=> "true"
+#[wat_intrinsic(":wat::core::bool::to-string")]
 fn eval_bool_to_string(
     args: &[WatAST],
     list_span: &Span,
@@ -5380,6 +5409,33 @@ pub(crate) fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
 
 // (tombstone end)
 
+/// `(:wat::core::not b)` → the boolean negation of `b`.
+///
+/// **Purity ground —** the sole arg is evaluated by ordinary call-by-value (`eval_inner`, not
+/// itself an effect); past that the body only matches `Value::bool` and returns its inverse —
+/// no `eval_inner`/`apply_function` on caller-supplied code beyond the initial evaluation.
+///
+/// **Totality ground —** every `bool` is one of exactly two values and each maps to its own
+/// inverse with no failure path inside the domain; the only error this fn can raise is a
+/// `TypeMismatch` for a non-bool argument, outside the declared `bool -> bool` domain (same
+/// reasoning as `:wat::core::bool::to-string`'s `Total`, registered alongside this verb).
+///
+/// **Expand-time ground —** on `macros/eval.rs`'s `is_expand_time_legal` residue list today
+/// (the "value/control-flow ops" group names `not` explicitly), so it is legal inside a macro
+/// body today; registering it here REPLACES that residue entry, so it must declare the SAME
+/// verdict — `Legal` — or the registration silently revokes today's legality (arc 255 the
+/// `fn` lesson).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :wat::core::bool the boolean to negate
+/// @ret     :wat::core::bool the inverse of `args`
+/// @example (:wat::core::not true) #=> false
+#[wat_intrinsic(":wat::core::not")]
 fn eval_not(
     args: &[WatAST],
     list_span: &Span,
@@ -8500,6 +8556,37 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
 
 /// `(:wat::core::show v)` → `:String` (arc 064). Polymorphic
 /// renderer; per-variant dispatch via [`render_value`].
+///
+/// **Purity ground —** the sole arg is evaluated by ordinary call-by-value (`eval_inner`, not
+/// itself an effect); past that the body only calls `render_value`, a pure recursive
+/// structural formatter that reads the already-evaluated `Value` and writes a `String` — no
+/// I/O, no ambient state, no `eval_inner`/`apply_function` on caller-supplied code.
+///
+/// **Totality ground —** `render_value`'s match is exhaustive over every `Value` variant —
+/// primitives render literally, compound substrate values fall to the angle-bracketed
+/// summary arm — and its depth/length truncation guards (`SHOW_MAX_DEPTH`/`SHOW_MAX_LEN`,
+/// this module) collapse runaway recursion to a `…` marker rather than raising. No variant
+/// lacks an arm and no failure path exists.
+///
+/// **Expand-time ground —** on `macros/eval.rs`'s `is_expand_time_legal` residue list today
+/// (the "value/control-flow ops" group names `show` explicitly), so it is legal inside a
+/// macro body today; registering it here REPLACES that residue entry, so it must declare the
+/// SAME verdict — `Legal` — or the registration silently revokes today's legality (arc 255
+/// the `fn` lesson). This is also the ledger the DESIGN predicts: `show` sits in
+/// `rete/purity.rs`'s `KNOWN_UNREVIEWED` today, and registering it here gives
+/// `intrinsic_meta` a classification, which should trip that gate to demand the line's
+/// deletion.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :T the value to render
+/// @ret     :wat::core::String a debug-friendly rendering of `args` — quoted for `String`, literal for other primitives, a bounded angle-bracketed summary for compound values
+/// @example (:wat::core::show 42) #=> "42"
+#[wat_intrinsic(":wat::core::show")]
 fn eval_show(
     args: &[WatAST],
     list_span: &Span,

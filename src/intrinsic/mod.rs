@@ -1142,24 +1142,30 @@ mod tests {
         ":wat::core::Tuple",
         ":wat::core::Vector",
         ":wat::core::apply",
-        ":wat::core::bool::to-string",
         ":wat::core::conforms?",
         ":wat::core::contains?",
         ":wat::core::filter",
         ":wat::core::find-last-index",
         ":wat::core::foldl",
         ":wat::core::get",
+        // ":wat::core::i64/to-f64" / ":wat::core::i64/to-string" NOT deleted this stone —
+        // STOP-5 finding (BRIEF-STONE-the-seven-that-need-no-extraction's report): the
+        // brief's named handler for both, `crate::numeric::convert::eval_i64_to_f64`/
+        // `eval_i64_to_string`, takes a trailing `op: &str` param that
+        // `crates/wat-macros/src/wat_intrinsic.rs`'s `sniff_args` does not recognize as a
+        // context-tail type (`&Environment`/`&SymbolTable`/`&Span` only) — annotating it
+        // verbatim does not compile, and reshaping it (dropping/hardcoding `op`) is exactly
+        // what STOP-5 forbids, since the double-colon `:wat::i64::to-f64`/`to-string`
+        // wrappers (`src/intrinsic/i64.rs`) already rely on passing their OWN op string
+        // through the same shared fn. Both remain genuinely gapped; still measured true by
+        // `registry_membership_gap_a_is_named_and_frozen` below.
         ":wat::core::i64/to-f64",
         ":wat::core::i64/to-string",
         ":wat::core::map",
         ":wat::core::mapv",
-        ":wat::core::not",
-        ":wat::core::record?",
-        ":wat::core::show",
         ":wat::core::stream->pvec",
         ":wat::core::stream->vec",
         ":wat::core::subtype?",
-        ":wat::core::u8",
         ":wat::eval-ast!",
         ":wat::eval-digest!",
         ":wat::eval-digest-string!",
@@ -1419,10 +1425,19 @@ mod tests {
 
     /// Arc 255 Stone the-membership-gap-gets-a-ratchet, Gap B — the CURRENT ratchet: the subset
     /// of [`GAP_B_CORPUS_CENSUS_121`] still true today (`registry().lookup_entry(n).is_none()`).
-    /// 121 → 119 THIS STONE: `:wat::core::fn` and `:wat::core::match` leave (deliverable 3
-    /// registers both). Every registration stone after this one deletes its own names from
-    /// here — leaving one frozen after registering it fails the gate below as STALE, which is
-    /// the design working, not a bug — the DESIGN's own words for this mechanism.
+    /// 121 → 119: `:wat::core::fn` and `:wat::core::match` left (deliverable 3 registers both).
+    /// 119 → 115, arc 255 Stone the-seven-that-need-no-extraction: `:wat::core::bool::to-string`,
+    /// `:wat::core::not`, `:wat::core::show`, `:wat::core::u8` leave (all four registered this
+    /// stone). Not the one name the stone's own DESIGN predicted — the DESIGN's "only
+    /// `bool::to-string` is in the 121 census" was checked against the census array by name and
+    /// found wrong: `not`/`show`/`u8` are ALSO census members, and all three were still frozen
+    /// here (STALE the instant they resolve) — the pairing this brief's own STOP-1 discipline
+    /// says to verify, applied one level up, to a ledger-count prediction instead of a
+    /// handler/verb pairing. `:wat::core::record?` is NOT in the 121 census (checked, absent),
+    /// so registering it does not touch this list. Every registration stone after this one
+    /// deletes its own names from here — leaving one frozen after registering it fails the gate
+    /// below as STALE, which is the design working, not a bug — the DESIGN's own words for this
+    /// mechanism.
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
         ":wat::core::def",
         ":wat::core::quote",
@@ -1451,11 +1466,9 @@ mod tests {
         ":wat::rete::string::starts-with?",
         ":wat::rete::i64::=",
         ":wat::core::>",
-        ":wat::core::bool::to-string",
         ":wat::core::apply",
         ":wat::core::>=",
         ":wat::rete::i64::<",
-        ":wat::core::show",
         ":wat::core::or",
         ":wat::rete::core::if",
         ":wat::rete::i64::*",
@@ -1463,7 +1476,6 @@ mod tests {
         ":wat::stream::lazy",
         ":wat::rete::i64::/",
         ":wat::rete::core::not",
-        ":wat::core::not",
         ":wat::rete::vector::get",
         ":wat::core::macroexpand",
         ":wat::rete::i64::-",
@@ -1476,7 +1488,6 @@ mod tests {
         ":wat::rete::map::contains-key?",
         ":wat::rete::holon::cosine",
         ":wat::rete::core::foldl",
-        ":wat::core::u8",
         ":wat::core::defclause",
         ":wat::type::i64",
         ":wat::rete::f64::>",

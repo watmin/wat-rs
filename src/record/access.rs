@@ -7,9 +7,14 @@
 //! unchanged; only the location moved.
 //!
 //! `eval_record_q`/`eval_list_q` are `pub(crate)` here (a visibility bump forced
-//! by the new module boundary, not a signature change): both are still called
+//! by the new module boundary, not a signature change): both were originally called
 //! directly, by bare name, from `dispatch_keyword_head_value`'s literal match arm
-//! in `runtime.rs`, which now reaches across the module boundary to call them.
+//! in `runtime.rs`, which reaches across the module boundary to call them. Arc 255 Stone
+//! the-seven-that-need-no-extraction homed `eval_record_q` into a `#[wat_intrinsic]` handler
+//! (below) — the registry-first check in `dispatch_keyword_head_value` (arc 255.1c-guard)
+//! now intercepts `:wat::core::record?` before that match is ever reached, leaving its
+//! literal arm there unreachable (left in place — this stone's blast radius is attributes
+//! only). `eval_list_q` is untouched and still reached the original way.
 //!
 //! Siblings: `construct.rs` (the constructors), `project.rs` (surface
 //! projection), `update.rs` (record->map / assoc / same-data?).
@@ -24,6 +29,7 @@ use crate::value::{
 // `eval_inner` is genuinely defined in `crate::runtime` (not a facade re-export of a
 // `crate::value` type — see STOP-2); it is the evaluator's own entry point.
 use crate::runtime::eval_inner;
+use wat_macros::wat_intrinsic;
 
 /// `(:wat::core::struct-field <struct-value> <field-index>)` — the
 /// internal primitive every auto-generated `<struct>/<field>` accessor
@@ -207,6 +213,35 @@ pub(crate) fn eval_record_field_at(
 ///
 /// Polymorphic predicate: true iff `v` is `Value::Aggregate` (Record or HolonRecord nature).
 /// Accepts any value (∀T) and returns bool. Mirrors `:wat::core::vector?` / `:wat::core::map?` family.
+///
+/// **Purity ground —** the sole arg is evaluated by ordinary call-by-value (`eval_inner`, not
+/// itself an effect); past that the body only pattern-matches the resulting `Value`'s variant
+/// and `Aggregate::nature` — no `eval_inner`/`apply_function` on caller-supplied code beyond
+/// the initial evaluation.
+///
+/// **Totality ground —** `matches!(v, Value::Aggregate(ref a) if a.nature != Nature::Struct)`
+/// is a `bool`-valued pattern test over every `Value` variant — every possible `v` (of any
+/// type `T`, per the ∀T domain) either matches or doesn't; there is no third outcome and no
+/// raise anywhere in the body.
+///
+/// **Expand-time ground —** NOT on `macros/eval.rs`'s `is_expand_time_legal` residue list
+/// today (checked by name — absent from every group), so it is currently REFUSED inside a
+/// macro body; there is no existing legality to preserve. Grounded fresh: a pure,
+/// deterministic polymorphic predicate that reads no state and performs no effect — safe to
+/// evaluate while a `defmacro` body is being expanded, the same shape `:wat::core::length`
+/// (also ∀T, also a capability-gated predicate/probe) already declares `Legal` for. Declaring
+/// `Legal` here.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :T the value to classify
+/// @ret     :wat::core::bool `true` iff `args` is a `Value::Aggregate` with Record or HolonRecord nature (never `Struct`)
+/// @example (:wat::core::do (:wat::core::defrecord :probe::RecordQExample [sk <- :wat::core::i64]) (:wat::core::record? (:probe::RecordQExample :sk 1))) #=> true
+#[wat_intrinsic(":wat::core::record?")]
 pub(crate) fn eval_record_q(
     args: &[WatAST],
     list_span: &Span,

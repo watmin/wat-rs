@@ -18,6 +18,7 @@ use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::ToPrimitive;
 use std::sync::Arc;
+use wat_macros::wat_intrinsic;
 
 /// `:wat::i64::to-rational` — infallible promotion (mirrors C1's
 /// `i64::to-bigint`). Used by the `wat/core.wat` `+ - * /` defclauses'
@@ -122,6 +123,36 @@ pub(crate) fn eval_rational_to_f64(
 /// with a MalformedForm describing the offending value. The argument
 /// type is enforced statically; this primitive only runs if the
 /// checker saw an `:i64` at the call site.
+///
+/// **Purity ground —** the sole arg is evaluated by ordinary call-by-value (`eval_inner`, not
+/// itself an effect); past that the body only range-checks the resulting `i64` against
+/// `0..=255` and casts — no `eval_inner`/`apply_function` on caller-supplied code beyond the
+/// initial evaluation.
+///
+/// **Totality ground —** `n` outside `0..=255` raises a `MalformedForm` — a genuine
+/// in-domain failure, not a calling-convention error (the declared domain is ALL `i64`, per
+/// `register_builtins`'s `params: vec![i64_ty()]`, not just the representable subrange) —
+/// `Partial`, the same shape `:wat::i64::*`'s overflow check and `:wat::i64::/`'s
+/// division-by-zero check use for their own `Partial`.
+///
+/// **Expand-time ground —** NOT on `macros/eval.rs`'s `is_expand_time_legal` residue list
+/// today (checked by name — absent from every group, including "Scalar conversions"), so it
+/// is currently REFUSED inside a macro body; there is no existing legality to preserve.
+/// Grounded fresh: a pure, deterministic value-to-value numeric cast that reads no state and
+/// performs no effect — the raise on an out-of-range value aborts expansion the same way
+/// `:wat::i64::*`'s overflow raise does from inside a macro body, which is already `Legal`.
+/// Declaring `Legal` here.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :wat::core::i64 the i64 to cast; must be in `0..=255`
+/// @ret     :wat::core::u8 `args`, cast to `:wat::core::u8`
+/// @example (:wat::core::u8 255) #=> (:wat::core::u8 255)
+#[wat_intrinsic(":wat::core::u8")]
 pub(crate) fn eval_u8_cast(
     args: &[WatAST],
     list_span: &Span,
