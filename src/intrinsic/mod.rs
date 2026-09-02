@@ -2422,6 +2422,116 @@ mod tests {
             violations.join("\n")
         );
     }
+
+    /// Arc 255 `DESIGN-STONE-a-registered-row-may-not-keep-its-arm.md` — THE ONE CONTRACT: a
+    /// registered row that carries a handler (`Kind::Intrinsic`, or any future kind with
+    /// `handler: Some`) may not ALSO have a literal dispatch arm inside
+    /// `dispatch_keyword_head_value` (`src/runtime.rs`) — the registry-first door
+    /// (`crate::intrinsic::registry().lookup(head)`, hoisted above that match) already answers
+    /// every such name, so a surviving arm is unreachable dead code (five of them: arc 255's
+    /// stone immediately before this one left `record?`/`u8`/`bool::to-string`/`not`/`show`
+    /// behind — this gate is their first payment and the wall against a sixth).
+    ///
+    /// ⛔ The predicate is `entry.handler.is_some()`, NEVER a name list — `:wat::core::fn`,
+    /// `if`, `let`, `match` sit in the SAME match, look identical to the five, and are
+    /// `Kind::SpecialForm` with `handler: None`; their arm is the ONLY dispatch they have, and
+    /// exempting them by measuring `handler.is_some()` (rather than by naming them) is what
+    /// keeps the exemption from rotting the moment a fifth special form registers.
+    ///
+    /// ⛔ The search is bounded to `dispatch_keyword_head_value`'s own span, not the whole file —
+    /// `runtime.rs` has THREE matches that dispatch on these names (`dispatch_keyword_head_value`,
+    /// `eval_tail`, `step_list`); `:wat::core::u8` has an arm in `step_list` (live, kept) as well
+    /// as the one just deleted here, and a whole-file text search would flag that live arm too
+    /// (a first probe for this stone made exactly this error the other direction, calling
+    /// `:wat::holon::Blend`'s `step_list`-only arm "dead" — see the DESIGN's
+    /// "measured three times, wrong twice").
+    ///
+    /// The span is bounded the same way `probe_can_doc_types_reconstruct_the_checker_scheme`
+    /// (above) treats `runtime.rs` as data rather than a name list: `include_str!` the whole
+    /// file, find the `fn dispatch_keyword_head_value(` line, and take everything up to the
+    /// NEXT top-level (column-0) `fn ` — that next `fn` (`keyword_accessor_record`) is a
+    /// sibling function, not a nested one, so it is the correct exclusive end bound.
+    ///
+    /// Within that span, whole-line comments (`//…`) are stripped before searching — this span
+    /// has no block comments and no code-then-`//` lines (verified by hand), and stripping
+    /// matters for real: a comment a few dozen lines below `:wat::core::match`'s arm reads
+    /// `":wat::holon::from-holon" (the one holon producer) is now registered…` — a bare
+    /// substring search would misread that PROSE mention of a registered name as an arm.
+    /// A hit still has to look like a match-arm pattern, not a piece of AST-construction data:
+    /// `WatAST::Keyword(":wat::core::if".into(), …)` (built for `if`/`let`/`match`'s own
+    /// desugaring, deep inside this same function) quotes the name too, but the quote is
+    /// followed immediately by `.into()`, never by `=>`/`|`/`)` — the three continuations an
+    /// actual arm pattern has (a single-name arm, an OR-pattern member, or the closing paren of
+    /// a `head @ (...)` group whose last alternative wrapped to a new line).
+    #[test]
+    fn registry_first_door_owns_every_handler_row_no_literal_arm_survives() {
+        const SOURCE: &str = include_str!("../runtime.rs");
+
+        const FN_SIG: &str = "fn dispatch_keyword_head_value(";
+        let start_marker = format!("\n{FN_SIG}");
+        let start = SOURCE
+            .find(start_marker.as_str())
+            .expect("dispatch_keyword_head_value not found in runtime.rs — has it moved/renamed?")
+            + 1; // land on the `fn`, past the newline that anchored the search to column 0.
+
+        let after_sig = &SOURCE[start + FN_SIG.len()..];
+        let end_offset = after_sig
+            .find("\nfn ")
+            .expect("no top-level `fn` follows dispatch_keyword_head_value — span is unbounded");
+        let end = start + FN_SIG.len() + end_offset;
+
+        let span = &SOURCE[start..end];
+
+        // Whole-line comments contribute nothing to the search; code lines pass through as-is
+        // (this span has neither block comments nor a code-then-`//` line — hand-verified).
+        let lines: Vec<&str> = span
+            .lines()
+            .map(|l| if l.trim_start().starts_with("//") { "" } else { l })
+            .collect();
+
+        // Does a literal match-arm PATTERN for `name` occur in the span — as opposed to the
+        // same string used as data (e.g. `.into()` immediately after the closing quote)?
+        let has_literal_arm = |name: &str| -> bool {
+            let quoted = format!("\"{name}\"");
+            for (i, line) in lines.iter().enumerate() {
+                let mut rest = *line;
+                while let Some(pos) = rest.find(quoted.as_str()) {
+                    let after = rest[pos + quoted.len()..].trim_start();
+                    let is_arm_continuation = if after.is_empty() {
+                        // The quote closed at end-of-line — an OR-pattern member that wraps;
+                        // the next line either continues the alternation or closes the group.
+                        let next = lines.get(i + 1).map(|l| l.trim_start()).unwrap_or("");
+                        next.starts_with('|') || next.starts_with(')')
+                    } else {
+                        after.starts_with("=>") || after.starts_with('|') || after.starts_with(')')
+                    };
+                    if is_arm_continuation {
+                        return true;
+                    }
+                    rest = &rest[pos + quoted.len()..];
+                }
+            }
+            false
+        };
+
+        let mut offenders: Vec<&'static str> = super::registry()
+            .all_entries()
+            .filter(|entry| entry.handler.is_some())
+            .map(|entry| entry.name)
+            .filter(|name| has_literal_arm(name))
+            .collect();
+        offenders.sort_unstable();
+        offenders.dedup();
+
+        assert!(
+            offenders.is_empty(),
+            "registered row(s) with a handler still carry a literal dispatch arm inside \
+             `dispatch_keyword_head_value` (src/runtime.rs) — the registry-first door \
+             (`crate::intrinsic::registry().lookup(head)`, hoisted above that match) already \
+             answers these by name, so the arm can never fire. Delete the arm line (leave the \
+             surrounding retirement commentary and the handler fn itself) for: {offenders:?}"
+        );
+    }
 }
 
 // The `wat_mirror_tests` module that stood here is DELETED (2026-08-15). It

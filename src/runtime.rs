@@ -1972,7 +1972,10 @@ fn dispatch_keyword_head_value(
         // class is not registered in the TypeEnv — a hole the `:wat::core::Record` umbrella
         // param type does not close (the same container-gate/value-hole shape `assoc`'s
         // Record arm carries).
-        ":wat::core::record?" => crate::record::access::eval_record_q(args, list_span, env, sym),
+        // Arc 255 `DESIGN-STONE-a-registered-row-may-not-keep-its-arm.md` — this arm RETIRED;
+        // `:wat::core::record?` carries a registered handler, so the registry-first door above
+        // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to
+        // `eval_record_q` (unchanged) before this match is ever reached.
         // Arc 249 Stone 249.3a — form-shape predicate over WatAST::List form-values.
         // List? :: ∀T. T -> bool — true iff input is Value::wat__WatAST wrapping WatAST::List.
         // core form-shape predicate over WatAST::List; distinct from
@@ -2318,7 +2321,11 @@ fn dispatch_keyword_head_value(
         // `src/collection/transform.rs`'s note beside the deleted `eval_vec_map_with_index`.
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
-        ":wat::core::u8" => crate::numeric::convert::eval_u8_cast(args, list_span, env, sym),
+        // Arc 255 `DESIGN-STONE-a-registered-row-may-not-keep-its-arm.md` — this arm RETIRED;
+        // `:wat::core::u8` carries a registered handler, so the registry-first door above
+        // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to
+        // `eval_u8_cast` (unchanged) before this match is ever reached. `step_list`'s own
+        // `:wat::core::u8` arm (a different match, tail position) is untouched by this stone.
 
         // Arc 255 Stone C — the old `:wat::core::i64::{+,-,*,/,mod,rem,quot}` arms
         // that lived here are RETIRED. The registry-first door above
@@ -2374,7 +2381,10 @@ fn dispatch_keyword_head_value(
         // `:wat::string::to-i64` / `to-f64` / `to-bool` are REGISTERED now
         // (`intrinsic/string.rs`, arc 255 home #4 phase 2) — no arm here; see the
         // registry-hoist note a few dozen lines up this match.
-        ":wat::core::bool::to-string" => eval_bool_to_string(args, list_span, env, sym),
+        // Arc 255 `DESIGN-STONE-a-registered-row-may-not-keep-its-arm.md` — this arm RETIRED;
+        // `:wat::core::bool::to-string` carries a registered handler, so the registry-first door
+        // above (`crate::intrinsic::registry().lookup(head)`) already dispatches it to
+        // `eval_bool_to_string` (unchanged) before this match is ever reached.
         // Arc 170 slice 3 Gap A — keyword reflection primitives. Arc 255 Stone E-iv —
         // `:wat::core::keyword/to-string` RETIRED this stone; `:wat::keyword::to-string`
         // (`src/intrinsic/keyword.rs`) is registry-routed — no arm here (the registry-first
@@ -2424,7 +2434,10 @@ fn dispatch_keyword_head_value(
         // through eval_compare); those ops are now defclauses too.
 
         // Boolean
-        ":wat::core::not" => eval_not(args, list_span, env, sym),
+        // Arc 255 `DESIGN-STONE-a-registered-row-may-not-keep-its-arm.md` — this arm RETIRED;
+        // `:wat::core::not` carries a registered handler, so the registry-first door above
+        // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to `eval_not`
+        // (unchanged) before this match is ever reached.
         ":wat::core::and" => eval_and(args, list_span, env, sym),
         ":wat::core::or" => eval_or(args, list_span, env, sym),
 
@@ -2667,7 +2680,10 @@ fn dispatch_keyword_head_value(
         // `engram.rs`, `subspace.rs`, `reckoner.rs`). No `:wat::holon::` literal-
         // match arm remains here; the registry-first door at the top of
         // `dispatch_keyword_head`/`dispatch_keyword_head_value` reaches them all.
-        ":wat::core::show" => eval_show(args, list_span, env, sym),
+        // Arc 255 `DESIGN-STONE-a-registered-row-may-not-keep-its-arm.md` — this arm RETIRED;
+        // `:wat::core::show` carries a registered handler, so the registry-first door above
+        // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to `eval_show`
+        // (unchanged) before this match is ever reached.
         // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits. Unlike `show`,
         // which wraps strings in `"..."`, `str` renders values as format fills them.
         ":wat::core::str" => eval_str(args, list_span, env, sym),
