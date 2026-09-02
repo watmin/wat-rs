@@ -17,6 +17,8 @@
 
 use std::sync::Arc;
 
+use wat_macros::wat_special_form_impl;
+
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::value::{
@@ -149,6 +151,13 @@ pub fn register_defclause(
 /// Walk `forms`, register every `(:wat::core::define ...)` into `sym`,
 /// and return the remaining (non-define) forms in order. Dupe
 /// registration halts with [`RuntimeError::DuplicateDefine`].
+///
+/// Arc 255 Stone 1a-β-ii — this is `:wat::core::def`'s declare-time processor (the fn-shape
+/// `try_parse_fn_shape_def` arm below pre-registers a `def` whose RHS is `(:wat::core::fn
+/// …)`); `:wat::core::defalias` is ALSO processed from inside this same fn (the
+/// `parse_defalias_form` arm), but that name's own `role = declare` pointer lives on
+/// `parse_defalias_form` itself (`src/declare/parse.rs`), not here — see that fn's doc.
+#[wat_special_form_impl(":wat::core::def", role = declare)]
 pub fn register_defines(
     forms: Vec<WatAST>,
     sym: &mut SymbolTable,

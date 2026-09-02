@@ -10,7 +10,10 @@
 pub(crate) mod and_form;
 pub(crate) mod binding;
 pub(crate) mod control_flow;
+pub(crate) mod def;
+pub(crate) mod defalias;
 pub(crate) mod defenum;
+pub(crate) mod defmacro;
 pub(crate) mod defsurface;
 pub(crate) mod fn_form;
 pub(crate) mod match_form;

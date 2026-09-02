@@ -2538,10 +2538,13 @@ fn head_keyword(node: &WatAST) -> Option<&str> {
 /// Returns `(prelude_forms, residual_body)`.
 ///
 /// If `body` is a `(:wat::core::do ...)` form:
-///   - Scans children left-to-right collecting consecutive declaration forms
-///     (per [`crate::freeze::is_liftable_declaration_head`], read from its `matches!`, not
-///     from memory: def · defalias · defenum · defmacro · defstruct · defsurface · newtype ·
-///     structtype · typealias). Stops at the FIRST non-declaration child.
+///   - Scans children left-to-right collecting consecutive declaration forms — a child
+///     lifts iff its head keyword's registry row names a `role = declare` implementation
+///     (`crate::intrinsic::is_declare_role_head`, arc 255 Stone 1a-β-ii). This REPLACES the
+///     nine-name (then three-name) `freeze::is_liftable_declaration_head` hand-list, now
+///     DELETED: `def` · `defalias` · `defenum` · `defmacro` · `defsurface` · `newtype` ·
+///     `structtype` · `typealias` all carry a `role = declare` row today, which is why the
+///     population this scan admits is unchanged. Stops at the FIRST non-declaration child.
 ///   - Returns `(prelude_forms, reconstructed_residual_do_or_expr)`.
 ///   - If `prelude_forms` is empty (no leading declarations), returns
 ///     `(vec![], body)` unchanged — the caller applies no lift.
@@ -2580,7 +2583,7 @@ fn split_body_prelude(body: WatAST) -> (Vec<WatAST>, WatAST) {
         .iter()
         .take_while(|child| {
             head_keyword(child)
-                .map(crate::freeze::is_liftable_declaration_head)
+                .map(crate::intrinsic::is_declare_role_head)
                 .unwrap_or(false)
         })
         .count();

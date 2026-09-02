@@ -20,6 +20,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use wat_macros::wat_special_form_impl;
+
 use crate::ast::WatAST;
 use crate::value::{EvalBreak, Function, FunctionBody, RuntimeError, RuntimeErrorKind};
 
@@ -216,6 +218,12 @@ pub(crate) fn is_declaration_form(form: &WatAST) -> bool {
 /// Stone 241.12 — detect `(:wat::core::defalias :alias-name :target-name)` shape.
 ///
 /// Returns `(alias_name, target_name)` strings if the form matches.
+///
+/// Arc 255 Stone 1a-β-ii — this fn is `:wat::core::defalias`'s `role = declare` pointer: it
+/// is the recognizer `register_defines` (`src/declare/register.rs`) consults; the actual
+/// registration (`register_defalias`) runs downstream of a match here, in the same file as
+/// the caller.
+#[wat_special_form_impl(":wat::core::defalias", role = declare)]
 pub(crate) fn parse_defalias_form(form: &WatAST) -> Option<(String, String)> {
     let items = match form {
         WatAST::List(items, _) => items,

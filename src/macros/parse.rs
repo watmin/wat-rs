@@ -1,3 +1,5 @@
+use wat_macros::wat_special_form_impl;
+
 use crate::ast::WatAST;
 
 use super::error::{MacroError, MacroErrorKind};
@@ -80,6 +82,9 @@ pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
 ///
 /// `parse_defmacro_signature` DELETED (Stone 241.17). The canonical argspec parser
 /// (`parse_argspec_triples`) is the sole argspec parser across fn/defn/defclause/defmacro.
+///
+/// Arc 255 Stone 1a-β-ii — `:wat::core::defmacro`'s `role = declare` pointer.
+#[wat_special_form_impl(":wat::core::defmacro", role = declare)]
 pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     // Arc 278 — retain the declaration VERBATIM before destructuring. The
     // parts cannot rebuild it (params carry no types; no return type is

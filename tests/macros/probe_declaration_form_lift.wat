@@ -118,3 +118,36 @@
         (:wat::kernel::assertion-failed! "launch-mixed: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "launch-mixed: child closed before sending its value" :wat::core::None :wat::core::None)))))
+
+;; ─── The NEGATIVE direction — arc 255 Stone 1a-β-ii ──────────────────────────
+;;
+;; ⛔ Every launch above asserts a declaration prelude DOES lift. None asserts that a
+;; non-declaration prefix does NOT — and measured, that hole let a `true`-for-everything
+;; `is_declare_role_head` keep the whole floor green. These two read the boundary from
+;; both sides through `:wat::kernel::fn-forms`, which reifies a closure through
+;; `extract_closure` → `split_body_prelude`, the code path the predicate actually feeds.
+(:wat::core::def :my::body-that-lifts
+  (:wat::core::fn [] -> :wat::core::i64
+    (:wat::core::do
+      (:wat::core::defenum :my::NoLiftColour :wat::enum::Pure :Red)
+      5)))
+
+(:wat::core::def :my::body-that-does-not-lift
+  (:wat::core::fn [] -> :wat::core::i64
+    (:wat::core::do
+      ;; ⛔ THE FIRST FORM MUST BE A CALL, NOT A LITERAL. A literal has no keyword head, so
+      ;; `split_body_prelude`'s scan stops before the predicate is ever consulted — measured:
+      ;; with `5` here, stubbing `is_declare_role_head` to `true` STILL passed. The predicate
+      ;; only answers for a List with a Keyword head, so only such a head discriminates.
+      (:wat::i64::+ 2 3)
+      (:wat::core::defenum :my::NoLiftShade :wat::enum::Pure :Dark))))
+
+;; 2 — the leading declaration is lifted into the prologue, leaving the residual body.
+(:wat::core::def :my::launch-lift-count
+  (:wat::core::fn [] -> :wat::core::i64
+    (:wat::core::length (:wat::kernel::fn-forms :my::body-that-lifts :probe-lift))))
+
+;; 1 — the scan stops at the first non-declaration child, so the body stays whole.
+(:wat::core::def :my::launch-no-lift
+  (:wat::core::fn [] -> :wat::core::i64
+    (:wat::core::length (:wat::kernel::fn-forms :my::body-that-does-not-lift :probe-no-lift))))

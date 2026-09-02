@@ -2222,7 +2222,13 @@ mod completeness_gate {
     ":wat::core::ann-form",
     ":wat::core::apply",
     ":wat::core::conforms?",
-    ":wat::core::def",
+    // Arc 255 Stone 1a-β-ii — `:wat::core::def` LEAVES. `intrinsic_meta`'s registry-first
+    // consult (`:473` above) now answers `Some` for it (the `@Purity Unevaluated` /
+    // `@Determinism Deterministic` / `@Totality Partial` this stone registered), so
+    // `dispatch_verbs`'s scan (which still finds the `":wat::core::def" => Err(...)` refusal
+    // arm at `runtime.rs:2132` — that arm is unchanged by this stone, STOP-1) classifies it
+    // instead of leaving it unreviewed. Leaving the name here after registering would fail
+    // this ledger's own STALE check.
     ":wat::core::defclause",
     ":wat::core::derive",
     ":wat::core::find-last-index",

@@ -7975,6 +7975,11 @@ fn infer_let(
 ///
 /// Returns `Some(TypeExpr::Tuple([]))` — the unit type — since `def`
 /// is a declaration, not a value-producing expression.
+///
+/// Arc 255 Stone 1a-β-ii — `:wat::core::def`'s `role = check` pointer, `def`'s OWN check
+/// impl (unlike `defmacro`/`defalias`, which have none of their own and are covered by the
+/// shared silent-accept arm at `:4865` instead).
+#[wat_special_form_impl(":wat::core::def", role = check)]
 fn infer_def(
     args: &[WatAST],
     head_span: &Span,
