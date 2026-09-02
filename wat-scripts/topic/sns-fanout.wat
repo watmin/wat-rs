@@ -212,7 +212,7 @@
          (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
          (:wat::core::second pair))))
 
-   ;; Take the head, fan out. Flag cleared: the tick consumed the alarm.
+   ;; Drain up to 10, fan out each. One rebuild. Flag cleared: the tick consumed the alarm.
    (-deliver [s ctx]
      (:wat::core::let
        [rec   (:demo::topic::State/durable s)
@@ -242,45 +242,53 @@
                   :arm-deliver (:demo::topic::State/arm-deliver s))]
            (:wat::service::SelfOutcome::Continue s-a sends (:wat::core::second pair)))
          (:wat::core::let
-           [msg  (:wat::core::Option/expect (:wat::vector::get box 0)
-                   "topic -deliver: outbox head present by construction")
+           [nbox (:wat::vector::length box)
+            k    (:wat::core::if (:wat::i64::< nbox 10) nbox 10)
+            _n   (:wat::core::foldl
+                   (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+                     (:wat::core::let
+                       [msg (:wat::core::Option/expect (:wat::vector::get box i)
+                              "topic -deliver: batch index in range by construction")
+                        ;; Issue every send before any recv — sum(N) becomes max(N).
+                        ;; Raw kernel::send: first user-level send to a defservice client
+                        ;; in the tree. Bypasses the generated client's :max-request-bytes
+                        ;; check; the server-side guard still fires (DESIGN).
+                        _sent (:wat::core::foldl
+                                (:wat::core::fn
+                                  [acc <- :wat::core::i64
+                                   p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
+                                  -> :wat::core::i64
+                                  (:wat::core::match
+                                    (:wat::kernel::send p
+                                      (:demo::Sub::Op::Deliver (:demo::Sub::DeliverRequest :msg msg)))
+                                    (:wat::kernel::SendOutcome::Sent    (:wat::i64::+ acc 1))
+                                    (:wat::kernel::SendOutcome::Closed  acc)
+                                    (:wat::kernel::SendOutcome::Stopped acc)
+                                    ((:wat::kernel::SendOutcome::Lost _c) acc)))
+                                0
+                                (:demo::topic::State/subs s))
+                        _recv (:wat::core::foldl
+                                (:wat::core::fn
+                                  [acc <- :wat::core::i64
+                                   p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
+                                  -> :wat::core::i64
+                                  (:wat::core::match (:wat::kernel::recv p)
+                                    ((:wat::kernel::RecvOutcome::Message _r) (:wat::i64::+ acc 1))
+                                    (_ acc)))
+                                0
+                                (:demo::topic::State/subs s))]
+                       (:wat::i64::+ acc 1)))
+                   0
+                   (:wat::core::range 0 k))
             rest (:wat::core::foldl
                    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                     i   <- :wat::core::i64]
                      -> (:wat::core::PersistentVector :- [:wat::core::String])
                      (:wat::vector::conj acc
-                       (:wat::core::Option/expect (:wat::vector::get box (:wat::i64::+ i 1))
+                       (:wat::core::Option/expect (:wat::vector::get box (:wat::i64::+ i k))
                          "topic -deliver: rebuild index in range by construction")))
                    (:wat::core::PersistentVector :- [:wat::core::String])
-                   (:wat::core::range 0 (:wat::i64::- (:wat::vector::length box) 1)))
-            ;; Issue every send before any recv — sum(N) becomes max(N).
-            ;; Raw kernel::send: first user-level send to a defservice client
-            ;; in the tree. Bypasses the generated client's :max-request-bytes
-            ;; check; the server-side guard still fires (DESIGN).
-            _sent (:wat::core::foldl
-                    (:wat::core::fn
-                      [acc <- :wat::core::i64
-                       p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
-                      -> :wat::core::i64
-                      (:wat::core::match
-                        (:wat::kernel::send p
-                          (:demo::Sub::Op::Deliver (:demo::Sub::DeliverRequest :msg msg)))
-                        (:wat::kernel::SendOutcome::Sent    (:wat::i64::+ acc 1))
-                        (:wat::kernel::SendOutcome::Closed  acc)
-                        (:wat::kernel::SendOutcome::Stopped acc)
-                        ((:wat::kernel::SendOutcome::Lost _c) acc)))
-                    0
-                    (:demo::topic::State/subs s))
-            _n   (:wat::core::foldl
-                   (:wat::core::fn
-                     [acc <- :wat::core::i64
-                      p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
-                     -> :wat::core::i64
-                     (:wat::core::match (:wat::kernel::recv p)
-                       ((:wat::kernel::RecvOutcome::Message _r) (:wat::i64::+ acc 1))
-                       (_ acc)))
-                   0
-                   (:demo::topic::State/subs s))
+                   (:wat::core::range 0 (:wat::i64::- nbox k)))
             s' (:demo::topic::State
                  :durable rec
                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
