@@ -20,7 +20,7 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor ............ 5119/5119, 0 FAIL, 17 skipped, ~117s   (scripts/floor.sh, exit read UNPIPED)
+floor ............ 5120/5120, 0 FAIL, 17 skipped, ~118s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
 runtime.rs ....... 19,045   (was 34,152 — the megafile campaign, -15,107)
 check.rs ......... 22,613   (its partire map still stands, still uncast by name)
@@ -127,13 +127,11 @@ replaced the disarmed one one-for-one.** Only clippy's `dead_code` saw it.
 
 ## ⬜ NEXT — Phase 1a, and one named gap
 
-**The immediate gap, recorded in `src/reflect/verbs.rs` at the site:** `let`/`fn`/`match` declare
-`@syntax` prose but no `@arg`, so `special_forms.rs`'s sketch still answers for them.
-★★★ **And `match`'s sketch is a SIX-WEEK-OLD FOSSIL** — `src/special_forms.rs:171` serves
-`["<scrutinee>", "->", "<T>", "<arm>+"]`, and `check.rs`'s `infer_match` REFUSES `-> :T` with a named
-error (arc 278 annihilated it 2026-07-22). **Reflection has been teaching users a grammar the checker
-rejects.** Authoring `@arg` for those three retires it. ⚠ Deliberately not improvised: their slots
-are syntactic positions, and giving them type claims is how a lie gets minted.
+✅ **CLOSED by Stone 1a-α (`b9546b097`).** `signature_of_defn` renders a row's declared `@syntax`
+through wat's own reader, `render-doc`'s precedence, so the two renderers agree. `match` now signs
+`(match <scrutinee> (<pattern> <body>) ...)` — the six-week `-> <T>` fossil is dead. ★ `@syntax` was
+the right vehicle, not `@arg`: `@arg` carries a TYPE and those slots are syntactic positions.
+A sabotage-proven gate parses every declared `@syntax` at floor time, with a non-vacuity floor.
 
 ```
 Phase 1a  23 more SPECIAL_FORMS rows into the registry  (def · defmacro · quote · quasiquote · use! …)
