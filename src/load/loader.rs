@@ -87,6 +87,7 @@ use crate::span::Span;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use wat_macros::wat_special_form_impl;
 
 /// Where to fetch SOURCE code from. Used internally by the load
 /// pipeline; each load form picks its variant directly.
@@ -677,6 +678,13 @@ fn match_load_form(form: &WatAST, form_span: Span) -> Result<Option<LoadSpec>, L
 }
 
 /// `(:wat::load-file! <path>)` — file-path load, single arg.
+///
+/// Arc 255 Stone 1a-δ — `:wat::load-file!`'s `role = declare` pointer
+/// (`src/intrinsic/special/load_file.rs`). Reached only through `match_load_form`'s
+/// `":wat::load-file!"` arm above, never called directly by dispatch — the same router
+/// shape `parse_type_decl` had before the type-declaration family's own `role = declare`
+/// pointers landed (arc 255 Stone 1a-β-i).
+#[wat_special_form_impl(":wat::load-file!", role = declare)]
 fn parse_unverified_load(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
     if args.len() != 1 {
         return Err(LoadError::new(
@@ -716,6 +724,10 @@ fn parse_unverified_load_string(args: &[WatAST], form_span: Span) -> Result<Load
     })
 }
 
+/// Arc 255 Stone 1a-δ — `:wat::digest-load!`'s `role = declare` pointer
+/// (`src/intrinsic/special/digest_load.rs`). Reached only through `match_load_form`'s
+/// `":wat::digest-load!"` arm above, never called directly by dispatch.
+#[wat_special_form_impl(":wat::digest-load!", role = declare)]
 fn parse_digest_load_file(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
     parse_digest_load_shared(args, ":wat::digest-load!", false, form_span)
 }
@@ -759,6 +771,10 @@ fn parse_digest_load_shared(
     })
 }
 
+/// Arc 255 Stone 1a-δ — `:wat::signed-load!`'s `role = declare` pointer
+/// (`src/intrinsic/special/signed_load.rs`). Reached only through `match_load_form`'s
+/// `":wat::signed-load!"` arm above, never called directly by dispatch.
+#[wat_special_form_impl(":wat::signed-load!", role = declare)]
 fn parse_signed_load_file(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
     parse_signed_load_shared(args, ":wat::signed-load!", false, form_span)
 }
