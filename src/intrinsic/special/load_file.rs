@@ -14,27 +14,21 @@ use wat_macros::wat_special_form;
 /// `loader.rs:568`), parses them, and recursively resolves any loads they themselves contain,
 /// before appending the result into `out` — the caller's flat form list.
 ///
-/// **Category ground —** the axis is the DOING, and the DOING is measured at the language
-/// level, not the Rust call graph: `process_forms` (`loader.rs:470`) replaces the load-form
-/// node with the loaded file's own forms, verbatim, in the surrounding form stream — the
-/// spliced declarations (`def`s, `defclause`s, more loads) become part of THIS program,
-/// visible to every form after this one, exactly `Declaration`'s own variant prose in
-/// `wat/runtime-meta.wat` ("registers a program-level entity … visible to everything after
-/// it"). **`Io` is refused**, for two reasons. First, at the language level: `:wat::io::read-
-/// file` (`src/intrinsic/io/fs.rs`) is ruled `Io` because its ENTIRE observable effect is
-/// "data crosses the process boundary IN and is handed back as a value" — a real `role = eval`
-/// call site the caller's expression consumes. `:wat::load-file!` has no such call site (shape
-/// ②, verified below): the fetch (`loader.fetch_source_file`, the SAME fn `read-file` calls)
-/// is not this form's OWN observable effect, it is the internal mechanism by which the
-/// declaration gets populated — exactly the relationship `parse_aggregate`'s internal Rust
-/// computation has to `structtype`'s `Declaration` ground, not `read-file`'s to its `Io`.
-/// Second, and independent of the prose reading: `every_special_form_carries_check_and_eval_
-/// impls` (`src/intrinsic/mod.rs:2497`) DERIVES its required-impl-set from `entry.category` —
-/// only a `Category::Declaration` row (`mod.rs:2503`) is permitted a `role = declare`-only
-/// impl set (`mod.rs:2504`'s `has_declare` check); any other category demands BOTH `role =
-/// check` and `role = eval` (`mod.rs:2508`–`2518`'s `else` branch), which this row does not and
-/// — per shape ② — must not carry. Ruling `Io` would make this row fail that gate on
-/// registration, before any prose argument even matters.
+/// **Category ground —** the axis is the DOING, measured at the language level, not the Rust
+/// call graph: `process_forms` (`loader.rs:470`) replaces the load-form node with the loaded
+/// file's own forms, verbatim, in the surrounding form stream — one node becomes N, and the
+/// load-form node itself does not survive. That is `:Splice`'s doing, not `:Declaration`'s:
+/// this form registers NOTHING itself — measured, its own effect is the replacement, not an
+/// entry in any program-level table. The spliced-in forms (`def`s, `defclause`s, more loads)
+/// may themselves go on to declare, exactly as `unquote-splicing` performs the identical
+/// one-node-becomes-N doing at expand time — but that is THEIR doing, reached only after this
+/// form has already replaced itself with them. `Io` is refused for the same reason it always
+/// was: `:wat::io::read-file` (`src/intrinsic/io/fs.rs`) is ruled `Io` because its entire
+/// observable effect is a value an expression consumes at a `role = eval` call site; this form
+/// has no such call site at all (shape ②, verified below) — the fetch
+/// (`loader.fetch_source_file`, the same fn `read-file` calls) is not this form's own
+/// observable effect, it is the internal mechanism by which the splice is populated.
+/// `Splice`.
 ///
 /// **Purity ground —** measured directly: `:wat::load-file!` appears in `src/runtime.rs`
 /// exactly ONCE, inside `is_mutation_head` — a hand-list, not a dispatch arm — and nowhere in
@@ -78,7 +72,7 @@ use wat_macros::wat_special_form;
 /// expand-time pure-total allow-list (measured — no `:wat::load-file!` arm there). `RuntimeOnly`.
 ///
 /// @added 1.0.0
-/// @Category Declaration
+/// @Category Splice
 /// @Purity Unevaluated
 /// @Determinism Nondeterministic
 /// @Totality Partial

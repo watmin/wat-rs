@@ -943,6 +943,7 @@ pub(crate) fn emit(
         wat_doc::Category::Probe => quote! { ::wat_doc::Category::Probe },
         wat_doc::Category::Combine => quote! { ::wat_doc::Category::Combine },
         wat_doc::Category::Declaration => quote! { ::wat_doc::Category::Declaration },
+        wat_doc::Category::Splice => quote! { ::wat_doc::Category::Splice },
         wat_doc::Category::Resource => quote! { ::wat_doc::Category::Resource },
         wat_doc::Category::Message => quote! { ::wat_doc::Category::Message },
         wat_doc::Category::Ambient => quote! { ::wat_doc::Category::Ambient },

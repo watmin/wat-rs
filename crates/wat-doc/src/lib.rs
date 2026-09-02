@@ -74,7 +74,7 @@ use wat_reader::WatAST;
 /// `Category::variants()`, so a new variant that forgets this line goes RED.
 /// (The proc-macro's two sibling messages DO derive — they are `format!`.)
 const CATEGORY_LEGAL_VALUES: &str =
-    "value must be one of: Transform, Reflection, ControlFlow, Binding, Entropic, Arithmetic, Io, Probe, Combine, Declaration, Resource, Message, Ambient, Projection, CheckGate";
+    "value must be one of: Transform, Reflection, ControlFlow, Binding, Entropic, Arithmetic, Io, Probe, Combine, Declaration, Splice, Resource, Message, Ambient, Projection, CheckGate";
 
 /// The `@Purity` legal-value message. Hand-written, not derived, for the same reason
 /// `CATEGORY_LEGAL_VALUES` is: `DocError::MalformedDirective.why` is `&'static str`
@@ -2035,7 +2035,7 @@ mod tests {
             Category::Transform, Category::Reflection, Category::ControlFlow,
             Category::Binding, Category::Entropic, Category::Arithmetic,
             Category::Io, Category::Probe, Category::Combine, Category::Declaration,
-            Category::Resource, Category::Message, Category::Ambient,
+            Category::Splice, Category::Resource, Category::Message, Category::Ambient,
             Category::Projection, Category::CheckGate,
         ];
         for c in all {
@@ -2050,6 +2050,7 @@ mod tests {
                 Category::Probe => "Probe",
                 Category::Combine => "Combine",
                 Category::Declaration => "Declaration",
+                Category::Splice => "Splice",
                 Category::Resource => "Resource",
                 Category::Message => "Message",
                 Category::Ambient => "Ambient",

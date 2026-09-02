@@ -14,15 +14,14 @@ use wat_macros::wat_special_form;
 /// and compares to the declared hex digest — PRE-parse, against raw bytes — before the forms
 /// are ever spliced in.
 ///
-/// **Category ground —** same as `:wat::load-file!`'s (`load_file.rs`) — same mechanism, an
-/// added integrity gate in front of it: `process_forms` splices the verified file's own forms
-/// into the surrounding program, visible to every form after this one, exactly `Declaration`'s
-/// variant prose. `Io` refused for the identical two reasons `load-file!`'s row argues: the
-/// hash check and fetch are not this form's own observable effect (there is no eval arm, no
-/// value handed to any expression — shape ②, verified below), and `every_special_form_
-/// carries_check_and_eval_impls` (`src/intrinsic/mod.rs:2497`) requires `role = check` +
-/// `role = eval` for any non-`Declaration` category, which this row does not and must not
-/// carry. `Declaration`.
+/// **Category ground —** same as `:wat::load-file!`'s (`load_file.rs`) — same splicing
+/// mechanism, an added integrity gate in front of it: `process_forms` replaces this form's node
+/// with the verified file's own forms, one node becoming N, and the node itself does not
+/// survive. That is `:Splice`, not `:Declaration`: this form registers nothing itself — the
+/// hash check and fetch are the internal mechanism by which the splice is populated, not an
+/// entry in any program-level table, and not this form's own observable effect at a `role =
+/// eval` call site the way `Io` requires (there is no eval arm — shape ②, verified below).
+/// `Splice`.
 ///
 /// **Purity ground —** measured directly: `:wat::digest-load!` appears in `src/runtime.rs`
 /// exactly ONCE, inside `is_mutation_head` — a hand-list, not a dispatch arm — and nowhere in
@@ -61,7 +60,7 @@ use wat_macros::wat_special_form;
 /// absent from `macros/eval.rs`'s expand-time pure-total allow-list. `RuntimeOnly`.
 ///
 /// @added 1.0.0
-/// @Category Declaration
+/// @Category Splice
 /// @Purity Unevaluated
 /// @Determinism Nondeterministic
 /// @Totality Partial

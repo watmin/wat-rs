@@ -82,6 +82,11 @@
 ;;   :Declaration — registers a program-level entity (def, defclause,
 ;;                  declare-acronyms). Distinct from :Binding — a declaration
 ;;                  registers into the program, visible to everything after it.
+;;   :Splice      — replaces itself with another program's forms, spliced into
+;;                  this form stream in place (load-file!, digest-load!,
+;;                  signed-load!) — registers nothing itself. Taken from
+;;                  :Declaration 2026-09-02: measured, a load registers zero
+;;                  program-level entities of its own.
 ;;
 ;; ⛔ THIS FILE IS THE SOURCE OF TRUTH FOR THE RUST ENUMS, not a mirror of them.
 ;; Every `defenum` above and below is read at COMPILE TIME by
@@ -162,6 +167,19 @@
 ;; Distinct from `:Binding`: a declaration registers into the program and is
 ;; visible to everything after it; `let` is local and scoped.
   :Declaration
+;; A form that replaces ITSELF with another program's forms, spliced into
+;; this form stream in place — `load-file!`, `digest-load!`, `signed-load!`.
+;; One node becomes N; the splice node itself does not survive. Taken from
+;; `:Declaration`, the neighbour it is split from: a declaration registers a
+;; program-level entity of its OWN; a splice registers nothing — the forms it
+;; splices in may themselves go on to declare, but that is THEIR doing, not
+;; this one's. NOT where the N forms come from (a file on disk, vs. a bound
+;; template value) and NOT when it happens (load-resolution, vs. expand
+;; time) — both ruled out as axes by this file's own header ("not where its
+;; input comes from… not the moment it happens"). What is left after both are
+;; ruled out is the identical DOING `unquote-splicing` performs at expand
+;; time: one node becomes N in the output, and the node itself is dropped.
+  :Splice
 ;; Acquires, releases, or ADMINISTERS a handle whose lifetime is tracked outside
 ;; value scope — `listener`, `connect`, `accept`, `pipe`, `spawn-thread`,
 ;; `spawn-process`, `after`, `HandlePool::{new,pop,finish}`, `close`,

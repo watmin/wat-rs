@@ -2501,40 +2501,46 @@ mod tests {
     /// an honest absence, not a lie (see the NOTE's `None`-discriminator table). Asserting it
     /// here would turn a real, safe default into a failure.
     ///
-    /// Arc 255 Stone 1a-β-0 — the demand is now DERIVED from `entry.category`, never a name
-    /// list: a `Category::Declaration` row is processed at freeze time, before evaluation
-    /// exists (`DESIGN-STONE-1a-beta-0-the-third-regime-gets-its-name.md`), so it must name a
-    /// `declare` impl instead of `check`/`eval`. Not exclusive-or — a declaration row MAY also
-    /// carry `check`/`eval` (`:wat::core::def` will, in a later stone); this branch ADDS a
-    /// demand for `Declaration` rows and removes none from any other, so the six expression
+    /// Arc 255 Stone 1a-β-0 — the demand was DERIVED from `entry.category` (superseded; see
+    /// the ★★★ AMENDED note below): a `Category::Declaration` row was processed at freeze
+    /// time, before evaluation exists
+    /// (`DESIGN-STONE-1a-beta-0-the-third-regime-gets-its-name.md`), so it had to name a
+    /// `declare` impl instead of `check`/`eval`. Not exclusive-or — a row selected by this
+    /// branch MAY also carry `check`/`eval` (`:wat::core::def` names `check`); this branch ADDS
+    /// a demand for the rows it selects and removes none from any other, so the expression
     /// forms already registered still demand `check` and `eval`, unchanged.
     #[test]
-    /// ★★★ AMENDED 2026-09-02 (Stone 1a-δ) — THIS GATE MAKES `@Category` LOAD-BEARING, and that
-    /// was not foreseen when the category branch was added one stone earlier.
+    /// ★★★ AMENDED 2026-09-02 (Stone 1a-δ-b) — THE COUPLING ABOVE IS REMOVED.
+    /// `DESIGN-STONE-1a-delta-b-splice-is-a-doing-and-the-gate-stops-picking-the-taxonomy.md`.
     ///
-    /// Because the required impl-set is DERIVED from `entry.category`, the category a row declares
-    /// now decides what it must implement: `Declaration` may be `role = declare` alone; **every
-    /// other category is required to name `check` AND `eval`.** So a form with no eval arm — a
-    /// freeze-time loader, a type declaration — cannot be given any category but `Declaration`
-    /// without this gate refusing it.
+    /// One stone earlier (1a-δ), this gate had made `@Category` load-bearing: because the
+    /// required impl-set was DERIVED from `entry.category`, the category a row declared decided
+    /// what it had to implement, and the three load forms (`load-file!`, `digest-load!`,
+    /// `signed-load!` — none of which register anything) could be given no category but
+    /// `Declaration` without this gate refusing them. Minting `:Splice` for them and adding
+    /// `category == Declaration || category == Splice` to this branch would have re-committed
+    /// the identical defect one variant later: the next never-evaluating form that is neither a
+    /// declaration nor a splice hits the same wall.
     ///
-    /// Measured, not reasoned: 1a-δ left `@Category` open for the three loaders and asked the rider
-    /// to argue `:Io` versus `:Declaration` from the variants' own prose. Setting
-    /// `:wat::load-file!` to `@Category Io` fires this gate with
-    /// `"missing role: check" / "missing role: eval"` — the question was already settled by the
-    /// structure, and the prose argument only had to agree with it.
+    /// So the branch no longer asks `@Category` at all — it asks `@Purity Unevaluated`. That is
+    /// the right axis because its entire meaning already IS this gate's question: "does this
+    /// form ever evaluate?" A row declaring `Unevaluated` cannot name an eval impl by
+    /// construction (`DESIGN-STONE-1a-beta-0b-a-form-that-never-evaluates.md`), so it may name
+    /// `declare` alone; every other row is still required to name `check` AND `eval`, unchanged.
     ///
-    /// ⚠ That is a real constraint, not a bug, and it is worth stating rather than rediscovering:
-    /// a category is no longer only a doc-surface fact. If a future row genuinely needs, say,
-    /// `@Category Io` with no eval arm, this branch is what must change — deliberately, with its
-    /// own reasoning — not the row's category, quietly, to get past a red.
+    /// Measured before the swap, both directions: 11 rows declare `@Purity Unevaluated` (`def`,
+    /// `defalias`, `defenum`, `defmacro`, `defsurface`, `newtype`, `structtype`, `typealias`,
+    /// `load-file!`, `digest-load!`, `signed-load!`) and 11 rows carry a `Declare` impl — the
+    /// SAME 11, with no row on either side alone. The swap changes nothing today. `@Category`
+    /// goes back to being only a taxonomy: a future author choosing a category is choosing a
+    /// NAME, never again negotiating with this gate.
     fn every_special_form_carries_check_and_eval_impls() {
         let mut missing: Vec<String> = Vec::new();
         for entry in super::registry().all_entries() {
             if entry.kind != super::Kind::SpecialForm {
                 continue;
             }
-            if entry.category == wat_doc::Category::Declaration {
+            if entry.purity == wat_doc::Purity::Unevaluated {
                 let has_declare =
                     entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Declare);
                 if !has_declare {

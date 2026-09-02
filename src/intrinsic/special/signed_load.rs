@@ -17,13 +17,13 @@ use wat_macros::wat_special_form;
 ///
 /// **Category ground —** same as `:wat::load-file!`'s (`load_file.rs`) and `:wat::digest-
 /// load!`'s (`digest_load.rs`) — same splicing mechanism, a different (and later-running)
-/// integrity gate in front of it: `process_forms` splices the signature-verified file's own
-/// forms into the surrounding program, visible to every form after this one, exactly
-/// `Declaration`'s variant prose. `Io` refused for the identical two reasons the other two
-/// rows argue: no eval arm exists for the fetch/verify to be this form's own observable effect
-/// (shape ②, verified below), and `every_special_form_carries_check_and_eval_impls`
-/// (`src/intrinsic/mod.rs:2497`) requires `role = check` + `role = eval` for any non-
-/// `Declaration` category, which this row does not and must not carry. `Declaration`.
+/// integrity gate in front of it: `process_forms` replaces this form's node with the
+/// signature-verified file's own forms, one node becoming N, and the node itself does not
+/// survive. That is `:Splice`, not `:Declaration`: this form registers nothing itself — the
+/// fetch, parse, and signature check are the internal mechanism by which the splice is
+/// populated, not an entry in any program-level table, and not this form's own observable
+/// effect at a `role = eval` call site the way `Io` requires (there is no eval arm — shape ②,
+/// verified below). `Splice`.
 ///
 /// **Purity ground —** measured directly: `:wat::signed-load!` appears in `src/runtime.rs`
 /// exactly ONCE, inside `is_mutation_head` — a hand-list, not a dispatch arm — and nowhere in
@@ -66,7 +66,7 @@ use wat_macros::wat_special_form;
 /// `RuntimeOnly`.
 ///
 /// @added 1.0.0
-/// @Category Declaration
+/// @Category Splice
 /// @Purity Unevaluated
 /// @Determinism Nondeterministic
 /// @Totality Partial
