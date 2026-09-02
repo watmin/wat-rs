@@ -23,6 +23,7 @@
 //! call site (`check.rs`'s surface-method-call arm). Monomorphic surfaces
 //! (`type_params` empty) take the identity path throughout — unaffected.
 
+use wat_macros::wat_special_form_impl;
 use crate::ast::WatAST;
 use crate::span::Span;
 
@@ -529,6 +530,23 @@ fn parse_method_member_sig(
 /// `(name [args...] -> :RetType)` (WatAST::List elements). The walker groups
 /// consecutive non-List items as field-triple sub-runs and passes each to
 /// `parse_argspec_triples`; List items are parsed as Method members.
+/// ⛔ Arc 255 Stone 1a-β-0 CORRECTION — this fn was MISSING its `role = declare` annotation.
+///
+/// The stone annotated `synthesize_surface_protocol` (`src/types.rs`) and nothing else, on a
+/// census that grepped for the literal `":wat::core::defsurface"`. That census was structurally
+/// blind: `synthesize_surface_protocol` spells the FQDN in its error messages, and THIS fn — the
+/// PRIMARY declare-time processor, the one that turns the form into a `SurfaceDef` — never spells
+/// it at all, because `parse_type_decl` dispatches it on the stripped leaf `"defsurface"`.
+///
+/// ★ The two are not interchangeable, and the missing one was the one that always runs:
+/// `synthesize_surface_protocol` is a SECONDARY pass that mints `<S>::Op`/`<S>::Reply` and
+/// returns `vec![]` for any surface with no method members. So `show-source` named a pass that
+/// may never fire for a given surface, and omitted the parser that fires for every one.
+/// `[[feedback_a_pattern_that_matches_a_subset_is_not_a_census]]`
+///
+/// Both are declare-time implementations and both are now annotated: reflection shows the whole
+/// regime, not the half a grep could see.
+#[wat_special_form_impl(":wat::core::defsurface", role = declare)]
 pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     // Valid shape (arc 293 K0a + arc 278 S4c):
     //   (:wat::core::defsurface :Name :nature :<nature-root> [:messages [msgs]] :features [members])
