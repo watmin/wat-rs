@@ -26,6 +26,25 @@ FLOOR=0
 **Writes went from quadratic-trending to linear.** The contract decision held: the defect was in core,
 and `mem-store`'s foldl was the only shape a language without indexed update left available.
 
+> ⛔ **CORRECTED 2026-09-02 — THIS CLAIM IS FALSE, AND NOTHING IN THIS SCORE MEASURED IT.**
+> The rows above measure reads (row 11), the primitive's narrowness, the durable shape, and the
+> circuit's wall time. **No row measures write rate against table size.** "Linear" was inferred from
+> the algorithm change (indexed `set` replacing a rebuilding foldl) plus the circuit falling
+> 257s -> 88.6s. Measured directly, one variable, process locus
+> (`wat-scripts/scratch-pad/probe-store-write-rate.wat`):
+>
+> ```
+> mem:     1000=6471   2000=20818   4000=89998  ms    -> x3.2, x4.3   QUADRATIC
+> sqlite:  1000= 630   2000= 1320   4000= 3019  ms    -> x2.1, x2.3   linear
+> ratio:      10x         16x          30x            (56x at n=8000)
+> ```
+>
+> Writes are still O(n^2) in table size. The gap doubles with every doubling of n, which is what
+> O(n^2) against O(n) predicts. **This is the campaign's standing failure mode in its purest form:
+> a measurement of the circuit's wall time written up as a claim about the write path's complexity.**
+> The workload that triggers it is exactly the queue's — every message in a queue shares one `pk`,
+> so the per-pk row list grows to n. Which step is O(n) is NOT yet measured; do not guess it.
+
 ## The red first weigh was handled exactly right
 
 The first weigh went red on two arms — `checker_skip_debt_is_named_and_frozen` and
