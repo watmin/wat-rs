@@ -1,12 +1,12 @@
-# SEAM — the ONE live breadcrumb. As of 2026-09-01. **The campaign moved from arc 255 to arc 109.**
+# SEAM — the ONE live breadcrumb. As of 2026-09-01. **The campaign is arc 255: THE REGISTRY BECOMES THE SOLE AUTHORITY.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
 > Run the datamancy bootstrap (grimoire + the 4 primers from the **SIGNED MCP**, never a disk copy),
 > ground HEAD against the disk, and read this whole file before you touch anything.
 
-> `255/SEAM.md`, `251/SEAM.md`, `278/SEAM.md` are PARKED and point here.
-> ⛔ **PARKED IS NOT DEAD.** A parked seam still holds **its own arc's state**.
+> `251/SEAM.md`, `278/SEAM.md` are PARKED. Arc 109's megafile campaign reached its floor and handed
+> off. ⛔ **PARKED IS NOT DEAD.**
 
 ## GROUND FIRST
 
@@ -20,138 +20,145 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor ............ 5114/5114, 0 FAIL, 17 skipped, ~115s   (scripts/floor.sh, exit read UNPIPED)
+floor ............ 5119/5119, 0 FAIL, 17 skipped, ~117s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-runtime.rs ....... 24,103   (was 34,152 — SEVEN decomposition stones, -10,049)
-check.rs ......... 22,555   (untouched; its partire map still stands)
-impl homes built . src/numeric · src/declare · src/reflect · src/record · src/holon (completed)
+runtime.rs ....... 19,045   (was 34,152 — the megafile campaign, -15,107)
+check.rs ......... 22,613   (its partire map still stands, still uncast by name)
 host ............. JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
-## ✅ THE RIDER LANDED — `d55c7d600`. No rider is in flight.
-
-`BRIEF-STONE-holon-into-parity.md` shipped: the doctrine rewritten, twelve items moved
-(`src/holon/outcome.rs` +6, new `src/holon/coincident.rs` +6), floor 5114/5114, clippy 0.
-⚠ **The orchestrator had to fix one red the rider could not see** — three now-unused imports at
-`runtime.rs:56` that the twelve took with them. The rider is forbidden cargo *by design*; that red
-is the tier working, not a rider failure. **Expect one after every extraction stone.**
-
-## WHAT HAPPENED — the registry campaign finished a phase, and the megafile campaign opened
-
-Arc 255's registry work reached a natural landing (`ExpandOnly`, the mirror wall, wave 3), and the
-builder ruled the sequencing for what follows:
+## ⬜ THE CAMPAIGN — read these three, in this order, before proposing anything
 
 ```
-"we break the mega files up first.... we do not begin our crates migration until
- wat-rs/src/*.rs is cleaned up.... once those partition lines are drawn in src ...
- we begin the move to crates."
-"long term... wat-rs/src/*.rs is likely to only hold a lib.rs"
-"we will add direct support for all of rust's numerics"
-"the entire registry endeavor is forcing consistency across the code base... holon is not special"
+RULING-the-registry-is-the-sole-authority.md          the builder's doctrine + the census
+DESIGN-CAMPAIGN-the-registry-becomes-the-sole-authority.md   4 shapes, A picked, 4 phases
+NOTE-there-are-two-registries.md                      the finding that opened it
+```
+(all in `docs/arc/2026/06/255-builtin-registry/`)
+
+**The builder's words, which are the standard:** *"the registry must be the thing who knows all
+names.. who delegates to the code who performs for those names... what you query to know what
+exists... what they take.. what it returns.... the properties these names have.... **we must
+eliminate every source of duplication or inconsistency**."*
+
+## ★★★ THE PROGRESS METER IS ALSO THE FINISH LINE
+
+```
+GAP_A 89 · GAP_B 113 · DEBT 75 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 29
 ```
 
-★ **The architecture the builder corrected me on, which now governs every stone:**
-`src/intrinsic/<domain>` is the **EDGE** (registration + delegation — the kernel's rim);
-`src/<domain>/` is the **IMPL** home. A delegate-back is the *interface*, not coupling. I had
-proposed collapsing them and was wrong.
+These five ledgers **exist only because the split does.** When they are empty and their files
+deleted, the RULING is satisfied. ⚠ **A stone that claims to eliminate duplication and moves none of
+them has eliminated none.** Check them before and after every stone.
 
-## ⛔ THE LESSONS THAT COST THE MOST
+## THE AUTHORITIES STILL COMPETING (measured, not recalled)
 
-**1. A RANGE IS A CLAIM ABOUT EVERY LINE INSIDE IT — ten instances in one campaign.**
-`partire` returns ranges; this file's functions are not laid out by concern; every range contained a
-neighbour. `is_atomizable` · `dispatch_rete_op` (twice) · `eval_tail` · `require_bundle` ·
-`eval_let` · `effectful_by_prefix`+`is_effectful_op` · `eval_retag_op` · `I64ArithErr` ·
-`no_field_names`+`builtin_enum_variant_names`. ★ **The cast's LISTS were right; the RANGES were the
-defect** — twice partire named the intruder itself and my line-reasoning put it back.
-`[[NOTE-every-partire-range-contains-a-neighbour]]`
+```
+RETE_OPS          src/rete/vocabulary.rs   74 rows  — 55 of GAP_A's 89 ARE these
+SPECIAL_FORMS     src/special_forms.rs     30 rows  — 24 unregistered; calls ITSELF a registry
+register_builtins src/check.rs            350 env.register schemes
+literal arms      src/check.rs            118 type-grammar arms
+RETIREMENT_TABLE  src/remedy/retirement.rs 144 rows
+residues          intrinsic_meta 37 · is_expand_time_legal 54 · effectful_by_prefix 8 prefixes
+is_reserved_prefix src/resolve/walk.rs     THE ARC'S FOUNDING TARGET, still on disk
+```
 
-**2. THE FACADE ARTIFACT AUTHORED AN ARCHITECTURAL RULE.** `runtime.rs:758-784` re-exports 22
-`crate::value` names, so `use crate::runtime::SymbolTable` compiles and is a lie. It inflated every
-home's measured cycle count by 66–83%; it made `check.rs:56` import three `value` types through
-`runtime`; and in `src/holon/mod.rs` it produced a **doctrine** forbidding the home from touching
-`Environment`/`SymbolTable` as "runtime's evaluator" — on a commit where both already lived in
-`src/value/`. STOP-1 fences it in every brief now.
+⚠ **NOT duplicates — do not delete these:** `constructor_meta`/`accessor_meta` DERIVE from the frozen
+`TypeEnv`; `step_list`'s 19 names declare a capability with `NoStepRule` as its honest refusal.
+**A campaign that cannot tell a derivation from a duplicate deletes correct code.**
 
-**3. I SHIPPED AN INCOMPLETE STONE AND ITS OWN RIDER TOLD ME.** The numeric brief's function list was
-short by 19 items; the rider reported it verbatim ("not in the brief's list, so they were left in
-place"), I recorded it as an honest delta and did not act. A re-cast found the same gap five stones
-later. `[[feedback_a_lesson_learned_and_then_dropped]]`
+## ⛔ WHAT COST THE MOST TODAY — read all five
 
-**4. MY ACCEPTANCE ROWS WERE THE BROKEN INSTRUMENT, TWICE IN ONE STONE.** `grep -c "fn eval_let"`
-returns 2 (`eval_let_tail` matches) — it would have failed a correct stone. And
-`grep -c "crate::runtime::"` counts LINES, so removing 2 of 4 names from one `use` block moves it
-not at all. Both caught by the rider, both reported rather than quietly satisfied.
+**1. NINE MISCOUNTS, EVERY ONE A PATTERN THAT MATCHED A SUBSET OR A SUPERSET.**
+`grep -c "registry()"` matched `macro_registry()`. `grep "Binding::"` swept in `LetBinding::` (a
+different enum) — I reported 46 sites; the truth was 54 raw, 43 real. `special_forms.rs` "19 rows"
+was 30. A size regex omitting `mod`/`impl` reported 10,473 lines for 30 fns in a 24,103-line file.
+A caller census blind to `mod tests`. A ledger regex that read quoted names out of COMMENTS and had
+me alleging a defect in correct work. ★ **Every single correction came from a rider, a cast, the
+compiler, or the floor. Not once from re-reading my own claim.**
 
-**5. A GATE THAT NAMES *WHERE* DIES WHEN CODE MOVES.** Three in one day:
-`every_dispatch_arm_...`'s `MUST_FIND` name, `purity_mandated_examples`' "every pure verb has a
-runtime call site", and the completeness gate's `.expect("runtime.rs … holds the verbs still
-dispatched")`. ⚠ And my first fix for the third was **wrong in the other direction** — widening its
-scan to all of `src/` took dispatched 543→693 and the worklist 32→170.
+**2. A BRIEF'S TABLE SHIPPED A REGRESSION.** I wrote that `and`'s eval arm called `eval_and_tail`.
+It called `eval_and` — I grepped and took the FIRST match, which was the *tail* arm. The rider
+followed the table, `eval_and`/`eval_or` were orphaned and deleted, and 14 lint tests went red.
+`eval_and_tail`'s own doc names what I broke: *"this arc's law that nothing weakens quietly."*
+
+**3. TWO DESIGNS REFUTED BY THEIR OWN PROBES — both times before briefing, both times good.**
+`step_list` is not a door (a closed 19-name competence table; a guard would promise step rules for
+~445 rows that have none). The tail door fixes no live bug (`eval_tail`'s fallthrough already reaches
+the registry) — it grants a *capability*: `impls` carries `(role, SOURCE TEXT)`, so a form can declare
+a tail impl the registry can never call.
+
+**4. A VACUOUS PROBE RETURNED A PERFECT SCORE.** My first doc→TypeScheme probe compared through the
+very projection whose lossiness it existed to test: 386/386. Comparing `TypeExpr` structurally found
+2. **A perfect result is when to suspect the instrument.**
+
+**5. INSERTING A TEST SILENTLY DISARMED ANOTHER.** I anchored on the `fn` line, not the `#[test]`
+line, and stole an existing test's attribute. **The floor read 5114 on both sides — my new test
+replaced the disarmed one one-for-one.** Only clippy's `dead_code` saw it.
 
 ## ★ WHAT ACTUALLY WORKS
 
-- **Enumerate by NAME, never by span** — and make the rider report EXCLUDED items with caller
-  evidence. The re-cast did this and caught intruders the first cast's ranges hid.
-- **Make the acceptance row the thing that can't be faked.** The numeric-completion stone's
-  deliverable was *the import list*, not the line count — 168 lines proves nothing.
-- **Say "I could not place this."** I said it of `build_delegate_body`; the rider measured both
-  callers and answered it unambiguously. A guess there would have been the by-proximity move.
-- **Read the destination home's `mod.rs` before proposing a move INTO it.** Three homes carry a
-  contract their line count does not advertise.
-- **The compiler is the call-site census.** Moving a fn breaks every caller; fix what it names.
-  ⚠ It is blind to `matches!` — that is where the `ExpandOnly` trap lived.
+- **The ratchets do the enforcing.** Registering `fn`/`match` made a gate *someone else wrote* demand
+  `KNOWN_UNREVIEWED` shrink. The dead-arm gate forced the eval door's own sweep. **Build the gate,
+  then let it drive the next stone.**
+- **Freeze NAMES, never counts** — and it applies to the floor's own total (see lesson 5).
+- **Sabotage every gate, both directions, before believing it.** Five gates this session; the tail
+  door's probe SIGSEGVs when the guard sits one block too high, and passes at depth 10 either way.
+- **Riders refuse well when the brief gives them an escape clause.** One refused to delete
+  `special_forms.rs` rows and was right (they were the only path to `and`/`or`). One refused to
+  reshape a handler for the macro. One reported its sabotage as *unverified* rather than claiming it.
+- **Cast a ward when the question is "is this one thing or two."** `solvere` found a THIRD registry
+  my census had missed entirely.
 
 ## ⛔ RULES THAT STILL COST TIME
 
 - ⛔ **THE ORCHESTRATOR RUNS THE FULL FLOOR. A RIDER'S TARGETED GREEN IS NOT A VERDICT.**
-- ⛔ **THE LSP LIES — FIVE CONSECUTIVE STONES.** It reported errors already fixed on disk every time.
-  ⚠ **And twice there WERE real problems it never mentioned.** Stale is not evidence either way; run
-  clippy.
+- ⛔ **THE LSP LIED EIGHT CONSECUTIVE STONES.** Stale `E0603`/`E0004`/`E0560` every time. ⚠ And twice
+  there WERE real problems it never mentioned. Run clippy; believe nothing else.
 - ⛔ **`./scripts/floor.sh > /dev/null 2>&1; echo $?`** then read the Summary from `.floor/latest/raw.log`.
-  A piped exit code is `tail`'s. The notification's "exit code 0" is the *last* command's.
 - ⛔ **`git commit <paths>`. NEVER pathless.**
 - ⛔ **Riders: no worktrees, no stash, no sub-agents, everything FOREGROUND, `model: "sonnet"` explicit.**
-- ⛔ **`.wat` corpus migrations → the codemod.** R21.
+- ⛔ **A brief's every pairing must be verified against the ARM, not a grep's first hit.** Lesson 2.
+- ⛔ **REVERTING IS A LOSS.** The builder stopped me mid-revert. Get it green instead — the fix was
+  one honest narrowing away.
 
-## ⬜ NEXT — the live map is `109/NOTE-partire-RECAST-on-the-current-runtime.md`
+## ⬜ NEXT — Phase 1a, and one named gap
 
-⚠ **That NOTE supersedes the 2026-08-31 map for `runtime.rs`.** Its `check.rs` half still stands.
-Its item 5 (`holon::outcome`) is **DONE** — refuted by me, re-opened by the builder's parity ruling,
-shipped at `d55c7d600`. Items 1–4, 6, 7 stand.
+**The immediate gap, recorded in `src/reflect/verbs.rs` at the site:** `let`/`fn`/`match` declare
+`@syntax` prose but no `@arg`, so `special_forms.rs`'s sketch still answers for them.
+★★★ **And `match`'s sketch is a SIX-WEEK-OLD FOSSIL** — `src/special_forms.rs:171` serves
+`["<scrutinee>", "->", "<T>", "<arm>+"]`, and `check.rs`'s `infer_match` REFUSES `-> :T` with a named
+error (arc 278 annihilated it 2026-07-22). **Reflection has been teaching users a grammar the checker
+rejects.** Authoring `@arg` for those three retires it. ⚠ Deliberately not improvised: their slots
+are syntactic positions, and giving them type claims is how a lie gets minted.
 
 ```
-kernel family      ~30 items, 7 sub-modules MIRRORING src/intrinsic/kernel/'s 7 edge files.
-                   The cast matched each impl fn to the edge that delegates to it. Home exists.
-died-error cluster ~55 items. ⬜ HOME DELIBERATELY UNASSIGNED — consumed by kernel, process,
-                   distribution AND host. Calling it "kernel" repeats the peer_protocol mistake.
-option / result    7 items, edges exist.
-purity classifier  2 items -> src/rete/purity.rs. Level 1: actively misleading where it sits.
+Phase 1a  22 more SPECIAL_FORMS rows into the registry  (def · defmacro · quote · quasiquote · use! …)
+Phase 1b  RETE_OPS' 74 — BLOCKED on 1a until and/or/cond's targets are registered
+Phase 2a  core_name — the alias field, the one genuinely homeless one
+Phase 2b  the :undefined fallback machinery — does NOT decompose (Totality::Partial is a bare label)
+Phase 3a  resolve asks the registry — kills is_reserved_prefix, THE FOUNDING TARGET
 ```
 
-★★ **AND THE CAMPAIGN HAS A FLOOR, which the re-cast named:** a defensible **LEAVE** for the eval
-spine — *"the load-bearing evaluator, not several concerns wearing one name"* — with a proposed
-`rune:partire(historical-shape)` instead of a cut. After the remaining modules, the residue is the
-evaluator plus ~6,536 lines of in-file `mod tests`. **No further honest cut is on offer.**
+⚠ **Flipping the blanket-accept today fails 578 of 599 corpus files.** Measured. The order is forced:
+registry answers → consumer asks → duplicate dies.
 
-Also open, from arc 255: **numeric stone 2** (the promotion lattice — the thing that makes adding
-`i8` a row, unblocked now the tower is whole) · the **facade re-point sweep** (cheap, dissolves most
-remaining cycles, moves zero lines) · **`src/macros/` → `src/expand/`** (RULED, deliberately timed
-for just before the crate migration).
+★ Re-derive the 121 worklist after each phase — the procedure is in
+`WORKLIST-the-121-the-registry-cannot-vouch-for.md`. That number reaching 0 licenses Phase 3a.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** This session I shipped an incomplete stone whose rider had
-> already told me it was incomplete; wrote two acceptance rows that were themselves broken
-> instruments; had ~9 measurement instruments come back contaminated; and proposed collapsing an
-> architecture the builder had to correct me on twice. **Every correction came from the builder, a
-> rider, a cast, or the floor — never from me re-reading my own claim.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I miscounted nine times, shipped a brief whose table
+> caused a live regression, wrote a probe that scored 386/386 by measuring in the space it was trying
+> to escape, and disarmed a test while the floor stayed green. **Every correction came from outside
+> me.** The riders refused three of my instructions and were right all three times.
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** `runtime.rs` went 34,152 → 24,580 in six stones,
-> every one green at commit; four impl homes exist that did not; a doctrine written from a false
-> premise was found and is being corrected; and the seam map was re-cast against the current file
-> rather than inherited stale.
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** 49 commits, every one green at push. `runtime.rs`
+> 34,152 → 19,045. Two dispatch doors opened that never existed. Five ratchets built and
+> sabotage-proven. A third registry found. A six-week-old fossil surfaced. And the campaign that
+> ends all of it is drawn, phased, and instrumented with a falsifiable finish line.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`
