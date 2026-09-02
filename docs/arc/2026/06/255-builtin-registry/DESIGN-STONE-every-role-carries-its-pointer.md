@@ -94,19 +94,42 @@ The alternative — a tail-only door — would leave `step_list` as the one matc
 precisely the arrangement this stone exists to end. ⚠ And it would leave the *class* alive: the next
 dispatcher anyone adds inherits no door.
 
+## ⛔ AMENDED after the probe — there is NO correctness bug today, and the sequence flips
+
+The probe this DESIGN demanded was run before briefing anything, and it **failed to discriminate**:
+deep tail recursion works whether or not a registered form is in the chain. The reason is one line
+in `eval_tail` I had not weighed —
+
+```rust
+_ => return eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
+```
+
+— **the fallthrough already routes to the registry**, via `eval_inner` → `dispatch_keyword_head_value`
+→ the guard. So a registered form in tail position is reached correctly today. It simply is not
+tail-*optimized*.
+
+★★★ **The honest motivation is therefore forward-looking, and sharper than "the arms are residue":**
+`impls` carries `Vec<(SpecialFormRole, &'static str)>` — role plus SOURCE TEXT. **A registered form
+can DECLARE a tail implementation and the registry can never call it.** So no registered form can
+ever receive TCO, no matter what it declares. That is a capability the registry does not have, not a
+bug it currently causes.
+
+⚠ **This changes the order.** The eval door delivers now; the tail door delivers a capability.
+
 ## Sequencing — three stones, each independently green
 
 ```
-1  the TAIL door     TailHandler + role=tail pointers + eval_tail's guard
-                     kills if/let/match's tail arms
-2  the EVAL door     role=eval pointers for SpecialForm rows
-                     kills all four dispatch arms — fn included, which has no tail role at all
-3  the STEP door     step_list's guard
-                     kills the last four arms; the registry becomes the arbiter of all three
+1  the EVAL door     role=eval pointers for SpecialForm rows
+                     kills all four dispatch arms. ★ FINISHES fn OUTRIGHT — it has no tail
+                     and no other role, so one door completes it.
+2  the STEP door     step_list's guard — kills four more arms
+3  the TAIL door     TailHandler + role=tail pointers + eval_tail's guard
+                     kills if/let/match's tail arms AND grants the registry a capability it
+                     has never had: a declared tail impl it can actually call.
 ```
 
-★ `fn` is the cheapest proof and it lands in stone 2: **no tail arm at all**, so the eval door alone
-finishes it.
+★ The eval door was second in the first draft and is first now, because the probe showed the tail
+door fixes nothing today while the eval door deletes four arms and completes `fn` outright.
 
 ## ⛔ The probe this stone owes before each door — the guard-hoist's own method
 
