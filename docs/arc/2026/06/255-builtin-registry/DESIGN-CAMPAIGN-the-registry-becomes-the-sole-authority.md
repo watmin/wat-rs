@@ -77,6 +77,50 @@ what exists today.*
 - **D** passes every question and is not an alternative: it cannot run until the registry holds the
   data, which is A.
 
+## ⛔ THE SEQUENCING RULING — builder, 2026-09-02
+
+> *"so... we continue to add names to the registry.... then we attack the hand lists... get this
+> known on disk... then we continue..."*
+
+**Register the population FIRST. Attack the hand-lists SECOND.** Not a preference — it is the
+RULING's forced order (*registry answers → consumer asks → duplicate dies*) restated after the
+campaign proved it, and after it twice tried to run ahead of itself:
+
+- **1a-β-ii** could not flip `is_liftable_declaration_head` until `def`/`defmacro`/`defalias` had
+  rows — and could not reach MISSING 0 until `defstruct`, a macro with no possible row, left the
+  domain.
+- **The mutation pair** (`is_mutation_head`/`is_mutation_form`, which **disagree on disk today**)
+  cannot be flipped now: its natural equality is `@Purity Unevaluated`, and its population includes
+  the loaders, the config setters, and `defstruct` — 4 unregistered, 2 unregistered, and 1
+  unregisterable (`[[NOTE-there-is-a-FOURTH-registry-and-it-holds-defn]]`).
+
+★ **A hand-list attacked before its population is registered produces a stone whose only honest
+deliverable is a number.** Both times the campaign learned this, it learned it from a red or a
+refusal — never from the plan.
+
+## ⬜ THE REGISTRATION WORKLIST — measured 2026-09-02, not recalled
+
+`src/special_forms.rs` holds **35** rows; **17** are registered; **18** remain, in four families
+grouped by shared axis argument:
+
+```
+1a-γ  homoiconic 8   quote · quasiquote · unquote · unquote-splicing
+                     macroexpand · macroexpand-1 · forms · struct->form
+1a-δ  loaders 4      use! · load-file! · digest-load! · signed-load!      ⬅ unblocks the mutation pair
+1a-ε  config 2       config::set-redef! · config::set-eval-redef!         ⬅ unblocks the mutation pair
+1a-ζ  remainder 3    ann-form · do · stream::lazy
+      ⛔ unregisterable 1   defstruct — a stdlib macro; no declare-time fn exists to name
+```
+
+⚠ **`defstruct` is the one name in the 18 that no stone can register**, and it sits in the mutation
+pair's population where it legitimately belongs (measured twice: `eval-ast!` and `eval_in_frozen`
+both see the literal, unexpanded head). **Either the registry learns to answer for macros, or the
+mutation pair's equality is not `@Purity Unevaluated` but something that tolerates a macro row's
+absence.** That fork is open and is named in the NOTE above.
+
+★ After 1a-δ and 1a-ε land, the mutation pair's population is 12 of 13 registered — and the fork
+above becomes the only thing between the campaign and its second hand-list kill.
+
 ## Execution decomposition
 
 The RULING's ordering is forced and measured: **registry can answer → consumer asks → duplicate

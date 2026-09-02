@@ -20,7 +20,7 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor ............ 5120/5120, 0 FAIL, 17 skipped, ~118s   (scripts/floor.sh, exit read UNPIPED)
+floor ............ 5123/5123, 0 FAIL, 17 skipped, ~115s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
 runtime.rs ....... 19,045   (was 34,152 — the megafile campaign, -15,107)
 check.rs ......... 22,613   (its partire map still stands, still uncast by name)
@@ -44,7 +44,7 @@ eliminate every source of duplication or inconsistency**."*
 ## ★★★ THE PROGRESS METER IS ALSO THE FINISH LINE
 
 ```
-GAP_A 89 · GAP_B 113 · DEBT 75 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 29
+GAP_A 89 · GAP_B 112 · DEBT 83 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 28
 ```
 
 These five ledgers **exist only because the split does.** When they are empty and their files
@@ -60,6 +60,8 @@ register_builtins src/check.rs            350 env.register schemes
 literal arms      src/check.rs            118 type-grammar arms
 RETIREMENT_TABLE  src/remedy/retirement.rs 144 rows
 residues          intrinsic_meta 37 · is_expand_time_legal 54 (16 already DEAD) · effectful_by_prefix 8
+MacroRegistry     src/macros/registry.rs   41 stdlib macros — 0 visible to the registry.
+                  ★ `:wat::core::defn` answers None, same as a nonexistent name.
 ⛔ NINE MORE       NOTE-the-sloppy-registries-a-measured-census.md — incl. FIVE hand-lists of
                   "what kind of form is this head", INCONSISTENT on disk (`def` is a mutation to
                   freeze.rs and is not one to runtime.rs). @Category is the vehicle; 1a unblocks it.
@@ -139,12 +141,25 @@ Only `fn` declares types. ★ `@syntax` was
 the right vehicle, not `@arg`: `@arg` carries a TYPE and those slots are syntactic positions.
 A sabotage-proven gate parses every declared `@syntax` at floor time, with a non-vacuity floor.
 
+⛔ **BUILDER'S SEQUENCING RULING, 2026-09-02:** *"we continue to add names to the registry.... then
+we attack the hand lists."* **Register the population first; flip the consumer second.** The campaign
+tried to run ahead twice and was stopped both times by a red or a refusal, never by the plan.
+
 ```
-Phase 1a  23 more SPECIAL_FORMS rows into the registry  (def · defmacro · quote · quasiquote · use! …)
-Phase 1b  RETE_OPS' 74 — BLOCKED on 1a until and/or/cond's targets are registered
+✅ DONE     17 of special_forms.rs's 35 rows registered — incl. all 8 declaration forms
+✅ KILLED   freeze::is_liftable_declaration_head (9 names) + its meter — the FIRST hand-list
+Phase 1a-γ  the homoiconic 8   quote · quasiquote · unquote · unquote-splicing ·
+                               macroexpand · macroexpand-1 · forms · struct->form
+Phase 1a-δ  the loaders 4      use! · load-file! · digest-load! · signed-load!   ⬅ unblocks the
+Phase 1a-ε  the config 2       set-redef! · set-eval-redef!                      ⬅ mutation pair
+Phase 1a-ζ  the remainder 3    ann-form · do · stream::lazy
+⛔ 1 UNREGISTERABLE  defstruct — a stdlib MACRO. See the fourth-registry NOTE.
+Phase 1b  RETE_OPS' 74 — BLOCKED on 1a
 Phase 2a  core_name — the alias field, the one genuinely homeless one
-Phase 2b  the :undefined fallback machinery — does NOT decompose (Totality::Partial is a bare label)
+Phase 2b  the :undefined fallback machinery — does NOT decompose
 Phase 3a  resolve asks the registry — kills is_reserved_prefix, THE FOUNDING TARGET
+          ★ and it is LOAD-BEARING, not tidying: is_reserved_prefix is the ONLY thing
+            keeping the macro namespace disjoint from the registry's.
 ```
 
 ⚠ **Flipping the blanket-accept today fails 578 of 599 corpus files.** Measured. The order is forced:
