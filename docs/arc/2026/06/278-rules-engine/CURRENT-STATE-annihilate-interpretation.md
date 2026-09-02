@@ -4,13 +4,13 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (twenty-ninth — 27 STRIKES LANDED; C4 CLOSED; NO MILLISECOND IN THIS ARC IS REPRODUCIBLE TO BETTER THAN ~16%). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (thirtieth — 28 STRIKES LANDED; C3+C4 CLOSED; MY OWN THROWAWAY SWEEPS HAVE NOW BEEN WRONG TWICE IN ONE DAY). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline abc9fac7d..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat abc9fac7d..HEAD --name-only
+git log --oneline 6e22aed75..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 6e22aed75..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -58,12 +58,30 @@ instruments.
 | **B** — resource lifetime (1) | ⭐ **CLOSED** |
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
-| **C** — the instruments | C1, C2, C7, C8, **C4** closed. **C3, C5, C6 OPEN**; **C9** the spec check has never been run; **C10** a counter blind to its own branch; **C11** a rendering slip |
+| **C** — the instruments | C1, C2, **C3**, C4, C7, C8 closed. **C5, C6 OPEN**; **C9** the spec check has never been run; **C10** a counter blind to its own branch; **C11** a rendering slip |
 | **D** — engine behaviour | D1, D3, **D4** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D5, D6, D7 OPEN** |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-**Floor at stamp: `5313 tests run: 5313 passed, 21 skipped`, clippy rc=0, lints 196/196.**
+**Floor at stamp: `5327 tests run: 5327 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+
+### ⛔ C3 CLOSED — AND MY OWN MEASUREMENT WAS THE THING THAT FAILED
+
+The dead mark was real: `unwrap_or(0)` turned an absent census row into `0.00 ms`, printed it as a
+measurement and subtracted it. Deeper than the row said — `fire/delta.rs:270-276` wraps BOTH
+`phase_end`s around the same two allocations, so `setup:seen` is **coextensive** with `:alloc` and
+the "insert half" is not in that phase at all. Gated by
+`census_name_read_by_a_cost_test_is_emitted.rs`: 4 arms, 5 mutations, lints **210/210**.
+
+⛔ **I measured "exactly one dead name" and briefed a STOP trigger on it. The answer is FIVE, and the
+rider's number was right.** My throwaway sweep used a naive `"…"` regex with no notion of comments
+or char literals; one unbalanced quote **inverted the parity**, so it matched the *gaps between*
+literals. It found the one name that a second, anchored regex happened to catch.
+
+**That is twice in one day**: the same morning my grid sweep reported 17 dead marks by conflating
+census counters with phase marks. Both times a refinement *felt* like diligence and neither was
+anchored against a known-positive case. **A throwaway sweep is an instrument; hand-check one row it
+should find before quoting its count** — and never brief a STOP trigger on an unanchored number.
 
 ### ⭐ C4 CLOSED — and the same lesson bit me twice in one day
 
