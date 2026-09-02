@@ -1041,14 +1041,19 @@ mod tests {
         // The finish line is DEBT → 0 via Phase 2c (TypeSchemes derived from the doc types,
         // 384/386 measured convertible by PROBE(255) `bb1aa686d`) — not via not-registering.
         //
-        // ⛔ `:wat::core::defstruct` is DELIBERATELY ABSENT, and it is not an oversight: this stone
-        // did not register it. It is a stdlib `defmacro` (`wat/core.wat:2030`) that rewrites to
-        // `structtype` during `expand_all`, which always completes before `register_types` — so
-        // `parse_type_decl`'s `"defstruct"` arm is DEAD and `parse_defstruct` never runs for any
-        // real program. Verified: `--check` on a malformed `(:wat::core::defstruct :probe::Bad)`
-        // answers with `:head "structtype"`, never `parse_defstruct`'s own text. Annotating that
-        // fn `role = declare` would be a false reflection claim, so the stone stopped and reported
-        // (`liftable_declaration_head_missing_and_foreign` carries it in MISSING).
+        // ⛔ `:wat::core::defstruct` is DELIBERATELY ABSENT, and it is not an oversight. It is a
+        // stdlib `defmacro` (`wat/core.wat:2030`) that rewrites to `structtype` during
+        // `expand_all`, which always completes before `register_types` — so it never reaches a
+        // parser at all and has no declare-time fn to name. Verified: `--check` on a malformed
+        // `(:wat::core::defstruct :probe::Bad)` answers with `:head "structtype"`. Annotating a
+        // fn `role = declare` for it would be a false reflection claim.
+        //
+        // ✅ UPDATED by Stone 1a-β-i-b — `parse_defstruct` and `parse_type_decl`'s `"defstruct"`
+        // arm are now DELETED, not merely dead, and `defstruct` has left
+        // `is_liftable_declaration_head`'s domain, so `liftable_declaration_head_missing_and_foreign`
+        // no longer carries it: MISSING is `def`·`defalias`·`defmacro`. ⚠ Its arms in
+        // `is_mutation_form`/`is_mutation_head` STAY — those guard `eval_in_frozen` and
+        // `eval-ast!`, which evaluate caller-supplied AST that skipped `expand_all`.
         ":wat::core::structtype",
         ":wat::core::defenum",
         ":wat::core::newtype",
@@ -2807,22 +2812,19 @@ mod tests {
     /// with no nested `{`/`}` of its own, so the first `\n}` after the signature IS the fn's own
     /// close, not a false positive from a nested block).
     ///
-    /// ⚠ ★★★ `:wat::core::defstruct` is a MEMBER of the nine-name domain but is deliberately NOT
-    /// registered this stone (STOP-5): `:wat::core::defstruct` is a stdlib `defmacro`
+    /// ⚠ ★★★ Stone 255.1a-β-i-b — `:wat::core::defstruct` LEFT the nine-name domain. It used to
+    /// be a member `is_liftable_declaration_head` could never resolve to a `Declare` impl
+    /// (STOP-5 of the prior stone): `:wat::core::defstruct` is a stdlib `defmacro`
     /// (`wat/core.wat:2030`) that rewrites every use to `(:wat::core::structtype …)` during
     /// `expand_all`, which the freeze pipeline always runs BEFORE `register_types`/
-    /// `parse_type_decl` ever walks a form (`register_defmacros` collects EVERY top-level
-    /// `defmacro` — including this one — before `expand_all` rewrites anything, so there is no
-    /// bootstrap gap). Measured directly: `--check`ing `(:wat::core::defstruct :probe::Bad)`
-    /// raises a `MalformedDecl` whose `:head` is `"structtype"` and whose text is
-    /// `parse_structtype`/`parse_aggregate`'s own arity message, never `parse_defstruct`'s
-    /// (`src/types/defstruct.rs:520`, which is consequently unreachable from any real program —
-    /// grep confirms its only caller is `parse_type_decl`'s own "defstruct" arm). Annotating
-    /// `parse_defstruct` with `role = declare` would be a FALSE reflection claim: it does not
-    /// process this form. So MISSING carries `:wat::core::defstruct` forward, unresolved, next
-    /// to `def`/`defmacro`/`defalias` — 1a-β-ii (or a dedicated follow-up) inherits it, and this
-    /// gate's assertion is the measured 4, not the 3 the DESIGN predicted before this fact
-    /// surfaced.
+    /// `parse_type_decl` ever walks a form, so the arm inside `is_liftable_declaration_head`
+    /// (and the `parse_type_decl`/`classify_type_decl` arms downstream of it) could never fire.
+    /// This stone removed the dead arm itself, so the domain this gate reads from source is now
+    /// EIGHT, not nine, and MISSING drops to THREE (`def`/`defalias`/`defmacro`) — `defstruct` no
+    /// longer needs carrying forward as an unresolvable worklist entry, because it is no longer
+    /// in the domain being resolved. (The PRE-expansion `defstruct` arms in `is_mutation_form`
+    /// (`freeze.rs`) and `is_mutation_head` (`runtime.rs`) are a SEPARATE population — they guard
+    /// `eval-ast!`, not this liftable-declaration-head domain, and are untouched.)
     #[test]
     fn liftable_declaration_head_missing_and_foreign() {
         const SOURCE: &str = include_str!("../freeze.rs");
@@ -2858,10 +2860,10 @@ mod tests {
 
         assert_eq!(
             domain.len(),
-            9,
+            8,
             "is_liftable_declaration_head's domain read from src/freeze.rs's source is {:?} \
-             (len {}) — not the 9 names the DESIGN measured; the extraction or the fn changed \
-             underneath this gate",
+             (len {}) — not the 8 names Stone 1a-β-i-b measured after removing the dead \
+             `defstruct` arm; the extraction or the fn changed underneath this gate",
             domain,
             domain.len()
         );
@@ -2888,19 +2890,20 @@ mod tests {
         foreign.sort_unstable();
         foreign.dedup();
 
-        // 1a-β-i registers structtype/defenum/newtype/typealias (defsurface was 1a-β-0); the
-        // measured MISSING is FOUR, not the three the DESIGN predicted — `defstruct` stays
-        // unresolved per the STOP-5 finding in this fn's own doc comment, above.
+        // 1a-β-i registers structtype/defenum/newtype/typealias (defsurface was 1a-β-0); 1a-β-i-b
+        // removes `defstruct` from the domain entirely (dead arm — see this fn's own doc comment,
+        // above), so MISSING drops to the THREE the original DESIGN predicted before the
+        // `defstruct` finding surfaced: `def`/`defalias`/`defmacro` have no `Declare` impl yet and
+        // are 1a-β-ii's worklist.
         assert_eq!(
             missing,
             vec![
                 ":wat::core::def",
                 ":wat::core::defalias",
                 ":wat::core::defmacro",
-                ":wat::core::defstruct",
             ],
             "MISSING (in is_liftable_declaration_head, no Declare impl) must be exactly these \
-             four after Stone 1a-β-i: {:?}",
+             three after Stone 1a-β-i-b: {:?}",
             missing
         );
 

@@ -242,14 +242,21 @@ pub(crate) fn parse_defalias_form(form: &WatAST) -> Option<(String, String)> {
 /// Stone 241.8 — detect `(:wat::core::defstruct :Name ...)` shape.
 /// Arc 293.2-parity — also matches `:wat::core::structtype` (the primitive defstruct expands to).
 /// Replaces legacy struct / struct-restricted detection (HARD CUT).
+///
+/// Stone 255.1a-β-i-b — the `:wat::core::defstruct` half of the OR REMOVED. `defstruct` is a
+/// stdlib `defmacro` that `expand_all` rewrites to `structtype`; this fn's only callers
+/// (`preregister.rs:399`/`:474`, inside `preregister_fn_defs_in_do`/`_in_let`) are reached
+/// exclusively from `register_defines`/`register_stdlib_defines`, which every call site in the
+/// tree feeds the POST-expansion `expanded`/`post_types` forms (macro expansion is startup step
+/// 4; registration is step 6 — `src/freeze/env.rs`'s `build_env` doc). A literal `defstruct` head
+/// can therefore never reach this predicate; `structtype` is the one live shape.
 pub(crate) fn is_struct_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items, _)
             if matches!(
                 items.first(),
-                Some(WatAST::Keyword(k, _))
-                    if k == ":wat::core::defstruct" || k == ":wat::core::structtype"
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::structtype"
             )
     )
 }

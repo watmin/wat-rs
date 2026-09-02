@@ -12330,6 +12330,14 @@ fn is_mutation_head(head: &str) -> bool {
         // define is no longer a recognized mutation head at eval time.
         ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
+            //
+            // Stone 255.1a-β-i-b — KEPT. `defstruct` is a stdlib `defmacro` that `expand_all`
+            // rewrites to `structtype`, but this function guards `eval-ast!`
+            // (`refuse_mutation_forms_in` → `run_constrained` → `eval_form_ast`), which evaluates
+            // user-supplied AST that was never macro-expanded. Measured: `(:wat::eval-ast!
+            // '(:wat::core::defstruct …))` still answers "eval refused mutation form:
+            // :wat::core::defstruct" — the literal head reaches this guard, so the arm is
+            // load-bearing. Do not remove it in a future "finish the defstruct sweep" pass.
             | ":wat::core::defstruct"
             // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
             | ":wat::core::structtype"

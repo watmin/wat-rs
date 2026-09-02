@@ -6,10 +6,15 @@
 //! `defmacro` in `wat/core.wat:2030`) lowers into — measured while working this stone: a
 //! malformed `(:wat::core::defstruct :probe::Bad)` at `--check` raises a `MalformedDecl`
 //! whose `:head` is `"structtype"` and whose text is `parse_structtype`/`parse_aggregate`'s
-//! own arity message, not `parse_defstruct`'s (`src/types/defstruct.rs:520`). `structtype` is
-//! therefore the form that ACTUALLY registers whatever a user spells `defstruct`; see
-//! `defstruct`'s own STOP-5 finding in the stone's report for why `defstruct` is not annotated
-//! this stone.
+//! own arity message. `structtype` is therefore the form that ACTUALLY registers whatever a user
+//! spells `defstruct`.
+//!
+//! ✅ UPDATED by Stone 1a-β-i-b — the citation here used to point at `parse_defstruct`
+//! (`src/types/defstruct.rs:520`) as the contrast. That fn is now DELETED, along with
+//! `parse_type_decl`'s `"defstruct"` arm: both were reachable only from a `#[cfg(test)]` helper
+//! that registers without expanding. ⚠ `defstruct` survives in `is_mutation_form`/
+//! `is_mutation_head`, which guard AST that skipped `expand_all` — a different question, and a
+//! live one.
 
 use wat_macros::wat_special_form;
 

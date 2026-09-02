@@ -70,13 +70,22 @@ fn run_named_launch(world: &wat::freeze::FrozenWorld, name: &str) -> i64 {
 /// gate that cannot: a bidirectional meter over the predicate's ACTUAL domain, asserting each
 /// name is registered with a `SpecialFormRole::Declare` impl. When that lands, this probe's
 /// membership half is subsumed by a check nobody has to remember to update.
+///
+/// ⛔ CORRECTED AGAIN 2026-09-02 (arc 255, Stone 1a-β-i-b) — `:wat::core::defstruct` LEFT the
+/// domain (nine → eight) and this probe's name moves with it. `defstruct` was never wrong to be
+/// listed here — it genuinely used to be one of the `matches!` arms — but it could never actually
+/// be exercised: `defstruct` is a stdlib `defmacro` (`wat/core.wat:2030`) that `expand_all`
+/// rewrites to `structtype` before this predicate's only caller
+/// (`closure_extract::split_body_prelude`, itself POST-expansion) ever runs, so no real program
+/// could reach this predicate with a literal `defstruct` head. The arm was removed from
+/// `is_liftable_declaration_head` itself (`src/freeze.rs`); `defstruct` now belongs in `excluded`,
+/// below, alongside the other heads the predicate correctly refuses.
 #[test]
-fn probe_liftable_declaration_head_covers_all_nine_keywords() {
-    // All NINE arms of `is_liftable_declaration_head`, transcribed from the `matches!` itself.
+fn probe_liftable_declaration_head_covers_all_eight_keywords() {
+    // All EIGHT arms of `is_liftable_declaration_head`, transcribed from the `matches!` itself.
     let covered = [
         ":wat::core::def",
         ":wat::core::defmacro",
-        ":wat::core::defstruct",
         // Arc 293.2-parity — the low-level primitive `defstruct` (a macro) expands to.
         ":wat::core::structtype",
         ":wat::core::defenum",
@@ -96,16 +105,20 @@ fn probe_liftable_declaration_head_covers_all_nine_keywords() {
     }
 
     // Loads and config setters are in is_mutation_form but NOT in is_liftable_declaration_head.
+    // `:wat::core::defstruct` joined this list Stone 255.1a-β-i-b — it is a macro `expand_all`
+    // always rewrites to `structtype` before this predicate's caller runs, so the arm was dead
+    // and removed; this assertion is the un-sweepable pin against it silently coming back.
     let excluded = [
         ":wat::load-file!",
         ":wat::digest-load!",
         ":wat::signed-load!",
         ":wat::config::set-foo!",
+        ":wat::core::defstruct",
     ];
     for kw in &excluded {
         assert!(
             !is_liftable_declaration_head(kw),
-            "is_liftable_declaration_head should return false for {:?} (loads/config-setters are out of scope)",
+            "is_liftable_declaration_head should return false for {:?} (loads/config-setters are out of scope; defstruct is a macro, dead post-expansion)",
             kw
         );
     }

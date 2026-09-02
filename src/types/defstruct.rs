@@ -1,58 +1,30 @@
 //! vigilatum: 2026-06-01T02:47:26Z — vigilia 9-spell L1+L2=0
 //!
-//! `parse_defstruct` decomposed by concern.
+//! Field/metadata parsing shared by every aggregate declarator, decomposed by concern.
 //!
 //! Stone 243.5 home for the `(:wat::core::defstruct ...)` declaration parser.
 //! Concerns separated: arity validation, name parsing, slot discrimination,
 //! metadata-map parsing, field-vector parsing, restrictions assembly, struct
-//! assembly. Each concern is a named helper; `parse_defstruct` orchestrates.
+//! assembly. Stone 255.1a-β-i-b retired the orchestrator itself
+//! (`parse_defstruct` — dead, since `:wat::core::defstruct` never survives
+//! `expand_all`) and its arity gate; `parse_defstruct_metadata` and
+//! `parse_aggregate_fields_with_splices` remain the live helpers, now reached
+//! from `types.rs`'s `parse_aggregate` (the `structtype` path) instead.
 
 use crate::ast::WatAST;
 use crate::span::Span;
 use std::collections::HashMap;
 
-use super::{AggregateDef, Nature, StructRestrictions, SurfaceMember, TypeDef, TypeEnv, TypeExpr, TypeError, TypeErrorKind};
+use super::{SurfaceMember, TypeDef, TypeEnv, TypeExpr, TypeError, TypeErrorKind};
 
 const HEAD: &str = ":wat::core::defstruct";
 
-/// Validate that `parse_defstruct` received a legal number of args.
-///
-/// Legal: 2 (name + fields) or 3 (name + metadata + fields). Returns `Ok(())`
-/// if the count is in range; returns a `MalformedDecl` error otherwise.
-///
-/// Arc 109 binder strike α — `arg_count` is the RAW `args.len()` (kept only
-/// for the diagnostic text, unchanged for the no-binder case); `remaining`
-/// is what's left of the iterator AFTER name + optional `:- [T …]` binder
-/// are peeled off. Gating on `arg_count` directly would misfire "too many
-/// args" on a legal binder-bearing form — a binder widens the raw count by
-/// 2 (`:-` keyword + its `[…]` vector) before any of it is consumed.
-fn validate_defstruct_arity(arg_count: usize, remaining: usize, decl_span: &Span) -> Result<(), TypeError> {
-    if remaining == 0 {
-        return Err(TypeError::new(
-            decl_span.clone(),
-            TypeErrorKind::MalformedDecl {
-                head: HEAD.into(),
-                reason: format!(
-                    "expected (:wat::core::defstruct :Name [fields]) or with optional metadata-map; got {} args after head",
-                    arg_count
-                ),
-            },
-        ));
-    }
-    if remaining > 2 {
-        return Err(TypeError::new(
-            decl_span.clone(),
-            TypeErrorKind::MalformedDecl {
-                head: HEAD.into(),
-                reason: format!(
-                    "too many args: expected 2 (name + fields) or 3 (name + metadata + fields); got {}",
-                    arg_count
-                ),
-            },
-        ));
-    }
-    Ok(())
-}
+// Stone 255.1a-β-i-b — `validate_defstruct_arity` REMOVED (its only caller, `parse_defstruct`,
+// is removed below). `:wat::core::defstruct` is a stdlib `defmacro` (`wat/core.wat:2030`) that
+// `expand_all` rewrites to `:wat::core::structtype`; `parse_type_decl`'s `"defstruct"` arm that
+// called `parse_defstruct` could therefore never fire (it consumes post-expansion forms) and is
+// removed too. `parse_structtype`'s own arity check (routed through `parse_aggregate`) is the
+// live equivalent for the post-expansion `structtype` head.
 
 /// Parsed struct metadata: ordered field-name list + per-field restriction map.
 ///
@@ -500,82 +472,13 @@ fn flush_field_run(
     Ok(())
 }
 
-/// Stone 241.8 — parse a `(:wat::core::defstruct :Name [...fields...])` or
-/// `(:wat::core::defstruct :Name {metadata} [...fields...])` declaration.
-///
-/// Three positional forms after the head keyword (consumed by `parse_type_decl`):
-///   args[0]       — name keyword (e.g. `:my::ns::MyType`)
-///   args[1..N-1]  — optional metadata-map `{...}` (WatAST::List with head
-///                   `:wat::core::HashMap`); absent in the 2-arg form.
-///   args[last]    — field-vector `[field <- :T ...]` (WatAST::Vector)
-///
-/// Metadata keys recognized:
-///   `:restricted-to [kwlist]`          — form-level ctor restriction
-///   `:field-metadata {sym → meta}`     — per-field metadata map
-///   (unknown keys are silently stored; D5)
-///
-/// Empty `{}` is REJECTED per FORM-COLLAPSE-NOTES (divide-by-zero principle).
-/// Field-vector is parsed by `parse_argspec_triples` with
-/// `ParseOptions { allow_rest_binder: false }`.
-pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result<TypeDef, TypeError> {
-    // Arc 109 binder strike α — `arg_count` kept for the diagnostic text
-    // (unchanged for the no-binder case); the arity gate itself moves past
-    // name + binder extraction, see `validate_defstruct_arity`'s doc.
-    let arg_count = args.len();
-    let mut iter = args.into_iter().peekable();
-
-    // Slot 0 — name keyword.
-    let name_kw = iter.next().ok_or_else(|| TypeError::new(
-        decl_span.clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: format!(
-                "expected (:wat::core::defstruct :Name [fields]) or with optional metadata-map; got {} args after head",
-                arg_count
-            ),
-        },
-    ))?;
-    let (name, name_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
-    let type_params = super::take_declared_binder(HEAD, name_params, name_kw.span(), &mut iter)?;
-
-    validate_defstruct_arity(arg_count, iter.len(), &decl_span)?;
-
-    // Discriminate: 2-arg form vs 3-arg form.
-    let (metadata_node_opt, fields_node) = if iter.len() == 1 {
-        // 2-arg form: name + fields (no metadata).
-        (None, iter.next().unwrap())
-    } else {
-        // 3-arg form: name + metadata + fields.
-        let meta_node = iter.next().unwrap();
-        let fields_node = iter.next().unwrap();
-        (Some(meta_node), fields_node)
-    };
-
-    // Parse optional metadata-map.
-    let (ctor_whitelist, field_restrictions) = if let Some(meta_node) = metadata_node_opt {
-        parse_defstruct_metadata(meta_node)?
-    } else {
-        (Vec::new(), HashMap::new())
-    };
-
-    // Parse field-vector via the ONE canonical field parser (splice-aware — Arc 293).
-    let fields = parse_aggregate_fields_with_splices(fields_node, HEAD, env)?;
-
-    // Build restrictions: None if no whitelist + no field restrictions; Some(_) otherwise.
-    let restrictions = if ctor_whitelist.is_empty() && field_restrictions.is_empty() {
-        None
-    } else {
-        Some(StructRestrictions {
-            ctor_whitelist,
-            field_restrictions,
-        })
-    };
-
-    Ok(TypeDef::Aggregate(AggregateDef {
-        name,
-        type_params,
-        fields,
-        nature: Nature::Struct,
-        restrictions,
-    }))
-}
+// Stone 255.1a-β-i-b — `parse_defstruct` REMOVED. It parsed a
+// `(:wat::core::defstruct :Name [...fields...])` / `(:wat::core::defstruct :Name {metadata}
+// [...fields...])` declaration directly, but `:wat::core::defstruct` is a stdlib `defmacro`
+// (`wat/core.wat:2030`) that `expand_all` rewrites to `:wat::core::structtype` — its ONE caller,
+// `parse_type_decl`'s `"defstruct"` arm (`types.rs`), consumed post-expansion forms and so could
+// never see a raw `defstruct` head. Retirement: the field/metadata parsing this function did by
+// hand is not gone — `parse_structtype` reaches the SAME `parse_defstruct_metadata` and
+// `parse_aggregate_fields_with_splices` helpers below via `parse_aggregate` (`types.rs:4678`/
+// `4684`), which is why this file is not dead, only these two functions and the two dispatch arms
+// that reached them.

@@ -899,10 +899,15 @@ fn walk_free_symbols(
                     ":wat::core::match" => {
                         return walk_match_form(rest, locals, state);
                     }
-                    // Stone 241.8 — defstruct replaces struct (HARD CUT).
-                    ":wat::core::defstruct" => {
-                        return walk_struct_form(rest, state);
-                    }
+                    // Stone 255.1a-β-i-b — `":wat::core::defstruct" =>` arm REMOVED. `defstruct`
+                    // is a stdlib `defmacro`; `expand_all` rewrites it to `structtype` before
+                    // this walker's only caller (`extract_closure`, reached from
+                    // `:wat::kernel::fn-forms` reifying an already-registered/already-expanded
+                    // fn value) ever runs. A raw `defstruct` head cannot survive to here even via
+                    // `eval-ast!`: `refuse_mutation_forms_in` walks a quoted AST's FULL tree
+                    // recursively and refuses `defstruct` anywhere in it (see `runtime.rs`),
+                    // before any fn value built from that AST could reach this walker. Measured
+                    // dead; `structtype` (below) is the live post-expansion arm.
                     // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
                     ":wat::core::structtype" => {
                         return walk_struct_form(rest, state);

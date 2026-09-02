@@ -38,7 +38,6 @@
 pub mod error;
 pub use error::{TypeError, TypeErrorKind};
 pub(crate) mod defstruct;
-pub(crate) use defstruct::parse_defstruct;
 pub(crate) mod surface;
 pub(crate) use surface::parse_defsurface;
 
@@ -305,7 +304,10 @@ impl Purity {
 /// subtype edge via `nature.root_keyword()`. Non-nature-root parents are rejected at parse time.
 ///
 /// Produced by:
-///   - `parse_defstruct` → `nature: Struct, restrictions: Some/None`
+///   - `parse_aggregate` (routed from the `"structtype"` arm) → `nature: Struct,
+///     restrictions: Some/None`. `:wat::core::defstruct` is the stdlib macro users write;
+///     `expand_all` rewrites it to `:wat::core::structtype` before registration ever sees it
+///     (Stone 255.1a-β-i-b — the standalone `parse_defstruct` this pointed to is dead and removed).
 ///   - `parse_recordtype` → `nature: Record | HolonRecord, restrictions: None`
 ///   - `register_builtin_types` → `nature: Struct` for all builtins
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3995,8 +3997,13 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
     if let WatAST::List(items, _) = form {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
             match k.as_str() {
-                // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
-                ":wat::core::defstruct" => return Some("defstruct"),
+                // Stone 255.1a-β-i-b — `"defstruct"` arm REMOVED. `:wat::core::defstruct` is a
+                // stdlib macro; `expand_all` rewrites it to `:wat::core::structtype` before this
+                // classifier ever runs (it is called from inside `register_types`, whose caller
+                // always hands it the `expanded` output of `expand_all` — see e.g.
+                // `types.rs:6920`), so the arm could never fire. `structtype` (below) is the live
+                // post-expansion head.
+                //
                 // Arc 293.2-parity — structtype is the low-level primitive defstruct (now a macro) expands to.
                 ":wat::core::structtype" => return Some("structtype"),
                 // Stone 241.9 — defenum replaces enum (HARD CUT).
@@ -4127,8 +4134,12 @@ fn parse_type_decl(
     let mut iter = items.into_iter();
     let _head_kw = iter.next();
     let def = match head {
-        // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
-        "defstruct" => parse_defstruct(iter.collect(), decl_span.clone(), env),
+        // Stone 255.1a-β-i-b — `"defstruct" =>` arm REMOVED, along with `parse_defstruct` (its
+        // only caller). `classify_type_decl` (above) can no longer produce `"defstruct"` as
+        // `head` — that classifier's own `defstruct` arm was removed in the same stone, for the
+        // same reason: `expand_all` rewrites `:wat::core::defstruct` to `:wat::core::structtype`
+        // before any form reaches here. `"structtype"` (below) is the live post-expansion arm.
+        //
         // Arc 293.2-parity — structtype: thin alias → parse_aggregate with injected :wat::core::Struct parent.
         "structtype" => parse_structtype(iter.collect(), decl_span.clone(), env),
         // Stone 241.9 — defenum replaces enum (HARD CUT).
@@ -6260,9 +6271,19 @@ mod tests {
 
     #[test]
     fn simple_struct() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
         let (env, rest) = collect(
-            r#"(:wat::core::defstruct :project::market::Candle
+            r#"(:wat::core::structtype :project::market::Candle
                   [open  <- :wat::core::f64
                    high  <- :wat::core::f64
                    low   <- :wat::core::f64
@@ -6285,10 +6306,20 @@ mod tests {
 
     #[test]
     fn parametric_struct() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
         // Arc 109 ③ — angle-bracket decl-name retired; `Head :- [T …]` siblings instead.
         let (env, _) = collect(
-            r#"(:wat::core::defstruct :my::Container :- [T]
+            r#"(:wat::core::structtype :my::Container :- [T]
                   [value <- :T
                    count <- :i64])"#,
         )
@@ -6305,10 +6336,20 @@ mod tests {
 
     #[test]
     fn parametric_struct_multiple_params() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
         // Arc 109 ③ — angle-bracket decl-name retired; `Head :- [K V]` siblings instead.
         let (env, _) = collect(
-            r#"(:wat::core::defstruct :my::Pair :- [K V]
+            r#"(:wat::core::structtype :my::Pair :- [K V]
                   [key   <- :K
                    value <- :V])"#,
         )
@@ -6484,11 +6525,21 @@ mod tests {
 
     #[test]
     fn duplicate_type_rejected() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let err = collect(
             r#"
-            (:wat::core::defstruct :my::T [x <- :f64])
-            (:wat::core::defstruct :my::T [y <- :i64])
+            (:wat::core::structtype :my::T [x <- :f64])
+            (:wat::core::structtype :my::T [y <- :i64])
             "#,
         )
         .unwrap_err();
@@ -6497,19 +6548,39 @@ mod tests {
 
     #[test]
     fn reserved_prefix_rejected() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated from :wat::core::struct to defstruct.
-        let err = collect(r#"(:wat::core::defstruct :wat::core::MyStruct [x <- :f64])"#).unwrap_err();
+        let err = collect(r#"(:wat::core::structtype :wat::core::MyStruct [x <- :f64])"#).unwrap_err();
         assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
 
-        let err = collect(r#"(:wat::core::defstruct :wat::holon::Bad [x <- :f64])"#).unwrap_err();
+        let err = collect(r#"(:wat::core::structtype :wat::holon::Bad [x <- :f64])"#).unwrap_err();
         assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
 
-        let err = collect(r#"(:wat::core::defstruct :wat::std::Bad [x <- :f64])"#).unwrap_err();
+        let err = collect(r#"(:wat::core::structtype :wat::std::Bad [x <- :f64])"#).unwrap_err();
         assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
     }
 
     #[test]
     fn dotted_name_rejected() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Arc 296 stone H-1 — the dot wall. A dot in a record's name segment (the part
         // after the last `::`) would forge stone H's tagged-variant wire discriminator
         // (`#ns/Enum.Variant`), so registration refuses it authoritatively rather than
@@ -6517,13 +6588,13 @@ mod tests {
         //
         // Row 1 (negative): a record whose name contains a dot is refused, structurally
         // on the error kind — not on message text.
-        let err = collect(r#"(:wat::core::defstruct :my::Shape.Circle [x <- :f64])"#).unwrap_err();
+        let err = collect(r#"(:wat::core::structtype :my::Shape.Circle [x <- :f64])"#).unwrap_err();
         assert!(matches!(err.kind(), TypeErrorKind::DottedName { .. }));
 
         // Row 2 (positive control): an ordinary undotted record in the SAME test still
         // registers successfully. Without this row, row 1 alone cannot distinguish "the
         // dot wall works" from "registration is broken for everything."
-        let (env, _) = collect(r#"(:wat::core::defstruct :my::Shape [x <- :f64])"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::structtype :my::Shape [x <- :f64])"#).unwrap();
         assert!(env.get(":my::Shape").is_some());
     }
 
@@ -6535,10 +6606,20 @@ mod tests {
 
     #[test]
     fn malformed_field_rejected() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated to defstruct; old MalformedField (pair-form) replaced by
         // MalformedDecl from parse_argspec_triples (name-not-symbol / missing-arrow variants).
         // Incomplete triple [x] fails with MalformedDecl.
-        let err = collect(r#"(:wat::core::defstruct :my::T [x])"#).unwrap_err();
+        let err = collect(r#"(:wat::core::structtype :my::T [x])"#).unwrap_err();
         assert!(matches!(err.kind(), TypeErrorKind::MalformedDecl { .. }));
     }
 
@@ -6550,8 +6631,12 @@ mod tests {
         // name. Post-arc-072 the lexer rejects at lex layer with a
         // clean diagnostic — same property (rejection) at a better
         // layer.
-        // Stone 241.8 — migrated to defstruct.
-        let err = collect_lenient(r#"(:wat::core::defstruct :my::Bad<T [x <- :T])"#)
+        // Stone 241.8 — migrated to defstruct; Stone 255.1a-β-i-b — on to `structtype`, for
+        // consistency with this module's other tests. ⚠ The head is INCIDENTAL here: the lexer
+        // rejects `:my::Bad<T` before any head dispatch runs, so this test would pass with any
+        // head at all. Swapped only so no test in this file implies `defstruct` is still a live
+        // input to `classify_type_decl`.
+        let err = collect_lenient(r#"(:wat::core::structtype :my::Bad<T [x <- :T])"#)
             .expect_err("expected rejection");
         // Stone B: {:?} and Display now emit EDN (not human prose). The error kind
         // is #wat.parse/Lex (a lex error at the keyword with whitespace inside `<`).
@@ -6570,10 +6655,20 @@ mod tests {
 
     #[test]
     fn non_type_forms_preserved() {
+        // ⛔ Arc 255 Stone 1a-β-i-b — MIGRATED from `:wat::core::structtype` to
+        // `:wat::core::structtype`, the form that actually reaches this parser. `defstruct` is a
+        // stdlib `defmacro` (`wat/core.wat`) that `expand_all` rewrites to `structtype`, and
+        // `register_types` runs at pipeline step 5 — AFTER expansion at step 4 — so no production
+        // path ever hands `classify_type_decl` a literal `defstruct` head. Only this `mod tests`
+        // helper `collect` did, by parsing and registering without expanding, which is why the
+        // dead arm looked live. Same precedent as `freeze.rs`'s `eval_refuses_define`, which
+        // migrated off `:wat::core::define` onto a surviving spelling when `define` was HARD CUT.
+        // The SUBJECT is unchanged: these assert the aggregate field parser and the name
+        // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let (_env, rest) = collect(
             r#"
-            (:wat::core::defstruct :my::T [x <- :f64])
+            (:wat::core::structtype :my::T [x <- :f64])
             (:wat::holon::Atom "hello")
             42
             "#,

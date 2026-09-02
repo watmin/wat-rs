@@ -1898,6 +1898,19 @@ fn is_mutation_form(head: &str) -> bool {
             // define is no longer a recognized mutation form at eval time.
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
+            //
+            // Stone 255.1a-β-i-b — KEPT, deliberately, unlike the identically-spelled arm that
+            // used to sit in `is_liftable_declaration_head` below (now removed). `defstruct` is a
+            // stdlib `defmacro` that `expand_all` rewrites to `structtype`, but THIS function is
+            // `refuse_mutation_forms`, which guards `eval_in_frozen` (dynamic holon composition /
+            // rule-like pattern matching / received holon-programs) — a path that evaluates
+            // caller-supplied AST that was never macro-expanded, refusing the RAW form before
+            // `eval_in_frozen`'s own `expand_fully` gets a chance to rewrite it. Measured by the
+            // `eval_refuses_define` test below: `eval_in_frozen` on a raw `(:wat::core::defstruct
+            // …)` node still raises `EvalForbidsMutationForm { head: ":wat::core::defstruct" }` —
+            // the literal head reaches this guard, so the arm is load-bearing. Do not remove it in
+            // a future "finish the defstruct sweep" pass. (`runtime.rs`'s `is_mutation_head` is the
+            // sibling guard for `:wat::eval-ast!` specifically — same reasoning, separate path.)
             | ":wat::core::defstruct"
             // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
             | ":wat::core::structtype"
@@ -1913,11 +1926,14 @@ fn is_mutation_form(head: &str) -> bool {
     ) || head.starts_with(":wat::config::set-")
 }
 
-/// Returns `true` for the **nine** heads that declare a name into the module's type or value
+/// Returns `true` for the **eight** heads that declare a name into the module's type or value
 /// registry AND may therefore be lifted out of a fn body's `do`-prefix into the closure's
 /// prologue. The narrower subset of [`is_mutation_form`] — it excludes the loads
 /// (`load-file!` / `digest-load!` / `signed-load!`) and the config setters
-/// (`config::set-*`), which mutate state but introduce no binding.
+/// (`config::set-*`), which mutate state but introduce no binding. (Stone 255.1a-β-i-b dropped it
+/// from nine to eight: `defstruct` — a stdlib macro `expand_all` always rewrites before this
+/// predicate's post-expansion caller runs — is no longer one of the arms; see the arm's own
+/// removal note in the `matches!` below.)
 ///
 /// `defn` is intentionally absent: it is a macro that expands to `(:wat::core::def …)` BEFORE
 /// `extract_closure` runs, so by the time this predicate is consulted `defn` is already a `def`.
@@ -1955,8 +1971,12 @@ pub fn is_liftable_declaration_head(head: &str) -> bool {
             // Stone 241.16 — `:wat::core::define` arm DELETED from is_declaration_form.
             // HARD CUT is total; define is no longer a declaration form.
             | ":wat::core::defmacro"
-            // Stone 241.8 — defstruct replaces struct (HARD CUT).
-            | ":wat::core::defstruct"
+            // Stone 255.1a-β-i-b — `defstruct` arm REMOVED. `defstruct` is a stdlib `defmacro`
+            // (`wat/core.wat:2030`) that `expand_all` rewrites to `structtype` before this
+            // predicate's only caller (`closure_extract::split_body_prelude`, a POST-expansion
+            // runtime walker) ever runs, so the arm could never fire. `structtype` (below) is
+            // the live post-expansion head.
+            //
             // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
             | ":wat::core::structtype"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
