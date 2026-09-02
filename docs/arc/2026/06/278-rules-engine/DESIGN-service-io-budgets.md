@@ -20,7 +20,14 @@
   - **Byte-source SETTLED = re-encode** `(string::length (edn::write req))` — the serve arm holds the DECODED `req`, not the raw frame bytes (consumed upstream); and it matches how the client tooling fragments (both measure `edn::write` length → they agree). The frame-length option is not reachable here.
   - **CRUX-1 is the GATING decision** (see Open cruxes): the `serve-op-arms` foldl walks `:impls` *bodies* (no budget); the budget's on the *surface* (`types.rs:335`) with no wat accessor yet. 16.2 must build the discovery accessor FIRST — **rec (i): a synthesized per-op constant `<Surface>::<op>/max-request-bytes`** (`synthesize_surface_protocol`, `types.rs:1720`), reachable by BOTH the codegen AND the future client fragment tooling.
   - **RED gate:** an op DECLARES `:max-request-bytes 200`, its `:impls` body does NOT hand-roll (returns `:Ok`); an over-200-byte request → `RequestTooLarge` (from the codegen) + a follow-up small request on the SAME connection → `:Ok`. RED now (the body's `:Ok` comes back), GREEN after.
-- **The batching stream tooling (item (c) — `with-log-sink`/`write-*-stream`/`<op>-stream`) + output-side streaming: NOT built** (nothing on the disk). Item (c) is where the `:wat::telemetry::log` widget threads into the buffered `with-log-sink` collector — unblocked once CRUX-1's accessor exists.
+- **Item (c) and item (b): BUILT, 2026-09-01.** Not as `with-log-sink` — that sketch proposed a
+  BRACKET, which is a worker pool and the wrong shape; `span'` already WAS the sink. Item (c) is
+  stones A–D (buffer + delta/reset contract + both duration emissions + size trigger; two clocks;
+  the size-triggered flush speaks; bounded buffer with a drop counter). Item (b) is
+  `write-{logs,metrics}-batched` — built over a Vector, NOT over a `Stream`, which does not exist
+  and has no consumer. **Item (a) (`write-*-stream` over a lazy Stream) remains unbuilt by
+  RULING, not omission**: it waits for a consumer that actually streams. See the SCOREs beside
+  this file. Item (c) is where the `:wat::telemetry::log` widget threads into the buffered `with-log-sink` collector — unblocked once CRUX-1's accessor exists.
 
 ## The model (builder-ratified 2026-07-20)
 
