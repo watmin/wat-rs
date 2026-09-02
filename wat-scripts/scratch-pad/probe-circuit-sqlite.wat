@@ -109,12 +109,10 @@
   [(start [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
-   ;; One unit per tick: receive, ack, re-arm. Returning to the serve loop
-   ;; between messages is what makes Admin::Stop possible.
-   ;; wait-ns is 0: a parked receive (wait-ns>0) at process locus with ≥4
-   ;; waiters never completes, so Admin::Stop hangs waiting on the tick.
-   ;; Empty receives re-arm 1ms later — the worker is interruptible in the
-   ;; serve loop, not blocked inside Queue/receive.
+   ;; Park, don't poll. wait-ns 250 ms is the idle wait. An empty return is
+   ;; "nothing yet" — re-arm so the serve loop can take Admin::Stop. The
+   ;; queue/topic now arm from state (level-triggered); the 1 ms after a
+   ;; park is the Stop yield, not the idle poll.
    (-tick [s ctx]
      (:wat::core::let
        [rec  (:fanout::worker::State/durable s)
@@ -126,7 +124,7 @@
         vis  1000000000000
         rr   (:queue::Queue/receive q
                (:queue::Queue::ReceiveRequest
-                 :queue name :now-ns now :visibility-ns vis :limit 10 :wait-ns 0))]
+                 :queue name :now-ns now :visibility-ns vis :limit 10 :wait-ns 250000000))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
@@ -396,6 +394,20 @@
     0
     qclients))
 
+(:wat::core::defn :fanout::sum-ticks
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64  q <- :queue::Queue] -> :wat::core::i64
+      (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+        ((:wat::kernel::RecvOutcome::Message r)
+          (:wat::core::match r
+            ((:queue::Queue::StatsResponse::Ok _calls ticks _p _f)
+              (:wat::i64::+ acc ticks))
+            (_ acc)))
+        (_ acc)))
+    0
+    qclients))
+
 (:wat::core::defn :fanout::collect-stop
   [handles <- (:wat::core::Vector :- [:fanout::worker::Handle])]
   -> (:wat::core::Vector :- [:fanout::Outcome])
@@ -571,6 +583,7 @@
      _drain (:fanout::wait-drained qclients topic)
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
+     ticks (:fanout::sum-ticks qclients)
      outs (:fanout::collect-stop workers)
      empty-flags (:wat::core::foldl
                    (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
@@ -594,11 +607,12 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};ticks={ticks}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
-              :stop (ms t-stop0 t-end))]
+              :stop (ms t-stop0 t-end)
+              :ticks ticks)]
     (:wat::core::Tuple summary calls phases)))
 
 (:wat::core::defn :user::run
