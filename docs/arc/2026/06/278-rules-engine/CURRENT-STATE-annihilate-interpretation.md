@@ -47,8 +47,16 @@ site is `kernel/arm.rs:829`.
 
 ## ⛔ THE INITIATIVE: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures against
 
-Correctness was the first half and is **done**. What remains is the description layer and the
-instruments.
+⛔ **THIS LINE USED TO READ "Correctness was the first half and is DONE."** Struck 2026-09-02: the
+work list contradicts it. **D5, D6 and D7 are open behaviour rows**, and the banked
+`harness-experiri/` holds **two driven L1s** — a `match` that compiles or not depending on which of
+two equivalent spellings the author picked, and an op that is unreachable in one of its four declared
+positions. A framing sentence that says the half is finished, sitting at the top of the file the next
+instance reads first, is the same defect this arc spent the day closing: **a claim in prose the record
+already refutes.**
+
+The honest framing: **correctness is the better-covered half; the description layer and the
+instruments are the worse. Neither is done.**
 
 ## WHERE THE WORK STANDS — `VIGILIA-2026-08-30-WORK-LIST.md` is the ONLY place a row's status lives
 

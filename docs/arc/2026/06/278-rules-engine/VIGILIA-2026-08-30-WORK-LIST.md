@@ -233,6 +233,26 @@ three (`x /= r;`, `let (a,b) = (a / r, b / r);`, and `*x /= r;` inside a loop).
 ---
 
 ## CLASS D — engine behaviour
+### ⛔ D8 — NEW, AND IT HAS BEEN DRIVEN SINCE 2026-08-30 WITH NO ROW TO ITS NAME
+
+**`PersistentVector/length` is UNREACHABLE as an accumulator head**, and fires in all three other
+declared positions. `wat/rete/compile.wat:597` admits the acc-form on *pure ∧ deterministic ∧ total ∧
+`primitive?`* — and `primitive?` IS *"has a `RETE_OPS` row"*, so every row passes by construction.
+`expr_ir/mod.rs:947`'s `lower_named_rete_fn` then resolves through `sym.get(head)`, the **USER-function
+table**, with no `rete_op_for` branch — while its sibling `lower_list` has one and says so in a
+comment. The raise reads `unknown rete-defn` about a minted row of the one table.
+
+**Repro, banked and paired:** `harness-experiri/experiri-acc-head.wat` refuses;
+`experiri-acc-wrapped.wat` — the same op behind a one-line user `defn`, same position — prints
+`"fired"`.
+
+⛔ **THE CLASS: any site that admits by one registry and dispatches by another.**
+`holon_rete_ops_have_opexec` gates exactly one such pair. **This is the second, and it is ungated.**
+
+⚠ Found by the first real `experiri` cast on 2026-08-30 and rescued from `/tmp` at the builder's
+word. It has sat driven, reproduced and unrowed for three days — which is precisely how a finding
+dies. Rowed 2026-09-02.
+
 
 | id | site | what | found by |
 |---|---|---|---|
