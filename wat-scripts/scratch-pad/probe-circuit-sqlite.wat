@@ -622,7 +622,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [triple (:user::run* 2000 4 3)]
     (:wat::core::let
-      [_ (:wat::kernel::println (:wat::core::first triple))]
+      [_ (:wat::kernel::println
+           (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
+       _ (:wat::kernel::println (:wat::core::first triple))]
       (:wat::kernel::println (:wat::core::third triple)))))
 
 ;; ★ Row 2: pending-only drain + delayed-ack worker MUST lose the held message.
