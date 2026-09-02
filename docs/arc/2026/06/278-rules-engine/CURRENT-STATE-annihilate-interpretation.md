@@ -4,13 +4,13 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (thirty-second — 30 STRIKES LANDED; ⭐ CLASS C's ORIGINAL FOUR ARE ALL CLOSED; A RUST-CALLER COUNT IS NOT A REACHABILITY PROOF HERE). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (thirty-third — 31 STRIKES LANDED; C10+C11 CLOSED; `compiled:calls` IS NOT A CALL COUNT). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline b5526461a..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat b5526461a..HEAD --name-only
+git log --oneline 2cd163bfd..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 2cd163bfd..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -58,12 +58,48 @@ instruments.
 | **B** — resource lifetime (1) | ⭐ **CLOSED** |
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
-| **C** — the instruments | ⭐ **the original four (C3–C6) all CLOSED**, with C1, C2, C7, C8. C13 **withdrawn — it was never a question**. Open: **C9** spec check never run · **C10** a counter blind to its branch · **C11** a rendering slip · **C12** no arm measures the filter phase as it exists |
+| **C** — the instruments | ⭐ **the original four (C3–C6) all CLOSED**, with C1, C2, C7, C8. C13 **withdrawn — it was never a question**. **C10, C11** closed. Open: **C9** spec check never run · **C12** no arm measures the filter phase as it exists · **C14** `compiled:calls` is not a call count |
 | **D** — engine behaviour | D1, D3, **D4** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D5, D6, D7 OPEN** |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
 **Floor at stamp: `5327 tests run: 5327 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+
+### C10 + C11 CLOSED — AND C10 SHRANK ON AUDIT, THEN GREW A NEW ROW
+
+**C10 asked for a gate; the audit said the gate already exists.** Driven: forcing `skip_span = false`
+in the engine left the `compiled:calls == 80_200` assertion **PASSING** while C4's probe went **RED**.
+The blindness is real and the discrimination was landed this session, so the work was a
+cross-reference — *a row that asks for work already done should shrink on audit, not be briefed at
+its original size.*
+
+⛔ **But my brief said "a union of three sources" and named two.** The third is
+`fire/pass/alpha.rs:122` — `census_count_n("compiled:calls", ids.len() * aids.len())`, a
+**multiplicative bulk add**. So the counter **is not a call count**, and `accum_cost.rs:46-47`'s gloss
+of 80,200 as *"one per (fact, matching alpha) pair"* is a property of the workload, not of the
+counter. **C14.** I had already seen that line during the C4 crawl.
+
+**C11**: enumerated before sweeping — 4 blocks, 16 rows, 4 files inside the radius, and **zero**
+outside it. The 245 other deep-indent continuations are embedded `.wat` strings or wrapped assertion
+prose, where the strip is intended.
+
+### ⏭ D5 CRAWLED, NOT YET DRAWN — AND ITS CLASS IS WIDER THAN THE ROW
+
+`walk_nested_constructors` special-cases exactly one head (`kwargs-construct`) and otherwise
+*"recurses into every item anyway"* — so it walks into a `match` form's **arm patterns** as value
+expressions. `(:probe::E::A true)` arity-checks 0 declared fields against the arm's 1;
+`((:probe::E::A) true)` hides the keyword a level down and passes. **Which spelling compiles depends
+on the author's choice.**
+
+⚠ **The row names `match`. Three pattern-bearing forms exist** — `match` (95 refs), `let` (64), `fn`
+(42) — and the walker knows none of them. Whether `let`/`fn` are reachable in a `:then` operand is
+**unmeasured**; that enumeration is the first act of the strike, not an assumption.
+
+⚠ **The banked harness carries a SECOND, ungated L1** that no work-list row covers:
+`PersistentVector/length` is unreachable as an accumulator head because `wat/rete/compile.wat:597`
+admits by *"has a `RETE_OPS` row"* while `lower_named_rete_fn` dispatches through the **user-function**
+table. Its class — *any site that admits by one registry and dispatches by another* — has exactly one
+gate (`holon_rete_ops_have_opexec`); this is the second pair, ungated.
 
 ### ⭐ C5 CLOSED — CLASS C's ORIGINAL FOUR ARE DONE. AND A REACHABILITY CLAIM OF MINE WAS FALSE.
 
