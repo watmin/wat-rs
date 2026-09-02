@@ -163,8 +163,25 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // slot — the substrate's existing inference + recipient unification
     // is the static check (per the FOURTH amendment to arc 136 DESIGN).
     insert(&mut m, ":wat::core::do", &["<form>+"]);
-    // Match: `(match <scrutinee> -> <T> <arm>+)`. The `->` and `<T>`
-    // are part of the surface form (arc 091 / arc 098 grammar).
+    // ⛔ THIS ROW IS DEAD, AND ITS COMMENT WAS A LIVE FALSEHOOD until arc 255 Stone 1a-α.
+    //
+    // It used to read: *"The `->` and `<T>` are part of the surface form (arc 091 / arc 098
+    // grammar)."* That stopped being true at the `-> :T` annihilation (arc 258 sub-strike 2,
+    // briefed 2026-06-22; the named refusal is in `src/check.rs` from 2026-07-22).
+    // `check.rs`'s `infer_match` REFUSES this shape today with its own error —
+    // *":wat::core::match no longer takes `-> :T`"* — so this comment asserted, as current
+    // grammar, the exact form the checker rejects, for over two months. Nothing checked it.
+    //
+    // ⚠ SAY IT PRECISELY: **`match` is fully supported.** What was retired is `match`
+    // ASSERTING A RETURN TYPE. **Only `fn` declares types.** This is a dead ascription slot,
+    // not a dead form.
+    //
+    // The row is now UNREACHABLE: `:wat::core::match` is a registered row carrying `@syntax`
+    // (`src/intrinsic/special/match_form.rs`), so `lookup_form` answers from the registry and
+    // `signature_of_defn`'s `@syntax` arm renders the DECLARED grammar. It is left in place
+    // only because this whole table dies at once, at Phase 4a, once every row it still answers
+    // for is registered — deleting one row early would leave a table half-retired with nothing
+    // recording which half.
     insert(
         &mut m,
         ":wat::core::match",

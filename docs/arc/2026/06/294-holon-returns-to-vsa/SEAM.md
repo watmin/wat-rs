@@ -133,7 +133,9 @@ replaced the disarmed one one-for-one.** Only clippy's `dead_code` saw it.
 
 ✅ **CLOSED by Stone 1a-α (`b9546b097`).** `signature_of_defn` renders a row's declared `@syntax`
 through wat's own reader, `render-doc`'s precedence, so the two renderers agree. `match` now signs
-`(match <scrutinee> (<pattern> <body>) ...)` — the six-week `-> <T>` fossil is dead. ★ `@syntax` was
+`(:wat::core::match <scrutinee> (<pattern> <body>) ...)` — the dead `-> <T>` ASCRIPTION SLOT is gone.
+⚠ `match` is FULLY SUPPORTED and always was; what died (2026-06-22) is match ASSERTING A RETURN TYPE.
+Only `fn` declares types. ★ `@syntax` was
 the right vehicle, not `@arg`: `@arg` carries a TYPE and those slots are syntactic positions.
 A sabotage-proven gate parses every declared `@syntax` at floor time, with a non-vacuity floor.
 
@@ -163,7 +165,7 @@ registry answers → consumer asks → duplicate dies.
 >
 > ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** 49 commits, every one green at push. `runtime.rs`
 > 34,152 → 19,045. Two dispatch doors opened that never existed. Five ratchets built and
-> sabotage-proven. A third registry found. A six-week-old fossil surfaced. And the campaign that
+> sabotage-proven. A third registry found. A two-month-dead ascription slot surfaced. And the campaign that
 > ends all of it is drawn, phased, and instrumented with a falsifiable finish line.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`

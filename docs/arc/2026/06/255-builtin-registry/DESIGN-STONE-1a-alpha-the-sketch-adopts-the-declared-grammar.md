@@ -7,7 +7,7 @@
 > only fns declare types......."*
 >
 > This stone is the stepping stone that must land **before** the 23 registrations, and it is the
-> stone that retires the fossil that ruling names.
+> stone that retires the dead ascription slot that ruling names.
 
 ## ★★★ The finding this stone exists for: reflection has TWO renderers of one question, and they disagree
 
@@ -41,12 +41,18 @@ tests/wat_lang/wat_arc144_special_forms__fn.edn      (:wat.core/fn <params> <bod
 tests/wat_lang/wat_arc144_special_forms__match.edn   (:wat.core/match <scrutinee> -> <T> <arm>+)
 ```
 
-⛔ **The third is not merely coarser — it is a SIX-WEEK-OLD FOSSIL.** `src/special_forms.rs:171`
-has served `["<scrutinee>", "->", "<T>", "<arm>+"]` since before 2026-07-22, the day arc 278
-annihilated `-> :T`. `check.rs`'s `infer_match` refuses that form today with a **named error**
+⛔ **The third is not merely coarser — it serves a slot that has been DEAD FOR OVER TWO MONTHS.**
+`src/special_forms.rs:171` has served `["<scrutinee>", "->", "<T>", "<arm>+"]` ever since the
+`-> :T` annihilation (arc 258's sub-strike 2, briefed 2026-06-22; the named refusal is provable in
+`src/check.rs` from 2026-07-22). `infer_match` refuses that form today with a **named error**
 (`":wat::core::match no longer takes -> :T"`, `check.rs:6088`). **Reflection has been teaching users
-a grammar the checker rejects, for six weeks, and the correct text was sitting in the registry the
-whole time.**
+a grammar the checker rejects, and the correct text was sitting in the registry the whole time.**
+
+> ⚠ **SAY THIS PRECISELY — the builder corrected my wording, and the imprecision mattered.**
+> **`match` is not a fossil. `match` is fully supported in wat and always has been.** What was
+> retired is **`match` ASSERTING A RETURN TYPE** — the `-> <T>` slot. **Only `fn` declares types.**
+> Calling it "the `match` fossil" reads as a verdict on the form itself, which would send a future
+> reader hunting for a replacement that does not exist and is not wanted.
 
 That is the campaign's thesis demonstrated on itself: two authorities drifted, nothing noticed, and
 only folding one into the other made it visible.
@@ -122,9 +128,9 @@ same defect in code rather than in a declaration, and for a nested name (`:wat::
 
 | row | vehicle after this stone | golden |
 |---|---|---|
-| `:wat::core::let` | `@syntax` | **CHANGES** → `(let [<binder> <expr> ...] <body>+)` |
-| `:wat::core::fn` | `@syntax` | **CHANGES** → `(fn [<param> <- :T ...] -> :RetType <body>+)` |
-| `:wat::core::match` | `@syntax` | **CHANGES** → `(match <scrutinee> (<pattern> <body>) ...)` ★ the fossil dies |
+| `:wat::core::let` | `@syntax` | **CHANGES** → `(:wat::core::let [<binder> <expr> ...] <body>+)` |
+| `:wat::core::fn` | `@syntax` | **CHANGES** → `(:wat::core::fn [<param> <- :T ...] -> :RetType <body>+)` |
+| `:wat::core::match` | `@syntax` | **CHANGES** → `(:wat::core::match <scrutinee> (<pattern> <body>) ...)` ★ the dead ascription slot goes |
 | `:wat::core::if` | `@arg` ×3 (no `@syntax`) | unchanged — arm 2 still answers |
 | `:wat::core::and` / `or` | `@arg` (no `@syntax`) | unchanged |
 | `:wat::core::quasiquote` | still unregistered | unchanged — `special_forms.rs` still answers |
@@ -140,7 +146,7 @@ absence recorded as an answer, the defect class this arc has a NOTE family about
 **The fix is not a `match` on the error. It is a gate:** a floor test walks `registry()`, takes every
 row with a non-empty `syntax`, and asserts `parse_one_with_file` returns `Ok`. A malformed `@syntax`
 becomes a **red floor at the moment it is authored**, not a silent hole discovered six weeks later
-— which is precisely how the `match` fossil survived.
+— which is precisely how `match`'s dead ascription slot survived.
 
 ★ `[[extirpare]]`'s ladder: the convention rung ("author your `@syntax` carefully") is what we have
 now and it is what failed. This is the check rung, and it is the rung the material allows — a
@@ -157,7 +163,7 @@ the floor goes red naming that row. **A gate never seen red is not a gate**
 |---|:---:|:---:|:---:|:---:|---|
 | **A — `@syntax` first, verbatim, + the parse gate** | YES | YES | YES | YES | ✅ **PICKED** |
 | B — author `@arg` for `let`/`fn`/`match` instead | YES | YES | **NO** | — | ⛔ DISQUALIFIED |
-| C — update the three goldens to the fossil-free text by hand | YES | YES | **NO** | — | ⛔ DISQUALIFIED |
+| C — update the three goldens by hand to the corrected text | YES | YES | **NO** | — | ⛔ DISQUALIFIED |
 | D — `@syntax` first, but splice the FQDN head in | YES | **NO** | **NO** | — | ⛔ DISQUALIFIED |
 | E — render `@syntax`, no parse gate | YES | YES | YES | **NO** | ⛔ DISQUALIFIED |
 
@@ -171,7 +177,8 @@ the floor goes red naming that row. **A gate never seen red is not a gate**
 - **D Simple? NO, Honest? NO.** A third rendering, authored by the consumer, of a string the row
   already declares. It also silently disagrees with `render-doc` again, in the other direction.
 - **E Good UX? NO.** It hands the next 23 registrations a way to write an unparseable grammar and
-  discover it never — the exact six-week shape this stone is repairing.
+  discover it never — the exact shape this stone is repairing, where a wrong declaration outlived
+  the rule that killed it by two months because nothing checked it.
 - **A Simple? YES** and it is worth stating why, since the campaign's headline shape (FOLD) answers
   NO on this axis: this stone adds ONE match arm and ONE test. It removes a precedence disagreement
   rather than introducing a mechanism.
@@ -193,7 +200,7 @@ it to what the registry already declared.
 
 | what | command | expected |
 |---|---|---|
-| `match`'s fossil is gone | the `__match.edn` golden | no `->` and no `<T>` anywhere in it |
+| `match`'s dead ascription slot is gone | the `__match.edn` golden | no `->` and no `<T>` anywhere in it |
 | all three render the DECLARED string | each golden vs its `@syntax` line | byte-identical after the head |
 | ⛔ `if` did NOT move | `__if.edn` | unchanged — proves the `@arg` arm still wins when there is no `@syntax` |
 | ⛔ `quasiquote` did NOT move | `__quasiquote.edn` | unchanged — proves the `special_forms.rs` deferral survives for unregistered rows |

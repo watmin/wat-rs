@@ -3,7 +3,9 @@
 `signature_of_defn` gains ONE match arm, placed FIRST: a `Binding::Registered` row whose
 `entry.syntax` is non-empty renders that string through the substrate's own reader. This adopts the
 precedence `render-doc` has always used, so reflection's two renderers stop disagreeing — and it
-retires a six-week-old fossil that has been teaching users a `match` grammar the checker refuses.
+retires a two-month-dead ASCRIPTION SLOT the sketch still teaches. ⚠ `match` itself is fully
+supported and always was — what was retired is `match` ASSERTING A RETURN TYPE. Only `fn` declares
+types.
 You also build the gate that makes a malformed `@syntax` a red floor at authoring time.
 
 DESIGN: `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-1a-alpha-the-sketch-adopts-the-declared-grammar.md`.
@@ -97,7 +99,7 @@ fallback arm, do not soften the gate, do not "handle" it. A grammar the reader r
 in the declaration, and surfacing it is the finding.
 
 **⛔ STOP-4 — `src/special_forms.rs` is not yours.** It still answers for the 23 unregistered rows.
-Do not delete it, do not edit its rows, do not touch the `match` fossil at line 171 — it dies when
+Do not delete it, do not edit its rows, do not touch the dead `-> <T>` slot at line 171 — it dies when
 the deferral arm stops being reachable, which is Phase 4a, not this stone.
 
 **⛔ STOP-5 — do not author `@arg` for `let`/`fn`/`match`.** Their slots are syntactic positions with

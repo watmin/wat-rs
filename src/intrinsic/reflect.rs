@@ -464,7 +464,9 @@ pub(crate) fn eval_render_doc(
     // something that is not wat. `signature_of_defn`'s `@arg` path
     // (`src/reflect/verbs.rs`) has always emitted the full keyword here; this renderer
     // was the one out of step, and a doc surface teaching an illegal spelling is the
-    // same defect class as `match`'s six-week `-> <T>` fossil, one layer down.
+    // same defect class as the dead `-> <T>` ascription slot `match`'s sketch still served, one
+    // layer down. (⚠ `match` is fully supported; what was retired is match ASSERTING A RETURN
+    // TYPE. Only `fn` declares types.)
     {
         let syntax_str: Option<String> = if !entry.syntax.is_empty() {
             Some(entry.syntax.to_string())
