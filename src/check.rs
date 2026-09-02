@@ -15546,6 +15546,12 @@ fn infer_linked_list_constructor(
 // updated to `crate::function::infer_fn` and `crate::function::parse_fn_signature_for_check`.
 // HARD CUT: no backward-compat re-exports.
 
+/// Arc 255 Stone 1a-i — the `role = check` pointer for BOTH `:wat::core::and` AND
+/// `:wat::core::or` (STOP-2: this fn is the ONE check impl shared by both forms — two
+/// `#[wat_special_form_impl]` annotations, same fn, different fqdn, exactly the way `role = eval`
+/// / `role = tail` stack two annotations on `eval_and_tail` in `runtime.rs` for STOP-1).
+#[wat_special_form_impl(":wat::core::and", role = check)]
+#[wat_special_form_impl(":wat::core::or", role = check)]
 fn infer_boolean_shortcircuit(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: operand type errors locate at `arg.span()`, more precise than the coarse head span

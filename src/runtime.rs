@@ -1000,8 +1000,12 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                 // above: each is a legitimate tail context (see eval_and_tail/eval_or_tail/
                 // eval_ann_form_tail's docs for what each one does and, for and/or, the RULED
                 // trade this makes).
-                ":wat::core::and" => eval_and_tail(args, &list_span, env, sym),
-                ":wat::core::or" => eval_or_tail(args, &list_span, env, sym),
+                // Arc 255 Stone 1a-i — the `and`/`or` arms that used to sit here are RETIRED;
+                // `:wat::core::and`/`:wat::core::or` carry registered `role = tail` handlers now
+                // (`eval_and_tail`/`eval_or_tail` themselves — STOP-1's stacked-attribute pair, the
+                // same fns this arm used to name), so the registry-first tail door above already
+                // dispatches to them before this match is ever reached. `ann-form` has no
+                // registered tail handler yet and keeps its own arm below.
                 ":wat::core::ann-form" => eval_ann_form_tail(args, &list_span, env, sym),
                 // DESIGN-STONE-insert-prime-split — foldl's inner is tail; without this
                 // arm the defclause TCO path apply_function's the wat 2-ary wrapper (~1.2 µs).
@@ -1360,15 +1364,76 @@ fn eval_match_tail(
     )
     .into())
 }
+#[wat_special_form_impl(":wat::core::and", role = eval)]
+fn eval_and(
+    args: &[WatAST],
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
 
-/// Tail-position twin of [`eval_and`]. Mirrors [`eval_if_tail`]'s shape: every operand but the
-/// LAST keeps `eval_and`'s ordinary strict, checked evaluation (short-circuiting `false`); the
-/// last operand is handed to [`eval_tail`] so a self- or mutually-recursive tail call underneath
-/// it reuses the native stack frame instead of growing it.
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    // Short-circuit: false wins.
+    for arg in args {
+        let arg_span = arg.span().clone();
+        match eval_inner(arg, env, sym)?.value_owned() {
+            Value::bool(false) => return Ok(Value::bool(false)),
+            Value::bool(true) => continue,
+            other => {
+                return Err(RuntimeError::new(
+                    arg_span,
+                    RuntimeErrorKind::TypeMismatch {
+                        op: ":wat::core::and".into(),
+                        expected: "bool",
+                        got: Box::new(ValueSnapshot::of(&other)),
+                    },
+                )
+                .into())
+            }
+        }
+    }
+    Ok(Value::bool(true))
+}
+
+#[wat_special_form_impl(":wat::core::or", role = eval)]
+fn eval_or(
+    args: &[WatAST],
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
+
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    for arg in args {
+        let arg_span = arg.span().clone();
+        match eval_inner(arg, env, sym)?.value_owned() {
+            Value::bool(true) => return Ok(Value::bool(true)),
+            Value::bool(false) => continue,
+            other => {
+                return Err(RuntimeError::new(
+                    arg_span,
+                    RuntimeErrorKind::TypeMismatch {
+                        op: ":wat::core::or".into(),
+                        expected: "bool",
+                        got: Box::new(ValueSnapshot::of(&other)),
+                    },
+                )
+                .into())
+            }
+        }
+    }
+    Ok(Value::bool(false))
+}
+
+
+/// Mirrors [`eval_if_tail`]'s shape: every operand but the LAST keeps the ordinary strict,
+/// checked evaluation (short-circuiting `false`); the last operand is handed to [`eval_tail`] so
+/// a self- or mutually-recursive tail call underneath it reuses the native stack frame instead of
+/// growing it.
 ///
 /// **Arc 278 #59 — the RULED weakening (builder, 2026-08-02), documented rather than hidden per
-/// this arc's law that nothing weakens quietly.** `eval_and` type-checks EVERY operand at runtime
-/// and raises a located `TypeMismatch` on a non-bool. Tail-calling the last operand means its
+/// this arc's law that nothing weakens quietly.** The standalone `eval_and` this fn was once the
+/// tail-position twin of (arc 255 Stone 1a-i deleted it — see this fn's own STOP-1 note below)
+/// type-checked EVERY operand at runtime and raised a located `TypeMismatch` on a non-bool.
+/// Tail-calling the last operand means its
 /// value is never inspected here, so `eval_and_tail` cannot raise that check on the last operand —
 /// there is no shape that keeps both the check and the TCO, and the TCO was chosen. This is safe
 /// in all STATICALLY CHECKED source: `infer_boolean_shortcircuit` (check.rs) already forces every
@@ -1380,9 +1445,16 @@ fn eval_match_tail(
 /// its own call site's result type is checked, not its body). Pinned by
 /// `and_or_tail_skip_the_last_operand_check_on_the_unchecked_eval_ast_path` in
 /// `tests/rete/probe_arc278_59_tco_and_or_ann_form.rs`.
+///
+/// Arc 255 Stone 1a-i, STOP-1 — this fn carries BOTH `role = eval` and `role = tail` for
+/// `:wat::core::and`: its own signature is `TailHandler`-shaped exactly, so the registry's eval
+/// door and tail door both point here now. There is no longer a separate `eval_and` handler for
+/// the eval door — its literal arm in `dispatch_keyword_head_value` and the standalone `eval_and`
+/// fn it called are both retired below, next to `eval_or`'s identical retirement.
+#[wat_special_form_impl(":wat::core::and", role = tail)]
 fn eval_and_tail(
     args: &[WatAST],
-    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span (mirrors `eval_and`)
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -1411,13 +1483,18 @@ fn eval_and_tail(
     eval_tail(&args[last], env, sym)
 }
 
-/// Tail-position twin of [`eval_or`]. Sibling of [`eval_and_tail`] — same shape (short-circuit on
-/// every operand but the last, tail-call the last), same RULED weakening (last operand's runtime
-/// bool check is traded for TCO; see `eval_and_tail`'s doc for the full rationale and the pinning
-/// test, `and_or_tail_skip_the_last_operand_check_on_the_unchecked_eval_ast_path`).
+/// Sibling of [`eval_and_tail`] — same shape (short-circuit on every operand but the last,
+/// tail-call the last), same RULED weakening (last operand's runtime bool check is traded for
+/// TCO; see `eval_and_tail`'s doc for the full rationale and the pinning test,
+/// `and_or_tail_skip_the_last_operand_check_on_the_unchecked_eval_ast_path`).
+///
+/// Arc 255 Stone 1a-i, STOP-1 — carries BOTH `role = eval` and `role = tail` for
+/// `:wat::core::or`, mirroring `eval_and_tail`'s own stacking exactly (see its doc). The
+/// standalone `eval_or` fn and its `dispatch_keyword_head_value` arm are retired below.
+#[wat_special_form_impl(":wat::core::or", role = tail)]
 fn eval_or_tail(
     args: &[WatAST],
-    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span (mirrors `eval_or`)
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -2481,8 +2558,13 @@ fn dispatch_keyword_head_value(
         // `:wat::core::not` carries a registered handler, so the registry-first door above
         // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to `eval_not`
         // (unchanged) before this match is ever reached.
-        ":wat::core::and" => eval_and(args, list_span, env, sym),
-        ":wat::core::or" => eval_or(args, list_span, env, sym),
+        // Arc 255 Stone 1a-i — these two arms RETIRED; `:wat::core::and`/`:wat::core::or` carry
+        // registered `role = eval` handlers now (`eval_and_tail`/`eval_or_tail`, STOP-1's
+        // stacked-attribute pair), so the registry-first door above already dispatches to them
+        // before this match is ever reached. The standalone `eval_and`/`eval_or` fns these arms
+        // used to call are deleted (their only callers) —
+        // `registry_first_door_owns_every_handler_row_no_literal_arm_survives` (`intrinsic/mod.rs`)
+        // is the gate that fires if a literal arm like this survives registration.
 
         // List construction
         // Arc 163 slice 3d — `:wat::core::Vector` is canonical;
@@ -4299,8 +4381,8 @@ fn eval_if(
 ///
 /// `Alias`/`Form` re-invoke `dispatch_keyword_head_value` on `core_name` with the SAME `args` —
 /// literally the identical path the core op already uses (`:wat::i64::>`'s `eval_compare`
-/// call, reached via the registry-first door; `:wat::core::and`'s `eval_and`), never a second
-/// implementation.
+/// call, reached via the registry-first door; `:wat::core::and`'s `eval_and_tail`, registered
+/// arc 255 Stone 1a-i), never a second implementation.
 ///
 /// `Fallback` is the one class with its own logic, and it is a SECOND TERMINAL HANDLER over the
 /// shared kernel, not a duplicate: it re-invokes `dispatch_keyword_head_value` on `core_name`
@@ -5527,62 +5609,18 @@ fn eval_not(
     }
 }
 
-fn eval_and(
-    args: &[WatAST],
-    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
-
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    // Short-circuit: false wins.
-    for arg in args {
-        let arg_span = arg.span().clone();
-        match eval_inner(arg, env, sym)?.value_owned() {
-            Value::bool(false) => return Ok(Value::bool(false)),
-            Value::bool(true) => continue,
-            other => {
-                return Err(RuntimeError::new(
-                    arg_span,
-                    RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::and".into(),
-                        expected: "bool",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                    },
-                )
-                .into())
-            }
-        }
-    }
-    Ok(Value::bool(true))
-}
-
-fn eval_or(
-    args: &[WatAST],
-    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
-
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    for arg in args {
-        let arg_span = arg.span().clone();
-        match eval_inner(arg, env, sym)?.value_owned() {
-            Value::bool(true) => return Ok(Value::bool(true)),
-            Value::bool(false) => continue,
-            other => {
-                return Err(RuntimeError::new(
-                    arg_span,
-                    RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::or".into(),
-                        expected: "bool",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                    },
-                )
-                .into())
-            }
-        }
-    }
-    Ok(Value::bool(false))
-}
+// Arc 255 Stone 1a-i — `eval_and`/`eval_or` DELETED. Their only callers were the
+// `dispatch_keyword_head_value` match arms retired above; `:wat::core::and`/`:wat::core::or`
+// now dispatch through the registry's `role = eval` handler, which is `eval_and_tail`/
+// `eval_or_tail` themselves (STOP-1's stacked eval+tail attribute pair), not a separate fn.
+// This is the one place this stone's "no verb changes behaviour" promise narrows: `eval_and`
+// raised a runtime `TypeMismatch` on a non-bool LAST operand; `eval_and_tail` tail-calls that
+// operand away instead (the arc 278 #59 RULED weakening, previously observable only from tail
+// position). Deleting `eval_and` extends that same weakening to every call position — observable
+// only on the same already-exotic bypass the #59 pinning test exercises (a `quote`d `fn` literal
+// invoked via `:wat::eval-ast!`, never type-checked), never on statically-checked source, where
+// `infer_boolean_shortcircuit` already forces every operand, including the last, to `:bool`.
+// Flagged for the orchestrator rather than decided silently; see the stone's report.
 
 // Arc 146 slice 3 — `eval_conj` retired. The polymorphism is honest
 // now: a Dispatch (declared in `wat/core.wat`) routes

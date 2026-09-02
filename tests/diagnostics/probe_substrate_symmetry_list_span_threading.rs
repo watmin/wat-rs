@@ -75,9 +75,15 @@ fn every_dispatch_arm_calling_eval_threads_list_span() {
     // no). When the last one goes, this positive control has nothing left to anchor on and
     // should be DELETED rather than re-anchored — a parser-sanity check for a match that no
     // longer exists is a test asserting the absence of its own subject.
+    // ⛔ 2026-09-01 (second removal today) — `:wat::core::and` REMOVED, same reasoning as
+    // `aggregate-new` above: arc 255 Stone 1a-i registered it as a `#[wat_special_form]` with an
+    // `eval` role, so the registry-first door answers it and its dispatch arm is gone. The claim
+    // "no home carve relocates it" is now false for `and` too. `or` was never in this list.
+    // ⚠ Two anchors remain — `apply` and `ann-form` — and BOTH are on the 121-name registration
+    // worklist (`WORKLIST-the-121-the-registry-cannot-vouch-for.md`). This control has at most two
+    // removals left before the comment above applies and it should be DELETED, not re-anchored.
     const MUST_FIND: &[&str] = &[
         ":wat::core::apply",
-        ":wat::core::and",
         ":wat::core::ann-form",
     ];
     for needle in MUST_FIND {

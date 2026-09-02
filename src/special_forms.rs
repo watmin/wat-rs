@@ -238,6 +238,22 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // Dispatch site: `src/check.rs:3378` (special: returns :bool;
     // walks args without unifying against a fixed scheme so callers
     // can pass any boolean expression).
+    //
+    // ⚠ Arc 255 Stone 1a-i — `and`/`or` are now ALSO registered in the intrinsic registry
+    // (`src/intrinsic/special/and_form.rs` / `or_form.rs`, `#[wat_special_form]`), with real
+    // `role = check|eval|tail` implementations wired (`infer_boolean_shortcircuit`,
+    // `eval_and_tail`, `eval_or_tail`). Per the stone's brief this row would normally come OUT
+    // once registered — measured and left IN instead: `src/reflect/lookup.rs:197`'s
+    // `lookup_form` consults `lookup_special_form` (THIS registry) as its only route to a
+    // `Binding::SpecialForm`, with no fallback step reading `crate::intrinsic::registry()`.
+    // Deleting this row would silently drop `:wat::core::and`/`:wat::core::or` out of
+    // `lookup_form` (and whatever it feeds — `:wat::runtime::lookup-form`,
+    // `:wat::runtime::lookup-define`) with no existing test catching the loss (confirmed: no
+    // other `lookup_form` step — user-defines/macros/`CheckEnv` builtins/types — resolves
+    // either name). A stone that adds `reflect/lookup.rs` to its blast radius should retire this
+    // row properly, either by having `lookup_form` also consult the intrinsic registry or by
+    // some other resolution; until then this duplication is a KNOWN, MEASURED, DELIBERATE
+    // holdover, not an oversight.
     insert(&mut m, ":wat::core::and", &["<expr>*"]);
     insert(&mut m, ":wat::core::or", &["<expr>*"]);
 

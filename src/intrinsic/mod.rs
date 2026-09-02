@@ -834,6 +834,12 @@ mod tests {
     ///   FQDN-keyed special-case grammar, never via a generic `TypeScheme`, so `CheckEnv`
     ///   was never going to have it — this gate's job is only to notice and freeze that fact)
     const FROZEN_CHECKER_DEBT_LEDGER: &[&str] = &[
+        // Arc 255 Stone 1a-i — `and`/`or` are registered special forms with a real check impl
+        // (`infer_boolean_shortcircuit`, `check.rs`) but NO `env.register()` TypeScheme, so
+        // `check_env.get` returns `None`. Exactly the `Option/expect` shape recorded below: real
+        // checking, no scheme to verify the DOCS against. Retires when a scheme registers.
+        ":wat::core::and",
+        ":wat::core::or",
         // Arc 255 Stone A-2-ii-b-0 — `Option/expect` is checked FOR REAL by a hand-written
         // `check_call` arm (`infer_option_expect`, `src/check.rs`), but carries no
         // `env.register()` TypeScheme, so `check_env.get` returns `None` and
@@ -1534,7 +1540,6 @@ mod tests {
         ":wat::core::apply",
         ":wat::core::>=",
         ":wat::rete::i64::<",
-        ":wat::core::or",
         ":wat::rete::core::if",
         ":wat::rete::i64::*",
         ":wat::rete::core::or",
@@ -1557,7 +1562,6 @@ mod tests {
         ":wat::type::i64",
         ":wat::rete::f64::>",
         ":wat::core::contains?",
-        ":wat::core::and",
         ":wat::rete::vector::contains?",
         ":wat::rete::string::length",
         ":wat::rete::core::let",
