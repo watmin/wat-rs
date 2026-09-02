@@ -4,13 +4,13 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (twenty-sixth — 25 STRIKES LANDED; ⚠ D4 IS IN FLIGHT). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (twenty-seventh — 26 STRIKES LANDED; D4 WEIGHED AND CLOSED). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline 00ca6b0eb..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 00ca6b0eb..HEAD --name-only
+git log --oneline b41a63672..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat b41a63672..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -20,40 +20,30 @@ then trust the log and the source over every line below, and re-read before you 
 > is `strike:` (draw, docs) → `fix:`/`lint:` (the work, src) → `score:` + `curare:` (docs). **Pin to
 > the last commit that touched code, and test the PATHS.** That survives any number of docs commits.
 
-## ⛔⛔ CORRECTION, MINUTES LATER: `073546093` IS NOT DOCS-ONLY. I COMMITTED A RIDER'S WORK BY ACCIDENT.
+## ✅ RESOLVED — the swept commit is now WEIGHED, and the lesson stands
 
-**The curare commit `073546093` contains 125 added lines of `src/rete/expr_ir/` — the D4 rider's
-in-flight work — swept in by `git add -A`.** `git status` was clean when I looked; the rider wrote
-between that check and the add. It is **committed and pushed under a `curare:` docs message, and it
-has NOT been floored, clippy'd, mutation-checked or scored.**
-
-**Treat that code as unweighed.** Before trusting it: run `./scripts/floor.sh` and clippy, drive
-EXPECTATIONS' three-panic probe and its mutations, and write the SCORE. The strike's artifacts are
-all in place at `strike-exec-sp/`.
-
-What it appears to do — read, not verified — is **delete the `EXEC_SP` cursor rather than guard it**,
-arguing that a dead cursor should go rather than gain a `Drop` that would touch a thread-local at
-teardown (B1 measured that shape **aborting**, not panicking). That is plausibly better than the
-guard my own sketch prescribed, **and it is exactly why it needs weighing rather than assuming.**
+`073546093` carries 125 lines of `src/rete/expr_ir/` under a `curare:` docs message — the D4 rider's
+work, swept in by `git add -A` while it was writing. **That code has now been floored, clippy'd,
+mutation-driven and scored** (`strike-exec-sp/SCORE.md`); the commit message still lies about its
+contents, and that is a matter of record, not of risk.
 
 ⛔ **THE LESSON, AND IT IS NEW: `git add -A` IS A RACE WHILE A RIDER RUNS.** A background agent writes
 to the same working tree. A clean `git status` is a photograph, not a lock. **Stage explicit paths
 when any rider is out** — `git add docs/` — or commit nothing until it returns.
 
-## ⚠⚠ A RIDER WAS RUNNING WHEN THIS WAS WRITTEN — CHECK THE TREE FIRST
+## ⭐ D4 CLOSED — and the cure is a DELETION the strike did not prescribe
 
-**D4 was released to a shadowdancer and had not returned.** `git status --short` was **clean** at
-stamp time, so its work was not yet on disk. On the far side, one of three is true:
+The strike's ★ said *"the arena pointer is restored by a `Drop`."* The rider refused the sketch and
+argued deletion: a guard would restore a `start` that is **provably 0**, so it would guard a
+constant. Deleting the cursor makes the strand **structurally impossible** instead of cured — the
+higher rung — and dissolves the TLS-teardown trap entirely, because there is no `Drop`.
 
-| what you find | what it means |
-|---|---|
-| clean tree | the rider never wrote, or was lost with the session. **D4 is undone — re-release it.** |
-| modified tree, uncommitted | the rider finished and **nobody weighed it.** Do NOT commit it unread: run the floor and clippy yourself, drive the mutations, then score it. |
-| a `fix(rete)` commit for D4 | it landed and was weighed. Read its `SCORE.md`. |
-
-The strike is drawn and complete at `docs/arc/2026/06/278-rules-engine/strike-exec-sp/` — DESIGN,
-BRIEF and EXPECTATIONS all written, with pre-values measured. **Nothing needs re-deriving to
-re-release it.**
+**I weighed it by driving, not reading.** Cursor reinstated + correct guard + `assert_eq!(start, 0)`
+held **1508/1508**; flipped to `999` it REDs with `left: 0` — so the assert runs and the cursor was
+genuinely inert. Under mutation 1 the three-panic probe REDs at **round 2**, not round 1: **a
+single-panic probe would have certified the defect green.** Floor `5312/5312`, clippy rc=0, lints
+196/196. ⛔ My brief cited `kernel/fire/rules.rs` for `ArmLease` — that file has **zero** of it; the
+site is `kernel/arm.rs:829`.
 
 ## ⛔ THE INITIATIVE: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures against
 
@@ -69,11 +59,11 @@ instruments.
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
 | **C** — the instruments | C1, C2, C7 closed. **C3, C4, C5, C6 OPEN** |
-| **D** — engine behaviour | D1, D3 closed. D2 closed as a **bounded negative** (must NOT be reaped). **D4 in flight; D5, D6, D7 OPEN** |
+| **D** — engine behaviour | D1, D3, **D4** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D5, D6, D7 OPEN** |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-**Floor at stamp: `5310 tests run: 5310 passed, 21 skipped`, clippy clean, lints 196/196.**
+**Floor at stamp: `5312 tests run: 5312 passed, 21 skipped`, clippy rc=0, lints 196/196.**
 
 ### The four C rows still open are one class
 
