@@ -84,13 +84,30 @@
   :ephemeral [bijection-anchor <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])
               subs   <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
               outbox <- (:wat::core::Vector :- [:wat::core::String])
-              ticks  <- :wat::core::i64]
+              ticks  <- :wat::core::i64
+              deliver-armed? <- :wat::core::bool
+              arm-deliver <- [:wat::core::bool :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::bool (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])])]]
   :peers     [:demo::Sub]
   :init (:wat::core::fn
           [record <- :demo::topic::Record
            addrs  <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])])]
           -> :demo::topic::State
-          (:demo::topic::State :durable record
+          (:wat::core::let
+            [none (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])
+             arm-deliver (:wat::core::fn
+                           [armed? <- :wat::core::bool
+                            n      <- :wat::core::i64
+                            delay0 <- :wat::core::i64]
+                           -> (:wat::core::Tuple :- [:wat::core::bool
+                                (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])])
+                           (:wat::core::if (:wat::i64::<= n 0)
+                             (:wat::core::Tuple false none)
+                             (:wat::core::if armed?
+                               (:wat::core::Tuple true none)
+                               (:wat::core::Tuple true
+                                 [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0)
+                                    :op (:demo::topic::Op::-Deliver))]))))]
+            (:demo::topic::State :durable record
             ;; the dial is INLINE, not a call to a top-level defn: a forked child's bundle does
             ;; not carry the program's other `defn`s, so `:init` calling one dies with
             ;; `UnresolvedReference` at StartupError. Measured 2026-08-30.
@@ -115,7 +132,9 @@
                 (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
                 addrs)
             :outbox (:wat::core::Vector :- [:wat::core::String])
-            :ticks 0))
+            :ticks 0
+            :deliver-armed? false
+            :arm-deliver arm-deliver)))
   :impls
   [(publish [s ctx req]
      (:wat::core::let
@@ -123,47 +142,105 @@
         rec   (:demo::topic::State/durable s)
         cap   (:demo::topic::Record/cap rec)
         delay (:demo::topic::Record/delay-ns rec)
+        delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
         box   (:demo::topic::State/outbox s)
-        n     (:wat::core::count box)]
+        n     (:wat::core::count box)
+        sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])]
        (:wat::core::if (:wat::i64::>= n cap)
-         (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full n cap))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])]))
          (:wat::core::let
-           [was-empty? (:wat::core::empty? box)
-            box' (:wat::core::conj box msg)
+           [pair (:wat::core::apply (:demo::topic::State/arm-deliver s)
+                    (:demo::topic::State/deliver-armed? s)
+                    [n delay0])
+            s-a (:demo::topic::State
+                  :durable rec
+                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
+                  :subs (:demo::topic::State/subs s)
+                  :outbox box
+                  :ticks (:demo::topic::State/ticks s)
+                  :deliver-armed? (:wat::core::first pair)
+                  :arm-deliver (:demo::topic::State/arm-deliver s))]
+           (:wat::service::Outcome::Continue s-a
+             (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full n cap)))
+             sends
+             (:wat::core::second pair)))
+         (:wat::core::let
+           [box' (:wat::core::conj box msg)
             s'   (:demo::topic::State
                    :durable rec
                    :bijection-anchor (:demo::topic::State/bijection-anchor s)
                    :subs (:demo::topic::State/subs s)
                    :outbox box'
-                   :ticks (:demo::topic::State/ticks s))
-            delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)]
-           (:wat::core::if was-empty?
-             (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok)))
-               (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-deliver)])
-             (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])))))))
+                   :ticks (:demo::topic::State/ticks s)
+                   :deliver-armed? (:demo::topic::State/deliver-armed? s)
+                   :arm-deliver (:demo::topic::State/arm-deliver s))
+            pair (:wat::core::apply (:demo::topic::State/arm-deliver s')
+                    (:demo::topic::State/deliver-armed? s')
+                    [(:wat::core::count box') delay0])
+            s-a (:demo::topic::State
+                  :durable rec
+                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
+                  :subs (:demo::topic::State/subs s)
+                  :outbox box'
+                  :ticks (:demo::topic::State/ticks s)
+                  :deliver-armed? (:wat::core::first pair)
+                  :arm-deliver (:demo::topic::State/arm-deliver s'))]
+           (:wat::service::Outcome::Continue s-a
+             (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok)))
+             sends
+             (:wat::core::second pair))))))
 
    (stats [s ctx req]
-     (:wat::service::Outcome::Continue s
-       (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
-         (:wat::core::count (:demo::topic::State/outbox s))
-         (:demo::topic::State/ticks s)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])))
+     (:wat::core::let
+       [rec (:demo::topic::State/durable s)
+        delay (:demo::topic::Record/delay-ns rec)
+        delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
+        pair (:wat::core::apply (:demo::topic::State/arm-deliver s)
+                (:demo::topic::State/deliver-armed? s)
+                [(:wat::core::count (:demo::topic::State/outbox s)) delay0])
+        s-a (:demo::topic::State
+              :durable rec
+              :bijection-anchor (:demo::topic::State/bijection-anchor s)
+              :subs (:demo::topic::State/subs s)
+              :outbox (:demo::topic::State/outbox s)
+              :ticks (:demo::topic::State/ticks s)
+              :deliver-armed? (:wat::core::first pair)
+              :arm-deliver (:demo::topic::State/arm-deliver s))]
+       (:wat::service::Outcome::Continue s-a
+         (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
+           (:wat::core::count (:demo::topic::State/outbox s))
+           (:demo::topic::State/ticks s))))
+         (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
+         (:wat::core::second pair))))
 
-   ;; Take the head, fan out, re-arm while the outbox is non-empty.
+   ;; Take the head, fan out. Flag cleared: the tick consumed the alarm.
    (-deliver [s ctx]
      (:wat::core::let
        [rec   (:demo::topic::State/durable s)
         delay (:demo::topic::Record/delay-ns rec)
         delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
         box   (:demo::topic::State/outbox s)
-        ticks (:wat::i64::+ (:demo::topic::State/ticks s) 1)]
+        ticks (:wat::i64::+ (:demo::topic::State/ticks s) 1)
+        sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])]
        (:wat::core::if (:wat::core::empty? box)
-         (:wat::service::SelfOutcome::Continue
-           (:demo::topic::State
-             :durable rec
-             :bijection-anchor (:demo::topic::State/bijection-anchor s)
-             :subs (:demo::topic::State/subs s)
-             :outbox box
-             :ticks ticks) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])]))
+         (:wat::core::let
+           [s0 (:demo::topic::State
+                 :durable rec
+                 :bijection-anchor (:demo::topic::State/bijection-anchor s)
+                 :subs (:demo::topic::State/subs s)
+                 :outbox box
+                 :ticks ticks
+                 :deliver-armed? false
+                 :arm-deliver (:demo::topic::State/arm-deliver s))
+            pair (:wat::core::apply (:demo::topic::State/arm-deliver s0) false [0 delay0])
+            s-a (:demo::topic::State
+                  :durable rec
+                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
+                  :subs (:demo::topic::State/subs s)
+                  :outbox box
+                  :ticks ticks
+                  :deliver-armed? (:wat::core::first pair)
+                  :arm-deliver (:demo::topic::State/arm-deliver s))]
+           (:wat::service::SelfOutcome::Continue s-a sends (:wat::core::second pair)))
          (:wat::core::let
            [msg  (:wat::core::first box)
             rest (:wat::core::foldl
@@ -188,11 +265,21 @@
                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
                  :subs (:demo::topic::State/subs s)
                  :outbox rest
-                 :ticks ticks)]
-           (:wat::core::if (:wat::core::empty? rest)
-             (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])]))
-             (:wat::service::SelfOutcome::Continue s'
-               (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-deliver)]))))))])
+                 :ticks ticks
+                 :deliver-armed? false
+                 :arm-deliver (:demo::topic::State/arm-deliver s))
+            pair (:wat::core::apply (:demo::topic::State/arm-deliver s')
+                    false
+                    [(:wat::core::count rest) delay0])
+            s-a (:demo::topic::State
+                  :durable rec
+                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
+                  :subs (:demo::topic::State/subs s)
+                  :outbox rest
+                  :ticks ticks
+                  :deliver-armed? (:wat::core::first pair)
+                  :arm-deliver (:demo::topic::State/arm-deliver s))]
+           (:wat::service::SelfOutcome::Continue s-a sends (:wat::core::second pair))))))])
 
 ;; ── the two runs ────────────────────────────────────────────────────────────────
 (:wat::core::defn :demo::dial-topic

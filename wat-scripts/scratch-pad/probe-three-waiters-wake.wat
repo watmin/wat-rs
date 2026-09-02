@@ -190,6 +190,13 @@
             (:wat::core::range 0 j))
      _settle (:vw::nap-ms 100)
      q (:vw::dial-queue (:queue::queue::Handle/addr qh))
+     ;; Drive stats while waiters are parked — a missed return path
+     ;; used to drop the wakeup here. Send after this must still wake.
+     _stats (:wat::core::foldl
+              (:wat::core::fn [acc <- :wat::core::i64  _i <- :wat::core::i64] -> :wat::core::i64
+                (:wat::i64::+ acc (:vw::calls-of q)))
+              0
+              (:wat::core::range 0 10))
      _send (:wat::core::foldl
              (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
                (:wat::core::let
