@@ -4171,6 +4171,7 @@ fn parse_type_decl(
 /// Empty `{}` metadata-map REJECTED (FORM-COLLAPSE D4 / Stone 241.6 doctrine).
 /// Empty variant list REJECTED (≥1 variant required).
 /// HARD CUT: no `parse_enum` shim; no `:wat::core::enum` compatibility.
+#[wat_special_form_impl(":wat::core::defenum", role = declare)]
 fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     const HEAD: &str = ":wat::core::defenum";
 
@@ -4367,6 +4368,7 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     }))
 }
 
+#[wat_special_form_impl(":wat::core::newtype", role = declare)]
 fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     // Arc 109 binder strike α — the exact-2 gate can no longer fire on the raw
     // `args.len()` upfront: a binder-bearing form is 4 args (name, `:-`, `[T]`,
@@ -4419,6 +4421,7 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     }))
 }
 
+#[wat_special_form_impl(":wat::core::typealias", role = declare)]
 fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     // Arc 109 binder strike α — see parse_newtype's comment: the exact-2 gate
     // moves from the raw `args.len()` (a binder widens it to 4) to what
@@ -4552,6 +4555,7 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
 ///
 /// `structtype` args (from `parse_type_decl`): `[name_kw, {meta_node}?, fields_node]` (2 or 3 items).
 /// Injects `:wat::core::Struct` as `parent` at position [1] and delegates to `parse_aggregate`.
+#[wat_special_form_impl(":wat::core::structtype", role = declare)]
 fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result<TypeDef, TypeError> {
     let mut new_args = Vec::with_capacity(args.len() + 1);
     let mut iter = args.into_iter().peekable();

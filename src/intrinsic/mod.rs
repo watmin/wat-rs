@@ -1023,6 +1023,36 @@ mod tests {
         // reason `macro-error` does above: no scheme AND no hand-written arm. `check.rs` stays
         // untouched (STOP-4); the ledger grows by one.
         ":wat::core::defsurface",
+        // ★★★ Arc 255 Stone 1a-β-i — the type-declaration family joins for `defsurface`'s exact
+        // reason: registered `Kind::SpecialForm` rows whose declare-time processing runs at freeze
+        // (`parse_structtype`/`parse_defenum`/`parse_newtype`/`parse_typealias`, `src/types.rs`),
+        // entirely outside `check.rs`, with no `env.register()` TypeScheme — so `check_env.get`
+        // returns `None` and `doc_arg_ret_types_match_checker_scheme` verifies nothing about their
+        // `@arg`/`@ret` docs. `check.rs` stays untouched; the ledger grows by four.
+        //
+        // ⚠ READ THIS BEFORE CALLING THE GROWTH A REGRESSION. This ledger GROWING while the
+        // campaign claims to ELIMINATE duplication looks backwards and is not. (76 → 80 here; it was
+        // 75 before `defsurface` joined one stone earlier.) Before registration
+        // these four were not debt — they were INVISIBLE: no registry row, so nothing could ask
+        // what the checker knew about them, and nothing could notice that the answer was "nothing".
+        // Registering converts an unmeasured absence into a NAMED one, which is the entire job of
+        // an absence ledger (`[[RULING-the-registry-is-the-sole-authority]]`: the four ledgers are
+        // "a measurement of duplication … when the ruling is satisfied, all four are empty").
+        // The finish line is DEBT → 0 via Phase 2c (TypeSchemes derived from the doc types,
+        // 384/386 measured convertible by PROBE(255) `bb1aa686d`) — not via not-registering.
+        //
+        // ⛔ `:wat::core::defstruct` is DELIBERATELY ABSENT, and it is not an oversight: this stone
+        // did not register it. It is a stdlib `defmacro` (`wat/core.wat:2030`) that rewrites to
+        // `structtype` during `expand_all`, which always completes before `register_types` — so
+        // `parse_type_decl`'s `"defstruct"` arm is DEAD and `parse_defstruct` never runs for any
+        // real program. Verified: `--check` on a malformed `(:wat::core::defstruct :probe::Bad)`
+        // answers with `:head "structtype"`, never `parse_defstruct`'s own text. Annotating that
+        // fn `role = declare` would be a false reflection claim, so the stone stopped and reported
+        // (`liftable_declaration_head_missing_and_foreign` carries it in MISSING).
+        ":wat::core::structtype",
+        ":wat::core::defenum",
+        ":wat::core::newtype",
+        ":wat::core::typealias",
     ];
 
     #[test]
@@ -2754,6 +2784,131 @@ mod tests {
              (`crate::intrinsic::registry().lookup(head)`, hoisted above that match) already \
              answers these by name, so the arm can never fire. Delete the arm line (leave the \
              surrounding retirement commentary and the handler fn itself) for: {offenders:?}"
+        );
+    }
+
+    /// ★ Arc 255 Stone 1a-β-i's METER — the bidirectional gate over
+    /// `freeze::is_liftable_declaration_head`'s domain that licenses the NEXT stone to delete
+    /// the hand-list, per the equality `DESIGN-STONE-1a-beta-i-the-type-declaration-family.md`
+    /// minted: `is_liftable_declaration_head(h) ≡ the registry row for h names a Declare impl`.
+    ///
+    ///     name in is_liftable_declaration_head  ∧  no Declare impl   →  MISSING (the worklist)
+    ///     Declare impl                          ∧  name not in it    →  FOREIGN (off-domain)
+    ///
+    /// ⛔ STOP-1 — the domain is `src/freeze.rs`'s SOURCE, never a transcribed `const`. A frozen
+    /// copy of the nine names would be a sixth hand-list, the one joke this campaign cannot
+    /// make. Read it the same way `registry_first_door_owns_every_handler_row…` (above) reads
+    /// `dispatch_keyword_head_value`'s span: `include_str!` the file, find the fn, take its
+    /// body, extract from the text — never re-typed here.
+    ///
+    /// Unlike that gate's span (bounded by the NEXT top-level `fn`), `is_liftable_declaration_head`
+    /// is followed by `#[cfg(test)] mod tests { … }`, not another `fn` — so the body is bounded
+    /// by its own closing `\n}` instead (verified by hand: the body is a single `matches!(...)`
+    /// with no nested `{`/`}` of its own, so the first `\n}` after the signature IS the fn's own
+    /// close, not a false positive from a nested block).
+    ///
+    /// ⚠ ★★★ `:wat::core::defstruct` is a MEMBER of the nine-name domain but is deliberately NOT
+    /// registered this stone (STOP-5): `:wat::core::defstruct` is a stdlib `defmacro`
+    /// (`wat/core.wat:2030`) that rewrites every use to `(:wat::core::structtype …)` during
+    /// `expand_all`, which the freeze pipeline always runs BEFORE `register_types`/
+    /// `parse_type_decl` ever walks a form (`register_defmacros` collects EVERY top-level
+    /// `defmacro` — including this one — before `expand_all` rewrites anything, so there is no
+    /// bootstrap gap). Measured directly: `--check`ing `(:wat::core::defstruct :probe::Bad)`
+    /// raises a `MalformedDecl` whose `:head` is `"structtype"` and whose text is
+    /// `parse_structtype`/`parse_aggregate`'s own arity message, never `parse_defstruct`'s
+    /// (`src/types/defstruct.rs:520`, which is consequently unreachable from any real program —
+    /// grep confirms its only caller is `parse_type_decl`'s own "defstruct" arm). Annotating
+    /// `parse_defstruct` with `role = declare` would be a FALSE reflection claim: it does not
+    /// process this form. So MISSING carries `:wat::core::defstruct` forward, unresolved, next
+    /// to `def`/`defmacro`/`defalias` — 1a-β-ii (or a dedicated follow-up) inherits it, and this
+    /// gate's assertion is the measured 4, not the 3 the DESIGN predicted before this fact
+    /// surfaced.
+    #[test]
+    fn liftable_declaration_head_missing_and_foreign() {
+        const SOURCE: &str = include_str!("../freeze.rs");
+        const FN_SIG: &str = "fn is_liftable_declaration_head(head: &str) -> bool {";
+        let start = SOURCE
+            .find(FN_SIG)
+            .expect("is_liftable_declaration_head not found in freeze.rs — has it moved/renamed?");
+        let body_start = start + FN_SIG.len();
+        let end_offset = SOURCE[body_start..]
+            .find("\n}")
+            .expect("no closing brace found for is_liftable_declaration_head — span is unbounded");
+        let body = &SOURCE[body_start..body_start + end_offset];
+
+        // The domain, read from the source: every quoted FQDN literal on a non-comment line.
+        // `is_liftable_declaration_head`'s body is a bare `matches!` — no data-quotes to
+        // mis-parse (unlike `dispatch_keyword_head_value`'s span, above) — so a whole-line
+        // comment filter plus "every quoted substring" is exact, not an approximation.
+        let mut domain: Vec<&'static str> = Vec::new();
+        for raw_line in body.lines() {
+            if raw_line.trim_start().starts_with("//") {
+                continue;
+            }
+            let mut rest = raw_line;
+            while let Some(q1) = rest.find('"') {
+                let after_q1 = &rest[q1 + 1..];
+                let Some(q2) = after_q1.find('"') else { break };
+                domain.push(&after_q1[..q2]);
+                rest = &after_q1[q2 + 1..];
+            }
+        }
+        domain.sort_unstable();
+        domain.dedup();
+
+        assert_eq!(
+            domain.len(),
+            9,
+            "is_liftable_declaration_head's domain read from src/freeze.rs's source is {:?} \
+             (len {}) — not the 9 names the DESIGN measured; the extraction or the fn changed \
+             underneath this gate",
+            domain,
+            domain.len()
+        );
+
+        let has_declare_impl = |name: &str| -> bool {
+            super::registry()
+                .lookup_entry(name)
+                .is_some_and(|entry| {
+                    entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Declare)
+                })
+        };
+
+        let mut missing: Vec<&str> = domain.iter().copied().filter(|name| !has_declare_impl(name)).collect();
+        missing.sort_unstable();
+
+        let mut foreign: Vec<&'static str> = super::registry()
+            .all_entries()
+            .filter(|entry| {
+                entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Declare)
+            })
+            .map(|entry| entry.name)
+            .filter(|name| !domain.contains(name))
+            .collect();
+        foreign.sort_unstable();
+        foreign.dedup();
+
+        // 1a-β-i registers structtype/defenum/newtype/typealias (defsurface was 1a-β-0); the
+        // measured MISSING is FOUR, not the three the DESIGN predicted — `defstruct` stays
+        // unresolved per the STOP-5 finding in this fn's own doc comment, above.
+        assert_eq!(
+            missing,
+            vec![
+                ":wat::core::def",
+                ":wat::core::defalias",
+                ":wat::core::defmacro",
+                ":wat::core::defstruct",
+            ],
+            "MISSING (in is_liftable_declaration_head, no Declare impl) must be exactly these \
+             four after Stone 1a-β-i: {:?}",
+            missing
+        );
+
+        assert!(
+            foreign.is_empty(),
+            "FOREIGN (a Declare impl claimed, name off is_liftable_declaration_head's domain) \
+             must be empty — a role claimed off-domain: {:?}",
+            foreign
         );
     }
 }
