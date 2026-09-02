@@ -369,8 +369,8 @@ non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch
 
 | lint | instances |
 |---|---|
-| backticked identifiers must resolve | 7, incl. `head_is_boolean_rete_predicate` — the comment guarding a silent `_ => None` on the fix-list F path. Also `token_element_compatible`, `DidNotDiscriminate`, `CoreKind`, `rule_rhs_cache`, `ref_alpha_of`, `invoke_wat_compile` |
-| bare `*.rs` filenames must resolve | `kernel/mod.rs:4` *"Tests are `tests.rs`"* — stale the day it was written. `no_stale_path_in_doc.rs` only extracts tokens containing `/` |
+| ~~backticked identifiers must resolve~~ ✅ `2c7200802` | **33**, not 7 — measured by instrument, incl. `head_is_boolean_rete_predicate` — the comment guarding a silent `_ => None` on the fix-list F path. Also `token_element_compatible`, `DidNotDiscriminate`, `CoreKind`, `rule_rhs_cache`, `ref_alpha_of`, `invoke_wat_compile` |
+| ~~bare `*.rs` filenames must resolve~~ ✅ `2c7200802` | **27 stale of 244 cited** — `validate.rs`×9 and `expr_ir.rs`×6 were an unseen cluster from the same split. `kernel/mod.rs:4` *"Tests are `tests.rs`"* — stale the day it was written. `no_stale_path_in_doc.rs` only extracts tokens containing `/` |
 | `rune:perspicere` / `rune:purgare` closed vocabularies | `perspicere`'s `read-once` is falsified by its own file (6 runes, 5 occurrences, 2 unruned twins); `purgare`'s categories are undefined and `trait-contract` names a mechanism absent at all 3 sites. Model on `no_unknown_sequi_rune.rs` |
 | `MINIMUM of` header may not co-occur with `/= r` | C1 above, found twice independently |
 | ~~non-vacuity guards on walking gates~~ ✅ `58a10e1f8` | ⚠ **the row's count was wrong, and so was my audit grep's** — the instrument reports **24 in scope, 19 undeclared** (6 of those already had a real guard). **Driven first: NO gate is vacuous today.** `every_walking_gate_declares_non_vacuity.rs` now requires a declared guard — marker+assertion, or a rune naming the mechanism. ★ It caught itself: its own `///` doc parsed as a rune and it was one run from vouching for itself. |
