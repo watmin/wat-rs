@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (twenty-fourth — 24 STRIKES; ⭐⭐⭐ CLASSES A, E and F1 ALL CLOSED. F2/F3 remain). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (twenty-fifth — 25 STRIKES; ⭐⭐⭐ CLASSES A, E, F1 CLOSED + C2/C7. C3-C6, D2/D4-D7, F2 remain; F3 is LEADS ONLY). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline 9d4b68088..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 9d4b68088..HEAD        # what they touched
+git log --oneline 00ca6b0eb..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 00ca6b0eb..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -104,6 +104,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **F2.codemod** | `f4800ef97` | **every rete name in wat-scripts CODE resolves — prose may name a retired form** |
 | **F1.1+2** | `2c7200802` | **a cited name in a rete comment resolves, or declares why it cannot** |
 | **F1.3** | `9d4b68088` | **two ward rune vocabularies copied in and gated — and both my premises refuted** |
+| **C7+C2** | `00ca6b0eb` | **an `(engine)` label names the evidence for its claim** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -611,6 +612,33 @@ three vocabularies (clippy lints, memory slugs, `_`-prefixed); the rider built n
 (verified at `function/parse.rs:48`). **A list keeps exempting a name after it stops being noise; a
 spelling rule makes the correct form the only passing one and the failure text teaches it.** A rung
 above what I asked for.
+
+✅ **C7 + C2 CLOSED (`00ca6b0eb`).** Every cost number this arc quoted came off the bench harness,
+and the class had **already recurred** — `b7d9d8e90` is titled *"the benchmark called the wrong arm
+'the engine' for eleven days"*, fixed one, named the class, and one survived. Now
+`rete_engine_label_names_its_evidence.rs`: **an engine claim carries its evidence.**
+
+⛔⛔ **STOP-3 FIRED TWICE, AND MY RULE WOULD HAVE DELETED A TRUE CLAIM.** I briefed three sites; there
+are **five** — one inside a `#[cfg(test)]` mod in a `src/` file, one spelled `(THE ENGINE)` which my
+*"one word, so it can be exact"* reasoning missed on case alone. And C7's rule as adopted — *"only if
+its body CALLS the production function"* — would have stripped the `L` arm, which calls nothing
+because it **replicates `root_for` inline where production is not callable**, and whose claim is
+already pinned by a gate asserting the type and body **exactly**. **I wrote that gate myself during
+item #3, then drew a rule that would have overridden it.** Widened to three shapes: *calls
+production* · *replicates it under a shape gate* · *neither*. **Memory: a rule can outlaw a truth.**
+
+⛔ **MY EXCLUSION BOUNDARY WAS THE WRONG KIND.** `kernel/tests/` is a path prefix; **26 files under
+`src/rete/` carry `#[cfg(test)]`**, so the decoy would have passed while the hole stayed open. It is
+*"not inside a `#[cfg(test)]` module"*, by brace tracking. **Re-driven here: identical fn, identical
+label, RED inside `cfg(test)`, GREEN in production scope — differing by placement alone.** Also: the
+LABEL may live in test code (four of five do); only the RESOLUTION TARGET must be production.
+
+★ **AND THE `gated by` FORM SPENDS SOMETHING.** It writes a test fn's name into a `src/` string, which
+retires it as a test-only control elsewhere — it consumed one of `rete_citation_resolves`' two
+controls **on landing**, with no replacement of the same kind in the tree. **Closed, not filed**: an
+**owned, uncitable** control now floors that gate, the real one is kept beside it, and the coupling
+is warned at the `gated by` **definition**, where the next author works rather than in the gate they
+will never open.
 
 ⭐⭐⭐ **F1 IS CLOSED — all five lints. Classes A, E and F1 are done; F2 and F3 remain.**
 
