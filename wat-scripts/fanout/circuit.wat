@@ -20,9 +20,10 @@
 ;; and Queue/send on deliver — the missing wire between topic and queue.
 ;;
 ;; Shape: start workers (consume immediately, on empty queues) → publish alongside
-;; them → drain on depth (pending = 0 AND in-flight = 0) → Admin::Stop; tallies
-;; return via Status::Stopped. One tick = one long-polled receive, process, ack,
-;; re-arm. A worker that looped internally could not take Stop.
+;; them → drain on depth (pending = 0 AND in-flight = 0 AND topic outbox = 0) →
+;; Admin::Stop; tallies return via Status::Stopped. Publish means accepted; the
+;; topic fans out on its own tick. A completion check must cover every place a
+;; message can rest — the outbox is the new one.
 ;;
 ;; :user::main  → N=2000 M=4 J=3 (standalone weight)
 ;; :user::compute → N=12 M=2 J=2 (floor; same wiring)
@@ -339,13 +340,40 @@
     true
     qclients))
 
+(:wat::core::defn :fanout::topic-outbox [t <- :demo::Topic] -> :wat::core::i64
+  (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:demo::Topic::StatsResponse::Ok n _ticks) n)
+        (_ 1)))
+    (_ 1)))
+
+(:wat::core::defn :fanout::fully-drained?
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic] -> :wat::core::bool
+  (:wat::core::and (:fanout::all-drained? qclients)
+    (:wat::core::= (:fanout::topic-outbox t) 0)))
+
 ;; TCO. No attempts bound — if this hangs, the drain condition is wrong.
+;; Third term: topic outbox. An accepted-but-undelivered message rests there,
+;; invisible to pending and in-flight.
 (:wat::core::defn :fanout::wait-drained
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::nil
-  (:wat::core::if (:fanout::all-drained? qclients)
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic] -> :wat::core::nil
+  (:wat::core::if (:fanout::fully-drained? qclients t)
     nil
     (:wat::core::let [_ (:fanout::nap-ms 5)]
-      (:fanout::wait-drained qclients))))
+      (:fanout::wait-drained qclients t))))
+
+(:wat::core::defn :fanout::accept!
+  [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msg msg))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:demo::Topic::PublishResponse::Ok) nil)
+        ((:demo::Topic::PublishResponse::Full _d _c)
+          (:wat::core::let [_ (:fanout::nap-ms 1)]
+            (:fanout::accept! t msg)))
+        (_ (:wat::kernel::assertion-failed! "fanout: publish not Ok/Full" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "fanout: publish recv failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fanout::wait-pending-zero
   [q <- :queue::Queue] -> :wat::core::nil
@@ -424,9 +452,10 @@
 ;; Wiring + input stream. start workers → publish → drain on depth → Stop.
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
-    [stores (:wat::core::foldl
+    [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
+     stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::mem-store::Handle])
                                _i  <- :wat::core::i64]
                 -> (:wat::core::Vector :- [:wat::query::mem-store::Handle])
@@ -483,7 +512,7 @@
                            (:fanout::adapter/grant (:wat::core::nth adapters i) pids))
                          nil
                          (:wat::core::range 0 m)))))
-          :record (:demo::topic::Record) :addrs sub-addrs)
+          :record (:demo::topic::Record :cap 4096 :delay-ns 1000) :addrs sub-addrs)
      qclients (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Queue])
                                  i   <- :wat::core::i64]
@@ -532,16 +561,15 @@
              (:fanout::face-start w))
            nil
            wpeers)
+     t-pub0 (:wat::time::epoch-nanos (:wat::time::now))
      _pub (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
-              (:wat::core::match
-                (:demo::Topic/publish topic
-                  (:demo::Topic::PublishRequest :msg (:wat::core::str i)))
-                ((:wat::kernel::RecvOutcome::Message _r) nil)
-                (_ nil)))
+              (:fanout::accept! topic (:wat::core::str i)))
             nil
             (:wat::core::range 0 n))
-     _drain (:fanout::wait-drained qclients)
+     t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
+     _drain (:fanout::wait-drained qclients topic)
+     t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
      outs (:fanout::collect-stop workers)
      empty-flags (:wat::core::foldl
@@ -561,8 +589,17 @@
                          (_ 0))))
                    1
                    (:wat::core::range 0 m))
-     summary (:fanout::summarize n m j outs empty-flags)]
-    (:wat::core::Tuple summary calls)))
+     summary (:fanout::summarize n m j outs empty-flags)
+     t-end (:wat::time::epoch-nanos (:wat::time::now))
+     ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
+          (:wat::i64::/ (:wat::i64::- b a) 1000000))
+     phases (:wat::core::format
+              "setup={setup};publish={pub};drain={drain};stop={stop}"
+              :setup (ms t-setup0 t-pub0)
+              :pub (ms t-pub0 t-drain0)
+              :drain (ms t-drain0 t-stop0)
+              :stop (ms t-stop0 t-end))]
+    (:wat::core::Tuple summary calls phases)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -576,8 +613,17 @@
   (:wat::core::let [pair (:user::run* 12 2 2)]
     (:wat::core::format "calls={c}" :c (:wat::core::second pair))))
 
+(:wat::core::defn :user::phased [] -> :wat::core::String
+  (:wat::core::let [triple (:user::run* 2000 4 3)]
+    (:wat::core::format "{s}|{p}"
+      :s (:wat::core::first triple)
+      :p (:wat::core::third triple))))
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:user::run 2000 4 3)))
+  (:wat::core::let [triple (:user::run* 2000 4 3)]
+    (:wat::core::let
+      [_ (:wat::kernel::println (:wat::core::first triple))]
+      (:wat::kernel::println (:wat::core::third triple)))))
 
 ;; ★ Row 2: pending-only drain + delayed-ack worker MUST lose the held message.
 (:wat::core::defn :user::pending-only-loses [] -> :wat::core::String
@@ -652,3 +698,60 @@
      t1  (:wat::time::epoch-nanos (:wat::time::now))
      dt  (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)]
     (:wat::core::format "dt-ms={dt}" :dt dt)))
+
+;; ★ Row 3: drain without the outbox term MUST lose accepted-but-undelivered messages.
+;; Topic delay 500ms so the outbox still holds them when queues look empty.
+(:wat::core::defn :user::outbox-term-loses [] -> :wat::core::String
+  (:wat::core::let
+    [n 4
+     msh (:wat::query::mem-store/start :locus (:wat::spawn::process)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start
+           :locus (:wat::spawn::process/post-spawn
+                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:wat::query::mem-store/grant msh (:fanout::pids pl))))
+           :record (:queue::queue::Record)
+           :store-addr (:wat::query::mem-store::Handle/addr msh))
+     ah  (:fanout::adapter/start
+           :locus (:wat::spawn::process/post-spawn
+                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:queue::queue/grant qh (:fanout::pids pl))))
+           :record (:fanout::adapter::Record :queue-name "q0")
+           :queue-addr (:queue::queue::Handle/addr qh))
+     th  (:demo::topic/start
+           :locus (:wat::spawn::process/post-spawn
+                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:fanout::adapter/grant ah (:fanout::pids pl))))
+           :record (:demo::topic::Record :cap 16 :delay-ns 500000000)
+           :addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
+                    (:fanout::adapter::Handle/addr ah)))
+     wh  (:fanout::worker/start
+           :locus (:wat::spawn::process/post-spawn
+                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:queue::queue/grant qh (:fanout::pids pl))))
+           :record (:fanout::worker::Record :id "ob-0" :queue-name "q0")
+           :queue-addr (:queue::queue::Handle/addr qh))
+     topic (:fanout::dial-topic (:demo::topic::Handle/addr th))
+     q     (:fanout::dial-queue (:queue::queue::Handle/addr qh))
+     w     (:fanout::dial-worker (:fanout::worker::Handle/addr wh))
+     _     (:fanout::face-start w)
+     _pub  (:wat::core::foldl
+             (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
+               (:fanout::accept! topic (:wat::core::str i)))
+             nil
+             (:wat::core::range 0 n))
+     _     (:fanout::wait-pending-zero q)
+     outs  (:fanout::worker/stop wh)
+     distinct (:wat::core::count
+                (:wat::hashmap::keys
+                  (:wat::core::foldl
+                    (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                                     o   <- :fanout::Outcome]
+                      -> (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                      (:wat::hashmap::assoc acc (:fanout::key-of o) true))
+                    (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                    outs)))]
+    (:wat::core::format
+      "n={n};distinct={d};lost={lost}"
+      :n n :d distinct
+      :lost (:wat::core::if (:wat::i64::< distinct n) "yes" "no"))))

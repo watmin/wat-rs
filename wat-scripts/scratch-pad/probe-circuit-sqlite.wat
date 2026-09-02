@@ -309,7 +309,7 @@
                            (:fanout::adapter/grant (:wat::core::nth adapters i) pids))
                          nil
                          (:wat::core::range 0 m)))))
-          :record (:demo::topic::Record) :addrs sub-addrs)
+          :record (:demo::topic::Record :cap 4096 :delay-ns 1000) :addrs sub-addrs)
      qclients (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Queue])
                                  i   <- :wat::core::i64]
