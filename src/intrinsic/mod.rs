@@ -2411,6 +2411,61 @@ mod tests {
         );
     }
 
+    /// ★ Arc 255 Stone 1a-α's WALL. `src/reflect/verbs.rs`'s `signature_of_defn` renders a
+    /// non-empty `@syntax` by parsing it through the substrate's own reader and
+    /// `.expect()`-ing the result — that `.expect` is load-bearing only as long as no
+    /// registered `@syntax` can fail to parse. Without this gate, a malformed `@syntax`
+    /// would not be a compile error, a checker error, or a doc-comment lint — it would be a
+    /// **panic** the first time reflection is asked about that row, discovered whenever a
+    /// user (or a golden capture) happens to call `signature-of-defn` on it. This is the
+    /// check rung (`[[extirpare]]`'s ladder): every registered `@syntax` is parsed HERE, at
+    /// floor time, so a malformed one goes red the moment it is authored.
+    #[test]
+    fn every_registered_syntax_parses() {
+        let mut failures: Vec<String> = Vec::new();
+        let mut inspected: Vec<&'static str> = Vec::new();
+        for entry in super::registry().all_entries() {
+            if entry.syntax.is_empty() {
+                continue;
+            }
+            inspected.push(entry.name);
+            if let Err(e) =
+                wat_reader::parser::parse_one_with_file(entry.syntax, "<registry @syntax>")
+            {
+                failures.push(format!(
+                    "{} — @syntax {:?} failed to parse: {:?}",
+                    entry.name, entry.syntax, e
+                ));
+            }
+        }
+        failures.sort();
+        assert!(
+            failures.is_empty(),
+            "registered @syntax string(s) do not parse — signature_of_defn's `.expect()` in \
+             src/reflect/verbs.rs would panic on these at reflection time:\n{}",
+            failures.join("\n")
+        );
+
+        // ⛔ NON-VACUITY. The loop above `continue`s past every row with no `@syntax`, so a
+        // tree where nobody declares one leaves `failures` empty and this test GREEN while
+        // proving nothing — a gate that iterates zero rows is not a gate
+        // (`[[feedback_a_green_test_can_prove_nothing]]`). The floor is the measured
+        // population at Stone 1a-α: `let`, `fn`, `match`, the only three `@syntax`-bearing
+        // rows in the tree. It is a FLOOR, not a freeze — registering more `@syntax` rows
+        // raises the count and must never touch this line; dropping below three means a
+        // declaration was deleted, and that is the event this assert exists to surface.
+        inspected.sort_unstable();
+        assert!(
+            inspected.len() >= 3,
+            "every_registered_syntax_parses inspected only {} row(s) — it is meant to parse \
+             every registered @syntax, and at Stone 1a-α there were three (let/fn/match). \
+             A count below that means a declaration was removed, not that the gate passed. \
+             Inspected: {:?}",
+            inspected.len(),
+            inspected
+        );
+    }
+
     /// Arc 255 Stone P5-a's frozen ledger for `source.rs`'s `f :wat::core::Fn` `@arg` on
     /// `:wat::kernel::fn-forms`. `:wat::core::Fn` there is `ANON_FN_SYMBOL`
     /// (`crate::value::frame::ANON_FN_SYMBOL`) — the string an anonymous fn VALUE renders

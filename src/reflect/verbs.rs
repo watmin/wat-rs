@@ -167,19 +167,54 @@ pub(crate) fn eval_signature_of_defn(
                 ast,
             ))))))
         }
-        // ⛔ Arc 255 Stone 3a-i — the registry answers everything it CAN for this verb, and
-        // says plainly what it cannot. `entry.args` gives the slot names and `is_rest` gives
-        // the `+`, so a row with `@arg` renders its own sketch. A row WITHOUT `@arg` (today:
-        // `let`/`fn`/`match`, which carry `@syntax` prose instead) has no renderable sketch in
-        // the registry, so the pre-existing special-form sketch still answers — NAMED as the
-        // remaining gap, not hidden as a fallback.
+        // Arc 255 Stone 1a-α — a row that DECLARES a grammar answers with that grammar.
         //
-        // ⚠ THE GAP IS NOT COSMETIC. `src/special_forms.rs:171` has served
-        // `["<scrutinee>", "->", "<T>", "<arm>+"]` for `match` since before 2026-07-22, the day
-        // arc 278 annihilated `-> :T`. `check.rs`'s `infer_match` REFUSES that shape with a
-        // named error. Reflection has been handing users a grammar the checker rejects.
-        // Closing this — authoring `@arg` for the three, or rendering `@syntax` through the
-        // substrate reader — retires that fossil and is its own stone.
+        // ⛔ PLACED AFTER THE SCHEME ARM, DELIBERATELY. A `TypeScheme` and an `@syntax`
+        // answer DIFFERENT questions — the first is a typed signature, the second a
+        // grammar — and where a row has a real typed signature that is the richer answer.
+        // Stone 3a-i paid for this exact lesson: an arm hoisted above the scheme step
+        // silently downgraded `:wat::vec::length` from a full typed signature to a bare
+        // marker. Measured today: ZERO rows carry both (3 declare `@syntax`, all
+        // `Kind::SpecialForm`, none registers a scheme), so the order costs nothing now and
+        // forecloses that regression when one eventually does. `@syntax` is prose the substrate's own
+        // reader can parse (proved by `wat-scripts/scratch-pad/
+        // 255-can-the-reader-parse-a-syntax-grammar.wat`), and it is rendered VERBATIM —
+        // no FQDN splice — which is `render-doc`'s own precedence
+        // (`src/intrinsic/reflect.rs:456-470`), adopted here so the two renderers stop
+        // disagreeing. `@syntax` names the form with its short head (`let`, not
+        // `:wat.core/let`); re-authoring the string here would mint a third rendering of a
+        // question the row already answers.
+        //
+        // The `.expect` below is load-bearing BECAUSE it is unreachable:
+        // `every_registered_syntax_parses` (`src/intrinsic/mod.rs`, this stone) walks every
+        // registered `@syntax` through this same parser and turns a malformed one into a red
+        // floor at the moment it is authored, not a silent fallback discovered here.
+        Some(Binding::Registered { entry, .. }) if !entry.syntax.is_empty() => {
+            let ast = wat_reader::parser::parse_one_with_file(
+                entry.syntax,
+                "<registry @syntax>",
+            )
+            .expect(
+                "every_registered_syntax_parses guarantees every registered @syntax reads clean",
+            );
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
+                ast,
+            ))))))
+        }
+        // Arc 255 Stone 3a-i, updated by Stone 1a-α — the registry answers everything it CAN
+        // for this verb, and says plainly what it cannot. This arm is reached only when the
+        // `@syntax` arm above did NOT fire, i.e. `entry.syntax` is empty: `entry.args` gives
+        // the slot names and `is_rest` gives the `+`, so a row with `@arg` (a TYPED slot,
+        // e.g. `if`'s three `@arg exprs :wat::core::bool …`) renders its own sketch here.
+        // `@syntax` is the correct vehicle for `let`/`fn`/`match` precisely because their
+        // slots (`<binder>`, `<params>`, `<scrutinee>`) are syntactic positions with no type
+        // to declare — authoring `@arg` for them would mint a type claim these forms don't
+        // have, which is why they moved to the arm above instead of into this one.
+        //
+        // A row with NEITHER `@syntax` nor `@arg` still falls through to the
+        // `special_forms.rs` deferral below (arm after this one) — that deferral is what
+        // still answers for the 23 rows Stone 1a-α does not touch, until each is registered
+        // with its own vehicle.
         Some(Binding::Registered {
             name: n, entry, ..
         }) if !entry.args.is_empty() => {

@@ -1,3 +1,9 @@
 #wat.core.Option/Some [
-  (:wat.core/fn <params> <body>+)
+  (
+    fn
+    [<param> <- :T ...]
+    ->
+    :RetType
+    <body>+
+  )
 ]

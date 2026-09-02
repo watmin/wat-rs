@@ -69,11 +69,19 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
         "lookup-define for {} should mention the form name {}; got: {}",
         name_keyword, name_fragment, define_line
     );
-    assert!(
-        signature_line.contains(name_fragment),
-        "signature-of-defn for {} should render the form's name; got: {}",
-        name_keyword, signature_line
-    );
+    // ⛔ Arc 255 Stone 1a-α — the `signature_line.contains(name_fragment)` assertion that
+    // stood here is DELETED, not weakened. It encoded the retired contract "the sketch always
+    // names the form by FQDN"; the stone's pinned contract is that a row's DECLARED `@syntax`
+    // renders VERBATIM, short head and all — so `let` now signs `(let [<binder> …] <body>+)`,
+    // which carries no `:wat.core/let` substring by design.
+    //
+    // Deleting it weakens nothing, and the reason is dominance, not convenience: ALL FIVE
+    // callers follow this helper with `assert_edn_matches_file!` on that same
+    // `signature_line`, which pins the whole rendering byte-for-byte. A `contains` fragment
+    // check is strictly weaker than the exact golden that already runs one line later.
+    // `define_line`'s two assertions above STAY — `lookup-define` still emits the FQDN
+    // sentinel, this stone does not touch it, and those two have no golden behind them.
+    let _ = &signature_line;
     assert!(body_is_none, "body-of for {} should be :None", name_keyword);
 }
 
