@@ -956,9 +956,27 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                     }
                 }
             }
+            // Arc 255 Stone the-tail-door — the registry's tail door. MUST sit here: after the
+            // rete `Form` re-mapping above (so a `:wat::rete::core::*` spelling has already been
+            // rewritten to its `:wat::core::*` `head` before this consults the registry — placed
+            // any higher and every rete `Form` spelling of a registered tail form would silently
+            // lose TCO, with every test staying green, DESIGN's "TWO placement facts") and before
+            // `match head {` (so a registered tail impl runs BEFORE the literal arms it replaces,
+            // not as a first arm inside the match — the guard-hoist contract's shape). `if`/`let`/
+            // `match` are the only three registered tail impls as of this stone; every other head
+            // (`do`/`and`/`or`/`ann-form`/`:wat::rete::insert`/a user fn/a defclause) has no
+            // registry row and falls through unchanged to the match below.
+            if let Some(entry) = crate::intrinsic::registry().lookup_entry(head) {
+                if let Some(tail) = entry.tail_handler {
+                    return tail(args, &list_span, env, sym);
+                }
+            }
             match head {
-                ":wat::core::if" => eval_if_tail(args, &list_span, env, sym),
-                ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
+                // Arc 255 `DESIGN-STONE-the-tail-door.md` — this arm RETIRED; `:wat::core::if`
+                // carries a registered `role = tail` handler now, so the registry-first tail
+                // door above (`crate::intrinsic::registry().lookup_entry(head).tail_handler`)
+                // already dispatches it to `eval_if_tail` (unchanged) before this match is ever
+                // reached.
                 // Arc 255.1c-kernel-remainder (home #8) — the `:wat::kernel::serve-dispatch-op`
                 // tail-position special-case that used to live HERE moved to the intrinsic
                 // registry (`src/intrinsic/kernel/serve.rs`); the fallthrough `_ =>
@@ -967,11 +985,16 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                 // — the SAME delegate, still evaluating `body` via `eval_tail` internally, so the
                 // `serve` self-recursion trampoline is preserved. See that module's doc for the
                 // full derivation (verified safe against `apply_function`'s trampoline loop).
-                // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
-                // for eval_tail's caller (apply_function trampoline uses bare Value).
-                ":wat::core::let" => {
-                    eval_let_tail(args, &list_span, env, sym).map(|tv| tv.value_owned())
-                }
+                // Arc 255 `DESIGN-STONE-the-tail-door.md` — this arm RETIRED; `:wat::core::let`
+                // carries a registered `role = tail` handler now, so the registry-first tail
+                // door above already dispatches it to `eval_let_tail` (unchanged, including the
+                // `.map(|tv| tv.value_owned())` this arm used to do here — now performed inside
+                // the macro-generated shim instead) before this match is ever reached.
+                // Arc 255 `DESIGN-STONE-the-tail-door.md` — this arm RETIRED; `:wat::core::match`
+                // carries a registered `role = tail` handler now (`eval_match_tail`, newly
+                // annotated by this stone — it had no `#[wat_special_form_impl]` of any role
+                // before), so the registry-first tail door above already dispatches it to
+                // `eval_match_tail` (unchanged) before this match is ever reached.
                 ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
                 // Arc 278 #59 — `and`/`or`/`ann-form` mirror the `if`/`match`/`let`/`do` pattern
                 // above: each is a legitimate tail context (see eval_and_tail/eval_or_tail/
@@ -1261,6 +1284,13 @@ fn eval_do_tail(
 /// Tail-position twin of [`eval_match`]. The matched arm's body is
 /// evaluated via [`eval_tail`] — a tail-call inside an arm body
 /// propagates through to `apply_function`'s trampoline.
+///
+/// Arc 255 Stone the-tail-door — this fn had NO `#[wat_special_form_impl]` annotation of any
+/// role before this stone (its `role = check`/`role = eval` siblings live on `infer_match`/
+/// `eval_match`; only the tail twin was never wired). Added here so `:wat::core::match` gets a
+/// THIRD registered row and `eval_tail`'s literal arm for it can be deleted without losing TCO —
+/// see this stone's report for the surprise this was.
+#[wat_special_form_impl(":wat::core::match", role = tail)]
 fn eval_match_tail(
     args: &[WatAST],
     list_span: &Span,

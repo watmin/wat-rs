@@ -169,6 +169,17 @@ pub(crate) enum Arity {
 pub(crate) type NativeHandler =
     fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<TrackedValue, EvalBreak>;
 
+/// The tail door's callable pointer — arc 255 Stone the-tail-door. Sibling to [`NativeHandler`],
+/// same argument shape, DIFFERENT return: a tail impl (`eval_if_tail`/`eval_let_tail`/
+/// `eval_match_tail`'s shim) returns bare `Value`, which is what `eval_tail` itself returns and
+/// what its trampoline caller expects — no `TrackedValue` provenance decision belongs at a tail
+/// return (DESIGN-STONE-the-tail-door's "the type needs no invention" table). Carried on a
+/// SEPARATE `IntrinsicEntry::tail_handler` slot, never folded into `handler`
+/// (`NativeHandler`'s slot): `handler` is what `dispatch_keyword_head_value` calls in NON-tail
+/// position, where a tail impl's contract does not hold.
+pub(crate) type TailHandler =
+    fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<Value, EvalBreak>;
+
 /// One `@example` / `@example-norun` entry carried on the registry — the
 /// structured form of `wat_doc::DocExample`, lowered to `'static` literals
 /// by the `#[wat_intrinsic]` macro.
@@ -356,11 +367,18 @@ pub(crate) struct SpecialFormImplSubmission {
     /// `role = eval` submissions (the macro emits a generated shim, canonical
     /// `NativeHandler` shape, wrapping the annotated fn's return per
     /// `wat_intrinsic.rs`'s shared `sniff_return`/`wrap_call_for_return`, STOP-4);
-    /// `None` for `role = check` and `role = tail` (STOP-2 — those keep emitting source
-    /// only; a tail pointer has no `eval_tail` guard to call it yet). Folded into
-    /// `IntrinsicEntry`'s EXISTING `handler` field by `registry()`, not a new slot —
-    /// the tail door (a later stone) is a second such role and gets its own field then.
+    /// `None` for `role = check` and `role = tail`. Folded into `IntrinsicEntry`'s
+    /// EXISTING `handler` field by `registry()`, not a new slot.
     pub eval_handler: Option<NativeHandler>,
+    /// The tail door's callable pointer — arc 255 Stone the-tail-door. `Some` ONLY for
+    /// `role = tail` submissions (the macro emits a generated shim, canonical
+    /// [`TailHandler`] shape, wrapping the annotated fn's return per `wat_intrinsic.rs`'s
+    /// shared `sniff_return` and this crate's sibling `wrap_call_for_tail_return`, STOP-4);
+    /// `None` for `role = check` and `role = eval`. Folded into `IntrinsicEntry`'s SEPARATE
+    /// `tail_handler` field by `registry()` — NEVER into `eval_handler`/`handler` (STOP-3):
+    /// `handler` is consulted by `dispatch_keyword_head_value` in non-tail position, where a
+    /// tail impl's contract does not hold.
+    pub tail_handler: Option<TailHandler>,
 }
 
 inventory::collect!(SpecialFormImplSubmission);
@@ -378,6 +396,13 @@ pub(crate) struct IntrinsicEntry {
     /// `None` for a special form that has not (registered but reached only through the
     /// runtime engine's own dispatch, not a registered Rust fn here).
     pub handler: Option<NativeHandler>,
+    /// Arc 255 Stone the-tail-door — the tail dispatch pointer, a SEPARATE slot from `handler`
+    /// (STOP-3). `Some` when a `role = tail` implementation registered a pointer for this fqdn
+    /// (`if`/`let`/`match`, as of that stone); `None` for a special form with no registered tail
+    /// impl (falls through to `eval_inner` from `eval_tail`, correct but not tail-optimized) and
+    /// always `None` for `Kind::Intrinsic`. Consulted ONLY by `eval_tail`'s own guard — never by
+    /// `dispatch_keyword_head_value`, where a tail impl's contract does not hold.
+    pub tail_handler: Option<TailHandler>,
     /// Arc 255 Stone N — mirrors `IntrinsicSubmission::value_handler`; `None`
     /// for `Kind::SpecialForm` and for any `Kind::Intrinsic` that hasn't
     /// named one. Read through `lookup_entry` by `dispatch_substrate_impl`
@@ -521,6 +546,10 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
             r.register(IntrinsicEntry {
                 name: submission.name,
                 handler: Some(submission.handler),
+                // arc 255 Stone the-tail-door — no `Kind::Intrinsic` carries a `role = tail`
+                // submission (that role is a `#[wat_special_form_impl]`-only concept); always
+                // `None` here.
+                tail_handler: None,
                 value_handler: submission.value_handler,
                 kind: Kind::Intrinsic,
                 syntax: "",
@@ -556,6 +585,12 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
         // slot on the entry.
         let mut eval_handler_by_fqdn: std::collections::HashMap<&'static str, NativeHandler> =
             std::collections::HashMap::new();
+        // arc 255 Stone the-tail-door — bucketed alongside `eval_handler_by_fqdn`, same pass,
+        // same stream: the `role = tail` pointer a submission carries (`None` for check/eval).
+        // Folded into `IntrinsicEntry`'s SEPARATE `tail_handler` field below (STOP-3) — never
+        // merged into `eval_handler_by_fqdn`/`handler`.
+        let mut tail_handler_by_fqdn: std::collections::HashMap<&'static str, TailHandler> =
+            std::collections::HashMap::new();
         for submission in inventory::iter::<SpecialFormImplSubmission> {
             impls_by_fqdn
                 .entry(submission.name)
@@ -563,6 +598,9 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 .push((submission.role, submission.source));
             if let Some(eval_handler) = submission.eval_handler {
                 eval_handler_by_fqdn.insert(submission.name, eval_handler);
+            }
+            if let Some(tail_handler) = submission.tail_handler {
+                tail_handler_by_fqdn.insert(submission.name, tail_handler);
             }
         }
         // Each `#[wat_special_form("<fqdn>")]` struct submits a SpecialFormSubmission
@@ -587,6 +625,10 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 // registered a pointer for this fqdn; `lookup`/`dispatch_keyword_head_value`'s
                 // existing guard then dispatches it unchanged (no new consult site).
                 handler: eval_handler_by_fqdn.remove(submission.name),
+                // arc 255 Stone the-tail-door — `Some` when a `role = tail` submission
+                // registered a pointer for this fqdn; `eval_tail`'s own guard (never
+                // `dispatch_keyword_head_value`'s) is the sole consult site (STOP-3).
+                tail_handler: tail_handler_by_fqdn.remove(submission.name),
                 value_handler: None,
                 kind: Kind::SpecialForm,
                 syntax: submission.syntax,
