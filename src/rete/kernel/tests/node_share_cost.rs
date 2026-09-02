@@ -52,11 +52,19 @@ fn produced_of_kind(census: &[super::RoundCensus], kind: &str) -> usize {
 
 /// ★ STEP 0 of DESIGN-STONE-compiled-where — the DECOMPOSITION, before anything is built.
 ///
-/// The counters (`node_share_filter_eval_census`, below) proved the MECHANISM exactly: 10,000
-/// `Environment` builds and 10,000 key allocations per fire at `[50 200]`, 98% of them for a
-/// predicate about to fail. They say NOTHING about the SHARE — and a cost read is not a cost
-/// measured (`[[feedback_measure_the_decomposition_never_read_it]]`, four wrong attributions in
-/// one session doing exactly that).
+/// The counters (`node_share_filter_eval_census`, below) proved the MECHANISM exactly — AS IT
+/// WAS ON 2026-08-01: 10,000 `Environment` builds and 10,000 key allocations per fire at
+/// `[50 200]`, 98% of them for a predicate about to fail. They say NOTHING about the SHARE —
+/// and a cost read is not a cost measured (`[[feedback_measure_the_decomposition_never_read_it]]`,
+/// four wrong attributions in one session doing exactly that).
+///
+/// ⛔ THOSE TWO 10,000s ARE HISTORY, NOT THE PRESENT, and this sentence stood in the present
+/// tense until 2026-09-02. Re-driven that day, the SAME census at `[50 200]` reads
+/// `evals 0 · reuse 200 · passes 200 · envs 0 · keyallocs 0`: the where-tree proves every
+/// candidate a pure comparison, so the fire builds NO environments, allocates NO keys, and
+/// calls `exec_where` ZERO times. Every arm below is still scaled to `evals_per_round`
+/// = N x tokens.len() = 10,000, which is that dead pre-where-tree count — see the ⛔ block
+/// beside the reconstruction for what that costs.
 ///
 /// Two things the `filter` phase's 89.5% actually contains, unsplit until now:
 ///   1. the per-TestNode `new_tokens = ts.clone()` (`:2701`) — on a SHARED-prefix axis every
@@ -64,8 +72,10 @@ fn produced_of_kind(census: &[super::RoundCensus], kind: &str) -> usize {
 ///      times per round. NOT the predicate. (Task #50.)
 ///   2. the predicate itself, which splits again into the env build and the `eval_inner` walk.
 ///
-/// So three arms, at ONE ROUND'S WORTH of work each so the numbers land on the same scale as
-/// the 6.83 ms `filter` reading, **interleaved** — never blocks; a block-ordered A/B produced a
+/// So three arms, at what WAS one round's worth of work each so the numbers would land on the
+/// same scale as the then-6.83 ms `filter` reading (that constant is gone; the phase is now read
+/// live, and the scale premise no longer holds — the ⛔ block below the table says why),
+/// **interleaved** — never blocks; a block-ordered A/B produced a
 /// clean, disjoint, WRONG −7 ms on 2026-08-01 that a B-A-B drift check destroyed
 /// (`[[feedback_a_benchmarks_shape_manufactures_its_result]]`).
 ///
@@ -258,12 +268,36 @@ fn node_share_where_cost_decomposition() {
     let walk = b - a;
     let walk_novars = d - a;
     let lookups = walk - walk_novars;
-    // The measured `filter` phase this reconstructs (2026-08-01, node_share_fire_phase_census,
-    // [50 200]). Printed so the reconstruction can be CHECKED, not assumed: if B + C does not
-    // land near it, the harness is measuring something the fire does not do.
-    const FILTER_MS_MEASURED_IN_FIRE: f64 = 6.83;
+    // ── the `filter` phase this reconstructs, READ LIVE ───────────────────────────────────
+    // NEVER a constant. `FILTER_MS_MEASURED_IN_FIRE = 6.83` stood here from 2026-08-01 while
+    // the compiled-where work drove the real phase to ~0.39 ms, and the check its own comment
+    // declared ("if it does not land near it, the harness is measuring something the fire does
+    // not do") was a `println!` with nothing behind it — printing 146% accounted, its own
+    // stated failure condition, for a month.
+    //
+    // Same axis, same [N M] the arms are scaled to, same helper `node_share_fire_phase_census`
+    // reads at its own `node_share_phase_census(50, 200)` call.
+    let phase_rows = node_share_phase_census(N, M);
+    let filter_ms = phase_rows
+        .iter()
+        .find(|(n, _, _)| *n == "filter")
+        .map(|(_, ns, _)| *ns as f64 / 1e6)
+        .unwrap_or_else(|| {
+            panic!(
+                "no `filter` row in the node-share phase census at [{N} {M}] — this axis is \
+                 TestNode-heavy, so its absence means the fire never entered the filter pass \
+                 and there is nothing for these arms to reconstruct. Rows: {:?}",
+                phase_rows.iter().map(|(n, _, _)| *n).collect::<Vec<_>>()
+            )
+        });
+    // The reconstruction is F + C, the NATIVE path: `fire/pass/filter.rs` builds from
+    // `arm.compiled_wheres` and dispatches to `exec_where` (`fire/mod.rs:1996`); it never
+    // calls `eval_test_core`. B stays in the table as the interpreter HEADROOM study (B-E),
+    // which is honest and useful — but it is not the arm the fire runs, and `B/F` printed
+    // three rows down has always said so.
+    let reconstruction = (f + c) / 1e6;
 
-    println!(
+    let table = format!(
             "\nSTEP 0 — where-predicate cost decomposition, node-share [{N} {M}], \
              ONE ROUND's worth per arm, {REPS} interleaved reps, medians\n\
              \x20 captured from a real fire: 1 predicate x {} tokens x {bindings_per_token} \
@@ -283,8 +317,8 @@ fn node_share_where_cost_decomposition() {
              \x20 the env build   A     {:>8.3} ms  {:>5.1}% of B   {:>6.1} ns/eval\n\
              \x20 the token clone C     {:>8.3} ms\n\
              \x20 ---------------------------------------------------------------------------\n\
-             \x20 RECONSTRUCTION  B+C = {:>6.3} ms  vs a measured `filter` of \
-             {FILTER_MS_MEASURED_IN_FIRE} ms  ({:>4.0}% accounted)\n\
+             \x20 RECONSTRUCTION  F+C = {:>6.3} ms  vs a LIVE `filter` of \
+             {filter_ms:>6.3} ms  ({:>4.0}% accounted)\n\
              \x20 HEADROOM        B-E = {:>6.3} ms is what a PERFECT compile could remove\n\
              \x20 COMPILED vs B   B/F = {:>5.2}x    F-E leftover {:>6.1} ns/eval\n",
             tokens.len(),
@@ -308,12 +342,56 @@ fn node_share_where_cost_decomposition() {
             100.0 * a / b,
             a / evals_per_round as f64,
             c / 1e6,
-            (b + c) / 1e6,
-            100.0 * ((b + c) / 1e6) / FILTER_MS_MEASURED_IN_FIRE,
+            reconstruction,
+            100.0 * reconstruction / filter_ms,
             (b - e) / 1e6,
             b / f,
             (f - e) / evals_per_round as f64,
         );
+    println!("{table}");
+
+    // Non-vacuity on the LIVE READ: a zero `filter` makes every ratio above a division by
+    // nothing, and the `% accounted` column would render as `inf` rather than as a fault.
+    assert!(
+        filter_ms > 0.0,
+        "the live `filter` phase read 0 ns at [{N} {M}] — the census never entered the \
+             filter pass, so the reconstruction above is measured against nothing{table}"
+    );
+
+    // ⛔ THE DECLARED CHECK IS **NOT** ASSERTED HERE, AND THAT IS THE FINDING — not an omission.
+    //
+    // The old comment declared it: "if B + C does not land near it, the harness is measuring
+    // something the fire does not do." Reading the phase LIVE and reconstructing from the
+    // NATIVE arm (both fixed above) makes that check runnable for the first time, and it FAILS
+    // — structurally, not noisily. Six consecutive runs, 2026-09-02, this box, release:
+    //
+    //     684%  693%  734%  723%  686%  698%   accounted  (F+C vs the live `filter`)
+    //
+    // A 7% spread across six samples: this is not the ~16% run-to-run noise, it is a stable
+    // over-count. NO honest band admits 7x, and a band widened to admit it would re-create the
+    // very defect this instrument was cleaned to remove.
+    //
+    // THE MECHANISM, measured — `node_share_filter_eval_census` at [50 200] on this same tree:
+    //
+    //     rules items |  evals  reuse  passes | envs  keyallocs
+    //        50   200 |      0    200     200 |    0          0
+    //
+    // The fire calls `exec_where` **ZERO** times. `dispatch_where_tests` (`fire/mod.rs:2012`)
+    // finds every candidate `proven` AND `is_pure_cmp` (`:2039`), takes the reuse branch
+    // (`:2040`, `filter:test-reuse`), and skips the eval entirely. Arm F is scaled to `evals_per_round` = N x tokens.len() = 10,000 — the
+    // PRE-where-tree count. So "ONE ROUND'S WORTH" is itself stale: a round's worth of
+    // `exec_where` is now 0, not 10,000, and no rescaling of F rescues the reconstruction,
+    // because the correct scale drives F's contribution to zero. C alone is then ~0.13 ms
+    // against a ~0.39 ms phase — ~34%, still not a reconstruction.
+    //
+    // What the remaining ~66% is, no arm here measures: the per-token `where_tree.candidates`
+    // walk, the `bind_view`, the two per-token `HashSet` builds (`proven`/`maybe`), and the
+    // `d_beta` pushes. Those are the filter phase today. Adding arms for them is a strike of
+    // its own; asserting a number over arms that do not cover them would not be one.
+    //
+    // Until an arm set covers the phase, the honest guards are the non-vacuity ones: the live
+    // read found its row and is non-zero (above), and the instrument is not optimised away
+    // (below). Both carry the whole table so a red arrives with its own evidence.
 
     // Non-vacuity on the INSTRUMENT itself: a zero reading means the optimiser removed the
     // arm, and every share above would be an artifact.
@@ -321,7 +399,7 @@ fn node_share_where_cost_decomposition() {
         a > 0.0 && b > 0.0 && c > 0.0 && d > 0.0 && e > 0.0 && f > 0.0 && b > a && b > e,
         "an arm measured zero, or the orderings that MUST hold do not — the loop was \
              optimised away and the shares above are artifacts \
-             (A={a}ns B={b}ns C={c}ns D={d}ns E={e}ns)"
+             (A={a}ns B={b}ns C={c}ns D={d}ns E={e}ns){table}"
     );
 }
 
