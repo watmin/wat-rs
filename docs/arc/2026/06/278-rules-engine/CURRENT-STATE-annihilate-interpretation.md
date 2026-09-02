@@ -1,692 +1,138 @@
 # CURRENT STATE — annihilate interpretation in wat-rete
 
-> **Locked 2026-08-17 so a compaction cannot drop it.** This is the live
-> breadcrumb. Read this whole file before touching `src/rete/` or
-> `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
-> **this file wins** and the stone is stale.
+> **Locked 2026-08-17 so a compaction cannot drop it.** This is the live breadcrumb. Read this whole
+> file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
+> here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (twenty-fifth — 25 STRIKES; ⭐⭐⭐ CLASSES A, E, F1 CLOSED + C2/C7. C3-C6, D2/D4-D7, F2 remain; F3 is LEADS ONLY). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (twenty-sixth — 25 STRIKES LANDED; ⚠ D4 IS IN FLIGHT). Supersedes every earlier stamp and every dated block below.**
 
-**THE FRESHNESS PROBE — run it, it is two commands:**
+**THE FRESHNESS PROBE — two commands:**
 
 ```
 git log --oneline 00ca6b0eb..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 00ca6b0eb..HEAD        # what they touched
+git diff --stat 00ca6b0eb..HEAD --name-only
 ```
 
-**PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
-comment-only edits. **STALE:** anything else in the range — a `rete:`/`fix:`/`feat:` commit, or a
-substantive `src/` diff. Then trust the log and the source over every line below, and re-read
-before you move.
+**PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
+then trust the log and the source over every line below, and re-read before you move.
 
-> ⚠ This is the probe's THIRD wording today and the first two were both wrong, which is the
-> lesson worth more than the probe: version 1 promised the gap would be `docs/` ONLY and its own
-> commit touched a `src/` comment; version 2 tried to name its own commit hash, which cannot
-> exist until the commit does; version 3 said "expect ONE commit" and was invalidated by the next
-> curare commit. **A probe pinned to a COUNT rots on every subsequent write.** This one pins to a
-> KIND — "everything since the last substantive commit is curare" — which stays true no matter
-> how many wrap-up commits land on top, and still screams the moment real work lands unread.
+> ⚠ Previous wordings pinned to a COUNT and to a `curare:` PREFIX; both rotted, because the cadence
+> is `strike:` (draw, docs) → `fix:`/`lint:` (the work, src) → `score:` + `curare:` (docs). **Pin to
+> the last commit that touched code, and test the PATHS.** That survives any number of docs commits.
 
-**⛔⛔ START HERE. THE INITIATIVE IS: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures
-against.** Correctness is done; the exemplar work is not.
+## ⚠⚠ A RIDER WAS RUNNING WHEN THIS WAS WRITTEN — CHECK THE TREE FIRST
 
-**✅ WHAT IS FINISHED** — every vigilia row (audited, not inherited), the outcome wall (five verbs
-total, no ceiling reaches wat as a raise, a lint keeps it so), the termination verifier reading the
-`where` fence, and BOTH of `partire`'s named cuts:
+**D4 was released to a shadowdancer and had not returned.** `git status --short` was **clean** at
+stamp time, so its work was not yet on disk. On the far side, one of three is true:
 
-| | |
+| what you find | what it means |
 |---|---|
-| `expr_ir.rs` 2_458 | → `expr_ir/mod.rs` 1_046 + `expr_ir/eval.rs` 1_413 |
-| `validate.rs` 2_452 | → `mod.rs` 1_494 + `typing.rs` 549 + `error.rs` 448 |
+| clean tree | the rider never wrote, or was lost with the session. **D4 is undone — re-release it.** |
+| modified tree, uncommitted | the rider finished and **nobody weighed it.** Do NOT commit it unread: run the floor and clippy yourself, drive the mutations, then score it. |
+| a `fix(rete)` commit for D4 | it landed and was weighed. Read its `SCORE.md`. |
 
-**⛔ THE METRICS ARE EXHAUSTED — AND THAT IS THE FINDING.** Every mechanically checkable axis is
-green or has been retired with reasons. **Re-derive, do not quote:**
-`scripts/doc-coverage.sh <dir> --exclude /tests/` (`--list` for file:line).
+The strike is drawn and complete at `docs/arc/2026/06/278-rules-engine/strike-exec-sp/` — DESIGN,
+BRIEF and EXPECTATIONS all written, with pre-values measured. **Nothing needs re-deriving to
+re-release it.**
 
-| axis | `src/rete` | `src/process` | `src/channel` | verdict |
-|---|---:|---:|---:|---|
-| undocumented fns ≥15 ln | **0** (was 111) | 4 (12%) | 0 | ✅ done |
-| tests that cannot fail | **0** (was 26) | — | — | ✅ done |
-| nesting ≥8, NORMALISED | **1.1%** (9/817) | 0/85 | **14%** (1/7) | ✅ ahead of channel |
-| largest test file | **1,676** (was 10,189) | — | — | ✅ done |
-| comment density | 29% | 39% | 53% | ⚰️ **RETIRED — see below** |
+## ⛔ THE INITIATIVE: MATURE wat-rete INTO AN EXEMPLAR the rest of wat matures against
 
-⚰️ **COMMENT DENSITY IS A DEAD METRIC. Do not chase it.** Deleting 22 duplicated functions and 37
-duplicated closures — an unambiguous improvement — moved it **zero points**. It counts lines, not
-information, and can be raised to 50% by restating every line. It is also confounded by size: a
-79-line file with a 40-line header scores 50% from the header alone, which a 31k-line directory
-cannot reproduce. AND IT MAY POINT THE WRONG WAY: `probare` exists to ask *"is this a program or a
-description?"*, so `channel`'s 53% is as plausibly a FINDING as a target.
+Correctness was the first half and is **done**. What remains is the description layer and the
+instruments.
 
-⚠ The nesting row was previously RAW COUNTS ("rete 10, process 0, channel 1"), which penalised the
-directory with 817 functions against one with 7. Normalised, rete is ahead of `channel`.
+## WHERE THE WORK STANDS — `VIGILIA-2026-08-30-WORK-LIST.md` is the ONLY place a row's status lives
 
-**★ THE WARDS WERE CAST 2026-08-30 AND THEY SETTLED IT** (`99bf573df`, reports weighed against the
-disk finding by finding):
+| class | state |
+|---|---|
+| **A** — the doors (7) | ⭐ **CLOSED** — the root class: *an invariant proven at ONE door and assumed at ALL of them* |
+| **B** — resource lifetime (1) | ⭐ **CLOSED** |
+| **E** — error shape (5) | ⭐ **CLOSED** |
+| **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
+| **C** — the instruments | C1, C2, C7 closed. **C3, C4, C5, C6 OPEN** |
+| **D** — engine behaviour | D1, D3 closed. D2 closed as a **bounded negative** (must NOT be reaped). **D4 in flight; D5, D6, D7 OPEN** |
+| **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
+| **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-- **`probare` ACQUITTED the prose** — 5.89:1 / 4.07:1 / 4.23:1, ZERO described or hollow forms in
-  5,536 lines. It took 23 falsifiable claims out of the docs and broke 3. *Restatement never gets
-  a number wrong, because restatement never commits to one.*
-- **`intueri` CONVICTED the self-description** — six false claims, ALL about the tree's own layout,
-  all trivially checkable, none checked. Both gates below exist because of it.
+**Floor at stamp: `5310 tests run: 5310 passed, 21 skipped`, clippy clean, lints 196/196.**
 
-**⛔⛔ THE ANSWER TO "IS IT AN EXEMPLAR" IS: NO — 41 L1 + 70 L2 FROM 19 WARDS, AND SIX STRIKES OF
-IT ARE NOW CLOSED.**
+### The four C rows still open are one class
 
-**➡ THE WORK LIST IS `VIGILIA-2026-08-30-WORK-LIST.md`, IN THIS DIRECTORY. Go there.** It is the
-only place a row's status lives; this block is the pointer, not a second copy.
+The benchmarks lie about what they measure. **C4 is sharpest** — the arm labelled `A
+alpha_activate_fact`, *the production path*, is handed an empty `bind_only`, disabling what it times.
+C6 rebuilds a phase from the **retired interpreter**. C5 asserts a tautology on the release floor.
+C3 reads a phase mark the engine never emits. **Every cost number this arc has quoted came off that
+harness.**
 
-**LANDED 2026-08-30/31, each drawn → probed RED → struck → mutation-proven → floor green:**
+### ⛔ F3 HAS NO REFERENT
+
+The row says the 70 L2 *"live in the ward reports."* **They do not.** The 2026-08-25 cast left
+`GEN-VIGILIA-2026-08-25.md` (672 lines); the 2026-08-30 cast left only the work list — 19 ward
+returns were subagent messages and evaporated. Its clusters are **leads**, each to be re-derived and
+re-measured, never inherited. *(And a `partire` lead is not a verdict: that ward returns **LEAVE**,
+and did so in this very arc.)*
+
+## THE 25 LANDED STRIKES — each has a `SCORE.md` beside its DESIGN
 
 | | | |
 |---|---|---|
-| A1 | `788e5b66d` | the FOURTH wall — import accepted a graph the fire passes cannot walk |
-| A2 | `c449cd24d` | nine `panic!` arms → refusals; a wire value may not unwind the host |
-| A2b | `d081142a9` | the silent zero — one `Option`, two facts, split by type |
-| A4 | `42704d57b` | the ceiling's zero point belongs to the session, not the thread |
-| — | `9ee04f945` | every `docs/arc` `.wat` loads, or declares in a closed rune why not |
-| C1 | `119214aef` | the label follows the arithmetic — 103 accumulators |
-| D1 | `2733b9bd9` | a bare keyword types as `enum` only for a UNIT variant that EXISTS |
-| **oracle** | `16f504e14` | **an accumulate result is SUPERSEDED, not extended** |
-| **B1** | `7319c1ea4` | **a `with-` form's scope is closed by a `Drop`, not by a release call** |
-| **A6** | `bb0256e38` | **wall 5 — the import door bounds its own recursion** |
-| **D3** | `057f9d494` | **an argument with no parameter is refused, not placed** |
-| **A3** | `17fc5fb3e` | **the fence and the executor share one head-space** |
-| **A5** | `7e24c3257` | **a verdict that cannot say "I did not look" is not a verdict** |
-| **A7** | `b0e3377e9` | **the import door is a session's birth, and is charged like one** |
-| **D1r** | `f22704f1f` | **a misspelled variant is told it is a misspelled variant** |
-| **E5** | `c9cdd9d32` | **threading the span is the cure AND the guard** |
-| **E1+E2** | `1efb42fc7` | **`UnknownField` has ONE producer, and it takes the keyword node** |
-| **nested wall** | `c0c883082` | **the wall reads the form as it exists there — four dead kinds now fire** |
-| **E4** | `452953cb9` | **the ceiling set is a closed type, matched exhaustively** |
-| **E3** | `76e221bbb` | **each variant carries its own doc — and a broken link cannot be added** |
-| **F1.5** | `58a10e1f8` | **every walking gate declares how it knows it reached something** |
-| **F2.codemod** | `f4800ef97` | **every rete name in wat-scripts CODE resolves — prose may name a retired form** |
-| **F1.1+2** | `2c7200802` | **a cited name in a rete comment resolves, or declares why it cannot** |
-| **F1.3** | `9d4b68088` | **two ward rune vocabularies copied in and gated — and both my premises refuted** |
-| **C7+C2** | `00ca6b0eb` | **an `(engine)` label names the evidence for its claim** |
-
-**★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
-oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
-side is right is not decided here"* — and the builder said **"measure this against clara — confirm
-who is wrong."** Clara 0.24.0 settled it in one run: it keeps exactly ONE derived fact, holding the
-FINAL count. Native agreed on all three shapes; **the ORACLE was wrong**, accreting one stale fact
-per intermediate state (`Tally(n=0)` standing while the count was 2).
-
-**⛔ WHEN TWO INTERNAL ENGINES DISAGREE, NEITHER IS THE REFEREE.** The oracle is this arc's
-differential reference — every `fire-rules$oracle` comparison over a changing-accumulate shape had
-been measured against something that over-emits. And the tree's ONLY test for that shape carried a
-`where` fence that filtered the intermediate emission, so it passed *because of its fixture's
-shape*. Fenced they agreed; unfenced they did not.
-
-⚠ **The fix reached Clara's answer by the oracle's OWN route** — well-supportedness
-(`F := F ∩ (base ∪ D(F))`), not a port of native's delta logic, because an oracle made to mirror
-native makes every future differential vacuous.
-
-**⏭ D2 — DRIVEN, AND THE ANSWER IS A BOUNDED NEGATIVE.** The code asymmetry is real
-(`hash_join_delta` has ZERO mentions of `right_idx_n`; `keyed_join_persistent` reads it as a
-high-water mark). The shape is constructible — **measured from a real `Export` this time**, not
-asserted. But no input reached the doubling, and a probe over all four branches explains why:
-across 423 rete tests and three grid axes, **35 calls, ALL first-index, ZERO incremental.**
-`indexed_n` is a **correctness guard** — the append does not clear, so it prevents a second call
-re-pushing everything — **guarding a case nothing measured reaches.** So D2 is a live hole in a
-guard that has never had a second chance to matter. **It must NOT be reaped**; `sequi`'s newtype is
-the fix. Full reasoning in the work list.
-
-**⛔ THE CLASS ABOVE THE FINDINGS STILL GOVERNS what remains: an invariant proven at ONE door and
-assumed at ALL of them.** Three doors into a Session — `compile-all`, `import_export`, a
-hand-assembled record. The first proves things; the other two do not. A1/A2/A4 were three
-instances. **A3, A5, A6, A7 are the rest.**
-
-⚠ **AND THREE OF THE SIX WERE THE PRIOR SELF'S OWN DEFECTS**, all one shape — **a commit message
-asserting a general fix while the diff performed a specific one.** `89e8c3ed0` moved the estimator
-LABELS and left the arithmetic (C1, 103 sites). `b7d9d8e90` fixed one `(engine)` mislabel while its
-message named the class; two more stood. And two ratio floors gated a 0.23 ms arm on a parallel
-runner and reddened the floor (`2a7051c67`, struck with the captured arm as the reason).
-**Naming a class in prose is not pulling it.**
-
-⚠⚠ **SEVEN RIDERS, SEVEN PRESCRIPTIONS OF MINE THAT DID NOT SURVIVE CONTACT** — every one surfaced
-by asking for honest deltas, **none by a scorecard**: an impossible mutation; a `collect()` costing
-five allocations on a path measured at ~27% of fire; a counter-proof that could not fail; an inert
-mutation that was really a coverage finding; a file I said to rune that already loaded; a DESIGN
-that forbade what its own BRIEF prescribed; and a gate spec that **could not see its own flagship
-defect**. If you draw a strike, ask the rider where the brief was thin — that is where the value is.
-
-✅ **CLASS B IS CLOSED (`7319c1ea4`), and the root was NOT what the work list said.** The release
-sat in a `do` after the body; a wat error and a host panic each skipped it, both driven RED (the
-two are separate mechanisms — `assertion-failed!` PANICS, `runtime.rs:15922` — and a first probe
-that rode only the panic **blew past its own assertion**, failing with no message, which reads
-exactly like a test that ran). But `with-open-file` has the **byte-identical** `let`+`do` shape and
-does not leak: its resource is a Rust value whose `Drop` closes the fd. **The shape was never the
-defect; the absence of an OWNER is.** An `ArmLease` guard now adopts `compile-all`'s lease and the
-`do` is DELETED, not supplemented.
-
-★ **TWO HOLES THE DESIGN MISSED, BOTH FOUND BY DRIVING.** `rete_arm_release` needed `try_with`: a
-guard dropping after `ARM_TABLE` is destroyed does not panic, it **ABORTS** (`thread local panicked
-on drop`, SIGABRT) — and reverting it changes nothing observable, so that is a **coverage** finding,
-not a covered one. And `:rust::rete::ArmLease` is hand-minted, so `is_registered_rust_opaque` cannot
-see it and `is_pure_type`'s `None => true` arm judged **a live thread-local resource handle PURE** —
-admissible as a `Record` field and onto the wire. Driven with an unregistered positive control.
-
-⛔ **AND THE SHARPEST CORRECTION ANY RIDER HAS RETURNED: A COUNT IN A SCORECARD IS A CEILING ON THE
-EXECUTOR.** My EXPECTATIONS row 11 pinned the floor at 5,188 + **exactly three** tests, so a fourth
-arm would have falsified my own row before I ran it. Two real arms went undriven because of my
-arithmetic. Pin a floor-bound and a direction, never an equality. Full reasoning in
-`strike-lease-unwind/SCORE.md` § "Where MY brief was thin".
-
-✅ **A6 IS CLOSED (`bb0256e38`), and BOTH the severity and the scope on the work list were wrong.**
-It is not a SIGSEGV but a stack-guard **ABORT** — no `catch_unwind` reaches it. And the defect is
-not "deep input crashes": the **same** 20,000-deep Export is **ACCEPTED on a 256 MiB thread and
-aborts on a 2 MiB one**, both driven. Import had **no depth criterion at all** — acceptance was a
-property of the importing THREAD, so two processes running identical code disagreed about whether
-the same bytes were a valid network, and the disagreement was settled by an abort.
-
-★ **THE FINDING NAMED ONE TOWER AND THERE WERE THREE.** My brief listed four sites as *entries
-into* `unpack_prog`. Two of them live in functions that are **themselves self-recursive** —
-`unpack_driver` and `unpack_cond_op` — which I never checked. Wall 5 is therefore ONE budget
-(`MAX_IMPORT_DEPTH = 300`) threaded through **five** mutually recursive unpackers. The mutation,
-re-driven here: with the budget in `unpack_expr` only, the `:and` probe goes **GREEN** and the
-other three go RED. The obvious fix passes the obvious probe and leaves three towers open.
-
-⛔ **AND THE REASON I WALKED PAST `unpack_driver` IS THE LESSON.** Its doc comment read, verbatim:
-*"a driver tree of any depth round-trips **without a depth parameter** — the wire's nesting IS the
-recursion."* Every word true. It is also the exact statement of the vulnerability. **An accurate
-comment in the wrong register is a defect's alibi** — nothing drifts, so nothing checks it, and it
-reads as settled. Promoted to memory. When a comment explains HOW a mechanism works, ask separately
-whether it is RIGHT; treat *"without needing Y"* as a missing guard phrased as economy.
-
-⚠ **The bound was MEASURED and the measurement is itself a finding:** the corpus max nesting depth
-is **3** (423 tests; every packed program bottoms out at `unpack_prog` → `unpack_expr` → one
-operand). So the corpus could never have constrained this number at any bound above 3 — the only
-real constraint is the 3,000–5,000 abort window. **The export/import corpus is broad in VARIANTS
-and flat in DEPTH; that coverage gap stands open.**
-
-✅ **D3 IS CLOSED (`057f9d494`) — and it was a SILENT WRONG ANSWER, not a missing check.** Driven
-through the public surface: the fixture fence answers **1** hit; a `CallUser` with two args for one
-declared param at slot 1 is **ACCEPTED and answers 0**, because a surplus argument was written into
-the slot whose NUMBER equals its POSITION and overwrote the parameter. Past the frame it was
-silently dropped (2 hits); missing, it surfaced as `unbound symbol: slot 1`. One missing check,
-three faces. **Class A a fifth time** — `lower_expr` builds `CallUser` from `lower_args` and
-`lower_rete_defn` without ever comparing them.
-
-The check went at `exec_program_on`, the one place args and params meet, and the surplus branch was
-**deleted** rather than made safe. **A sixth import wall was affirmatively cut** — it would have
-refused the tampered exports and turned every probe green while the executor still held no arity
-invariant.
-
-⛔ **THE FLOOR WENT RED AND THE RIDER COULD NOT HAVE SEEN IT.** `wat::lint
-no_loose_string_assert` — the new probe used `op.contains(…)` where the op is a fixed constant.
-Cured at the root with an exact `assert_eq!`, never a rune. **The gap was mine: a rider runs
-`binary_id(<subject>)`, and new TEST code trips lints in `wat::lint`. Any brief that adds tests
-must name that binary in the rider's scoped checks.**
-
-★★ **AND THE VACUITY MUTATION CORRECTED MY OWN SCORECARD.** Forcing the check to refuse EVERY call
-left my "untampered fixture answers 1" control **GREEN** — that path never reaches
-`exec_program_on`. Every green in this strike would have been consistent with a check that refuses
-everything, had the suite contained only what I specified. The control that carries the weight was
-the rider's own addition. **Ask of every control: what does it FAIL on?**
-
-⚠ **Recorded as an accepted consequence, so nobody bisects for it:** `lower_fn` compiles every
-literal `fn` to `CallUser{params, args: []}`, so a fn **value** reaching `exec` outside the four
-diverted HOF heads now answers `ArityMismatch` where it answered `UnboundSymbol`. Both are errors;
-the kind changed.
-
-⛔ **TWICE NOW I HAVE NAMED ONE SITE WHERE THERE WERE SEVERAL** — A6 (one tower, three) and D3 (one
-call site, six). A finding cites where it was NOTICED, not where it LIVES. Grep the callers and
-put the count in the brief. Promoted to memory.
-
-✅ **A3 IS CLOSED (`17fc5fb3e`).** The acc-form fence admits on `primitive?` — *"has a `RETE_OPS`
-row"* — while `lower_named_rete_fn` looked the head up only in the USER table, so a minted row was
-refused with `unknown rete-defn` **about a row of the very table that admitted it**. Driven both
-halves: direct → refused; the SAME op behind a one-line user `defn`, SAME position → `"fired"`.
-**The capability was real and only the ladder was missing**, which is why tightening the fence was
-rejected — it would delete a working capability to make two registries agree.
-
-★ **THE CLASS GATE COMPUTES ITS OWN POPULATION.** `reachability.rs` now drives every `RETE_OPS` row
-whose param shape fits `(head ?v)` — 1 of 79 today, **never named** — and was proven to fail three
-ways: ladder reverted, predicate mutated to match nothing, and a **wrong-opcode differential** (the
-op is an INDEX, so an off-by-one runs a *different* row and still produces a fact; "it fired" would
-not catch it). ⛔ **The banked `harness-experiri` recon was NOT appended** — ONE real assertion
-across EIGHT tests, counted, not inherited.
-
-⛔⛔ **AND MY OWN BRIEF AUTHORIZED A REGRESSION.** Trap 2 told the rider that D3's wall handles
-acc-head arity, so not to add a second refusal. `expr_ir/mod.rs:14-19` says otherwise: *"`lower` IS
-TOTAL OR IT REFUSES … **every arity checked** … a refusal that belongs at compile time and lands at
-fire time is a defect in this file."* An arity-2 acc head was refused at FIRE with the span pointing
-into `fire/acc.rs`. The rider cited the law, refused to ship it silently, and the instruction was
-reversed: a compile-time fence at `arm.rs:430` — the sole caller, the only place that knows the
-operand count — moves the **location, the op name and the timing**. D3's wall is untouched as the
-backstop for every other caller. **No scorecard row could have caught this: the row I wrote endorsed
-the behaviour.**
-
-★★ **THIRD SCORECARD ROW THIS SESSION THAT COULD NOT DO ITS JOB.** Row 7 asked for a grep to return
-0; it returns **1 at HEAD**, because a pre-existing sweep hard-codes that row. Before it: a pinned
-COUNT that capped a rider's coverage, and a control that stayed GREEN under a check refusing every
-call. **Run every scorecard row against HEAD before shipping the scorecard** — a row whose
-pre-value you cannot state is not a check. Promoted to memory.
-
-✅ **A5 IS CLOSED (`7e24c3257`), and the row understated it.** `import_export` does not skip the
-termination analysis — it **never calls the verifier at all**; and `rete_arm_get_or_build` is a
-**SECOND** false door. So *"`compile-all` is the one door EVERY rule passes"* was false twice, and
-`stratify.rs:339-342` had been stating the gap correctly from its own side the whole time — two
-module docs on one boundary, one of them true. `Ok(())` came from **five** silent sites meaning
-three things. Driven: a `Rule` with empty `:lhs`/`:rhs` — the shape an imported Export's rules have
-— makes `compile-all` answer `"Compiled"`. Now `TerminationVerdict{Proven, NotAnalysable{rules},
-Refused}`; behaviour unchanged, the state merely **sayable**.
-
-★★ **THE RIDER CORRECTED MY STONE, AND WITHOUT IT THE STRIKE WOULD HAVE CHANGED NOTHING.** My
-DESIGN table classified the two early exits as *"proven"* **unconditionally** — and the strike's own
-repro reaches one of them, so an unconditional `Proven` would have shipped the type split with the
-defect exactly where it was. The cure: **the skip count TAINTS the proofs** — `Proven` iff zero
-skips. I had classified each site by what it structurally WAS, not by what it KNEW given a skip.
-**A proof over a filtered population is not a proof.** Promoted to memory.
-
-⛔ **THREE OF THE SIX THIN SPOTS WERE MINE, AND TWO ARE REPEATS.** My trap 1 gave the wrong
-MECHANISM (the early exit keys on whether an edge *computes*, not on `edges` being empty — a mixed
-set reaches it too). My table had four silent sites where there are **five** — the third consecutive
-strike where I under-enumerated. And my scorecard's single mutation over a four-site gate is
-**my own recorded lesson violated while WRITING expectations** rather than while reading a gate; the
-rider ran six, each predicted in advance with a distinct red set.
-
-★ **AND THE TIER INSTRUCTION PAID FOR ITSELF.** The rider's own first gate draft counted seven probe
-calls as doors and went red — caught by the mandated `binary_id(wat::lint)` run, the check added two
-strikes ago after a floor red a scoped probe structurally could not see.
-
-⚠ **Two totalities are now GATES, not prose** (`rete_header_claims_are_asserted`, +2 rows), because
-that lint's own law says *"if you cannot gate it, do not assert a totality about it."* Radius went
-to +1 file and that is correct.
-
-⭐ **CLASS A IS CLOSED — ALL SEVEN DOORS (A1, A2, A3, A4, A5, A6, A7).** The class above the
-findings — *an invariant proven at ONE door and assumed at ALL of them* — is pulled. `import_export`
-now carries **six walls** where the header once counted three.
-
-✅ **A7 (`b0e3377e9`) was worse than "uncounted".** `session_bytes` does `entry(key).or_insert(now)`,
-so an unmarked session's origin was set at the FIRST CHECK and the entire build went **retroactively
-free**. Driven, same 2 MB: marked-at-birth **2097268**, never-marked **0**. The origin is now
-captured as the door's FIRST statement and filed after the build — the reading and the filing must
-split, because the key IS the built network's identity. Wall six refuses past `MAX_IMPORT_NODES =
-10_000`, **measured**: corpus max 63 nodes across 34 importing tests, ~122 ms worst case on the
-driven quadratic curve. `from_pairs` was affirmatively CUT — the cap bounds N, so the quadratic is
-bounded with it, and the before-curve (1.05→4.87 µs per pair at 500→4000) is recorded for a later
-speed stone.
-
-⛔⛔ **AND THE STRIKE INDICTED ONE OF MY OWN.** Mutation 3 removed A4's non-clobber rule: the new
-unit probe reddens, and **A4's `rearm` arm stays GREEN** — the arm whose fixture says verbatim
-*"only this arm can see it."* The mask is `LAST_ORIGIN`, the cache in front of the origin map, never
-invalidated on a write. `git show 42704d57b`: **the cache and the arm landed in the SAME commit**, so
-the measurement was taken before the cache existed beside it and never re-taken. **It was false the
-day it shipped** — my strike, under a doctrine file whose header opens with a warning about exactly
-this. The code is correct; the PROOF was broken. Struck at the site, with the driven correction and
-a pointer to the live gate. **A cache in front of probed state makes a gate unfalsifiable — re-run
-every mutation proof when a memo lands.** Promoted to memory.
-
-⚠ **Three hazards recorded, not acted on:** `expect_seq` clones the whole `nodes` vector before the
-cap can see it (one memcpy on a hostile 10M-element field); `SESSION_ORIGINS` entries are never
-removed, so a long-lived importing thread leaks one entry per session (pre-existing with A4); and
-**a release-weighed floor ELIDES an allocation-only probe's ballast** — a 1 MiB `Vec` read as 121
-bytes until `black_box` was added. I hit that in my own recon and failed to warn about it.
-
-✅ **D1 IS FULLY CLOSED (`f22704f1f`).** D1 made the misspelled variant refuse; the refusal then
-NAMED THE WRONG THING — `UnknownField`, *"has no field `:evt::G::Hii`; available fields: [k,
-grade]"*, sending the author after a FIELD for a VARIANT typo. **A confidently wrong remedy costs
-more than none.** Now `#wat.rete/UnknownEnumVariant` — *"`:evt::G` has no variant `Hii`; available
-variants: [Hi, Lo]"*. `keyword_constant_segment`'s `_ => "keyword"` was the **fifth catch-all** in
-this arc; it is now a named three-state `KeywordConstant`.
-
-⚠ **Two corrections to what I had written here three stamps running.** (1) I recorded this row as
-needing *"a `UnknownEnumVariant` kind"* — a name that **existed nowhere in `src/`**. I invented it
-and then cited it, the second invented symbol in four strikes (D3's `callee_program`). It exists now
-only because the rider built it. (2) *"So rete names the same thing core does"* was the wrong
-target: driven, **core has the same blind spot** (*"expects keyword; got `:evt::G`"*, `remedies []`).
-The target is naming the mistake, not agreeing with a sibling that is also silent.
-
-⛔⛔ **AND MY OWN SKETCH WOULD HAVE SHIPPED A FALSE DIAGNOSTIC.** I drew the new arm as a guard
-placed AFTER the arity-0 arm — and a guard inherits everything the arms above it did not consume, so
-it catches `Some((_,_,n>0))`, a tagged variant that **EXISTS**, as well as `None`. It would have
-emitted *"`:tg::P` has no variant `Hi`; available variants: [Hi]"* — listing the variant it claims is
-missing, the exact class the strike deletes. **ARC DOCTRINE, fifth split and the first drawn wrong:
-SPLIT ON THE DISCRIMINATOR (the resolver's own `None`), NEVER ON A SYMPTOM that merely correlates
-with it.**
-
-⚠ **A third mistake is now PINNED, not fixed:** a *bare tagged variant used as a value* still gets
-the field-names remedy. The variant EXISTS, so "has no variant" would be false — it needs its own
-kind. Cut here, pinned with a golden so the day someone takes it, the pin reddens and names what
-moved.
-
-⚠ **`f22704f1f`'s commit message is MANGLED** — backticks inside `git commit -m` were
-command-substituted, and the amend would have rewritten already-pushed history on a shared branch,
-so I reset to the pushed commit instead. The intended text is in `strike-variant-diagnostic/SCORE.md`.
-**A commit message quoting an identifier goes in a `-F` file, never `-m`.**
-
-✅ **E5 IS CLOSED (`c9cdd9d32`), and the finding was sharper than "a wrong span".** Both
-`refuse_export_without_arm` sites stamped `rust_caller_span!()` while the real wat span sat **one
-frame up, in hand, already spent** on the same function's arity refusal. The lint that exists for
-this could not see it: `span_substitution_justified` tests for **no span PARAMETER** as a proxy for
-its stated principle, *"never about the absence of a choice"* — and the choice lived one frame up,
-so the proxy admitted a site the principle refuses.
-
-★ **THE CURE IS THE GUARD.** Threading `span: &Span` into both fns fixes the diagnostic **and brings
-both bodies inside the existing lint's view** — a future `rust_caller_span!()` there now reddens it,
-with no new lint and no widened predicate. **The proxy is not evaded; it is made TRUE.** Driven on
-BOTH bodies (the rider's own call — one mutation cannot prove a two-site claim).
-
-⛔⛔ **AND MY LOAD-BEARING NUMBER COULD NOT BE CHECKED.** I put *"534 sites tree-wide, 71 in rete"*
-in the stone as the **entire justification** for not widening the lint. It reproduces under **no
-definition** at its own stated commit — it came from an ad-hoc regex script I ran in my terminal and
-never committed. The rider ported the **lint's own walker** with its predicate inverted and got
-**494/69**. The decision survives on the measured figure; the figure did not deserve to be trusted.
-**The lint's doc now carries the numbers AND the instrument** (`violations_in` with `carries_span`
-inverted). **Second instance of this failure** — memory updated, not duplicated. *If a number
-justifies a decision, the thing that computed it goes in the tree beside it.*
-
-⚠ **My caller table also named a fn that never calls it** — `fire/mod.rs` is not a caller of
-`fire_rules_on_session`. Real count **10 + 1**, not 9 + 1. Only the "count them yourself" hedge kept
-it from misleading, and a hedge is not a correct table.
-
-⏭ **A NEW HOLE, FOUND IN PASSING AND FILED:** nothing gates `file:line` citations in comments.
-`no_stale_path_in_doc` checks **paths, not lines**, so two accurate references in `arm.rs` rotted
-silently when a doc block shifted. Refreshed; the general gap is now a row in Class E.
-
-✅ **E1 AND E2 ARE CLOSED (`1efb42fc7`) — AS ONE CLASS.** Four sites produced `UnknownField` and
-pointed four different places; the only one naming the offending keyword **could not run**, and its
-doc was the clearest statement of the contract in the file. Now **one producer**,
-`check_field_kw(field_kw: &WatAST, …)` — **a bare `Span` no longer compiles at any call.** That is
-the strike: fixing three spans without changing the type would have left the next author to pass
-whatever span was nearest, which is exactly how three docs came to promise a behaviour three sites
-did not have. Caret **cols 31–76 → cols 65–75**, the keyword's exact extent.
-
-⛔⛔ **AND THE STRIKE CONTRADICTED MY OWN STONE: TWO OF FOUR PRODUCERS WERE DEAD.** I called the
-nested-constructor producer live and gave it a row and a mutation. **`defrecord` lowers every
-record-constructor call to `(:wat::core::kwargs-construct :Type …)` before the wall runs**, and
-`walk_nested_constructors` matches the record type as **HEAD** — so `types.get` returns `None` and
-FOUR error kinds are unreachable there. Re-driven: `(:fsn::Inner :nope ?k)`, an undeclared field with
-the declared field unsupplied, comes back **`"ACCEPTED-UNVALIDATED"`**. Its **sibling enum-variant
-branch IS live** (an enum variant is not lowered), which is why the walk looks exercised from
-outside. `purity.rs` hit this identical class and WAS taught the post-lowering shape; this walker
-never was.
-
-★ **NOT FIXED — PINNED, and the pin is the model.** That is a wall-reachability strike across four
-error kinds, not a span strike. The pin asserts the program is ACCEPTED **and** that it reached its
-sentinel, so it cannot pass by failing some other way, and it names what to assert when someone
-wires the branch. **A finding as a live gate beats a paragraph in a stone nobody re-derives.**
-Promoted to memory: *a check keyed on a pre-lowering shape is dead, and a live sibling arm makes the
-whole walker look exercised.*
-
-⚠ **My mutation for that row predicted "nothing reddens" and nothing did — I would have read a
-CORRECT observation as insensitivity.** The rider made the mutant `unreachable!` so silence proved
-non-execution rather than a blunt probe. And my kwargs mutation changed the field NAME as well as the
-span (9 reds); **a mutation that changes two things proves neither.**
-
-⚠ **Two frictions worth knowing:** `git stash` is denied to the rider tier, so it could not build a
-HEAD binary — the checked-in golden served as the pre-value, which is an argument for goldens over
-ad-hoc measurement. And a deliberately-FAILING scratch `.wat` cannot live in
-`wat-scripts/scratch-pad/` without reddening `every_wat_scripts_file_loads`; durable ones belong
-beside the probes in `tests/rete/`.
-
-✅ **THE NESTED-CONSTRUCTOR WALL IS WIRED (`c0c883082`)** — the hole the previous strike PINNED
-rather than fixed, which is why it was drawable at all. `defrecord` lowers every record-constructor
-call to `(:wat::core::kwargs-construct :Type …)` before freeze, so the type sits at index 1 and
-`types.get` on the head returned `None`. **Four error kinds were unreachable; all four now fire**,
-each with its own probe and per-arm mutation separation. Reverting the head recognition reddens
-exactly five — the four kinds plus the re-pointed pin — with every control still compiling and
-firing.
-
-⛔⛔ **AND THE STRIKE SHIPS NEW ENFORCEMENT, WHICH ONLY A DRIVE FOUND.**
-`RhsPositionalConstructionRetired`'s doc claimed the runtime dispatch *"unconditionally retires
-multi-arg RAW POSITIONAL construction"*. **Driven at HEAD: a nested `(:T ?k 99)` COMPILED, FIRED and
-derived `y = 99`.** Both citations verified: `rhs_must_compile` says *"do not walk
-`build_insert_fact` on native fire"*, and the compiled path returns positional args verbatim —
-*"already declaration order BY DEFINITION"*. **The doc was written from the INTERPRETER's behaviour
-and never checked against this path.** So wiring the kind is not restored parity — this wall is now
-the only enforcement of that doctrine on the rete path. Accepted deliberately, on a corpus sweep
-(1650 `.wat`, 460 `:then`) showing **zero uses**; the false doc is corrected at the site. **Memory:
-*reviving a dead guard is a behaviour change — drive the live path first.***
-
-⚠ **MY OWN "OUT OF SCOPE" PREMISE WAS FALSE.** I wrote that all spellings arrive as
-`kwargs-construct`; a hand-written `aggregate-new` **does** arrive, head intact, type resolving — I
-generalised from four SOURCE spellings to all spellings. The arm is still omitted, but for a better
-reason than mine: `aggregate-new` **is** the positional route, so firing the retirement under it
-would be an actively **wrong refusal**. And my sketch would have regressed twice — an `_ => return`
-dropping nested constructors under a call form, and an unguarded `items[1]`.
-
-✅ **E4 IS CLOSED (`452953cb9`).** Three converters ended in `_ =>`; driven, their owned sets are
-**disjoint**, so those catch-alls were load-bearing and **there was no live gap** — exactly four
-ceiling variants, exactly four listed. The defect was that nothing forced the **fifth** to be
-considered: it would land in all three wildcards at once and become a raise, the one thing the
-outcome wall exists to prevent. Now `RuntimeErrorKind::ReteCeiling(ReteCeiling)`, matched
-exhaustively, cross-converter arms **written** rather than defaulted.
-
-★ **RE-DRIVEN HERE, AND IT FIRES IN FOUR PLACES, NOT THE THREE I PREDICTED** — the three converters
-**plus `signal.rs:790`**, whose `fmt_with_span` match carries no wildcard at all. **A fifth ceiling
-now cannot compile until it is both ROUTED and GIVEN A MESSAGE.** Better than the scorecard asked
-for.
-
-⚠ **ACCEPTED WITH A COST, AND THE COST IS RECORDED AT THE ENUM.** `RuntimeErrorKind` derives `ToEdn`
-and `Display` **is** `to_wire_edn`, so nesting changes the rendered tag to
-`#wat.runtime/ReteCeiling {:ceiling …}`. Unavoidable — the derive has no flatten or transparent.
-Accepted on measurement, not assumption: **prose messages byte-identical**, no test or `.edn` golden
-asserts the tags, every wat-level match is on the outcome enums, and all four convert before reaching
-wat. `#[to_edn(transparent)]` is filed as its own strike.
-
-⛔ **MY SKETCH WOULD HAVE DEFANGED THE GATE.** It renamed the four variants;
-`no_ceiling_raise_in_rete` matches them by `line.contains` and asserts four hits, so the renames stop
-matching at **all four doors** — and my own trap 5 told the rider to *"update them so the lint still
-fires"*, i.e. to re-point a live gate at strings I had just invented. The rider kept the names
-verbatim and the gate stayed **unmodified**. **A gate re-pointed at the strings of the change it
-polices is not a gate.**
-
-⛔ **AND MY RADIUS WAS WRONG A THIRD TIME — the failure mode is now NAMED: SUBSTRING.**
-`SessionMemoryCeilingExceeded` is a **prefix of** `…OnInsert`, so `grep -c` counted six twice. 30,
-not 36. All three bad estimates came from naive greps. **Use `-w` / `\b` whenever a name family
-shares a prefix — error families almost always do.** Memory updated.
-
-⭐⭐ **CLASS E IS CLOSED (E1, E2, E3, E4, E5) — AND SO IS CLASS A. Class F is what remains.**
-
-✅ **E3 (`76e221bbb`).** Three doc blocks stacked onto ONE variant — **Rust accumulates a doc comment
-onto the NEXT item** — so the two failures with the most to explain rendered with **no doc at all**.
-Split onto four variants and **verified in the rendered HTML**, not the source. `signal.rs`'s 9
-broken intra-doc links → 0; **only two were E4's, seven were older**, so the file had been citing
-four unreachable items before that strike touched it. Tree-wide 50 → 41.
-
-★ **THE CLASS CURE: `tests/lint/no_new_broken_doc_link.rs`.** Nothing in this tree ran rustdoc and
-the lint was not enabled, so **every intra-doc link was unverified** — I broke two in E4 with a green
-floor and a clean clippy. The gate now runs rustdoc and freezes the remaining 41 sites as **34 NAMED
-`(file, target, sites)` keys**: a ratchet both ways — unlisted is red, listed-but-resolving is red.
-Six arms driven, including a **genuinely `flock`'d cargo lock**.
-
-⛔⛔ **AND MY OWN SKETCH REOPENED THE WARNING I HAD JUST WRITTEN.** The stone quotes `purity.rs` —
-*"wanted SET MEMBERSHIP and measured CARDINALITY"* — as the reason for a named list; then prescribes
-a `(file, target)` key. **7 of the 34 keys hold two sites**, so fixing one would have left the gate
-green: **the same defect, one level down, inside the cure for it.** The per-key site count is the
-rider's. Its defense is the keeper: *a count scoped inside a NAME still names the offender.*
-Promoted to memory.
-
-⚠ **My trap named the wrong risk.** Duration was never it (~0 against a 131.9s lint binary). The
-hazard is the **nested target-dir lock** — an unbounded spawned `cargo doc` **BLOCKS** rather than
-fails. Bounded at 300s against a worst observed 10.68s; an expiry is a named red quoting cargo's own
-`Blocking waiting for file lock` line. **Ruled and recorded at the constant: keep the bound, refuse
-the separate `CARGO_TARGET_DIR`** — red-when-it-cannot-measure is CORRECT, and the alternative is the
-recorded failure of a check reporting success without running.
-
-⚠ **The row's second claim was WRONG**: the *"names an action the author can take"* justification
-lives at `outcome.rs:226` and was correctly placed all along. **Third Class E row this session whose
-detail did not survive an audit** — an inherited row is a past act of looking.
-
-✅ **CLASS F IS OPEN, AND ITS DEEPEST ROW WENT FIRST (`58a10e1f8`).** `tests/lint/` is where every
-guarantee in this arc is proven, and **a gate that walks an empty set asserts nothing and reports
-PASS.** So the suite's own credibility was the right first Class F strike.
-
-★★ **THE DRIVE CAME BEFORE THE LINT, AND THAT ORDERING WAS THE STRIKE.** A missing guard is a risk;
-a **vacuous gate is a defect**. Every discovering gate was instrumented at the point its population
-is computed and run under `--no-capture`: **no gate is vacuous today** — 4 parity scripts, 11 grid
-axes, 57 `src/rete` files, 125 path references, 34 diagnostics, 445 `.wat`, up to 998 `.rs`. Because
-that ran first, **all 18 new guards are MEASURED floors**, not numbers chosen for symmetry with a
-sibling.
-
-★ **F0 WORKED EXACTLY AS THE BUILDER SPECIFIED.** The stone deliberately carried **no count** — the
-row said *"10 of 15"*, my own audit grep said *"16 of 24"*, and mine was demonstrably wrong. The
-instrument answered: **24 in scope, 19 undeclared**, of which **six already had a real guard** and
-only lacked a declaration. *A number in prose is replaced by the command that derives it.*
-
-⛔⛔ **AND THE STRIKE BIT ITS OWN EXECUTOR — the "one level down" failure, one strike after I promoted
-it to memory.** The gate scans `tests/lint/`, so **its own prose is data**: the `///` doc on its
-`Declaration::Rune` variant parsed as a rune declaration, and it was **one run from vouching for
-itself with its own documentation**. Invisible by reading; caught in the first driven run.
-
-⚠ **My own re-run then found the CURE's doc overstated.** Turning a `NON-VACUITY` marker into
-`/// NON-VACUITY` left the gate GREEN — `DOC_HEADS` is consulted at exactly one site, the rune path.
-The behaviour is right and the asymmetry is now stated at the constant: **a rune's REASON TEXT is its
-evidence, so a description reads as an answer; a marker's evidence is the ASSERTION beneath it**,
-which `is_assert` refuses to read from any comment.
-
-⚠ **The most expensive thin spot: "drive every walking gate" named no mechanism.** Reading a
-collector cannot see what it visits — it took instrumenting 27 population sites and a full
-`--no-capture` run. Unnamed, a rider reads the collectors, calls it driven, and row 1 is lost.
-**Any future "drive it" instruction must name HOW.**
-
-✅ **F2's CODEMOD ROW IS CLOSED (`f4800ef97`) — AND IT STRUCK A CLAIM IN `CLAUDE.md`.**
-
-⛔⛔ **"ALL WAT STAYS CORRECT, ALWAYS" WAS FALSE, AND STOOD FOR MONTHS.** Type-checking is **not**
-resolution: a `def` body nothing forces is never resolved, so a file under `wat-scripts/` could name
-a head that has never existed anywhere. **Driven** — `(:wat::rete::core::THIS-HEAD-NEVER-EXISTED …)`
-type-checked and the program **ran**. Two phantom rete names lived on that licence, one pair of them
-**inside the very codemod that file mandates for every `.wat` migration**. `CLAUDE.md` now names both
-gates, says what each proves, and states plainly what is still unproven.
-
-★ **DELETED, NOT RE-POINTED** — 41 pairs → 39. And the rider's evidence beat mine: a pure head-rename
-to `mapv`/`filterv` **does not compile** (*"no clause of `:wat::core::filterv` matches arity 2"*),
-because the eager form needs a different container. **That RED is the best single fact in the
-strike:** with a head that resolves, the loader gate finally had something to check — it had nothing
-for three months while the head was invented.
-
-⛔ **MY ★ CONTRACT WAS FALSE AS WRITTEN.** *"A `:wat::rete::` name in CODE resolves"* — but **a
-recorded codemod's OLD column is code and must name what it removes**, and a negative-control probe
-deliberately calls an unminted head **as another brief's non-vacuity proof**. Four names, three
-files. Enforcing my sentence literally would have destroyed that proof. They carry a per-name
-`rune:lint(rete-name-unminted)` now.
-
-⛔⛔ **AND A NAIVE UNION WOULD HAVE VOUCHED FOR ITSELF.** Measured: **all 79 `RETE_OPS` rows are also
-attested in code elsewhere**, so under a flat `rows ∪ attested` universe the registry half resolves
-**exactly zero** names — emptying it changes no verdict and the blinding mutation passes **green**.
-**A non-vacuity floor does not save you: it fires on "I read zero rows", which is a different failure
-from "the rows I read decided nothing".** Split by namespace, both halves now bite (71 / 63).
-Promoted to memory.
-
-⚠ **CLIPPY WENT RED and the tier split is why it was caught** — `unnecessary_get_then_check` in a new
-unit test, while the rider's `binary_id(wat::lint)` was **153/153 green**. **Nextest runs tests;
-clippy lints.** Cured with clippy's own prescription.
-
-★ **A discipline the rider surfaced unprompted, worth carrying into every mutation:** its first run
-of one mutation reported GREEN because **the mutation had not landed** (a `perl` substitution silently
-failed without a UTF-8 flag). *A mutation that does not land is indistinguishable from a gate that
-does not fire.* **Assert the mutation landed before believing its result.**
-
-✅ **F1's ROWS 1+2 CLOSED AS ONE (`2c7200802`).** Two unchecked citation kinds, one walker:
-`tests/lint/rete_citation_resolves.rs`. **33** identifier citations (the row guessed 7) and **27**
-stale bare filenames of 244 cited — `validate.rs`×9 and `expr_ir.rs`×6, an unseen cluster from the
-same `partire` split that broke `tests.rs`. Every `src/` change is a comment, checked mechanically.
-
-⛔⛔ **MY OWN TRAP EXAMPLE WAS A ROTTED CITATION.** Trap 2 offered `axis_variant_names_round_trip` as
-the model of a *legitimate* test-only name. It resolves **nowhere** — the fn is
-`…_through_one_door`. A rider trusting it would have widened the universe until a real finding
-disappeared: **the exact STOP-1 failure that same trap warned against, seeded by its own example.**
-The rider found the genuine controls and made them **live assertions** instead of sentences.
-**Grep every example as you write it; an example is a claim.** Promoted to memory.
-
-★ **AND THE GATE'S OWN FILE IS IN ITS OWN UNIVERSE.** `NoMatchingArm` and `SiftRulesResponse`
-resolved against the gate's **own error text** on its first run. Without the `SELF` exclusion, a
-future hand silences any red by naming the offender in a failure message — *prose vouching for
-prose, one level up*, which my stone warned about at the level below.
-
-⚠ **Three more corrections worth carrying.** (a) The agreement on 33 rests on a shape rule I never
-stated — any bare identifier gives **47**, the extra 14 being git SHAs and Latin session names;
-`_`-or-interior-capital reproduces 33, and that is now a **stated boundary**. (b) My universe was
-short by `wat/` and by **file stems**. (c) The obvious filename rule **misses the finding that
-motivated it** — `tests.rs` still exists at `src/macros/tests.rs`, so basename-existence alone leaves
-`kernel/mod.rs:4` green; ancestor-relative alone reports 55 with 31 false. **Only the conjunction is
-right.**
-
-★ **A DEVIATION I WAS ASKED TO WEIGH, AND ACCEPTED: spelling beats a named vocabulary.** I required
-three vocabularies (clippy lints, memory slugs, `_`-prefixed); the rider built none and excluded by
-**spelling** — `clippy::needless_borrow`, `*_pass`, `[[feedback_…]]`, forms the tree already uses
-(verified at `function/parse.rs:48`). **A list keeps exempting a name after it stops being noise; a
-spelling rule makes the correct form the only passing one and the failure text teaches it.** A rung
-above what I asked for.
-
-✅ **C7 + C2 CLOSED (`00ca6b0eb`).** Every cost number this arc quoted came off the bench harness,
-and the class had **already recurred** — `b7d9d8e90` is titled *"the benchmark called the wrong arm
-'the engine' for eleven days"*, fixed one, named the class, and one survived. Now
-`rete_engine_label_names_its_evidence.rs`: **an engine claim carries its evidence.**
-
-⛔⛔ **STOP-3 FIRED TWICE, AND MY RULE WOULD HAVE DELETED A TRUE CLAIM.** I briefed three sites; there
-are **five** — one inside a `#[cfg(test)]` mod in a `src/` file, one spelled `(THE ENGINE)` which my
-*"one word, so it can be exact"* reasoning missed on case alone. And C7's rule as adopted — *"only if
-its body CALLS the production function"* — would have stripped the `L` arm, which calls nothing
-because it **replicates `root_for` inline where production is not callable**, and whose claim is
-already pinned by a gate asserting the type and body **exactly**. **I wrote that gate myself during
-item #3, then drew a rule that would have overridden it.** Widened to three shapes: *calls
-production* · *replicates it under a shape gate* · *neither*. **Memory: a rule can outlaw a truth.**
-
-⛔ **MY EXCLUSION BOUNDARY WAS THE WRONG KIND.** `kernel/tests/` is a path prefix; **26 files under
-`src/rete/` carry `#[cfg(test)]`**, so the decoy would have passed while the hole stayed open. It is
-*"not inside a `#[cfg(test)]` module"*, by brace tracking. **Re-driven here: identical fn, identical
-label, RED inside `cfg(test)`, GREEN in production scope — differing by placement alone.** Also: the
-LABEL may live in test code (four of five do); only the RESOLUTION TARGET must be production.
-
-★ **AND THE `gated by` FORM SPENDS SOMETHING.** It writes a test fn's name into a `src/` string, which
-retires it as a test-only control elsewhere — it consumed one of `rete_citation_resolves`' two
-controls **on landing**, with no replacement of the same kind in the tree. **Closed, not filed**: an
-**owned, uncitable** control now floors that gate, the real one is kept beside it, and the coupling
-is warned at the `gated by` **definition**, where the next author works rather than in the gate they
-will never open.
-
-⭐⭐⭐ **F1 IS CLOSED — all five lints. Classes A, E and F1 are done; F2 and F3 remain.**
-
-✅ **F1 row 4 was STRUCK, not built** — C1 itself had already shipped
-`minimum_label_matches_its_estimator.rs` (446 lines) the day after the vigilia filed the row. **F0's
-own thesis: a claim that was true when written.**
-
-✅ **F1 row 3 (`9d4b68088`)** — both vocabularies copied into `CONVENTIONS.md` with provenance and
-gated by `no_unknown_ward_rune.rs`, seven arms mutation-proven, scanning wider than the `sequi` gate.
-
-⛔⛔ **AND THE RIDER REFUTED BOTH OF MY PREMISES. I VERIFIED BOTH REFUTATIONS MYSELF.**
-
-**(1) The vocabularies were never undefined.** My stone said *"nothing says what any of them mean."*
-I fetched `perspicere` from the signed channel: its § **The rune** defines all three categories
-verbatim. **I grepped `CONVENTIONS.md`, got zero, and concluded "undefined" — which proved the COPY
-was missing and nothing about the thing.** The authority is the ward spell, from the same MCP I had
-used at the top of this session. *An empty local grep is evidence about transcription.* Memory.
-
-**(2) The live finding was worse than wrong — acting on it would have caused the defect.** I reported
-six `census.rs` runes reasoned *"alias would be a mumble"*. That clause is **shared boilerplate at 18
-sites across four files**; I saw a quarter of the population and read it as a per-site argument.
-Against the authored definition the six are **correctly labelled** — `mumble-alias` requires a *Level
-2 mumble*, and `CensusLog` reads better than the type. **Following my instruction would have split 6
-of 18 identical sites — the exact `ARM_TABLE`/`EXEC_ARENA` divergence `sequi` exists to prevent.**
-The rider made **zero `src/` edits**, correctly, and reported instead of rewriting.
-
-⚠ My site counts were off by **more than 2×** (46 `perspicere` tree-wide, not 18).
-
-⚠ **STOP-3 CONFIRMED AND SHARPER THAN THE ROW.** No trait exists at any `trait-contract` site; the
-two sites that genuinely **are** trait impls carry **`public-api`** — the categories look **swapped**
-— and no category covers *"retained for structural completeness"*, a gap in the **ward's own**
-vocabulary. Named in the table, not silently patched. **That is now an open row against the ward,
-not against this repo.**
-
-★ **WHAT THE GATE DOES NOT DO, driven not asserted:** swapping a category for another in-set member
-leaves it **green**. **Spelling is machine-checkable; fit is not.** Stated at the gate so a passing
-floor cannot imply more than it proved.
-
-**THE NEXT WORK — F3 first, then F2.** My read, and the reason for that order: **F3 is the last block
-where the CODE is still wrong rather than under-described.** `temperare` ×7 each ship a measurement
-plan — `alpha.rs:82,94` hashes the class FQDN **twice per fact**, in the subsystem whose own stone
-measured that at 3.26 ms; `join_extend`'s three per-pair map probes. `partire` ×4 carry **verified
-one-directional seams** (`fire/mod.rs` → `gather.rs` + `query.rs`; `compiled_cond.rs` at its own
-banner; `stratify.rs` → `termination.rs`; `expr_ir/eval.rs` → `ops.rs`). **F2's remaining rot — 83 of
-207 stones naming `src/rete/kernel.rs`, deleted 2026-08-20 — is the largest COUNT and the smallest
-RISK, and after this session's citation gates it is the kind of thing an instrument finds rather than
-a strike hunts.** Also open: the three vacuity-strike rows, the two nested-wall rows,
-`#[to_edn(transparent)]`, `acc_refusal`'s span, the misnamed `probes/` dir, and D2's `sequi` newtype.
+| A1 `788e5b66d` | the fourth wall — import accepted a graph the fire passes cannot walk |
+| A2 `c449cd24d` | nine `panic!` arms → refusals; a wire value may not unwind the host |
+| A2b `d081142a9` | the silent zero — one `Option`, two facts, split by type |
+| A3 `17fc5fb3e` | the fence and the executor share one head-space |
+| A4 `42704d57b` | the ceiling's zero point belongs to the session, not the thread |
+| A5 `7e24c3257` | a verdict that cannot say "I did not look" is not a verdict |
+| A6 `bb0256e38` | wall 5 — the import door bounds its own recursion |
+| A7 `b0e3377e9` | the import door is a session's birth, and is charged like one |
+| B1 `7319c1ea4` | a `with-` form's scope is closed by a `Drop`, not a release call |
+| C1 `119214aef` | the label follows the arithmetic — 103 accumulators |
+| C7+C2 `00ca6b0eb` | an `(engine)` label names the evidence for its claim |
+| D1 `2733b9bd9` + `f22704f1f` | a typo refuses, and is told it is a misspelled **variant** |
+| D3 `057f9d494` | an argument with no parameter is refused, not placed |
+| E1+E2 `1efb42fc7` | `UnknownField` has ONE producer, and it takes the keyword node |
+| E3 `76e221bbb` | each variant carries its own doc — and a broken link cannot be added |
+| E4 `452953cb9` | the ceiling set is a closed type, matched exhaustively |
+| E5 `c9cdd9d32` | threading the span is the cure AND the guard |
+| oracle `16f504e14` | an accumulate result is SUPERSEDED, not extended |
+| nested wall `c0c883082` | the wall reads the form as it exists there — four dead kinds now fire |
+| F1.5 `58a10e1f8` | every walking gate declares how it knows it reached something |
+| F1.1+2 `2c7200802` | a cited name in a rete comment resolves, or declares why it cannot |
+| F1.3 `9d4b68088` | two ward rune vocabularies copied in and gated |
+| F2.codemod `f4800ef97` | every rete name in wat-scripts CODE resolves — prose may name a retired form |
+| — `9ee04f945` | every `docs/arc` `.wat` loads, or declares in a closed rune why not |
+
+## ⛔ WHAT THIS SESSION COST, IN ONE PLACE — read before drawing a strike
+
+**Every one of these was found by a rider answering "where was this brief thin", never by a
+scorecard.**
+
+1. **An inherited row is a past act of looking.** **Six** failed an audit: C2 said two mislabelled
+   arms (one), E2 misread which arm was mis-documented, E3's second claim was already correct, F1's
+   `MINIMUM` lint had already shipped, the `remedy/retirement.rs` row had no population, and F3's
+   referent is gone. **Re-derive line numbers first** — C1's own sweep invalidated C2 the day after
+   the cast.
+2. **A rule drawn from your instances can outlaw a truth.** C7's *"only if its body CALLS
+   production"* would have deleted a TRUE claim pinned by a **stronger** gate — one I wrote myself.
+3. **A cure can carry the defect one level down.** I quoted a cardinality warning, then prescribed a
+   key with a cardinality hole in it.
+4. **Resolvers vouch for themselves by default — four times.** Prose resolving against prose; a gate
+   parsing its own `///`; a gate resolving against its own error text; a union where every registry
+   row was attested elsewhere, so half the resolver decided nothing.
+5. **Look for a definition where the AUTHORITY is.** I called two rune vocabularies undefined on an
+   empty local grep; they were authored in the ward spells all along.
+6. **An example in a brief is a claim too.** My "this one is fine" example was itself a rotted
+   citation, teaching the exact failure its trap warned against.
+7. **A metric without its instrument cannot be rechecked** — my 534/71 reproduced under no
+   definition. **And a count is not a finding**: my radius estimates were wrong three times, twice
+   from a substring (`grep -w`).
+8. **Drive the live path before reviving a dead guard** — it may be new enforcement, not restored
+   parity.
+9. **A check keyed on a pre-lowering shape is dead**, and a live sibling arm makes the walker look
+   exercised.
+10. **A mutation that does not land is indistinguishable from a gate that does not fire.** Assert the
+    mutation landed before believing its result.
+11. **Tier discipline that paid:** the rider edits and reports; the orchestrator runs the floor and
+    clippy. `binary_id(wat::lint)` is **not** clippy — it caught reds five riders' scoped runs could
+    not see, and clippy caught what the lint binary could not.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be

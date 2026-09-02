@@ -82,41 +82,56 @@ pub(crate) fn exec_value<B: Bindings + ?Sized>(
     })
 }
 
-// rune:sequi(ambient-context) — one thread, nested frames bump a high-water
-// arena so exec_where / CallUser / foldl do not allocate per token after warmup.
+// rune:sequi(ambient-context) — one thread, one reused frame buffer so
+// exec_where / CallUser / foldl do not allocate per token after warmup.
 thread_local! {
     static EXEC_ARENA: RefCell<ExecArena> = const { RefCell::new(Vec::new()) };
-    static EXEC_SP: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Run `f` with a frame of `len` slots, carved off a thread-local ARENA rather than allocated.
 ///
 /// `exec` runs once per row per fire, so a `Vec` per call is the hot-path cost this exists to
-/// avoid. `EXEC_SP` is a stack pointer into the arena: a frame is the window `[sp, sp+len)`, the
-/// window is zeroed on entry, and the pointer is restored on the way out. Nested calls therefore
-/// stack rather than collide.
+/// avoid. The frame is the window `[0, len)`, zeroed on entry; the arena is a high-water buffer
+/// that grows only to the largest `len` this thread has ever asked for and never past it.
 ///
 /// ⚠ **THE `Err` ARM IS THE PART THAT MATTERS.** A nested `exec_where` / `CallUser` / fold can be
 /// entered while the OUTER frame is still borrowed — the `RefCell` is already held, so the arena
 /// cannot hand out a second window. That case falls back to a plain heap `vec` for the inner
 /// frame, leaving the arena with its outer owner. It is a correctness path, not an optimisation
 /// gap: without it, re-entrancy would be a panic on a live borrow.
+///
+/// ── ⛔ THERE IS NO STACK POINTER, AND ADDING ONE BACK IS A REDESIGN ─────────────────────
+///
+/// This used to carve `[sp, sp+len)` off an `EXEC_SP` cursor, bumped before `f` and restored on
+/// the line AFTER it, and the doc here claimed *"nested calls therefore stack rather than
+/// collide"*. **They never stacked.** The `RefMut` is live for the whole `Ok` arm, so a nested
+/// call always fails `try_borrow_mut` and takes the `Err` arm — driven (arc 278, Class D4): an
+/// inner call observed the outer's `sp=4` and never moved it. `start` was therefore always `0`,
+/// the cursor computed nothing, and the *only* effect it had left was its own leak: a `where`
+/// fence runs user code, `:wat::kernel::assertion-failed!` panics the host, and an unwind skips
+/// the restore, so the cursor stayed at `end` and every later frame started further in — `len`
+/// slots stranded PER PANIC, cumulatively, for the life of the thread (driven: 8 → 16 → 24).
+///
+/// A `Drop` guard is the cure for a release an unwind can skip (B1's `ArmLease`, `kernel/arm.rs`)
+/// — but here it would restore a `start` that is *provably* `0`: the only route to this arm is an
+/// unborrowed arena, and with the cursor always restored that means a cursor of `0` by induction.
+/// So the cursor is DELETED, not guarded. With no cross-call state there is nothing an unwind can
+/// strand, and no `Drop` touching a thread-local at teardown (B1 measured that shape ABORTing, not
+/// panicking, and needed `try_with`). A cursor is only meaningful together with dropping the
+/// borrow before `f` so nested calls take real arena windows — a hot-path redesign owing its own
+/// measurement. If that lands, the cursor must be owned by a guard, never restored by a line
+/// after the call.
 fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> R {
     EXEC_ARENA.with(|arena| {
         match arena.try_borrow_mut() {
             Ok(mut g) => {
-                let start = EXEC_SP.get();
-                let end = start + len;
-                if g.len() < end {
-                    g.resize(end, None);
+                if g.len() < len {
+                    g.resize(len, None);
                 }
-                for slot in &mut g[start..end] {
+                for slot in &mut g[..len] {
                     *slot = None;
                 }
-                EXEC_SP.set(end);
-                let out = f(&mut g[start..end]);
-                EXEC_SP.set(start);
-                out
+                f(&mut g[..len])
             }
             // Nested exec_where / CallUser / fold while the outer frame is live.
             // Stack frame; the TLS arena stays with the outer caller.
@@ -1456,6 +1471,100 @@ mod entry_f_frame_composition {
             Value::i64(12),
             "10 + 2 = 12. If this fails, `compiled_cond`'s slot frame and this module's `exec` do \
              NOT compose, and entry F's fix cannot be 'finish flip 3' — it needs a different shape"
+        );
+    }
+}
+
+// ── PROBE (arc 278, Class D4) — AN UNWIND THROUGH THE FRAME BODY ─────────────────────────────
+//
+// `with_exec_frame` used to restore an `EXEC_SP` cursor on the line AFTER `f`, so every unwind
+// skipped it and stranded `len` arena slots — not once, but on EVERY panic, cumulatively, for the
+// life of the thread. The cursor is deleted (see the fn's own doc for why a guard would have been
+// guarding a value that is provably `0`); these two rows are what hold that deletion down.
+//
+// ⛔ THREE PANICS, NOT ONE, AND THE ARENA IS WARMED FIRST. With the arena already at its
+// high-water mark, the FIRST pre-fix panic strands its slots inside a buffer that is already big
+// enough — arena length does not move, and a one-panic probe goes GREEN against the bug. Only the
+// second panic starts past the end and forces a resize. Driven both ways: see the strike report.
+#[cfg(test)]
+mod exec_frame_unwind {
+    use super::*;
+
+    /// The thread-local arena's current length — the resource the strand consumed.
+    ///
+    /// It also asserts, by construction, that the `RefMut` the `Ok` arm holds across `f` was
+    /// released by the unwind: a still-borrowed arena would panic this `borrow()`.
+    fn arena_len() -> usize {
+        EXEC_ARENA.with(|a| a.borrow().len())
+    }
+
+    /// ★ The strand — a panic through `f` leaves the arena exactly where it found it, three
+    /// times running.
+    #[test]
+    fn three_panics_through_the_frame_body_strand_no_arena_slots() {
+        const LEN: usize = 8;
+
+        // Warm the arena the way a successful fire does, so what follows is a delta against a
+        // settled high-water mark rather than the unremarkable first growth from zero.
+        with_exec_frame(LEN, |frame| assert_eq!(frame.len(), LEN, "the window is `len` slots"));
+        let settled = arena_len();
+        assert!(settled >= LEN, "warm-up carves one window; got {settled}");
+
+        for round in 1..=3usize {
+            let caught = std::panic::catch_unwind(|| {
+                with_exec_frame(LEN, |frame| {
+                    // A live value in the window: a strand keeps this alive too, not just slots.
+                    frame[0] = Some(Value::i64(round as i64));
+                    panic!("D4 probe: the frame body panics");
+                })
+            });
+            assert!(
+                caught.is_err(),
+                "round {round}: the body must actually unwind; a body that returned proves nothing"
+            );
+            let after = arena_len();
+            assert_eq!(
+                after, settled,
+                "round {round}: a panic through `f` must strand nothing; arena went \
+                 {settled} -> {after}, so the frame window is leaked for the life of the thread"
+            );
+        }
+    }
+
+    /// Row 2 — a nested call still takes the heap `Err` arm. That arm is the re-entrancy path and
+    /// the deletion must not have made it unreachable.
+    ///
+    /// The inner frame asks for a window sixteen times the outer's: if it had been carved off the
+    /// arena the arena would have had to resize to hold it, and it does not.
+    #[test]
+    fn a_nested_frame_takes_the_heap_arm_and_leaves_the_outer_window_intact() {
+        const OUTER: usize = 4;
+        const INNER: usize = 64;
+        let before = arena_len();
+
+        with_exec_frame(OUTER, |outer| {
+            outer[0] = Some(Value::i64(7));
+            let inner_slot_zero = with_exec_frame(INNER, |inner| {
+                assert_eq!(inner.len(), INNER, "the inner frame is `INNER` slots wide");
+                inner[0].clone()
+            });
+            assert!(
+                inner_slot_zero.is_none(),
+                "the inner frame is its own zeroed buffer, not a view onto the outer's window"
+            );
+            assert_eq!(
+                outer[0],
+                Some(Value::i64(7)),
+                "the outer window must survive the nested call untouched"
+            );
+        });
+
+        let after = arena_len();
+        assert_eq!(
+            after,
+            before.max(OUTER),
+            "a nested {INNER}-slot frame must take the heap arm and NOT grow the arena; \
+             arena went {before} -> {after}"
         );
     }
 }

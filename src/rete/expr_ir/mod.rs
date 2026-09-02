@@ -62,7 +62,7 @@ mod eval;
 pub(crate) use eval::{apply_op, eval_lower, exec, exec_call, exec_value, exec_where};
 
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
