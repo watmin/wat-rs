@@ -29,6 +29,29 @@ Derived from a fact the row **proves by construction** — it names the freeze-t
 it. `declare-acronyms` carries a handler and no Declare impl, so it is excluded by measurement rather
 than by exception. **`SpecialFormRole::Declare` earns its keep beyond reflection.**
 
+## ⛔ AMENDED 2026-09-02 — THERE ARE TWO `is_declaration_form`, AND MY CALLER ANALYSIS WAS WRONG
+
+Builder: *"is_declaration_form — this is a query against the registry?"* Asking that question
+surfaced a homonym this design did not know about (`[[NOTE-there-are-TWO-is_declaration_form]]`):
+
+```
+src/freeze.rs:1933        is_declaration_form(head: &str)       9 names — THIS design's target
+src/declare/parse.rs:197  is_declaration_form(form: &WatAST)    6 names via DECLARATION_HEADS
+```
+
+**They agree about one name in fourteen.** Two of the three call sites I attributed to `freeze`'s
+belong to `declare`'s. **`freeze::is_declaration_form` has exactly ONE caller** —
+`closure_extract::split_body_prelude`.
+
+★ The stone is unchanged in its work and **smaller in its claim**: it registers five names and moves
+the meter 8 → 3 toward killing a 9-name hand-list with **one** consumer. It does not touch, and its
+equality does not reach, `declare`'s 6-name population — a separate kill with more consumers, and
+not a Declare-impl query at all (`derive`/`extend-type`/`defclause` are not freeze-time type
+declarations; the two `config::set-*!` are not declarations).
+
+⚠ Every "is_declaration_form" below means **`freeze`'s**. The homonym is a prerequisite the campaign
+did not know it had, and resolving it is not this stone.
+
 ## The five, and why they are ONE stone
 
 ```
