@@ -1151,3 +1151,89 @@ fn accum_alpha_push_split() {
         "d_alpha path recorded 0 — the loop never ran:{table}"
     );
 }
+
+/// ⛔ C4 PROBE — does `bind_only` DECIDE anything for this workload?
+///
+/// The row claims the two timed arms labelled `A alpha_activate_fact` hand the production function
+/// an EMPTY `bind_only`, disabling the `skip_span` branch (`fire/delta.rs:71`) that production
+/// takes. That claim is worth nothing unless the correctly-built map is non-empty HERE: if no cond
+/// in the accum axis is bind-only, `.get()` returns `None` either way and the defect is cosmetic.
+///
+/// This probe is the disconfirmation. It must be run BEFORE any fix is briefed.
+#[test]
+fn c4_probe_bind_only_decides_skip_span_for_the_accum_axis() {
+    let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("accum-axis world should freeze");
+    let staged = "(:apx::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :apx)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) 200 200)";
+    let ast = crate::parse_one!(staged).expect("parse compile+seed");
+    let session = eval_in_frozen(&ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
+        .value_owned();
+    let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
+    let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
+        .expect("arm for accum network");
+    let input_pv: crate::value::pvec::PVec = match &wm.facts {
+        Value::wat__core__PersistentVector(pv) => pv.clone(),
+        _ => panic!("seeded session facts are a PersistentVector"),
+    };
+    let facts: Vec<Value> = input_pv.iter().cloned().collect();
+
+    // ── (1) THE VACUITY CHECK. If this is empty the whole row is cosmetic. ──
+    let mut built: HashMap<i64, Vec<u8>> = HashMap::new();
+    for (&id, c) in &arm.compiled_conds {
+        if let Some(fields) = crate::rete::compiled_cond::bind_only_fields(c) {
+            built.insert(id, fields);
+        }
+    }
+    assert!(
+        !built.is_empty(),
+        "NOT VACUOUS is what this asserts: 0 of {} compiled conds in the accum axis are bind-only, \
+         so an empty `bind_only` would change nothing and C4 is cosmetic, not a defect",
+        arm.compiled_conds.len()
+    );
+
+    let run = |bo: &HashMap<i64, Vec<u8>>, wm: &mut super::FireSession| -> (usize, usize) {
+        let mut d_alpha: AlphaDelta = FxHashMap::default();
+        wm.alpha.clear(); wm.bind_pool.clear(); wm.bind_keys.clear();
+        wm.bind_vals.clear(); wm.bind_val_ids.clear(); wm.i64_by_fact.clear();
+        let mut cond_key_ids: CondKeyIds = HashMap::new();
+        for (&id, c) in &arm.compiled_conds {
+            cond_key_ids.insert(id, crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys));
+        }
+        let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+        let mut cand = Vec::new();
+        for (i, fact) in facts.iter().enumerate() {
+            super::alpha_activate_fact(fact, i as u32, &mut super::AlphaActivateCx {
+                sym: crate::rete::compiled_cond::test_sym(),
+                wm, d_alpha: &mut d_alpha,
+                alpha_tree: &arm.alpha_tree,
+                compiled_conds: &arm.compiled_conds,
+                match_scratch: &mut scratch, cand_scratch: &mut cand,
+                cond_key_ids: &cond_key_ids, bind_only: bo,
+            }).expect("activate");
+        }
+        // ⛔ THE DISCRIMINATOR. `compiled:calls` CANNOT serve: `compiled_cond.rs:928` bumps it
+        // inside `exec_compiled_with_key_ids` — the ELSE branch — on purpose, so the counter is a
+        // deliberate UNION of both arms and reads 80,200 either way (driven). What separates them
+        // is the WORK: the skip branch returns `Some((0,0))` and interns nothing, while the else
+        // branch drives `BindIntern` and grows the pools.
+        (wm.bind_pool.len(), wm.bind_vals.len())
+    };
+    // ── (2) the map production builds vs (3) the EMPTY map the two benchmark arms pass ──
+    let (pool_built, vals_built) = run(&built, &mut wm);
+    let empty: HashMap<i64, Vec<u8>> = HashMap::new();
+    let (pool_empty, vals_empty) = run(&empty, &mut wm);
+
+    println!(
+        "C4 PROBE: bind-only conds {}/{} · built pool={pool_built} vals={vals_built} · \
+         empty pool={pool_empty} vals={vals_empty}",
+        built.len(), arm.compiled_conds.len()
+    );
+    assert_ne!(
+        (pool_built, vals_built),
+        (pool_empty, vals_empty),
+        "an empty `bind_only` must make `alpha_activate_fact` do DIFFERENT work than the map \
+         production builds — identical pools mean the two benchmark arms measure the same path \
+         after all, and C4 is cosmetic"
+    );
+}
