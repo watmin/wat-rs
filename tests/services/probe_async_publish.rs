@@ -54,6 +54,25 @@ fn full_outbox_refuses_not_drops() {
 }
 
 #[test]
+fn fanout_is_max_not_sum() {
+    let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
+        .expect("topic should freeze");
+    let stored = call_string(&world, ":user::fanout-is-max");
+    assert_eq!(
+        field(&stored, "shape"),
+        "max",
+        "four 200ms subscribers must complete in ~max not ~sum; got {stored}"
+    );
+    let dt: i64 = field(&stored, "dt-ms")
+        .parse()
+        .unwrap_or_else(|_| panic!("dt-ms not an i64 in {stored}"));
+    assert!(
+        dt < 500,
+        "concurrent fan-out is ~200ms, sequential is ~800ms; got dt-ms={dt} in {stored}"
+    );
+}
+
+#[test]
 fn idle_topic_never_ticks() {
     let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
         .expect("topic should freeze");

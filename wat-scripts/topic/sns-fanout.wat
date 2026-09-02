@@ -253,13 +253,31 @@
                          "topic -deliver: rebuild index in range by construction")))
                    (:wat::core::PersistentVector :- [:wat::core::String])
                    (:wat::core::range 0 (:wat::i64::- (:wat::vector::length box) 1)))
+            ;; Issue every send before any recv — sum(N) becomes max(N).
+            ;; Raw kernel::send: first user-level send to a defservice client
+            ;; in the tree. Bypasses the generated client's :max-request-bytes
+            ;; check; the server-side guard still fires (DESIGN).
+            _sent (:wat::core::foldl
+                    (:wat::core::fn
+                      [acc <- :wat::core::i64
+                       p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
+                      -> :wat::core::i64
+                      (:wat::core::match
+                        (:wat::kernel::send p
+                          (:demo::Sub::Op::Deliver (:demo::Sub::DeliverRequest :msg msg)))
+                        (:wat::kernel::SendOutcome::Sent    (:wat::i64::+ acc 1))
+                        (:wat::kernel::SendOutcome::Closed  acc)
+                        (:wat::kernel::SendOutcome::Stopped acc)
+                        ((:wat::kernel::SendOutcome::Lost _c) acc)))
+                    0
+                    (:demo::topic::State/subs s))
             _n   (:wat::core::foldl
                    (:wat::core::fn
                      [acc <- :wat::core::i64
                       p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
                      -> :wat::core::i64
-                     (:wat::core::match (:demo::Sub/deliver p (:demo::Sub::DeliverRequest :msg msg))
-                       ((:wat::kernel::RecvOutcome::Message __r) (:wat::i64::+ acc 1))
+                     (:wat::core::match (:wat::kernel::recv p)
+                       ((:wat::kernel::RecvOutcome::Message _r) (:wat::i64::+ acc 1))
                        (_ acc)))
                    0
                    (:demo::topic::State/subs s))
@@ -455,6 +473,34 @@
      _  (:demo::nap-ms 20)
      n  (:demo::ticks-of tc)]
     (:wat::core::format "ticks={n}" :n n)))
+
+;; ★ Concurrent fan-out: four 200 ms subscribers, one message. Concurrent is
+;; max (~200 ms); sequential is sum (~800 ms). Rows 2–11 all pass on a fused
+;; send-then-recv; this is the constructed proof they cannot fake.
+(:wat::core::defn :user::fanout-is-max [] -> :wat::core::String
+  (:wat::core::let
+    [h1 (:demo::slow-sub/start :locus (:wat::spawn::thread)
+          :record (:demo::slow-sub::Record :delay-ms 200))
+     h2 (:demo::slow-sub/start :locus (:wat::spawn::thread)
+          :record (:demo::slow-sub::Record :delay-ms 200))
+     h3 (:demo::slow-sub/start :locus (:wat::spawn::thread)
+          :record (:demo::slow-sub::Record :delay-ms 200))
+     h4 (:demo::slow-sub/start :locus (:wat::spawn::thread)
+          :record (:demo::slow-sub::Record :delay-ms 200))
+     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
+             (:demo::slow-sub::Handle/addr h1) (:demo::slow-sub::Handle/addr h2)
+             (:demo::slow-sub::Handle/addr h3) (:demo::slow-sub::Handle/addr h4))
+     th (:demo::topic/start :locus (:wat::spawn::thread)
+          :record (:demo::topic::Record :cap 8 :delay-ns 1000) :addrs addrs)
+     tc (:demo::dial-topic (:demo::topic::Handle/addr th))
+     t0 (:wat::time::epoch-nanos (:wat::time::now))
+     _  (:demo::accept! tc "hello")
+     _  (:demo::wait-outbox-zero tc)
+     t1 (:wat::time::epoch-nanos (:wat::time::now))
+     dt (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)]
+    (:wat::core::format "dt-ms={dt};shape={s}"
+      :dt dt
+      :s (:wat::core::if (:wat::i64::< dt 500) "max" "sum"))))
 
 (:wat::core::defn :user::async-gates [] -> :wat::core::String
   (:wat::core::format
