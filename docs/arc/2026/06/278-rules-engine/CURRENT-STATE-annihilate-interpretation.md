@@ -9,8 +9,8 @@
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline b41a63672..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat b41a63672..HEAD --name-only
+git log --oneline abc9fac7d..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat abc9fac7d..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
