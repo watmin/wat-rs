@@ -18,10 +18,10 @@ HEAD, both tests at the SAME `[50 200]` the comment names:
 | | |
 |---|---|
 | `FILTER_MS_MEASURED_IN_FIRE`, frozen 2026-08-01 | **6.83 ms** |
-| live `filter`, `node_share_fire_phase_census` | **0.14 ms** |
+| live `filter`, `node_share_fire_phase_census` | **0.38 ms** ⚠ corrected — see below |
 | the table's own verdict | **`RECONSTRUCTION B+C = 9.878 ms … ( 145% accounted)`** |
 
-The constant is **~49x stale**. The printed check has been reading 145% — its own stated failure
+The constant is **~18x stale**. The printed check has been reading 145% — its own stated failure
 condition — for a month, in a `println!` with no assertion behind it.
 
 ⚠ **The staleness hides a WIN, not a regression.** `filter` fell from 6.83 to 0.14 because the
@@ -57,10 +57,24 @@ same table, so the two are known to differ by nearly 4x — and the reconstructi
 
 ## ⛔ THE STOP THAT MATTERS: DO NOT CHOOSE THE BAND TO MAKE IT PASS
 
-`F + C = 2.732 ms` against a live `filter` of `0.14 ms` is **~19x over**, so the assertion may not
+`F + C ≈ 2.7 ms` against a live `filter` of `~0.39 ms` is **~7x over**, so the assertion may not
 pass even after both fixes. **That is a finding, not a band to widen.** If the native arm cannot
 reconstruct the phase it claims to decompose, the harness measures something the fire does not do —
 which is precisely what the original comment said, and what nobody ever ran.
+
+## ⛔⛔ CORRECTED AFTER THE STRIKE RAN — TWO OF THIS FILE'S CLAIMS WERE WRONG
+
+1. **The live `filter` figure above was `0.14 ms` and is `0.38`.** The census prints THREE size
+   blocks (10/200, 25/200, 50/200) and I took the first `filter` grep hit — the 10/200 row. Every
+   ratio derived from it was wrong: ~18x stale, not 49x; ~7x over, not 19x. **Take a row with its
+   block header, never by a bare grep.**
+2. **⛔ THE PREMISE OF THIS DESIGN WAS FALSE. The fire calls `exec_where` ZERO times on this axis.**
+   `dispatch_where_tests` (`fire/mod.rs:2012`) finds every candidate
+   `proven && is_pure_cmp` and takes the reuse branch at `:2038`, skipping the eval. Measured, every
+   size: `evals 0, reuse 200, envs 0, keyallocs 0`. So arm `F` is scaled to the PRE-where-tree count
+   of 10,000, "ONE ROUND'S WORTH" is itself stale, and no rescaling rescues the reconstruction —
+   at the true scale `F` contributes nothing. Swapping `B → F` is cosmetic beside that. See
+   `SCORE.md` § A and § C.
 
 ## Files
 

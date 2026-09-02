@@ -16,9 +16,9 @@ Floor ≥ its current value, zero FAIL rows.
 | 1 | ★ no frozen filter constant | `FILTER_MS_MEASURED_IN_FIRE = 6.83` | gone; the value is read live in-test |
 | 2 | ★ the reconstruction uses the native arm | uses `B` (`eval_test_core`) | uses `F` (`exec_where`) |
 | 3 | ★ the declared check is asserted | `println!` only | a real assertion, message carries the whole table |
-| 4 | the staleness is gone | frozen **6.83** vs live **0.14** — ~49x | the compared value is whatever the run measures |
+| 4 | the staleness is gone | frozen **6.83** vs live **0.38** — ~18x ⚠ (this row said 0.14/49x; wrong block of a three-size table) | the compared value is whatever the run measures |
 | 5 | the headroom study survives | `A`,`B`,`D`,`E`,`B−A`,`D−A`,`B−E`,`B/F` present | all unchanged |
-| 6 | ⚠ STOP-1 honoured | `F + C = 2.732` vs live `0.14` — ~19x | either the assertion passes on a band chosen from samples, **or** the rider stopped and reported. **A band widened to admit 19x is a FAILED strike.** |
+| 6 | ⚠ STOP-1 honoured | `F + C ≈ 2.7` vs live `~0.39` — ~7x ⚠ (this row said ~19x) | either the assertion passes on a band chosen from samples, **or** the rider stopped and reported. **A band widened to admit 19x is a FAILED strike.** |
 | 7 | engine untouched | — | zero diff under `src/rete/kernel/fire/` |
 | 8 | radius | — | `node_share_cost.rs` only |
 | 9 | lints | 210/210 | green |

@@ -4,13 +4,13 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (thirtieth — 28 STRIKES LANDED; C3+C4 CLOSED; MY OWN THROWAWAY SWEEPS HAVE NOW BEEN WRONG TWICE IN ONE DAY). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (thirty-first — 29 STRIKES LANDED; C6 CLOSED BY REFUSING ITS OWN CHECK; THE FIRE CALLS `exec_where` ZERO TIMES ON THE NODE-SHARE AXIS). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline 6e22aed75..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 6e22aed75..HEAD --name-only
+git log --oneline 55395becd..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 55395becd..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -58,12 +58,33 @@ instruments.
 | **B** — resource lifetime (1) | ⭐ **CLOSED** |
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
-| **C** — the instruments | C1, C2, **C3**, C4, C7, C8 closed. **C5, C6 OPEN**; **C9** the spec check has never been run; **C10** a counter blind to its own branch; **C11** a rendering slip |
+| **C** — the instruments | C1, C2, C3, C4, **C6**, C7, C8 closed. **C5 OPEN**; **C9** spec check never run; **C10** a counter blind to its branch; **C11** a rendering slip; **C12 NEW: no arm measures the filter phase as it exists** |
 | **D** — engine behaviour | D1, D3, **D4** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D5, D6, D7 OPEN** |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
 **Floor at stamp: `5327 tests run: 5327 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+
+### ⛔⛔ C6 CLOSED BY REFUSING TO ASSERT ITS OWN CHECK — AND THE ARM MEASURES DELETED WORK
+
+The benchmark checked its reconstruction against a constant frozen 2026-08-01, in a `println!` with
+nothing behind it, while the comment above it declared exactly the check that would catch staleness.
+Constant deleted, phase read **live**, reconstruction moved to the **native** arm.
+
+**The check is still not asserted, and that is the result.** Runnable for the first time it FAILS at
+**~7x**, structurally — six runs read 684/693/734/723/686/698%, a 7% spread inside the ~16% floor. No
+honest band admits 7x; one that did would re-create the defect being cleaned.
+
+⛔ **THE FIRE CALLS `exec_where` ZERO TIMES on this axis.** `dispatch_where_tests` takes the
+`proven && is_pure_cmp` reuse branch (`fire/mod.rs:2038`). Driven at every size: **`evals 0, envs 0,
+keyallocs 0`.** Arm `F` is scaled to the pre-where-tree 10,000, so *"ONE ROUND'S WORTH"* — the phrase
+the whole harness is built on — is itself stale, and no rescaling rescues it. Tracked as **C12**.
+
+⛔ **Two defects in my own brief.** I quoted the **10/200** row of a three-size census table as the
+**50/200** figure (0.14 vs 0.38), so five recorded numbers were wrong and my own STOP-2 would have
+tripped on my misreading. **Take a row with its block header, never by a bare grep.** And my central
+premise — that the arms and the phase are commensurable — was false; I checked `evals_per_round` and
+never asked how often the fire calls the verb.
 
 ### ⛔ C3 CLOSED — AND MY OWN MEASUREMENT WAS THE THING THAT FAILED
 
