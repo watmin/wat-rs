@@ -131,6 +131,49 @@ bug it currently causes.
 ★ The eval door was second in the first draft and is first now, because the probe showed the tail
 door fixes nothing today while the eval door deletes four arms and completes `fn` outright.
 
+## ⛔⛔ AMENDED AGAIN — `step_list` IS NOT A DOOR, and this DESIGN assumed three symmetric ones
+
+Measured before briefing stone 2, and it refutes the sequencing above:
+
+```
+dispatch_keyword_head_value   ~500 verbs · falls through TO THE REGISTRY      arms = implementation routing
+eval_tail                        3 forms · falls through to eval_inner        arms = optimization
+step_list                       19 forms · REFUSES the rest via NoStepRule    arms = DECLARED COMPETENCE
+```
+
+`step_list`'s fallthrough is `if sym.has_function(head) { step_user_call(..) } else { Err(NoStepRule) }`.
+It knows nineteen names and **refuses everything else by design**. Its arms are not the residue of a
+missing door — they are the stepper's whitelist of what it can single-step, and `NoStepRule` is the
+honest answer for the rest.
+
+★★★ **A registry guard there would promise a step rule for every registered row.** No step
+implementation exists for ~445 of them, so the guard would either find nothing (a door to nowhere) or
+have to invent a rule. **The registry cannot supply what does not exist.**
+
+⚠ **What IS registry-shaped here is the MEMBERSHIP question** — *"does this form have a step rule?"* —
+which a `SpecialFormRole::Step` declaration could answer for the nineteen, with `NoStepRule` still the
+fallthrough. That is a reflection/documentation win, not a dispatch win, and it should be argued on
+its own evidence rather than inherited from a symmetry that does not hold.
+
+**So the sequence is two doors, not three**, and the third item was a shape I assumed rather than
+measured. `[[feedback_a_plan_sketched_n_stones_ahead_names_an_unmeasured_shape]]`
+
+```
+1  the EVAL door   ✅ SHIPPED (478d1f0e8) — four arms deleted, fn/if/let/match run through the registry
+2  the TAIL door   TailHandler + role=tail pointers + eval_tail's guard.
+                   Grants the registry a capability it has never had: a declared tail impl it can call.
+⬜ step_list       NOT a door. A separate question about declaring the stepper's competence.
+```
+
+### ⚠ And the cost the step role would carry, measured while refuting it
+
+Had it been briefed, `SpecialFormRole::Step` would have needed: a fourth enum variant; a fourth arm in
+`wat_special_form_impl.rs`'s `role_variant`; an addition to `reflect.rs:329-331`'s explicit
+three-role list; a new `StepHandler` type returning `Result<StepValue, EvalBreak>`; and **`StepValue`
+made at least `pub(crate)`** — it is a bare private `enum` at `runtime.rs:10492` holding `HolonAST`,
+so the registry would take on a holon-coupled runtime type. Recorded so the question can be reopened
+with its price already known.
+
 ## ⛔ The probe this stone owes before each door — the guard-hoist's own method
 
 The guard-hoist proved its defect **by construction, not by argument**: insert one literal arm for an
