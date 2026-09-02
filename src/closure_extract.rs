@@ -2534,9 +2534,9 @@ fn head_keyword(node: &WatAST) -> Option<&str> {
 ///
 /// If `body` is a `(:wat::core::do ...)` form:
 ///   - Scans children left-to-right collecting consecutive declaration forms
-///     (per [`crate::freeze::is_declaration_form`]: def/define/defmacro/
-///     define-dispatch/defstruct/enum/newtype/typealias). Stops at the FIRST
-///     non-declaration child.
+///     (per [`crate::freeze::is_liftable_declaration_head`], read from its `matches!`, not
+///     from memory: def · defalias · defenum · defmacro · defstruct · defsurface · newtype ·
+///     structtype · typealias). Stops at the FIRST non-declaration child.
 ///   - Returns `(prelude_forms, reconstructed_residual_do_or_expr)`.
 ///   - If `prelude_forms` is empty (no leading declarations), returns
 ///     `(vec![], body)` unchanged — the caller applies no lift.
@@ -2575,7 +2575,7 @@ fn split_body_prelude(body: WatAST) -> (Vec<WatAST>, WatAST) {
         .iter()
         .take_while(|child| {
             head_keyword(child)
-                .map(crate::freeze::is_declaration_form)
+                .map(crate::freeze::is_liftable_declaration_head)
                 .unwrap_or(false)
         })
         .count();

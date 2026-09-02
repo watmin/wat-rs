@@ -1913,24 +1913,42 @@ fn is_mutation_form(head: &str) -> bool {
     ) || head.starts_with(":wat::config::set-")
 }
 
-/// Returns `true` for forms that **declare a name** into the module's type
-/// or value registry. This is the narrower subset of [`is_mutation_form`]
-/// that covers ONLY the 8 declaration forms — excluding loads
-/// (`load-file!` / `digest-load!` / `signed-load!`) and config setters
-/// (`config::set-*`), which mutate state but do not introduce new bindings.
+/// Returns `true` for the **nine** heads that declare a name into the module's type or value
+/// registry AND may therefore be lifted out of a fn body's `do`-prefix into the closure's
+/// prologue. The narrower subset of [`is_mutation_form`] — it excludes the loads
+/// (`load-file!` / `digest-load!` / `signed-load!`) and the config setters
+/// (`config::set-*`), which mutate state but introduce no binding.
 ///
-/// `defn` is intentionally absent: it is a macro that expands to
-/// `(:wat::core::def ...)` BEFORE `extract_closure` runs. By the time the
-/// prelude-lift or position-validator consults this predicate, `defn` has
-/// already been rewritten to its `def` form; `def` is covered here.
+/// `defn` is intentionally absent: it is a macro that expands to `(:wat::core::def …)` BEFORE
+/// `extract_closure` runs, so by the time this predicate is consulted `defn` is already a `def`.
 ///
-/// Callers:
-/// - `closure_extract::split_body_prelude` — lifts these forms from a fn
-///   body's `do`-prefix into the closure's prologue so the child's
-///   `startup_from_forms` registers them before the body runs.
-/// - `check::validate_def_position_with_wrapper` (Gap I-B, future slice) —
-///   extends compile-time position discipline to all 8 declaration forms.
-pub fn is_declaration_form(head: &str) -> bool {
+/// ## ⛔ RENAMED 2026-09-02 (arc 255) — it used to be `is_declaration_form`, and so is another fn
+///
+/// `src/declare/parse.rs:197` defines a DIFFERENT `is_declaration_form`, taking a `&WatAST`
+/// rather than a head, resolving through `is_declaration_head` → `DECLARATION_HEADS`. The two
+/// shared a name for four months and their populations **intersect in exactly one name**
+/// (`:wat::core::def`) out of a union of fourteen. `runtime.rs:816` records how: arc 109 Stone 2
+/// *moved* `is_declaration_form` to the declare home and never deleted this copy.
+///
+/// Nothing in the tree could catch that, and a reader at a call site could not tell which
+/// population had answered — so the name now says what this one DECIDES (liftability), not what
+/// it vaguely is. ⚠ The two populations are NOT reconciled and must not be assumed equivalent:
+/// they answer different questions (`may this be LIFTED` vs `is this form a declaration`).
+/// `[[NOTE-there-are-TWO-is_declaration_form]]`
+///
+/// ## Caller — singular, and measured
+///
+/// `closure_extract::split_body_prelude`, which lifts these forms from a fn body's `do`-prefix
+/// into the closure's prologue so the child's `startup_from_forms` registers them before the body
+/// runs. **That is the only one.** The doc here previously also named
+/// `check::validate_def_position_with_wrapper` as a *"(Gap I-B, future slice)"* caller; that fn
+/// exists (`check.rs:682`) and does not call this predicate — a deferral written into a doc
+/// comment about a caller that never arrived. It also described the population as
+/// *"def/define/defmacro/define-dispatch/defstruct/enum/newtype/typealias"*, which named three
+/// HARD-CUT forms absent from the `matches!` below (`define`, `define-dispatch`, `enum`) and
+/// omitted three that are in it (`defalias`, `structtype`, `defsurface`). Stale in both
+/// directions; corrected here against the arms themselves.
+pub fn is_liftable_declaration_head(head: &str) -> bool {
     matches!(
         head,
         ":wat::core::def"

@@ -35,9 +35,16 @@ form"* that agree about **one name out of fourteen**.
 | `runtime.rs:10486` | **declare**'s (imported at `runtime.rs:45`) | freeze's ⛔ |
 | `declare/parse.rs:211` | **declare**'s (self-recursive) | freeze's ⛔ |
 
-**`freeze::is_declaration_form` has exactly ONE caller** — `split_body_prelude`, deciding which
-leading forms of a fn body's `do`-prefix get lifted into the closure prologue.
+**`freeze::is_declaration_form` has exactly ONE production caller** — `split_body_prelude`, deciding
+which leading forms of a fn body's `do`-prefix get lifted into the closure prologue.
 `[[feedback_a_census_without_attribution_is_not_a_census]]` — I counted the name, not the function.
+
+⚠ **And "one caller" was itself short by one, found when the rename broke the build:**
+`tests/macros/probe_declaration_form_lift.rs` imports it too. My census swept `src/` only. The
+probe's own name was `probe_is_declaration_form_covers_all_7_keywords` — **it asserted SEVEN of the
+predicate's NINE arms**, omitting `structtype` and `defsurface` entirely, so two live arms had no
+coverage while the test's name claimed the population was complete. A third stale artifact at the
+same site, and the compiler found it, not me.
 
 ## ⛔ And its own doc is stale in BOTH directions
 
@@ -70,11 +77,33 @@ two share a NAME.
    orchestrator drawing a stone) cannot tell from a call site which population answered. Renaming or
    deleting one is a prerequisite the campaign did not know it had.
 
-## ⬜ What this NOTE does NOT decide
+## ✅ RESOLVED 2026-09-02 — renamed, not unified
 
-Whether `freeze`'s copy should be renamed, deleted into `declare`'s, or kept and re-pointed at the
-registry. That is a fork, and this arc argues forks against the four questions in the main chat
-rather than settling them at the end of a measurement.
+`freeze::is_declaration_form` → **`is_liftable_declaration_head`**, which says what it DECIDES.
+`is_declaration_form` now names exactly one function in the tree.
 
-★ What it establishes: **the answer to "is it a query against the registry?" is "which one?" — and
-that is the whole finding.**
+★ **Renamed, deliberately NOT unified.** The two answer different questions — *may this head be
+LIFTED into a closure prologue* versus *is this FORM a declaration (a `do` of declarations included)*
+— and merging their populations is a behavioural ruling nobody has made. Renaming is the cheapest
+rung that makes the confusion **unrepresentable**: two functions that do not share a name cannot be
+mistaken for each other at a call site.
+
+Also corrected in the same motion, all three at the same site:
+- the doc named three HARD-CUT forms and omitted three live ones
+- it cited a caller (`check::validate_def_position_with_wrapper`) that does not call it
+- the probe asserted 7 of 9 arms under a name claiming all of them
+
+## ⛔ AND WHY THERE IS NO HOMONYM CRUSADE — measured before recommending one
+
+```
+free-fn names defined in more than one file .......... 142
+  edge/impl delegate pairs (src/intrinsic/X ↔ src/X)     105   ← by design, CLAUDE.md's own rule
+  test-local helpers ....................................  1
+  remainder ............................................  36
+```
+
+Of the 36, most are per-module error helpers (`kw`, `tagged`, `str_val`) and unrelated domain verbs
+(`walk`, `lower`, `parse`, `run`) that no caller could confuse. **A gate on "two fns share a name"
+would be ~95% noise.** The defect is narrower and the campaign already has the instrument for it:
+**two functions answering the same question about wat NAMES with different POPULATIONS.** That is
+what the sloppy-registries census enumerates, and it is what found this one.

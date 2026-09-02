@@ -1,10 +1,10 @@
-//! Arc 170 slice 3 Gap I-A — probes for `is_declaration_form` lift coverage.
+//! Arc 170 slice 3 Gap I-A — probes for `is_liftable_declaration_head` lift coverage.
 //!
 //! These probes confirm that `extract_closure` lifts ALL 8 declaration forms
 //! from a fn body's `do`-prefix into the closure's prologue via the new
-//! [`freeze::is_declaration_form`] predicate. Gap H (commit `36030c3`) covered
+//! [`freeze::is_liftable_declaration_head`] predicate. Gap H (commit `36030c3`) covered
 //! only 3 of 8 forms (define/struct/enum via `is_prelude_form`). Gap I-A
-//! retires `is_prelude_form` and routes the lift through `is_declaration_form`,
+//! retires `is_prelude_form` and routes the lift through `is_liftable_declaration_head`,
 //! covering the 5 remaining forms: def / defmacro / defclause / newtype /
 //! typealias.
 //!
@@ -13,7 +13,7 @@
 //! (:my::launch-defmacro, :my::launch-newtype, :my::launch-typealias,
 //! :my::launch-mixed) are called by name per test.
 
-use wat::freeze::{is_declaration_form, startup_beside};
+use wat::freeze::{is_liftable_declaration_head, startup_beside};
 use wat::runtime::Value;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -42,9 +42,9 @@ fn run_named_launch(world: &wat::freeze::FrozenWorld, name: &str) -> i64 {
     }
 }
 
-// ─── Probe 1 — is_declaration_form covers def (predicate unit test) ───────────
+// ─── Probe 1 — is_liftable_declaration_head covers def (predicate unit test) ───────────
 
-/// Gap I-A adds `def` to `is_declaration_form`. This probe directly tests the
+/// Gap I-A adds `def` to `is_liftable_declaration_head`. This probe directly tests the
 /// predicate rather than end-to-end spawn because `def` at a fn body's
 /// `do`-prefix is currently blocked at PARENT check time by
 /// `validate_def_position_with_wrapper` — which emits `DefNotTopLevel` for
@@ -52,45 +52,50 @@ fn run_named_launch(world: &wat::freeze::FrozenWorld, name: &str) -> i64 {
 /// runs at step 8 of `startup_from_forms`, BEFORE `extract_closure` runs
 /// at spawn-evaluate time.
 ///
-/// The lift is mechanically ready: `is_declaration_form` covers `def` and
+/// The lift is mechanically ready: `is_liftable_declaration_head` covers `def` and
 /// `split_body_prelude` would lift it if the parent's source were accepted.
 /// End-to-end coverage for `def` at fn body do-prefix requires Gap I-B
 /// (extending `validate_def_position_with_wrapper` to understand that the
 /// do-prefix lift makes these forms safe at fn body position). Gap I-B is the
 /// explicit follow-on slice; the predicate mint here is the enabling substrate.
 ///
-/// All 7 declaration keywords are verified together to confirm the complete
-/// predicate surface. Stone 241.13: `:wat::core::define-dispatch` retired;
-/// Stone 241.16: `:wat::core::define` retired (HARD CUT total; eval-time residue completed).
-/// Its slot is vacated from this list; `:wat::core::defalias` replaces it.
+/// ⛔ CORRECTED 2026-09-02 (arc 255) — this probe asserted SEVEN keywords while the predicate
+/// held NINE. `:wat::core::structtype` and `:wat::core::defsurface` were never in the list, so
+/// the probe's own name ("all_7") was a claim about a population it had not measured, and two
+/// live arms had no coverage at all. Stone 241.13 retired `define-dispatch`; Stone 241.16
+/// retired `define`; `defalias` (Stone 241.12) took a slot — and the two additions were never
+/// mirrored here. The list below is now read FROM the `matches!` arms, all nine.
+///
+/// ⚠ This is still a hand-list, and it can still rot the same way. Arc 255's 1a-β-i mints the
+/// gate that cannot: a bidirectional meter over the predicate's ACTUAL domain, asserting each
+/// name is registered with a `SpecialFormRole::Declare` impl. When that lands, this probe's
+/// membership half is subsumed by a check nobody has to remember to update.
 #[test]
-fn probe_is_declaration_form_covers_all_7_keywords() {
-    // The 7 declaration forms that Gap I-A's is_declaration_form covers.
-    // Stone 241.13 — define-dispatch removed (HARD CUT; defclause is the
-    // surviving dispatch entity kind).
-    // Stone 241.16 — define removed (HARD CUT total; defn replaces define).
-    // defalias (Stone 241.12) now occupies the 7th slot.
+fn probe_liftable_declaration_head_covers_all_nine_keywords() {
+    // All NINE arms of `is_liftable_declaration_head`, transcribed from the `matches!` itself.
     let covered = [
         ":wat::core::def",
-        // Stone 241.16 — `:wat::core::define` REMOVED from is_declaration_form.
-        // HARD CUT total; define is no longer recognized as a declaration form.
         ":wat::core::defmacro",
         ":wat::core::defstruct",
+        // Arc 293.2-parity — the low-level primitive `defstruct` (a macro) expands to.
+        ":wat::core::structtype",
         ":wat::core::defenum",
         ":wat::core::newtype",
         ":wat::core::typealias",
         // Stone 241.12 — defalias is a declaration form.
         ":wat::core::defalias",
+        // Arc 293 — a surface declaration is liftable like any other type declaration.
+        ":wat::core::defsurface",
     ];
     for kw in &covered {
         assert!(
-            is_declaration_form(kw),
-            "is_declaration_form should return true for {:?}",
+            is_liftable_declaration_head(kw),
+            "is_liftable_declaration_head should return true for {:?}",
             kw
         );
     }
 
-    // Loads and config setters are in is_mutation_form but NOT in is_declaration_form.
+    // Loads and config setters are in is_mutation_form but NOT in is_liftable_declaration_head.
     let excluded = [
         ":wat::load-file!",
         ":wat::digest-load!",
@@ -99,16 +104,16 @@ fn probe_is_declaration_form_covers_all_7_keywords() {
     ];
     for kw in &excluded {
         assert!(
-            !is_declaration_form(kw),
-            "is_declaration_form should return false for {:?} (loads/config-setters are out of scope)",
+            !is_liftable_declaration_head(kw),
+            "is_liftable_declaration_head should return false for {:?} (loads/config-setters are out of scope)",
             kw
         );
     }
 
     // defn expands to def before extract_closure runs; it is intentionally absent.
     assert!(
-        !is_declaration_form(":wat::core::defn"),
-        "is_declaration_form should return false for :wat::core::defn (macro that expands to :wat::core::def)"
+        !is_liftable_declaration_head(":wat::core::defn"),
+        "is_liftable_declaration_head should return false for :wat::core::defn (macro that expands to :wat::core::def)"
     );
 }
 
@@ -177,7 +182,7 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
 /// `def` is intentionally omitted from this end-to-end probe. `def` at a fn
 /// body's `do`-prefix is blocked at PARENT check time by
 /// `validate_def_position_with_wrapper`, which emits `DefNotTopLevel` before
-/// `extract_closure` ever runs. The predicate (`is_declaration_form`) covers
+/// `extract_closure` ever runs. The predicate (`is_liftable_declaration_head`) covers
 /// `def` — verified in probe 1 — but the end-to-end lift for `def` requires
 /// Gap I-B (extending the check-time validator). Gap I-B is the follow-on
 /// slice; this probe confirms the lift works for the 6 forms not blocked by
