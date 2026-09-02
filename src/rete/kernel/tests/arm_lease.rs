@@ -328,7 +328,7 @@ fn scoped_work_with_network_base_untouched() {
 /// the lease (`arm.rs:709`) — so it took lease 2 and released back to 1, leaving `compile-all`'s
 /// own lease held FOREVER; `rete_arm_lookup` would still find it (`Some`, not `None`) after
 /// `with-network` returned. The idiom (compile → assert leased → release → assert gone) is
-/// `intern_release_one_session_leaves_the_other`'s (`tests.rs:3043`).
+/// `intern_release_one_session_leaves_the_other`'s (`arm_lease.rs:137`).
 #[test]
 fn scoped_work_with_network_releases_the_lease_it_takes() {
     use super::{rete_arm_leases, rete_arm_lookup, rete_arm_release};

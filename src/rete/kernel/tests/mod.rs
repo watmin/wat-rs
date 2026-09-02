@@ -1,4 +1,5 @@
 //! `kernel::tests` — split from a single 10,189-line `tests.rs` (2026-08-30).
+//! rune:lint(cited-name-absent) tests.rs — the pre-split file this module replaced; nothing bears the name here now.
 //!
 //! The split follows `partire`'s recorded five-module verdict; both ward reports and the
 //! corrections weighed against them live in
@@ -336,6 +337,7 @@ pub(super) fn ms(ns: f64) -> f64 {
 
 // ── The shared fire-cost instrument ───────────────────────────────────────────
 //
+// rune:lint(cited-name-absent) fire_cost_census.rs — the pre-split cost file; its subjects are now the per-subject cost modules beside this one, and no file bears the old name.
 // Hoisted out of `fire_cost_census.rs` when that file was split by subject (2026-08-30). These
 // are the helpers used by MORE THAN ONE cost module — the same placement rule as everything
 // else in this file, applied one level down.

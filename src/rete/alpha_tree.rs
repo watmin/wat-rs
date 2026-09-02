@@ -111,6 +111,8 @@ impl AlphaTree {
             // Only branch on dims at least one alpha of this class actually discriminates on —
             // a field nobody constrains generates zero tree nodes (mirrors the kernel packet
             // tree's `any_constrains` skip).
+            // rune:lint(cited-name-absent) any_constrains — a local in the SIBLING holon-lab-ddos repo's filter tree,
+            // not this one; the in-repo analogue is the `dims` filter just below.
             let dims: Vec<usize> = (0..field_names.len())
                 .filter(|d| disc.values().any(|m| m.contains_key(d)))
                 .collect();

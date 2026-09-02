@@ -2,6 +2,8 @@
 //!
 //! ⛔ SPLIT OUT 2026-08-30 (`partire`'s second named cut). `validate.rs` was 2_452 lines with
 //! THREE concerns and no seam drawn anywhere; this is the one with no inbound dependency at all.
+//! rune:lint(cited-name-absent) validate.rs — the pre-split file; its three concerns are now `validate/mod.rs`,
+//! `validate/typing.rs` and this file.
 //! Every other part of the wall names these types; this file names nothing back, which is what
 //! makes it the cut to take first.
 //!
@@ -43,6 +45,8 @@ pub enum ReteCheckErrorKind {
     /// A `::`-qualified keyword CONSTANT in a `:when` constraint whose PREFIX names a known enum
     /// but whose variant that enum does not declare — `:evt::G::Hii` where `:evt::G` has `Hi`/`Lo`.
     ///
+    /// rune:lint(cited-name-absent) keyword_constant_segment — the retired classifier; its live successor is
+    /// `classify_keyword_constant`, and this paragraph records the arm the old name carried.
     /// ⛔ **THIS IS THE THIRD FACT `keyword_constant_segment`'s `_ => "keyword"` ARM USED TO HOLD**
     /// (arc 278, driven 2026-08-31). D1 made the typo REFUSE; it refused by falling through to the
     /// keyword-constant route, where the operand names no declared field and so came out as a

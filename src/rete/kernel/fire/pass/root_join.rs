@@ -9,7 +9,7 @@
 //!      `arm` fields they always were;
 //!   3. `&d_alpha` / `&packed_full` written as `d_alpha` / `packed_full` —
 //!      inline they were owned locals, here they arrive already borrowed, and
-//!      `&&T` would be a `needless_borrow` (clippy is `-D warnings` here).
+//!      `&&T` would be a `clippy::needless_borrow` (clippy is `-D warnings` here).
 //!
 //! No clone was added to make it compile — the pass reads
 //! `wm.alpha` (through `AlphaNews`) while writing `wm.bind_pool`,

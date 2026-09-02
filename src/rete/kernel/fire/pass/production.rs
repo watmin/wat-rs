@@ -4,6 +4,7 @@
 //! (`DESIGN-STONE-partire-fire-loop`). Declared adaptations, all forced by the
 //! move and none a logic change: dedent one level, and the prologue aliases
 //! `kind_ids` / `parents_of` / `compiled_rhs_cache` re-spelled as the `arm`
+//! (rune:lint(cited-name-absent) compiled_rhs_cache — the pre-move local whose arm field is `compiled_rhs`)
 //! fields they always were, and `&mut seen_ids` / `&mut seen_rest` written
 //! unborrowed — inline they were owned locals, here they arrive already
 //! `&mut`. That last one is the same adaptation root-join needed for

@@ -398,7 +398,7 @@ pub(crate) struct ClauseCtx<'a> {
 ///
 /// The destructure takes only what THIS function reads — the rest travel onward inside `ctx`.
 /// That is deliberate and the comment below records why: destructuring all of them and then not
-/// using them produced three `unused_variable` warnings, and the fix is to TAKE LESS rather than
+/// using them produced three `unused_variables` warnings, and the fix is to TAKE LESS rather than
 /// to `_`-prefix, which would silence the very gate that caught it (task #67).
 fn validate_clause(
     clause: &WatAST,
@@ -407,7 +407,7 @@ fn validate_clause(
 ) {
     // Only what THIS function reads. The other three travel onward inside `ctx` to
     // `check_constraint_head` — destructuring them here just to not use them is what produced
-    // three `unused_variable` warnings, and the fix is to take less, not to `_`-prefix them
+    // three `unused_variables` warnings, and the fix is to take less, not to `_`-prefix them
     // (that door is task #67: `_` silences the very gate that would have caught the mistake).
     let ClauseCtx { rule_name, fact_type, field_names, .. } = *ctx;
     match classify_rete_clause(clause) {
@@ -951,7 +951,7 @@ fn validate_then_form(
         // widens an item's head to "a fn whose declared return type is a fact type," and this
         // validator carries `types: &TypeEnv` but not `sym` (no `sym.functions`, so it cannot
         // classify a fn head or its transitively-composed body — threading `sym` through the
-        // whole static validate.rs call tree is the param cascade `BRIEF-then-user-forms.md`'s
+        // whole static validate/mod.rs call tree is the param cascade `BRIEF-then-user-forms.md`'s
         // STOP-1 forbids). The wat-side fence (`wat/rete/compile.wat`'s `then-item-fence`, wired into
         // `compile-rule`) takes over enforcing head-legality, the three axes, and
         // "returns-a-fact" for this item — at rule-COMPILE time, same as `where`'s fence. A
@@ -970,6 +970,8 @@ fn validate_then_form(
         // The old shape built `kv_pairs` first and then checked the names off it — by which point
         // the keyword's span had been thrown away, so the error could only be located at
         // `fact_span` (the whole fact form) while `check_field_at`'s doc promised the field's own.
+        // rune:lint(cited-name-absent) check_field_at — the span-taking predecessor, renamed to `check_field_kw` when it
+        // was made to take the keyword node instead; nothing bears the old name.
         // `&=` and not `&&`: no short-circuit, because batching every finding is this validator's
         // contract.
         let mut all_known = true;

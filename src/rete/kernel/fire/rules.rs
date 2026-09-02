@@ -26,8 +26,8 @@ use super::*;
 ///
 /// Why sharing the full network across strata is still correct (no "shared-alpha
 /// duplicate-edge" regression, `wat/rete/oracle/fire.wat`): `fire_fixpoint_delta` gates
-/// PRODUCTION firing by `rule_rhs_cache`, built ONLY from the `rules` field passed in
-/// (kernel/ `fire_fixpoint_delta`, the `rule_rhs_cache.get(rule_name)` `None => continue`
+/// PRODUCTION firing by `compiled_rhs`, built ONLY from the `rules` field passed in
+/// (kernel/ `fire_fixpoint_delta`, the `arm.compiled_rhs.get(rule_name)` `None => continue`
 /// skip) — a ProductionNode whose owning rule name is absent from this stratum's `rules`
 /// subset can NEVER derive a fact this call, no matter what the shared network's higher-
 /// stratum join/negation chains compute incidentally this round (e.g. a shared `Item` alpha
@@ -134,9 +134,9 @@ pub(crate) fn fire_rules_stratified(
         let stratum_rules = Value::wat__core__PersistentVector(stratum_pv);
 
         // Backward closure: from this stratum's ProductionNode id(s), follow `rev_children`
-        // (upstream via the forward-graph edges), `ref_alpha_of` (upstream via a
+        // (upstream via the forward-graph edges), `node_ref_alpha_id` (upstream via a
         // Negation/Exists/Accumulate node's own tested alpha reference), and
-        // `mint_leaf_alpha_ids` (orphan fact-shaped leaves of a combinator ref
+        // `driver_leaf_ids` (orphan fact-shaped leaves of a combinator ref
         // alpha) until no new node is discovered.
         close_upstream(
             &network,
@@ -164,6 +164,8 @@ pub(crate) fn fire_rules_stratified(
             subset_rete_arm(&full_arm, &active_ids, &stratum_rule_names, &sliced_network);
         phase_end("  ├ strat:slice", __st_slice);
 
+        // rune:lint(cited-name-absent) invoke_wat_compile — the compile-per-stratum call this pass exists to have
+        // removed; the live route is `rete_arm_get_or_build` over the already-compiled network.
         // Reuse the ALREADY-compiled (now stratum-sliced) network + next-id (no
         // `invoke_wat_compile` call); fresh empty alpha/beta/production memories (same
         // "fresh per stratum" semantics as before); facts = the accumulated closure from

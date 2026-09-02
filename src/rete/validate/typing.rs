@@ -1,6 +1,7 @@
 //! The operand typer — what a `:when` operand IS, and whether it can resolve at all.
 //!
 //! ⛔ SPLIT OUT 2026-08-30. `partire` named this one on 2026-08-28 as *"the self-contained one"*
+//! rune:lint(cited-name-absent) validate.rs — the pre-split file this module was cut out of; its three concerns now live in `validate/mod.rs`, `validate/typing.rs` and `validate/error.rs`.
 //! of `validate.rs`'s three concerns, and the measurement agreed: 506 contiguous lines with no
 //! other concern interleaved into them.
 //!
@@ -84,6 +85,8 @@ pub(crate) fn check_operand_field_ref(
 /// `true` when the field IS declared (nothing recorded), so a caller batching several kwargs can
 /// fold the verdicts without re-deriving the lookup.
 ///
+/// rune:lint(cited-name-absent) check_field_at — the span-taking predecessor renamed to `check_field_kw`; the whole
+/// paragraph is about the name being gone, so nothing bears it today.
 /// ⛔ **It does not take a `Span`, and that is the whole point.** This function's predecessor
 /// (`check_field_at`) took `span: Span` under a doc promising *"the span of the FIELD rather than
 /// the clause so the caret lands on the offending keyword"* — and BOTH its callers passed
@@ -280,6 +283,8 @@ fn is_non_field_keyword(operand: &WatAST, field_names: &[String]) -> bool {
 ///
 /// What a bare keyword CONSTANT in operand position actually is — **THREE states, not two.**
 ///
+/// rune:lint(cited-name-absent) keyword_constant_segment — the retired classifier this superseded; its live successor
+/// is `classify_keyword_constant`, and the paragraph records the arm the old name carried.
 /// ⛔ `keyword_constant_segment`'s `_ => "keyword"` arm held two facts (arc 278, the fifth
 /// catch-all of this class after A2b's `Option`, D3's missing arity, A6's `None => true` and A5's
 /// `Ok(())`): *"this is a genuine keyword constant"* **and** *"this is a `::`-qualified name whose

@@ -37,7 +37,7 @@ pub(crate) fn record_round_census(
     // ── A8 instrument: census this round BEFORE the terminate check. ─────────
     // Placed here so the row reflects the round's cumulative totals after the round body,
     // and so the LAST round is recorded too (the break below would otherwise skip it).
-    // `delta_facts` still holds this round's INPUT — it is not reassigned until after the
+    // `owned_delta` still holds this round's INPUT — it is not reassigned until after the
     // terminate check, so `.len()` here is what entered, not what leaves.
     FIRE_CENSUS.with(|c| {
         let mut slot = c.borrow_mut();

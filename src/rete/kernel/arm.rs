@@ -706,10 +706,10 @@ struct InternEntry {
 // (`DESIGN-STONE-intern-zero-mutex` THE ONE CONTRACT: Session stays 8 fields;
 // `DESIGN-STONE-intern-eviction` forbids an intern handle on Session). Circuits
 // are a pure function of network+rules; fire threads `Arc<InternedNetwork>`
-// after `get_or_build`. The table is the worker memo, not a Session overlay.
+// after `rete_arm_get_or_build`. The table is the worker memo, not a Session overlay.
 // It holds DOMAIN state (the armed network + its lease count) reached by id
 // rather than through any signature, which is what makes it ambient-context and
-// not host-idiom — cf. `EXEC_ARENA` (expr_ir.rs), the same shape, same category.
+// not host-idiom — cf. `EXEC_ARENA` (expr_ir/eval.rs), the same shape, same category.
 // Recategorised 2026-08-25: `sequi` found it labelled `host-idiom` beside an
 // identical `ambient-context` neighbour. See CONVENTIONS.md, "The `rune:sequi`
 // vocabulary" — the categories had no written definition, so nothing could

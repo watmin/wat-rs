@@ -136,7 +136,7 @@ impl Axis {
         }
     }
 
-    /// Every `Axis`. Kept honest by `axis_variant_names_round_trip`, whose `match` is over `Axis`
+    /// Every `Axis`. Kept honest by `axis_variant_names_round_trip_through_one_door`, whose `match` is over `Axis`
     /// itself — so a new variant makes that test non-exhaustive and the compiler names it there,
     /// three lines from this list.
     pub(crate) const ALL: [Axis; 4] =

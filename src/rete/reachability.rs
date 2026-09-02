@@ -176,14 +176,14 @@ enum DefectKind {
 /// ⛔ **THIS DATA CANNOT BE DERIVED FROM `params`, AND THAT IS THE CENTRAL FACT OF THE GENERATOR.**
 /// The row's types give the SHAPE of a call — how many operands, of what type. They do not give a
 /// pair of facts the op tells APART, and telling them apart is the entire evidence: an op that is
-/// reached and then admits everything has not been shown to run at all (`DidNotDiscriminate`).
+/// reached and then admits everything has not been shown to run at all (`MatchedTooMany`).
 ///
 /// Worked: for a binary op over `{a, b}` constrained against the literal `a` — `=` selects one,
 /// `not=` selects the other, `>` selects one when `b > a`, and `<` selects **NONE**. Same types,
 /// same arity, four different discriminating literals. So the generator is fed a small table of
 /// literals per row and generates the PROGRAM; it does not guess the semantics.
 ///
-/// The safety is that a wrong triple cannot pass quietly — it lands as `DidNotDiscriminate` and
+/// The safety is that a wrong triple cannot pass quietly — it lands as `MatchedTooMany` and
 /// fails loudly, so this table is machine-checked rather than trusted.
 struct Cell {
     /// The rete-surface FQDN under test.
@@ -551,7 +551,7 @@ fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_f
 
     match drive(&broken, i64_gt().op) {
         // EXACT, not a substring: the kind is the contract. `Unattributed` specifically — a
-        // `DidNotDiscriminate` here would mean the broken field was silently ACCEPTED and the
+        // `MatchedTooMany` here would mean the broken field was silently ACCEPTED and the
         // rule merely stopped pruning, which is a completely different bug wearing the same
         // outer variant.
         Verdict::TemplateDefect(kind, _) => assert_eq!(
@@ -809,16 +809,16 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 /// cells synthesize fine; they raise
 /// `#wat.runtime/MalformedForm "compiled apply cannot dispatch kind Unknown arity N"` at RUNTIME,
 /// after passing admission, totality, arity and type — the same shape as
-/// `PersistentMap/contains-key?`, which was found the same way and FIXED (see `expr_ir.rs`).
+/// `PersistentMap/contains-key?`, which was found the same way and FIXED (see `expr_ir/eval.rs`).
 ///
-/// Verified structurally, not inferred from the message: `expr_ir.rs`'s `CoreKind` mapping carries
+/// Verified structurally, not inferred from the message: `expr_ir/eval.rs`'s `OpExec` mapping carries
 /// `PvNew`/`VecNew`/`ListNew` for the three sibling constructors and has NO arm for either of
 /// these. Note that a missing arm is not on its own proof of a hole — `foldl` and the other HOFs
-/// map to `Unknown` too and reach the compiled path by their own dedicated route (`expr_ir.rs`
-/// line ~371). What makes these two a defect is the CONJUNCTION: no arm, no other route, and a
+/// map to `Unknown` too and reach the compiled path by their own dedicated route
+/// (`expr_ir/mod.rs` line ~371). What makes these two a defect is the CONJUNCTION: no arm, no other route, and a
 /// runtime raise when driven.
 ///
-/// **The extirpation is a gate, not two arms.** `RETE_OPS` and the `CoreKind` mapping are two
+/// **The extirpation is a gate, not two arms.** `RETE_OPS` and the `OpExec` mapping are two
 /// lists that must agree and nothing checks that they do; `holon_rete_ops_have_opexec` checks it
 /// for holon rows only, and its own doc used to instruct the reader not to widen it. That widening
 /// is its own strike — see `RETE-OPEN-WORK` § 4.1.
@@ -1446,8 +1446,11 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
 /// could demand bool of them."* Both halves failed on the disk:
 ///
 ///   · **Polymorphic-in-the-body means the type is a FUNCTION of the body** — and the body is in
-///     the AST. `head_is_boolean_rete_predicate` asked only the HEAD, read `row.ret` (a
+///     the AST. The head-only predecessor of `expr_is_provably_boolean` — it was
+///     `head_is_boolean_rete_predicate` — asked only the HEAD, read `row.ret` (a
 ///     PLACEHOLDER for `Form` rows) and stopped. Nothing was unknowable; nothing asked.
+///     rune:lint(cited-name-absent) head_is_boolean_rete_predicate — the retired head-only predicate whose defect
+///     this paragraph records; its successor is `expr_is_provably_boolean` in `clause.rs`.
 ///   · **`cond` was not failing a type test at all.** `vocabulary.rs` documents that the macro
 ///     expander descends into `where` bodies ONLY, so an inline `cond` was never expanded to
 ///     nested `if` and reached the compiler as a head with no lowering arm — refused with
@@ -1578,7 +1581,7 @@ fn every_provably_boolean_form_is_admitted_inline() {
 /// which the rule resolves in the field's favour, exactly as before.
 ///
 /// **This can only ADMIT programs, never change one.** A keyword operand naming no declared field
-/// was a hard freeze error, so no program that compiles today contains one. The `field_wins` row
+/// was a hard freeze error, so no program that compiles today contains one. The `FIELD_WINS` row
 /// below is what proves the other half of that claim.
 #[test]
 fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
@@ -1919,7 +1922,7 @@ fn a_mistyped_field_still_names_the_field_and_only_once() {
 "#;
     let msg = raw_count(SRC).expect_err("a mistyped field must not compile");
     // rune:lint(loose-assert) — the refusal is a `ReteCheckErrors` batch embedding a Span path;
-    // pin the TEACHING halves. The structured face is asserted exactly by validate.rs's own tests.
+    // pin the TEACHING halves. The structured face is asserted exactly by validate/mod.rs's own tests.
     assert!(
         msg.contains("has no field"),
         "the typo must still be reported as a missing FIELD, not as a type mismatch about a \

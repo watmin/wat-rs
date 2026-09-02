@@ -1331,7 +1331,7 @@ fn exec_op(
         Op::Not(sub) => {
             // Single-shot: there is no loop here, so there is nothing to hoist. Driving this
             // last allocation to zero would need a nesting-aware frame arena (the shape
-            // `EXEC_ARENA` in `expr_ir.rs` already implements for the where-executor, since
+            // `EXEC_ARENA` in `expr_ir/eval.rs` already implements for the where-executor, since
             // `or`/`not` nest arbitrarily and one shared scratch cannot serve two depths).
             //
             // AFFIRMATIVELY CUT, not deferred (T7's close, 2026-08-25): it would stand up a

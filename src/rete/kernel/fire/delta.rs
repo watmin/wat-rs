@@ -202,11 +202,11 @@ pub(crate) enum FireKind {
 ///
 /// Implements the algorithm from DESIGN-STONE-P4b-delta-fire.md:
 /// - Memories (`wm.alpha`, `wm.beta`, `wm.production`) accumulate across rounds (never cleared).
-/// - Each round propagates only `delta_facts` (the facts derived last round).
+/// - Each round propagates only `owned_delta` (the facts derived last round).
 /// - Hash-join uses the semi-naive formula:
 ///   `Δbeta[J] = (Δbeta[P] ⋈ all wm.alpha[A]) ∪ (old_left[P] ⋈ Δalpha[A])`
 ///   where `old_left[P] = wm.beta[P]` before this round's root-join/hash-join appends.
-/// - Terminates when `next_delta_facts` is empty (monotone-finite / datalog).
+/// - Terminates when `next_delta` is empty (monotone-finite / datalog).
 /// - Returns the persistent session with `facts = input` (same contract as P4a).
 ///
 /// Observationally identical to a naive re-run fixpoint: same token multiset produced,

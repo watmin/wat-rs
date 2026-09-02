@@ -79,7 +79,7 @@ pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
 /// Declared field names for a fact class (colon-free), read from the frozen type registry.
 /// One reader of the registry — matcher, step_payload, alpha_tree, export, and arm compile.
 ///
-/// That "one reader" claim used to be false: `validate.rs`'s `lookup_fields` reimplemented
+/// That "one reader" claim used to be false: `validate/typing.rs`'s `lookup_fields` reimplemented
 /// the identical lookup — same key format, same registry `get`, same `TypeDef::Aggregate`
 /// match, same collect — and is not in the list above. Both now go through
 /// [`aggregate_field_names`], so the claim is enforced by there being one body rather than
@@ -114,8 +114,8 @@ pub(crate) fn aggregate_field_names(
 /// ONE COPY. This resolution — `rsplit_once("::")`, registry `get`, match `TypeDef::Enum`,
 /// find the variant by name across `Unit`/`Tagged` — was hand-written at THREE independent
 /// sites: `purity.rs`'s `constructor_meta` (is this head pure/deterministic/total?),
-/// `expr_ir.rs`'s lowerer (what arity must the call match?), and `validate.rs`'s
-/// `walk_nested_constructors` (does the written arity agree?). `validate.rs`'s own comment
+/// `expr_ir/mod.rs`'s lowerer (what arity must the call match?), and `validate/mod.rs`'s
+/// `walk_nested_constructors` (does the written arity agree?). `validate/mod.rs`'s own comment
 /// admitted it "mirrors `constructor_meta`'s own resolution".
 ///
 /// Verified AGREEING before unification, unlike the `CallFallback` triplication earlier in
@@ -493,6 +493,8 @@ pub(crate) fn alpha_match_inner(
 /// `:not` / `:exists` re-check the full cond with `alpha-match-under` at beta.
 /// Join alphas must not use this — a deferred join constraint would be lost
 /// at `token_element_compatible`.
+/// rune:lint(cited-name-absent) token_element_compatible — the pre-keyed-gather predicate this replaced; the live
+/// loss point is `keyed_join` over the key tuple `key_of` and `key_of_el` build.
 pub(crate) fn alpha_match_inner_local(
     sym: Option<&SymbolTable>,
     cond: &WatAST,
@@ -769,7 +771,7 @@ fn eval_clause(
         // A boolean rete expression written where a constraint goes. Evaluated through the SAME
         // core the operands use, and required to answer TRUE.
         //
-        // A non-bool cannot reach here: `head_is_boolean_rete_predicate` admits only rows whose
+        // A non-bool cannot reach here: `expr_is_provably_boolean` admits only rows whose
         // `ret` is genuinely known, so `false` below means the predicate answered false — never
         // "it answered something else and we quietly treated that as no-match", which is the shape
         // fix-list F was.

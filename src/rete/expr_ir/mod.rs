@@ -52,6 +52,8 @@
 //
 // The IR types stay HERE, with lowering, because they ARE the thing lowering builds. `exec` reads
 // them and is the consumer, which is why the dependency points one way.
+// rune:lint(cited-name-absent) exec.rs — the module name deliberately NOT used; this sentence exists to say so, and a
+// file by that name would be the collision it warns against.
 // ⚠ THE FILE IS `eval.rs`, NOT `exec.rs`, and the reason is a name collision worth stating: the
 // half's principal function IS `exec`, and `mod exec` would occupy `expr_ir::exec` — the path
 // every caller outside this module already uses for the FUNCTION. Naming the module `eval` keeps
@@ -154,7 +156,7 @@ pub(crate) enum Pat {
     /// which is the same lookup `field_index` performs, just later.
     ///
     /// That is a deliberate, stated cost rather than an oversight: rete DOES know `?p`'s declared
-    /// type at validate time (`validate.rs`'s `collect_rule_bind_types`), so the index is
+    /// type at validate time (`validate/typing.rs`'s `collect_rule_bind_types`), so the index is
     /// compilable in principle — it would take threading those bind types into `LowerCx`, which is
     /// a wider change than making the form work. **If this arm ever shows on a profile, that is
     /// the fix, and it is a pure win with no semantic change.**
