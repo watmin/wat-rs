@@ -35,7 +35,7 @@ use wat_macros::wat_special_form;
 /// @Determinism Preserving
 /// @Totality Preserving
 /// @ExpandTime Preserving
-/// @syntax (match <scrutinee> (<pattern> <body>) ...)
+/// @syntax (:wat::core::match <scrutinee> (<pattern> <body>) ...)
 /// @ret :T the taken arm's value; every arm unifies to T
 /// @example (:wat::core::match (:wat::core::Some 3) ((:wat::core::Some x) x) (:wat::core::None 0)) #=> 3
 #[wat_special_form(":wat::core::match")]

@@ -454,14 +454,22 @@ pub(crate) fn eval_render_doc(
 
     // Syntax line (special forms only).
     // When entry.syntax is non-empty, render it verbatim (@syntax was provided).
-    // When empty but @arg entries are present, derive: `(head <arg>…)` where
-    // head is the last `::` segment of the FQDN (e.g. `:wat::core::if` → `if`).
+    // When empty but @arg entries are present, derive: `(<fqdn> <arg>…)`.
+    //
+    // ⛔ THE HEAD IS THE FULL FQDN, and it used to be the last `::` segment
+    // (`:wat::core::if` → `if`). Arc 255 Stone 1a-α, builder's ruling: **wat is FQDN,
+    // always — anything that is not a binder is illegal; even bound symbols are
+    // shadow-FQDN, in `$bound`.** A `Syntax:` line is a grammar a reader is meant to be
+    // able to TYPE, so a short head does not render the form more readably, it renders
+    // something that is not wat. `signature_of_defn`'s `@arg` path
+    // (`src/reflect/verbs.rs`) has always emitted the full keyword here; this renderer
+    // was the one out of step, and a doc surface teaching an illegal spelling is the
+    // same defect class as `match`'s six-week `-> <T>` fossil, one layer down.
     {
         let syntax_str: Option<String> = if !entry.syntax.is_empty() {
             Some(entry.syntax.to_string())
         } else if !entry.args.is_empty() {
-            // Derive the grammar from the head short-name + arg names.
-            let head = wat_reader::identifier::leaf(entry.name);
+            let head = entry.name;
             let slots: Vec<String> = entry.args.iter()
                 .map(|&(name, _, _, _)| format!("<{}>", name))
                 .collect();

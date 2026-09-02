@@ -69,19 +69,24 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
         "lookup-define for {} should mention the form name {}; got: {}",
         name_keyword, name_fragment, define_line
     );
-    // ⛔ Arc 255 Stone 1a-α — the `signature_line.contains(name_fragment)` assertion that
-    // stood here is DELETED, not weakened. It encoded the retired contract "the sketch always
-    // names the form by FQDN"; the stone's pinned contract is that a row's DECLARED `@syntax`
-    // renders VERBATIM, short head and all — so `let` now signs `(let [<binder> …] <body>+)`,
-    // which carries no `:wat.core/let` substring by design.
+    // ★ Arc 255 Stone 1a-α — this assertion was briefly DELETED and is RESTORED, and the
+    // round trip is the lesson. Rendering a row's declared `@syntax` made `let` sign
+    // `(let [<binder> …] <body>+)`, which carries no `:wat.core/let` substring, so this line
+    // read as an assertion encoding a retired contract. It was not: the DECLARATIONS were
+    // wrong. **wat is FQDN, always — anything that is not a binder is illegal** (builder's
+    // ruling, 2026-09-01), so `@syntax` must name its form the way wat names it. With
+    // `(:wat::core::let …)` declared, the fragment is present again and this assertion is
+    // live, unchanged, and correct.
     //
-    // Deleting it weakens nothing, and the reason is dominance, not convenience: ALL FIVE
-    // callers follow this helper with `assert_edn_matches_file!` on that same
-    // `signature_line`, which pins the whole rendering byte-for-byte. A `contains` fragment
-    // check is strictly weaker than the exact golden that already runs one line later.
-    // `define_line`'s two assertions above STAY — `lookup-define` still emits the FQDN
-    // sentinel, this stone does not touch it, and those two have no golden behind them.
-    let _ = &signature_line;
+    // ⚠ The near-miss worth keeping: a dominance argument ("the golden one line below pins
+    // the whole rendering, so this `contains` is strictly weaker") was TRUE and would still
+    // have removed a live assertion for a false reason. A test deleted on a wrong premise is
+    // indistinguishable from one deleted on a right one, and only the premise was checkable.
+    assert!(
+        signature_line.contains(name_fragment),
+        "signature-of-defn for {} should render the form's name; got: {}",
+        name_keyword, signature_line
+    );
     assert!(body_is_none, "body-of for {} should be :None", name_keyword);
 }
 

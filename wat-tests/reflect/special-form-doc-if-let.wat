@@ -20,7 +20,7 @@
     [rendered (:wat::core::render-doc :wat::core::if)]
     (:wat::core::do
       ;; @syntax grammar is rendered end-to-end
-      (:wat::test::assert-contains rendered "(if <cond> <then> <else>)")
+      (:wat::test::assert-contains rendered "(:wat::core::if <cond> <then> <else>)")
       ;; prose proves the BODY is rendered (not just the name) — "branch" is
       ;; load-bearing in if's description.
       (:wat::test::assert-contains rendered "branch")
@@ -33,6 +33,6 @@
   (:wat::core::let
     [rendered (:wat::core::render-doc :wat::core::let)]
     (:wat::core::do
-      (:wat::test::assert-contains rendered "(let [<binder> <expr> ...] <body>+)")
+      (:wat::test::assert-contains rendered "(:wat::core::let [<binder> <expr> ...] <body>+)")
       ;; prose proves the body renders — "scope" is load-bearing in let's description.
       (:wat::test::assert-contains rendered "scope"))))

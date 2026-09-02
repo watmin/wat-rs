@@ -176,14 +176,23 @@ pub(crate) fn eval_signature_of_defn(
         // silently downgraded `:wat::vec::length` from a full typed signature to a bare
         // marker. Measured today: ZERO rows carry both (3 declare `@syntax`, all
         // `Kind::SpecialForm`, none registers a scheme), so the order costs nothing now and
-        // forecloses that regression when one eventually does. `@syntax` is prose the substrate's own
-        // reader can parse (proved by `wat-scripts/scratch-pad/
-        // 255-can-the-reader-parse-a-syntax-grammar.wat`), and it is rendered VERBATIM —
-        // no FQDN splice — which is `render-doc`'s own precedence
-        // (`src/intrinsic/reflect.rs:456-470`), adopted here so the two renderers stop
-        // disagreeing. `@syntax` names the form with its short head (`let`, not
-        // `:wat.core/let`); re-authoring the string here would mint a third rendering of a
-        // question the row already answers.
+        // forecloses that regression when one eventually does.
+        //
+        // `@syntax` is prose the substrate's own reader can parse (`wat-scripts/scratch-pad/
+        // 255-can-the-reader-parse-a-syntax-grammar.wat`), and it is rendered VERBATIM, which
+        // is `render-doc`'s own precedence (`src/intrinsic/reflect.rs:456-470`) — one
+        // declaration, two renderers, no third spelling authored at a consumer.
+        //
+        // ⛔ VERBATIM IS LOAD-BEARING IN BOTH DIRECTIONS, and it cost a correction to learn.
+        // This arm first shipped rendering `@syntax` strings that named their form with a
+        // SHORT head (`(let [<binder> …] …)`), on the reasoning that the two renderers
+        // agreeing was the point. The builder's ruling: **wat is FQDN, always — anything
+        // that is not a binder is illegal; even bound symbols are shadow-FQDN in `$bound`.**
+        // A short head is not a rendering choice, it is not-wat. The fix was in the three
+        // DECLARATIONS, never here: they now read `(:wat::core::let …)` and this arm is
+        // unchanged. That is what one authority buys — correcting the row corrected both
+        // renderers at once, and a consumer that had "fixed up" the string locally would
+        // have left `render-doc` still printing the illegal form.
         //
         // The `.expect` below is load-bearing BECAUSE it is unreachable:
         // `every_registered_syntax_parses` (`src/intrinsic/mod.rs`, this stone) walks every

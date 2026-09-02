@@ -1,6 +1,6 @@
 #wat.core.Option/Some [
   (
-    match
+    :wat.core/match
     <scrutinee>
     (<pattern> <body>)
     ...

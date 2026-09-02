@@ -109,7 +109,7 @@ fn render_doc_shows_yields_line() {
     let s = call_string(":user::render-yields");
     assert_eq!(
         s,
-        ":wat::intrinsic::yields-witness\n\nA minimal higher-order-function witness for `@yields` (arc 255 spec-complete).\n\nApplies `f` to the constant value `42` and returns `f(42)`. The yielded\nvalue is `:wat::core::i64`; `@yields` documents the type handed to `f`.\n\nSyntax: (yields-witness <f>)\n\nCategory: ControlFlow\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nYields:\n  f :wat::core::i64\n\nExamples:\n  (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)))  #=> 43\n",
+        ":wat::intrinsic::yields-witness\n\nA minimal higher-order-function witness for `@yields` (arc 255 spec-complete).\n\nApplies `f` to the constant value `42` and returns `f(42)`. The yielded\nvalue is `:wat::core::i64`; `@yields` documents the type handed to `f`.\n\nSyntax: (:wat::intrinsic::yields-witness <f>)\n\nCategory: ControlFlow\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nYields:\n  f :wat::core::i64\n\nExamples:\n  (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)))  #=> 43\n",
         "render-doc for yields-witness must match golden"
     );
 }
@@ -122,7 +122,7 @@ fn render_doc_shows_category_encoding() {
     let s = call_string(":user::render-to-hex");
     assert_eq!(
         s,
-        ":wat::core::Bytes::to-hex\n\nEncode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\nSyntax: (to-hex <bs>)\n\nCategory: Transform\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))  #=> \"ff0010\"\n\nSee also:\n  :wat::core::Bytes::from-hex\n",
+        ":wat::core::Bytes::to-hex\n\nEncode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\nSyntax: (:wat::core::Bytes::to-hex <bs>)\n\nCategory: Transform\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))  #=> \"ff0010\"\n\nSee also:\n  :wat::core::Bytes::from-hex\n",
         "render-doc for Bytes::to-hex must match golden"
     );
 }
@@ -133,7 +133,7 @@ fn render_doc_shows_category_reflection() {
     let s = call_string(":user::render-variadic");
     assert_eq!(
         s,
-        ":wat::intrinsic::variadic-args-measurement\n\nCount the number of arguments passed — a variadic intrinsic witness.\n\nAccepts zero or more arguments (any type); evaluates none of them.\nReturns the argument count as `:wat::core::i64`. Pure and deterministic.\n\nSyntax: (variadic-args-measurement <xs>)\n\nCategory: Reflection\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::intrinsic::variadic-args-measurement 1 2 3)  #=> 3\n  (:wat::intrinsic::variadic-args-measurement)  #=> 0\n",
+        ":wat::intrinsic::variadic-args-measurement\n\nCount the number of arguments passed — a variadic intrinsic witness.\n\nAccepts zero or more arguments (any type); evaluates none of them.\nReturns the argument count as `:wat::core::i64`. Pure and deterministic.\n\nSyntax: (:wat::intrinsic::variadic-args-measurement <xs>)\n\nCategory: Reflection\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::intrinsic::variadic-args-measurement 1 2 3)  #=> 3\n  (:wat::intrinsic::variadic-args-measurement)  #=> 0\n",
         "render-doc for variadic-args-measurement must match golden"
     );
 }

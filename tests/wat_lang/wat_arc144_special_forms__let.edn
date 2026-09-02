@@ -1,6 +1,6 @@
 #wat.core.Option/Some [
   (
-    let
+    :wat.core/let
     [<binder> <expr> ...]
     <body>+
   )
