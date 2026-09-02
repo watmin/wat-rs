@@ -3,11 +3,16 @@
 //! Split by ROLE, never by declaration FORM (see
 //! `docs/arc/2026/04/109-kill-std/DESIGN-STONE-the-reflect-home.md`). `Binding` is the
 //! uniform enum every known wat form (user define, macro, substrate primitive, special
-//! form, type) resolves to; `lookup_form` walks the five registries in dispatch order;
-//! `eval_lookup_define` is the `:wat::runtime::lookup-define` verb built on top of both.
-//! Calls into `render.rs` to build the define AST for whatever it finds. Moved verbatim
-//! out of `src/runtime.rs` (arc 109 reflect stone). Behaviour is unchanged; only the
-//! location moved.
+//! form, type, intrinsic-registry row) resolves to; `lookup_form` walks the six registries
+//! in dispatch order; `eval_lookup_define` is the `:wat::runtime::lookup-define` verb built
+//! on top of both. Calls into `render.rs` to build the define AST for whatever it finds.
+//! Moved verbatim out of `src/runtime.rs` (arc 109 reflect stone). Behaviour is unchanged;
+//! only the location moved.
+//!
+//! Arc 255 Stone 3a-i (`docs/arc/2026/06/255-builtin-registry/`) added the `Registered`
+//! variant + the registry consult inside `lookup_form` — see that stone's DESIGN/RULING for
+//! why the registry sits where it does (after user defines/macros, before the `CheckEnv`
+//! membership oracle and `special_forms`) and why it does NOT fall back to either.
 //!
 //! `Binding` and `lookup_form` were already `pub` (the external edge,
 //! `src/intrinsic/reflect.rs`, reaches both); `eval_lookup_define` is bumped from private
@@ -76,6 +81,14 @@ use crate::reflect::render::{
 // into a stale exemption. Deleting the fields is the real fix and is a SEPARATE stone — this one
 // is a relocation whose contract is "bodies move verbatim", and changing a type's shape is not
 // that. `[[feedback_an_exemption_is_earned_when_the_alternative_is_worse]]`
+//
+// Arc 255 Stone 3a-i added `Registered { name, entry, doc_string }`. `name` and `doc_string`
+// join the same dead set as every other variant's (every consumer added by this stone
+// destructures `Binding::Registered { .. }` or `{ name: n, .. }`, never reading `doc_string`).
+// `entry: &'static IntrinsicEntry` is ALSO unread today — it is carried (not consumed) so a
+// later stone can render richer signature/define/doc output from the full registry row instead
+// of this stone's honest placeholder sentinel; see the `Registered` arms below for why they
+// don't attempt that synthesis yet. The `#[expect(dead_code)]` below covers it the same way.
 #[expect(
     dead_code,
     reason = "arc 109 the-reflect-home: pre-existing dead fields, newly VISIBLE because the move \
@@ -113,6 +126,26 @@ pub enum Binding<'a> {
         def: &'a crate::types::TypeDef,
         doc_string: Option<String>,
     },
+    /// Arc 255 Stone 3a-i — a row from `crate::intrinsic::registry()`, the RULING's sole
+    /// authority for membership/delegation/properties/reflection. `entry` is `&'static`
+    /// (the registry is a process-wide `OnceLock`), which is why this variant needs no
+    /// lifetime narrower than `'a` at all. Chosen over mapping onto `Primitive`/`SpecialForm`
+    /// because 89 `REGISTRY_MEMBERSHIP_GAP_A` rows carry no `TypeScheme` — `Primitive` cannot
+    /// represent them, and `SpecialForm`'s `signature` is a hand-synthesized `HolonAST` this
+    /// stone has no way to build from an `IntrinsicEntry`'s raw doc strings.
+    Registered {
+        name: String,
+        /// ⛔ Arc 255 Stone 3a-i FIX — the scheme, when the checker still holds one.
+        /// The registry consult sits AHEAD of step 4's `CheckEnv`, so without this the
+        /// ~316 registered rows that DO have a scheme rendered a bare sentinel where they
+        /// used to render a full typed signature — a measured reflection REGRESSION the
+        /// DESIGN's own acceptance row forbids. Carrying it keeps the registry first
+        /// WITHOUT losing what the displaced step supplied. It retires when the registry
+        /// owns signatures outright (campaign phase 2c).
+        scheme: Option<crate::check::TypeScheme>,
+        entry: &'static crate::intrinsic::IntrinsicEntry,
+        doc_string: Option<String>,
+    },
 }
 
 /// Walk every form-kind registry in dispatch order, returning the
@@ -123,11 +156,23 @@ pub enum Binding<'a> {
 ///    call-dispatch precedent.
 /// 2. **Macros** (`sym.macro_registry`) — only consulted when the
 ///    SymbolTable carries a registry (test harnesses sometimes don't).
-/// 3. **Substrate primitives** (`CheckEnv::with_builtins()`) — built
-///    on demand from the canonical scheme registry.
-/// 4. **Types** (`sym.types`) — only consulted when the SymbolTable
+/// 3. **The intrinsic/special-form registry** (`crate::intrinsic::registry()`) — arc 255
+///    Stone 3a-i, the RULING's sole authority. Consulted BEFORE the `CheckEnv` membership
+///    oracle and BEFORE `special_forms` (but still behind user defines/macros — `:wat::` is
+///    a reserved prefix, so a user define can never collide with a registry name; see this
+///    stone's DESIGN, § "The ordering question"). No fallback: a name the registry owns is
+///    answered here, permanently, not merely until step 4/6 might also have an opinion.
+/// 4. **Substrate primitives** (`CheckEnv::with_builtins()`) — built
+///    on demand from the canonical scheme registry. Still needed for the residue the
+///    registry does not yet cover (`REGISTRY_MEMBERSHIP_GAP_B` et al.) — it is a residual
+///    oracle now, not the primary one.
+/// 5. **Types** (`sym.types`) — only consulted when the SymbolTable
 ///    carries a type registry.
-/// 5. **Special forms** — slice 2's territory; returns `None` today.
+/// 6. **Special forms** (`special_forms.rs`) — reachable today only for a special form the
+///    intrinsic registry does not (yet) carry, e.g. `quasiquote`/`struct->form`. `and`/`or`
+///    and the "eval-door" forms (`if`/`let`/`fn`/`match`) are registered in BOTH tables; step
+///    3 answers for them now, so this step never fires for those names — see
+///    `special_forms.rs`'s own note on why their rows still exist.
 ///
 /// Returns `None` only when every registry misses.
 pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> {
@@ -170,7 +215,25 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
             });
         }
     }
-    // 3. Substrate primitives via on-demand CheckEnv.
+    // 3. The intrinsic/special-form registry (arc 255 Stone 3a-i) — consulted BEFORE the
+    // CheckEnv membership oracle and BEFORE special_forms, per the DESIGN's ONE CONTRACT
+    // DECISION. No fallback: this is the FIRST and ONLY ask for any name the registry holds,
+    // including the 89 REGISTRY_MEMBERSHIP_GAP_A rows that carry no TypeScheme and so could
+    // never reach `Binding::Primitive` (the next step) at all — this is the step that makes
+    // them resolve.
+    if let Some(entry) = crate::intrinsic::registry().lookup_entry(name) {
+        // The scheme is fetched HERE rather than left to step 4, which this consult
+        // now precedes — see the field's doc for the regression that made this necessary.
+        let reg_types = crate::types::TypeEnv::with_builtins();
+        let reg_env = crate::check::CheckEnv::with_builtins_and_types(&reg_types);
+        return Some(Binding::Registered {
+            name: name.to_string(),
+            entry,
+            scheme: reg_env.get(name).cloned(),
+            doc_string: Some(entry.prose.to_string()),
+        });
+    }
+    // 4. Substrate primitives via on-demand CheckEnv.
     // Stone 243.3.1 — with_builtins() removed; caller binds TypeEnv first.
     let _builtin_types = crate::types::TypeEnv::with_builtins();
     let env = crate::check::CheckEnv::with_builtins_and_types(&_builtin_types);
@@ -181,7 +244,7 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
             doc_string: None,
         });
     }
-    // 4. Types — only when a type registry is attached.
+    // 5. Types — only when a type registry is attached.
     if let Some(types) = sym.types() {
         if let Some(def) = types.get(name) {
             return Some(Binding::Type {
@@ -191,9 +254,11 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
             });
         }
     }
-    // 5. SpecialForm registry — arc 144 slice 2 populated. Cloning
+    // 6. SpecialForm registry — arc 144 slice 2 populated. Cloning
     //    the HolonAST per lookup is acceptable on the reflection-only
-    //    path (clone is O(1) — Arc-wrapped recursive payloads).
+    //    path (clone is O(1) — Arc-wrapped recursive payloads). Reachable today only for a
+    //    special form step 3's registry does not carry (arc 255 Stone 3a-i) — see this
+    //    file's `lookup_form` doc comment.
     if let Some(def) = crate::special_forms::lookup_special_form(name) {
         return Some(Binding::SpecialForm {
             name: def.name.clone(),
@@ -211,20 +276,29 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
 /// the registered `TypeScheme` with `:_a0`, `:_a1`, ... stand-in param names and the sentinel body
 /// `(:wat::core::__internal/primitive <name>)`; `Macro` reconstructs from the stored `MacroDef`
 /// template; `Type` reconstructs the type's own declaration form; `SpecialForm` emits the
-/// sentinel `(:wat::core::__internal/special-form <name>)` (arc 144 slice 2 populated this
-/// registry — `if`/`let`/`match`/… all resolve here, not only substrate-primitive names). An
-/// unregistered name returns `:None`.
+/// sentinel `(:wat::core::__internal/special-form <name>)`; `Registered` (arc 255 Stone 3a-i)
+/// emits the sentinel `(:wat::core::__internal/registered <name>)` — a registry row carries no
+/// synthesized `Function`/`TypeScheme`/`HolonAST` shape to reconstruct a typed define from, so
+/// this arm does not attempt to parse `@arg`/`@ret` doc-text into one. An unregistered name
+/// returns `:None`.
 ///
 /// Arc 143 slice 1 / Arc 144 slice 1.
 ///
 /// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header (and a matching inline comment on
 /// the `SpecialForm` arm below, claiming that arm was "unreachable... until slice 2") both
 /// predate slice 2 landing — the registry has been populated since, `tests/wat_lang/
-/// wat_arc144_special_forms.rs` exercises it directly, and `(lookup-define :wat::core::if)`
-/// returns `Some` today. The prior return-type annotation (`(:Option :- [wat::holon::HolonAST])`)
-/// was also stale: arc 201/251/294.f already retired that representation on this whole surface —
-/// the wrapped value is a plain `:wat::WatAST` (confirmed against the registered `TypeScheme` for
-/// this FQDN, `check.rs`'s `register_builtins`, which returns `Option<:wat::WatAST>`).
+/// wat_arc144_special_forms.rs` exercises it directly. The prior return-type annotation
+/// (`(:Option :- [wat::holon::HolonAST])`) was also stale: arc 201/251/294.f already retired that
+/// representation on this whole surface — the wrapped value is a plain `:wat::WatAST` (confirmed
+/// against the registered `TypeScheme` for this FQDN, `check.rs`'s `register_builtins`, which
+/// returns `Option<:wat::WatAST>`).
+///
+/// ⚠ Doc correction (arc 255 Stone 3a-i): `(lookup-define :wat::core::if)` no longer resolves via
+/// `SpecialForm` — `if`/`let`/`fn`/`match`/`and`/`or` are ALSO registered in
+/// `crate::intrinsic::registry()` (the "eval-door"/"tail-door" stones), and step 3 of
+/// `lookup_form` (this stone) now answers for them, emitting `Registered`'s sentinel instead of
+/// `SpecialForm`'s. `SpecialForm` is reachable today only for a form the registry does not (yet)
+/// carry — `quasiquote`, `struct->form`, etc.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -307,13 +381,53 @@ pub(crate) fn eval_lookup_define(
             ))))))
         }
         Some(Binding::SpecialForm { name: n, .. }) => {
-            // Slice 2 populated the SpecialForm registry (special_forms.rs) —
-            // this arm is reachable today for every registered special form
-            // (`if`, `let`, `match`, …), not a placeholder for a future slice.
+            // Slice 2 populated the SpecialForm registry (special_forms.rs). Arc 255
+            // Stone 3a-i: this arm is reachable today only for a special form the
+            // intrinsic registry does NOT also carry (`quasiquote`, `struct->form`, …) —
+            // `if`/`let`/`fn`/`match`/`and`/`or` now resolve via `Binding::Registered`
+            // (lookup_form's step 3, ahead of this one).
             let span = name_ast.span().clone();
             let sentinel = WatAST::List(
                 vec![
                     WatAST::Keyword(":wat::core::__internal/special-form".into(), span.clone()),
+                    WatAST::Keyword(n, span.clone()),
+                ],
+                span,
+            );
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
+                sentinel,
+            ))))))
+        }
+        // ⛔ With a scheme, render EXACTLY what the displaced `Primitive` arm rendered —
+        // the registry answering first must not answer with less.
+        Some(Binding::Registered { name: n, scheme: Some(scheme), .. }) => {
+            let ast = primitive_to_define_ast(&n, &scheme);
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(ast))))))
+        }
+        Some(Binding::Registered { name: n, entry, .. }) => {
+            // ⛔ Arc 255 Stone 3a-i FIX — the sentinel HEAD is derived from `entry.kind`,
+            // not fixed to "registered". The registry carries the SpecialForm/Intrinsic
+            // distinction the displaced sources encoded in their sentinel words, so answering
+            // first must answer with the SAME vocabulary — a registered `if` is still a
+            // special-form to reflection. Flattening both to one word would discard a
+            // distinction the registry itself holds, which is the opposite of sole authority.
+            let head = match entry.kind {
+                crate::intrinsic::Kind::SpecialForm => ":wat::core::__internal/special-form",
+                _ => ":wat::core::__internal/registered",
+            };
+
+            // Arc 255 Stone 3a-i — a registry row has no synthesized Function/TypeScheme/
+            // HolonAST shape to reconstruct a typed define from (many of the rows this arm
+            // newly makes reachable, `REGISTRY_MEMBERSHIP_GAP_A`, carry no TypeScheme at
+            // all — that is exactly why they could not resolve before this stone). Emit the
+            // same honest "marker, never evaluated" sentinel the Primitive/SpecialForm arms
+            // already use for their own synthesized bodies, rather than inventing type-string
+            // parsing this stone does not need. A later stone can render richer output from
+            // the carried `entry` (prose/args/ret_type/examples/axes) if a consumer needs it.
+            let span = name_ast.span().clone();
+            let sentinel = WatAST::List(
+                vec![
+                    WatAST::Keyword(head.into(), span.clone()),
                     WatAST::Keyword(n, span.clone()),
                 ],
                 span,

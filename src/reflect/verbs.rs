@@ -55,8 +55,10 @@ use crate::reflect::render::{
 /// :Ret)`. Dispatches on the same uniform `Binding` enum as `lookup-define`: `UserFunction`
 /// reconstructs from the `Function`; `Primitive` synthesises from the `TypeScheme`; `Macro`
 /// reconstructs from the `MacroDef`; `Type` reconstructs the type's declaration head;
-/// `SpecialForm` lowers its pre-built (arc 144 slice 2) signature sketch to `:wat::WatAST`. An
-/// unregistered name returns `:None`.
+/// `SpecialForm` lowers its pre-built (arc 144 slice 2) signature sketch to `:wat::WatAST`;
+/// `Registered` (arc 255 Stone 3a-i) emits the same marker sentinel `lookup-define` does — a
+/// registry row carries no synthesized signature shape to lower. An unregistered name returns
+/// `:None`.
 ///
 /// Arc 143 slice 1.
 ///
@@ -149,6 +151,90 @@ pub(crate) fn eval_signature_of_defn(
             // WatAST, this arm carries a stored HolonAST field.
             Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
                 holon_to_watast(&signature),
+            ))))))
+        }
+        // ⛔ Arc 255 Stone 3a-i FIX — with a scheme, render EXACTLY what the displaced
+        // `Primitive` arm above renders. The registry consult sits ahead of the `CheckEnv`
+        // step it displaced, so answering with a bare sentinel here was a measured
+        // reflection regression, not a neutral change of head word.
+        Some(Binding::Registered {
+            name: n,
+            scheme: Some(scheme),
+            ..
+        }) => {
+            let ast = type_scheme_to_signature_ast(&n, &scheme);
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
+                ast,
+            ))))))
+        }
+        // ⛔ Arc 255 Stone 3a-i — the registry answers everything it CAN for this verb, and
+        // says plainly what it cannot. `entry.args` gives the slot names and `is_rest` gives
+        // the `+`, so a row with `@arg` renders its own sketch. A row WITHOUT `@arg` (today:
+        // `let`/`fn`/`match`, which carry `@syntax` prose instead) has no renderable sketch in
+        // the registry, so the pre-existing special-form sketch still answers — NAMED as the
+        // remaining gap, not hidden as a fallback.
+        //
+        // ⚠ THE GAP IS NOT COSMETIC. `src/special_forms.rs:171` has served
+        // `["<scrutinee>", "->", "<T>", "<arm>+"]` for `match` since before 2026-07-22, the day
+        // arc 278 annihilated `-> :T`. `check.rs`'s `infer_match` REFUSES that shape with a
+        // named error. Reflection has been handing users a grammar the checker rejects.
+        // Closing this — authoring `@arg` for the three, or rendering `@syntax` through the
+        // substrate reader — retires that fossil and is its own stone.
+        Some(Binding::Registered {
+            name: n, entry, ..
+        }) if !entry.args.is_empty() => {
+            // Built through the SAME HolonAST helpers `special_forms.rs`'s `sketch()` uses,
+            // then `holon_to_watast` — one shape, not a second hand-rolled one.
+            let mut children = Vec::with_capacity(1 + entry.args.len());
+            children.push(holon::HolonAST::keyword(&n));
+            for (arg_name, _, _, is_rest) in entry.args {
+                let slot = if *is_rest {
+                    format!("<{arg_name}>+")
+                } else {
+                    format!("<{arg_name}>")
+                };
+                children.push(holon::HolonAST::symbol(slot.as_str()));
+            }
+            let sketch = holon::HolonAST::bundle(children);
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
+                holon_to_watast(&sketch),
+            ))))))
+        }
+        Some(Binding::Registered { name: n, entry, .. })
+            if crate::special_forms::lookup_special_form(&n).is_some() =>
+        {
+            let def = crate::special_forms::lookup_special_form(&n).expect("guard above");
+            let _ = entry;
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
+                holon_to_watast(&def.signature),
+            ))))))
+        }
+        Some(Binding::Registered { name: n, entry, .. }) => {
+            // ⛔ Arc 255 Stone 3a-i FIX — the sentinel HEAD is derived from `entry.kind`,
+            // not fixed to "registered". The registry carries the SpecialForm/Intrinsic
+            // distinction the displaced sources encoded in their sentinel words, so answering
+            // first must answer with the SAME vocabulary — a registered `if` is still a
+            // special-form to reflection. Flattening both to one word would discard a
+            // distinction the registry itself holds, which is the opposite of sole authority.
+            let head = match entry.kind {
+                crate::intrinsic::Kind::SpecialForm => ":wat::core::__internal/special-form",
+                _ => ":wat::core::__internal/registered",
+            };
+
+            // Arc 255 Stone 3a-i — a registry row with NO scheme (the 89 in GAP_A): no
+            // synthesized TypeScheme/HolonAST signature exists for a bare registry row
+            // (building one would mean parsing `@arg`/`@ret` doc-text into `TypeExpr`, which
+            // is not this stone's job). Marker, never evaluated as a real signature shape.
+            let span = name_ast.span().clone();
+            let sentinel = WatAST::List(
+                vec![
+                    WatAST::Keyword(head.into(), span.clone()),
+                    WatAST::Keyword(n, span.clone()),
+                ],
+                span,
+            );
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
+                sentinel,
             ))))))
         }
         None => Ok(Value::Option(Arc::new(None))),
@@ -334,11 +420,12 @@ pub(crate) fn eval_return_type_of(
 ///
 /// Arc 143 slice 1. Returns the body AST only — the `wat` body of a `UserFunction` (`None` for a
 /// `FunctionBody::Native` builtin, per Stone 255.1a: it has no wat-level body) or the template
-/// body of a `Macro`. `Primitive`, `Type`, and `SpecialForm` bindings are ALL body-less in the wat
-/// sense (primitives are Rust-implemented; types declare shapes; special forms are semantic
-/// operations, not data with a body) and return `:None`, same as an unregistered name. (The
-/// sentinel `lookup-define` emits for these cases is for the FULL define structure only;
-/// `body-of` is honest about the absence of a body specifically.)
+/// body of a `Macro`. `Primitive`, `Type`, `SpecialForm`, and `Registered` (arc 255 Stone 3a-i)
+/// bindings are ALL body-less in the wat sense (primitives are Rust-implemented; types declare
+/// shapes; special forms are semantic operations, not data with a body; a registry row's
+/// `handler`/`value_handler` are likewise Rust, not a wat body) and return `:None`, same as an
+/// unregistered name. (The sentinel `lookup-define` emits for these cases is for the FULL define
+/// structure only; `body-of` is honest about the absence of a body specifically.)
 ///
 /// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header named only the UserFunction and
 /// Primitive arms ("For user defines... For substrate primitives... For unknown names") and the
@@ -392,9 +479,10 @@ pub(crate) fn eval_body_of(
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. Bodies exist for
     // UserFunction (the wat body) + Macro (the template). Primitive,
-    // Type, and SpecialForm are all body-less in the wat sense:
-    // primitives are Rust-implemented; types declare shapes (no body);
-    // special forms are semantic operations, not data with a body.
+    // Type, SpecialForm, and Registered (arc 255 Stone 3a-i) are all body-less in the
+    // wat sense: primitives are Rust-implemented; types declare shapes (no body);
+    // special forms are semantic operations, not data with a body; a registry row's
+    // handler is likewise Rust, not a wat body.
     match lookup_form(&name, sym) {
         Some(Binding::UserFunction { f, .. }) => {
             // Stone 255.1a — Native builtins have no wat body; return None.
@@ -416,6 +504,10 @@ pub(crate) fn eval_body_of(
         Some(Binding::Primitive { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::Type { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::SpecialForm { .. }) => Ok(Value::Option(Arc::new(None))),
+        // Arc 255 Stone 3a-i — a registry row is Rust-implemented (a `handler`/
+        // `value_handler` fn pointer), never a wat body; body-less same as the three arms
+        // above, for the same reason.
+        Some(Binding::Registered { .. }) => Ok(Value::Option(Arc::new(None))),
         None => Ok(Value::Option(Arc::new(None))),
     }
 }

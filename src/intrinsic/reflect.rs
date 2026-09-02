@@ -369,7 +369,13 @@ pub(crate) fn eval_show_source(
         }
         Some(crate::reflect::lookup::Binding::Primitive { .. })
         | Some(crate::reflect::lookup::Binding::SpecialForm { .. })
-        | Some(crate::reflect::lookup::Binding::Type { .. }) => {
+        | Some(crate::reflect::lookup::Binding::Type { .. })
+        // Arc 255 Stone 3a-i — `lookup_form` now consults `crate::intrinsic::registry()`
+        // itself (step 3, ahead of CheckEnv/special_forms), so this arm CANNOT actually fire:
+        // any name for which it would fire already matched the `registry().lookup_entry(&name)`
+        // check at the top of this function and returned there. Folded into the same honest
+        // fallback text for exhaustiveness, not because it is reachable.
+        | Some(crate::reflect::lookup::Binding::Registered { .. }) => {
             Ok(Value::String(Arc::new(format!(
                 ";; {} — substrate primitive (no source available in this context)",
                 name
