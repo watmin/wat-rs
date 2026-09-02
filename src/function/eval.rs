@@ -45,6 +45,7 @@ use std::sync::Arc;
 // `crate::runtime` (not a facade re-export of a `crate::value` type — see STOP-2) and stay
 // there; none is one of this stone's 12 items.
 use crate::runtime::{apply_function, eval_inner, synthesize_fn_body};
+use wat_macros::wat_special_form_impl;
 
 /// Arc 155 retired `:wat::core::lambda`; arc 162 renamed this function
 /// from `eval_lambda` to `eval_fn` to mirror the user-facing rename.
@@ -55,6 +56,7 @@ use crate::runtime::{apply_function, eval_inner, synthesize_fn_body};
 /// dispatch arm (src/runtime.rs — the only active entry point).
 ///
 /// Moved from `src/runtime.rs` at Stone 241.18a.
+#[wat_special_form_impl(":wat::core::fn", role = eval)]
 pub(crate) fn eval_fn(
     args: &[WatAST],
     list_span: &Span,

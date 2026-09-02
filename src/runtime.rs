@@ -6881,6 +6881,7 @@ fn eval_positional_accessor(
 /// Arity: at least 4 args (scrutinee, `->`, `:T`, one arm). The old
 /// no-annotation form — `(match scrutinee arm1 ...)` — is refused
 /// with a migration-hint MalformedForm. Hard break, no deprecation.
+#[wat_special_form_impl(":wat::core::match", role = eval)]
 fn eval_match(
     args: &[WatAST],
     list_span: &Span,

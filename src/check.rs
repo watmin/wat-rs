@@ -6075,6 +6075,7 @@ fn infer_list(
 /// ascription (a 2026-04-20 diagnostics stopgap); `-> :T` is legal only
 /// at a fn argspec's return-type declaration. A stray `->` in
 /// ascription position is refused with a migration-hint MalformedForm.
+#[wat_special_form_impl(":wat::core::match", role = check)]
 fn infer_match(
     args: &[WatAST],
     head_span: &Span,

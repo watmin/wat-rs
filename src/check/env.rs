@@ -335,6 +335,19 @@ impl<'a> CheckEnv<'a> {
         self.schemes.get(name)
     }
 
+    /// Arc 255 Stone the-membership-gap-gets-a-ratchet — every FQDN this env has a
+    /// `TypeScheme` for, i.e. every name `get` would answer `Some` for. The ONLY consumer is
+    /// `REGISTRY_MEMBERSHIP_GAP_A`'s gate (`src/intrinsic/mod.rs`), which needs `{n :
+    /// get(n).is_some() ∧ registry().lookup_entry(n).is_none()}` computed IN-PROCESS rather
+    /// than hand-listed (`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`) — without
+    /// this, that gate would have no way to enumerate "every name `check_env` knows about" and
+    /// would degrade into re-testing its own frozen list, which stops measuring anything the
+    /// moment `register_builtins` (`src/check.rs`) grows a new entry nobody added to the list.
+    #[allow(dead_code)] // read by registry_membership_gap_a_is_named_and_frozen (cfg(test)) only
+    pub(crate) fn registered_names(&self) -> impl Iterator<Item = &str> {
+        self.schemes.keys().map(|s| s.as_str())
+    }
+
     /// Handle to the user/builtin type declarations. Used by `unify`
     /// to expand typealiases to their structural form before the
     /// structural match.

@@ -28,6 +28,7 @@ use crate::runtime::synthesize_fn_body;
 use crate::types::TypeExpr;
 use crate::scope::Identifier;
 use std::collections::HashMap;
+use wat_macros::wat_special_form_impl;
 
 /// Outcome of fn-signature diagnostic parsing.
 enum SigParse {
@@ -74,6 +75,7 @@ fn parse_fn_signature_for_check_diag(args: &[WatAST; 3]) -> SigParse {
 /// return type (same discipline as `check_function_body`).
 ///
 /// Moved from `src/check.rs` at Stone 241.18a.
+#[wat_special_form_impl(":wat::core::fn", role = check)]
 pub(crate) fn infer_fn(
     args: &[WatAST],
     env: &CheckEnv,

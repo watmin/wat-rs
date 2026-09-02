@@ -807,6 +807,18 @@ mod tests {
         ":wat::core::fresh-symbol",
         ":wat::core::if",
         ":wat::core::let",
+        // Arc 255 Stone the-membership-gap-gets-a-ratchet — `fn`/`match` join `if`/`let` just
+        // above on this ledger the moment they become `Kind::SpecialForm` registry rows (this
+        // stone's deliverable 3). Both are checked FOR REAL by hand-written dispatch arms in
+        // `check.rs`'s `infer_call` match (`":wat::core::fn" => crate::function::infer_fn`,
+        // `":wat::core::match" => infer_match`), exactly `if`/`let`'s own shape — but NEITHER
+        // carries an `env.register()` TypeScheme, so `check_env.get` returns `None` for both,
+        // same as `if`/`let`. `check_env.get(entry.name).is_none()` was already true for them
+        // BEFORE this stone; this gate simply could not see it, because `registry().all_entries()`
+        // did not carry `fn`/`match` until they became registry rows here. `check.rs` stays
+        // untouched (STOP-4); the ledger grows by two, the same shape `if`/`let` already have.
+        ":wat::core::fn",
+        ":wat::core::match",
         // Arc 255 Stone P6-c-W6 — `nth`/`reverse` are checked for real (the hand-written
         // `check_call` arms `infer_nth`/`infer_reverse`), but NEITHER carries an
         // `env.register()` TypeScheme: `nth` never had one (custom arm from birth, stone
@@ -1092,6 +1104,492 @@ mod tests {
             stale.is_empty(),
             "STALE — the type residue ledger has resolved entries still frozen:\n{}",
             stale.join("\n"),
+        );
+    }
+
+    // ─── Arc 255 Stone the-membership-gap-gets-a-ratchet ─────────────────────────
+    //
+    // DESIGN: `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-the-membership-gap-gets-a-ratchet.md`.
+    // The builder's sentence made mechanical: "the registry is not even the largest membership
+    // set." Two populations, two gates, both bidirectional (NEW/STALE), neither freezing a
+    // count (STOP-3) — the exact shape `checker_skip_debt_is_named_and_frozen` above already
+    // proved out, applied to the OPPOSITE direction: names the type-checker already knows that
+    // have no registry row (Gap A), and corpus call-heads the registry cannot vouch for at all
+    // (Gap B).
+
+    /// Arc 255 Stone the-membership-gap-gets-a-ratchet, Gap A — every FQDN `check_env` has a
+    /// `TypeScheme` for (`CheckEnv::registered_names`, `src/check/env.rs`) that carries NO
+    /// registry row (`registry().lookup_entry(n).is_none()`). `{n : check_env.get(n).is_some()
+    /// ∧ registry().lookup_entry(n).is_none()}` — the MIRROR of `FROZEN_CHECKER_DEBT_LEDGER`
+    /// above (that ledger is registry-has-a-row-but-checker-doesn't; this is checker-knows-it-
+    /// but-registry-doesn't). When this list is empty, `registry() ⊇ check_env` — the builder's
+    /// sentence, satisfied.
+    ///
+    /// Measured 2026-09-01 by static reading of `register_builtins` (`src/check.rs`) — every
+    /// literal `env.register(":wat::…"` call plus every `for `-loop whose body registers each
+    /// array element (the `:wat::i64::*`/`:wat::f64::*`/`:wat::rational::*` families, the
+    /// `crate::rete::vocabulary::RETE_OPS` `Alias`/`Fallback` rows, the `:wat::kernel::sig*`
+    /// sextet, the `:wat::math::`/`:wat::stat::`/`:wat::time::` `format!`-suffixed families) —
+    /// cross-checked against every `#[wat_intrinsic("…")]`/`#[wat_special_form("…")]` FQDN
+    /// under `src/`. **UNVERIFIED — no rider can run `cargo test` to confirm this against the
+    /// gate's own live computation** (this stone's STOP-7 discipline); this is the best static
+    /// reconstruction achievable by reading, not by executing. Re-derive by reading
+    /// `register_builtins` and `crate::rete::vocabulary::RETE_OPS` again, or — better — read
+    /// this gate's own failure message, which names the true population directly.
+    const REGISTRY_MEMBERSHIP_GAP_A: &[&str] = &[
+        ":wat::core::HashMap",
+        ":wat::core::HashSet",
+        ":wat::core::Tuple",
+        ":wat::core::Vector",
+        ":wat::core::apply",
+        ":wat::core::bool::to-string",
+        ":wat::core::conforms?",
+        ":wat::core::contains?",
+        ":wat::core::filter",
+        ":wat::core::find-last-index",
+        ":wat::core::foldl",
+        ":wat::core::get",
+        ":wat::core::i64/to-f64",
+        ":wat::core::i64/to-string",
+        ":wat::core::map",
+        ":wat::core::mapv",
+        ":wat::core::not",
+        ":wat::core::record?",
+        ":wat::core::show",
+        ":wat::core::stream->pvec",
+        ":wat::core::stream->vec",
+        ":wat::core::subtype?",
+        ":wat::core::u8",
+        ":wat::eval-ast!",
+        ":wat::eval-digest!",
+        ":wat::eval-digest-string!",
+        ":wat::eval-edn!",
+        ":wat::eval-file!",
+        ":wat::eval-signed!",
+        ":wat::eval-signed-string!",
+        ":wat::eval-step!",
+        ":wat::eval-with-defs!",
+        ":wat::eval::walk",
+        ":wat::rete::core::List/first",
+        ":wat::rete::core::PersistentVector/first",
+        ":wat::rete::core::Vector/first",
+        ":wat::rete::core::bool::=",
+        ":wat::rete::core::bool::not=",
+        ":wat::rete::core::bool::to-string",
+        ":wat::rete::core::keyword::=",
+        ":wat::rete::core::keyword::not=",
+        ":wat::rete::core::not",
+        ":wat::rete::f64::*",
+        ":wat::rete::f64::+",
+        ":wat::rete::f64::-",
+        ":wat::rete::f64::/",
+        ":wat::rete::f64::<",
+        ":wat::rete::f64::<=",
+        ":wat::rete::f64::=",
+        ":wat::rete::f64::>",
+        ":wat::rete::f64::>=",
+        ":wat::rete::f64::not=",
+        ":wat::rete::f64::to-string",
+        ":wat::rete::fire-once$native",
+        ":wat::rete::fire-rules$native",
+        ":wat::rete::fire-rules-explain$native",
+        ":wat::rete::holon::cosine",
+        ":wat::rete::holon::dot",
+        ":wat::rete::holon::presence?",
+        ":wat::rete::i64::*",
+        ":wat::rete::i64::+",
+        ":wat::rete::i64::-",
+        ":wat::rete::i64::/",
+        ":wat::rete::i64::<",
+        ":wat::rete::i64::<=",
+        ":wat::rete::i64::=",
+        ":wat::rete::i64::>",
+        ":wat::rete::i64::>=",
+        ":wat::rete::i64::mod",
+        ":wat::rete::i64::not=",
+        ":wat::rete::i64::quot",
+        ":wat::rete::i64::rem",
+        ":wat::rete::i64::to-f64",
+        ":wat::rete::i64::to-string",
+        ":wat::rete::insert$native",
+        ":wat::rete::insert-all$native",
+        ":wat::rete::linkedlist::get",
+        ":wat::rete::map::contains-key?",
+        ":wat::rete::string::=",
+        ":wat::rete::string::concat",
+        ":wat::rete::string::contains?",
+        ":wat::rete::string::empty?",
+        ":wat::rete::string::ends-with?",
+        ":wat::rete::string::length",
+        ":wat::rete::string::not=",
+        ":wat::rete::string::starts-with?",
+        ":wat::rete::string::subs",
+        ":wat::rete::string::to-lowercase",
+        ":wat::rete::string::trim",
+        ":wat::rete::vec::get",
+        ":wat::rete::vector::contains?",
+        ":wat::rete::vector::get",
+        ":wat::rete::vector::length",
+        ":wat::stdlib::sources",
+    ];
+
+    /// The bidirectional gate for [`REGISTRY_MEMBERSHIP_GAP_A`] — exactly the shape
+    /// `checker_skip_debt_is_named_and_frozen` uses above, over the OPPOSITE pair of sets
+    /// (STOP-4: the population below is COMPUTED from `check_env`/`registry()` at test time,
+    /// never read off the frozen array).
+    #[test]
+    fn registry_membership_gap_a_is_named_and_frozen() {
+        use crate::check::CheckEnv;
+        use crate::types::TypeEnv;
+
+        let type_env = TypeEnv::new();
+        let check_env = CheckEnv::with_builtins_and_types(&type_env);
+
+        let mut measured: Vec<String> = check_env
+            .registered_names()
+            .filter(|name| super::registry().lookup_entry(name).is_none())
+            .map(|s| s.to_string())
+            .collect();
+        measured.sort();
+        measured.dedup();
+
+        // `measured` is `Vec<String>` (owned — `check_env` is local, its scheme keys are not
+        // `'static`), `REGISTRY_MEMBERSHIP_GAP_A` is `&'static [&'static str]`; `Vec::contains`
+        // needs the SAME lifetime on both sides, which these two never share, so membership is
+        // checked by content (`==` on `&str`, lifetime-agnostic) via `.any()` rather than
+        // `.contains()`.
+        let newly_ungapped: Vec<&String> = measured
+            .iter()
+            .filter(|n| !REGISTRY_MEMBERSHIP_GAP_A.contains(&n.as_str()))
+            .collect();
+        let no_longer_gapped: Vec<&&str> = REGISTRY_MEMBERSHIP_GAP_A
+            .iter()
+            .filter(|f| !measured.iter().any(|m| m.as_str() == **f))
+            .collect();
+
+        assert!(
+            newly_ungapped.is_empty() && no_longer_gapped.is_empty(),
+            "REGISTRY_MEMBERSHIP_GAP_A drifted from the measured population.\n\
+             \n\
+             NEW — `check_env` has a `TypeScheme` for these but `registry()` has no row, NOT on \
+             the frozen list — add each to `REGISTRY_MEMBERSHIP_GAP_A`, or (better) register it \
+             as a `#[wat_intrinsic]`/`#[wat_special_form]` to close the gap for real: {:?}\n\
+             \n\
+             STALE — on the frozen list but now resolved (`registry().lookup_entry` returns \
+             `Some`), i.e. the name got registered — delete it from `REGISTRY_MEMBERSHIP_GAP_A`: \
+             {:?}\n",
+            newly_ungapped, no_longer_gapped,
+        );
+    }
+
+    /// Arc 255 Stone the-membership-gap-gets-a-ratchet, Gap B — the FIXED historical record of
+    /// the 121 corpus call-heads `resolve` could not have vouched for through the registry, per
+    /// the four-step experiment recorded in
+    /// `docs/arc/2026/06/255-builtin-registry/WORKLIST-the-121-the-registry-cannot-vouch-for.md`:
+    /// patch `is_resolvable_call_head`'s `is_reserved_prefix` short-circuit to also require
+    /// `registry().lookup_entry(head).is_some()`, `cargo build --release --bin wat`, `--check`
+    /// every corpus `.wat` file, dedupe the unresolved heads. **A rider cannot re-run this — it
+    /// needs a release build (this stone's brief says so explicitly) — so this array is NEVER
+    /// hand-edited; re-derive it only by re-running the WORKLIST's own four steps.** It is the
+    /// enumeration DOMAIN [`REGISTRY_MEMBERSHIP_GAP_B`]'s gate walks — never the "current gap"
+    /// itself, which is the shrinking list just below.
+    const GAP_B_CORPUS_CENSUS_121: &[&str] = &[
+        ":wat::core::fn",
+        ":wat::core::def",
+        ":wat::core::match",
+        ":wat::core::quote",
+        ":wat::core::=",
+        ":wat::core::do",
+        ":wat::core::PersistentVector",
+        ":wat::core::foldl",
+        ":wat::core::first",
+        ":wat::eval-ast!",
+        ":wat::core::Tuple",
+        ":wat::core::ann-form",
+        ":wat::core::second",
+        ":wat::core::PersistentMap",
+        ":wat::core::get",
+        ":wat::core::extend-type",
+        ":wat::core::str",
+        ":wat::core::forms",
+        ":wat::core::quasiquote",
+        ":wat::rete::string::=",
+        ":wat::rete::i64::>",
+        ":wat::core::map",
+        ":wat::core::<",
+        ":wat::core::derive",
+        ":wat::rete::i64::+",
+        ":wat::rete::core::and",
+        ":wat::rete::string::starts-with?",
+        ":wat::rete::i64::=",
+        ":wat::core::>",
+        ":wat::core::bool::to-string",
+        ":wat::core::apply",
+        ":wat::core::>=",
+        ":wat::rete::i64::<",
+        ":wat::core::show",
+        ":wat::core::or",
+        ":wat::rete::core::if",
+        ":wat::rete::i64::*",
+        ":wat::rete::core::or",
+        ":wat::stream::lazy",
+        ":wat::rete::i64::/",
+        ":wat::rete::core::not",
+        ":wat::core::not",
+        ":wat::rete::vector::get",
+        ":wat::core::macroexpand",
+        ":wat::rete::i64::-",
+        ":wat::rete::vector::length",
+        ":wat::rete::i64::mod",
+        ":wat::core::not=",
+        ":wat::type::Tuple",
+        ":wat::core::filter",
+        ":wat::rete::string::contains?",
+        ":wat::rete::map::contains-key?",
+        ":wat::rete::holon::cosine",
+        ":wat::rete::core::foldl",
+        ":wat::core::u8",
+        ":wat::core::defclause",
+        ":wat::type::i64",
+        ":wat::rete::f64::>",
+        ":wat::core::contains?",
+        ":wat::core::and",
+        ":wat::rete::vector::contains?",
+        ":wat::rete::string::length",
+        ":wat::rete::core::let",
+        ":wat::rete::core::fn",
+        ":wat::rete::core::PersistentVector/first",
+        ":wat::core::stream->vec",
+        ":wat::core::<=",
+        ":wat::type::String",
+        ":wat::rete::string::subs",
+        ":wat::rete::i64::not=",
+        ":wat::rete::f64::/",
+        ":wat::rete::f64::*",
+        ":wat::core::third",
+        ":wat::rete::i64::>=",
+        ":wat::rete::core::match",
+        ":wat::rete::core::keyword::=",
+        ":wat::rete::i64::to-f64",
+        ":wat::rete::core::enum::=",
+        ":wat::eval-with-defs!",
+        ":wat::core::None",
+        ":wat::type::Vector",
+        ":wat::rete::vec::get",
+        ":wat::rete::string::trim",
+        ":wat::rete::string::to-lowercase",
+        ":wat::rete::string::ends-with?",
+        ":wat::rete::string::empty?",
+        ":wat::rete::string::concat",
+        ":wat::rete::linkedlist::get",
+        ":wat::rete::i64::rem",
+        ":wat::rete::i64::<=",
+        ":wat::rete::holon::dot",
+        ":wat::rete::f64::<",
+        ":wat::rete::core::enum::not=",
+        ":wat::rete::core::Vector/first",
+        ":wat::rete::core::PersistentVector",
+        ":wat::rete::core::List/first",
+        ":wat::core::println",
+        ":wat::core::mapv",
+        ":wat::core::edn::write",
+        ":wat::spawn::process/grants",
+        ":wat::rete::string::not=",
+        ":wat::rete::i64::to-string",
+        ":wat::rete::i64::quot",
+        ":wat::rete::holon::presence?",
+        ":wat::rete::holon::coincident?",
+        ":wat::rete::f64::to-string",
+        ":wat::rete::f64::not=",
+        ":wat::rete::f64::>X",
+        ":wat::rete::f64::>=",
+        ":wat::rete::f64::=",
+        ":wat::rete::f64::<=",
+        ":wat::rete::f64::+",
+        ":wat::rete::core::reduce",
+        ":wat::rete::core::map",
+        ":wat::rete::core::filter",
+        ":wat::rete::core::bool::to-string",
+        ":wat::core::tuple-get",
+        ":wat::core::reduce-walk",
+        ":wat::core::macroexpand-1",
+        ":wat::core::find-last-index",
+        ":wat::core::conforms?",
+    ];
+
+    /// Arc 255 Stone the-membership-gap-gets-a-ratchet, Gap B — the CURRENT ratchet: the subset
+    /// of [`GAP_B_CORPUS_CENSUS_121`] still true today (`registry().lookup_entry(n).is_none()`).
+    /// 121 → 119 THIS STONE: `:wat::core::fn` and `:wat::core::match` leave (deliverable 3
+    /// registers both). Every registration stone after this one deletes its own names from
+    /// here — leaving one frozen after registering it fails the gate below as STALE, which is
+    /// the design working, not a bug — the DESIGN's own words for this mechanism.
+    const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
+        ":wat::core::def",
+        ":wat::core::quote",
+        ":wat::core::=",
+        ":wat::core::do",
+        ":wat::core::PersistentVector",
+        ":wat::core::foldl",
+        ":wat::core::first",
+        ":wat::eval-ast!",
+        ":wat::core::Tuple",
+        ":wat::core::ann-form",
+        ":wat::core::second",
+        ":wat::core::PersistentMap",
+        ":wat::core::get",
+        ":wat::core::extend-type",
+        ":wat::core::str",
+        ":wat::core::forms",
+        ":wat::core::quasiquote",
+        ":wat::rete::string::=",
+        ":wat::rete::i64::>",
+        ":wat::core::map",
+        ":wat::core::<",
+        ":wat::core::derive",
+        ":wat::rete::i64::+",
+        ":wat::rete::core::and",
+        ":wat::rete::string::starts-with?",
+        ":wat::rete::i64::=",
+        ":wat::core::>",
+        ":wat::core::bool::to-string",
+        ":wat::core::apply",
+        ":wat::core::>=",
+        ":wat::rete::i64::<",
+        ":wat::core::show",
+        ":wat::core::or",
+        ":wat::rete::core::if",
+        ":wat::rete::i64::*",
+        ":wat::rete::core::or",
+        ":wat::stream::lazy",
+        ":wat::rete::i64::/",
+        ":wat::rete::core::not",
+        ":wat::core::not",
+        ":wat::rete::vector::get",
+        ":wat::core::macroexpand",
+        ":wat::rete::i64::-",
+        ":wat::rete::vector::length",
+        ":wat::rete::i64::mod",
+        ":wat::core::not=",
+        ":wat::type::Tuple",
+        ":wat::core::filter",
+        ":wat::rete::string::contains?",
+        ":wat::rete::map::contains-key?",
+        ":wat::rete::holon::cosine",
+        ":wat::rete::core::foldl",
+        ":wat::core::u8",
+        ":wat::core::defclause",
+        ":wat::type::i64",
+        ":wat::rete::f64::>",
+        ":wat::core::contains?",
+        ":wat::core::and",
+        ":wat::rete::vector::contains?",
+        ":wat::rete::string::length",
+        ":wat::rete::core::let",
+        ":wat::rete::core::fn",
+        ":wat::rete::core::PersistentVector/first",
+        ":wat::core::stream->vec",
+        ":wat::core::<=",
+        ":wat::type::String",
+        ":wat::rete::string::subs",
+        ":wat::rete::i64::not=",
+        ":wat::rete::f64::/",
+        ":wat::rete::f64::*",
+        ":wat::core::third",
+        ":wat::rete::i64::>=",
+        ":wat::rete::core::match",
+        ":wat::rete::core::keyword::=",
+        ":wat::rete::i64::to-f64",
+        ":wat::rete::core::enum::=",
+        ":wat::eval-with-defs!",
+        ":wat::core::None",
+        ":wat::type::Vector",
+        ":wat::rete::vec::get",
+        ":wat::rete::string::trim",
+        ":wat::rete::string::to-lowercase",
+        ":wat::rete::string::ends-with?",
+        ":wat::rete::string::empty?",
+        ":wat::rete::string::concat",
+        ":wat::rete::linkedlist::get",
+        ":wat::rete::i64::rem",
+        ":wat::rete::i64::<=",
+        ":wat::rete::holon::dot",
+        ":wat::rete::f64::<",
+        ":wat::rete::core::enum::not=",
+        ":wat::rete::core::Vector/first",
+        ":wat::rete::core::PersistentVector",
+        ":wat::rete::core::List/first",
+        ":wat::core::println",
+        ":wat::core::mapv",
+        ":wat::core::edn::write",
+        ":wat::spawn::process/grants",
+        ":wat::rete::string::not=",
+        ":wat::rete::i64::to-string",
+        ":wat::rete::i64::quot",
+        ":wat::rete::holon::presence?",
+        ":wat::rete::holon::coincident?",
+        ":wat::rete::f64::to-string",
+        ":wat::rete::f64::not=",
+        ":wat::rete::f64::>X",
+        ":wat::rete::f64::>=",
+        ":wat::rete::f64::=",
+        ":wat::rete::f64::<=",
+        ":wat::rete::f64::+",
+        ":wat::rete::core::reduce",
+        ":wat::rete::core::map",
+        ":wat::rete::core::filter",
+        ":wat::rete::core::bool::to-string",
+        ":wat::core::tuple-get",
+        ":wat::core::reduce-walk",
+        ":wat::core::macroexpand-1",
+        ":wat::core::find-last-index",
+        ":wat::core::conforms?",
+    ];
+
+    /// The bidirectional gate for Gap B. Walking the FIXED `GAP_B_CORPUS_CENSUS_121` domain
+    /// (never recomputed — a rider/CI cannot re-run the corpus experiment) against LIVE
+    /// `registry()` state catches both sabotages STOP-7 asks for: drop a still-unregistered
+    /// name from `REGISTRY_MEMBERSHIP_GAP_B` without registering it → it is still `None` in the
+    /// registry but missing from the frozen list → NEW; leave an already-registered name frozen
+    /// → STALE. A name is asserted to belong to exactly one of "still in the gap, frozen" or
+    /// "resolved, not frozen" — never both, never neither.
+    #[test]
+    fn registry_membership_gap_b_is_named_and_frozen() {
+        let mut newly_ungapped: Vec<&'static str> = Vec::new();
+        let mut no_longer_gapped: Vec<&'static str> = Vec::new();
+
+        for name in GAP_B_CORPUS_CENSUS_121.iter().copied() {
+            let still_unregistered = super::registry().lookup_entry(name).is_none();
+            let is_frozen = REGISTRY_MEMBERSHIP_GAP_B.contains(&name);
+            match (still_unregistered, is_frozen) {
+                (true, false) => newly_ungapped.push(name),
+                (false, true) => no_longer_gapped.push(name),
+                _ => {}
+            }
+        }
+
+        // Transcription integrity: every frozen name must come FROM the fixed census — a name
+        // here that is not in `GAP_B_CORPUS_CENSUS_121` at all is not a "still in the gap" fact,
+        // it is a typo the loop above would silently never check.
+        let foreign: Vec<&'static str> = REGISTRY_MEMBERSHIP_GAP_B
+            .iter()
+            .copied()
+            .filter(|n| !GAP_B_CORPUS_CENSUS_121.contains(n))
+            .collect();
+
+        assert!(
+            newly_ungapped.is_empty() && no_longer_gapped.is_empty() && foreign.is_empty(),
+            "REGISTRY_MEMBERSHIP_GAP_B drifted from the measured population.\n\
+             \n\
+             NEW — still unregistered per `registry().lookup_entry`, but NOT on \
+             `REGISTRY_MEMBERSHIP_GAP_B` (dropped without registering) — restore each: {:?}\n\
+             \n\
+             STALE — on `REGISTRY_MEMBERSHIP_GAP_B` but now resolved (`registry().lookup_entry` \
+             returns `Some`) — delete each from `REGISTRY_MEMBERSHIP_GAP_B`: {:?}\n\
+             \n\
+             FOREIGN — on `REGISTRY_MEMBERSHIP_GAP_B` but absent from the fixed \
+             `GAP_B_CORPUS_CENSUS_121` domain — not a name the corpus experiment ever measured: \
+             {:?}\n",
+            newly_ungapped, no_longer_gapped, foreign,
         );
     }
 
