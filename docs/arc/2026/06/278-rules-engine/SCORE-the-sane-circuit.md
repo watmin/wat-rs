@@ -84,9 +84,14 @@ confirmed before anything is built on the workaround.
 > produced a workaround — workers polling at `wait-ns 0`, re-arming every 1 ms — that generates
 > **144,485 receive calls to deliver 8,000 messages, 94% of them empty.**
 
-★ Both findings share a shape worth naming: **a capability that works at thread tier and silently
-does not at process tier.** Every stone today has treated `:locus` as a parameter. These are the
-first two places where that promise measurably fails, and neither announces itself.
+★ ~~Both findings share a shape worth naming: **a capability that works at thread tier and silently
+does not at process tier.**~~ **AMENDED 2026-09-02: only finding (1) has that shape.** Finding (2)
+was verified false (above) and is not a locus-transparency failure at all — `Admin::Stop` behaves
+identically at both loci and is simply bounded by `wait-ns`.
+
+The generalisation was drawn from two data points while one of them was explicitly unverified, and
+it read as a pattern for a day. **One confirmed instance and one unconfirmed report is not a shape**
+— finding (1) stands on its own evidence and needs no second case to be worth fixing.
 
 ## What this unblocks
 
