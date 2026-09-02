@@ -5,13 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-01 (twenty-second — 22 STRIKES; ⭐⭐ CLASSES A and E CLOSED; CLASS F in progress — and a CLAUDE.md doctrine claim was driven FALSE and struck). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-01 (twenty-third — 23 STRIKES; ⭐⭐ CLASSES A and E CLOSED; CLASS F — 3 of 5 F1 lints landed, F2 codemod row closed). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — run it, it is two commands:**
 
 ```
-git log --oneline f4800ef97..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat f4800ef97..HEAD        # what they touched
+git log --oneline 2c7200802..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 2c7200802..HEAD        # what they touched
 ```
 
 **PASS:** every commit in that range is prefixed `curare:` and touches `docs/` plus, at most,
@@ -102,6 +102,7 @@ only place a row's status lives; this block is the pointer, not a second copy.
 | **E3** | `76e221bbb` | **each variant carries its own doc — and a broken link cannot be added** |
 | **F1.5** | `58a10e1f8` | **every walking gate declares how it knows it reached something** |
 | **F2.codemod** | `f4800ef97` | **every rete name in wat-scripts CODE resolves — prose may name a retired form** |
+| **F1.1+2** | `2c7200802` | **a cited name in a rete comment resolves, or declares why it cannot** |
 
 **★★ THE ORACLE ONE IS THE DIFFERENT KIND, AND IT IS WHY THE BUILDER'S CALL MATTERS.** Native and
 oracle disagreed on a shape where an accumulate's count changes mid-fixpoint. I recorded *"which
@@ -578,15 +579,47 @@ of one mutation reported GREEN because **the mutation had not landed** (a `perl`
 failed without a UTF-8 flag). *A mutation that does not land is indistinguishable from a gate that
 does not fire.* **Assert the mutation landed before believing its result.**
 
-**THE NEXT WORK — the rest of Class F.** **F1's four remaining lints** (backticked identifiers must
-resolve; bare `*.rs` filenames must resolve — `no_stale_path_in_doc` misses them because it needs a
-`/`; the `perspicere`/`purgare` closed vocabularies; `MINIMUM of` vs `/= r`). Then **F2's remaining
-rotted claims under F0's rule** — notably **83 of 207 stones naming `src/rete/kernel.rs`**, deleted
-2026-08-20 — and **`remedy/retirement.rs`, which has ZERO `:wat::rete::` rows**, so every rete
-retirement lands as a bare `unbound symbol` instead of the remediation that table exists to give.
-Then **F3**'s clusters. Also open: the three rows from the vacuity strike, the two nested-wall rows,
-`#[to_edn(transparent)]`, the `file:line` citation-rot hole, `acc_refusal`'s span, the misnamed
-`probes/` dir, and D2's `sequi` newtype.
+✅ **F1's ROWS 1+2 CLOSED AS ONE (`2c7200802`).** Two unchecked citation kinds, one walker:
+`tests/lint/rete_citation_resolves.rs`. **33** identifier citations (the row guessed 7) and **27**
+stale bare filenames of 244 cited — `validate.rs`×9 and `expr_ir.rs`×6, an unseen cluster from the
+same `partire` split that broke `tests.rs`. Every `src/` change is a comment, checked mechanically.
+
+⛔⛔ **MY OWN TRAP EXAMPLE WAS A ROTTED CITATION.** Trap 2 offered `axis_variant_names_round_trip` as
+the model of a *legitimate* test-only name. It resolves **nowhere** — the fn is
+`…_through_one_door`. A rider trusting it would have widened the universe until a real finding
+disappeared: **the exact STOP-1 failure that same trap warned against, seeded by its own example.**
+The rider found the genuine controls and made them **live assertions** instead of sentences.
+**Grep every example as you write it; an example is a claim.** Promoted to memory.
+
+★ **AND THE GATE'S OWN FILE IS IN ITS OWN UNIVERSE.** `NoMatchingArm` and `SiftRulesResponse`
+resolved against the gate's **own error text** on its first run. Without the `SELF` exclusion, a
+future hand silences any red by naming the offender in a failure message — *prose vouching for
+prose, one level up*, which my stone warned about at the level below.
+
+⚠ **Three more corrections worth carrying.** (a) The agreement on 33 rests on a shape rule I never
+stated — any bare identifier gives **47**, the extra 14 being git SHAs and Latin session names;
+`_`-or-interior-capital reproduces 33, and that is now a **stated boundary**. (b) My universe was
+short by `wat/` and by **file stems**. (c) The obvious filename rule **misses the finding that
+motivated it** — `tests.rs` still exists at `src/macros/tests.rs`, so basename-existence alone leaves
+`kernel/mod.rs:4` green; ancestor-relative alone reports 55 with 31 false. **Only the conjunction is
+right.**
+
+★ **A DEVIATION I WAS ASKED TO WEIGH, AND ACCEPTED: spelling beats a named vocabulary.** I required
+three vocabularies (clippy lints, memory slugs, `_`-prefixed); the rider built none and excluded by
+**spelling** — `clippy::needless_borrow`, `*_pass`, `[[feedback_…]]`, forms the tree already uses
+(verified at `function/parse.rs:48`). **A list keeps exempting a name after it stops being noise; a
+spelling rule makes the correct form the only passing one and the failure text teaches it.** A rung
+above what I asked for.
+
+**THE NEXT WORK — F1's last two lints**, then F2 and F3. (1) The **`perspicere`/`purgare` closed
+vocabularies** — `no_unknown_sequi_rune.rs` is the working model in-tree, and there is a live finding
+attached: `perspicere`'s own `read-once` category is falsified by the file that declares it, and
+`purgare`'s `trait-contract` names a mechanism absent at all three sites. (2) **`MINIMUM of` header
+may not co-occur with `/= r`** — C1's class, found twice independently. Then **F2's remaining rot**
+(**83 of 207 stones name `src/rete/kernel.rs`**, deleted 2026-08-20) and **F3**'s clusters
+(`temperare` ×7 with measurement plans, `partire` ×4 with verified seams). Also open: the three rows
+from the vacuity strike, the two nested-wall rows, `#[to_edn(transparent)]`, `acc_refusal`'s span,
+the misnamed `probes/` dir, and D2's `sequi` newtype.
 
 **The full list stays `VIGILIA-2026-08-30-WORK-LIST.md`, Class A first.** The three items below are the
 PRE-vigilia list and are kept only as the reasoning that produced them — ⚠ **item 1's claim to be
