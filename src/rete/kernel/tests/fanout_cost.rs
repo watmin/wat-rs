@@ -618,6 +618,10 @@ fn fanout_three_leftover_split() {
 
     let a_harvest = with.harvest + with.out_query;
     let delta = with.wall - without.wall;
+    // `\x20` below is a LOAD-BEARING escape, not decoration. A `\`-newline string continuation
+    // strips the continued line's LEADING whitespace, so a row indented in source printed
+    // flush-left and its numbers landed left of the parent's. The escape stops the strip: it
+    // restores the child indent and leaves every number and column position where it was.
     let table = format!(
         "\nfanout three leftover — [100 20], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
@@ -627,8 +631,8 @@ fn fanout_three_leftover_split() {
              delta (A candidate)           {:>7.2} ms\n\
              \n\
              A  harvest:query              {:>7.2} ms\n\
-                out:query                  {:>7.2} ms\n\
-                A sum                      {:>7.2} ms\n\
+          \x20  out:query                  {:>7.2} ms\n\
+          \x20  A sum                      {:>7.2} ms\n\
              B  compiled-rhs net           {:>7.2} ms   {:>6}x  (with-query)\n\
              C  out:production             {:>7.2} ms   (with-query)\n",
         ms(without.wall),

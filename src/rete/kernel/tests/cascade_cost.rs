@@ -374,13 +374,17 @@ fn cascade_setup_leftover_split() {
         arm_pairs = arm_k;
     }
     let remainder_raw = setup_raw - seen_raw - arm_raw;
+    // `\x20` below is a LOAD-BEARING escape, not decoration. A `\`-newline string continuation
+    // strips the continued line's LEADING whitespace, so a row indented in source printed
+    // flush-left and its numbers landed left of the parent's. The escape stops the strip: it
+    // restores the child indent and leaves every number and column position where it was.
     let table = format!(
         "\ncascade SETUP leftover split — [50 100], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              \n\
              SETUP                     {:>7.2} ms raw  {:>6}x\n\
-               setup:seen              {:>7.2} raw  {:>7.2} net  {:>6}x\n\
-               setup:arm               {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 setup:seen              {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 setup:arm               {:>7.2} raw  {:>7.2} net  {:>6}x\n\
              remainder (SETUP−seen−arm){:>7.2} ms\n\
              ARM_BUILDS                {:>7}  per run\n",
         ms(setup_raw),

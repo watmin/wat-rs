@@ -301,14 +301,18 @@ fn accum_alpha_leftover_split() {
         }));
     }
 
+    // `\x20` below is a LOAD-BEARING escape, not decoration. A `\`-newline string continuation
+    // strips the continued line's LEADING whitespace, so a row indented in source printed
+    // flush-left and its numbers landed left of the parent's. The escape stops the strip: it
+    // restores the child indent and leaves every number and column position where it was.
     let table = format!(
         "\naccum alpha leftover split — [200 200], MINIMUM of {RUNS}\n\
              in-fire (2 pairs, not per fact)\n\
              FIRE                               {:>7.2} ms\n\
              alpha                              {:>7.2} ms\n\
-               seed                             {:>7.2} ms  {:>6}x\n\
-               delta                            {:>7.2} ms  {:>6}x\n\
-               seed+delta                       {:>7.2} ms\n\
+          \x20 seed                             {:>7.2} ms  {:>6}x\n\
+          \x20 delta                            {:>7.2} ms  {:>6}x\n\
+          \x20 seed+delta                       {:>7.2} ms\n\
              \n\
              isolated (cold intern each run, {} facts)\n\
              Wp  PV iter                        {:>7.2} ms\n\

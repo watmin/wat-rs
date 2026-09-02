@@ -47,6 +47,20 @@ fn accum_matcher_op_census() {
     // per (fact, matching alpha) pair — the same 80,200 `accum_alpha_memory_shape` pins as the
     // alpha-memory size. A drift means the compiled path is being entered a different number of
     // times for identical input, which is the regression this census exists to reveal.
+    //
+    // ⛔ WHAT THIS NUMBER CANNOT SEE. `compiled:calls` is a deliberate UNION of three increment
+    // sites — occupancy leaf-fill (`fire/pass/alpha.rs:122`, `census_count_n`), the `skip_span`
+    // arm (`fire/delta.rs:78`), and the ELSE arm inside `exec_compiled_with_key_ids`
+    // (`compiled_cond.rs:928`) — so 80,200 is a total, never an attribution. The two delta arms
+    // are interchangeable to it BY CONSTRUCTION: driven 2026-09-02, forcing `skip_span = false`
+    // at `fire/delta.rs:71` left this test PASSING at 80,200 while
+    // `c4_probe_bind_only_decides_skip_span_for_the_accum_axis` (accum_alpha_cost.rs) went RED —
+    // `assertion 'left != right' failed: ... identical pools mean the two benchmark arms
+    // measure the same path after all`. That probe is where the arm IS discriminated, and it
+    // reads bind-pool/bind-vals LENGTH rather than a count, because the skip arm returns
+    // `Some((0,0))` and interns nothing while the else arm drives `BindIntern` and grows the
+    // pools. Do NOT split this counter to close the gap: that is a hot-path engine edit for an
+    // instrument's benefit, and the discrimination already exists one file over.
     assert_eq!(
         calls, 80_200,
         "compiled:calls is {calls}, not 80,200 — the compiled path ran a different number of \
@@ -630,16 +644,20 @@ fn accum_leftover_split() {
     let tax_prod: f64 = pk_pairs.iter().map(|k| *k as f64 * cal).sum();
     let honest_prod: f64 = pk_net.iter().map(|n| n.max(0.0)).sum();
     let honest_fire = fire - remainder_alpha - tax_alpha - remainder_prod - tax_prod;
+    // `\x20` below is a LOAD-BEARING escape, not decoration. A `\`-newline string continuation
+    // strips the continued line's LEADING whitespace, so a row indented in source printed
+    // flush-left and its numbers landed left of the parent's. The escape stops the strip: it
+    // restores the child indent and leaves every number and column position where it was.
     let table = format!(
         "\naccum leftover split — [200 200], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              \n\
              FIRE                      {:>7.2} ms\n\
              alpha                     {:>7.2} ms raw  {:>6}x\n\
-               candidates              {:>7.2} raw  {:>7.2} net  {:>6}x\n\
-               match                   {:>7.2} raw  {:>7.2} net  {:>6}x\n\
-               element                 {:>7.2} raw  {:>7.2} net  {:>6}x\n\
-               push                    {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 candidates              {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 match                   {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 element                 {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 push                    {:>7.2} raw  {:>7.2} net  {:>6}x\n\
              remainder_alpha           {:>7.2} ms\n\
              tax_in_alpha              {:>7.2} ms\n\
              honest_alpha              {:>7.2} ms\n\
@@ -647,12 +665,12 @@ fn accum_leftover_split() {
              setup:seen                {:>7.2} raw  {:>7.2} net  {:>6}x\n\
              drop-memories             {:>7.2} raw  {:>7.2} net  {:>6}x\n\
              accumulate                {:>7.2} ms\n\
-               snapshot                {:>7.2} ms\n\
-               index                   {:>7.2} ms\n\
-               fold                    {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 snapshot                {:>7.2} ms\n\
+          \x20 index                   {:>7.2} ms\n\
+          \x20 fold                    {:>7.2} raw  {:>7.2} net  {:>6}x\n\
              production                {:>7.2} ms raw  {:>6}x\n\
-               compiled-rhs            {:>7.2} raw  {:>7.2} net  {:>6}x\n\
-               dedup-store             {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 compiled-rhs            {:>7.2} raw  {:>7.2} net  {:>6}x\n\
+          \x20 dedup-store             {:>7.2} raw  {:>7.2} net  {:>6}x\n\
              remainder_prod            {:>7.2} ms\n\
              tax_in_prod               {:>7.2} ms\n\
              honest_prod               {:>7.2} ms\n\
