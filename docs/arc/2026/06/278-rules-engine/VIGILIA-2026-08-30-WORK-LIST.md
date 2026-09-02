@@ -411,7 +411,15 @@ non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch
   a choice at minting. **Adding rows now would be the deception the module forbids.** Kept struck so
   nobody re-files it. *(`cernere` — the ward saw an empty column and inferred a gap.)*
 
-**F3 — the 70 L2 not itemised here** live in the ward reports. Highest-value clusters:
+⛔ **F3 — THE REFERENT IS GONE (recorded 2026-09-01).** This row says the 70 L2 *"live in the ward
+reports"*. **There are no ward reports for this cast.** The 2026-08-25 vigilia left
+`GEN-VIGILIA-2026-08-25.md` (672 lines, a durable artifact); the 2026-08-30 cast left **only this
+work list** — the 19 ward returns were subagent messages and evaporated. `grep -rn 'per-pair map' docs/`
+finds exactly two hits: this line and the breadcrumb that copied it.
+
+**So F3 is a set of LEADS, not recorded findings.** Each named cluster is specific enough to
+re-derive — and must be re-derived and re-measured, never inherited. Treating the paragraph below
+as a work list would be acting on 70 findings nobody can read. **The clusters, as leads:** Highest-value clusters:
 `temperare` ×7 (all with measurement plans — `join_extend`'s three per-pair map probes;
 `alpha.rs:82,94` hashing the class FQDN twice per fact in the subsystem whose own stone measured
 that at 3.26 ms), `perspicere` ×5 (aliases), `partire` ×4 (`fire/mod.rs` → `gather.rs` + `query.rs`;
