@@ -111,8 +111,11 @@
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
    ;; One unit per tick: receive, ack, re-arm. Returning to the serve loop
    ;; between messages is what makes Admin::Stop possible.
-   ;; wait-ns is 0: a parked receive (wait-ns>0) at process locus with ≥4
-   ;; waiters never completes, so Admin::Stop hangs waiting on the tick.
+   ;; wait-ns is 0: adopting the queue's park (wait-ns 250 ms) at process
+   ;; locus hangs drain at M=4 N>=1000 — outbox stuck at 1, each queue
+   ;; p=1 f=1, workers never take the leftover. Isolated 3-waiter wake
+   ;; works; 500×4×3 completes; 1000×4×3 does not. Finding (b) (Stop
+   ;; hangs at ≥4 waiters) is still false — do not re-derive it.
    ;; Empty receives re-arm 1ms later — the worker is interruptible in the
    ;; serve loop, not blocked inside Queue/receive.
    (-tick [s ctx]
@@ -622,7 +625,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [triple (:user::run* 2000 4 3)]
     (:wat::core::let
-      [_ (:wat::kernel::println (:wat::core::first triple))]
+      [_ (:wat::kernel::println
+           (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
+       _ (:wat::kernel::println (:wat::core::first triple))]
       (:wat::kernel::println (:wat::core::third triple)))))
 
 ;; ★ Row 2: pending-only drain + delayed-ack worker MUST lose the held message.
