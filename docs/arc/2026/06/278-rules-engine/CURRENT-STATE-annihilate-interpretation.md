@@ -20,6 +20,26 @@ then trust the log and the source over every line below, and re-read before you 
 > is `strike:` (draw, docs) → `fix:`/`lint:` (the work, src) → `score:` + `curare:` (docs). **Pin to
 > the last commit that touched code, and test the PATHS.** That survives any number of docs commits.
 
+## ⛔⛔ CORRECTION, MINUTES LATER: `073546093` IS NOT DOCS-ONLY. I COMMITTED A RIDER'S WORK BY ACCIDENT.
+
+**The curare commit `073546093` contains 125 added lines of `src/rete/expr_ir/` — the D4 rider's
+in-flight work — swept in by `git add -A`.** `git status` was clean when I looked; the rider wrote
+between that check and the add. It is **committed and pushed under a `curare:` docs message, and it
+has NOT been floored, clippy'd, mutation-checked or scored.**
+
+**Treat that code as unweighed.** Before trusting it: run `./scripts/floor.sh` and clippy, drive
+EXPECTATIONS' three-panic probe and its mutations, and write the SCORE. The strike's artifacts are
+all in place at `strike-exec-sp/`.
+
+What it appears to do — read, not verified — is **delete the `EXEC_SP` cursor rather than guard it**,
+arguing that a dead cursor should go rather than gain a `Drop` that would touch a thread-local at
+teardown (B1 measured that shape **aborting**, not panicking). That is plausibly better than the
+guard my own sketch prescribed, **and it is exactly why it needs weighing rather than assuming.**
+
+⛔ **THE LESSON, AND IT IS NEW: `git add -A` IS A RACE WHILE A RIDER RUNS.** A background agent writes
+to the same working tree. A clean `git status` is a photograph, not a lock. **Stage explicit paths
+when any rider is out** — `git add docs/` — or commit nothing until it returns.
+
 ## ⚠⚠ A RIDER WAS RUNNING WHEN THIS WAS WRITTEN — CHECK THE TREE FIRST
 
 **D4 was released to a shadowdancer and had not returned.** `git status --short` was **clean** at
