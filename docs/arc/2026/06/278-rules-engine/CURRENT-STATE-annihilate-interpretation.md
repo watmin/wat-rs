@@ -4,7 +4,7 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (twenty-seventh — 26 STRIKES LANDED; D4 WEIGHED AND CLOSED). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (twenty-eighth — 26 STRIKES LANDED; D4 CLOSED; THE CLARA GRID CANNOT RESOLVE <20%). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
@@ -58,12 +58,31 @@ instruments.
 | **B** — resource lifetime (1) | ⭐ **CLOSED** |
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
-| **C** — the instruments | C1, C2, C7 closed. **C3, C4, C5, C6 OPEN** |
+| **C** — the instruments | C1, C2, C7, **C8** closed. **C3, C4, C5, C6 OPEN**, and **C9 NEW: the three-way spec check has never been run** |
 | **D** — engine behaviour | D1, D3, **D4** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D5, D6, D7 OPEN** |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
 **Floor at stamp: `5312 tests run: 5312 passed, 21 skipped`, clippy rc=0, lints 196/196.**
+
+### ⛔ THE CLARA GRID WAS RUN 2026-09-02, AND ITS RESOLUTION FLOOR IS ~±20%
+
+33/33 `:accuracy :match`, 33/33 `:winner :us`, no axis failed — and **no engine movement is
+detectable**, which is the honest headline because *as recorded the grid could not have said
+otherwise*. The verdict carried `:min`/`:max` for the RATIO and **nothing for `:wat-ns`** across all
+23 recorded grids. Driven: `fanout [40000]` looked +11.4% slower, but three same-binary verdicts
+spanned **10.4%**, and two same-build sweeps disagreed by up to **16.3%** per cell with the ratio
+column swinging **+42%**.
+
+⛔ **No perf claim in this arc that rests on a sub-20% grid delta is supported.** `c9fb…`/`d9fb1b88f`
+adds `:wat-ns-min`/`:wat-ns-max` and `compare-grids.sh`, which tests **disjoint intervals** and marks
+every pre-2026-09-02 grid `NO-SPREAD` — unfalsifiable, never "clean". Work-list **C8**.
+
+⛔ **AND THE SPEC HAS NEVER BEEN ASKED.** All 11 axes call `fire-rules$oracle`; **0 of 33 cells in
+every one of the 23 grids carries `:oracle-accuracy`**. The arc has 23 grids proving the fast path
+matches *Clara* and none proving it matches *its own spec*. That is work-list **C9**, and it is its
+own strike — the oracle takes the sweep to ~4 hours, so it must not share an artifact with a perf
+run.
 
 ### The four C rows still open are one class
 
