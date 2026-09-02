@@ -4,13 +4,13 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (thirty-first — 29 STRIKES LANDED; C6 CLOSED BY REFUSING ITS OWN CHECK; THE FIRE CALLS `exec_where` ZERO TIMES ON THE NODE-SHARE AXIS). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (thirty-second — 30 STRIKES LANDED; ⭐ CLASS C's ORIGINAL FOUR ARE ALL CLOSED; A RUST-CALLER COUNT IS NOT A REACHABILITY PROOF HERE). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline 55395becd..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 55395becd..HEAD --name-only
+git log --oneline b5526461a..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat b5526461a..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -58,12 +58,40 @@ instruments.
 | **B** — resource lifetime (1) | ⭐ **CLOSED** |
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
-| **C** — the instruments | C1, C2, C3, C4, **C6**, C7, C8 closed. **C5 OPEN**; **C9** spec check never run; **C10** a counter blind to its branch; **C11** a rendering slip; **C12 NEW: no arm measures the filter phase as it exists** |
+| **C** — the instruments | ⭐ **the original four (C3–C6) all CLOSED**, with C1, C2, C7, C8. C13 **withdrawn — it was never a question**. Open: **C9** spec check never run · **C10** a counter blind to its branch · **C11** a rendering slip · **C12** no arm measures the filter phase as it exists |
 | **D** — engine behaviour | D1, D3, **D4** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D5, D6, D7 OPEN** |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
 **Floor at stamp: `5327 tests run: 5327 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+
+### ⭐ C5 CLOSED — CLASS C's ORIGINAL FOUR ARE DONE. AND A REACHABILITY CLAIM OF MINE WAS FALSE.
+
+The release-floor assert was `extend_array_wins + get_array_wins < usize::MAX` under a comment
+declaring the real check. Now `> 0` plus three orderings measured at ≥2.6x; both tests head with the
+live `BindSpan`; the `163 ns` anchor is gone (its source measures **negative** — three drives gave
+−2, −4, −10 ns/fact, and only the **sign** reproduces).
+
+⭐ **The rider refused a fourth ordering my sketch implied** — EXTEND at card 1 ran 1.19–2.02x over
+twelve drives, inside the noise, and would have manufactured a flake in a repo that bans them. And
+its second mutation printed **`DOMINANCE: YES`** — R60's conclusion inverted — while the old
+tautology passed green.
+
+⛔⛔ **MY DESIGN CLAIMED IN BOLD THAT THE MATCHER PATH IS "REACHED ONLY FROM TESTS". IT IS NOT.**
+`matcher.rs:278,357` register those functions as the wat primitives `:wat::rete::alpha-match` /
+`-local` / `-under`, and `wat/rete/oracle/pass.wat` + `accum-pass.wat` call them. I counted Rust
+callers under `src/` and never grepped the `.wat` corpus. **In a self-hosting repo, a Rust-caller
+count is not a reachability proof — grep the corpus that calls the primitives.** That claim had
+already spawned C13 ("maybe a `purgare` target"), which would have proposed reaping the oracle's
+interpreter; **C13 is withdrawn, not left open, because an open row saying "maybe reap this" is a
+trap.**
+
+### ⛔ FIVE INSTRUMENT STRIKES IN, THE PATTERN IS THE FINDING
+
+C3's mark did not exist · C4's arm measured the opposite branch · C6's target was 18x stale and its
+verb is never called · C5's assertion could not fail. **Every one printed a plausible number the
+whole time, and three had a comment directly above the defect declaring the check that would have
+caught it.** The prose was right; the code never enforced it.
 
 ### ⛔⛔ C6 CLOSED BY REFUSING TO ASSERT ITS OWN CHECK — AND THE ARM MEASURES DELETED WORK
 

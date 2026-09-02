@@ -53,8 +53,15 @@ in-engine bind"* across three arms, attributing it to `eval_clause`'s
   (opened at `:1373`).
 - `compiled_cond.rs:912` states it outright: that function *"replaced `alpha_match_inner`"*.
 
-**The whole matcher evaluation path is reached only from tests.** It is the retired interpreter, kept
-as a differential oracle.
+⛔⛔ **THAT CONCLUSION IS FALSE — CORRECTED AFTER THE STRIKE RAN.** I counted Rust callers under
+`src/` and never grepped the `.wat` corpus. `matcher.rs:278` and `:357` register these functions as
+the wat primitives `:wat::rete::alpha-match` / `-local` / `-under`, and the oracle calls them:
+`wat/rete/oracle/pass.wat:21,22,193,305,551,563,661` and `accum-pass.wat:247`. **In a repo whose
+premise is that wat calls into Rust primitives, a Rust-caller count is not a reachability proof.**
+
+The true statement is narrower and still carries the strike: the path is off the **native round
+loop** (`compiled_cond.rs:912`), and it is the **wat oracle's interpreter** — live code, reached
+every time the differential runs.
 
 And the anchor figure is gone. `alpha_match_cost_per_binding` (`rank_and_instrument.rs:219`), the
 named source of the 163 ns, driven at HEAD:
@@ -92,7 +99,8 @@ figure is below the instrument's resolution and the ratio is the finding.
 
 ## Out of scope = REJECTED
 
-- **Reaping the retired matcher path.** `alpha_match_inner*` → `eval_clauses` → `eval_clause` is
-  reached only from tests and may be a genuine `purgare` target — or a deliberately kept differential
-  oracle. That question is its own row (**C13**), not this strike. Do not delete it here.
+- **Reaping the matcher path — ⛔ AND THE QUESTION IS WITHDRAWN.** This bullet originally called it
+  *"a genuine `purgare` target"* on the strength of the false reachability claim corrected above. It
+  is the wat oracle's interpreter, reached from `wat/rete/oracle/pass.wat`. **There is nothing to
+  reap.** C13 is closed as a non-question rather than left open as a trap.
 - C9, C10, C11, C12.
