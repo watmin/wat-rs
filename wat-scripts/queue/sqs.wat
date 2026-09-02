@@ -229,7 +229,12 @@
      (:wat::core::let
        [store (:queue::queue::State/store s)
         q      (:queue::Queue::SendRequest/queue req)
-        body   (:queue::Queue::SendRequest/body req)
+        body0  (:queue::Queue::SendRequest/body req)
+        body   (:wat::core::if (:wat::string::contains? body0 "|")
+                 (:wat::core::format "{b}|{t}"
+                   :b body0
+                   :t (:wat::time::epoch-nanos (:wat::time::now)))
+                 body0)
         now-ns (:queue::Queue::SendRequest/now-ns req)
         sk     (:wat::edn::write (:wat::uuid::v4))
         isk    (:wat::edn::write (:wat::time::at-nanos now-ns))

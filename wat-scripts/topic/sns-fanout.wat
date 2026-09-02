@@ -247,8 +247,11 @@
             _n   (:wat::core::foldl
                    (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
                      (:wat::core::let
-                       [msg (:wat::core::Option/expect (:wat::vector::get box i)
-                              "topic -deliver: batch index in range by construction")
+                       [msg0 (:wat::core::Option/expect (:wat::vector::get box i)
+                               "topic -deliver: batch index in range by construction")
+                        msg  (:wat::core::format "{m}|{t}"
+                               :m msg0
+                               :t (:wat::time::epoch-nanos (:wat::time::now)))
                         ;; Issue every send before any recv — sum(N) becomes max(N).
                         ;; Raw kernel::send: first user-level send to a defservice client
                         ;; in the tree. Bypasses the generated client's :max-request-bytes
