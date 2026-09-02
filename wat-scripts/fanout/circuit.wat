@@ -346,6 +346,16 @@
         (_ 1)))
     (_ 1)))
 
+;; TEMPORARY INSTRUMENT — how many -deliver ticks did the topic take for N messages?
+;; One tick per message means a timer arm + fire + select wake is paid per message.
+(:wat::core::defn :fanout::topic-ticks [t <- :demo::Topic] -> :wat::core::i64
+  (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:demo::Topic::StatsResponse::Ok _n ticks) ticks)
+        (_ -1)))
+    (_ -1)))
+
 (:wat::core::defn :fanout::fully-drained?
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic] -> :wat::core::bool
   (:wat::core::and (:fanout::all-drained? qclients)
@@ -584,6 +594,7 @@
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
+     tticks (:fanout::topic-ticks topic)
      outs (:fanout::collect-stop workers)
      empty-flags (:wat::core::foldl
                    (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
@@ -607,12 +618,13 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop};ticks={ticks}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
               :stop (ms t-stop0 t-end)
-              :ticks ticks)]
+              :ticks ticks
+              :tt tticks)]
     (:wat::core::Tuple summary calls phases)))
 
 (:wat::core::defn :user::run
