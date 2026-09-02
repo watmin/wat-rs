@@ -55,7 +55,7 @@ them has eliminated none.** Check them before and after every stone.
 
 ```
 RETE_OPS          src/rete/vocabulary.rs   74 rows  — 55 of GAP_A's 89 ARE these
-SPECIAL_FORMS     src/special_forms.rs     30 rows  — 24 unregistered; calls ITSELF a registry
+SPECIAL_FORMS     src/special_forms.rs     35 rows  — 23 unregistered; calls ITSELF a registry
 register_builtins src/check.rs            350 env.register schemes
 literal arms      src/check.rs            118 type-grammar arms
 RETIREMENT_TABLE  src/remedy/retirement.rs 144 rows
@@ -133,7 +133,7 @@ rejects.** Authoring `@arg` for those three retires it. ⚠ Deliberately not imp
 are syntactic positions, and giving them type claims is how a lie gets minted.
 
 ```
-Phase 1a  22 more SPECIAL_FORMS rows into the registry  (def · defmacro · quote · quasiquote · use! …)
+Phase 1a  23 more SPECIAL_FORMS rows into the registry  (def · defmacro · quote · quasiquote · use! …)
 Phase 1b  RETE_OPS' 74 — BLOCKED on 1a until and/or/cond's targets are registered
 Phase 2a  core_name — the alias field, the one genuinely homeless one
 Phase 2b  the :undefined fallback machinery — does NOT decompose (Totality::Partial is a bare label)
