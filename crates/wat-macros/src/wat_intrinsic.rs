@@ -642,7 +642,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
              shape (`@arg` for positional forms — grammar derived; `@syntax` for structural forms)".into()
         }
         wat_doc::DocError::MissingPurity => {
-            "doc comment is missing a required `@Purity <Variant>` directive (known: Pure, Effectful, Preserving)".into()
+            "doc comment is missing a required `@Purity <Variant>` directive (known: Pure, Effectful, Preserving, Unevaluated)".into()
         }
         wat_doc::DocError::MissingDeterminism => {
             "doc comment is missing a required `@Determinism <Variant>` directive (known: Deterministic, Nondeterministic, Preserving)".into()
@@ -654,7 +654,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             "doc comment is missing a required `@ExpandTime <Variant>` directive (known: Legal, RuntimeOnly, ExpandOnly, Preserving, Unreviewed)".into()
         }
         wat_doc::DocError::InvalidPurityVariant { got } => {
-            format!("unknown @Purity variant `{}`; known: Pure, Effectful, Preserving", got)
+            format!("unknown @Purity variant `{}`; known: Pure, Effectful, Preserving, Unevaluated", got)
         }
         wat_doc::DocError::InvalidDeterminismVariant { got } => {
             format!("unknown @Determinism variant `{}`; known: Deterministic, Nondeterministic, Preserving", got)
@@ -909,6 +909,7 @@ pub(crate) fn emit(
         wat_doc::Purity::Pure => quote! { ::wat_doc::Purity::Pure },
         wat_doc::Purity::Effectful => quote! { ::wat_doc::Purity::Effectful },
         wat_doc::Purity::Preserving => quote! { ::wat_doc::Purity::Preserving },
+        wat_doc::Purity::Unevaluated => quote! { ::wat_doc::Purity::Unevaluated },
     };
     let determinism_token = match doc.determinism {
         wat_doc::Determinism::Deterministic => quote! { ::wat_doc::Determinism::Deterministic },
@@ -1412,6 +1413,35 @@ mod expand_time_axis_tests {
         );
         for name in ["Legal", "RuntimeOnly", "ExpandOnly", "Preserving", "Unreviewed"] {
             assert!(msg.contains(name), "message `{msg}` must name `{name}`");
+        }
+    }
+}
+
+/// Stone 1a-β-0b — the `@Purity` message gate. `MissingPurity` and
+/// `InvalidPurityVariant` (rendered by [`render_doc_error`], the SAME renderer a real
+/// `#[wat_intrinsic]` failure goes through) are hand-written literal strings, not
+/// derived from `Purity::variants()` the way `@Category`'s siblings are
+/// (`InvalidCategoryVariant`'s `.join(", ")`) — `@Purity`'s sibling axes
+/// (`Determinism`/`Totality`/`ExpandTime`) share the same hand-written shape, out of
+/// scope here. Widening `DocError`'s messages to derive would need `why: &'static str`
+/// to become `String` across every `DocError::MalformedDirective` site — the same
+/// cascade `wat-doc`'s `CATEGORY_LEGAL_VALUES` doc comment names as disproportionate.
+/// This is the gate instead: driven off `Purity::variants()`, not a second hand-list,
+/// so a variant added to the enum and forgotten in either literal goes red HERE — the
+/// `wat-doc` crate's own `purity_message_lists_every_variant` gates the three separate
+/// hand-written `why:` messages living there.
+#[cfg(test)]
+mod purity_message_tests {
+    use super::*;
+
+    #[test]
+    fn purity_messages_name_every_variant() {
+        let missing = render_doc_error(&wat_doc::DocError::MissingPurity);
+        let invalid =
+            render_doc_error(&wat_doc::DocError::InvalidPurityVariant { got: "Bogus".into() });
+        for v in wat_doc::Purity::variants() {
+            assert!(missing.contains(v), "MissingPurity message `{missing}` omits `{v}`");
+            assert!(invalid.contains(v), "InvalidPurityVariant message `{invalid}` omits `{v}`");
         }
     }
 }

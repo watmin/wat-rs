@@ -76,6 +76,18 @@ use wat_reader::WatAST;
 const CATEGORY_LEGAL_VALUES: &str =
     "value must be one of: Transform, Reflection, ControlFlow, Binding, Entropic, Arithmetic, Io, Probe, Combine, Declaration, Resource, Message, Ambient, Projection, CheckGate";
 
+/// The `@Purity` legal-value message. Hand-written, not derived, for the same reason
+/// `CATEGORY_LEGAL_VALUES` is: `DocError::MalformedDirective.why` is `&'static str`
+/// across 39 sites, and widening it to `String` for these three messages is the same
+/// cascade out of proportion to the fix. The test `purity_message_lists_every_variant`
+/// gates it against `Purity::variants()`, so a new variant that forgets this line goes
+/// RED. (`wat-macros`'s two sibling messages — `MissingPurity`/`InvalidPurityVariant`,
+/// which build a runtime `String` rather than filling this `&'static str` field — are
+/// hand-written too, and are gated separately, in that crate, by
+/// `purity_message_tests::purity_messages_name_every_variant`: this const cannot reach
+/// across the crate boundary to protect them.)
+const PURITY_LEGAL_VALUES: &str = "value must be one of: Pure, Effectful, Preserving, Unevaluated";
+
 // ⛔ `Category` IS GENERATED FROM wat — it is not written here.
 //
 // Builder ruling, 2026-08-15: *"wat is source of truth ... that's my pick."* The
@@ -689,7 +701,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     Ok(p) => purity_val = Some(p),
                     Err(_) => return Err(DocError::MalformedDirective {
                         tag: "@Purity".into(),
-                        why: "value must be one of: Pure, Effectful, Preserving",
+                        why: PURITY_LEGAL_VALUES,
                     }),
                 }
             }
@@ -984,7 +996,7 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
     let purity = read_axis!(":purity", Purity, DocError::MissingPurity, |_v: &WatAST| {
         DocError::MalformedDirective {
             tag: ":purity".into(),
-            why: "value must be one of: Pure, Effectful, Preserving",
+            why: PURITY_LEGAL_VALUES,
         }
     });
     let determinism = read_axis!(":determinism", Determinism, DocError::MissingDeterminism, |_v: &WatAST| {
@@ -1421,7 +1433,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                     Ok(p) => purity_val = Some(p),
                     Err(_) => return Err(DocError::MalformedDirective {
                         tag: "@Purity".into(),
-                        why: "value must be one of: Pure, Effectful, Preserving",
+                        why: PURITY_LEGAL_VALUES,
                     }),
                 }
             }
@@ -2061,6 +2073,21 @@ mod tests {
             assert!(
                 CATEGORY_LEGAL_VALUES.contains(v),
                 "@Category error message omits the legal variant `{v}`: {CATEGORY_LEGAL_VALUES}"
+            );
+        }
+    }
+
+    /// Stone 1a-β-0b — the `@Purity` sibling of `category_message_lists_every_variant`.
+    /// `PURITY_LEGAL_VALUES` is a hand-written string, so this is the gate that makes
+    /// the hand-copy safe: add a variant, forget this const, go red. (`wat-macros`'s two
+    /// sibling `@Purity` messages are hand-written independently and are gated
+    /// separately, in that crate — see `PURITY_LEGAL_VALUES`'s doc comment.)
+    #[test]
+    fn purity_message_lists_every_variant() {
+        for v in Purity::variants() {
+            assert!(
+                PURITY_LEGAL_VALUES.contains(v),
+                "@Purity error message omits the legal variant `{v}`: {PURITY_LEGAL_VALUES}"
             );
         }
     }

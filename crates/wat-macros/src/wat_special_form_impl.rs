@@ -1,5 +1,5 @@
-//! Codegen for `#[wat_special_form_impl("<fqdn>", role = check|eval|tail)]` — arc 255 Stone
-//! P6-a.
+//! Codegen for `#[wat_special_form_impl("<fqdn>", role = check|eval|tail|declare)]` — arc 255
+//! Stone P6-a (`declare` added by Stone 1a-β-0).
 //!
 //! `#[wat_special_form]` (the sibling in `wat_special_form.rs`) annotates a doc-only unit
 //! struct — a proc-macro sees only the tokens of the item it decorates, so that struct's
@@ -30,15 +30,15 @@ impl syn::parse::Parse for WatSpecialFormImplAttr {
         input.parse::<Token![,]>().map_err(|_| {
             Error::new(
                 input.span(),
-                "wat_special_form_impl: expected `, role = check|eval|tail` after the fqdn",
+                "wat_special_form_impl: expected `, role = check|eval|tail|declare` after the fqdn",
             )
         })?;
         let key: Ident = input.parse()?;
         if key != "role" {
             return Err(Error::new_spanned(
                 &key,
-                "wat_special_form_impl: expected `role = check|eval|tail` as the only argument \
-                 after the fqdn",
+                "wat_special_form_impl: expected `role = check|eval|tail|declare` as the only \
+                 argument after the fqdn",
             ));
         }
         input.parse::<Token![=]>()?;
@@ -47,18 +47,19 @@ impl syn::parse::Parse for WatSpecialFormImplAttr {
     }
 }
 
-/// Map the bare `check` / `eval` / `tail` identifier to the `SpecialFormRole` variant path.
-/// Any other identifier is a `compile_error!`, not a silent default — a fourth role or a typo
-/// must be visible at compile time, not at `registry()`-build time.
+/// Map the bare `check` / `eval` / `tail` / `declare` identifier to the `SpecialFormRole`
+/// variant path. Any other identifier is a `compile_error!`, not a silent default — an
+/// unrecognized role or a typo must be visible at compile time, not at `registry()`-build time.
 fn role_variant(role: &Ident) -> syn::Result<TokenStream2> {
     match role.to_string().as_str() {
         "check" => Ok(quote! { ::wat::intrinsic::SpecialFormRole::Check }),
         "eval" => Ok(quote! { ::wat::intrinsic::SpecialFormRole::Eval }),
         "tail" => Ok(quote! { ::wat::intrinsic::SpecialFormRole::Tail }),
+        "declare" => Ok(quote! { ::wat::intrinsic::SpecialFormRole::Declare }),
         other => Err(Error::new_spanned(
             role,
             format!(
-                "wat_special_form_impl: unknown role `{}`; expected one of: check, eval, tail",
+                "wat_special_form_impl: unknown role `{}`; expected one of: check, eval, tail, declare",
                 other
             ),
         )),

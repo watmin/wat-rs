@@ -317,15 +317,23 @@ pub(crate) struct SpecialFormSubmission {
 
 inventory::collect!(SpecialFormSubmission);
 
-/// Which of the three regimes an `#[wat_special_form_impl]` annotation names — arc 255 Stone
-/// P6-a. `check` runs once, statically, before any evaluation exists; `eval` and `tail` are
-/// mutually exclusive per-invocation regimes selected by call POSITION, never both
+/// Which of the four regimes an `#[wat_special_form_impl]` annotation names — arc 255 Stone
+/// P6-a (`check`/`eval`/`tail`), `Declare` added by Stone 1a-β-0. `check` runs once,
+/// statically, before any evaluation exists; `eval` and `tail` are mutually exclusive
+/// per-invocation regimes selected by call POSITION, never both
 /// (`NOTE-a-special-form-declaration-names-none-of-its-three-implementations.md`, "the three do
 /// not compose"). Hand-defined, not `wat_enum_from!`-generated (mirrors `Arity`, just above):
-/// this is a Rust-only reflection axis over a fixed, closed three-member set, not a wat-visible
+/// this is a Rust-only reflection axis over a fixed, closed four-member set, not a wat-visible
 /// enum a `.wat` `defenum` needs to drive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SpecialFormRole {
+    /// Freeze/declare-time processing — before evaluation exists, outside `check.rs`'s
+    /// `infer_*` fns and `runtime.rs`'s eval/tail matches: the form's own declaration/
+    /// registration code, wherever it lives (e.g. `src/types.rs`'s type-registry synthesis).
+    /// A REFLECTION fact — "this is the code that processes this form" — not a dispatch
+    /// door: a freeze-time processor has no calling convention to point at (arc 255 Stone
+    /// 1a-β-0, `DESIGN-STONE-1a-beta-0-the-third-regime-gets-its-name.md`).
+    Declare,
     /// Static type inference — `src/check.rs`'s `infer_*` fns.
     Check,
     /// Per-invocation evaluation — `src/runtime.rs`'s eval match.
@@ -343,6 +351,7 @@ impl SpecialFormRole {
     /// this reflection surface needs to print a bare role.
     pub(crate) fn label(&self) -> &'static str {
         match self {
+            SpecialFormRole::Declare => "declare",
             SpecialFormRole::Check => "check",
             SpecialFormRole::Eval => "eval",
             SpecialFormRole::Tail => "tail",
@@ -1004,6 +1013,16 @@ mod tests {
         ":wat::string::interpolate",
         ":wat::time::+",
         ":wat::time::-",
+        // Arc 255 Stone 1a-β-0 — `defsurface` joins the ledger the moment it becomes a
+        // `Kind::SpecialForm` registry row (this stone's witness, deliverable 5). Unlike
+        // `if`/`let`/`fn`/`match` above, it has NO `check.rs` inference arm at all (measured
+        // 0 mentions, `NOTE-a-declaration-form-is-a-THIRD-regime-the-role-vocabulary-cannot-
+        // name.md`) — its declare-time processing (`synthesize_surface_protocol`,
+        // `src/types.rs`) runs at freeze, entirely outside `check.rs`, and carries no
+        // `env.register()` TypeScheme either, so `check_env.get` returns `None` for the same
+        // reason `macro-error` does above: no scheme AND no hand-written arm. `check.rs` stays
+        // untouched (STOP-4); the ledger grows by one.
+        ":wat::core::defsurface",
     ];
 
     #[test]
@@ -2386,6 +2405,14 @@ mod tests {
     /// rest fall through to `eval_inner` correctly (just not tail-optimized); `tail: None` is
     /// an honest absence, not a lie (see the NOTE's `None`-discriminator table). Asserting it
     /// here would turn a real, safe default into a failure.
+    ///
+    /// Arc 255 Stone 1a-β-0 — the demand is now DERIVED from `entry.category`, never a name
+    /// list: a `Category::Declaration` row is processed at freeze time, before evaluation
+    /// exists (`DESIGN-STONE-1a-beta-0-the-third-regime-gets-its-name.md`), so it must name a
+    /// `declare` impl instead of `check`/`eval`. Not exclusive-or — a declaration row MAY also
+    /// carry `check`/`eval` (`:wat::core::def` will, in a later stone); this branch ADDS a
+    /// demand for `Declaration` rows and removes none from any other, so the six expression
+    /// forms already registered still demand `check` and `eval`, unchanged.
     #[test]
     fn every_special_form_carries_check_and_eval_impls() {
         let mut missing: Vec<String> = Vec::new();
@@ -2393,21 +2420,89 @@ mod tests {
             if entry.kind != super::Kind::SpecialForm {
                 continue;
             }
-            let has_check = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Check);
-            let has_eval = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Eval);
-            if !has_check {
-                missing.push(format!("{} — missing role: check", entry.name));
-            }
-            if !has_eval {
-                missing.push(format!("{} — missing role: eval", entry.name));
+            if entry.category == wat_doc::Category::Declaration {
+                let has_declare =
+                    entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Declare);
+                if !has_declare {
+                    missing.push(format!("{} — missing role: declare", entry.name));
+                }
+            } else {
+                let has_check = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Check);
+                let has_eval = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Eval);
+                if !has_check {
+                    missing.push(format!("{} — missing role: check", entry.name));
+                }
+                if !has_eval {
+                    missing.push(format!("{} — missing role: eval", entry.name));
+                }
             }
         }
         missing.sort();
         assert!(
             missing.is_empty(),
             "special form(s) registered via #[wat_special_form] but missing a required \
-             #[wat_special_form_impl] check or eval annotation:\n{}",
+             #[wat_special_form_impl] check, eval, or declare annotation:\n{}",
             missing.join("\n")
+        );
+    }
+
+    /// ★ Arc 255 Stone 1a-β-0b's WALL — the structural gate on `@Purity Unevaluated`
+    /// (`DESIGN-STONE-1a-beta-0b-a-form-that-never-evaluates.md`). The pole means "this
+    /// form is never evaluated, so the axis has no runtime verdict to give," and four
+    /// consumers (`rete::purity::pure`, `is_effectful_op`, `purity_mandated_examples`,
+    /// `reflect::eval_intrinsic_examples`) trust it without re-deriving it — the pole's
+    /// whole value is that a row could simply be WRONG about it. So the claim is made
+    /// structurally checkable, derived from the row's own registration facts rather than
+    /// a name list: a row declaring `@Purity Unevaluated` may carry no `handler`, no
+    /// `tail_handler`, and no `Eval` or `Tail` impl role — any of the four is a route to
+    /// evaluation, and the claim would be false.
+    ///
+    /// ⚠ State what this instrument cannot see: it inspects only the THREE
+    /// registry-visible routes above. It cannot see a hand-written `src/runtime.rs`
+    /// match arm that dispatches this FQDN outside the registry's own handler slots —
+    /// that is not a registry fact, so this gate does not reach it
+    /// (`[[feedback_a_containment_argument_must_name_its_consumers]]`).
+    #[test]
+    fn unevaluated_purity_carries_no_route_to_evaluation() {
+        let mut inspected: Vec<&'static str> = Vec::new();
+        let mut offenders: Vec<String> = Vec::new();
+        for entry in super::registry().all_entries() {
+            if entry.purity != wat_doc::Purity::Unevaluated {
+                continue;
+            }
+            inspected.push(entry.name);
+
+            let mut routes: Vec<&str> = Vec::new();
+            if entry.handler.is_some() {
+                routes.push("handler");
+            }
+            if entry.tail_handler.is_some() {
+                routes.push("tail_handler");
+            }
+            if entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Eval) {
+                routes.push("role: eval");
+            }
+            if entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Tail) {
+                routes.push("role: tail");
+            }
+            if !routes.is_empty() {
+                offenders.push(format!(
+                    "{} declares @Purity Unevaluated but carries: {}",
+                    entry.name,
+                    routes.join(", ")
+                ));
+            }
+        }
+        assert!(
+            !inspected.is_empty(),
+            "gate is vacuous — no registered row declares @Purity Unevaluated to inspect"
+        );
+        offenders.sort();
+        assert!(
+            offenders.is_empty(),
+            "row(s) declare @Purity Unevaluated (never evaluated) but carry a registry-visible \
+             route to evaluation — the claim would be false:\n{}",
+            offenders.join("\n")
         );
     }
 

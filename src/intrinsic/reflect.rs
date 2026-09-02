@@ -322,15 +322,17 @@ pub(crate) fn eval_show_source(
                 name
             ))),
             crate::intrinsic::Kind::SpecialForm => {
-                // check → eval → tail order (the NOTE's own regime order — check runs once
-                // statically, eval and tail are the mutually-exclusive per-invocation
-                // regimes), never inventory's arbitrary submission order.
+                // declare → check → eval → tail order (the NOTE's own regime order — declare
+                // runs at freeze, before evaluation exists; check runs once statically; eval
+                // and tail are the mutually-exclusive per-invocation regimes), never
+                // inventory's arbitrary submission order.
                 let role_order = [
+                    crate::intrinsic::SpecialFormRole::Declare,
                     crate::intrinsic::SpecialFormRole::Check,
                     crate::intrinsic::SpecialFormRole::Eval,
                     crate::intrinsic::SpecialFormRole::Tail,
                 ];
-                let mut out = format!(";; {} — special form (check · eval · tail)\n", name);
+                let mut out = format!(";; {} — special form (declare · check · eval · tail)\n", name);
                 for role in role_order {
                     for (r, source) in &entry.impls {
                         if *r == role {

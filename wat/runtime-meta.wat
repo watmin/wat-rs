@@ -42,7 +42,13 @@
   :Effectful
 ;; A special form that PRESERVES the purity of its sub-forms rather than
 ;; having one of its own: `if` is pure exactly when its branches are.
-  :Preserving)
+  :Preserving
+;; A form that is never evaluated — consumed whole at freeze/declare time,
+;; before evaluation exists — so the axis has no runtime verdict to give.
+;; Contrast :Preserving: that pole ALSO has no purity of its own, but because
+;; it INHERITS one from sub-forms that DO run. :Unevaluated has none because
+;; there is no evaluation to inherit from or report on — nothing here ever runs.
+  :Unevaluated)
 
 ;; Determinism — declared determinism of an intrinsic or special form.
 (:wat::core::defenum :wat::runtime::Determinism :wat::enum::Pure

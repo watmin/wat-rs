@@ -125,6 +125,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
         wat_doc::Purity::Pure => quote! { ::wat_doc::Purity::Pure },
         wat_doc::Purity::Effectful => quote! { ::wat_doc::Purity::Effectful },
         wat_doc::Purity::Preserving => quote! { ::wat_doc::Purity::Preserving },
+        wat_doc::Purity::Unevaluated => quote! { ::wat_doc::Purity::Unevaluated },
     };
     let determinism_token = match doc.determinism {
         wat_doc::Determinism::Deterministic => quote! { ::wat_doc::Determinism::Deterministic },

@@ -45,6 +45,7 @@ pub(crate) use surface::parse_defsurface;
 use crate::ast::WatAST;
 use crate::span::Span;
 use std::collections::HashMap;
+use wat_macros::wat_special_form_impl;
 
 /// Arc 215 stone 1 — type-placeholder path for HM-style inference.
 ///
@@ -3055,6 +3056,7 @@ fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
 /// is in fact impure, the post-registration containment pass `validate_aggregate_containment`
 /// catches the synthesized `Pure` enum's impure field, exactly as it backstops the backing
 /// records above.)
+#[wat_special_form_impl(":wat::core::defsurface", role = declare)]
 fn synthesize_surface_protocol(
     surface: &SurfaceDef,
     env: &TypeEnv,
