@@ -22,7 +22,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse::Ok 7)))])
+  [(put [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Big::Reply::Put (:probe::Big::PutResponse::Ok 7))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Big::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::bigfoo::Op])])))])
 
 ;; (b) a SMALL-FOO service: declares FOO = 4096, so a > 4 KiB request is rejected + closed.
 (:wat::service::defservice :probe::smallfoo
@@ -31,7 +31,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse::Ok 7)))])
+  [(put [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Big::Reply::Put (:probe::Big::PutResponse::Ok 7))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Big::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::smallfoo::Op])])))])
 
 ;; Build a String of exactly n*32 bytes.
 (:wat::core::defn :probe::payload-of [n <- :wat::core::i64] -> :wat::core::String

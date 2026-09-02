@@ -1,60 +1,28 @@
-;; internal-arm-replies.wat — the disconfirming probe for item 2 of THE ORDER
-;; (DESIGN-STONE-the-outcome-composes.md). RUN 2026-09-01. Result recorded below.
+;; internal-arm-replies.wat — the red probe for the internal-arm wall. MUST NOT type-check.
 ;;
-;; ONE QUESTION: may an INTERNAL arm — `[s ctx]`, no request, no caller — construct
-;; `Outcome::Reply`, replying to a caller it does not have?
+;; HISTORY. Written 2026-09-01 to ask whether an internal arm (`[s ctx]`, no caller) could
+;; construct a reply. It could: the check-time rejection was a `foldl`/`Directed` type collision
+;; with a one-token bypass, and the real guard lived in the serve loop at run time, killing the
+;; service. That measurement is what justified `SelfOutcome`.
 ;;
-;; `wat/service.wat:127` says the INPUT side already forbids the confusion: an internal arm
-;; receives a `SelfInvocation`, "never an `Invocation` (it has no connection, so it has no
-;; `conn-id` field)". The OUTPUT side is one type for both.
+;; AFTER the outcome-composes stone the wall is a TYPE, and this file is its acceptance criterion:
 ;;
-;; ══ MEASURED ═══════════════════════════════════════════════════════════════════════════
-;; The answer depends on HOW YOU SPELL THE REPLY, which is the finding.
+;;   :wat::core::match: parameter scrutinee expects (:wat::service::SelfOutcome :- [...]);
+;;                                             got (:wat::service::Outcome :- [...])
 ;;
-;;   (Outcome::Reply s (:probe::Solo::PingResponse::Ok))                    -> REJECTED
-;;   (Outcome::Reply s (:probe::Solo::Reply::Ping (…PingResponse::Ok)))     -> COMPILES
+;; ⚠ DO NOT spell the offending arm `(:wat::service::Outcome::Reply …)`. That variant no longer
+;; exists, and a nonexistent variant of a STDLIB enum is NOT resolve-checked — it passes `--check`
+;; and dies at run time as `UnknownFunction`, which makes this file look ACCEPTING when it is not.
+;; Measured, one variable (stdlib vs same-file):
+;;     ACCEPTED at --check:  :wat::core::Option::Nope / :wat::kernel::RecvOutcome::Bogus
+;;     rejected at --check:  :probe::Local::Nope
+;; That gap is a separate finding and wants its own stone. Until it closes, the offending arm must
+;; be spelled with a variant that DOES exist — `Outcome::Continue` — so the rejection is the type
+;; wall and not a resolution accident.
 ;;
-;; The rejection is NOT a rule about internal arms. It is a type collision inside the
-;; generated serve loop, and its diagnostic names neither the arm nor the reason:
-;;
-;;   :wat::core::foldl: parameter #1 expects [bool (Directed :- [:probe::Solo::PingResponse]) :-> bool];
-;;                                       got [bool (Directed :- [:probe::Solo::Reply])        :-> bool]
-;;
-;; The narrow reply forces Outcome's `:R` to the per-op response type; the serve loop's
-;; Directed machinery needs the union. Spell the reply as the UNION and `:R` unifies, the
-;; collision evaporates, and the file compiles. **The check-time wall is an inference
-;; accident with a one-token bypass, not a rule.**
-;;
-;; ── AND THEN IT RUNS ──────────────────────────────────────────────────────────────────
-;; The compiling form was executed. Output:
-;;
-;;   #wat.kernel/AssertionFailure
-;;     "defservice: an internal (-) op returned Outcome::Reply, but an internal op has no
-;;      client to reply to (return NoReply / NoReplyAndArm / ReplyTo)"
-;;   "r1=ok;r2=lost"
-;;
-;; So a REAL guard exists — deliberate, well-worded, three variants of it at
-;; `wat/service.wat:1666-1674` (Reply, Stop, ReplyAndArm) — but it lives in the SERVE LOOP,
-;; at run time. The service DIES: the first ping is `ok`, the tick fires, and the second
-;; ping on the same connection comes back `lost`.
-;;
-;; ══ THE LADDER, MEASURED ═══════════════════════════════════════════════════════════════
-;;   rung 2 (a check that fires)  — WHERE IT IS TODAY, and only when that path executes.
-;;                                  A `-tick` that replies is a latent crash that ships.
-;;   rung 3 (no form for it)      — where `SelfOutcome` puts it: an internal arm has no
-;;                                  `reply` field, so the mistake cannot be written down.
-;;
-;; And the accidental check-time rejection actively HURTS: for the narrow spelling the
-;; author is shown a `:wat::core::foldl` / `Directed` type mismatch, which hides the correct,
-;; well-worded diagnostic sitting twenty lines away in the same file.
-;;
-;; To reproduce the REJECTED half: change `-tick` in :probe::loud to reply with
-;; `(:probe::Solo::PingResponse::Ok)` directly. That form cannot live in this file, because
-;; the file must compile in order to answer the runtime half below.
-;;
-;; ⚠ WHY IT LIVES HERE AND NOT IN wat-scripts/. `every_wat_scripts_file_loads` type-checks
-;; every .wat under wat-scripts/; a probe whose job is to find out whether it is rejected
-;; cannot be gated on being accepted.
+;; ⚠ WHY IT LIVES HERE AND NOT IN wat-scripts/. `every_wat_scripts_file_loads` type-checks every
+;; .wat under wat-scripts/; a file whose whole job is to be rejected cannot be gated on acceptance.
+;; No rune: a rune would silence the wall's only proof that it fires.
 
 (:wat::core::defsurface :probe::Solo :nature :wat::kernel::Peer
   :messages
@@ -68,68 +36,31 @@
   [(ping [self <- :probe::Solo  req <- :probe::Solo::PingRequest]
      -> :probe::Solo::PingResponse :max-request-bytes 524288)])
 
-;; ✅ CONTROL — an internal arm that replies to nobody.
+;; ✅ CONTROL — an internal arm returning a SelfOutcome. Must keep compiling.
 (:wat::service::defservice :probe::quiet
   :satisfies :probe::Solo
   :durable   []
   :ephemeral []
   :impls
   [(ping  [s ctx req] (:wat::service::Outcome::Reply s (:probe::Solo::PingResponse::Ok)))
-   (-tick [s ctx]     (:wat::service::Outcome::NoReply s))])
+   (-tick [s ctx]
+     (:wat::service::SelfOutcome::Continue s
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Solo::Reply])])
+       (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::quiet::Op])])))])
 
-;; ⛔ THE LIVE HOLE — `ping` arms a tick; the tick replies, with no caller in existence.
-;; This COMPILES. The runtime half asks what it then does.
+;; ⛔ MUST BE REJECTED — the internal arm returns a public Outcome carrying a reply.
+;; The error must name SelfOutcome against Outcome.
 (:wat::service::defservice :probe::loud
   :satisfies :probe::Solo
   :durable   []
   :ephemeral []
   :impls
-  [(ping  [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:probe::Solo::PingResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+  [(ping  [s ctx req] (:wat::service::Outcome::Reply s (:probe::Solo::PingResponse::Ok)))
    (-tick [s ctx]
-     (:wat::service::Outcome::Reply s
-       (:probe::Solo::Reply::Ping (:probe::Solo::PingResponse::Ok))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::Solo::Reply::Ping (:probe::Solo::PingResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Solo::Reply])])
+       (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::loud::Op])])))])
 
-;; ── the runtime half ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :probe::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
-  (:wat::core::match
-    (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
-    ((:wat::kernel::RecvOutcome::Message _m) nil)
-    ((:wat::kernel::RecvOutcome::Lost _c) nil)
-    (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
-
-(:wat::core::defn :probe::dial
-  [a <- (:wat::kernel::Address :- [:probe::Solo::Op :probe::Solo::Reply])] -> :probe::Solo
-  (:wat::core::match (:wat::kernel::connect a)
-    ((:wat::kernel::ConnectOutcome::Connected c) c)
-    ((:wat::kernel::ConnectOutcome::Rejected c)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Failed c)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-    (_ (:wat::kernel::assertion-failed! "dial: refused" :wat::core::None :wat::core::None))))
-
-(:wat::core::defn :probe::tag
-  [rr <- (:wat::kernel::RecvOutcome :- [:probe::Solo::PingResponse])] -> :wat::core::String
-  (:wat::core::match rr
-    ((:wat::kernel::RecvOutcome::Message r)
-      (:wat::core::match r
-        ((:probe::Solo::PingResponse::Ok) "ok")
-        (_ "other")))
-    ((:wat::kernel::RecvOutcome::Lost _c) "lost")
-    (:wat::kernel::RecvOutcome::Stopped "stopped")
-    (:wat::kernel::RecvOutcome::Closed "closed")))
-
-;; ping (arms the tick) -> wait past the tick -> ping again on the SAME connection.
-;; r2 is the question: did the caller-less reply corrupt the stream or kill the service?
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let
-    [h  (:probe::loud/start :locus (:wat::spawn::thread) :record (:probe::loud::Record))
-     c  (:probe::dial (:probe::loud::Handle/addr h))
-     r1 (:probe::Solo/ping c (:probe::Solo::PingRequest))
-     _  (:probe::nap-ms 60)
-     r2 (:probe::Solo/ping c (:probe::Solo::PingRequest))]
-    (:wat::kernel::println
-      (:wat::core::format "r1={a};r2={b}" :a (:probe::tag r1) :b (:probe::tag r2)))))
+  (:wat::kernel::println "this file must never freeze"))

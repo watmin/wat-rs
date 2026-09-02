@@ -54,9 +54,9 @@
   :ephemeral []
   :impls
   [(eval-src [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::DurableForms::EvalSrcResponse::Ok
-         (:probe::DurableForms::EvalSrcRequest/src req))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::DurableForms::Reply::EvalSrc (:probe::DurableForms::EvalSrcResponse::Ok
+         (:probe::DurableForms::EvalSrcRequest/src req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::DurableForms::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::durable-forms-svc::Op])])))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println "probe-durable-forms-vector"))

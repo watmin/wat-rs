@@ -18,5 +18,5 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))]
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:my::Counter::Reply::Get (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:my::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:my::counter::Op])])))]
   :bogus-option :wat::core::Record)   ;; ← the DEFECT under test: an unrecognized trailing clause

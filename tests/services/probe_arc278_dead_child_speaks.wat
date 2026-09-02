@@ -54,7 +54,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(echo [s ctx req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok)))])
+  [(echo [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 ;; arc 278 recv'-wall: a peer-read yields a MATCHABLE RecvOutcome — NEVER a raise (a raise unwinds
 ;; PAST the reader, which is the mask the wall kills). The client-method (:probe::Echo/echo) SCRUBS

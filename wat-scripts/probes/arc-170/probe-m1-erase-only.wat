@@ -12,8 +12,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
+            (:wat::service::Outcome::Continue s
+              (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 ;; bare-D PoolMsg (the parent-side shape)
 (:wat::core::defenum :probe::PoolMsg :- [I] :wat::enum::Pure

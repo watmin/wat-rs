@@ -41,14 +41,14 @@
   :impls
   [;; client op: arm the FIRST tick (reply Ok + arm) — the tick re-arms itself thereafter.
    (start [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:probe::Ticker::StartResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Ticker::Reply::Start (:probe::Ticker::StartResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
 
    ;; client op: reply the current count (proves the reactor serves clients between ticks).
    (poll [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Ticker::PollResponse::Count
-         (:probe::ticker::Record/count (:probe::ticker::State/durable s)))))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::Ticker::Reply::Poll (:probe::Ticker::PollResponse::Count
+         (:probe::ticker::Record/count (:probe::ticker::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ticker::Op])])))
 
    ;; INTERNAL reactor op (leading dash): fire → +1; re-arm until target, else stop ticking.
    (-tick [s ctx]
@@ -58,9 +58,9 @@
         rec' (:probe::ticker::Record :count n :target (:probe::ticker::Record/target rec))
         s'   (:probe::ticker::State :durable rec')]
        (:wat::core::if (:wat::i64::< n (:probe::ticker::Record/target rec))
-         (:wat::service::Outcome::NoReplyAndArm s'
-           [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
-         (:wat::service::Outcome::NoReply s'))))])
+         (:wat::service::SelfOutcome::Continue s'
+           (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
+         (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ticker::Op])])))))])
 
 ;; ── nap — mora-honest wait (select' on a one-shot after; the driver runs on a thread) ─────────────
 (:wat::core::defn :probe::nap [ms <- :wat::core::i64] -> :wat::core::nil

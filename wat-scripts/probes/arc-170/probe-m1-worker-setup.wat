@@ -16,8 +16,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:wat::service::Outcome::Continue s
+              (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 ;; the union the worker recv's: Setup hands the address; Work is one unit of work.
 (:wat::core::defenum :probe::Msg :wat::enum::Pure

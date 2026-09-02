@@ -58,8 +58,8 @@
                (:queue::Queue::SendRequest :queue name :body body :now-ns now))]
        (:wat::core::match sr
          ((:wat::kernel::RecvOutcome::Message _r)
-           (:wat::service::Outcome::Reply s (:demo::Sub::DeliverResponse::Ok body)))
-         (_ (:wat::service::Outcome::Reply s (:demo::Sub::DeliverResponse::Ok body))))))])
+           (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])))
+         (_ (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])]))))))])
 
 ;; ── worker: process that pulls from ONE queue ───────────────────────────────────
 (:wat::core::defsurface :fanout::Worker :nature :wat::kernel::Peer
@@ -139,7 +139,7 @@
                      (_ acc))))
                acc0
                (:wat::core::range 0 cap))]
-       (:wat::service::Outcome::Reply s (:fanout::Worker::DrainResponse::Ok outs))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:fanout::Worker::Reply::Drain (:fanout::Worker::DrainResponse::Ok outs))) (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::worker::Op])]))))])
 
 ;; ── parent-side helpers (owner thread; Handles stay in :user::run's let) ────────
 (:wat::core::defn :fanout::qname [i <- :wat::core::i64] -> :wat::core::String

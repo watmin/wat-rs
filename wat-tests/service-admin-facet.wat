@@ -37,9 +37,9 @@
      (:wat::core::let [c (:wat::i64::+
                            (:wat-tests::admin-counter::Record/count (:wat-tests::admin-counter::State/durable s))
                            (:wat-tests::AdminCounter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply
+       (:wat::service::Outcome::Continue
          (:wat-tests::admin-counter::State :durable (:wat-tests::admin-counter::Record :count c))
-         (:wat-tests::AdminCounter::IncrementResponse::Ok c))))])
+         (:wat::core::Some (:wat-tests::AdminCounter::Reply::Increment (:wat-tests::AdminCounter::IncrementResponse::Ok c))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::AdminCounter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::admin-counter::Op])]))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.

@@ -35,8 +35,8 @@
         n   (:wat::string::length enc)
         cap 200]
        (:wat::core::if (:wat::core::> n cap)
-         (:wat::service::Outcome::Reply s (:probe::Op1::DoOpResponse::RequestTooLarge n cap))
-         (:wat::service::Outcome::Reply s (:probe::Op1::DoOpResponse::Ok n)))))])
+         (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Op1::Reply::DoOp (:probe::Op1::DoOpResponse::RequestTooLarge n cap))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Op1::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::op1svc::Op])]))
+         (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Op1::Reply::DoOp (:probe::Op1::DoOpResponse::Ok n))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Op1::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::op1svc::Op])])))))])
 
 ;; Build an ASCII string of n*32 bytes (byte-length == char-length for ASCII).
 (:wat::core::defn :probe::pl [n <- :wat::core::i64] -> :wat::core::String

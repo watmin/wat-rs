@@ -20,8 +20,8 @@
                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S1  req <- :probe::S1::OpRequest] -> :probe::S1::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s1 :satisfies :probe::S1 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S1::OpResponse::Ok (:wat::string::concat "s1:" (:probe::S1::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::S1::Reply::Op (:probe::S1::OpResponse::Ok (:wat::string::concat "s1:" (:probe::S1::OpRequest/m req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::S1::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::s1::Op])])))])
 
 (:wat::core::defsurface :probe::S2 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S2::OpRequest [m <- :wat::core::String])
@@ -31,8 +31,8 @@
                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S2  req <- :probe::S2::OpRequest] -> :probe::S2::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s2 :satisfies :probe::S2 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S2::OpResponse::Ok (:wat::string::concat "s2:" (:probe::S2::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::S2::Reply::Op (:probe::S2::OpResponse::Ok (:wat::string::concat "s2:" (:probe::S2::OpRequest/m req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::S2::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::s2::Op])])))])
 
 (:wat::core::defsurface :probe::S3 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S3::OpRequest [m <- :wat::core::String])
@@ -42,8 +42,8 @@
                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S3  req <- :probe::S3::OpRequest] -> :probe::S3::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s3 :satisfies :probe::S3 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S3::OpResponse::Ok (:wat::string::concat "s3:" (:probe::S3::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::S3::Reply::Op (:probe::S3::OpResponse::Ok (:wat::string::concat "s3:" (:probe::S3::OpRequest/m req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::S3::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::s3::Op])])))])
 
 (:wat::core::defsurface :probe::S4 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S4::OpRequest [m <- :wat::core::String])
@@ -53,8 +53,8 @@
                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S4  req <- :probe::S4::OpRequest] -> :probe::S4::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s4 :satisfies :probe::S4 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S4::OpResponse::Ok (:wat::string::concat "s4:" (:probe::S4::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::S4::Reply::Op (:probe::S4::OpResponse::Ok (:wat::string::concat "s4:" (:probe::S4::OpRequest/m req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::S4::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::s4::Op])])))])
 
 (:wat::core::defsurface :probe::S5 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S5::OpRequest [m <- :wat::core::String])
@@ -64,8 +64,8 @@
                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S5  req <- :probe::S5::OpRequest] -> :probe::S5::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s5 :satisfies :probe::S5 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S5::OpResponse::Ok (:wat::string::concat "s5:" (:probe::S5::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::S5::Reply::Op (:probe::S5::OpResponse::Ok (:wat::string::concat "s5:" (:probe::S5::OpRequest/m req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::S5::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::s5::Op])])))])
 
 (:wat::core::defsurface :probe::S6 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S6::OpRequest [m <- :wat::core::String])
@@ -75,8 +75,8 @@
                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S6  req <- :probe::S6::OpRequest] -> :probe::S6::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s6 :satisfies :probe::S6 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S6::OpResponse::Ok (:wat::string::concat "s6:" (:probe::S6::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::S6::Reply::Op (:probe::S6::OpResponse::Ok (:wat::string::concat "s6:" (:probe::S6::OpRequest/m req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::S6::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::s6::Op])])))])
 
 (:wat::core::defsurface :probe::S7 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S7::OpRequest [m <- :wat::core::String])
@@ -86,8 +86,8 @@
                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S7  req <- :probe::S7::OpRequest] -> :probe::S7::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s7 :satisfies :probe::S7 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S7::OpResponse::Ok (:wat::string::concat "s7:" (:probe::S7::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::S7::Reply::Op (:probe::S7::OpResponse::Ok (:wat::string::concat "s7:" (:probe::S7::OpRequest/m req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::S7::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::s7::Op])])))])
 
 ;; ── the work-fn: item POSITIONAL; 7 Peer' service kwargs + 5 String data kwargs ──
 (:wat::core::defn :probe::enrich

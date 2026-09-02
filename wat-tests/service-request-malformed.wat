@@ -61,10 +61,10 @@
   ;; because that is what a service IS. The two deftests below are the proof.
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::MalBag::PutResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat-tests::MalBag::Reply::Put (:wat-tests::MalBag::PutResponse::Ok
          (:wat::string::length
-           (:wat::core::nth (:wat-tests::MalBag::PutRequest/items req) 0)))))])
+           (:wat::core::nth (:wat-tests::MalBag::PutRequest/items req) 0))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::MalBag::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::mal-bag::Op])])))])
 
 ;; ── the probe verbs ──────────────────────────────────────────────────────────────────────
 ;; One call → one label. The exhaustive match is the shield: `:RequestMalformed` is a variant

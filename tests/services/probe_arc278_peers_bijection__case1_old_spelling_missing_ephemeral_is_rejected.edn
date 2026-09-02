@@ -7,7 +7,7 @@
     :end #wat.core.Option/Some [
       #wat.core/Pos {
         :line 70
-        :col 51
+        :col 254
       }
     ]
   }
@@ -17,11 +17,11 @@
     :message "malformed template: probe::caller: :peers declares surface :probe::Bogus but no :ephemeral field is typed :wat::kernel::Peer<probe::Bogus::Op,…::Reply> — add the dialed peer as a root :ephemeral field, or drop it from :peers"
     :location #wat.core/Span {
       :file "wat/service.wat"
-      :line 882
+      :line 896
       :col 27
       :end #wat.core.Option/Some [
         #wat.core/Pos {
-          :line 889
+          :line 903
           :col 134
         }
       ]

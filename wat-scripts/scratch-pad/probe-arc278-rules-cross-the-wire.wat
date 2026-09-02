@@ -113,13 +113,13 @@
      (:wat::core::match
        (:wat::eval-with-defs! (:probe::evaluand) (:probe::RuleWire::InstallRequest/defs req))
        (:wat::eval::FormOutcome::Declared
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "declared")))
+         (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::RuleWire::Reply::Install (:probe::RuleWire::InstallResponse::Rejected "declared"))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::RuleWire::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::rulewiresvc::Op])])))
        ((:wat::eval::FormOutcome::Evaluated v)
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Derived v)))
+         (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::RuleWire::Reply::Install (:probe::RuleWire::InstallResponse::Derived v))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::RuleWire::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::rulewiresvc::Op])])))
        ((:wat::eval::FormOutcome::CheckFailed _cause)
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "check-failed")))
+         (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::RuleWire::Reply::Install (:probe::RuleWire::InstallResponse::Rejected "check-failed"))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::RuleWire::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::rulewiresvc::Op])])))
        ((:wat::eval::FormOutcome::Raised _cause)
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "raised")))))])
+         (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::RuleWire::Reply::Install (:probe::RuleWire::InstallResponse::Rejected "raised"))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::RuleWire::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::rulewiresvc::Op])])))))])
 
 ;; ── the two payloads, differing in ONE form ───────────────────────────────────────────────
 (:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])

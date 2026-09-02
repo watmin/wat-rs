@@ -11,8 +11,8 @@
   :ephemeral []
   :impls
   [(write-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::WriteMetricsResponse::Success)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteMetrics (:wat::telemetry::Journal::WriteMetricsResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::script-journal::Op])])))
    (write-logs [s ctx req]
      (:wat::core::let
        [rec  (:probe::script-journal::State/durable s)
@@ -23,10 +23,10 @@
                 :seen seen
                 :stored (:probe::script-journal::Record/stored rec))]
        (:wat::core::if fail?
-         (:wat::service::Outcome::Reply
+         (:wat::service::Outcome::Continue
            (:probe::script-journal::State :durable rec')
-           (:wat::telemetry::Journal::WriteLogsResponse::Fatal
-             (:wat::query::Fatal :reason (:wat::query::Fault :message "probe: scripted fail"))))
+           (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteLogs (:wat::telemetry::Journal::WriteLogsResponse::Fatal
+             (:wat::query::Fatal :reason (:wat::query::Fault :message "probe: scripted fail"))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::script-journal::Op])]))
          (:wat::core::let
            [stored' (:wat::core::foldl
                       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::telemetry::Log])
@@ -39,27 +39,27 @@
                    :fail-on (:probe::script-journal::Record/fail-on rec)
                    :seen seen
                    :stored stored')]
-           (:wat::service::Outcome::Reply
+           (:wat::service::Outcome::Continue
              (:probe::script-journal::State :durable rec2)
-             (:wat::telemetry::Journal::WriteLogsResponse::Success))))))
+             (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteLogs (:wat::telemetry::Journal::WriteLogsResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::script-journal::Op])]))))))
    (query-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryMetricsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryMetrics (:wat::telemetry::Journal::QueryMetricsResponse::Success
+         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::script-journal::Op])])))
    (query-logs [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryLogsResponse::Success
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryLogs (:wat::telemetry::Journal::QueryLogsResponse::Success
          (:probe::script-journal::Record/stored
            (:probe::script-journal::State/durable s))
-         :wat::core::None)))
+         :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::script-journal::Op])])))
    (sift-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::SiftMetricsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::SiftMetrics (:wat::telemetry::Journal::SiftMetricsResponse::Success
+         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::script-journal::Op])])))
    (sift-logs [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::SiftLogsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None)))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::SiftLogs (:wat::telemetry::Journal::SiftLogsResponse::Success
+         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::script-journal::Op])])))])
 
 (:wat::core::defn :probe::contains-i64
   [v <- (:wat::core::Vector :- [:wat::core::i64])  x <- :wat::core::i64] -> :wat::core::bool

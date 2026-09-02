@@ -40,7 +40,7 @@
        [(echo [s ctx req]
           (:wat::core::let
             [c (:probe::Echo::EchoRequest/c req)]
-            (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok c))))])))
+            (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok c))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echosvc::Op])]))))])))
 
 ;; Invoke the macro: it emits the do-wrapped surface+service, splicing in a user
 ;; def (a Marker record) as the surface's first :messages member.

@@ -37,7 +37,7 @@
   :init (:wat::core::fn [record <- :red::alpha::Record] -> :red::alpha::State
           (:red::alpha::State :durable record))
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:red::Alpha::PingResponse::Pong)))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:red::Alpha::Reply::Ping (:red::Alpha::PingResponse::Pong))) (:wat::core::Vector :- [(:wat::service::Directed :- [:red::Alpha::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:red::alpha::Op])])))])
 
 ;; ✅ MUST KEEP COMPILING — upward. Handle arrives as a PARAM, RETURNS a Peer. The CALLER owns
 ;; the handle and outlives the call, so a param is a BORROW here. If the wall names this, the

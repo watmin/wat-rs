@@ -33,7 +33,7 @@
   :init (:wat::core::fn [record <- :sev::echo::Record] -> :sev::echo::State
           (:sev::echo::State :durable record))
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:sev::Echo::PingResponse::Pong)))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:sev::Echo::Reply::Ping (:sev::Echo::PingResponse::Pong))) (:wat::core::Vector :- [(:wat::service::Directed :- [:sev::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:sev::echo::Op])])))])
 
 (:wat::core::defn :sev::conn
   [h <- :sev::echo::Handle] -> (:wat::kernel::Peer :- [:sev::Echo::Op :sev::Echo::Reply])

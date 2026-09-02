@@ -52,7 +52,7 @@
         ok (:wat::core::match t
              ((:probe::FFXTag::Alpha) true)
              ((:probe::FFXTag::Beta)  false))]
-       (:wat::service::Outcome::Reply s (:probe::FFX::PingResponse::Ok ok))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::FFX::Reply::Ping (:probe::FFX::PingResponse::Ok ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::FFX::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ffx::Op])]))))])
 
 ;; ── render a (Vector :- [WatAST]) to one string so we can ask whether a name appears in it ───────────
 (:wat::core::defn :user::render-forms

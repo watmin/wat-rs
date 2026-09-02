@@ -74,7 +74,7 @@
         journal  (:prod::producer::State/journal s)
         _wr      (:wat::telemetry::Journal/write-logs journal
                    (:wat::telemetry::Journal::WriteLogsRequest logs))]
-       (:wat::service::Outcome::Reply s (:prod::Producer::FloodResponse::Done count))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:prod::Producer::Reply::Flood (:prod::Producer::FloodResponse::Done count))) (:wat::core::Vector :- [(:wat::service::Directed :- [:prod::Producer::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:prod::producer::Op])]))))])
 
 ;; ── CONSUMER: :cons::Consumer — NEVER peers/satisfies anything Producer-shaped and NEVER
 ;; defines `:prod::*`. Its inability to typed-decode `:prod::*` IS the guarantee: it pages the
@@ -166,8 +166,8 @@
                              (_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
                      initial
                      page-idxs)]
-       (:wat::service::Outcome::Reply s
-         (:cons::Consumer::SiftResponse::Count (:cons::Consumer::PageState/acc final)))))])
+       (:wat::service::Outcome::Continue s
+         (:wat::core::Some (:cons::Consumer::Reply::Sift (:cons::Consumer::SiftResponse::Count (:cons::Consumer::PageState/acc final)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:cons::Consumer::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:cons::consumer::Op])]))))])
 
 ;; ── the orchestrator (the circuit builder): mem-store' + journal' + producer' + consumer', all
 ;; PROCESS-tier, grant-before-dial at every hop. flood (block), then sift (block); return count. ──

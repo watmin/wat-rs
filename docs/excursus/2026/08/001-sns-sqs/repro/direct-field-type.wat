@@ -17,8 +17,8 @@
 
 (:wat::service::defservice :p::src
   :satisfies :p::Src  :durable [] :ephemeral []
-  :impls [(get [s ctx req] (:wat::service::Outcome::Reply s
-                             (:p::Src::GetResponse::Ok (:p::Item :id "x"))))])
+  :impls [(get [s ctx req] (:wat::service::Outcome::Continue s
+                             (:wat::core::Some (:p::Src::Reply::Get (:p::Src::GetResponse::Ok (:p::Item :id "x")))) (:wat::core::Vector :- [(:wat::service::Directed :- [:p::Src::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:p::src::Op])])))])
 
 ;; the CONSUMER — holds a :p::Src peer, reads Item/id in its impl
 (:wat::core::defsurface :p::Use :nature :wat::kernel::Peer
@@ -54,7 +54,7 @@
                   ((:p::Src::GetResponse::Ok item) (:p::Item/id item))   ;; ★ THE CALL
                   (_ "other")))
               (_ "recv"))]
-       (:wat::service::Outcome::Reply s (:p::Use::RunResponse::Ok out))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:p::Use::Reply::Run (:p::Use::RunResponse::Ok out))) (:wat::core::Vector :- [(:wat::service::Directed :- [:p::Use::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:p::use::Op])]))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

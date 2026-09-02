@@ -26,9 +26,9 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok
-                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:wat::service::Outcome::Continue s
+              (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok
+                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 ;; arc 278 VALUE-CONTRACT: the owner FACES the prober's death as a matchable RecvOutcome VALUE and
 ;; RETURNS this enum — never re-raises it with assertion-failed! (which panic_any's past apply_function).

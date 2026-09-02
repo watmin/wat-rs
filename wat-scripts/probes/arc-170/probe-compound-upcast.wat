@@ -21,8 +21,8 @@
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::echo :satisfies :probe::Echo :durable [] :ephemeral []
-  :impls [(echo [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+  :impls [(echo [s ctx req] (:wat::service::Outcome::Continue s
+            (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 (:wat::core::defn :probe::as-map [m <- (:wat::core::HashMap :- [:wat::core::keyword :wat::capability::Capability])]
   -> (:wat::core::HashMap :- [:wat::core::keyword :wat::capability::Capability])

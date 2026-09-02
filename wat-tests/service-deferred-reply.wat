@@ -54,12 +54,12 @@
   :impls
   [;; store this connection as a waiter; no reply — the caller blocks in recv'.
    (park [s ctx req]
-     (:wat::service::Outcome::NoReply
+     (:wat::service::Outcome::Continue
        (:wat-tests::parker::State
          :durable (:wat-tests::parker::Record
                     :waiters (:wat::vector::conj
                                (:wat-tests::parker::Record/waiters (:wat-tests::parker::State/durable s))
-                               (:wat::service::Invocation/conn-id ctx))))))
+                               (:wat::service::Invocation/conn-id ctx)))) :wat::core::None (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::parker::Op])])))
 
    ;; ReplyTo every stored waiter with the waker's value, then forget them.
    ;; The waker itself is not replied to (a cast); the test fire-and-forgets the send.
@@ -68,29 +68,30 @@
        [value   (:wat-tests::Parker::WakeRequest/value req)
         waiters (:wat-tests::parker::Record/waiters (:wat-tests::parker::State/durable s))
         sends   (:wat::core::foldl
-                  (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::WakeResponse])])
+                  (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])])
                                    id  <- :wat::core::i64]
-                     -> (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::WakeResponse])])
+                     -> (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])])
                     (:wat::core::conj acc
                       (:wat::service::Directed
                         :conn-id id
-                        :reply (:wat-tests::Parker::WakeResponse::Ok value))))
-                  (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::WakeResponse])])
+                        :reply (:wat-tests::Parker::Reply::Wake
+                                 (:wat-tests::Parker::WakeResponse::Ok value)))))
+                  (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])])
                   waiters)
         s'      (:wat-tests::parker::State
                   :durable (:wat-tests::parker::Record
                              :waiters (:wat::core::PersistentVector :- [:wat::core::i64])))]
-       (:wat::service::Outcome::ReplyTo s' sends)))
+       (:wat::service::Outcome::Continue s' :wat::core::None sends (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::parker::Op])]))))
 
    ;; park + arm a deadline. The generated client method blocks in recv' until -tick ReplyTo.
    (await-tick [s ctx req]
-     (:wat::service::Outcome::NoReplyAndArm
+     (:wat::service::Outcome::Continue
        (:wat-tests::parker::State
          :durable (:wat-tests::parker::Record
                     :waiters (:wat::vector::conj
                                (:wat-tests::parker::Record/waiters (:wat-tests::parker::State/durable s))
                                (:wat::service::Invocation/conn-id ctx))))
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+       :wat::core::None (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
 
    ;; ★ STOP-2's target: an internal arm naming a client. Directed.reply is the wire Reply
    ;; the parked await-tick is waiting for (sent as-is; no invoking client to wrap for).
@@ -111,10 +112,10 @@
         s'      (:wat-tests::parker::State
                   :durable (:wat-tests::parker::Record
                              :waiters (:wat::core::PersistentVector :- [:wat::core::i64])))]
-       (:wat::service::Outcome::ReplyTo s' sends)))
+       (:wat::service::SelfOutcome::Continue s' sends (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::parker::Op])]))))
 
    (ping [s ctx req]
-     (:wat::service::Outcome::Reply s (:wat-tests::Parker::PingResponse::Ok)))])
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:wat-tests::Parker::Reply::Ping (:wat-tests::Parker::PingResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::parker::Op])])))])
 
 ;; ── BadTick — row 7: an internal arm returning Reply still hits the located assertion ──
 (:wat::core::defsurface :wat-tests::BadTick :nature :wat::kernel::Peer
@@ -133,14 +134,14 @@
   :ephemeral []
   :impls
   [(arm-tick [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:wat-tests::BadTick::ArmTickResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
-   ;; ILLEGAL — Reply from an internal op. R is the wire Reply so the generated
-   ;; ReplyTo arm (dead here) still type-checks; the assertion fires at runtime.
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:wat-tests::BadTick::Reply::ArmTick (:wat-tests::BadTick::ArmTickResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::BadTick::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+   ;; Internal arm — SelfOutcome, no reply field. The compile-time wall lives in
+   ;; docs/arc/2026/06/278-rules-engine/probes/internal-arm-replies.wat (row 3).
    (-tick [s ctx]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::BadTick::Reply::ArmTick
-         (:wat-tests::BadTick::ArmTickResponse::Ok))))])
+     (:wat::service::SelfOutcome::Continue s
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::BadTick::Reply])])
+       (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::bad-tick::Op])])))])
 
 ;; ── helpers ──────────────────────────────────────────────────────────────────
 (:wat::core::defn :wat-tests::parker::connect!
@@ -308,32 +309,4 @@
       :ok)
     :ok))
 
-;; ── 7. internal Reply is still the located assertion ─────────────────────────
-;; The assertion is on the OWNER's crash channel (Handle/handle), not the client's
-;; recv' — clients get a reason-free "peer crashed" by design (arc 294).
-(:wat::test::deftest :wat-tests::service::deferred-reply::internal-reply-still-asserts
-  (:wat::test::assert-true
-    (:wat::core::let
-      [h (:wat-tests::bad-tick/start :locus (:wat::spawn::thread)
-           :record (:wat-tests::bad-tick::Record :n 0))
-       c (:wat-tests::bad-tick::connect! h)
-       _ (:wat::core::match (:wat-tests::BadTick/arm-tick c (:wat-tests::BadTick::ArmTickRequest))
-           ((:wat::kernel::RecvOutcome::Message _r) nil)
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "arm-tick: stopped" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "arm-tick: closed" :wat::core::None :wat::core::None)))
-       msg (:wat::core::match (:wat::kernel::recv (:wat-tests::bad-tick::Handle/handle h))
-             ((:wat::kernel::RecvOutcome::Message _m)
-               (:wat::kernel::assertion-failed! "expected Lost from internal Reply, got Message" :wat::core::None :wat::core::None))
-             ((:wat::kernel::RecvOutcome::Lost cause)
-               (:wat::edn::write cause))
-             (:wat::kernel::RecvOutcome::Stopped
-               (:wat::kernel::assertion-failed! "expected Lost, got Stopped" :wat::core::None :wat::core::None))
-             (:wat::kernel::RecvOutcome::Closed
-               (:wat::kernel::assertion-failed! "expected Lost, got Closed" :wat::core::None :wat::core::None)))]
-      (:wat::core::if (:wat::regex::matches? "an internal \\(-\\) op returned Outcome::Reply" msg)
-        true
-        (:wat::kernel::assertion-failed! msg :wat::core::None :wat::core::None)))))
+

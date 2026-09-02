@@ -71,7 +71,7 @@
   :init (:wat::core::fn [record <- :c2::alpha::Record] -> :c2::alpha::State
           (:c2::alpha::State :durable record))
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:c2::Alpha::PingResponse::Pong)))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:c2::Alpha::Reply::Ping (:c2::Alpha::PingResponse::Pong))) (:wat::core::Vector :- [(:wat::service::Directed :- [:c2::Alpha::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:c2::alpha::Op])])))])
 
 (:wat::core::defn :c2::conn
   [h <- :c2::alpha::Handle] -> (:wat::kernel::Peer :- [:c2::Alpha::Op :c2::Alpha::Reply])

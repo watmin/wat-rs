@@ -30,7 +30,7 @@
   :ephemeral []
   :impls
   [(do-op [s ctx req]
-     (:wat::service::Outcome::Reply s (:probe::Cap1::DoOpResponse::Ok 0)))])
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Cap1::Reply::DoOp (:probe::Cap1::DoOpResponse::Ok 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Cap1::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::cap1svc::Op])])))])
 
 ;; Build an ASCII string of n*32 bytes (byte-length == char-length for ASCII).
 (:wat::core::defn :probe::pl [n <- :wat::core::i64] -> :wat::core::String

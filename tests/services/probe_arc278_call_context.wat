@@ -70,17 +70,17 @@
           (:probe::callctx3svc::State :durable record))
   :impls
   [(whoami [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::CallCtx3::WhoamiResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::CallCtx3::Reply::Whoami (:probe::CallCtx3::WhoamiResponse::Ok
          (:wat::service::Invocation/conn-id ctx)
          (:wat::service::Invocation/namespace ctx)
-         (:wat::service::Invocation/operation ctx))))
+         (:wat::service::Invocation/operation ctx)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::CallCtx3::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::callctx3svc::Op])])))
    (ping [s ctx req]
-     (:wat::service::Outcome::Reply s (:probe::CallCtx3::PingResponse::Ok true)))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::CallCtx3::Reply::Ping (:probe::CallCtx3::PingResponse::Ok true))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::CallCtx3::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::callctx3svc::Op])])))
    ;; client op: arm the ONE-SHOT `-mark` (no re-arm — one fire is all this gate needs).
    (arm-mark [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:probe::CallCtx3::ArmMarkResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-mark)]))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::CallCtx3::Reply::ArmMark (:probe::CallCtx3::ArmMarkResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::CallCtx3::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-mark)]))
    ;; ★ item (2) — the INTERNAL op. Its ctx (`SelfInvocation`) is read THROUGH the ctx binder and
    ;; stamped into durable state — the only channel available, since an internal op has no client
    ;; to reply to. Never `Invocation`, never a `conn-id` (STOP-3: SelfInvocation has no such field
@@ -91,12 +91,12 @@
               :seen-op (:wat::service::SelfInvocation/operation ctx)
               :seen-ns (:wat::service::SelfInvocation/namespace ctx))
         s'  (:probe::callctx3svc::State :durable rec)]
-       (:wat::service::Outcome::NoReply s')))
+       (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::CallCtx3::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::callctx3svc::Op])]))))
    (peek-mark [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::CallCtx3::PeekMarkResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::CallCtx3::Reply::PeekMark (:probe::CallCtx3::PeekMarkResponse::Ok
          (:probe::callctx3svc::Record/seen-op (:probe::callctx3svc::State/durable s))
-         (:probe::callctx3svc::Record/seen-ns (:probe::callctx3svc::State/durable s)))))])
+         (:probe::callctx3svc::Record/seen-ns (:probe::callctx3svc::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::CallCtx3::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::callctx3svc::Op])])))])
 
 ;; ── helpers shared by every driver below ──────────────────────────────────────────────────
 (:wat::core::defn :probe::connect! [h <- :probe::callctx3svc::Handle] -> :probe::CallCtx3

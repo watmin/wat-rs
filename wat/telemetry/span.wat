@@ -127,12 +127,12 @@
         s'    (:wat::telemetry::span::State :durable rec2 :sink (:wat::telemetry::span::State/sink s1))
         resp  (:wat::telemetry::span::close-response->incr-response (:wat::core::second pair0))]
        (:wat::core::if was-empty?
-         (:wat::service::Outcome::ReplyAndArm s' resp
-           [(:wat::service::Alarm
+         (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Incr resp))
+           (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
               :after (:wat::time::Millisecond
                        (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
               :op :-flush-metrics)])
-         (:wat::service::Outcome::Reply s' resp))))
+         (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Incr resp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])])))))
 
    ;; timed — PURE: durations[name] ++ nanos. Size trigger calls flush-metrics ONLY.
    ;; Arm -flush-metrics on empty→non-empty of (counters AND durations).
@@ -186,12 +186,12 @@
                   (:wat::core::count samples') smax)
                 flush-resp)]
        (:wat::core::if was-empty?
-         (:wat::service::Outcome::ReplyAndArm s' resp
-           [(:wat::service::Alarm
+         (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Timed resp))
+           (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
               :after (:wat::time::Millisecond
                        (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
               :op :-flush-metrics)])
-         (:wat::service::Outcome::Reply s' resp))))
+         (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Timed resp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])])))))
 
    ;; log — conj onto :durable logs. Size trigger calls flush-logs ONLY.
    ;; Arm -flush-logs on empty→non-empty of the current logs buffer.
@@ -247,8 +247,8 @@
         met-arm? (:wat::core::and (:wat::i64::> ndrop 0) was-metrics-empty?)]
        (:wat::core::if was-empty?
          (:wat::core::if met-arm?
-           (:wat::service::Outcome::ReplyAndArm s' resp
-             [(:wat::service::Alarm
+           (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp))
+             (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
                 :after (:wat::time::Millisecond
                          (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
                 :op :-flush-logs)
@@ -256,18 +256,18 @@
                 :after (:wat::time::Millisecond
                          (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
                 :op :-flush-metrics)])
-           (:wat::service::Outcome::ReplyAndArm s' resp
-             [(:wat::service::Alarm
+           (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp))
+             (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
                 :after (:wat::time::Millisecond
                          (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
                 :op :-flush-logs)]))
          (:wat::core::if met-arm?
-           (:wat::service::Outcome::ReplyAndArm s' resp
-             [(:wat::service::Alarm
+           (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp))
+             (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
                 :after (:wat::time::Millisecond
                          (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
                 :op :-flush-metrics)])
-           (:wat::service::Outcome::Reply s' resp)))))
+           (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])]))))))
 
    ;; flush — emit deltas since the last flush and RESET. THE emission path.
    (flush [s ctx req]
@@ -276,7 +276,7 @@
         s'    (:wat::core::first pair)
         cresp (:wat::core::second pair)
         fresp (:wat::telemetry::span::close-response->flush-response cresp)]
-       (:wat::service::Outcome::Reply s' fresp)))
+       (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Flush fresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])]))))
 
    ;; close — flush the remainder of BOTH groups. Each group still has one builder.
    (close [s ctx req]
@@ -284,18 +284,18 @@
        [pair  (:wat::telemetry::span::flush-accumulators s)
         s'    (:wat::core::first pair)
         cresp (:wat::core::second pair)]
-       (:wat::service::Outcome::Reply s' cresp)))
+       (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Close cresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])]))))
 
    ;; INTERNAL: timer for logs. Flush this group; do NOT re-arm (accumulator is empty;
    ;; the next log re-arms on empty→non-empty). An idle span never reaches here.
    (-flush-logs [s ctx]
-     (:wat::service::Outcome::NoReply
-       (:wat::core::first (:wat::telemetry::span::flush-logs s))))
+     (:wat::service::SelfOutcome::Continue
+       (:wat::core::first (:wat::telemetry::span::flush-logs s)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])])))
 
    ;; INTERNAL: timer for counters+durations. Same: flush, no re-arm.
    (-flush-metrics [s ctx]
-     (:wat::service::Outcome::NoReply
-       (:wat::core::first (:wat::telemetry::span::flush-metrics s))))])
+     (:wat::service::SelfOutcome::Continue
+       (:wat::core::first (:wat::telemetry::span::flush-metrics s)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])])))])
 
 ;; ── emit-and-reset (item (c) stone A) ────────────────────────────────────────────
 ;; THE emission path. `flush` and `close` both call this. A second path is the double-count.

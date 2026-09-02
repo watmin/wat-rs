@@ -54,9 +54,9 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe-wire::Bag::PutResponse::Ok
-         (:wat::edn::write (:probe-wire::Bag::PutRequest/items req)))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe-wire::Bag::Reply::Put (:probe-wire::Bag::PutResponse::Ok
+         (:wat::edn::write (:probe-wire::Bag::PutRequest/items req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe-wire::Bag::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe-wire::bag-svc::Op])])))])
 
 ;; ── one round-trip, reporting whatever comes back ────────────────────────────
 (:wat::core::defn :probe-wire::round-trip

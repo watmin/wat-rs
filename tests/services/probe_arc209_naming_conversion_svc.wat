@@ -23,7 +23,7 @@
   :ephemeral []
   :impls
   [(get-object [s ctx req]
-     (:wat::service::Outcome::Reply s (:my::Svc::GetObjectResponse::Ok (:my::Svc::GetObjectRequest/n req))))])
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:my::Svc::Reply::GetObject (:my::Svc::GetObjectResponse::Ok (:my::Svc::GetObjectRequest/n req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:my::Svc::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:my::svc::Op])])))])
 
 ;; End-to-end through the KEBAB client method `:my::svc/get-object` (multi-word); echoes the
 ;; request's n back as the response value (42), proving the whole multi-word wiring resolved.

@@ -159,6 +159,9 @@
      resp-fat-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::Fatal")))
      resp-rtl-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::RequestTooLarge")))
      resp-rm-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::RequestMalformed")))
+     sift-reply-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::Reply::SiftRules")))
+     surface-reply-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::Reply")))
+     svc-op-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat svc-str "::Op")))
      req-ns-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/namespace")))
      req-lo-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/time-lo")))
      req-hi-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/time-hi")))
@@ -411,8 +414,8 @@
          ;; top-level `defservice`-form census BOTH skipped every consumer of this macro. The new
          ;; arity wall is what surfaced it, by name, at load. One template, every consumer fixed.
          [(sift-rules [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:wat::core::match
+            (:wat::service::Outcome::Continue s
+              (:wat::core::Some (~sift-reply-kw (:wat::core::match
                 (:wat::telemetry::Journal/query-logs (~state-journal-kw s)
                   (:wat::telemetry::Journal::QueryLogsRequest
                     :namespace (~req-ns-kw req)
@@ -480,7 +483,9 @@
                 (:wat::kernel::RecvOutcome::Stopped
                   (~resp-fat-kw (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE")))
                 (:wat::kernel::RecvOutcome::Closed
-                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))))))]))))
+                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))))))
+              (:wat::core::Vector :- [(:wat::service::Directed :- [~surface-reply-kw])])
+              (:wat::core::Vector :- [(:wat::service::Alarm :- [~svc-op-kw])])))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed

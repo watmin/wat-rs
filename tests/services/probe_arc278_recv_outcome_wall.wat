@@ -56,7 +56,7 @@
      (:wat::core::let
        [zero (:probe::crash::Record/x (:probe::crash::State/durable s))
         _    (:wat::i64::quot 987654321 zero)]        ;; RTERR-QUOT-SENTINEL: DivisionByZero at runtime
-       (:wat::service::Outcome::Reply s (:probe::Crash::BoomrtResponse::Ok true))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Crash::Reply::Boomrt (:probe::Crash::BoomrtResponse::Ok true))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Crash::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::crash::Op])]))))])
 
 ;; ── CLIENT helpers: raw connect' + send' + recv', MATCH the RecvOutcome directly. ────────────────────
 ;; On ::Lost → (Outcome::Lost false) — the reason-free administrative message does NOT carry the

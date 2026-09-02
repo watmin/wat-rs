@@ -48,7 +48,7 @@
 (:wat::service::defservice :tco::bag-svc
   :satisfies :tco::Bag  :durable [n <- :wat::core::i64]  :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply s (:tco::Bag::PutResponse::Ok 1)))])
+  [(put [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:tco::Bag::Reply::Put (:tco::Bag::PutResponse::Ok 1))) (:wat::core::Vector :- [(:wat::service::Directed :- [:tco::Bag::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:tco::bag-svc::Op])])))])
 
 (:wat::core::defn :tco::try [c <- (:wat::kernel::Peer :- [:tco::Bag::Op :tco::Bag::Reply])
                             label <- :wat::core::String] -> :wat::core::nil

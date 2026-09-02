@@ -52,15 +52,15 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Box::PutResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat-tests::Box::Reply::Put (:wat-tests::Box::PutResponse::Ok
          (:wat::i64::+
            (:wat-tests::Box::PutRequest/item req)
            ;; read the T-typed durable field generically — `v` is bound at type T
            (:wat::core::match
                (:wat-tests::box-svc::Record/held (:wat-tests::box-svc::State/durable s))
              ((:wat::core::Some v) 1)
-             (:wat::core::None 0))))))])
+             (:wat::core::None 0)))))) (:wat::core::Vector :- [(:wat::service::Directed :- [(:wat-tests::Box::Reply :- [T])])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::box-svc::Op])])))])
 
 ;; ── the gate: stand it up on the thread locus and round-trip one call ───────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)` — the generic

@@ -35,13 +35,13 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Counter::GetResponse::Ok (:probe::counter::Record/count (:probe::counter::State/durable s)))))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::Counter::Reply::Get (:probe::Counter::GetResponse::Ok (:probe::counter::Record/count (:probe::counter::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::counter::Op])])))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+ (:probe::counter::Record/count (:probe::counter::State/durable s))
                                              (:probe::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:probe::counter::State :durable (:probe::counter::Record :count c))
-                                      (:probe::Counter::IncrementResponse::Ok c))))])
+       (:wat::service::Outcome::Continue (:probe::counter::State :durable (:probe::counter::Record :count c))
+                                      (:wat::core::Some (:probe::Counter::Reply::Increment (:probe::Counter::IncrementResponse::Ok c))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::counter::Op])]))))])
 
 ;; ── A recursive worker helper: do `remaining` increments of n=1 on a connected client peer,
 ;;    counting how many typed IncrementResponse::Ok replies came back (a cross-talk / lost-reply

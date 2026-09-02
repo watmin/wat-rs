@@ -311,7 +311,7 @@
             
             ((:wat::core::Err e) (:wat::core::Err e))
             ((:wat::core::Ok _) (:wat::query::ensure-index-tables conn indexes)))]
-       (:wat::service::Outcome::Reply s (:wat::query::ensure-schema-response chained))))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::EnsureSchema (:wat::query::ensure-schema-response chained))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
 
    (put [s ctx req]
      (:wat::core::let
@@ -327,7 +327,7 @@
                 
                 ((:wat::core::Err e) (:wat::core::Err e))
                 ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
-       (:wat::service::Outcome::Reply s (:wat::query::put-response chained))))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::Put (:wat::query::put-response chained))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
 
    (delete [s ctx req]
      (:wat::core::let
@@ -341,7 +341,7 @@
               (:wat::core::match (:wat::query::delete-rows conn names keys)
                 ((:wat::core::Err e) (:wat::core::Err e))
                 ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
-       (:wat::service::Outcome::Reply s (:wat::query::delete-response chained))))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::Delete (:wat::query::delete-response chained))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
 
    (scan [s ctx req]
      (:wat::core::let
@@ -363,7 +363,7 @@
         rows-res (:wat::core::match res 
                    ((:wat::core::Err e) (:wat::core::Err e))
                    ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::row-from-cells cell-rows))))]
-       (:wat::service::Outcome::Reply s (:wat::query::scan-response rows-res lim))))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::Scan (:wat::query::scan-response rows-res lim))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
 
    (scan-index [s ctx req]
      (:wat::core::let
@@ -387,4 +387,4 @@
         rows-res (:wat::core::match res 
                    ((:wat::core::Err e) (:wat::core::Err e))
                    ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::index-row-from-cells cell-rows))))]
-       (:wat::service::Outcome::Reply s (:wat::query::scan-index-response rows-res lim))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::ScanIndex (:wat::query::scan-index-response rows-res lim))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))])

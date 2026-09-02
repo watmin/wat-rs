@@ -16,8 +16,8 @@
           (:probe::seedy::State :durable record :seed seed))
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Seedy::GetResponse::Ok (:probe::seedy::State/seed s))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::Seedy::Reply::Get (:probe::Seedy::GetResponse::Ok (:probe::seedy::State/seed s)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Seedy::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::seedy::Op])])))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -38,16 +38,16 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Counter::GetResponse::Ok
-         (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)))))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat-tests::Counter::Reply::Get (:wat-tests::Counter::GetResponse::Ok
+         (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::counter::Op])])))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+
                            (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s))
                            (:wat-tests::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply
+       (:wat::service::Outcome::Continue
          (:wat-tests::counter::State :durable (:wat-tests::counter::Record :count c))
-         (:wat-tests::Counter::IncrementResponse::Ok c))))])
+         (:wat::core::Some (:wat-tests::Counter::Reply::Increment (:wat-tests::Counter::IncrementResponse::Ok c))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::counter::Op])]))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::counter-on-thread

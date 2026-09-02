@@ -611,7 +611,7 @@
   [(ensure-schema [s ctx req]
      ;; idempotent no-op — mem-store' has no physical schema to establish (the contract's
      ;; promise is satisfied trivially; sqlite's satisfier is where CREATE TABLE/INDEX happens).
-     (:wat::service::Outcome::Reply s (:wat::query::Store::EnsureSchemaResponse::Success)))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::EnsureSchema (:wat::query::Store::EnsureSchemaResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])])))
 
    (put [s ctx req]
      ;; PutItem: replace-by-(pk,sk). Insert is conj at the end; replace is
@@ -628,11 +628,11 @@
                     :rows (:wat::query::mem-store::Record/rows dur)
                     :index (:wat::query::mem-store::State/index s))
                   new-rows)]
-       (:wat::service::Outcome::Reply
+       (:wat::service::Outcome::Continue
          (:wat::query::mem-store::State
            :durable (:wat::query::mem-store::Record (:wat::query::MemWrite/rows written))
            :index (:wat::query::MemWrite/index written))
-         (:wat::query::Store::PutResponse::Success))))
+         (:wat::core::Some (:wat::query::Store::Reply::Put (:wat::query::Store::PutResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))
 
    (delete [s ctx req]
      ;; Missing key is a no-op. Swap-remove: last row fills the hole, drop-last,
@@ -649,11 +649,11 @@
                     :rows (:wat::query::mem-store::Record/rows dur)
                     :index (:wat::query::mem-store::State/index s))
                   keys)]
-       (:wat::service::Outcome::Reply
+       (:wat::service::Outcome::Continue
          (:wat::query::mem-store::State
            :durable (:wat::query::mem-store::Record (:wat::query::MemWrite/rows written))
            :index (:wat::query::MemWrite/index written))
-         (:wat::query::Store::DeleteResponse::Success))))
+         (:wat::core::Some (:wat::query::Store::Reply::Delete (:wat::query::Store::DeleteResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))
 
    (scan [s ctx req]
      (:wat::core::let
@@ -673,7 +673,7 @@
         s1 (:wat::query::mem-store::State
              :durable (:wat::query::mem-store::State/durable s)
              :index idx)]
-       (:wat::service::Outcome::Reply s1 (:wat::query::Store::ScanResponse::Success limited next-cur))))
+       (:wat::service::Outcome::Continue s1 (:wat::core::Some (:wat::query::Store::Reply::Scan (:wat::query::Store::ScanResponse::Success limited next-cur))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))
 
    (scan-index [s ctx req]
      (:wat::core::let
@@ -690,4 +690,4 @@
         next-cur (:wat::core::if full?
                    (:wat::core::Some (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full")))
                    :wat::core::None)]
-       (:wat::service::Outcome::Reply s (:wat::query::Store::ScanIndexResponse::Success limited next-cur))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::ScanIndex (:wat::query::Store::ScanIndexResponse::Success limited next-cur))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))])

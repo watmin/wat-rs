@@ -12,15 +12,15 @@
   :ephemeral []
   :impls
   [(write-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s (:wat::query::Store::PutResponse::Success)))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteMetrics (:wat::query::Store::PutResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal-swap::Op])])))
    (write-logs [s ctx req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteLogsResponse::Success)))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteLogs (:wat::telemetry::Journal::WriteLogsResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal-swap::Op])])))
    ;; correct — so the ONLY defect is write-metrics' swapped reply type above.
    (query-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryMetricsResponse::Success
-         (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryMetrics (:wat::telemetry::Journal::QueryMetricsResponse::Success
+         (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal-swap::Op])])))
    (query-logs [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryLogsResponse::Success
-         (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryLogs (:wat::telemetry::Journal::QueryLogsResponse::Success
+         (:wat::core::Vector :wat::telemetry::Log) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal-swap::Op])])))])

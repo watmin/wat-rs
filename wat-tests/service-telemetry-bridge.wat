@@ -47,17 +47,17 @@
   :ephemeral []
   :impls
   [(record [s ctx req]
-     (:wat::service::Outcome::Reply
+     (:wat::service::Outcome::Continue
        (:wat-tests::recorder::State :durable
          (:wat-tests::recorder::Record :total
            (:wat::i64::+
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
              (:wat-tests::Recorder::RecordRequest/n req))))
-       (:wat-tests::Recorder::RecordResponse::Ok true)))
+       (:wat::core::Some (:wat-tests::Recorder::Reply::Record (:wat-tests::Recorder::RecordResponse::Ok true))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Recorder::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::recorder::Op])])))
    (total [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Recorder::TotalResponse::Ok
-         (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat-tests::Recorder::Reply::Total (:wat-tests::Recorder::TotalResponse::Ok
+         (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Recorder::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::recorder::Op])])))])
 
 ;; ── the worker service — wears :wat-tests::Worker, dials a :wat-tests::Recorder peer ─────────────
 (:wat::service::defservice :wat-tests::worker
@@ -84,7 +84,7 @@
                   (:wat-tests::Worker::WorkResponse::RequestTooLarge bytes cap))
                 ((:wat-tests::Recorder::RecordResponse::RequestMalformed mpath mexpected mgot)
                   (:wat-tests::Worker::WorkResponse::RequestMalformed mpath mexpected mgot)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the recorder peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
-       (:wat::service::Outcome::Reply s wresp)))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat-tests::Worker::Reply::Work wresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Worker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::worker::Op])]))))])
 
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
 ;; start threads the LIVE recorder address as the worker's 2nd start arg (the :init operating-input).

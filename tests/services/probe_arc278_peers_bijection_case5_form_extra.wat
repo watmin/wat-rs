@@ -26,9 +26,9 @@
   :ephemeral []
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Echo::EchoResponse::Ok
-         (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok
+         (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
 (:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
@@ -65,7 +65,7 @@
                   (:probe::Caller::RunResponse::RequestTooLarge bytes cap))
                 ((:probe::Echo::EchoResponse::RequestMalformed mpath mexpected mgot)
                   (:probe::Caller::RunResponse::RequestMalformed mpath mexpected mgot)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
-       (:wat::service::Outcome::Reply s rresp)))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Caller::Reply::Run rresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Caller::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::caller::Op])]))))])
 
 ;; ── the crossing: start both on THREADS, dial caller', which dials echo'. Return the reply. ──
 (:wat::core::defn :user::compute [] -> :wat::core::String

@@ -18,4 +18,4 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s (:my::Counter::GetResponse::Ok 0)))])
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:my::Counter::Reply::Get (:my::Counter::GetResponse::Ok 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:my::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:my::counter::Op])])))])

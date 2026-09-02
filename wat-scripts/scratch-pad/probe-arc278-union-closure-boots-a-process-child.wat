@@ -53,7 +53,7 @@
         ok (:wat::core::match t
              ((:probe::FFXTag::Alpha) true)
              ((:probe::FFXTag::Beta)  false))]
-       (:wat::service::Outcome::Reply s (:probe::FFX::PingResponse::Ok ok))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::FFX::Reply::Ping (:probe::FFX::PingResponse::Ok ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::FFX::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ffx::Op])]))))])
 
 ;; ── the DECLARED NAME of a top-level form ────────────────────────────────────────────────
 ;; Shapes seen in a prologue: (defn :n …) · (def :n …) · (defenum :n …) · (recordtype :n …) ·

@@ -23,4 +23,4 @@
   :ephemeral []
   :impls
   [(ping [s req]
-     (:wat::service::Outcome::Reply s (:probe::BadCtxArity::PingResponse::Ok true)))])
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::BadCtxArity::Reply::Ping (:probe::BadCtxArity::PingResponse::Ok true))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::BadCtxArity::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::badctxaritysvc::Op])])))])

@@ -38,7 +38,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply s (:probe::Budget::PutResponse::Ok 7)))])
+  [(put [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Budget::Reply::Put (:probe::Budget::PutResponse::Ok 7))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Budget::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::budgetsvc::Op])])))])
 
 ;; A String of exactly n*32 bytes (kept LOCAL — mirrors :probe::payload-of in the sibling FOO
 ;; fixture so this file has no cross-file dependency).

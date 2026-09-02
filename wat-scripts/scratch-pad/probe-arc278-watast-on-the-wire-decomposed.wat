@@ -120,12 +120,12 @@
           (:probe::wirekindsvc::State :durable record))
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::WireKind::EchoResponse::Ok (:probe::WireKind::EchoRequest/n req))))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::WireKind::Reply::Echo (:probe::WireKind::EchoResponse::Ok (:probe::WireKind::EchoRequest/n req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::WireKind::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::wirekindsvc::Op])])))
    (count [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::WireKind::CountResponse::Ok
-         (:wat::core::length (:probe::WireKind::CountRequest/defs req)))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::WireKind::Reply::Count (:probe::WireKind::CountResponse::Ok
+         (:wat::core::length (:probe::WireKind::CountRequest/defs req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::WireKind::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::wirekindsvc::Op])])))])
 
 (:wat::core::defn :probe::connect! [h <- :probe::wirekindsvc::Handle] -> :probe::WireKind
   (:wat::core::match (:wat::kernel::connect (:probe::wirekindsvc::Handle/addr h))

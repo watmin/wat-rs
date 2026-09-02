@@ -13,15 +13,15 @@
   :durable   []
   :ephemeral []
   :impls
-  [(incr  [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::IncrResponse::Ok)))
-   (timed [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::TimedResponse::Ok)))
-   (log   [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::LogResponse::Ok)))
+  [(incr  [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Span::Reply::Incr (:wat::telemetry::Span::IncrResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-span::Op])])))
+   (timed [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Span::Reply::Timed (:wat::telemetry::Span::TimedResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-span::Op])])))
+   (log   [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Span::Reply::Log (:wat::telemetry::Span::LogResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-span::Op])])))
    ;; item (c) stone A — `flush` joined the surface. This toy satisfier compiled WITHOUT it,
    ;; because serve-op-arms folds over `:impls` and an unimplemented surface op simply gets no arm:
    ;; nothing checks `:impls` against the surface's `:features`. See NOTE-impls-completeness-is-
    ;; unenforced.md. Implemented here so this gate keeps meaning "EVERY declared op replies".
-   (flush [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::FlushResponse::Done)))
-   (close [s ctx req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::CloseResponse::Done)))])
+   (flush [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Span::Reply::Flush (:wat::telemetry::Span::FlushResponse::Done))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-span::Op])])))
+   (close [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Span::Reply::Close (:wat::telemetry::Span::CloseResponse::Done))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-span::Op])])))])
 
 ;; :user::compute — start the toy on a thread, dial it, drive all four ops, return 1 iff close -> Done.
 (:wat::core::defn :user::compute [] -> :wat::core::i64

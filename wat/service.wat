@@ -66,19 +66,33 @@
 ;;                    stopping, same as every other reply arm.
 (:wat::core::defrecord :wat::service::Alarm :- [O] [after <- :wat::time::Duration  op <- :O])
 
-;; Directed — one named send for Outcome::ReplyTo. `conn-id` is the stable monotonic i64
-;; minted in the serve loop (Invocation/conn-id; never reused). `reply` is :R, the same
-;; type param Outcome::Reply carries.
+;; Directed — one named send on Continue.sends / Stop.sends. `conn-id` is the stable
+;; monotonic i64 minted in the serve loop (Invocation/conn-id; never reused). `reply`
+;; is :R, the protocol Reply union (the arm constructs the wire variant).
 (:wat::core::defrecord :wat::service::Directed :- [R]
   [conn-id <- :wat::core::i64  reply <- :R])
 
+;; Arc 278 the outcome composes — lifecycle is the only remaining sum. Reply/sends/arms
+;; are fields so "and also" has a form (the queue no longer needs a 1 ms timer to say it).
+;; `reply` is Option, never a vector: at most one reply per invocation is the protocol.
+;; `Stop` has sends (a stopping service can still answer parked waiters) and NO arms
+;; (future work on a terminating service is incoherent).
 (:wat::core::defenum :wat::service::Outcome :- [S R O] :wat::enum::Pure
-  :Reply         [state <- :S  reply <- :R]
-  :Stop          [state <- :S  reply <- :R]
-  :NoReply       [state <- :S]
-  :ReplyAndArm   [state <- :S  reply <- :R  arms <- (:wat::core::Vector :- [(:wat::service::Alarm :- [O])])]
-  :NoReplyAndArm [state <- :S  arms <- (:wat::core::Vector :- [(:wat::service::Alarm :- [O])])]
-  :ReplyTo       [state <- :S  sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [R])])])
+  :Continue [state <- :S
+             reply <- (:wat::core::Option :- [:R])
+             sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])
+             arms  <- (:wat::core::Vector :- [(:wat::service::Alarm :- [O])])]
+  :Stop     [state <- :S
+             reply <- (:wat::core::Option :- [:R])
+             sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])])
+
+;; Internal arms have no caller, so they have no reply field — the mistake cannot be written.
+(:wat::core::defenum :wat::service::SelfOutcome :- [S R O] :wat::enum::Pure
+  :Continue [state <- :S
+             sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])
+             arms  <- (:wat::core::Vector :- [(:wat::service::Alarm :- [O])])]
+  :Stop     [state <- :S
+             sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])])
 
 ;; ── Invocation — the MANDATORY third arm param, `[s ctx req]` (arc 278 the call context) ──
 ;;
@@ -1581,6 +1595,7 @@
                           rt-found-sym  (:wat::core::symbol-node "rtfound")
                           rt-entry-sym  (:wat::core::symbol-node "rtentry")
                           rt-keep-sym   (:wat::core::symbol-node "rtkeep")
+                          reply-keep-sym (:wat::core::symbol-node "replykeep")
                           ;; `after` is honestly typed `(Peer :- [Never O])` (it can never RECEIVE a
                           ;; Reply — arc 278 Stone 2's own comment: "after's honest uninhabited
                           ;; send-type"). `assignable`'s (Peer :- [Never _]) <: (Peer :- [Reply _]) widening
@@ -1609,23 +1624,14 @@
                          (:wat::core::if is-internal
                            
                            ;; ── INTERNAL op arm (2-param [s ctx], ctx : SelfInvocation) ────────────
-                           ;; No req-binder, no #16.2 guard, no reply variant. On fire → REMOVE the
-                           ;; one-shot timer's idx, then arm any re-arms. Reply/Stop/ReplyAndArm are
-                           ;; meaningless (no client) → a located assertion (never silently dropped).
-                           ;; Arc 278 the deferred reply — ReplyTo is the EXCEPTION: a fired timer
-                           ;; has no invoking client, which is exactly why it must be able to name
-                           ;; one. Directed.reply is sent as-is (the arm constructs the wire Reply).
+                           ;; No req-binder, no #16.2 guard, no reply field. On fire → REMOVE the
+                           ;; one-shot timer's idx, send Directed as-is (the arm constructs the wire
+                           ;; Reply), then fold arms. SelfOutcome has no reply — an internal arm
+                           ;; that replies to a caller it does not have has no form (rung 3).
                            (:wat::core::conj acc
                              `((~op-variant-kw)
-                                (:wat::core::match (:wat::core::let ~let-bindings ~body) 
-                                  ((:wat::service::Outcome::NoReply new-state)
-                                    (~serve-name self l (:wat::seq::remove-at selectables idx) next-id new-state))
-                                  ((:wat::service::Outcome::NoReplyAndArm new-state arms)
-                                    (~serve-name self l
-                                      (:wat::core::foldl ~arm-fn (:wat::seq::remove-at selectables idx) arms)
-                                      next-id
-                                      new-state))
-                                  ((:wat::service::Outcome::ReplyTo new-state sends)
+                                (:wat::core::match (:wat::core::let ~let-bindings ~body)
+                                  ((:wat::service::SelfOutcome::Continue new-state sends arms)
                                     (:wat::core::let
                                       [~rt-sel-sym (:wat::seq::remove-at selectables idx)
                                        ~rt-keep-sym
@@ -1659,20 +1665,44 @@
                                            true
                                            sends)]
                                       (:wat::core::if ~rt-keep-sym
-                                        (~serve-name self l ~rt-sel-sym next-id new-state)
+                                        (~serve-name self l
+                                          (:wat::core::foldl ~arm-fn ~rt-sel-sym arms)
+                                          next-id new-state)
                                         nil)))
-                                  ((:wat::service::Outcome::Reply new-state resp)
-                                    (:wat::kernel::assertion-failed!
-                                      "defservice: an internal (-) op returned Outcome::Reply, but an internal op has no client to reply to (return NoReply / NoReplyAndArm / ReplyTo)"
-                                      :wat::core::None :wat::core::None))
-                                  ((:wat::service::Outcome::Stop final-state resp)
-                                    (:wat::kernel::assertion-failed!
-                                      "defservice: an internal (-) op returned Outcome::Stop, but an internal op has no client to reply to"
-                                      :wat::core::None :wat::core::None))
-                                  ((:wat::service::Outcome::ReplyAndArm new-state resp arms)
-                                    (:wat::kernel::assertion-failed!
-                                      "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)"
-                                      :wat::core::None :wat::core::None)))))
+                                  ((:wat::service::SelfOutcome::Stop final-state sends)
+                                    (:wat::core::let
+                                      [~rt-sel-sym (:wat::seq::remove-at selectables idx)
+                                       ~rt-keep-sym
+                                         (:wat::core::foldl
+                                           (:wat::core::fn [~rt-acc-sym <- :wat::core::bool
+                                                            ~rt-d-sym <- (:wat::service::Directed :- [~proto-reply-ty-ann])]
+                                              -> :wat::core::bool
+                                             (:wat::core::if ~rt-acc-sym
+                                               (:wat::core::match
+                                                 (:wat::core::foldl
+                                                   (:wat::core::fn [~rt-found-sym <- (:wat::core::Option :- [~selectable-peer-ty])
+                                                                    ~rt-entry-sym <- ~selectable-entry-ty]
+                                                      -> (:wat::core::Option :- [~selectable-peer-ty])
+                                                     (:wat::core::match ~rt-found-sym
+                                                       ((:wat::core::Some _p) ~rt-found-sym)
+                                                       (:wat::core::None
+                                                         (:wat::core::if (:wat::core::= (:wat::core::first ~rt-entry-sym)
+                                                                                        (:wat::service::Directed/conn-id ~rt-d-sym))
+                                                           (:wat::core::Some (:wat::core::second ~rt-entry-sym))
+                                                           :wat::core::None))))
+                                                   :wat::core::None
+                                                   ~rt-sel-sym)
+                                                 (:wat::core::None true)
+                                                 ((:wat::core::Some peer)
+                                                   (:wat::core::match (:wat::kernel::send peer (:wat::service::Directed/reply ~rt-d-sym))
+                                                     (:wat::kernel::SendOutcome::Sent   true)
+                                                     (:wat::kernel::SendOutcome::Closed true)
+                                                     (:wat::kernel::SendOutcome::Stopped false)
+                                                     ((:wat::kernel::SendOutcome::Lost _c) true))))
+                                               false))
+                                           true
+                                           sends)]
+                                      nil)))))
                            ;; ── SURFACE op arm (3-param [s ctx req], ctx : Invocation) ─────────────
                            ;; #16.2 budget guard; wraps the op's reply variant; KEEPS its idx (a
                            ;; client persists even on a NoReply cast). …AndArm folds new timers in.
@@ -1715,8 +1745,9 @@
                                               (:wat::string::concat proto-base
                                                 (:wat::string::interpolate "::{variant-pascal}Response::RequestMalformed" :variant-pascal variant-pascal)))
                               n-sym         (:wat::core::symbol-node "n")
-                              ;; Arc 278 the deferred reply — per-op Response type, so Directed.reply
-                              ;; unifies with Outcome::Reply's :R (the wrap below uses reply-variant-kw).
+                              ;; Arc 278 the outcome composes — Continue.reply is already the wire
+                              ;; Reply (the arm wraps `<Surface>::Reply::<Op>`); sends are Directed of
+                              ;; the same union, sent as-is. Same R, so reply+sends unify.
                               ;; NAME the surface-minted alias (`<Surface>::<op>/Response`), same as
                               ;; the client method's `client-resp-ty` — NOT `{Variant}Response :- [~@proto-args]`,
                               ;; which is the wrong arity on a Response that does not carry every
@@ -1742,47 +1773,66 @@
                                                 ;; bug, not a tidy uniformity — it is precisely the
                                                 ;; identical-arms discard the stone forbids, at every service
                                                 ;; this macro will ever generate.
-                                                ((:wat::service::Outcome::Reply new-state resp)
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
-                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id new-state))
-                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id new-state))   ;; client gone → keep serving
-                                                    (:wat::kernel::SendOutcome::Stopped nil)                                          ;; the WORLD is stopping → return, do not recurse
-                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id new-state))))
-                                                ((:wat::service::Outcome::Stop final-state resp)
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
-                                                    (:wat::kernel::SendOutcome::Sent   nil)
-                                                    (:wat::kernel::SendOutcome::Closed nil)   ;; client gone → still stopping
-                                                    ;; uniform here and the precondition is the whole reason:
-                                                    ;; this handler ALREADY decided to stop, so a stop arriving
-                                                    ;; mid-reply changes nothing. Same body, stated cause.
-                                                    (:wat::kernel::SendOutcome::Stopped nil)
-                                                    ((:wat::kernel::SendOutcome::Lost _c) nil)))
-                                                ((:wat::service::Outcome::NoReply new-state)
-                                                  (~serve-name self l selectables next-id new-state))
-                                                ((:wat::service::Outcome::ReplyAndArm new-state resp arms)
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
-                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state))
-                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state))   ;; client gone → keep serving
-                                                    ;; the world is stopping → return WITHOUT arming: arming a
-                                                    ;; new selectable on the way down would register work the
-                                                    ;; loop is about to abandon.
-                                                    (:wat::kernel::SendOutcome::Stopped nil)
-                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state))))
-                                                ((:wat::service::Outcome::NoReplyAndArm new-state arms)
-                                                  (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state))
-                                                ;; Arc 278 the deferred reply — resolve each Directed by conn-id
-                                                ;; and send, wrapping Directed.reply with THIS arm's reply variant
-                                                ;; (Outcome::Reply's :R is the per-op Response; the wrap is the same
-                                                ;; one Reply uses). Absent conn-id / Closed / Lost → keep serving.
-                                                ;; Stopped → the world is stopping, return, do not recurse.
-                                                ;; The invoker is NOT replied to (cast-like); the client connection
-                                                ;; stays in selectables, same as NoReply.
-                                                ((:wat::service::Outcome::ReplyTo new-state sends)
+                                                ((:wat::service::Outcome::Continue new-state reply sends arms)
                                                   (:wat::core::let
                                                     [~rt-keep-sym
-                                                      (:wat::core::foldl
+                                                      (:wat::core::let
+                                                        [~reply-keep-sym
+                                                          (:wat::core::match reply
+                                                            (:wat::core::None true)
+                                                            ((:wat::core::Some resp)
+                                                              (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) resp)
+                                                                (:wat::kernel::SendOutcome::Sent   true)
+                                                                (:wat::kernel::SendOutcome::Closed true)
+                                                                (:wat::kernel::SendOutcome::Stopped false)
+                                                                ((:wat::kernel::SendOutcome::Lost _c) true))))]
+                                                        (:wat::core::if ~reply-keep-sym
+                                                          (:wat::core::foldl
+                                                            (:wat::core::fn [~rt-acc-sym <- :wat::core::bool
+                                                                             ~rt-d-sym <- (:wat::service::Directed :- [~proto-reply-ty-ann])]
+                                                               -> :wat::core::bool
+                                                              (:wat::core::if ~rt-acc-sym
+                                                                (:wat::core::match
+                                                                  (:wat::core::foldl
+                                                                    (:wat::core::fn [~rt-found-sym <- (:wat::core::Option :- [~selectable-peer-ty])
+                                                                                     ~rt-entry-sym <- ~selectable-entry-ty]
+                                                                       -> (:wat::core::Option :- [~selectable-peer-ty])
+                                                                      (:wat::core::match ~rt-found-sym
+                                                                        ((:wat::core::Some _p) ~rt-found-sym)
+                                                                        (:wat::core::None
+                                                                          (:wat::core::if (:wat::core::= (:wat::core::first ~rt-entry-sym)
+                                                                                                         (:wat::service::Directed/conn-id ~rt-d-sym))
+                                                                            (:wat::core::Some (:wat::core::second ~rt-entry-sym))
+                                                                            :wat::core::None))))
+                                                                    :wat::core::None
+                                                                    selectables)
+                                                                  (:wat::core::None true)
+                                                                  ((:wat::core::Some peer)
+                                                                    (:wat::core::match (:wat::kernel::send peer (:wat::service::Directed/reply ~rt-d-sym))
+                                                                      (:wat::kernel::SendOutcome::Sent   true)
+                                                                      (:wat::kernel::SendOutcome::Closed true)
+                                                                      (:wat::kernel::SendOutcome::Stopped false)
+                                                                      ((:wat::kernel::SendOutcome::Lost _c) true))))
+                                                                false))
+                                                            true
+                                                            sends)
+                                                          false))]
+                                                    (:wat::core::if ~rt-keep-sym
+                                                      (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)
+                                                      nil)))
+                                                ((:wat::service::Outcome::Stop final-state reply sends)
+                                                  (:wat::core::do
+                                                    (:wat::core::match reply
+                                                      (:wat::core::None true)
+                                                      ((:wat::core::Some resp)
+                                                        (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) resp)
+                                                          (:wat::kernel::SendOutcome::Sent   true)
+                                                          (:wat::kernel::SendOutcome::Closed true)
+                                                          (:wat::kernel::SendOutcome::Stopped true)
+                                                          ((:wat::kernel::SendOutcome::Lost _c) true))))
+                                                    (:wat::core::foldl
                                                         (:wat::core::fn [~rt-acc-sym <- :wat::core::bool
-                                                                         ~rt-d-sym <- (:wat::service::Directed :- [~op-resp-ty])]
+                                                                         ~rt-d-sym <- (:wat::service::Directed :- [~proto-reply-ty-ann])]
                                                            -> :wat::core::bool
                                                           (:wat::core::if ~rt-acc-sym
                                                             (:wat::core::match
@@ -1801,17 +1851,15 @@
                                                                 selectables)
                                                               (:wat::core::None true)
                                                               ((:wat::core::Some peer)
-                                                                (:wat::core::match (:wat::kernel::send peer (~reply-variant-kw (:wat::service::Directed/reply ~rt-d-sym)))
+                                                                (:wat::core::match (:wat::kernel::send peer (:wat::service::Directed/reply ~rt-d-sym))
                                                                   (:wat::kernel::SendOutcome::Sent   true)
                                                                   (:wat::kernel::SendOutcome::Closed true)
                                                                   (:wat::kernel::SendOutcome::Stopped false)
                                                                   ((:wat::kernel::SendOutcome::Lost _c) true))))
                                                             false))
                                                         true
-                                                        sends)]
-                                                    (:wat::core::if ~rt-keep-sym
-                                                      (~serve-name self l selectables next-id new-state)
-                                                      nil))))
+                                                        sends)
+                                                    nil)))
                               ;; ── arc 278 — the REQUEST-MALFORMED sanitization wall (UNCONDITIONAL) ──
                               ;; The SIZE guard's sibling, in the SAME slot and for the same reason.
                               ;; `:max-request-bytes` asks "is this request too BIG?"; this asks "is

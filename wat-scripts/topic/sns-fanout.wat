@@ -48,8 +48,8 @@
   :ephemeral []
   :impls
   [(deliver [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:demo::Sub::DeliverResponse::Ok (:demo::Sub::DeliverRequest/msg req))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:demo::Sub::DeliverRequest/msg req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::sub::Op])])))])
 
 ;; ── TOPIC ───────────────────────────────────────────────────────────────────────
 ;; publish means ACCEPTED. Delivery is a -deliver tick. A full outbox refuses
@@ -126,7 +126,7 @@
         box   (:demo::topic::State/outbox s)
         n     (:wat::core::count box)]
        (:wat::core::if (:wat::i64::>= n cap)
-         (:wat::service::Outcome::Reply s (:demo::Topic::PublishResponse::Full n cap))
+         (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full n cap))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])]))
          (:wat::core::let
            [was-empty? (:wat::core::empty? box)
             box' (:wat::core::conj box msg)
@@ -138,15 +138,15 @@
                    :ticks (:demo::topic::State/ticks s))
             delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)]
            (:wat::core::if was-empty?
-             (:wat::service::Outcome::ReplyAndArm s' (:demo::Topic::PublishResponse::Ok)
-               [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-deliver)])
-             (:wat::service::Outcome::Reply s' (:demo::Topic::PublishResponse::Ok)))))))
+             (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok)))
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-deliver)])
+             (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])))))))
 
    (stats [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:demo::Topic::StatsResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
          (:wat::core::count (:demo::topic::State/outbox s))
-         (:demo::topic::State/ticks s))))
+         (:demo::topic::State/ticks s)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])))
 
    ;; Take the head, fan out, re-arm while the outbox is non-empty.
    (-deliver [s ctx]
@@ -157,13 +157,13 @@
         box   (:demo::topic::State/outbox s)
         ticks (:wat::i64::+ (:demo::topic::State/ticks s) 1)]
        (:wat::core::if (:wat::core::empty? box)
-         (:wat::service::Outcome::NoReply
+         (:wat::service::SelfOutcome::Continue
            (:demo::topic::State
              :durable rec
              :bijection-anchor (:demo::topic::State/bijection-anchor s)
              :subs (:demo::topic::State/subs s)
              :outbox box
-             :ticks ticks))
+             :ticks ticks) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])]))
          (:wat::core::let
            [msg  (:wat::core::first box)
             rest (:wat::core::foldl
@@ -190,9 +190,9 @@
                  :outbox rest
                  :ticks ticks)]
            (:wat::core::if (:wat::core::empty? rest)
-             (:wat::service::Outcome::NoReply s')
-             (:wat::service::Outcome::NoReplyAndArm s'
-               [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-deliver)]))))))])
+             (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])]))
+             (:wat::service::SelfOutcome::Continue s'
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])]) [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0) :op :-deliver)]))))))])
 
 ;; ── the two runs ────────────────────────────────────────────────────────────────
 (:wat::core::defn :demo::dial-topic
@@ -308,8 +308,8 @@
              ((:wat::kernel::RecvOutcome::Lost _c) nil)
              (:wat::kernel::RecvOutcome::Stopped nil)
              (:wat::kernel::RecvOutcome::Closed nil))]
-       (:wat::service::Outcome::Reply s
-         (:demo::Sub::DeliverResponse::Ok (:demo::Sub::DeliverRequest/msg req)))))])
+       (:wat::service::Outcome::Continue s
+         (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:demo::Sub::DeliverRequest/msg req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::slow-sub::Op])]))))])
 
 ;; Row 1: publish returns before a slow subscriber finishes.
 (:wat::core::defn :user::publish-is-async [] -> :wat::core::String

@@ -17,8 +17,8 @@
 
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
-  :impls [(echo [s ctx req] (:wat::service::Outcome::Reply s
-                          (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
+  :impls [(echo [s ctx req] (:wat::service::Outcome::Continue s
+                          (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -18,8 +18,8 @@
   :ephemeral []
   :impls
   [(is-holon-record [s ctx req]
-     (:wat::service::Outcome::Reply s (:my::HCounter::IsHolonRecordResponse::Ok
-                                        (:wat::core::record? (:my::hcounter::State/durable s)))))]
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:my::HCounter::Reply::IsHolonRecord (:my::HCounter::IsHolonRecordResponse::Ok
+                                        (:wat::core::record? (:my::hcounter::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:my::HCounter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:my::hcounter::Op])])))]
   :durable-parent :wat::holon::Record)
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool

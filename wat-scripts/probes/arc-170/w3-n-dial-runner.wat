@@ -16,8 +16,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
+            (:wat::service::Outcome::Continue s
+              (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
@@ -29,8 +29,8 @@
 (:wat::service::defservice :probe::kv
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Kv::GetResponse::Ok (:probe::Kv::GetRequest/k req))))])
+            (:wat::service::Outcome::Continue s
+              (:wat::core::Some (:probe::Kv::Reply::Get (:probe::Kv::GetResponse::Ok (:probe::Kv::GetRequest/k req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Kv::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::kv::Op])])))])
 
 ;; The hand-written N=2 dial-runner — the shape W3's codegen would emit. Item I = String,
 ;; O = String. The carrier D = (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]); ctx holds the dialed pair.

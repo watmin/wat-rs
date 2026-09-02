@@ -45,7 +45,7 @@
        :satisfies :probe::Wrapped
        :durable []
        :impls
-       [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Wrapped::EchoResponse::Ok (:probe::Wrapped::EchoRequest/c req))))])))
+       [(echo [s req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Wrapped::Reply::Echo (:probe::Wrapped::EchoResponse::Ok (:probe::Wrapped::EchoRequest/c req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Wrapped::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::wrappedsvc::Op])])))])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

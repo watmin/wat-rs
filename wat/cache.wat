@@ -210,8 +210,8 @@
   ;; `nil` accumulator, mirrors `wat/bracket.wat`'s per-item fan-out folds) — `PutResponse` carries
   ;; nothing back (file-header departure note).
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::cache::Cache::GetResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::cache::Cache::Reply::Get (:wat::cache::Cache::GetResponse::Ok
          (:wat::core::foldl
            (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
                             k   <- :K]
@@ -221,10 +221,10 @@
                  ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
-           (:wat::cache::Cache::GetRequest/probes req)))))
+           (:wat::cache::Cache::GetRequest/probes req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [(:wat::cache::Cache::Reply :- [K V])])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::cache::lru-svc::Op])])))
    (put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::core::let
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::cache::Cache::Reply::Put (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
                                e    <- (:wat::cache::Entry :- [K V])]
@@ -235,7 +235,7 @@
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse::Ok))))])
+         (:wat::cache::Cache::PutResponse::Ok)))) (:wat::core::Vector :- [(:wat::service::Directed :- [(:wat::cache::Cache::Reply :- [K V])])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::cache::lru-svc::Op])])))])
 
 ;; ═══ Stone 3 — :wat::cache::HolographicLru, the SIMILARITY-KEYED composite ═══════════════════
 ;;
@@ -403,8 +403,8 @@
   ;; the whole-batch level instead of a per-entry `Option`. Eviction is still OBSERVABLE through
   ;; the service — just via a later `get` miss, exactly as the gate proves.
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::cache::Cache::GetResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::cache::Cache::Reply::Get (:wat::cache::Cache::GetResponse::Ok
          (:wat::core::foldl
            (:wat::core::fn [acc   <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
                             probe <- :wat::holon::HolonAST]
@@ -414,10 +414,10 @@
                  ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
-           (:wat::cache::Cache::GetRequest/probes req)))))
+           (:wat::cache::Cache::GetRequest/probes req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [(:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::cache::hologram-svc::Op])])))
    (put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::core::let
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::cache::Cache::Reply::Put (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
                                e    <- (:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
@@ -428,4 +428,4 @@
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse::Ok))))])
+         (:wat::cache::Cache::PutResponse::Ok)))) (:wat::core::Vector :- [(:wat::service::Directed :- [(:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::cache::hologram-svc::Op])])))])

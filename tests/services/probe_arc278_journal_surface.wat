@@ -9,28 +9,28 @@
   :ephemeral []
   :impls
   [(write-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteMetricsResponse::Success)))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteMetrics (:wat::telemetry::Journal::WriteMetricsResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal::Op])])))
    (write-logs [s ctx req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteLogsResponse::Success)))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteLogs (:wat::telemetry::Journal::WriteLogsResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal::Op])])))
    (query-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryMetricsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryMetrics (:wat::telemetry::Journal::QueryMetricsResponse::Success
+         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal::Op])])))
    (query-logs [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryLogsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryLogs (:wat::telemetry::Journal::QueryLogsResponse::Success
+         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal::Op])])))
    ;; arc 278 Stone 2 — sift-logs/sift-metrics widened the Journal surface; the toy must
    ;; implement every feature to satisfy it (mirrors the query-* stubs above; the sieve is
    ;; unused by this throwaway toy).
    (sift-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::SiftMetricsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::SiftMetrics (:wat::telemetry::Journal::SiftMetricsResponse::Success
+         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal::Op])])))
    (sift-logs [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::SiftLogsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None)))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat::telemetry::Journal::Reply::SiftLogs (:wat::telemetry::Journal::SiftLogsResponse::Success
+         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::toy-journal::Op])])))])
 
 ;; `:probe::run` — start the toy on a thread, dial it, call `write-metrics` with a 1-element
 ;; `Metric` batch, and return the raw response (the .rs asserts it is `WriteMetricsResponse::Success`).

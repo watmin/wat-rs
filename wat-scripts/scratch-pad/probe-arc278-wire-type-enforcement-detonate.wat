@@ -34,10 +34,10 @@
   :impls
   ;; The handler uses `items[0]` AS A STRING — exactly what the declaration promises.
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe-det::Bag::PutResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe-det::Bag::Reply::Put (:probe-det::Bag::PutResponse::Ok
          (:wat::string::length
-           (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0)))))])
+           (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe-det::Bag::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe-det::bag-svc::Op])])))])
 
 (:wat::core::defn :probe-det::round-trip
   [c     <- (:wat::kernel::Peer :- [:probe-det::Bag::Op :probe-det::Bag::Reply])

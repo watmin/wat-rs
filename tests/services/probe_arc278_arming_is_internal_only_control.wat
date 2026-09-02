@@ -38,13 +38,13 @@
   :impls
   [;; The one difference from the sibling `.wat.bad`: arms `-tick` (INTERNAL), not `bump`.
    (start [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:probe::Tick2::StartResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 5)
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Tick2::Reply::Start (:probe::Tick2::StartResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Tick2::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5)
           :op (:probe::tick2::Op::-Tick))]))
 
    (bump [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Tick2::BumpResponse::Ok)))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::Tick2::Reply::Bump (:probe::Tick2::BumpResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Tick2::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::tick2::Op])])))
 
    (-tick [s ctx]
-     (:wat::service::Outcome::NoReply s))])
+     (:wat::service::SelfOutcome::Continue s (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Tick2::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::tick2::Op])])))])

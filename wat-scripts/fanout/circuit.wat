@@ -61,8 +61,8 @@
                (:queue::Queue::SendRequest :queue name :body body :now-ns now))]
        (:wat::core::match sr
          ((:wat::kernel::RecvOutcome::Message _r)
-           (:wat::service::Outcome::Reply s (:demo::Sub::DeliverResponse::Ok body)))
-         (_ (:wat::service::Outcome::Reply s (:demo::Sub::DeliverResponse::Ok body))))))])
+           (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])))
+         (_ (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])]))))))])
 
 ;; ── worker: self-scheduling process that pulls from ONE queue ────────────────
 (:wat::core::defsurface :fanout::Worker :nature :wat::kernel::Peer
@@ -107,8 +107,8 @@
           (:fanout::worker::State/outcomes s))
   :impls
   [(start [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:fanout::Worker::StartResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
    ;; One unit per tick: receive, ack, re-arm. Returning to the serve loop
    ;; between messages is what makes Admin::Stop possible.
    ;; wait-ns is 0: a parked receive (wait-ns>0) at process locus with ≥4
@@ -154,8 +154,8 @@
                           outs
                           envs)
                   s' (:fanout::worker::State :durable rec :q q :outcomes outs')]
-                 (:wat::service::Outcome::NoReplyAndArm s'
-                   [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+                 (:wat::service::SelfOutcome::Continue s'
+                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
              (_ (:wat::kernel::assertion-failed! "fanout worker: receive not Ok" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost cause)
            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -193,8 +193,8 @@
           (:fanout::held-worker::State/outcomes s))
   :impls
   [(start [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:fanout::Worker::StartResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
    (-tick [s ctx]
      (:wat::core::let
        [rec  (:fanout::held-worker::State/durable s)
@@ -228,8 +228,8 @@
                     held)
             s' (:fanout::held-worker::State :durable rec :q q :outcomes outs'
                  :held (:wat::core::Vector :- [:queue::Envelope]))]
-           (:wat::service::Outcome::NoReplyAndArm s'
-             [(:wat::service::Alarm :after (:wat::time::Millisecond 500) :op :-tick)]))
+           (:wat::service::SelfOutcome::Continue s'
+             (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 500) :op :-tick)]))
          (:wat::core::let
            [now (:wat::time::epoch-nanos (:wat::time::now))
             vis 1000000000000
@@ -241,12 +241,12 @@
                (:wat::core::match r
                  ((:queue::Queue::ReceiveResponse::Ok envs)
                    (:wat::core::if (:wat::core::empty? envs)
-                     (:wat::service::Outcome::NoReplyAndArm s
-                       [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])
+                     (:wat::service::SelfOutcome::Continue s
+                       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])
                      (:wat::core::let
                        [s' (:fanout::held-worker::State :durable rec :q q :outcomes outs :held envs)]
-                       (:wat::service::Outcome::NoReplyAndArm s'
-                         [(:wat::service::Alarm :after (:wat::time::Millisecond 500) :op :-tick)]))))
+                       (:wat::service::SelfOutcome::Continue s'
+                         (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 500) :op :-tick)]))))
                  (_ (:wat::kernel::assertion-failed! "held-worker: receive not Ok" :wat::core::None :wat::core::None))))
              ((:wat::kernel::RecvOutcome::Lost cause)
                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))

@@ -58,8 +58,8 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Pair::PutResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat-tests::Pair::Reply::Put (:wat-tests::Pair::PutResponse::Ok
          (:wat::i64::+
            (:wat-tests::Pair::PutRequest/item req)
            (:wat::i64::+
@@ -72,7 +72,7 @@
              (:wat::core::match
                  (:wat-tests::pair-svc::Record/v (:wat-tests::pair-svc::State/durable s))
                ((:wat::core::Some vv) 100)
-               (:wat::core::None 0)))))))])
+               (:wat::core::None 0))))))) (:wat::core::Vector :- [(:wat::service::Directed :- [(:wat-tests::Pair::Reply :- [K V])])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::pair-svc::Op])])))])
 
 ;; ── the gate: stand it up on the thread locus and round-trip one call ───────────────────────
 ;; K is pinned to String and V to i64 BY THE SEED — two DIFFERENT concrete types, so a split

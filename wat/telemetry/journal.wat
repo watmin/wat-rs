@@ -171,7 +171,7 @@
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
-       (:wat::service::Outcome::Reply s wresp)))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteMetrics wresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    (write-logs [s ctx req]
      (:wat::core::let
@@ -215,7 +215,7 @@
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
-       (:wat::service::Outcome::Reply s wresp)))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteLogs wresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    ;; query-metrics — scan the namespace's Metric partition over [time-lo, time-hi], hydrate each
    ;; stored row back to a Metric (:wat::edn::read off the tag), page via cursor. NO rete.
@@ -267,7 +267,7 @@
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
-       (:wat::service::Outcome::Reply s qresp)))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryMetrics qresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    ;; query-logs — the same for the Log partition.
    (query-logs [s ctx req]
@@ -318,7 +318,7 @@
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
-       (:wat::service::Outcome::Reply s qresp)))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryLogs qresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    ;; sift-logs — arc 278 Stone 2: query-logs + server-side filtering. The predicate (a `Sieve`'s
    ;; `::`-source) is compiled ONCE (read-string -> unwrap -> verify
@@ -389,7 +389,7 @@
                    (:wat::telemetry::Journal::SiftLogsResponse::Fatal
                      (:wat::query::Fatal :reason
                        (:wat::query::Fault :message "sift-logs: predicate must be pure, deterministic, and total"))))]
-       (:wat::service::Outcome::Reply s qresp)))
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::SiftLogs qresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    ;; sift-metrics — the mechanical twin, over the Metric partition.
    (sift-metrics [s ctx req]
@@ -455,4 +455,4 @@
                    (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
                      (:wat::query::Fatal :reason
                        (:wat::query::Fault :message "sift-metrics: predicate must be pure, deterministic, and total"))))]
-       (:wat::service::Outcome::Reply s qresp)))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::SiftMetrics qresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))])

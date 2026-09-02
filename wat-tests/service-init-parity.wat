@@ -32,9 +32,9 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::SeededCounter::GetResponse::Ok
-         (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat-tests::SeededCounter::Reply::Get (:wat-tests::SeededCounter::GetResponse::Ok
+         (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::SeededCounter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::seeded-counter::Op])])))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; start takes the Record (seeded-counter::Record 42); init defaults to State/new(d).

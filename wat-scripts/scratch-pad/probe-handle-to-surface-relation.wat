@@ -64,7 +64,7 @@
   :init (:wat::core::fn [record <- :hs::alpha::Record] -> :hs::alpha::State
           (:hs::alpha::State :durable record))
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:hs::Alpha::PingResponse::Pong)))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:hs::Alpha::Reply::Ping (:hs::Alpha::PingResponse::Pong))) (:wat::core::Vector :- [(:wat::service::Directed :- [:hs::Alpha::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:hs::alpha::Op])])))])
 
 ;; ── service BETA — a DIFFERENT surface, so its address type is distinguishable from alpha's ──
 (:wat::core::defsurface :hs::Beta :nature :wat::kernel::Peer
@@ -85,7 +85,7 @@
   :init (:wat::core::fn [record <- :hs::beta::Record] -> :hs::beta::State
           (:hs::beta::State :durable record))
   :impls
-  [(poke [s ctx req] (:wat::service::Outcome::Reply s (:hs::Beta::PokeResponse::Ok)))])
+  [(poke [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:hs::Beta::Reply::Poke (:hs::Beta::PokeResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:hs::Beta::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:hs::beta::Op])])))])
 
 ;; ── THE ASSAY ────────────────────────────────────────────────────────────────────────────────
 ;; Each binding carries an EXACT annotation naming that service's own Op/Reply. An annotation is a

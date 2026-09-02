@@ -45,7 +45,7 @@
              
             ((:wat::spawn::ServiceEvent::Message _idx mm) mm)
             (_ :no-tick))]
-       (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse::Ok m))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat-tests::Deadline::Reply::WaitTick (:wat-tests::Deadline::WaitTickResponse::Ok m))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Deadline::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::deadline::Op])]))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::timer::env-grab-on-thread

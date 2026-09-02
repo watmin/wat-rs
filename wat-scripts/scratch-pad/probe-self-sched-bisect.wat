@@ -38,13 +38,13 @@
           (:sched::ticker::State :durable record))
   :impls
   [(start [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm s (:sched::Ticker::StartResponse::Ok)
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:sched::Ticker::Reply::Start (:sched::Ticker::StartResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
 
    (poll [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:sched::Ticker::PollResponse::Count
-         (:sched::ticker::Record/count (:sched::ticker::State/durable s)))))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:sched::Ticker::Reply::Poll (:sched::Ticker::PollResponse::Count
+         (:sched::ticker::Record/count (:sched::ticker::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:sched::ticker::Op])])))
 
    (-tick [s ctx]
      (:wat::core::let
@@ -53,9 +53,9 @@
         rec' (:sched::ticker::Record :count n :target (:sched::ticker::Record/target rec))
         s'   (:sched::ticker::State :durable rec')]
        (:wat::core::if (:wat::i64::< n (:sched::ticker::Record/target rec))
-         (:wat::service::Outcome::NoReplyAndArm s'
-           [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
-         (:wat::service::Outcome::NoReply s'))))])
+         (:wat::service::SelfOutcome::Continue s'
+           (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
+         (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:sched::ticker::Op])])))))])
 
 ;; mora-honest wait — a one-shot `after` selected on, never a sleep.
 (:wat::core::defn :sched::nap [ms <- :wat::core::i64] -> :wat::core::nil

@@ -63,9 +63,9 @@
         new-user1  (:wat::kernel::sigusr1?)
         new-user2  (:wat::kernel::sigusr2?)
         rec        (:wat-tests::signal-observer::Record :requests new-reqs :sighup new-sighup :user1 new-user1 :user2 new-user2)]
-       (:wat::service::Outcome::Reply
+       (:wat::service::Outcome::Continue
          (:wat-tests::signal-observer::State :durable rec)
-         (:wat-tests::SignalObserver::ObserveResponse::Ok new-reqs new-sighup new-user1 new-user2))))])
+         (:wat::core::Some (:wat-tests::SignalObserver::Reply::Observe (:wat-tests::SignalObserver::ObserveResponse::Ok new-reqs new-sighup new-user1 new-user2))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::SignalObserver::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::signal-observer::Op])]))))])
 
 ;; ── a helper: drive one `observe` round trip, facing every RecvOutcome arm. ──────────────────
 (:wat::core::defn :wat-tests::signal-observer::observe! [c <- :wat-tests::SignalObserver] -> :wat-tests::SignalObserver::ObserveResponse

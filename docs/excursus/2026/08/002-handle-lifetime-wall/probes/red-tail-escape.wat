@@ -36,7 +36,7 @@
   :init (:wat::core::fn [record <- :red::alpha::Record] -> :red::alpha::State
           (:red::alpha::State :durable record))
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:red::Alpha::PingResponse::Pong)))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:red::Alpha::Reply::Ping (:red::Alpha::PingResponse::Pong))) (:wat::core::Vector :- [(:wat::service::Directed :- [:red::Alpha::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:red::alpha::Op])])))])
 
 ;; ✅ MUST KEEP COMPILING — the ordinary `conn` helper. Handle arrives as a PARAM.
 (:wat::core::defn :red::conn

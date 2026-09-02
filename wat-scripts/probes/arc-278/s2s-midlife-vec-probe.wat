@@ -25,8 +25,8 @@
   :ephemeral []
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:probe::Echo::Reply::Echo (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Echo::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::echo::Op])])))])
 
 (:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
   :messages
@@ -57,7 +57,7 @@
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))
   ((:probe::Echo::EchoResponse::RequestMalformed mpath mexpected mgot)
     (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
-       (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse::Ok out))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Caller::Reply::Run (:probe::Caller::RunResponse::Ok out))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Caller::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::caller::Op])]))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

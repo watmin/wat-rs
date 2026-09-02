@@ -34,11 +34,11 @@
           (:wat-tests::offset-counter::State :durable record :base offset))
   :impls
   [(total [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::OffsetCounter::TotalResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:wat-tests::OffsetCounter::Reply::Total (:wat-tests::OffsetCounter::TotalResponse::Ok
          (:wat::i64::+
            (:wat-tests::offset-counter::Record/count (:wat-tests::offset-counter::State/durable s))
-           (:wat-tests::offset-counter::State/base s)))))])
+           (:wat-tests::offset-counter::State/base s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::OffsetCounter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat-tests::offset-counter::Op])])))])
 
 ;; thread tier: start with (Record 5) + live offset 100 -> Total == 105 (durable.count 5 + ephemeral.base 100).
 ;; The offset is the second :init arg — the live operating-input the law exists for.

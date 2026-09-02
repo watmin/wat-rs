@@ -53,7 +53,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:probe::Trio::PingResponse::Ok)))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Trio::Reply::Ping (:probe::Trio::PingResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::partial::Op])])))])
 
 ;; ✅ MUST KEEP COMPILING — every feature has an arm.
 (:wat::service::defservice :probe::complete
@@ -61,9 +61,9 @@
   :durable   []
   :ephemeral []
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:probe::Trio::PingResponse::Ok)))
-   (pong [s ctx req] (:wat::service::Outcome::Reply s (:probe::Trio::PongResponse::Ok)))
-   (pang [s ctx req] (:wat::service::Outcome::Reply s (:probe::Trio::PangResponse::Ok)))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Trio::Reply::Ping (:probe::Trio::PingResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::complete::Op])])))
+   (pong [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Trio::Reply::Pong (:probe::Trio::PongResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::complete::Op])])))
+   (pang [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Trio::Reply::Pang (:probe::Trio::PangResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::complete::Op])])))])
 
 ;; ✅ MUST KEEP COMPILING — every feature has an arm, PLUS an internal `-tick`.
 ;; A symmetric `impls == features` rule rejects this; `features ⊆ impls` must not.
@@ -72,10 +72,10 @@
   :durable   []
   :ephemeral []
   :impls
-  [(ping [s ctx req] (:wat::service::Outcome::Reply s (:probe::Trio::PingResponse::Ok)))
-   (pong [s ctx req] (:wat::service::Outcome::Reply s (:probe::Trio::PongResponse::Ok)))
-   (pang [s ctx req] (:wat::service::Outcome::Reply s (:probe::Trio::PangResponse::Ok)))
-   (-tick [s ctx] (:wat::service::Outcome::NoReply s))])
+  [(ping [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Trio::Reply::Ping (:probe::Trio::PingResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ticking::Op])])))
+   (pong [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Trio::Reply::Pong (:probe::Trio::PongResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ticking::Op])])))
+   (pang [s ctx req] (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Trio::Reply::Pang (:probe::Trio::PangResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ticking::Op])])))
+   (-tick [s ctx] (:wat::service::SelfOutcome::Continue s (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Trio::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ticking::Op])])))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println "this file must never freeze"))

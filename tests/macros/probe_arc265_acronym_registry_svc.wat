@@ -29,8 +29,8 @@
   :ephemeral []
   :impls
   [(create-web-acl [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:my::aws::Waf::CreateWebACLResponse::Ok (:my::waf::Record/count (:my::waf::State/durable s)))))])
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:my::aws::Waf::Reply::CreateWebACL (:my::aws::Waf::CreateWebACLResponse::Ok (:my::waf::Record/count (:my::waf::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:my::aws::Waf::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:my::waf::Op])])))])
 
 ;; Prove the surface synthesized `:my::aws::Waf::Op::CreateWebACL` (acronym-cased). Constructing
 ;; and matching that EXACT variant type-checks + evals ONLY if S1 threaded the `ACL` acronym; with

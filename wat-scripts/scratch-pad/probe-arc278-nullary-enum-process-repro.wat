@@ -29,7 +29,7 @@
              ((:probe::Mini::Tag::Closed) true)
              ((:probe::Mini::Tag::Lost) false)
              ((:probe::Mini::Tag::Rejected) false))]
-       (:wat::service::Outcome::Reply s (:probe::Mini::PingResponse::Ok ok))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Mini::Reply::Ping (:probe::Mini::PingResponse::Ok ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Mini::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::mini::Op])]))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

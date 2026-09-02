@@ -43,10 +43,10 @@
   :impls
   [(put [s ctx req]
      ;; uses the field AT ITS DECLARED TYPE — correct against the declaration
-     (:wat::service::Outcome::Reply s
-       (:dos::Bag::PutResponse::Ok
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:dos::Bag::Reply::Put (:dos::Bag::PutResponse::Ok
          (:wat::string::length
-           (:wat::core::nth (:dos::Bag::PutRequest/items req) 0)))))])
+           (:wat::core::nth (:dos::Bag::PutRequest/items req) 0))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:dos::Bag::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:dos::bag-svc::Op])])))])
 
 (:wat::core::defn :dos::try
   [c <- (:wat::kernel::Peer :- [:dos::Bag::Op :dos::Bag::Reply])  label <- :wat::core::String

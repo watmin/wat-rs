@@ -23,13 +23,13 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:my::Counter::Reply::Get (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:my::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:my::counter::Op])])))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
-                                      (:my::Counter::IncrementResponse::Ok c))))])
+       (:wat::service::Outcome::Continue (:my::counter::State :durable (:my::counter::Record :count c))
+                                      (:wat::core::Some (:my::Counter::Reply::Increment (:my::Counter::IncrementResponse::Ok c))) (:wat::core::Vector :- [(:wat::service::Directed :- [:my::Counter::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:my::counter::Op])]))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let

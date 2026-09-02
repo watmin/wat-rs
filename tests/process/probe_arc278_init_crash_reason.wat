@@ -29,7 +29,7 @@
             (:t::boominit::State :durable record)))
   :impls
   [(ping [s ctx req]
-     (:wat::service::Outcome::Reply s (:t::Boom::PingResponse::Ok 0)))])
+     (:wat::service::Outcome::Continue s (:wat::core::Some (:t::Boom::Reply::Ping (:t::Boom::PingResponse::Ok 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:t::Boom::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:t::boominit::Op])])))])
 
 ;; The owner starts the crashing service and dials it. This MUST raise carrying the sentinel
 ;; (the :init crash reason reached the owner), not hang and not lose the reason.
