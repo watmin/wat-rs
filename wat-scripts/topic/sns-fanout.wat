@@ -83,7 +83,7 @@
   ;; `bijection-anchor` exists ONLY to satisfy the :peers bijection — see THE ONE WART above.
   :ephemeral [bijection-anchor <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])
               subs   <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
-              outbox <- (:wat::core::Vector :- [:wat::core::String])
+              outbox <- (:wat::core::PersistentVector :- [:wat::core::String])
               ticks  <- :wat::core::i64
               deliver-armed? <- :wat::core::bool
               arm-deliver <- [:wat::core::bool :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::bool (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])])]]
@@ -131,7 +131,7 @@
                       ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
                 (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
                 addrs)
-            :outbox (:wat::core::Vector :- [:wat::core::String])
+            :outbox (:wat::core::PersistentVector :- [:wat::core::String])
             :ticks 0
             :deliver-armed? false
             :arm-deliver arm-deliver)))
@@ -144,7 +144,7 @@
         delay (:demo::topic::Record/delay-ns rec)
         delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
         box   (:demo::topic::State/outbox s)
-        n     (:wat::core::count box)
+        n     (:wat::vector::length box)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])]
        (:wat::core::if (:wat::i64::>= n cap)
          (:wat::core::let
@@ -164,7 +164,7 @@
              sends
              (:wat::core::second pair)))
          (:wat::core::let
-           [box' (:wat::core::conj box msg)
+           [box' (:wat::vector::conj box msg)
             s'   (:demo::topic::State
                    :durable rec
                    :bijection-anchor (:demo::topic::State/bijection-anchor s)
@@ -175,7 +175,7 @@
                    :arm-deliver (:demo::topic::State/arm-deliver s))
             pair (:wat::core::apply (:demo::topic::State/arm-deliver s')
                     (:demo::topic::State/deliver-armed? s')
-                    [(:wat::core::count box') delay0])
+                    [(:wat::vector::length box') delay0])
             s-a (:demo::topic::State
                   :durable rec
                   :bijection-anchor (:demo::topic::State/bijection-anchor s)
@@ -196,7 +196,7 @@
         delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
         pair (:wat::core::apply (:demo::topic::State/arm-deliver s)
                 (:demo::topic::State/deliver-armed? s)
-                [(:wat::core::count (:demo::topic::State/outbox s)) delay0])
+                [(:wat::vector::length (:demo::topic::State/outbox s)) delay0])
         s-a (:demo::topic::State
               :durable rec
               :bijection-anchor (:demo::topic::State/bijection-anchor s)
@@ -207,7 +207,7 @@
               :arm-deliver (:demo::topic::State/arm-deliver s))]
        (:wat::service::Outcome::Continue s-a
          (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
-           (:wat::core::count (:demo::topic::State/outbox s))
+           (:wat::vector::length (:demo::topic::State/outbox s))
            (:demo::topic::State/ticks s))))
          (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
          (:wat::core::second pair))))
@@ -221,7 +221,7 @@
         box   (:demo::topic::State/outbox s)
         ticks (:wat::i64::+ (:demo::topic::State/ticks s) 1)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])]
-       (:wat::core::if (:wat::core::empty? box)
+       (:wat::core::if (:wat::vector::empty? box)
          (:wat::core::let
            [s0 (:demo::topic::State
                  :durable rec
@@ -242,14 +242,17 @@
                   :arm-deliver (:demo::topic::State/arm-deliver s))]
            (:wat::service::SelfOutcome::Continue s-a sends (:wat::core::second pair)))
          (:wat::core::let
-           [msg  (:wat::core::first box)
+           [msg  (:wat::core::Option/expect (:wat::vector::get box 0)
+                   "topic -deliver: outbox head present by construction")
             rest (:wat::core::foldl
-                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
+                   (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                     i   <- :wat::core::i64]
-                     -> (:wat::core::Vector :- [:wat::core::String])
-                     (:wat::core::conj acc (:wat::core::nth box (:wat::i64::+ i 1))))
-                   (:wat::core::Vector :- [:wat::core::String])
-                   (:wat::core::range 0 (:wat::i64::- (:wat::core::count box) 1)))
+                     -> (:wat::core::PersistentVector :- [:wat::core::String])
+                     (:wat::vector::conj acc
+                       (:wat::core::Option/expect (:wat::vector::get box (:wat::i64::+ i 1))
+                         "topic -deliver: rebuild index in range by construction")))
+                   (:wat::core::PersistentVector :- [:wat::core::String])
+                   (:wat::core::range 0 (:wat::i64::- (:wat::vector::length box) 1)))
             _n   (:wat::core::foldl
                    (:wat::core::fn
                      [acc <- :wat::core::i64
@@ -270,7 +273,7 @@
                  :arm-deliver (:demo::topic::State/arm-deliver s))
             pair (:wat::core::apply (:demo::topic::State/arm-deliver s')
                     false
-                    [(:wat::core::count rest) delay0])
+                    [(:wat::vector::length rest) delay0])
             s-a (:demo::topic::State
                   :durable rec
                   :bijection-anchor (:demo::topic::State/bijection-anchor s)

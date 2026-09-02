@@ -87,7 +87,7 @@
   :durable   [id         <- :wat::core::String
               queue-name <- :wat::core::String]
   :ephemeral [q        <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-              outcomes <- (:wat::core::Vector :- [:fanout::Outcome])]
+              outcomes <- (:wat::core::PersistentVector :- [:fanout::Outcome])]
   :peers     [:queue::Queue]
   :init (:wat::core::fn
           [record     <- :fanout::worker::Record
@@ -102,8 +102,8 @@
                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                  ((:wat::kernel::ConnectOutcome::Failed c)
                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-            :outcomes (:wat::core::Vector :- [:fanout::Outcome])))
-  :stop (:wat::core::fn [s <- :fanout::worker::State] -> (:wat::core::Vector :- [:fanout::Outcome])
+            :outcomes (:wat::core::PersistentVector :- [:fanout::Outcome])))
+  :stop (:wat::core::fn [s <- :fanout::worker::State] -> (:wat::core::PersistentVector :- [:fanout::Outcome])
           (:fanout::worker::State/outcomes s))
   :impls
   [(start [s ctx req]
@@ -131,9 +131,9 @@
              ((:queue::Queue::ReceiveResponse::Ok envs)
                (:wat::core::let
                  [outs' (:wat::core::foldl
-                          (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::Outcome])
+                          (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:fanout::Outcome])
                                            e   <- :queue::Envelope]
-                            -> (:wat::core::Vector :- [:fanout::Outcome])
+                            -> (:wat::core::PersistentVector :- [:fanout::Outcome])
                             (:wat::core::let
                               [eid   (:queue::Envelope/id e)
                                ebody (:queue::Envelope/body e)
@@ -141,7 +141,7 @@
                                        (:queue::Queue::AckRequest :queue name :id eid))]
                               (:wat::core::match ar
                                 ((:wat::kernel::RecvOutcome::Message _ar)
-                                  (:wat::core::conj acc
+                                  (:wat::vector::conj acc
                                     (:fanout::Outcome :worker wid :queue name :id eid :body ebody)))
                                 ((:wat::kernel::RecvOutcome::Lost cause)
                                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
