@@ -352,6 +352,15 @@ pub(crate) struct SpecialFormImplSubmission {
     /// Restringified fn source — `quote!(#item).to_string()`, same mechanism
     /// `#[wat_intrinsic]` uses for its `source` field (`wat_intrinsic.rs:565`).
     pub source: &'static str,
+    /// The role's callable pointer — arc 255 Stone the-eval-door. `Some` ONLY for
+    /// `role = eval` submissions (the macro emits a generated shim, canonical
+    /// `NativeHandler` shape, wrapping the annotated fn's return per
+    /// `wat_intrinsic.rs`'s shared `sniff_return`/`wrap_call_for_return`, STOP-4);
+    /// `None` for `role = check` and `role = tail` (STOP-2 — those keep emitting source
+    /// only; a tail pointer has no `eval_tail` guard to call it yet). Folded into
+    /// `IntrinsicEntry`'s EXISTING `handler` field by `registry()`, not a new slot —
+    /// the tail door (a later stone) is a second such role and gets its own field then.
+    pub eval_handler: Option<NativeHandler>,
 }
 
 inventory::collect!(SpecialFormImplSubmission);
@@ -363,9 +372,11 @@ inventory::collect!(SpecialFormImplSubmission);
 /// `source` is consumed by `show-source` — every field has a reader.
 pub(crate) struct IntrinsicEntry {
     pub name: &'static str,
-    /// The native dispatch handler. `Some` for `Kind::Intrinsic`; `None` for
-    /// `Kind::SpecialForm` (special forms are dispatched by the runtime engine,
-    /// not by a registered Rust fn).
+    /// The native dispatch handler. Always `Some` for `Kind::Intrinsic`. For
+    /// `Kind::SpecialForm`, `Some` when a `role = eval` implementation registered a pointer
+    /// (arc 255 Stone the-eval-door — `fn`/`if`/`let`/`match` all do, as of that stone) and
+    /// `None` for a special form that has not (registered but reached only through the
+    /// runtime engine's own dispatch, not a registered Rust fn here).
     pub handler: Option<NativeHandler>,
     /// Arc 255 Stone N — mirrors `IntrinsicSubmission::value_handler`; `None`
     /// for `Kind::SpecialForm` and for any `Kind::Intrinsic` that hasn't
@@ -539,11 +550,20 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
         // than the keyed relationship it is.
         let mut impls_by_fqdn: std::collections::HashMap<&'static str, Vec<(SpecialFormRole, &'static str)>> =
             std::collections::HashMap::new();
+        // arc 255 Stone the-eval-door — bucketed alongside `impls_by_fqdn`, same pass, same
+        // stream: the `role = eval` pointer a submission carries (`None` for check/tail,
+        // STOP-2). Folded into `IntrinsicEntry`'s EXISTING `handler` field below, not a new
+        // slot on the entry.
+        let mut eval_handler_by_fqdn: std::collections::HashMap<&'static str, NativeHandler> =
+            std::collections::HashMap::new();
         for submission in inventory::iter::<SpecialFormImplSubmission> {
             impls_by_fqdn
                 .entry(submission.name)
                 .or_default()
                 .push((submission.role, submission.source));
+            if let Some(eval_handler) = submission.eval_handler {
+                eval_handler_by_fqdn.insert(submission.name, eval_handler);
+            }
         }
         // Each `#[wat_special_form("<fqdn>")]` struct submits a SpecialFormSubmission
         // via `inventory`; fold them into the registry as Kind::SpecialForm entries.
@@ -563,7 +583,10 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
             };
             r.register(IntrinsicEntry {
                 name: submission.name,
-                handler: None,
+                // arc 255 Stone the-eval-door — `Some` when a `role = eval` submission
+                // registered a pointer for this fqdn; `lookup`/`dispatch_keyword_head_value`'s
+                // existing guard then dispatches it unchanged (no new consult site).
+                handler: eval_handler_by_fqdn.remove(submission.name),
                 value_handler: None,
                 kind: Kind::SpecialForm,
                 syntax: submission.syntax,
@@ -2432,11 +2455,16 @@ mod tests {
     /// stone immediately before this one left `record?`/`u8`/`bool::to-string`/`not`/`show`
     /// behind — this gate is their first payment and the wall against a sixth).
     ///
-    /// ⛔ The predicate is `entry.handler.is_some()`, NEVER a name list — `:wat::core::fn`,
-    /// `if`, `let`, `match` sit in the SAME match, look identical to the five, and are
-    /// `Kind::SpecialForm` with `handler: None`; their arm is the ONLY dispatch they have, and
-    /// exempting them by measuring `handler.is_some()` (rather than by naming them) is what
-    /// keeps the exemption from rotting the moment a fifth special form registers.
+    /// ⛔ The predicate is `entry.handler.is_some()`, NEVER a name list. At the time this gate
+    /// was written, `:wat::core::fn`, `if`, `let`, `match` sat in the SAME match, looked
+    /// identical to the five, and were `Kind::SpecialForm` with `handler: None`; their arm was
+    /// the ONLY dispatch they had, so the predicate exempted them WITHOUT naming them.
+    /// Arc 255 `DESIGN-STONE-every-role-carries-its-pointer.md` (the eval door) closed that gap
+    /// for all four: each now carries a `role = eval` handler (`handler: Some`), and THIS gate —
+    /// unchanged — is what then demanded their arms be deleted (`src/runtime.rs`, § the eval
+    /// door). Measuring `handler.is_some()` (rather than naming them) is what made that demand
+    /// automatic instead of requiring a second edit to this test; it is also what keeps the
+    /// exemption from rotting the moment a future special form registers with no eval impl yet.
     ///
     /// ⛔ The search is bounded to `dispatch_keyword_head_value`'s own span, not the whole file —
     /// `runtime.rs` has THREE matches that dispatch on these names (`dispatch_keyword_head_value`,

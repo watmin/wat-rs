@@ -1,6 +1,10 @@
 //! Special-form doc entry for `:wat::core::fn` — arc 255.SF, the-membership-gap-gets-a-ratchet.
 
-use wat_macros::wat_special_form;
+use wat_macros::{wat_special_form, wat_special_form_impl};
+
+use crate::ast::WatAST;
+use crate::span::Span;
+use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
 /// Construct a closure over the enclosing environment: bind each declared `<param>` to its `:T`,
 /// close over the current scope, and defer `<body>` entirely — none of it runs until the
@@ -43,3 +47,21 @@ use wat_macros::wat_special_form;
 /// @example ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 7) #=> 7
 #[wat_special_form(":wat::core::fn")]
 pub(crate) struct Fn;
+
+/// Arc 255 Stone the-eval-door — the `role = eval` pointer for `:wat::core::fn`. `eval_fn`
+/// (`src/function/eval.rs`) does not fit the canonical `NativeHandler` shape: three params
+/// (no `sym`) and `Result<Value, RuntimeError>` rather than `Result<Value, EvalBreak>` (STOP-3
+/// forbids reshaping it — it has three callers' worth of history). This thin delegate takes the
+/// full four `NativeHandler` params, ignores `sym` (`fn` construction never consults the symbol
+/// table — it captures the enclosing `Environment`, not a symbol binding), and converts the
+/// error via `.map_err(Into::into)` — the same idiom `src/intrinsic/kernel/stdio.rs`'s handlers
+/// already use to bridge a `RuntimeError`-returning inner fn into `EvalBreak`.
+#[wat_special_form_impl(":wat::core::fn", role = eval)]
+fn eval_fn_form(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::function::eval_fn(args, list_span, env).map_err(Into::into)
+}

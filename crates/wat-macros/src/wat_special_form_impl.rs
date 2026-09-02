@@ -13,8 +13,10 @@
 //! them into the `IntrinsicEntry::impls` Vec and `show-source` prints all three, labelled.
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Error, Ident, ItemFn, LitStr, Token};
+
+use crate::wat_intrinsic::{sniff_return, wrap_call_for_return};
 
 /// The parsed `#[wat_special_form_impl(<fqdn>, role = <role>)]` attribute payload.
 pub(crate) struct WatSpecialFormImplAttr {
@@ -72,9 +74,44 @@ pub(crate) fn emit(attr: &WatSpecialFormImplAttr, item: &ItemFn) -> syn::Result<
     // adds a submission, it does not reroute a call (STOP-2).
     let source_lit = quote!(#item).to_string();
 
+    // arc 255 Stone the-eval-door — `role = eval` ALSO emits a callable pointer, so the
+    // registry's `handler` slot (not a new field, STOP into a second door) can dispatch this
+    // form directly. `role = check` / `role = tail` keep emitting source only (STOP-2): a tail
+    // pointer with no `eval_tail` guard to call it is dead weight, and that door is a later
+    // stone. STOP-4: the Value-vs-TrackedValue decision is NOT re-derived here — `sniff_return`
+    // and `wrap_call_for_return` are the SAME fns `wat_intrinsic.rs`'s `emit` calls, made
+    // `pub(crate)` for exactly this reuse.
+    let (eval_shim_tokens, eval_handler_field) = if attr.role.to_string().as_str() == "eval" {
+        let fn_ident = &item.sig.ident;
+        let sniffed_return = sniff_return(item)?;
+        let shim_ident = format_ident!("__wat_special_form_eval_{}", fn_ident);
+        let call = wrap_call_for_return(&sniffed_return, quote! { #fn_ident(args, list_span, env, sym) });
+        let shim = quote! {
+            // Dispatch shim — canonical `NativeHandler` signature, same shape
+            // `wat_intrinsic.rs`'s `emit` generates for an ordinary intrinsic. The annotated
+            // eval fn's own params are ALREADY in this exact order (measured, DESIGN's "the
+            // type needs no invention" table) — no context-tail reordering to do.
+            fn #shim_ident(
+                args: &[::wat::ast::WatAST],
+                list_span: &::wat::span::Span,
+                env: &::wat::value::Environment,
+                sym: &::wat::value::SymbolTable,
+            ) -> ::std::result::Result<::wat::value::TrackedValue, ::wat::value::EvalBreak> {
+                #call
+            }
+        };
+        (shim, quote! { ::std::option::Option::Some(#shim_ident) })
+    } else {
+        (TokenStream2::new(), quote! { ::std::option::Option::None })
+    };
+
     let expanded = quote! {
         // The annotated implementation, passed through unchanged.
         #item
+
+        // arc 255 Stone the-eval-door — the generated eval shim (role = eval only; empty
+        // otherwise).
+        #eval_shim_tokens
 
         // Auto-collect: link-time registration of this (fqdn, role) implementation. Gathered
         // by `registry()` and folded into the matching `Kind::SpecialForm` entry's `impls`.
@@ -83,6 +120,7 @@ pub(crate) fn emit(attr: &WatSpecialFormImplAttr, item: &ItemFn) -> syn::Result<
                 name: #fqdn,
                 role: #role_token,
                 source: #source_lit,
+                eval_handler: #eval_handler_field,
             }
         }
     };

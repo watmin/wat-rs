@@ -2045,15 +2045,25 @@ fn dispatch_keyword_head_value(
         // function values (Clojure-faithful lowercase verb; mirrors
         // arc 154's let retirement recipe). Routes to `eval_fn`
         // (formerly `eval_lambda`).
-        ":wat::core::fn" => crate::function::eval_fn(args, list_span, env).map_err(Into::into),
+        // Arc 255 `DESIGN-STONE-every-role-carries-its-pointer.md` — this arm RETIRED;
+        // `:wat::core::fn` carries a registered `role = eval` handler now (`eval_fn_form`,
+        // `src/intrinsic/special/fn_form.rs`), so the registry-first door above
+        // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to `eval_fn`
+        // (unchanged) before this match is ever reached.
         // Arc 155 slice 2 — `:wat::core::lambda` dispatch arm retired.
         // Single-letform vocabulary; lambda is dead (Clojure-faithful;
         // `fn` replaces `lambda` per user direction 2026-05-07).
         // BareLegacyLambda variant + Display retained as orphaned
         // scaffolding (arc 113 precedent); runtime fall-through retired.
-        ":wat::core::let" => eval_let(args, list_span, env, sym).map(|tv| tv.value_owned()),
+        // Arc 255 `DESIGN-STONE-every-role-carries-its-pointer.md` — this arm RETIRED;
+        // `:wat::core::let` carries a registered `role = eval` handler now, so the
+        // registry-first door above (`crate::intrinsic::registry().lookup(head)`) already
+        // dispatches it to `eval_let` (unchanged) before this match is ever reached.
         ":wat::core::do" => eval_do(args, list_span, env, sym),
-        ":wat::core::if" => eval_if(args, list_span, env, sym),
+        // Arc 255 `DESIGN-STONE-every-role-carries-its-pointer.md` — this arm RETIRED;
+        // `:wat::core::if` carries a registered `role = eval` handler now, so the
+        // registry-first door above (`crate::intrinsic::registry().lookup(head)`) already
+        // dispatches it to `eval_if` (unchanged) before this match is ever reached.
         // Arc 251 Stone 251.4b — checked, type-erased identity.
         // The type slot is ERASED at runtime; only the expr is evaluated.
         ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
@@ -2219,7 +2229,10 @@ fn dispatch_keyword_head_value(
         // Arc 255 Stone HOME-8 — ":wat::holon::from-holon" (the one holon producer) is now
         // registered via `#[wat_intrinsic]` (`src/intrinsic/holon/atom.rs`); the registry-first
         // door at the top of `dispatch_keyword_head` finds it before this match is ever reached.
-        ":wat::core::match" => eval_match(args, list_span, env, sym),
+        // Arc 255 `DESIGN-STONE-every-role-carries-its-pointer.md` — this arm RETIRED;
+        // `:wat::core::match` carries a registered `role = eval` handler now, so the
+        // registry-first door above (`crate::intrinsic::registry().lookup(head)`) already
+        // dispatches it to `eval_match` (unchanged) before this match is ever reached.
         // Arc 255.1c-kernel-remainder (home #8) — `:wat::kernel::serve-dispatch-op`'s
         // non-tail literal arm (and its `eval_kernel_serve_dispatch_op` delegate, which
         // evaluated `body` via `eval_inner`) moved to the intrinsic registry, WHICH NOW

@@ -45,7 +45,6 @@ use std::sync::Arc;
 // `crate::runtime` (not a facade re-export of a `crate::value` type — see STOP-2) and stay
 // there; none is one of this stone's 12 items.
 use crate::runtime::{apply_function, eval_inner, synthesize_fn_body};
-use wat_macros::wat_special_form_impl;
 
 /// Arc 155 retired `:wat::core::lambda`; arc 162 renamed this function
 /// from `eval_lambda` to `eval_fn` to mirror the user-facing rename.
@@ -56,7 +55,12 @@ use wat_macros::wat_special_form_impl;
 /// dispatch arm (src/runtime.rs — the only active entry point).
 ///
 /// Moved from `src/runtime.rs` at Stone 241.18a.
-#[wat_special_form_impl(":wat::core::fn", role = eval)]
+///
+/// Arc 255 Stone the-eval-door — no longer carries `#[wat_special_form_impl(role = eval)]`
+/// directly: this fn's signature (three params, `Result<Value, RuntimeError>`) does not fit
+/// the canonical `NativeHandler` shape the registry's `role = eval` pointer requires (STOP-3 —
+/// its signature does not change). `eval_fn_form` (`src/intrinsic/special/fn_form.rs`) is the
+/// thin delegate that carries the annotation instead.
 pub(crate) fn eval_fn(
     args: &[WatAST],
     list_span: &Span,

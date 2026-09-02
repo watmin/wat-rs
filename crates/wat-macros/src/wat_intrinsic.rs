@@ -357,7 +357,12 @@ fn pat_ident(pat: &Pat) -> syn::Result<String> {
 
 /// Result of sniffing the handler's RETURN type — the same shape as `SniffedArgs`, applied to
 /// the return side instead of the argument side (arc 255 Stone G).
-enum SniffedReturn {
+///
+/// `pub(crate)` (arc 255 Stone the-eval-door, STOP-4): `wat_special_form_impl.rs`'s `role = eval`
+/// codegen reuses this sniff and [`wrap_call_for_return`] rather than re-deriving the
+/// Value-vs-TrackedValue decision a second time — one authority for the question, shared across
+/// the sibling module, not a copy.
+pub(crate) enum SniffedReturn {
     /// `-> Result<Value, EvalBreak>` — the ~250 pre-existing handlers. The shim wraps the
     /// returned bare `Value` as `TrackedValue::new(v, Provenance::Unknown)` — unchanged default.
     BareValue,
@@ -370,7 +375,9 @@ enum SniffedReturn {
 /// Sniff the handler fn's return type: `Result<Value, EvalBreak>` or
 /// `Result<TrackedValue, EvalBreak>`. Any other return type is rejected with a `compile_error!`
 /// naming the two accepted shapes — never silently guessed.
-fn sniff_return(item: &ItemFn) -> syn::Result<SniffedReturn> {
+///
+/// `pub(crate)` — see [`SniffedReturn`]'s doc: shared with `wat_special_form_impl.rs`.
+pub(crate) fn sniff_return(item: &ItemFn) -> syn::Result<SniffedReturn> {
     let ReturnType::Type(_, ty) = &item.sig.output else {
         return Err(Error::new_spanned(
             &item.sig,
@@ -388,6 +395,19 @@ fn sniff_return(item: &ItemFn) -> syn::Result<SniffedReturn> {
             "wat_intrinsic: handler must return `Result<Value, EvalBreak>` or \
              `Result<TrackedValue, EvalBreak>` — got a different Ok type",
         ))
+    }
+}
+
+/// Wrap a handler call per its sniffed return shape (arc 255 Stone G) — the ONE place that
+/// decides Value-vs-TrackedValue handling. `emit`, below, calls this via its `wrap_call`
+/// closure; `wat_special_form_impl.rs`'s `role = eval` codegen calls it directly
+/// (arc 255 Stone the-eval-door, STOP-4) rather than re-deriving the same match.
+pub(crate) fn wrap_call_for_return(sniffed_return: &SniffedReturn, call: TokenStream2) -> TokenStream2 {
+    match sniffed_return {
+        SniffedReturn::BareValue => quote! {
+            #call.map(::wat::value::TrackedValue::from)
+        },
+        SniffedReturn::Tracked => call,
     }
 }
 
@@ -951,18 +971,11 @@ pub(crate) fn emit(
         quote! { ::wat::intrinsic::Arity::Exact(#n) }
     };
 
-    // Wrap the raw handler call per the sniffed return shape (arc 255 Stone G): a bare-`Value`
-    // handler's `Ok` is lifted to `TrackedValue::new(v, Provenance::Unknown)` — today's
-    // behaviour, unchanged; a `TrackedValue`-returning handler's `Ok` passes through
-    // un-rewrapped, carrying whatever `Provenance` it stamped (e.g. `RuntimeBuilt`).
-    let wrap_call = |call: TokenStream2| -> TokenStream2 {
-        match sniffed_return {
-            SniffedReturn::BareValue => quote! {
-                #call.map(::wat::value::TrackedValue::from)
-            },
-            SniffedReturn::Tracked => call,
-        }
-    };
+    // Wrap the raw handler call per the sniffed return shape (arc 255 Stone G) — extracted to
+    // the top-level `wrap_call_for_return` (arc 255 Stone the-eval-door, STOP-4) so
+    // `wat_special_form_impl.rs`'s `role = eval` codegen can call the SAME fn instead of
+    // re-deriving the Value-vs-TrackedValue decision.
+    let wrap_call = |call: TokenStream2| -> TokenStream2 { wrap_call_for_return(&sniffed_return, call) };
 
     // Build the shim body. For exact-arity: check len == N, then forward individual refs.
     // For variadic: pass the whole slice directly (no arity check — 0+ args all valid).
