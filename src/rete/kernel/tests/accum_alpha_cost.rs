@@ -157,6 +157,17 @@ fn accum_alpha_leftover_split() {
     let mut t = f64::INFINITY;
     let mut m = f64::INFINITY;
     let mut a = f64::INFINITY;
+    // ⛔ TWO `alpha_activate_fact` ARMS, AND THE DIFFERENCE IS `bind_only` — NOT AN OVERSIGHT.
+    // `fire/delta.rs:70-76` computes `skip_span` from `cx.bind_only.get(&aid)`; an EMPTY map
+    // returns `None` for every id, which forces the `else` arm and runs
+    // `exec_compiled_with_key_ids` for every candidate. `a` below hands it an empty map on
+    // purpose — that is what makes the ladder nest, because A then contains M's exec work.
+    // `a_prod` builds the map exactly as production does at `fire/delta.rs:339-346`, so it takes
+    // the branch a real fire takes. For this workload all 3/3 conds are bind-only (driven by
+    // `c4_probe_bind_only_decides_skip_span_for_the_accum_axis`: built pool=0 vs empty
+    // pool=120,200), so `a_prod` skips interning entirely and lands BELOW `M`. It is therefore
+    // reported as its own row and NEVER subtracted from — the derived rows stay anchored on `a`.
+    let mut a_prod = f64::INFINITY;
     for _ in 0..RUNS {
         wp = wp.min(elapsed_ns(|| {
             for f in input_pv.iter() {
@@ -249,30 +260,77 @@ fn accum_alpha_leftover_split() {
                 black_box(d_alpha.len());
             }
         }));
+        // The SAME body as `a`, with ONE difference: `bind_only` is built the way
+        // `fire/delta.rs:339-346` builds it — `bind_only_fields` over `arm.compiled_conds` —
+        // so `skip_span` is decided rather than forced off.
+        a_prod = a_prod.min(elapsed_ns(|| {
+            let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+            let mut cand = Vec::new();
+            let mut d_alpha: AlphaDelta = FxHashMap::default();
+            reset(&mut wm, &mut d_alpha);
+            let mut cond_key_ids: CondKeyIds = HashMap::new();
+            let mut bind_only_prod: HashMap<i64, Vec<u8>> = HashMap::new();
+            for (&id, c) in &arm.compiled_conds {
+                cond_key_ids.insert(
+                    id,
+                    crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys),
+                );
+                if let Some(fields) = crate::rete::compiled_cond::bind_only_fields(c) {
+                    bind_only_prod.insert(id, fields);
+                }
+            }
+            for (i, fact) in facts.iter().enumerate() {
+                super::alpha_activate_fact(
+                    fact,
+                    i as u32,
+                    &mut super::AlphaActivateCx {
+                        sym: crate::rete::compiled_cond::test_sym(),
+                        wm: &mut wm,
+                        d_alpha: &mut d_alpha,
+                        alpha_tree: &arm.alpha_tree,
+                        compiled_conds: &arm.compiled_conds,
+                        match_scratch: &mut scratch,
+                        cand_scratch: &mut cand,
+                        cond_key_ids: &cond_key_ids,
+                        bind_only: &bind_only_prod,
+                    },
+                )
+                .expect("isolated activate (production bind_only)");
+                black_box(d_alpha.len());
+            }
+        }));
     }
 
     let table = format!(
         "\naccum alpha leftover split — [200 200], MINIMUM of {RUNS}\n\
              in-fire (2 pairs, not per fact)\n\
-             FIRE                       {:>7.2} ms\n\
-             alpha                      {:>7.2} ms\n\
-               seed                     {:>7.2} ms  {:>6}x\n\
-               delta                    {:>7.2} ms  {:>6}x\n\
-               seed+delta               {:>7.2} ms\n\
+             FIRE                               {:>7.2} ms\n\
+             alpha                              {:>7.2} ms\n\
+               seed                             {:>7.2} ms  {:>6}x\n\
+               delta                            {:>7.2} ms  {:>6}x\n\
+               seed+delta                       {:>7.2} ms\n\
              \n\
              isolated (cold intern each run, {} facts)\n\
-             Wp  PV iter                {:>7.2} ms\n\
-             W   Vec iter               {:>7.2} ms\n\
-             C   class extract          {:>7.2} ms\n\
-             T   + candidates           {:>7.2} ms\n\
-             M   + exec_compiled        {:>7.2} ms\n\
-             A   alpha_activate_fact    {:>7.2} ms\n\
+             Wp  PV iter                        {:>7.2} ms\n\
+             W   Vec iter                       {:>7.2} ms\n\
+             C   class extract                  {:>7.2} ms\n\
+             T   + candidates                   {:>7.2} ms\n\
+             M   + exec_compiled                {:>7.2} ms\n\
+             A   activate, skip_span forced off {:>7.2} ms\n\
+             Ap  activate, production bind_only {:>7.2} ms\n\
              \n\
-             C−W   extract              {:>7.2} ms\n\
-             T−C   tree                 {:>7.2} ms\n\
-             M−T   exec_compiled+intern {:>7.2} ms\n\
-             A−M   push                 {:>7.2} ms\n\
-             A vs seed                  {:>7.2} ms isolated vs {:>7.2} in-fire\n",
+             A hands `alpha_activate_fact` an EMPTY bind_only, so fire/delta.rs:70-76\n\
+             reads None for every alpha id and skip_span is false unconditionally —\n\
+             every candidate runs exec_compiled_with_key_ids. That is why A ⊇ M and why\n\
+             the ladder below nests. Ap builds bind_only as fire/delta.rs:339-346 does;\n\
+             for this axis all 3/3 conds are bind-only, so Ap skips that exec and sits\n\
+             BELOW M. Ap is a standalone row: NOTHING below is derived from it.\n\
+             \n\
+             C−W   extract                      {:>7.2} ms\n\
+             T−C   tree                         {:>7.2} ms\n\
+             M−T   exec_compiled+intern         {:>7.2} ms\n\
+             A−M   push (A = skip_span off)     {:>7.2} ms\n\
+             A vs seed                          {:>7.2} ms isolated vs {:>7.2} in-fire\n",
         ms(fire),
         ms(alpha),
         ms(seed),
@@ -287,6 +345,7 @@ fn accum_alpha_leftover_split() {
         ms(t),
         ms(m),
         ms(a),
+        ms(a_prod),
         ms(c - w),
         ms(t - c),
         ms(m - t),
@@ -302,6 +361,10 @@ fn accum_alpha_leftover_split() {
     assert!(
         a > 0.0,
         "isolated activate recorded 0 — the loop never ran:{table}"
+    );
+    assert!(
+        a_prod > 0.0,
+        "production-bind_only activate recorded 0 — the Ap loop never ran:{table}"
     );
     assert!(
         seed_pairs > 0,
@@ -966,6 +1029,13 @@ fn accum_alpha_push_split() {
     let mut v = f64::INFINITY;
     let mut d = f64::INFINITY;
     let mut a = f64::INFINITY;
+    // ⛔ SEE THE SAME NOTE IN `accum_alpha_leftover_split`. `a` passes an EMPTY `bind_only`, which
+    // makes `fire/delta.rs:70-76` read `None` for every alpha id and forces `skip_span` false —
+    // every candidate runs `exec_compiled_with_key_ids`, which is exactly why `a` contains `m`'s
+    // work and the M→H→V→D→A ladder nests. `a_prod` builds the map as `fire/delta.rs:339-346`
+    // does, so it takes the branch production takes; on this axis 3/3 conds are bind-only, so it
+    // skips that exec and lands below `m`. It is a standalone row — nothing is derived from it.
+    let mut a_prod = f64::INFINITY;
     for _ in 0..RUNS {
         m = m.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
@@ -1118,27 +1188,75 @@ fn accum_alpha_push_split() {
                 black_box(d_alpha.len());
             }
         }));
+        // The SAME body as `a`, with ONE difference: `bind_only` is built the way
+        // `fire/delta.rs:339-346` builds it — `bind_only_fields` over `arm.compiled_conds` —
+        // so `skip_span` is decided rather than forced off.
+        a_prod = a_prod.min(elapsed_ns(|| {
+            let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
+            let mut cand = Vec::new();
+            let mut d_alpha: AlphaDelta = FxHashMap::default();
+            reset(&mut wm, &mut d_alpha);
+            let mut cond_key_ids: CondKeyIds = HashMap::new();
+            let mut bind_only_prod: HashMap<i64, Vec<u8>> = HashMap::new();
+            for (&id, c) in &arm.compiled_conds {
+                cond_key_ids.insert(
+                    id,
+                    crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys),
+                );
+                if let Some(fields) = crate::rete::compiled_cond::bind_only_fields(c) {
+                    bind_only_prod.insert(id, fields);
+                }
+            }
+            for (i, fact) in facts.iter().enumerate() {
+                super::alpha_activate_fact(
+                    fact,
+                    i as u32,
+                    &mut super::AlphaActivateCx {
+                        sym: crate::rete::compiled_cond::test_sym(),
+                        wm: &mut wm,
+                        d_alpha: &mut d_alpha,
+                        alpha_tree: &arm.alpha_tree,
+                        compiled_conds: &arm.compiled_conds,
+                        match_scratch: &mut scratch,
+                        cand_scratch: &mut cand,
+                        cond_key_ids: &cond_key_ids,
+                        bind_only: &bind_only_prod,
+                    },
+                )
+                .expect("isolated activate (production bind_only)");
+                black_box(d_alpha.len());
+            }
+        }));
     }
 
     let table = format!(
         "\naccum alpha push split — 40,200 facts, MINIMUM of {RUNS}\n\
              \n\
-             M   exec_compiled              {:>7.2} ms\n\
-             H   + alpha.entry              {:>7.2} ms\n\
-             V   + Vec::push                {:>7.2} ms\n\
-             D   + d_alpha.entry            {:>7.2} ms\n\
-             A   alpha_activate_fact        {:>7.2} ms\n\
+             M   exec_compiled                  {:>7.2} ms\n\
+             H   + alpha.entry                  {:>7.2} ms\n\
+             V   + Vec::push                    {:>7.2} ms\n\
+             D   + d_alpha.entry                {:>7.2} ms\n\
+             A   activate, skip_span forced off {:>7.2} ms\n\
+             Ap  activate, production bind_only {:>7.2} ms\n\
              \n\
-             H−M   HashMap entry            {:>7.2} ms\n\
-             V−H   Vec push                 {:>7.2} ms\n\
-             D−V   d_alpha                  {:>7.2} ms\n\
-             A−D   leftover                 {:>7.2} ms\n\
-             A−M   push lump                {:>7.2} ms\n",
+             A hands `alpha_activate_fact` an EMPTY bind_only, so fire/delta.rs:70-76\n\
+             reads None for every alpha id and skip_span is false unconditionally —\n\
+             every candidate runs exec_compiled_with_key_ids. That is why A ⊇ M and why\n\
+             the ladder below nests. Ap builds bind_only as fire/delta.rs:339-346 does;\n\
+             for this axis all 3/3 conds are bind-only, so Ap skips that exec and sits\n\
+             BELOW M. Ap is a standalone row: NOTHING below is derived from it.\n\
+             \n\
+             H−M   HashMap entry                {:>7.2} ms\n\
+             V−H   Vec push                     {:>7.2} ms\n\
+             D−V   d_alpha                      {:>7.2} ms\n\
+             A−D   leftover (A = skip off)      {:>7.2} ms\n\
+             A−M   push lump (A = skip off)     {:>7.2} ms\n",
         ms(m),
         ms(h),
         ms(v),
         ms(d),
         ms(a),
+        ms(a_prod),
         ms(h - m),
         ms(v - h),
         ms(d - v),
@@ -1149,6 +1267,10 @@ fn accum_alpha_push_split() {
     assert!(
         d > 0.0,
         "d_alpha path recorded 0 — the loop never ran:{table}"
+    );
+    assert!(
+        a_prod > 0.0,
+        "production-bind_only activate recorded 0 — the Ap loop never ran:{table}"
     );
 }
 
