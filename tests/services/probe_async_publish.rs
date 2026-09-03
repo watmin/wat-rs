@@ -1,10 +1,20 @@
-//! Async topic publish — accepted, then fan-out. Drives gates in
-//! `wat-scripts/topic/sns-fanout.wat` and the circuit's outbox-term row.
+//! Durable topic — accepted means the N inbox rows exist. Drives gates in
+//! `wat-scripts/topic/sns-fanout.wat` and the circuit's inbox-term row.
+//!
+//! `startup_from_file` uses `InMemoryLoader` and cannot resolve this file's
+//! relative `load-file!` of `../queue/sqs.wat`. Drive it the way
+//! `outbox_term_removed_loses_messages` does: `startup_from_source` + `FsLoader`.
 
 use std::sync::Arc;
-use wat::freeze::{startup_from_file, startup_from_source, FrozenWorld};
+use wat::freeze::{startup_from_source, FrozenWorld};
 use wat::load::loader::FsLoader;
 use wat::runtime::{apply_function, Value};
+
+fn load_topic() -> FrozenWorld {
+    let rel = "wat-scripts/topic/sns-fanout.wat";
+    let src = std::fs::read_to_string(rel).unwrap_or_else(|e| panic!("read {rel}: {e}"));
+    startup_from_source(&src, Some(rel), Arc::new(FsLoader)).expect("topic should freeze")
+}
 
 fn call_string(world: &FrozenWorld, name: &str) -> String {
     let func = world
@@ -31,22 +41,87 @@ fn field<'a>(summary: &'a str, key: &str) -> &'a str {
 }
 
 #[test]
-fn publish_returns_before_slow_subscriber() {
-    let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
-        .expect("topic should freeze");
-    let stored = call_string(&world, ":user::publish-is-async");
+fn publish_ok_means_durable() {
+    let world = load_topic();
+    let stored = call_string(&world, ":user::durable-ok");
     assert_eq!(
-        field(&stored, "prompt"),
+        field(&stored, "durable"),
         "yes",
-        "publish must return before a 200ms subscriber finishes; got {stored}"
+        "publish then read inbox depth before any delivery: the message is in the store; got {stored}"
+    );
+    let n: i64 = field(&stored, "pending")
+        .parse()
+        .unwrap_or_else(|_| panic!("pending not an i64 in {stored}"));
+    assert!(
+        n >= 1,
+        "inbox depth after one publish with no workers must be >= 1; got {stored}"
     );
 }
 
 #[test]
-fn full_outbox_refuses_not_drops() {
-    let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
-        .expect("topic should freeze");
-    let stored = call_string(&world, ":user::outbox-refuses");
+fn unit_is_per_subscription() {
+    let world = load_topic();
+    let stored = call_string(&world, ":user::unit-is-per-sub");
+    assert_eq!(
+        field(&stored, "unit"),
+        "per-sub",
+        "one publish to N=3 must write 3 rows, not 1; got {stored}"
+    );
+    assert_eq!(field(&stored, "rows"), "3");
+}
+
+#[test]
+fn refused_subscriber_is_retried_not_dropped() {
+    let world = load_topic();
+    let stored = call_string(&world, ":user::refused-is-retried");
+    assert_eq!(
+        field(&stored, "inflight"),
+        "yes",
+        "worker must hold the row unacked while the subscriber is full; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "after-drain"),
+        "none",
+        "after the dummy is gone the real message must still be invisible (in-flight); got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "after-expiry"),
+        "got",
+        "visibility expiry must deliver to the now-free subscriber; got {stored}"
+    );
+}
+
+#[test]
+fn stalled_subscriber_does_not_stall_others() {
+    let world = load_topic();
+    let stored = call_string(&world, ":user::stalled-does-not-stall");
+    assert_eq!(
+        field(&stored, "healthy"),
+        "got",
+        "the free subscriber must receive immediately; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "blocked"),
+        "no",
+        "publish must not wait on the stalled subscriber; got {stored}"
+    );
+}
+
+#[test]
+fn publish_returns_before_delivery() {
+    let world = load_topic();
+    let stored = call_string(&world, ":user::publish-is-async");
+    assert_eq!(
+        field(&stored, "prompt"),
+        "yes",
+        "publish must return after the inbox write, with no workers running; got {stored}"
+    );
+}
+
+#[test]
+fn full_inbox_refuses_not_drops() {
+    let world = load_topic();
+    let stored = call_string(&world, ":user::inbox-refuses");
     assert_eq!(
         stored, "a=ok;b=ok;c=full",
         "cap 2: third publish is Full, not a silent drop. got: {stored}"
@@ -54,55 +129,8 @@ fn full_outbox_refuses_not_drops() {
 }
 
 #[test]
-fn fanout_is_max_not_sum() {
-    let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
-        .expect("topic should freeze");
-    let stored = call_string(&world, ":user::fanout-is-max");
-    assert_eq!(
-        field(&stored, "shape"),
-        "max",
-        "four 200ms subscribers must complete in ~max not ~sum; got {stored}"
-    );
-    let dt: i64 = field(&stored, "dt-ms")
-        .parse()
-        .unwrap_or_else(|_| panic!("dt-ms not an i64 in {stored}"));
-    assert!(
-        dt < 500,
-        "concurrent fan-out is ~200ms, sequential is ~800ms; got dt-ms={dt} in {stored}"
-    );
-}
-
-#[test]
-fn wire_carries_a_batch() {
-    let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
-        .expect("topic should freeze");
-    let stored = call_string(&world, ":user::wire-batches");
-    assert_eq!(
-        field(&stored, "shape"),
-        "batch",
-        "N=20 K=10 must be two deliver calls not twenty; got {stored}"
-    );
-    let calls: i64 = field(&stored, "calls")
-        .parse()
-        .unwrap_or_else(|_| panic!("calls not an i64 in {stored}"));
-    let msgs: i64 = field(&stored, "msgs")
-        .parse()
-        .unwrap_or_else(|_| panic!("msgs not an i64 in {stored}"));
-    assert_eq!(msgs, 20, "counting subscriber must see every message; got {stored}");
-    assert!(
-        calls <= 4 && calls >= 1,
-        "deliver calls ≈ N/K=2, not N=20; got calls={calls} in {stored}"
-    );
-    assert!(
-        calls < msgs,
-        "a one-element vector every time is unbatched; got calls={calls} msgs={msgs} in {stored}"
-    );
-}
-
-#[test]
 fn idle_topic_never_ticks() {
-    let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
-        .expect("topic should freeze");
+    let world = load_topic();
     let stored = call_string(&world, ":user::idle-ticks");
     assert_eq!(
         stored, "ticks=0",
@@ -120,7 +148,7 @@ fn outbox_term_removed_loses_messages() {
     assert_eq!(
         field(&stored, "lost"),
         "yes",
-        "drain without the outbox term must lose accepted-but-undelivered messages; got {stored}"
+        "drain without the inbox term must lose accepted-but-undelivered messages; got {stored}"
     );
     let n: i64 = field(&stored, "n")
         .parse()
@@ -130,6 +158,6 @@ fn outbox_term_removed_loses_messages() {
         .unwrap_or_else(|_| panic!("distinct not an i64 in {stored}"));
     assert!(
         distinct < n,
-        "outbox term is load-bearing only if removing it fails: distinct={distinct} n={n} in {stored}"
+        "inbox term is load-bearing only if removing it fails: distinct={distinct} n={n} in {stored}"
     );
 }

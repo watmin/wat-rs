@@ -19,14 +19,22 @@ Same fixture this morning: **109 deliveries/s, e2e ~12 s, non-deterministic.**
 
 ## THE MAIN LINE
 
-### 1. Prove redelivery works — NOT STARTED, probe, small
+### 1. Prove redelivery works — ✅ DONE 2026-09-02
+`probe-visibility-redelivers.wat`, gated by `tests/services/probe_queue_visibility.rs`:
+`first=got;while-inflight=none;after-expiry=got;same=yes`.
+
+### 1-historical. Why it needed proving — NOT STARTED, probe, small
 `sqs.wat:62` states the intent (*"the message stays invisible until its visibility timeout"*) but
 **nothing exercises redelivery after visibility expiry**, and the circuit sets `visibility-ns` to
 10¹² ns precisely so it never happens.
 
 Everything below assumes retry-on-no-ack works. **Establish it before building on it.**
 
-### 2. Topic durability via its own queue-service — NOT DRAWN, stone
+### 2. Topic durability via its own queue-service — ✅ STRUCK 2026-09-03
+Costs **6.1× throughput** (921–954/s → 149–161/s, e2e 152–197 ms → ~700 ms), and ~3.5× of that
+survives a linear store. See `FINDING-durability-is-store-op-bound.md`.
+
+### 2-historical. The gap it closed — NOT DRAWN, stone
 `publish` returns `Ok` for a message held in **`:ephemeral` state** (`sns-fanout.wat`, `outbox`).
 The queue puts to a store before replying `Ok`; the topic does not. The two services disagree about
 what acceptance means and only one is honest.
@@ -67,6 +75,8 @@ consumers or store-side dedup by message id.
 |---|---|---|
 | S1 | **Adapter's 1 ms retry poll → parked reply.** Its trigger has fired (bounding every stage worked). Same repair already made twice; short. | ready |
 | S2 | **Store swap to sqlite in the circuit.** Measured 1.29× at cap 16, 1.75× batched. The codemod exists (`fix-circuit-to-sqlite.wat`), is idempotent, diff verified store-only. | ready |
+| S2b | **The store is now 1.68×**, up from 1.29× before durability — the durable topic made it hotter exactly as predicted. Promotes S2 from convenience to load-bearing. | ready |
+| S13 | **The circuit asserts exactly-once on an at-least-once system.** `probe_ex001_fanout` requires `total == distinct`; a visibility expiry during processing produces a legitimate duplicate and reds the floor (it did, 26 vs 24). Widening the window 200 ms → 5 s is correct SQS configuration and **does not remove the class** — the assertion still depends on a timing margin. Resolution is an idempotent consumer (dedupe by envelope id), and **item 3 forces it anyway**. | open |
 | S3 | **`mem-store` writes are O(table).** 1000/2000/4000 rows → 6.5/20.8/90.0 s. At the current workload it is a **1.29× perf term**; it is also the differential **oracle**, so an O(n²) oracle slows every differential as the corpus grows. `SCORE-perf-3` claimed "writes go linear" and is corrected in place. | open |
 | S4 | **`:wat::core::Vector`'s `conj` is O(n)**, `PersistentVector`'s is O(1) — 17× at n=4000, **no stated complexity contract anywhere**, and the name points the wrong way. **23 files** accumulate into a `Vector` via `conj` in a `foldl`. Already fixed once at one call site (`stream->vec`) and **regrew** in the topic's outbox. Rides the builder's corpus migration; wants a contract and possibly a lint, not just a migration. | builder's |
 | S5 | **Substrate `ensure-alarm` outcome.** The level-triggered wakeup uses a hand-maintained `armed?` flag; an outcome meaning *"ensure an alarm exists for op X"* makes both armed-twice and armed-zero-times unrepresentable. Rung 3 for a class currently at rung 2. Needs `wat/`. | open |

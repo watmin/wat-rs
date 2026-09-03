@@ -1,4 +1,4 @@
-;; wat-scripts/topic/sns-fanout.wat — wat-topic: one topic, N subscribers.
+;; wat-scripts/topic/sns-fanout.wat — wat-topic: one topic, N subscriber queues.
 ;;
 ;; Lives in userland on the wat-grep / wat-gen precedent — built here, promoted to
 ;; wat/topic.wat when it demonstrates excellence, and that promotion is the builder's
@@ -9,53 +9,33 @@
 ;;   The locus is a PARAMETER, so the differential is the artifact — not something a
 ;;   reader has to remember to run twice. Prints "3 3". Any other pair is a defect.
 ;;
+;; Shape: topic-service = publish surface + ONE queue-service instance + J internal
+;; workers. publish writes N rows (one per subscription) into the internal queue, then
+;; replies Ok — the write is the durability. Workers drain to subscriber queues and
+;; ack only on Queue/send Ok; Full is "do not ack" and visibility expiry is the retry.
+;; The unit is (message, subscriber), not message.
+;;
 ;; ── the shape, established by bisecting UP from wat-scripts/probes/arc-278/s2s-process-probe.wat ──
 ;;   · a service MAY hold N peers of ONE surface as a `(Vector :- [(Peer :- [Op Reply])])`
 ;;     ephemeral field, and send to every element.
 ;;   · a `(Vector :- [Address])` survives a `/start` kwarg across a process fork.
-;;   · on the PROCESS locus each subscriber must GRANT the topic's pid: a subscriber's
-;;     birth-seed allow-set holds only `getppid()` (its owner, `main`), so the topic is a
-;;     STRANGER to it and is bounced until granted. See tests/services/probe_arc170_m1_teeth_admitted.wat
-;;     ("served ONLY because we granted it") and probe_arc209_c0b3bb_bounced.wat.
-;;     The grant rides `process/post-spawn`, which fires owner-side with the child's
-;;     ProcessLaunch{pid} AFTER the fork and BEFORE `:init` ships — the grant-before-dial ordering.
+;;   · on the PROCESS locus each subscriber queue must GRANT the topic-worker's pid: a
+;;     queue's birth-seed allow-set holds only `getppid()` (its owner, `main`), so the
+;;     worker is a STRANGER to it and is bounced until granted. See
+;;     tests/services/probe_arc170_m1_teeth_admitted.wat ("served ONLY because we granted
+;;     it") and probe_arc209_c0b3bb_bounced.wat. The grant rides `process/post-spawn`,
+;;     which fires owner-side with the child's ProcessLaunch{pid} AFTER the fork and
+;;     BEFORE `:init` ships — the grant-before-dial ordering.
 ;;
-;; ⚠ THE ONE WART — `bijection-anchor`. `defservice` requires a BIJECTION between `:peers`
-;;   and ROOT ephemeral peer fields (wat/service.wat:857-891), and the derivation that finds
-;;   those fields reads only the TOP-LEVEL type head (wat/service.wat:824) — so a
-;;   `(Vector :- [Peer])` is invisible to it. Declaring `:peers [:demo::Sub]` with only the
-;;   vector is REFUSED; omitting `:peers` passes the check but stops shipping Sub's
-;;   surface-forms into the forked child (wat/service.wat:792, :2523). The anchor is a root
-;;   scalar peer field held ONLY to satisfy the bijection so `:peers` can be declared.
-;;   It is never published to. Delete it the day the derivation looks inside container types.
+;; The topic itself has one scalar Queue peer (the inbox) so `:peers [:queue::Queue]` is
+;; a true bijection — no anchor field. The worker holds the same scalar (its bijection)
+;; plus a Vector of subscriber Queue peers; the Vector is invisible to the derivation
+;; that only reads the TOP-LEVEL type head (wat/service.wat:824).
 
-;; ── SUBSCRIBER ──────────────────────────────────────────────────────────────────
-(:wat::core::defsurface :demo::Sub :nature :wat::kernel::Peer
-  :messages
-  [(:wat::core::defrecord :demo::Sub::DeliverRequest
-     [msgs <- (:wat::core::Vector :- [:wat::core::String])])
-   (:wat::core::defenum :demo::Sub::DeliverResponse :wat::enum::Pure
-     :Ok [n <- :wat::core::i64]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String  got <- :wat::core::String])]
-  :features
-  [(deliver [self <- :demo::Sub  req <- :demo::Sub::DeliverRequest]
-     -> :demo::Sub::DeliverResponse :max-request-bytes 524288)])
-
-(:wat::service::defservice :demo::sub
-  :satisfies :demo::Sub
-  :durable   []
-  :ephemeral []
-  :impls
-  [(deliver [s ctx req]
-     (:wat::service::Outcome::Continue s
-       (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:wat::core::count (:demo::Sub::DeliverRequest/msgs req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::sub::Op])])))])
+(:wat::load-file! "../queue/sqs.wat")
 
 ;; ── TOPIC ───────────────────────────────────────────────────────────────────────
-;; publish means ACCEPTED. Delivery is a -deliver tick. A full outbox refuses
-;; (backpressure), it does not drop. Process-tier after duration 0 never fires;
-;; delay-ns must be non-zero (1 µs works).
+;; publish means ACCEPTED, and accepted means the N rows are in the inbox store.
 (:wat::core::defsurface :demo::Topic :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :demo::Topic::PublishRequest [msg <- :wat::core::String])
@@ -67,7 +47,7 @@
                         expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :demo::Topic::StatsRequest [])
    (:wat::core::defenum :demo::Topic::StatsResponse :wat::enum::Pure
-     :Ok [outbox <- :wat::core::i64  ticks <- :wat::core::i64]
+     :Ok [depth <- :wat::core::i64  ticks <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
@@ -79,41 +59,109 @@
 
 (:wat::service::defservice :demo::topic
   :satisfies :demo::Topic
-  :durable   [cap      <- :wat::core::i64
-              delay-ns <- :wat::core::i64]
-  ;; `bijection-anchor` exists ONLY to satisfy the :peers bijection — see THE ONE WART above.
-  :ephemeral [bijection-anchor <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])
-              subs   <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
-              outbox <- (:wat::core::PersistentVector :- [:wat::core::String])
-              ticks  <- :wat::core::i64
-              deliver-armed? <- :wat::core::bool
-              arm-deliver <- [:wat::core::bool :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::bool (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])])]]
-  :peers     [:demo::Sub]
+  :durable   [nsubs <- :wat::core::i64]
+  :ephemeral [inbox <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]
+  :peers     [:queue::Queue]
   :init (:wat::core::fn
-          [record <- :demo::topic::Record
-           addrs  <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])])]
+          [record     <- :demo::topic::Record
+           inbox-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
           -> :demo::topic::State
-          (:wat::core::let
-            [none (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])
-             arm-deliver (:wat::core::fn
-                           [armed? <- :wat::core::bool
-                            n      <- :wat::core::i64
-                            delay0 <- :wat::core::i64]
-                           -> (:wat::core::Tuple :- [:wat::core::bool
-                                (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])])
-                           (:wat::core::if (:wat::i64::<= n 0)
-                             (:wat::core::Tuple false none)
-                             (:wat::core::if armed?
-                               (:wat::core::Tuple true none)
-                               (:wat::core::Tuple true
-                                 [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0)
-                                    :op (:demo::topic::Op::-Deliver))]))))]
-            (:demo::topic::State :durable record
-            ;; the dial is INLINE, not a call to a top-level defn: a forked child's bundle does
-            ;; not carry the program's other `defn`s, so `:init` calling one dies with
-            ;; `UnresolvedReference` at StartupError. Measured 2026-08-30.
-            :bijection-anchor
-              (:wat::core::match (:wat::kernel::connect (:wat::core::nth addrs 0))
+          (:demo::topic::State :durable record
+            :inbox
+              (:wat::core::match (:wat::kernel::connect inbox-addr)
+                ((:wat::kernel::ConnectOutcome::Connected p) p)
+                ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+  :impls
+  [(publish [s ctx req]
+     (:wat::core::let
+       [msg   (:demo::Topic::PublishRequest/msg req)
+        nsubs (:demo::topic::Record/nsubs (:demo::topic::State/durable s))
+        now   (:wat::time::epoch-nanos (:wat::time::now))
+        bodies (:wat::core::foldl
+                 (:wat::core::fn
+                   [acc <- (:wat::core::Vector :- [:wat::core::String])
+                    i   <- :wat::core::i64]
+                   -> (:wat::core::Vector :- [:wat::core::String])
+                   (:wat::core::conj acc
+                     (:wat::core::format "{i}|{m}" :i i :m msg)))
+                 (:wat::core::Vector :- [:wat::core::String])
+                 (:wat::core::range 0 nsubs))
+        sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
+        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])
+        sr (:queue::Queue/send (:demo::topic::State/inbox s)
+             (:queue::Queue::SendRequest :queue "inbox" :bodies bodies :now-ns now))]
+       (:wat::core::match sr
+         ((:wat::kernel::RecvOutcome::Message r)
+           (:wat::core::match r
+             ((:queue::Queue::SendResponse::Ok)
+               (:wat::service::Outcome::Continue s
+                 (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok)))
+                 sends none-alarms))
+             ((:queue::Queue::SendResponse::Full d c)
+               (:wat::service::Outcome::Continue s
+                 (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full d c)))
+                 sends none-alarms))
+             (_ (:wat::kernel::assertion-failed! "topic publish: send not Ok/Full" :wat::core::None :wat::core::None))))
+         ((:wat::kernel::RecvOutcome::Lost cause)
+           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Stopped
+           (:wat::kernel::assertion-failed! "topic publish: send stopped" :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Closed
+           (:wat::kernel::assertion-failed! "topic publish: send closed" :wat::core::None :wat::core::None)))))
+
+   (stats [s ctx req]
+     (:wat::core::let
+       [sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
+        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])
+        st (:queue::Queue/stats (:demo::topic::State/inbox s)
+             (:queue::Queue::StatsRequest))]
+       (:wat::core::match st
+         ((:wat::kernel::RecvOutcome::Message r)
+           (:wat::core::match r
+             ((:queue::Queue::StatsResponse::Ok _calls ticks pending inflight)
+               (:wat::service::Outcome::Continue s
+                 (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
+                   (:wat::i64::+ pending inflight) ticks)))
+                 sends none-alarms))
+             (_ (:wat::kernel::assertion-failed! "topic stats: inbox stats not Ok" :wat::core::None :wat::core::None))))
+         ((:wat::kernel::RecvOutcome::Lost cause)
+           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Stopped
+           (:wat::kernel::assertion-failed! "topic stats: stopped" :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Closed
+           (:wat::kernel::assertion-failed! "topic stats: closed" :wat::core::None :wat::core::None)))))])
+
+;; ── internal worker ────────────────────────────────────────────────────────────
+;; Shape of :fanout::worker: park on the inbox, take a batch, act, ack. Failure
+;; handling is "do not ack" — visibility expiry is the retry. No counter.
+(:wat::core::defsurface :demo::TopicWorker :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :demo::TopicWorker::StartRequest [])
+   (:wat::core::defenum :demo::TopicWorker::StartResponse :wat::enum::Pure
+     :Ok []
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(start [self <- :demo::TopicWorker  req <- :demo::TopicWorker::StartRequest]
+     -> :demo::TopicWorker::StartResponse :max-request-bytes 524288)])
+
+(:wat::service::defservice :demo::topic-worker
+  :satisfies :demo::TopicWorker
+  :durable   [vis-ns <- :wat::core::i64]
+  :ephemeral [inbox <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
+              subs  <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])]
+  :peers     [:queue::Queue]
+  :init (:wat::core::fn
+          [record     <- :demo::topic-worker::Record
+           inbox-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
+           sub-addrs  <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])]
+          -> :demo::topic-worker::State
+          (:demo::topic-worker::State :durable record
+            :inbox
+              (:wat::core::match (:wat::kernel::connect inbox-addr)
                 ((:wat::kernel::ConnectOutcome::Connected p) p)
                 ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                 ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
@@ -121,201 +169,110 @@
             :subs
               (:wat::core::foldl
                 (:wat::core::fn
-                  [acc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
-                   a   <- (:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-                  -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
+                  [acc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
+                   a   <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
+                  -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
                   (:wat::core::conj acc
                     (:wat::core::match (:wat::kernel::connect a)
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                       ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                       ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
-                (:wat::core::Vector :- [(:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])])
-                addrs)
-            :outbox (:wat::core::PersistentVector :- [:wat::core::String])
-            :ticks 0
-            :deliver-armed? false
-            :arm-deliver arm-deliver)))
+                (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
+                sub-addrs)))
   :impls
-  [(publish [s ctx req]
+  [(start [s ctx req]
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:demo::TopicWorker::Reply::Start (:demo::TopicWorker::StartResponse::Ok)))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
+       [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+   (-tick [s ctx]
      (:wat::core::let
-       [msg   (:demo::Topic::PublishRequest/msg req)
-        rec   (:demo::topic::State/durable s)
-        cap   (:demo::topic::Record/cap rec)
-        delay (:demo::topic::Record/delay-ns rec)
-        delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
-        box   (:demo::topic::State/outbox s)
-        n     (:wat::vector::length box)
-        sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])]
-       (:wat::core::if (:wat::i64::>= n cap)
-         (:wat::core::let
-           [pair (:wat::core::apply (:demo::topic::State/arm-deliver s)
-                    (:demo::topic::State/deliver-armed? s)
-                    [n delay0])
-            s-a (:demo::topic::State
-                  :durable rec
-                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
-                  :subs (:demo::topic::State/subs s)
-                  :outbox box
-                  :ticks (:demo::topic::State/ticks s)
-                  :deliver-armed? (:wat::core::first pair)
-                  :arm-deliver (:demo::topic::State/arm-deliver s))]
-           (:wat::service::Outcome::Continue s-a
-             (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full n cap)))
-             sends
-             (:wat::core::second pair)))
-         (:wat::core::let
-           [box' (:wat::vector::conj box msg)
-            s'   (:demo::topic::State
-                   :durable rec
-                   :bijection-anchor (:demo::topic::State/bijection-anchor s)
-                   :subs (:demo::topic::State/subs s)
-                   :outbox box'
-                   :ticks (:demo::topic::State/ticks s)
-                   :deliver-armed? (:demo::topic::State/deliver-armed? s)
-                   :arm-deliver (:demo::topic::State/arm-deliver s))
-            pair (:wat::core::apply (:demo::topic::State/arm-deliver s')
-                    (:demo::topic::State/deliver-armed? s')
-                    [(:wat::vector::length box') delay0])
-            s-a (:demo::topic::State
-                  :durable rec
-                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
-                  :subs (:demo::topic::State/subs s)
-                  :outbox box'
-                  :ticks (:demo::topic::State/ticks s)
-                  :deliver-armed? (:wat::core::first pair)
-                  :arm-deliver (:demo::topic::State/arm-deliver s'))]
-           (:wat::service::Outcome::Continue s-a
-             (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok)))
-             sends
-             (:wat::core::second pair))))))
+       [inbox (:demo::topic-worker::State/inbox s)
+        subs  (:demo::topic-worker::State/subs s)
+        vis   (:demo::topic-worker::Record/vis-ns (:demo::topic-worker::State/durable s))
+        now   (:wat::time::epoch-nanos (:wat::time::now))
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
+        rr (:queue::Queue/receive inbox
+             (:queue::Queue::ReceiveRequest
+               :queue "inbox" :now-ns now :visibility-ns vis :limit 10 :wait-ns 250000000))]
+       (:wat::core::match rr
+         ((:wat::kernel::RecvOutcome::Message r)
+           (:wat::core::match r
+             ((:queue::Queue::ReceiveResponse::Ok envs)
+               (:wat::core::let
+                 [_ (:wat::core::foldl
+                      (:wat::core::fn [acc <- :wat::core::i64  e <- :queue::Envelope]
+                        -> :wat::core::i64
+                        (:wat::core::let
+                          [eid   (:queue::Envelope/id e)
+                           body  (:queue::Envelope/body e)
+                           parts (:wat::string::split body "|")
+                           nparts (:wat::core::count parts)]
+                          (:wat::core::if (:wat::i64::< nparts 2)
+                            (:wat::kernel::assertion-failed! "topic-worker: body missing idx prefix" :wat::core::None :wat::core::None)
+                            (:wat::core::let
+                              [idx (:wat::edn::read (:wat::core::nth parts 0))
+                               ;; Inbox Queue/send appends a timestamp whenever the body
+                               ;; contains `|` (the idx prefix always does). Drop that last
+                               ;; segment so subscriber-side traces stay seq|t0|t1|t2|t3|t4.
+                               rest-hi (:wat::core::if (:wat::i64::> nparts 2)
+                                         (:wat::i64::- nparts 1)
+                                         nparts)
+                               rest (:wat::core::foldl
+                                      (:wat::core::fn [a <- :wat::core::String  i <- :wat::core::i64]
+                                        -> :wat::core::String
+                                        (:wat::core::let [p (:wat::core::nth parts i)]
+                                          (:wat::core::if (:wat::core::= a "")
+                                            p
+                                            (:wat::string::concat a (:wat::string::concat "|" p)))))
+                                      ""
+                                      (:wat::core::range 1 rest-hi))
+                               t1 (:wat::time::epoch-nanos (:wat::time::now))
+                               stamped (:wat::core::format "{b}|{t1}|{t2}" :b rest :t1 t1 :t2 t1)
+                               qpeer (:wat::core::nth subs idx)
+                               qname (:wat::core::format "q{i}" :i idx)
+                               sr (:queue::Queue/send qpeer
+                                    (:queue::Queue::SendRequest
+                                      :queue qname
+                                      :bodies (:wat::core::Vector :- [:wat::core::String] stamped)
+                                      :now-ns t1))]
+                              (:wat::core::match sr
+                                ((:wat::kernel::RecvOutcome::Message sresp)
+                                  (:wat::core::match sresp
+                                    ((:queue::Queue::SendResponse::Ok)
+                                      (:wat::core::match
+                                        (:queue::Queue/ack inbox
+                                          (:queue::Queue::AckRequest :queue "inbox" :id eid))
+                                        ((:wat::kernel::RecvOutcome::Message _ar) (:wat::i64::+ acc 1))
+                                        ((:wat::kernel::RecvOutcome::Lost cause)
+                                          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                                        (:wat::kernel::RecvOutcome::Stopped
+                                          (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
+                                        (:wat::kernel::RecvOutcome::Closed
+                                          (:wat::kernel::assertion-failed! "topic-worker: ack closed" :wat::core::None :wat::core::None))))
+                                    ((:queue::Queue::SendResponse::Full _d _c) acc)
+                                    (_ (:wat::kernel::assertion-failed! "topic-worker: send not Ok/Full" :wat::core::None :wat::core::None))))
+                                ((:wat::kernel::RecvOutcome::Lost cause)
+                                  (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                                (:wat::kernel::RecvOutcome::Stopped
+                                  (:wat::kernel::assertion-failed! "topic-worker: send stopped" :wat::core::None :wat::core::None))
+                                (:wat::kernel::RecvOutcome::Closed
+                                  (:wat::kernel::assertion-failed! "topic-worker: send closed" :wat::core::None :wat::core::None)))))))
+                      0
+                      envs)]
+                 (:wat::service::SelfOutcome::Continue s
+                   none-sends
+                   [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+             (_ (:wat::kernel::assertion-failed! "topic-worker: receive not Ok" :wat::core::None :wat::core::None))))
+         ((:wat::kernel::RecvOutcome::Lost cause)
+           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Stopped
+           (:wat::kernel::assertion-failed! "topic-worker: receive stopped" :wat::core::None :wat::core::None))
+         (:wat::kernel::RecvOutcome::Closed
+           (:wat::kernel::assertion-failed! "topic-worker: receive closed" :wat::core::None :wat::core::None)))))])
 
-   (stats [s ctx req]
-     (:wat::core::let
-       [rec (:demo::topic::State/durable s)
-        delay (:demo::topic::Record/delay-ns rec)
-        delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
-        pair (:wat::core::apply (:demo::topic::State/arm-deliver s)
-                (:demo::topic::State/deliver-armed? s)
-                [(:wat::vector::length (:demo::topic::State/outbox s)) delay0])
-        s-a (:demo::topic::State
-              :durable rec
-              :bijection-anchor (:demo::topic::State/bijection-anchor s)
-              :subs (:demo::topic::State/subs s)
-              :outbox (:demo::topic::State/outbox s)
-              :ticks (:demo::topic::State/ticks s)
-              :deliver-armed? (:wat::core::first pair)
-              :arm-deliver (:demo::topic::State/arm-deliver s))]
-       (:wat::service::Outcome::Continue s-a
-         (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
-           (:wat::vector::length (:demo::topic::State/outbox s))
-           (:demo::topic::State/ticks s))))
-         (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
-         (:wat::core::second pair))))
-
-   ;; Drain up to 10, fan out each. One rebuild. Flag cleared: the tick consumed the alarm.
-   (-deliver [s ctx]
-     (:wat::core::let
-       [rec   (:demo::topic::State/durable s)
-        delay (:demo::topic::Record/delay-ns rec)
-        delay0 (:wat::core::if (:wat::i64::< delay 1) 1 delay)
-        box   (:demo::topic::State/outbox s)
-        ticks (:wat::i64::+ (:demo::topic::State/ticks s) 1)
-        sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])]
-       (:wat::core::if (:wat::vector::empty? box)
-         (:wat::core::let
-           [s0 (:demo::topic::State
-                 :durable rec
-                 :bijection-anchor (:demo::topic::State/bijection-anchor s)
-                 :subs (:demo::topic::State/subs s)
-                 :outbox box
-                 :ticks ticks
-                 :deliver-armed? false
-                 :arm-deliver (:demo::topic::State/arm-deliver s))
-            pair (:wat::core::apply (:demo::topic::State/arm-deliver s0) false [0 delay0])
-            s-a (:demo::topic::State
-                  :durable rec
-                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
-                  :subs (:demo::topic::State/subs s)
-                  :outbox box
-                  :ticks ticks
-                  :deliver-armed? (:wat::core::first pair)
-                  :arm-deliver (:demo::topic::State/arm-deliver s))]
-           (:wat::service::SelfOutcome::Continue s-a sends (:wat::core::second pair)))
-         (:wat::core::let
-           [nbox (:wat::vector::length box)
-            k    (:wat::core::if (:wat::i64::< nbox 10) nbox 10)
-            t1   (:wat::time::epoch-nanos (:wat::time::now))
-            msgs (:wat::core::foldl
-                   (:wat::core::fn
-                     [acc <- (:wat::core::Vector :- [:wat::core::String])
-                      i   <- :wat::core::i64]
-                     -> (:wat::core::Vector :- [:wat::core::String])
-                     (:wat::core::conj acc
-                       (:wat::core::format "{m}|{t}"
-                         :m (:wat::core::Option/expect (:wat::vector::get box i)
-                              "topic -deliver: batch index in range by construction")
-                         :t t1)))
-                   (:wat::core::Vector :- [:wat::core::String])
-                   (:wat::core::range 0 k))
-            ;; One round of (send-all, recv-all) carrying k. Concurrent shape
-            ;; unchanged — only what each send carries. No linger: send what
-            ;; the outbox holds, up to K, never wait to fill.
-            _sent (:wat::core::foldl
-                    (:wat::core::fn
-                      [acc <- :wat::core::i64
-                       p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
-                      -> :wat::core::i64
-                      (:wat::core::match
-                        (:wat::kernel::send p
-                          (:demo::Sub::Op::Deliver (:demo::Sub::DeliverRequest :msgs msgs)))
-                        (:wat::kernel::SendOutcome::Sent    (:wat::i64::+ acc 1))
-                        (:wat::kernel::SendOutcome::Closed  acc)
-                        (:wat::kernel::SendOutcome::Stopped acc)
-                        ((:wat::kernel::SendOutcome::Lost _c) acc)))
-                    0
-                    (:demo::topic::State/subs s))
-            _recv (:wat::core::foldl
-                    (:wat::core::fn
-                      [acc <- :wat::core::i64
-                       p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
-                      -> :wat::core::i64
-                      (:wat::core::match (:wat::kernel::recv p)
-                        ((:wat::kernel::RecvOutcome::Message _r) (:wat::i64::+ acc 1))
-                        (_ acc)))
-                    0
-                    (:demo::topic::State/subs s))
-            rest (:wat::core::foldl
-                   (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
-                                    i   <- :wat::core::i64]
-                     -> (:wat::core::PersistentVector :- [:wat::core::String])
-                     (:wat::vector::conj acc
-                       (:wat::core::Option/expect (:wat::vector::get box (:wat::i64::+ i k))
-                         "topic -deliver: rebuild index in range by construction")))
-                   (:wat::core::PersistentVector :- [:wat::core::String])
-                   (:wat::core::range 0 (:wat::i64::- nbox k)))
-            s' (:demo::topic::State
-                 :durable rec
-                 :bijection-anchor (:demo::topic::State/bijection-anchor s)
-                 :subs (:demo::topic::State/subs s)
-                 :outbox rest
-                 :ticks ticks
-                 :deliver-armed? false
-                 :arm-deliver (:demo::topic::State/arm-deliver s))
-            pair (:wat::core::apply (:demo::topic::State/arm-deliver s')
-                    false
-                    [(:wat::vector::length rest) delay0])
-            s-a (:demo::topic::State
-                  :durable rec
-                  :bijection-anchor (:demo::topic::State/bijection-anchor s)
-                  :subs (:demo::topic::State/subs s)
-                  :outbox rest
-                  :ticks ticks
-                  :deliver-armed? (:wat::core::first pair)
-                  :arm-deliver (:demo::topic::State/arm-deliver s))]
-           (:wat::service::SelfOutcome::Continue s-a sends (:wat::core::second pair))))))])
-
-;; ── the two runs ────────────────────────────────────────────────────────────────
+;; ── parent-side helpers ────────────────────────────────────────────────────────
 (:wat::core::defn :demo::dial-topic
   [a <- (:wat::kernel::Address :- [:demo::Topic::Op :demo::Topic::Reply])]
   -> (:wat::kernel::Peer :- [:demo::Topic::Op :demo::Topic::Reply])
@@ -324,6 +281,43 @@
     ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :demo::dial-queue
+  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
+  -> :queue::Queue
+  (:wat::core::match (:wat::kernel::connect a)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :demo::dial-topic-worker
+  [a <- (:wat::kernel::Address :- [:demo::TopicWorker::Op :demo::TopicWorker::Reply])]
+  -> (:wat::kernel::Peer :- [:demo::TopicWorker::Op :demo::TopicWorker::Reply])
+  (:wat::core::match (:wat::kernel::connect a)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :demo::pids [pl <- :wat::spawn::ProcessLaunch]
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))
+
+(:wat::core::defn :demo::face-start-tw
+  [w <- (:wat::kernel::Peer :- [:demo::TopicWorker::Op :demo::TopicWorker::Reply])]
+  -> :wat::core::nil
+  (:wat::core::match (:demo::TopicWorker/start w (:demo::TopicWorker::StartRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:demo::TopicWorker::StartResponse::Ok) nil)
+        (_ (:wat::kernel::assertion-failed! "topic-worker: start not Ok" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::assertion-failed! "topic-worker: start stopped" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::kernel::assertion-failed! "topic-worker: start closed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :demo::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
@@ -334,7 +328,7 @@
     (:wat::kernel::RecvOutcome::Stopped nil)
     (:wat::kernel::RecvOutcome::Closed nil)))
 
-(:wat::core::defn :demo::outbox-of [t <- :demo::Topic] -> :wat::core::i64
+(:wat::core::defn :demo::depth-of-topic [t <- :demo::Topic] -> :wat::core::i64
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
@@ -350,11 +344,11 @@
         (_ -1)))
     (_ -1)))
 
-(:wat::core::defn :demo::wait-outbox-zero [t <- :demo::Topic] -> :wat::core::nil
-  (:wat::core::if (:wat::core::= (:demo::outbox-of t) 0)
+(:wat::core::defn :demo::wait-inbox-zero [t <- :demo::Topic] -> :wat::core::nil
+  (:wat::core::if (:wat::core::= (:demo::depth-of-topic t) 0)
     nil
     (:wat::core::let [_ (:demo::nap-ms 1)]
-      (:demo::wait-outbox-zero t))))
+      (:demo::wait-inbox-zero t))))
 
 (:wat::core::defn :demo::accept!
   [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
@@ -368,105 +362,273 @@
         (_ (:wat::kernel::assertion-failed! "topic publish not Ok/Full" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "topic publish recv failed" :wat::core::None :wat::core::None))))
 
-;; THREAD: no grant needed — a thread-tier subscriber shares the parent's admission.
+(:wat::core::defn :demo::q-depth
+  [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks pending inflight)
+          (:wat::core::Tuple pending inflight))
+        (_ (:wat::core::Tuple 1 1))))
+    (_ (:wat::core::Tuple 1 1))))
+
+(:wat::core::defn :demo::wait-inflight [q <- :queue::Queue] -> :wat::core::nil
+  (:wat::core::if (:wat::i64::>= (:wat::core::second (:demo::q-depth q)) 1)
+    nil
+    (:wat::core::let [_ (:demo::nap-ms 1)]
+      (:demo::wait-inflight q))))
+
+(:wat::core::defn :demo::wait-pending [q <- :queue::Queue] -> :wat::core::nil
+  (:wat::core::if (:wat::i64::>= (:wat::core::first (:demo::q-depth q)) 1)
+    nil
+    (:wat::core::let [_ (:demo::nap-ms 1)]
+      (:demo::wait-pending q))))
+
+(:wat::core::defn :demo::take-one
+  [q <- :queue::Queue  name <- :wat::core::String] -> :wat::core::String
+  (:wat::core::match
+    (:queue::Queue/receive q
+      (:queue::Queue::ReceiveRequest
+        :queue name :now-ns (:wat::time::epoch-nanos (:wat::time::now))
+        :visibility-ns 1000000000000 :limit 1 :wait-ns 0))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::ReceiveResponse::Ok envs)
+          (:wat::core::if (:wat::core::empty? envs)
+            ""
+            (:queue::Envelope/id (:wat::core::first envs))))
+        (_ (:wat::kernel::assertion-failed! "take-one: receive not Ok" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "take-one: recv failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :demo::ack-one
+  [q <- :queue::Queue  name <- :wat::core::String  id <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::match
+    (:queue::Queue/ack q (:queue::Queue::AckRequest :queue name :id id))
+    ((:wat::kernel::RecvOutcome::Message _r) nil)
+    (_ (:wat::kernel::assertion-failed! "ack-one failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :demo::send-one
+  [q <- :queue::Queue  name <- :wat::core::String  body <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::match
+    (:queue::Queue/send q
+      (:queue::Queue::SendRequest :queue name
+        :bodies (:wat::core::Vector :- [:wat::core::String] body)
+        :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::SendResponse::Ok) nil)
+        (_ (:wat::kernel::assertion-failed! "send-one not Ok" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "send-one recv failed" :wat::core::None :wat::core::None))))
+
+;; THREAD: no grant needed — a thread-tier queue shares the parent's admission.
 (:wat::core::defn :demo::run-thread [] -> :wat::core::i64
   (:wat::core::let
-    [h1 (:demo::sub/start :locus (:wat::spawn::thread) :record (:demo::sub::Record))
-     h2 (:demo::sub/start :locus (:wat::spawn::thread) :record (:demo::sub::Record))
-     h3 (:demo::sub/start :locus (:wat::spawn::thread) :record (:demo::sub::Record))
-     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-             (:demo::sub::Handle/addr h1) (:demo::sub::Handle/addr h2) (:demo::sub::Handle/addr h3))
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
+     stores (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::mem-store::Handle])
+                               _i  <- :wat::core::i64]
+                -> (:wat::core::Vector :- [:wat::query::mem-store::Handle])
+                (:wat::core::conj acc
+                  (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+                    :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))))
+              (:wat::core::Vector :- [:wat::query::mem-store::Handle])
+              (:wat::core::range 0 3))
+     queues (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::queue::Handle])
+                               i   <- :wat::core::i64]
+                -> (:wat::core::Vector :- [:queue::queue::Handle])
+                (:wat::core::conj acc
+                  (:queue::queue/start :locus (:wat::spawn::thread)
+                    :record (:queue::queue::Record :cap 64)
+                    :store-addr (:wat::query::mem-store::Handle/addr (:wat::core::nth stores i)))))
+              (:wat::core::Vector :- [:queue::queue::Handle])
+              (:wat::core::range 0 3))
+     qaddrs (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+                               i   <- :wat::core::i64]
+                -> (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+                (:wat::core::conj acc (:queue::queue::Handle/addr (:wat::core::nth queues i))))
+              (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+              (:wat::core::range 0 3))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :cap 16 :delay-ns 1000) :addrs addrs)
+          :record (:demo::topic::Record :nsubs 3)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
+     wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
+          :record (:demo::topic-worker::Record :vis-ns 200000000)
+          :inbox-addr (:queue::queue::Handle/addr iqh)
+          :sub-addrs qaddrs)
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
-     _  (:demo::accept! tc "hello")
-     _  (:demo::wait-outbox-zero tc)]
-    3))
+     tw (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
+     qclients (:wat::core::foldl
+                (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Queue])
+                                 i   <- :wat::core::i64]
+                  -> (:wat::core::Vector :- [:queue::Queue])
+                  (:wat::core::conj acc
+                    (:demo::dial-queue (:queue::queue::Handle/addr (:wat::core::nth queues i)))))
+                (:wat::core::Vector :- [:queue::Queue])
+                (:wat::core::range 0 3))
+     _ (:demo::face-start-tw tw)
+     _ (:demo::accept! tc "hello")
+     _ (:demo::wait-inbox-zero tc)
+     got (:wat::core::foldl
+           (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+             (:wat::core::let [d (:demo::q-depth (:wat::core::nth qclients i))]
+               (:wat::core::if (:wat::i64::> (:wat::i64::+ (:wat::core::first d) (:wat::core::second d)) 0)
+                 (:wat::i64::+ acc 1)
+                 acc)))
+           0
+           (:wat::core::range 0 3))]
+    got))
 
-;; PROCESS: every subscriber must grant the topic's pid BEFORE `:init` dials it.
+;; PROCESS: inbox grants the topic (send) and the worker (receive); each subscriber
+;; queue grants the worker (send).
 (:wat::core::defn :demo::run-process [] -> :wat::core::i64
   (:wat::core::let
-    [h1 (:demo::sub/start :locus (:wat::spawn::process) :record (:demo::sub::Record))
-     h2 (:demo::sub/start :locus (:wat::spawn::process) :record (:demo::sub::Record))
-     h3 (:demo::sub/start :locus (:wat::spawn::process) :record (:demo::sub::Record))
-     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-             (:demo::sub::Handle/addr h1) (:demo::sub::Handle/addr h2) (:demo::sub::Handle/addr h3))
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::process)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start
+           :locus (:wat::spawn::process/post-spawn
+                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:wat::query::mem-store/grant ish (:demo::pids pl))))
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
+     stores (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::mem-store::Handle])
+                               _i  <- :wat::core::i64]
+                -> (:wat::core::Vector :- [:wat::query::mem-store::Handle])
+                (:wat::core::conj acc
+                  (:wat::query::mem-store/start :locus (:wat::spawn::process)
+                    :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))))
+              (:wat::core::Vector :- [:wat::query::mem-store::Handle])
+              (:wat::core::range 0 3))
+     queues (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::queue::Handle])
+                               i   <- :wat::core::i64]
+                -> (:wat::core::Vector :- [:queue::queue::Handle])
+                (:wat::core::let
+                  [sh (:wat::core::nth stores i)
+                   h (:queue::queue/start
+                        :locus (:wat::spawn::process/post-spawn
+                                 (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                                   (:wat::query::mem-store/grant sh (:demo::pids pl))))
+                        :record (:queue::queue::Record :cap 64)
+                        :store-addr (:wat::query::mem-store::Handle/addr sh))]
+                  (:wat::core::conj acc h)))
+              (:wat::core::Vector :- [:queue::queue::Handle])
+              (:wat::core::range 0 3))
+     qaddrs (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+                               i   <- :wat::core::i64]
+                -> (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+                (:wat::core::conj acc (:queue::queue::Handle/addr (:wat::core::nth queues i))))
+              (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+              (:wat::core::range 0 3))
      th (:demo::topic/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                     (:queue::queue/grant iqh (:demo::pids pl))))
+          :record (:demo::topic::Record :nsubs 3)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
+     wh (:demo::topic-worker/start
+          :locus (:wat::spawn::process/post-spawn
+                   (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:wat::core::let
-                       [pids (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))
-                        _1 (:demo::sub/grant h1 pids)
-                        _2 (:demo::sub/grant h2 pids)
-                        _3 (:demo::sub/grant h3 pids)]
-                       nil)))
-          :record (:demo::topic::Record :cap 16 :delay-ns 1000) :addrs addrs)
+                       [pids (:demo::pids pl)
+                        _ (:queue::queue/grant iqh pids)]
+                       (:wat::core::foldl
+                         (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
+                           (:queue::queue/grant (:wat::core::nth queues i) pids))
+                         nil
+                         (:wat::core::range 0 3)))))
+          :record (:demo::topic-worker::Record :vis-ns 200000000)
+          :inbox-addr (:queue::queue::Handle/addr iqh)
+          :sub-addrs qaddrs)
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
-     _  (:demo::accept! tc "hello")
-     _  (:demo::wait-outbox-zero tc)]
-    3))
+     tw (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
+     qclients (:wat::core::foldl
+                (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Queue])
+                                 i   <- :wat::core::i64]
+                  -> (:wat::core::Vector :- [:queue::Queue])
+                  (:wat::core::conj acc
+                    (:demo::dial-queue (:queue::queue::Handle/addr (:wat::core::nth queues i)))))
+                (:wat::core::Vector :- [:queue::Queue])
+                (:wat::core::range 0 3))
+     _ (:demo::face-start-tw tw)
+     _ (:demo::accept! tc "hello")
+     _ (:demo::wait-inbox-zero tc)
+     got (:wat::core::foldl
+           (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+             (:wat::core::let [d (:demo::q-depth (:wat::core::nth qclients i))]
+               (:wat::core::if (:wat::i64::> (:wat::i64::+ (:wat::core::first d) (:wat::core::second d)) 0)
+                 (:wat::i64::+ acc 1)
+                 acc)))
+           0
+           (:wat::core::range 0 3))]
+    got))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+;; 3 3 — thread and process must agree. Printed by wat-scripts/topic/run.wat
+;; (`set-redef!` lives there so this file can be load-file!'d).
+(:wat::core::defn :user::loci [] -> :wat::core::String
   (:wat::core::let
     [t (:demo::run-thread)
      p (:demo::run-process)]
-    (:wat::kernel::println (:wat::string::concat (:wat::core::str t)
-                             (:wat::string::concat " " (:wat::core::str p))))))
+    (:wat::string::concat (:wat::core::str t)
+      (:wat::string::concat " " (:wat::core::str p)))))
 
 ;; ── gates ─────────────────────────────────────────────────────────────────────
-(:wat::service::defservice :demo::slow-sub
-  :satisfies :demo::Sub
-  :durable   [delay-ms <- :wat::core::i64]
-  :ephemeral []
-  :impls
-  [(deliver [s ctx req]
-     (:wat::core::let
-       [ms (:demo::slow-sub::Record/delay-ms (:demo::slow-sub::State/durable s))
-        _  (:wat::core::match
-             (:wat::kernel::recv
-               (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
-             ((:wat::kernel::RecvOutcome::Message _m) nil)
-             ((:wat::kernel::RecvOutcome::Lost _c) nil)
-             (:wat::kernel::RecvOutcome::Stopped nil)
-             (:wat::kernel::RecvOutcome::Closed nil))]
-       (:wat::service::Outcome::Continue s
-         (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:wat::core::count (:demo::Sub::DeliverRequest/msgs req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::slow-sub::Op])]))))])
+;; Row 1: publish, then read inbox depth before any worker runs. The message is in
+;; the store — a crash would not lose it.
+(:wat::core::defn :user::durable-ok [] -> :wat::core::String
+  (:wat::core::let
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
+     th (:demo::topic/start :locus (:wat::spawn::thread)
+          :record (:demo::topic::Record :nsubs 1)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
+     tc (:demo::dial-topic (:demo::topic::Handle/addr th))
+     _  (:demo::accept! tc "hello")
+     n  (:demo::depth-of-topic tc)]
+    (:wat::core::format "pending={n};durable={d}"
+      :n n
+      :d (:wat::core::if (:wat::i64::>= n 1) "yes" "no"))))
 
-;; Counting subscriber: deliver-calls vs messages. Row 1 of wire-batching —
-;; the only row an unbatched one-element vector would fail.
-(:wat::service::defservice :demo::counting-sub
-  :satisfies :demo::Sub
-  :durable   []
-  :ephemeral [calls <- :wat::core::i64
-              nmsgs <- :wat::core::i64]
-  :init (:wat::core::fn [record <- :demo::counting-sub::Record] -> :demo::counting-sub::State
-          (:demo::counting-sub::State :durable record :calls 0 :nmsgs 0))
-  :stop (:wat::core::fn [s <- :demo::counting-sub::State]
-          -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
-          (:wat::core::Tuple (:demo::counting-sub::State/calls s)
-            (:demo::counting-sub::State/nmsgs s)))
-  :impls
-  [(deliver [s ctx req]
-     (:wat::core::let
-       [n (:wat::core::count (:demo::Sub::DeliverRequest/msgs req))
-        s' (:demo::counting-sub::State
-             :durable (:demo::counting-sub::State/durable s)
-             :calls (:wat::i64::+ (:demo::counting-sub::State/calls s) 1)
-             :nmsgs (:wat::i64::+ (:demo::counting-sub::State/nmsgs s) n))]
-       (:wat::service::Outcome::Continue s'
-         (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok n)))
-         (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])])
-         (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::counting-sub::Op])]))))])
+;; Row 2: one publish to N=3 writes 3 rows, not 1.
+(:wat::core::defn :user::unit-is-per-sub [] -> :wat::core::String
+  (:wat::core::let
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
+     th (:demo::topic/start :locus (:wat::spawn::thread)
+          :record (:demo::topic::Record :nsubs 3)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
+     tc (:demo::dial-topic (:demo::topic::Handle/addr th))
+     _  (:demo::accept! tc "hello")
+     n  (:demo::depth-of-topic tc)]
+    (:wat::core::format "rows={n};unit={u}"
+      :n n
+      :u (:wat::core::if (:wat::core::= n 3) "per-sub" "per-msg"))))
 
-;; Row 1: publish returns before a slow subscriber finishes.
+;; Publish returns after the inbox write, with no workers running — so even a
+;; subscriber that would take 200ms cannot hold the publisher.
 (:wat::core::defn :user::publish-is-async [] -> :wat::core::String
   (:wat::core::let
-    [h  (:demo::slow-sub/start :locus (:wat::spawn::thread)
-          :record (:demo::slow-sub::Record :delay-ms 200))
-     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-             (:demo::slow-sub::Handle/addr h))
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :cap 8 :delay-ns 1000) :addrs addrs)
+          :record (:demo::topic::Record :nsubs 1)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      t0 (:wat::time::epoch-nanos (:wat::time::now))
      _  (:wat::core::match (:demo::Topic/publish tc (:demo::Topic::PublishRequest :msg "hello"))
@@ -478,14 +640,17 @@
       :dt dt
       :p (:wat::core::if (:wat::i64::< dt 100) "yes" "no"))))
 
-;; Row 4: a full outbox refuses. delay-ns 500ms so the tick cannot drain first.
-(:wat::core::defn :user::outbox-refuses [] -> :wat::core::String
+;; A full inbox refuses. No workers, so nothing drains. cap 2, nsubs=1: third is Full.
+(:wat::core::defn :user::inbox-refuses [] -> :wat::core::String
   (:wat::core::let
-    [h  (:demo::sub/start :locus (:wat::spawn::thread) :record (:demo::sub::Record))
-     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-             (:demo::sub::Handle/addr h))
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 2)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :cap 2 :delay-ns 500000000) :addrs addrs)
+          :record (:demo::topic::Record :nsubs 1)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      r1 (:demo::Topic/publish tc (:demo::Topic::PublishRequest :msg "a"))
      r2 (:demo::Topic/publish tc (:demo::Topic::PublishRequest :msg "b"))
@@ -500,77 +665,107 @@
              (_ "fail")))]
     (:wat::core::format "a={a};b={b};c={c}" :a (tag r1) :b (tag r2) :c (tag r3))))
 
-;; Row 5: idle topic never ticks.
+;; Idle topic never ticks: no waiters on the inbox, so the queue does not arm.
 (:wat::core::defn :user::idle-ticks [] -> :wat::core::String
   (:wat::core::let
-    [h  (:demo::sub/start :locus (:wat::spawn::thread) :record (:demo::sub::Record))
-     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-             (:demo::sub::Handle/addr h))
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :cap 8 :delay-ns 1000) :addrs addrs)
+          :record (:demo::topic::Record :nsubs 1)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _  (:demo::nap-ms 20)
      n  (:demo::ticks-of tc)]
     (:wat::core::format "ticks={n}" :n n)))
 
-;; ★ Concurrent fan-out: four 200 ms subscribers, one message. Concurrent is
-;; max (~200 ms); sequential is sum (~800 ms). Rows 2–11 all pass on a fused
-;; send-then-recv; this is the constructed proof they cannot fake.
-(:wat::core::defn :user::fanout-is-max [] -> :wat::core::String
+;; Row 3: a full subscriber is retried via visibility, not dropped. Cap 1 filled with
+;; a dummy (cap 0 never accepts). Worker hits Full, does not ack; after the dummy is
+;; drained and vis expires, the message arrives. No retry counter.
+(:wat::core::defn :user::refused-is-retried [] -> :wat::core::String
   (:wat::core::let
-    [h1 (:demo::slow-sub/start :locus (:wat::spawn::thread)
-          :record (:demo::slow-sub::Record :delay-ms 200))
-     h2 (:demo::slow-sub/start :locus (:wat::spawn::thread)
-          :record (:demo::slow-sub::Record :delay-ms 200))
-     h3 (:demo::slow-sub/start :locus (:wat::spawn::thread)
-          :record (:demo::slow-sub::Record :delay-ms 200))
-     h4 (:demo::slow-sub/start :locus (:wat::spawn::thread)
-          :record (:demo::slow-sub::Record :delay-ms 200))
-     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-             (:demo::slow-sub::Handle/addr h1) (:demo::slow-sub::Handle/addr h2)
-             (:demo::slow-sub::Handle/addr h3) (:demo::slow-sub::Handle/addr h4))
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
+     ssh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     sqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 1)
+           :store-addr (:wat::query::mem-store::Handle/addr ssh))
+     qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
+              (:queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :cap 8 :delay-ns 1000) :addrs addrs)
+          :record (:demo::topic::Record :nsubs 1)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
+     wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
+          :record (:demo::topic-worker::Record :vis-ns 200000000)
+          :inbox-addr (:queue::queue::Handle/addr iqh)
+          :sub-addrs qaddrs)
+     inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
+     subq  (:demo::dial-queue (:queue::queue::Handle/addr sqh))
+     tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
+     tw    (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
+     _ (:demo::send-one subq "q0" "dummy")
+     _ (:demo::face-start-tw tw)
+     _ (:demo::accept! tc "hello")
+     _ (:demo::wait-inflight inbox)
+     dummy-id (:demo::take-one subq "q0")
+     _ (:demo::ack-one subq "q0" dummy-id)
+     after-drain (:demo::take-one subq "q0")
+     _ (:demo::nap-ms 350)
+     _ (:demo::wait-pending subq)
+     after-expiry (:demo::take-one subq "q0")]
+    (:wat::core::format "inflight=yes;after-drain={a};after-expiry={b}"
+      :a (:wat::core::if (:wat::core::= after-drain "") "none" "got")
+      :b (:wat::core::if (:wat::core::= after-expiry "") "none" "got"))))
+
+;; Row 4: N=2, one subscriber full. The healthy one receives immediately; publish
+;; does not block.
+(:wat::core::defn :user::stalled-does-not-stall [] -> :wat::core::String
+  (:wat::core::let
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64)
+           :store-addr (:wat::query::mem-store::Handle/addr ish))
+     s0 (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     q0h (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 32)
+           :store-addr (:wat::query::mem-store::Handle/addr s0))
+     s1 (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     q1h (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 1)
+           :store-addr (:wat::query::mem-store::Handle/addr s1))
+     qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
+              (:queue::queue::Handle/addr q0h) (:queue::queue::Handle/addr q1h))
+     th (:demo::topic/start :locus (:wat::spawn::thread)
+          :record (:demo::topic::Record :nsubs 2)
+          :inbox-addr (:queue::queue::Handle/addr iqh))
+     wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
+          :record (:demo::topic-worker::Record :vis-ns 200000000)
+          :inbox-addr (:queue::queue::Handle/addr iqh)
+          :sub-addrs qaddrs)
+     q0 (:demo::dial-queue (:queue::queue::Handle/addr q0h))
+     q1 (:demo::dial-queue (:queue::queue::Handle/addr q1h))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
+     tw (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
+     _ (:demo::send-one q1 "q1" "dummy")
+     _ (:demo::face-start-tw tw)
      t0 (:wat::time::epoch-nanos (:wat::time::now))
-     _  (:demo::accept! tc "hello")
-     _  (:demo::wait-outbox-zero tc)
+     _ (:demo::accept! tc "hello")
      t1 (:wat::time::epoch-nanos (:wat::time::now))
-     dt (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)]
-    (:wat::core::format "dt-ms={dt};shape={s}"
+     dt (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)
+     _ (:demo::wait-pending q0)
+     healthy (:demo::take-one q0 "q0")
+     stalled (:demo::take-one q1 "q1")]
+    (:wat::core::format "healthy={h};stalled={s};dt-ms={dt};blocked={b}"
+      :h (:wat::core::if (:wat::core::= healthy "") "none" "got")
+      :s (:wat::core::if (:wat::core::= stalled "") "none" "held")
       :dt dt
-      :s (:wat::core::if (:wat::i64::< dt 500) "max" "sum"))))
-
-;; ★ Wire-batching: one counting subscriber, N=20, K=10. Delay so the outbox
-;; fills before the first -deliver; two ticks, two deliver calls, 20 messages.
-;; An unbatched implementation (msgs of one every time) prints calls=20.
-(:wat::core::defn :user::wire-batches [] -> :wat::core::String
-  (:wat::core::let
-    [h  (:demo::counting-sub/start :locus (:wat::spawn::thread)
-          :record (:demo::counting-sub::Record))
-     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
-             (:demo::counting-sub::Handle/addr h))
-     th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :cap 32 :delay-ns 100000000) :addrs addrs)
-     tc (:demo::dial-topic (:demo::topic::Handle/addr th))
-     n  20
-     _  (:wat::core::foldl
-          (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
-            (:demo::accept! tc (:wat::core::str i)))
-          nil
-          (:wat::core::range 0 n))
-     _  (:demo::wait-outbox-zero tc)
-     pair (:demo::counting-sub/stop h)
-     calls (:wat::core::first pair)
-     nmsgs (:wat::core::second pair)]
-    (:wat::core::format "calls={c};msgs={m};shape={s}"
-      :c calls :m nmsgs
-      :s (:wat::core::if (:wat::core::and (:wat::i64::< calls n) (:wat::core::= nmsgs n))
-           "batch" "one"))))
-
-(:wat::core::defn :user::async-gates [] -> :wat::core::String
-  (:wat::core::format
-    "async={a};refuse={r};idle={i}"
-    :a (:user::publish-is-async)
-    :r (:user::outbox-refuses)
-    :i (:user::idle-ticks)))
+      :b (:wat::core::if (:wat::i64::< dt 100) "no" "yes"))))
