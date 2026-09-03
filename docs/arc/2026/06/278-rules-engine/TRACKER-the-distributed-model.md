@@ -73,11 +73,35 @@ sends, and its *placement in the loop* is what decides the fault:
 
   | stone | what | state |
   |---|---|---|
-  | **A** | `:wat::time::NonZeroDuration` (`NonZeroU64`). Zero-as-a-wait has no form. `src/` + ONE line of `wat/service.wat`, **no codemod** | **DRAWN** — DESIGN/BRIEF/EXPECTATIONS-`zero-is-not-a-wait` |
-  | **B** | queue `wait-ns i64` → `wait <- Queue::Wait` with `:Immediate` / `:UpTo [NonZeroDuration]` | ⛔ **BLOCKED on B-pre — see below** |
-  | **B-pre** | **make time types wire-admissible.** No time type crosses a service boundary today | **NEW, blocks B** |
-  | **C** | the naming sweep — `Alarm :after`→`:delay` (64 sites/25 files), `Millisecond`→`Milliseconds`, `pending`/`in-flight`→`visible`/`unacked` | not drawn |
-  | **D** | the helper vocabulary that hung the floor — `take-one`, `wait-pending`/`wait-inflight`, `q-depth`'s `(Tuple 1 1)`, `accept!`, the lying comment at `sns-fanout.wat:145`, the `1`-vs-`-1` sentinels | not drawn, **owns the open red** |
+  | **A** | `:wat::time::NonZeroDuration` (`NonZeroU64`). Zero-as-a-wait has no form | ✅ **STRUCK 2026-09-03** |
+  | **B-pre** | time types cross a service boundary (`edn_to_typed_value_inner` + `decode_declared_field`) | ✅ **STRUCK 2026-09-03** |
+  | **B** | queue `wait-ns i64` → `wait <- Queue::Wait`, `:Immediate` / `:UpTo [NonZeroDuration]` | ✅ **STRUCK 2026-09-03** |
+  | **D** | the helper vocabulary that hung the floor — `take-one`, `wait-pending`/`wait-inflight`, `q-depth`'s `(Tuple 1 1)`, `accept!`, the lying comment at `sns-fanout.wat:145`, the `1`-vs-`-1` sentinels, **and `pending`/`in-flight` → `visible`/`unacked`** | **NEXT.** Owns the live race |
+  | **C** | the naming sweep — `Alarm :after`→`:delay` (64 sites/25 files, **stdlib, BOOTSTRAP**), `Millisecond`→`Milliseconds` (56 sites) | LAST. Closes no defect |
+
+  ### ⛔ THE ORDER, RULED BY THE BUILDER 2026-09-03 — D → chaos (3c/3d) → C
+
+  **Not C then D.** Written down because it is counter-intuitive (C is mechanical, D needs design)
+  and because a later self will be tempted to sweep the easy renames first:
+
+  1. **D closes a live defect; C closes none.** The race is proven and deterministic. It has passed
+     three times since the timeout — **that is the coin landing the other way, not a fix.**
+  2. **★ THE CHAOS WORK CANNOT BE READ UNTIL D LANDS.** 3c/3d inject dropped replies. A dropped
+     reply **plus** an unbounded spin in `wait-pending` is another unfalsifiable hang — the exact
+     failure mode that made the original red produce an EMPTY ARM. Injecting faults into a system
+     whose helpers convert timing misses into silent stalls means the results cannot be trusted in
+     either direction. This is the decisive argument.
+  3. **C would churn the files D must edit.** `sns-fanout.wat` and `circuit.wat` carry both the
+     `Alarm :after` sites and the lying helper names. C-then-D rebases D onto a freshly-churned
+     corpus for nothing.
+  4. **D's shape is already proven in a committed probe** — `probe-refused-retry-self-consumes.wat`,
+     `gap=300 → delivered; raced=yes-and-VISIBLE`, and its presence-wait already uses
+     `:wait (Wait::UpTo …)` since Stone B. Same position B was in before its strike.
+
+  ★ **RE-SCOPE: `pending`/`in-flight` → `visible`/`unacked` moved from C to D.** `intueri` found
+  that `wait-pending`'s ambiguity is a **downstream cost** of `pending` not saying `visible`, and D
+  already rewrites every caller of `q-depth`. Renaming them apart means touching the same call sites
+  twice and leaving the confusing pair in place through the very stone that fixes its consequences.
 
   ★ **The wall was built three times and aimed at the sign every time** — `time.rs:351`,
   `time.rs:772`, `runtime.rs:26462`, all `< 0`, all admitting `0`.
@@ -93,7 +117,7 @@ sends, and its *placement in the loop* is what decides the fault:
   and therefore the only one that validates S13. `wat/service.wat` is stdlib: `fix.wat`'s BOOTSTRAP
   note applies, and the drop **must default to zero** or the whole corpus becomes lossy at once.
 
-### ⛔ STONE B IS BLOCKED — the disconfirming probe fired before the brief, not after
+### ✅ B-pre — STRUCK. Kept because the probe is the record of WHY it existed
 
 `wat-scripts/scratch-pad/probe-nonzeroduration-crosses-the-wire.wat`, 3/3:
 
@@ -135,7 +159,26 @@ tissue. It is not:
 
 It needs the WHY comment it never had, not deletion.
 
-### ⛔ OPEN RED — the floor is not green
+### ⛔ THE LIVE RACE — the floor is GREEN and that is the dangerous part
+
+**Floor 5213/5213 at `.floor/2026-09-03T22-45-39Z/` (my run).** The test below has now **passed
+three times** since its one timeout. ⛔ **It is not fixed.** The mechanism is untouched and
+reproducible on demand at `wat-scripts/scratch-pad/probe-refused-retry-self-consumes.wat`, 3/3:
+
+```
+gap=0    recovered-after-naps=0    would-return
+gap=300  recovered-after-naps=-1   SPINS-FOREVER
+```
+
+`take-one` destructively consumes the message `wait-pending` then waits for. **Stone D is the
+disposition. A green floor is not.** Do not re-run it to a green and call it closed — a green run is
+the coin landing the other way.
+
+★ **A race whose failure mode is an unfalsifiable hang is worse than one that asserts:** the losing
+run leaves no evidence and every winning run reads like a fix. Three greens in a row is exactly what
+that looks like from the inside.
+
+#### The original red, kept verbatim
 `.floor/2026-09-03T09-14-58Z/` — `5199 passed, 1 timed out`.
 
 ```
@@ -152,8 +195,9 @@ defect, not the timing.
 ★ **The class: an unbounded wait in a floor-driven test converts a timing miss into an
 unfalsifiable hang.** The ARM is empty because there is nothing to print. Same family as a
 truncating pager and a piped exit code — all three destroy the evidence that would name the failure.
-**3b is the fix, and it must not be "widen the 350 ms nap"** — that patches the case and leaves the
-class.
+**3b was superseded** (see the four stones above): bounding the waits is rung 2, and the root was a
+mode spelled as a magnitude. **Stone D carries what remains** — the destructive-read-as-absence-check
+that is the actual mechanism here.
 
 ### 3-historical. Packet loss injection — the original entry
 The one fault domain never simulated. IPC has been giving us reliable networking for free.
