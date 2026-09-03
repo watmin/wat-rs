@@ -20,15 +20,27 @@ capture it, name the arm, never re-run it away*. An unseeded chaos failure can b
 **re-derived**, so a fix can never be verified. That is not merely inconvenient; it manufactures the
 "known flake" category the doctrine exists to annihilate.
 
-## The one contract decision: the state is THREADED, never ambient
+## The surface: BOTH forms, named apart
 
 ```wat
-(:wat::rand::next  state)     -> (Tuple :- [i64 i64])   ;; (draw, next-state)
-(:wat::rand::below state n)   -> (Tuple :- [i64 i64])   ;; draw in [0, n)
+(:wat::rand::int      lo hi)        -> i64                ambient  · Pure, NOT Deterministic
+(:wat::rand::int-from state lo hi)  -> (Tuple i64 i64)    threaded · Pure AND Deterministic
 ```
 
+Both `[lo, hi)`, matching `:wat::core::range`, so the bounds convention needs no remembering.
+The ambient form is a **wrapper over the threaded one** with a fresh seed — one algorithm, one place
+to get bias right.
+
+★ **They are NOT one name at two arities, deliberately.** `(int 0 6)` and `(int 0 6 seed)` read as
+one function with an optional argument, but they sit in **different purity classes**. That
+difference would be invisible at the call site, and its failure mode is silent: someone writes the
+chaos schedule with the convenient form, gets an unreproducible red, and the replayability argument
+collapses with nothing to catch it. **The name carries the class.**
+
+## The one contract decision: the CHAOS path uses the threaded form
+
 The caller holds the state and threads it. **No hidden global.** Two consequences, and the second is
-why this shape rather than the obvious one:
+why the threaded form must exist at all:
 
 **It is reproducible by construction.** Same seed, same sequence, replayable from a SCORE.
 
@@ -63,7 +75,10 @@ lost between them.
 
 ## Out of scope = REJECTED
 
-- **An ambient/global RNG.** The contract decision; it would be non-Deterministic and unreplayable.
+- **~~An ambient/global RNG~~ — ADMITTED, as `:wat::rand::int`, at the builder's call.** It is the
+  right ergonomics for scripts and demos, it costs nothing extra (a wrapper over the threaded core),
+  and `uuid::v4` already establishes how to classify it. What is rejected is *only* naming it the
+  same as the threaded form.
 - **Distributions beyond uniform**, `f64` draws, shuffles, sampling. Add when a consumer exists —
   a wide surface with one user is an abstraction before its second.
 - **The chaos injection itself.** This stone hands over a primitive and stops.

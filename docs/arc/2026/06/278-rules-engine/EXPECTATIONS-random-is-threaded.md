@@ -10,6 +10,8 @@ Written BEFORE the strike. Scored against my own re-run, never the report.
 | 4 | ★ `below` is in range and unbiased | draw 100k `below 6`, count buckets | every value in `[0,6)`, buckets within a few % of even. A biased schedule is a lying instrument (STOP-3) |
 | 5 | ★ no ambient state | read the diff | the state is a parameter and a return value; **no statics, no thread-locals, no cells** (STOP-1) |
 | 6 | registered in both places | `register_builtins` + `intrinsic_meta` | present in each — perf-3's red was exactly this omission |
+| 6b | ★ the ambient form exists and is classified DIFFERENTLY | `classify_native_fn` on both verbs | `int-from` passes **both** axes; `int` passes `Pure` and **fails** `Deterministic`, exactly as `uuid::v4` does. **Two verbs, two classes, two names** — if both classify the same, one of them is wrong |
+| 6c | the ambient form is a wrapper | read the diff | `int` is implemented over `int-from` with a fresh seed — **one algorithm**, so row 4's bias check covers both |
 | 7 | no new core type | `git diff` | state is `i64`; no `Rng` type added |
 | 8 | no `.wat` corpus change | `git diff --stat wat/ wat-scripts/` | **empty** — nothing calls it yet (STOP-4) |
 | 9 | floor | `./scripts/floor.sh` — Summary line, never a piped exit code | 0 failed, `FLOOR=0`, ≥5192 tests |
