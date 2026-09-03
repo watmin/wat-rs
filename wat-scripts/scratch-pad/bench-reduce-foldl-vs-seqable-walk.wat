@@ -18,6 +18,13 @@
 ;; Shape discipline (`[[feedback_a_benchmarks_shape_manufactures_its_result]]`): fixed n, BOTH
 ;; block orderings, and a non-vacuity control proving all four arms compute the SAME sum. No
 ;; recalibration inside the run.
+;;
+;; ⚙ arc 255 Stone 1c-0a-ii: ARM B's `:wat::core::reduce-walk` was retired and this bench went
+;; unrunnable. Repointed (`wat-scripts/fixes/repoint-retired-heads-to-live-spellings.wat`) to
+;; `:wat::core::foldl-spec-walk` — the live walker under `:wat::core::foldl-spec`, same
+;; signature (`[f <- [U T :-> U] acc <- :U s <- (:wat::stream::Stream :- [T])] -> :U`) and same
+;; call shape as the old `reduce-walk` arm. The bench's own claim is unchanged: it still measures
+;; losing a native fold to an interpreted walk over a Stream.
 
 ;; ARM A — what `reduce` does TODAY for a Vector: the native foldl intrinsic.
 (:wat::core::defn :bench::via-foldl [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
@@ -27,7 +34,7 @@
 
 ;; ARM B — what a collapsed `reduce` would do: normalise to a Stream, then walk it interpreted.
 (:wat::core::defn :bench::via-walk [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
-  (:wat::core::reduce-walk (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::foldl-spec-walk (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                              (:wat::i64::+ acc x))
     0 (:wat::core::Seqable/seq v)))
 

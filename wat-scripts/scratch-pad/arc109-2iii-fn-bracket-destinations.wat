@@ -24,6 +24,15 @@
 ;; The nullary rung is the one worth a probe rather than a read: `parse_fn_type_bracket` finds
 ;; `:->` at position 0 and slices `items[..0]` for the args, which is empty-but-valid only if
 ;; nothing downstream requires at least one argument.
+;;
+;; ⚙ arc 255 Stone 1c-0a-ii: `rung-tuple`'s body called the retired `:wat::core::tuple-get`
+;; (a general 2-arg `(tuple, index)` accessor). Repointed
+;; (`wat-scripts/fixes/repoint-retired-heads-to-live-spellings.wat`) to `:wat::core::first`, the
+;; 1-arg fixed-index-0 member of the live `first`/`second`/`third` family — the trailing literal
+;; index (always `0` at this site) is dropped along with the head, since `first`'s index is
+;; baked into the verb rather than passed as an argument (`src/check.rs`'s
+;; `infer_positional_accessor`: 1-arg only, `Tuple` branch returns element 0). This rung's own
+;; claim is unchanged: it still proves `t <- (Tuple :- [i64 i64])` reads its first slot.
 
 (:wat::core::defn :user::rung-binary-typevars
   [f <- [U T :-> U] seed <- U x <- T] -> U
@@ -52,4 +61,4 @@
 
 (:wat::core::defn :user::rung-tuple
   [t <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
-  (:wat::core::tuple-get t 0))
+  (:wat::core::first t))
