@@ -67,8 +67,24 @@ sends, and its *placement in the loop* is what decides the fault:
 | **after the arm, before the reply-send** | **yes** | **no** | **YES** ← the acceptance criterion |
 
 - **3a. `:wat::rand::`** — ✅ STRUCK 2026-09-03. Two verbs, named apart, classified apart.
-- **3b. Bound every wait, and report** — NOT DRAWN. **Blocked on nothing; do this next.** See the
-  open red below.
+- **3b. Bound every wait, and report** — ⛔ **SUPERSEDED 2026-09-03, and it was aimed at the wrong
+  rung.** Bounding the waits is rung 2. The root is `:wat::time::Nanosecond 0` and `wait-ns 0` — a
+  MODE SPELLED AS A MAGNITUDE, whose identity element silently means "don't". Now four stones:
+
+  | stone | what | state |
+  |---|---|---|
+  | **A** | `:wat::time::NonZeroDuration` (`NonZeroU64`). Zero-as-a-wait has no form. `src/` + ONE line of `wat/service.wat`, **no codemod** | **DRAWN** — DESIGN/BRIEF/EXPECTATIONS-`zero-is-not-a-wait` |
+  | **B** | queue `wait-ns i64` → `wait <- Queue::Wait` with `:Immediate` / `:UpTo [NonZeroDuration]`; delete `sqs.wat:737`'s clamp | blocked on A |
+  | **C** | the naming sweep — `Alarm :after`→`:delay` (64 sites/25 files), `Millisecond`→`Milliseconds`, `pending`/`in-flight`→`visible`/`unacked` | not drawn |
+  | **D** | the helper vocabulary that hung the floor — `take-one`, `wait-pending`/`wait-inflight`, `q-depth`'s `(Tuple 1 1)`, `accept!`, the lying comment at `sns-fanout.wat:145`, the `1`-vs-`-1` sentinels | not drawn, **owns the open red** |
+
+  ★ **The wall was built three times and aimed at the sign every time** — `time.rs:351`,
+  `time.rs:772`, `runtime.rs:26462`, all `< 0`, all admitting `0`.
+
+  ⛔ **`Interval` is REJECTED as a name, on evidence** — `value.rs:284` already calls `Duration` "a
+  non-negative time **interval**", and `process.rs:1370`'s `it_interval: {0,0}` means "no repeat",
+  where zero is the CORRECT value. Do not re-propose it. Names ruled by the builder 2026-09-03 after
+  three `intueri` casts.
 - **3c. Reactor drop, rate per component from `:durable`, seeded** — NOT DRAWN. Client-side drops
   exercise reconnect; they cannot produce a duplicate, because arms run to completion and an alarm
   fires *between* them.
@@ -130,6 +146,12 @@ consumers or store-side dedup by message id.
 | S10-old | ~~(superseded)~~ — production code branching on payload content for instrumentation. Least-bad given the surface was frozen, but a wart. | wart |
 | S11 | **Promotion ruling:** `wat-scripts/{topic,queue}` → `wat/`. | builder's |
 | S12 | **The capstone** — telemetry instrumenting the circuit. Still unbuilt; the in-band trace has partly superseded its purpose. Worth re-scoping rather than building as originally drawn. | re-scope |
+| S15 | **A zero-duration timer WEDGES TEARDOWN.** `after(process, Nanosecond 0)` returns `Closed` and the program cannot exit — `EXIT=124`, 3/3. Its control, identical but for that one cell, exits 0. Repro committed: `scratch-pad/probe-zero-duration-disarms-at-process.wat` + `-control.wat`. Stone A makes it unreachable **from wat**; `Value::Duration(0)` built in Rust still reaches `timerfd_settime`. | open, substrate |
+| S16 | **The SCORE diverges from today's runtime.** `SCORE-the-sane-circuit.md:43` recorded `process ns=0 -> TIMED-OUT (500 ms guard)` on 2026-09-01. On 2026-09-03 the recv returns `Closed` promptly. Both cannot describe one behaviour. **The 09-01 line is left standing, not overwritten**, until someone establishes whether the runtime changed or the guard shape saw a different thing. | open |
+| S17 | **`Duration`'s own storage is still `i64` and still a caller contract.** `value.rs:291-294` says direct Rust construction (`Value::Duration(-n)`) bypasses the guard. Stone A does **NOT** close this — an earlier DESIGN draft claimed it did, which was false. Note the deferred fix as named (`u64`) would not have caught zero either. | open |
+| S18 | **A zero-duration timer manufactures a spurious `Closed`** — the substrate's word for "the peer went away", indistinguishable from a severed connection. Feeds the open `Closed`-after-sever item, which treats `Closed` as fatal-and-real. | open |
+| S19 | **`:wat::time::+` cannot add two durations.** Both `+` and `-` require an `Instant` on the left, so `(+ (Hour 1) (Minute 30))` has no form and no substitute verb exists in the 41-row surface. | open |
+| S20 | **`wait` has five senses in the tree**, incl. `src/process/handle.rs:98` `wait_or_cached_exit`, where one path blocks in `waitid` and the other burns CPU in `std::hint::spin_loop()`. The caller cannot tell from the name which they get. | open |
 
 ---
 
