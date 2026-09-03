@@ -243,18 +243,7 @@
            sends
            none-alarms)
          (:wat::core::let
-           [t3     (:wat::time::epoch-nanos (:wat::time::now))
-        bodies (:wat::core::foldl
-                 (:wat::core::fn
-                   [acc <- (:wat::core::Vector :- [:wat::core::String])
-                    b   <- :wat::core::String]
-                   -> (:wat::core::Vector :- [:wat::core::String])
-                   (:wat::core::conj acc
-                     (:wat::core::if (:wat::string::contains? b "|")
-                       (:wat::core::format "{b}|{t}" :b b :t t3)
-                       b)))
-                 (:wat::core::Vector :- [:wat::core::String])
-                 (:queue::Queue::SendRequest/bodies req))
+           [bodies (:queue::Queue::SendRequest/bodies req)
         n      (:wat::core::count bodies)
         rows   (:wat::core::foldl
                  (:wat::core::fn

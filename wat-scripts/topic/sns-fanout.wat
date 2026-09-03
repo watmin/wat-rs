@@ -201,56 +201,96 @@
            (:wat::core::match r
              ((:queue::Queue::ReceiveResponse::Ok envs)
                (:wat::core::let
-                 [_ (:wat::core::foldl
-                      (:wat::core::fn [acc <- :wat::core::i64  e <- :queue::Envelope]
-                        -> :wat::core::i64
+                 [nsubs (:wat::core::count subs)
+                  empty-bucket (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                  empty-buckets (:wat::core::foldl
+                                  (:wat::core::fn
+                                    [acc <- (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                                     _i  <- :wat::core::i64]
+                                    -> (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                                    (:wat::core::conj acc empty-bucket))
+                                  (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                                  (:wat::core::range 0 nsubs))
+                  t1 (:wat::time::epoch-nanos (:wat::time::now))
+                  buckets (:wat::core::foldl
+                            (:wat::core::fn
+                              [acc <- (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                               e   <- :queue::Envelope]
+                              -> (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                              (:wat::core::let
+                                [eid   (:queue::Envelope/id e)
+                                 body  (:queue::Envelope/body e)
+                                 parts (:wat::string::split body "|")
+                                 nparts (:wat::core::count parts)]
+                                (:wat::core::if (:wat::i64::< nparts 2)
+                                  (:wat::kernel::assertion-failed! "topic-worker: body missing idx prefix" :wat::core::None :wat::core::None)
+                                  (:wat::core::let
+                                    [idx (:wat::edn::read (:wat::core::nth parts 0))
+                                     rest (:wat::core::foldl
+                                            (:wat::core::fn [a <- :wat::core::String  i <- :wat::core::i64]
+                                              -> :wat::core::String
+                                              (:wat::core::let [p (:wat::core::nth parts i)]
+                                                (:wat::core::if (:wat::core::= a "")
+                                                  p
+                                                  (:wat::string::concat a (:wat::string::concat "|" p)))))
+                                            ""
+                                            (:wat::core::range 1 nparts))
+                                     t3 (:wat::time::epoch-nanos (:wat::time::now))
+                                     stamped (:wat::core::format "{b}|{t1}|{t2}|{t3}" :b rest :t1 t1 :t2 t1 :t3 t3)
+                                     pair (:wat::core::Tuple eid stamped)]
+                                    (:wat::core::foldl
+                                      (:wat::core::fn
+                                        [bacc <- (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                                         i    <- :wat::core::i64]
+                                        -> (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                                        (:wat::core::conj bacc
+                                          (:wat::core::if (:wat::core::= i idx)
+                                            (:wat::core::conj (:wat::core::nth acc i) pair)
+                                            (:wat::core::nth acc i))))
+                                      (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
+                                      (:wat::core::range 0 nsubs))))))
+                            empty-buckets
+                            envs)
+                  _ (:wat::core::foldl
+                      (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
                         (:wat::core::let
-                          [eid   (:queue::Envelope/id e)
-                           body  (:queue::Envelope/body e)
-                           parts (:wat::string::split body "|")
-                           nparts (:wat::core::count parts)]
-                          (:wat::core::if (:wat::i64::< nparts 2)
-                            (:wat::kernel::assertion-failed! "topic-worker: body missing idx prefix" :wat::core::None :wat::core::None)
+                          [bucket (:wat::core::nth buckets i)]
+                          (:wat::core::if (:wat::core::empty? bucket)
+                            acc
                             (:wat::core::let
-                              [idx (:wat::edn::read (:wat::core::nth parts 0))
-                               ;; Inbox Queue/send appends a timestamp whenever the body
-                               ;; contains `|` (the idx prefix always does). Drop that last
-                               ;; segment so subscriber-side traces stay seq|t0|t1|t2|t3|t4.
-                               rest-hi (:wat::core::if (:wat::i64::> nparts 2)
-                                         (:wat::i64::- nparts 1)
-                                         nparts)
-                               rest (:wat::core::foldl
-                                      (:wat::core::fn [a <- :wat::core::String  i <- :wat::core::i64]
-                                        -> :wat::core::String
-                                        (:wat::core::let [p (:wat::core::nth parts i)]
-                                          (:wat::core::if (:wat::core::= a "")
-                                            p
-                                            (:wat::string::concat a (:wat::string::concat "|" p)))))
-                                      ""
-                                      (:wat::core::range 1 rest-hi))
-                               t1 (:wat::time::epoch-nanos (:wat::time::now))
-                               stamped (:wat::core::format "{b}|{t1}|{t2}" :b rest :t1 t1 :t2 t1)
-                               qpeer (:wat::core::nth subs idx)
-                               qname (:wat::core::format "q{i}" :i idx)
+                              [bodies (:wat::core::foldl
+                                        (:wat::core::fn
+                                          [bacc <- (:wat::core::Vector :- [:wat::core::String])
+                                           p    <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+                                          -> (:wat::core::Vector :- [:wat::core::String])
+                                          (:wat::core::conj bacc (:wat::core::second p)))
+                                        (:wat::core::Vector :- [:wat::core::String])
+                                        bucket)
+                               qpeer (:wat::core::nth subs i)
+                               qname (:wat::core::format "q{i}" :i i)
                                sr (:queue::Queue/send qpeer
-                                    (:queue::Queue::SendRequest
-                                      :queue qname
-                                      :bodies (:wat::core::Vector :- [:wat::core::String] stamped)
-                                      :now-ns t1))]
+                                    (:queue::Queue::SendRequest :queue qname :bodies bodies :now-ns t1))]
                               (:wat::core::match sr
                                 ((:wat::kernel::RecvOutcome::Message sresp)
                                   (:wat::core::match sresp
                                     ((:queue::Queue::SendResponse::Ok)
-                                      (:wat::core::match
-                                        (:queue::Queue/ack inbox
-                                          (:queue::Queue::AckRequest :queue "inbox" :id eid))
-                                        ((:wat::kernel::RecvOutcome::Message _ar) (:wat::i64::+ acc 1))
-                                        ((:wat::kernel::RecvOutcome::Lost cause)
-                                          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                                        (:wat::kernel::RecvOutcome::Stopped
-                                          (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
-                                        (:wat::kernel::RecvOutcome::Closed
-                                          (:wat::kernel::assertion-failed! "topic-worker: ack closed" :wat::core::None :wat::core::None))))
+                                      (:wat::core::foldl
+                                        (:wat::core::fn
+                                          [a <- :wat::core::i64
+                                           p <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+                                          -> :wat::core::i64
+                                          (:wat::core::match
+                                            (:queue::Queue/ack inbox
+                                              (:queue::Queue::AckRequest :queue "inbox" :id (:wat::core::first p)))
+                                            ((:wat::kernel::RecvOutcome::Message _ar) (:wat::i64::+ a 1))
+                                            ((:wat::kernel::RecvOutcome::Lost cause)
+                                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                                            (:wat::kernel::RecvOutcome::Stopped
+                                              (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
+                                            (:wat::kernel::RecvOutcome::Closed
+                                              (:wat::kernel::assertion-failed! "topic-worker: ack closed" :wat::core::None :wat::core::None))))
+                                        acc
+                                        bucket))
                                     ((:queue::Queue::SendResponse::Full _d _c) acc)
                                     (_ (:wat::kernel::assertion-failed! "topic-worker: send not Ok/Full" :wat::core::None :wat::core::None))))
                                 ((:wat::kernel::RecvOutcome::Lost cause)
@@ -260,7 +300,7 @@
                                 (:wat::kernel::RecvOutcome::Closed
                                   (:wat::kernel::assertion-failed! "topic-worker: send closed" :wat::core::None :wat::core::None)))))))
                       0
-                      envs)]
+                      (:wat::core::range 0 nsubs))]
                  (:wat::service::SelfOutcome::Continue s
                    none-sends
                    [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))

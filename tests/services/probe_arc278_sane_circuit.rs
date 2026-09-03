@@ -78,6 +78,48 @@ fn stop_while_idle_is_prompt() {
     );
 }
 
+/// S13 row 1: a forced redelivery is visible as a message duplicate (same seq,
+/// different envelope ids). Dedupe is off — the parent records both receives.
+#[test]
+fn redelivery_is_visible_as_a_message_duplicate() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::redelivery-is-visible");
+    assert_eq!(
+        field(&stored, "same-seq"),
+        "yes",
+        "redelivery must be the same published seq; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "envelopes-differ"),
+        "yes",
+        "a redelivery is a new envelope; if ids match the detector is still blind; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "distinct"),
+        "1",
+        "distinct on seq must stay 1 while total rises; got {stored}"
+    );
+    let total: i64 = field(&stored, "total")
+        .parse()
+        .unwrap_or_else(|_| panic!("total not an i64 in {stored}"));
+    let dup: i64 = field(&stored, "dup")
+        .parse()
+        .unwrap_or_else(|_| panic!("dup not an i64 in {stored}"));
+    assert!(total > 1, "forced redelivery must produce two receives; got {stored}");
+    assert!(dup > 0, "dup must be visible; got {stored}");
+}
+
+/// S13 row 2: the same redelivery, absorbed by the consumer. One outcome.
+#[test]
+fn redelivery_is_absorbed_by_the_consumer() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::redelivery-is-absorbed");
+    assert_eq!(
+        stored, "total=1;distinct=1;dup=0",
+        "an idempotent consumer must emit one outcome for a redelivered message; got {stored}"
+    );
+}
+
 /// Row 7: receive-calls approach the message count, not ~3× it. Floor weight
 /// is 12×2 = 24 messages; the old worker did 4×12 = 48 polls by construction.
 #[test]
