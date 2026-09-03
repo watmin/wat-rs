@@ -781,6 +781,50 @@ fn walk_nested_constructors(
     if items.is_empty() {
         return;
     }
+    // ── `match` — A PATTERN IS NOT A CALL (arc 278 strike-match-arm-is-not-a-call, D5).
+    //
+    // A match form is `(HEAD scrutinee arm…)` and an arm is `(pattern body…)`. Without this arm the
+    // generic fallthrough at the bottom recursed into the ARM ITSELF, whose `items[0]` is the
+    // PATTERN — for a bare enum-variant pattern that is a keyword `enum_variant_ctor` resolves, so
+    // the arity branch below fired the variant's 0 declared fields against the arm's length 1 and
+    // refused a legal program with `RhsArityMismatch` naming a `:then` INSERT of `:probe::E::A`
+    // that appears nowhere in the source. It survived only by coincidence of spelling:
+    // `((:E::A) true)` hides the keyword one level down, so the same expression compiled — and the
+    // byte-identical expression was accepted unchanged in the `where` fence.
+    //
+    // Scrutinee (`items[1]`) and every arm BODY (`arm[1..]`) ARE walked: a body can legitimately
+    // nest a constructor, and the four kinds strike-nested-wall wired must keep reaching there.
+    // Only `arm[0]` is skipped — a bare variant keyword, a destructuring List, or a literal, none
+    // of which is a constructor call in that position. This mirrors `purity.rs`'s `match` arm
+    // (`classify_expr`, "skip pattern (element 0); check body forms (1..)") exactly, including its
+    // one indirection through `resolve_core_name` (STOP-4: never a second arm keyed on the rete
+    // name). BOTH spellings were MEASURED to reach this walker un-lowered, by instrumenting it:
+    // `:wat::rete::core::match` (the `RETE_OPS` row in `vocabulary.rs`) and `:wat::core::match`
+    // each arrive verbatim in a `:then` operand, and each reproduced the false refusal at HEAD.
+    //
+    // ⛔ `let` / `fn` / `cond` deliberately get NO arm here, and the omission is measured, not
+    // assumed: `let` and `fn` bind in a **Vector**, so `walk_nested_constructors` returns at the
+    // `WatAST::List` bind above before ever reaching a pattern; a `cond` clause is a List but its
+    // `items[0]` is a call form, so keyword extraction fails and it falls through harmlessly. An
+    // arm for any of them would be a dead branch no mutation could redden.
+    if let Some(WatAST::Keyword(head, _)) = items.first() {
+        if crate::rete::vocabulary::resolve_core_name(head) == ":wat::core::match" {
+            if let Some(scrutinee) = items.get(1) {
+                walk_nested_constructors(scrutinee, rule_name, types, errors);
+            }
+            for arm in items.iter().skip(2) {
+                // A non-List arm is malformed; shape is not this walker's diagnostic (the freeze
+                // checker and `classify_expr` both raise on it), and recursing into it would be a
+                // no-op anyway — the bind at the top of this function returns on any non-List.
+                if let WatAST::List(parts, _) = arm {
+                    for body_form in parts.iter().skip(1) {
+                        walk_nested_constructors(body_form, rule_name, types, errors);
+                    }
+                }
+            }
+            return;
+        }
+    }
     // ★ Arc 278 strike-nested-wall — READ THE FORM AS IT EXISTS AT THE WALL, NOT AS IT WAS
     // WRITTEN. `defrecord`'s companion macro lowers EVERY record-constructor call before freeze
     // (`macros/parse.rs:343`, `(:wat::core::kwargs-construct ~_kc-type ~@call-args)`), so the head

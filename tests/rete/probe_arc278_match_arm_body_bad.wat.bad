@@ -1,0 +1,27 @@
+;; strike-match-arm-is-not-a-call (D5) — MUTATION-2's GATE: a constructor in an arm BODY is still
+;; validated. Twin of `probe_arc278_match_arm_body_ok.wat`; read that file's header for the pair.
+;;
+;; `:macb::Inner` declares exactly `n`. The A-arm's body supplies `n` (so `RhsMissingFields` has
+;; nothing to report and this kind fires ALONE, per strike-nested-wall's one-kind-per-fixture rule)
+;; and also `:nope`, which is undeclared. `UnknownField` must be the only finding, and its caret
+;; must be `:nope`'s own extent — `check_field_kw` takes the keyword NODE, so a span over the whole
+;; nested form would mean the walker reached the body by some other route than the arm-body recursion.
+;;
+;; A cure that stops walking `match` forms altogether — which is what makes the three spelling
+;; probes green for the wrong reason — makes THIS file load, and that is what the gate catches.
+
+(:wat::core::defenum :macb::E :wat::enum::Pure :A :B)
+
+(:wat::core::defrecord :macb::Inner [n <- :wat::core::i64])
+(:wat::core::defrecord :macb::In    [k <- :wat::core::i64  v <- :macb::E])
+(:wat::core::defrecord :macb::Out   [k <- :wat::core::i64  inner <- :macb::Inner])
+
+(:wat::rete::defrule :macb::r
+  :when [(:macb::In (?k <- :k) (?v <- :v))]
+  :then [(:macb::Out :k ?k
+           :inner (:wat::rete::core::match ?v
+                    (:macb::E::A (:macb::Inner :n 10 :nope 1))
+                    (:macb::E::B (:macb::Inner :n 20))))])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "loaded"))

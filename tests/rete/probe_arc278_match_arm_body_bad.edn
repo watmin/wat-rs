@@ -1,0 +1,28 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/UnknownField {:message \"defrule `macb::r`: `:macb::Inner` has no field `:nope`; available fields: [n]\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_match_arm_body_bad.wat.bad\" :line 23 :col 54 :end #wat.core.Option/Some [#wat.core/Pos {:line 23 :col 59}]} :causes [] :rule \"macb::r\" :fact-type \"macb::Inner\" :field \"nope\" :available-fields [\"n\"]}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/UnknownField {
+          :rule "macb::r"
+          :fact-type "macb::Inner"
+          :field "nope"
+          :available-fields ["n"]
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_match_arm_body_bad.wat.bad"
+            :line 23
+            :col 54
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 23
+                :col 59
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]
