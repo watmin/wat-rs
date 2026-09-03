@@ -73,7 +73,9 @@ consumers or store-side dedup by message id.
 
 | # | what | status |
 |---|---|---|
-| S1 | **Adapter's 1 ms retry poll → parked reply.** Its trigger has fired (bounding every stage worked). Same repair already made twice; short. | ready |
+| S1 | ~~Adapter's 1 ms retry poll~~ **OBSOLETE — `:fanout::adapter` was deleted by the durable-topic stone.** No adapter, no poll. | dissolved |
+| S14 | **The topic-worker sends and acks ONE ROW AT A TIME** — `bodies` is a `Vector` used with a single element, and one `Queue/ack` per row. The batching surface survived the adapter's deletion; its use did not. | ready |
+| S1-old | ~~(superseded)~~ Its trigger has fired (bounding every stage worked). Same repair already made twice; short. | ready |
 | S2 | **Store swap to sqlite in the circuit.** Measured 1.29× at cap 16, 1.75× batched. The codemod exists (`fix-circuit-to-sqlite.wat`), is idempotent, diff verified store-only. | ready |
 | S2b | **The store is now 1.68×**, up from 1.29× before durability — the durable topic made it hotter exactly as predicted. Promotes S2 from convenience to load-bearing. | ready |
 | S13 | **The circuit asserts exactly-once on an at-least-once system.** `probe_ex001_fanout` requires `total == distinct`; a visibility expiry during processing produces a legitimate duplicate and reds the floor (it did, 26 vs 24). Widening the window 200 ms → 5 s is correct SQS configuration and **does not remove the class** — the assertion still depends on a timing margin. Resolution is an idempotent consumer (dedupe by envelope id), and **item 3 forces it anyway**. | open |
@@ -82,9 +84,11 @@ consumers or store-side dedup by message id.
 | S5 | **Substrate `ensure-alarm` outcome.** The level-triggered wakeup uses a hand-maintained `armed?` flag; an outcome meaning *"ensure an alarm exists for op X"* makes both armed-twice and armed-zero-times unrepresentable. Rung 3 for a class currently at rung 2. Needs `wat/`. | open |
 | S6 | **Nonexistent stdlib enum variants are not resolve-checked.** `:wat::core::Option::Nope`, `:wat::kernel::RecvOutcome::Bogus` all pass `--check` and die at run time; a same-file enum is rejected. Cost real time twice today. | open |
 | S7 | **Duration-0 `after` never fires at process tier.** Verified; thread fires, process is silent, no diagnostic. Locus transparency break. Untouched. | open |
-| S8 | **The outbox cursor.** The rebuild was ~0.47 ms/delivery; K=10 tick-batching amortises it. **Its share needs re-measuring** before it is ruled on again — the last two rulings both expired for reasons I mis-dated. | re-measure |
+| S8 | ~~The outbox cursor~~ **OBSOLETE — the topic's outbox was deleted by the durable-topic stone.** | dissolved |
+| S8-old | ~~(superseded)~~ The rebuild was ~0.47 ms/delivery; K=10 tick-batching amortises it. **Its share needs re-measuring** before it is ruled on again — the last two rulings both expired for reasons I mis-dated. | re-measure |
 | S9 | **`body-key` is dead code** in `circuit.wat` and the sqlite variant — defined, never called. So "the same body delivered twice" is checked by nothing. | trivial |
-| S10 | **The `t3` stamp is guarded by `contains? body "\|"`** — production code branching on payload content for instrumentation. Least-bad given the surface was frozen, but a wart. | wart |
+| S10 | **CORRECTED and WORSE.** Alive at `sqs.wat:253` (`contains? b`, which is why a `contains? body` grep missed it — token, not form). The queue appends a stamp; the topic-worker now **splits and re-joins the body per message to strip it back off**. Production code adds a field that other production code removes. | ready |
+| S10-old | ~~(superseded)~~ — production code branching on payload content for instrumentation. Least-bad given the surface was frozen, but a wart. | wart |
 | S11 | **Promotion ruling:** `wat-scripts/{topic,queue}` → `wat/`. | builder's |
 | S12 | **The capstone** — telemetry instrumenting the circuit. Still unbuilt; the in-band trace has partly superseded its purpose. Worth re-scoping rather than building as originally drawn. | re-scope |
 
