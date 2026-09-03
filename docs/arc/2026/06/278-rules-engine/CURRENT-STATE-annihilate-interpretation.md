@@ -4,13 +4,13 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (thirty-fourth — 32 STRIKES LANDED; D5 CLOSED — A LEGAL `match` NOW COMPILES IN `:then`). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (thirty-fifth — 33 STRIKES LANDED; D6 CLOSED; ⛔ I PUSHED A RED FLOOR). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline ab606b671..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat ab606b671..HEAD --name-only
+git log --oneline d64cb888f..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat d64cb888f..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -67,11 +67,42 @@ instruments are the worse. Neither is done.**
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
 | **C** — the instruments | ⭐ **the original four (C3–C6) all CLOSED**, with C1, C2, C7, C8. C13 **withdrawn — it was never a question**. **C10, C11** closed. Open: **C9** spec check never run · **C12** no arm measures the filter phase as it exists · **C14** `compiled:calls` is not a call count |
-| **D** — engine behaviour | D1, D3, D4, **D5** closed. D2 closed as a **bounded negative** (must NOT be reaped). Open: **D6, D7**; **D8** an unrowed L1 now rowed; **D9** a doctrine gap needing the builder |
+| **D** — engine behaviour | D1, D3, D4, **D5** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D6** closed. Open: **D7**; **D8** an unrowed L1 now rowed. (**D9 withdrawn** — the convention existed.) |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-**Floor at stamp: `5332 tests run: 5332 passed, 21 skipped`, clippy rc=0, lints green.**
+**Floor at stamp: `5336 tests run: 5336 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+
+### ⛔⛔ I PUSHED A RED FLOOR — AND THE GATE THAT CAUGHT IT IS ITSELF INCOMPLETE
+
+`c9bb8044b`, my own D6 strike-draw, committed a reconnaissance `.wat` into
+`wat-scripts/scratch-pad/`. **Two gates read every `.wat` under that tree and I ran neither before
+pushing.** I had run the full floor at `ab606b671` — *before* the commit that added the file. **A
+`.wat` landing in a gated tree is exactly the case where "the floor was green earlier" is worth
+nothing.** The rider found it; I reproduced it; the probe now lives beside the strike that cites it,
+which is what it always was.
+
+⚠ **And it is a real lint gap, not just my mistake.** `:wat::rete::DerivationNode/via` is **live** —
+the program runs — but record accessors are *synthesized at freeze* from the `defrecord` at
+`wat/rete.wat:374` and never appear textually under `src/`/`wat/`, the only place the resolver looks.
+**Any `wat-scripts/` file touching a rete record accessor is unavoidably RED**, and none of the
+gate's three offered fixes applies. **C15.**
+
+### ⭐ D6 CLOSED — TWO GATES, AND THE SECOND WAS WAITING BEHIND THE FIRST
+
+`explain` — the surface a user consults *to check the engine's reasoning* — dropped constraints
+silently. Driven: two constraints in, one out. `sym: None` blocked the literal; threading it makes
+the value resolve and meet `value_to_ast_literal`, which had **no `Value::Enum` arm** and would have
+dropped it one line later. **Mutation 2 (revert only the arm) REDs** — that is what separates a
+two-gate cure from a one-gate one, and it fires on the **left** operand, which my own DESIGN's
+`b=false` line implied was fine.
+
+Part 2 is the class: an unrenderable operand now yields a positional marker whose head is
+deliberately **not** a `RETE_OPS` row, so `constraints.length` always equals the condition's
+constraint count and an omission cannot be evaluated by mistake.
+
+⛔ A third `continue` I briefed **could never fire** — `Constraint` has one guarded producer. Deleted,
+with a bidirectional gate installed so a second route reds there instead of the payload going short.
 
 ### ⭐ D5 CLOSED — AND THE ENUMERATION SAVED THE CURE FROM BEING THREE TIMES TOO BIG
 
