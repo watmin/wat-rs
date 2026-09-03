@@ -1,12 +1,12 @@
-# SEAM — the ONE live breadcrumb. As of 2026-09-01. **The campaign is arc 255: THE REGISTRY BECOMES THE SOLE AUTHORITY.**
+# SEAM — the ONE live breadcrumb. As of 2026-09-02. **The campaign is arc 255: THE REGISTRY BECOMES THE SOLE AUTHORITY.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
 > Run the datamancy bootstrap (grimoire + the 4 primers from the **SIGNED MCP**, never a disk copy),
 > ground HEAD against the disk, and read this whole file before you touch anything.
 
-> `251/SEAM.md`, `278/SEAM.md` are PARKED. Arc 109's megafile campaign reached its floor and handed
-> off. ⛔ **PARKED IS NOT DEAD.**
+> `251/SEAM.md`, `278/SEAM.md` are PARKED. Arc 109's megafile campaign reached its floor.
+> ⛔ **PARKED IS NOT DEAD.**
 
 ## GROUND FIRST
 
@@ -20,167 +20,158 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor ............ 5123/5123, 0 FAIL, 17 skipped, ~115s   (scripts/floor.sh, exit read UNPIPED)
+floor ............ 5127/5127, 0 FAIL, 17 skipped, ~118s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-runtime.rs ....... 19,045   (was 34,152 — the megafile campaign, -15,107)
-check.rs ......... 22,613   (its partire map still stands, still uncast by name)
+registry rows .... 490
+runtime.rs ....... 19,261   check.rs ....... 22,604   special_forms.rs ....... 379
 host ............. JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
 ## ⬜ THE CAMPAIGN — read these three, in this order, before proposing anything
 
 ```
-RULING-the-registry-is-the-sole-authority.md          the builder's doctrine + the census
-DESIGN-CAMPAIGN-the-registry-becomes-the-sole-authority.md   4 shapes, A picked, 4 phases
-NOTE-there-are-two-registries.md                      the finding that opened it
+RULING-the-registry-is-the-sole-authority.md                  the doctrine + the census
+DESIGN-CAMPAIGN-the-registry-becomes-the-sole-authority.md    4 shapes, A picked, + the SEQUENCING RULING
+WORKLIST-the-121-the-registry-cannot-vouch-for.md             re-derived 2026-09-02 → 107, with the road map
 ```
 (all in `docs/arc/2026/06/255-builtin-registry/`)
 
 **The builder's words, which are the standard:** *"the registry must be the thing who knows all
-names.. who delegates to the code who performs for those names... what you query to know what
-exists... what they take.. what it returns.... the properties these names have.... **we must
-eliminate every source of duplication or inconsistency**."*
+names.. who delegates to the code who performs for those names... **we must eliminate every source of
+duplication or inconsistency**."* And the sequencing: *"we continue to add names to the registry....
+then we attack the hand lists."*
 
-## ★★★ THE PROGRESS METER IS ALSO THE FINISH LINE
-
-```
-GAP_A 89 · GAP_B 112 · DEBT 83 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 28
-```
-
-These five ledgers **exist only because the split does.** When they are empty and their files
-deleted, the RULING is satisfied. ⚠ **A stone that claims to eliminate duplication and moves none of
-them has eliminated none.** Check them before and after every stone.
-
-## THE AUTHORITIES STILL COMPETING (measured, not recalled)
+## ★★★ THE METER — and the finish line
 
 ```
-RETE_OPS          src/rete/vocabulary.rs   74 rows  — 55 of GAP_A's 89 ARE these
-SPECIAL_FORMS     src/special_forms.rs     35 rows  — 23 unregistered; calls ITSELF a registry
-register_builtins src/check.rs            350 env.register schemes
-literal arms      src/check.rs            118 type-grammar arms
-RETIREMENT_TABLE  src/remedy/retirement.rs 144 rows
-residues          intrinsic_meta 37 · is_expand_time_legal 54 (16 already DEAD) · effectful_by_prefix 8
-MacroRegistry     src/macros/registry.rs   41 stdlib macros — 0 visible to the registry.
-                  ★ `:wat::core::defn` answers None, same as a nonexistent name.
-⛔ NINE MORE       NOTE-the-sloppy-registries-a-measured-census.md — incl. FIVE hand-lists of
-                  "what kind of form is this head", INCONSISTENT on disk (`def` is a mutation to
-                  freeze.rs and is not one to runtime.rs). @Category is the vehicle; 1a unblocks it.
-is_reserved_prefix src/resolve/reserved.rs  THE ARC'S FOUNDING TARGET, still on disk
+GAP_A 88 · GAP_B 106 · DEBT 95 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 20
+the whitelist experiment: 107 names still unvouchable (was 121) — 509 of 609 corpus files
 ```
 
-⚠ **NOT duplicates — do not delete these:** `constructor_meta`/`accessor_meta` DERIVE from the frozen
-`TypeEnv`; `step_list`'s 19 names declare a capability with `NoStepRule` as its honest refusal.
-**A campaign that cannot tell a derivation from a duplicate deletes correct code.**
+⚠ **DEBT GOING UP IS NOT A REGRESSION.** Registering a row with no `CheckEnv` scheme converts an
+*invisible* absence into a *named* one. That is an absence ledger's whole job. DEBT falls at Phase 2c.
 
-## ⛔ WHAT COST THE MOST TODAY — read all five
+## ✅ WHAT THIS SESSION SHIPPED — 96 commits, every one green at push
 
-**1. NINE MISCOUNTS, EVERY ONE A PATTERN THAT MATCHED A SUBSET OR A SUPERSET.**
-`grep -c "registry()"` matched `macro_registry()`. `grep "Binding::"` swept in `LetBinding::` (a
-different enum) — I reported 46 sites; the truth was 54 raw, 43 real. `special_forms.rs` "19 rows"
-was 30. A size regex omitting `mod`/`impl` reported 10,473 lines for 30 fns in a 24,103-line file.
-A caller census blind to `mod tests`. A ledger regex that read quoted names out of COMMENTS and had
-me alleging a defect in correct work. ★ **Every single correction came from a rider, a cast, the
-compiler, or the floor. Not once from re-reading my own claim.**
+```
+17 → 29 of special_forms.rs's 35 rows registered.  SIX REMAIN:
+     ann-form · do · stream::lazy        ← ordinary, 1a-ζ
+     defstruct                           ← a stdlib MACRO; unregisterable (see the fourth registry)
+     unquote · unquote-splicing          ← punctuation; a CONTAINMENT fact, not a row (open)
 
-**2. A BRIEF'S TABLE SHIPPED A REGRESSION.** I wrote that `and`'s eval arm called `eval_and_tail`.
-It called `eval_and` — I grepped and took the FIRST match, which was the *tail* arm. The rider
-followed the table, `eval_and`/`eval_or` were orphaned and deleted, and 14 lint tests went red.
-`eval_and_tail`'s own doc names what I broke: *"this arc's law that nothing weakens quietly."*
+⛔ freeze::is_liftable_declaration_head — KILLED, with its meter. THE FIRST HAND-LIST TO DIE.
+   Four remain in that family: is_mutation_head · is_mutation_form ·
+   DECLARATION_HEADS · RUNTIME_DECLARATION_HEADS
 
-**3. TWO DESIGNS REFUTED BY THEIR OWN PROBES — both times before briefing, both times good.**
-`step_list` is not a door (a closed 19-name competence table; a guard would promise step rules for
-~445 rows that have none). The tail door fixes no live bug (`eval_tail`'s fallthrough already reaches
-the registry) — it grants a *capability*: `impls` carries `(role, SOURCE TEXT)`, so a form can declare
-a tail impl the registry can never call.
+NEW MACHINERY, each sabotage-proven:
+   SpecialFormRole::Declare    the third regime — freeze-time processing
+   Purity::Unevaluated         a form that never evaluates; the gate keys on it, not @Category
+   Category::Splice            a load is not a declaration; it replaces itself with N forms
+   @alias                      the alias field — and it IS the dispatch, not documentation
+   an alias INHERITS its axes  declaring one is a compile error
+   the named refusal           8 forms stopped being told they do not exist
+```
 
-**4. A VACUOUS PROBE RETURNED A PERFECT SCORE.** My first doc→TypeScheme probe compared through the
-very projection whose lossiness it existed to test: 386/386. Comparing `TypeExpr` structurally found
-2. **A perfect result is when to suspect the instrument.**
+## ⛔ WHAT COST THE MOST — read all six
 
-**5. INSERTING A TEST SILENTLY DISARMED ANOTHER.** I anchored on the `fn` line, not the `#[test]`
-line, and stole an existing test's attribute. **The floor read 5114 on both sides — my new test
-replaced the disarmed one one-for-one.** Only clippy's `dead_code` saw it.
+**1. A GATE OUTRANKED MY OWN STOP, AND THE GATE WAS RIGHT.** My brief said *"don't touch the eval
+arms"*; registering `role = eval` gave the rows handlers, and the registry-first-door gate demanded
+those arms be deleted. **A STOP is a claim about the world and the floor outranks it.**
+
+**2. I NAMED THE WRONG WITNESS, THREE TIMES IN ONE DESIGN.** `:wat::rete::i64::+` recorded as `Alias`
+class; it is `Fallback`, 4-arg, with `:undefined` machinery. Eight live tests broke. **The rider
+implemented as briefed, measured the collision, and reported it for a decision.**
+
+**3. WE MINTED THE CAMPAIGN'S OWN DEFECT, IN UNDER AN HOUR.** An alias and its target declared
+contradicting `@Totality`/`@Category`. A per-row judgement (correct for the row it was made about)
+outlived the row when I re-pointed the witness. **The cure was structural, never "author carefully".**
+
+**4. THREE MIS-AIMED SABOTAGES, TWO OF THEM NEARLY VERDICTS.** A tenth arm inserted into the wrong
+identically-spelled fn 40 lines away. A negative-lift fixture whose first form was a literal, so the
+predicate was never consulted. **A green from a mis-aimed probe is indistinguishable from a working
+gate.** Run the sabotage; never trust the pass.
+
+**5. A `true`-FOR-EVERYTHING ACCESSOR PASSED THE ENTIRE FLOOR.** Killing a hand-list deleted the only
+test asserting its predicate ever answers `false`. **Retiring a subject disarms its negative tests.**
+
+**6. I ARGUED AGAINST A CURE THIS ARC HAD ALREADY DESIGNED.** `NOTE-declaration-position-class-guard`
+(2026-06-24) named the position-class property and deferred it *until the registry could answer*. I
+recommended the opposite, in a NOTE in the same directory, and found it only because the builder
+pushed on a diagnostic.
 
 ## ★ WHAT ACTUALLY WORKS
 
-- **The ratchets do the enforcing.** Registering `fn`/`match` made a gate *someone else wrote* demand
-  `KNOWN_UNREVIEWED` shrink. The dead-arm gate forced the eval door's own sweep. **Build the gate,
-  then let it drive the next stone.**
-- **Freeze NAMES, never counts** — and it applies to the floor's own total (see lesson 5).
-- **Sabotage every gate, both directions, before believing it.** Five gates this session; the tail
-  door's probe SIGSEGVs when the guard sits one block too high, and passes at depth 10 either way.
-- **Riders refuse well when the brief gives them an escape clause.** One refused to delete
-  `special_forms.rs` rows and was right (they were the only path to `and`/`or`). One refused to
-  reshape a handler for the macro. One reported its sabotage as *unverified* rather than claiming it.
-- **Cast a ward when the question is "is this one thing or two."** `solvere` found a THIRD registry
-  my census had missed entirely.
+- **Cast `intueri` on a name BEFORE minting it.** It killed a proposed sixth axis by finding a live
+  witness (`use!` is `@Category Declaration` *and* evaluates), and named `:Splice` from the word three
+  files already used with no naming pressure on anyone.
+- **Write the required RELATIONSHIP between two sabotages, not two expectations.** *"`@Category Io`
+  must go GREEN and `@Purity Pure` must go RED"* cannot be satisfied by accident; either alone can.
+- **Make "I cannot tell" an explicitly correct rider outcome.** It is the only way one under
+  completion pressure will choose it over a plausible guess.
+- **Riders refuse well and refused seven times.** Every refusal was right.
+- **The ratchets drive the next stone.** Four reds this session were gates demanding work I had not
+  planned, by name.
 
 ## ⛔ RULES THAT STILL COST TIME
 
 - ⛔ **THE ORCHESTRATOR RUNS THE FULL FLOOR. A RIDER'S TARGETED GREEN IS NOT A VERDICT.**
-- ⛔ **THE LSP LIED EIGHT CONSECUTIVE STONES.** Stale `E0603`/`E0004`/`E0560` every time. ⚠ And twice
-  there WERE real problems it never mentioned. Run clippy; believe nothing else.
+- ⛔ **THE LSP HAS LIED TEN CONSECUTIVE STONES.** Stale `E0560`/`E0004`/dead-code every time. Run
+  clippy; believe nothing else.
 - ⛔ **`./scripts/floor.sh > /dev/null 2>&1; echo $?`** then read the Summary from `.floor/latest/raw.log`.
-- ⛔ **`git commit <paths>`. NEVER pathless.**
+- ⛔ **`git commit -F`, NEVER `-m`** — backticks in a message are shell-interpreted and ate three
+  identifiers this session. **`git commit <paths>`, never pathless.**
+- ⛔ **REVERTING IS A LOSS.** Get it green instead.
+- ⛔ **WAT IS FQDN, ALWAYS.** Anything not a binder is illegal. **Parsing is not legality.**
 - ⛔ **Riders: no worktrees, no stash, no sub-agents, everything FOREGROUND, `model: "sonnet"` explicit.**
-- ⛔ **A brief's every pairing must be verified against the ARM, not a grep's first hit.** Lesson 2.
-- ⛔ **REVERTING IS A LOSS.** The builder stopped me mid-revert. Get it green instead — the fix was
-  one honest narrowing away.
-- ⛔ **WAT IS FQDN, ALWAYS.** Anything that is not a binder is illegal; bound symbols are shadow-FQDN
-  in `$bound`. ★ A short head is not a rendering style, it is not-wat — the whole clojure-ination
-  migration exists to force this. I shipped short heads in 1a-α citing a probe that proved the reader
-  PARSES them. It does. **Parsing is not legality.**
 
-## ⬜ NEXT — Phase 1a, and one named gap
-
-✅ **CLOSED by Stone 1a-α (`b9546b097`).** `signature_of_defn` renders a row's declared `@syntax`
-through wat's own reader, `render-doc`'s precedence, so the two renderers agree. `match` now signs
-`(:wat::core::match <scrutinee> (<pattern> <body>) ...)` — the dead `-> <T>` ASCRIPTION SLOT is gone.
-⚠ `match` is FULLY SUPPORTED and always was; what died (2026-06-22) is match ASSERTING A RETURN TYPE.
-Only `fn` declares types. ★ `@syntax` was
-the right vehicle, not `@arg`: `@arg` carries a TYPE and those slots are syntactic positions.
-A sabotage-proven gate parses every declared `@syntax` at floor time, with a non-vacuity floor.
-
-⛔ **BUILDER'S SEQUENCING RULING, 2026-09-02:** *"we continue to add names to the registry.... then
-we attack the hand lists."* **Register the population first; flip the consumer second.** The campaign
-tried to run ahead twice and was stopped both times by a red or a refusal, never by the plan.
+## ⬜ NEXT
 
 ```
-✅ DONE     17 of special_forms.rs's 35 rows registered — incl. all 8 declaration forms
-✅ KILLED   freeze::is_liftable_declaration_head (9 names) + its meter — the FIRST hand-list
-Phase 1a-γ  the homoiconic 8   quote · quasiquote · unquote · unquote-splicing ·
-                               macroexpand · macroexpand-1 · forms · struct->form
-Phase 1a-δ  the loaders 4      use! · load-file! · digest-load! · signed-load!   ⬅ unblocks the
-Phase 1a-ε  the config 2       set-redef! · set-eval-redef!                      ⬅ mutation pair
-Phase 1a-ζ  the remainder 3    ann-form · do · stream::lazy
-⛔ 1 UNREGISTERABLE  defstruct — a stdlib MACRO. See the fourth-registry NOTE.
-Phase 1b  RETE_OPS' 74 — BLOCKED on 1a
-Phase 2a  core_name — the alias field, the one genuinely homeless one
-Phase 2b  the :undefined fallback machinery — does NOT decompose
-Phase 3a  resolve asks the registry — kills is_reserved_prefix, THE FOUNDING TARGET
-          ★ and it is LOAD-BEARING, not tidying: is_reserved_prefix is the ONLY thing
-            keeping the macro namespace disjoint from the registry's.
+Phase 1b   the 54 ALIAS rows (Alias 35 · Form 9 · Redispatch 10) — a name and a target each,
+           no axis authoring, now that an alias inherits. 66 of the 107 live here.
+           ⛔ Fallback's 20 are NOT aliases: their `total: true` is the MACHINERY's, not the verb's.
+Phase 2b   the :undefined fallback machinery — Fallback's 20
+Phase 1a-ζ ann-form · do · stream::lazy
+Phase 3a   resolve asks the registry — kills is_reserved_prefix, THE FOUNDING TARGET.
+           ★ LOAD-BEARING, not tidying: it is the ONLY thing keeping the macro namespace
+             disjoint from the registry's (41 stdlib macros, 0 visible to the registry).
 ```
 
-⚠ **Flipping the blanket-accept today fails 578 of 599 corpus files.** Measured. The order is forced:
-registry answers → consumer asks → duplicate dies.
+⚠ **Re-derive the 107 after each phase** — the procedure is in the WORKLIST. That number reaching 0
+licenses 3a.
 
-★ Re-derive the 121 worklist after each phase — the procedure is in
-`WORKLIST-the-121-the-registry-cannot-vouch-for.md`. That number reaching 0 licenses Phase 3a.
+★ **On rider capacity, measured:** 6 rows + 11 edits ≈ 375K tokens / 234 calls — near the ceiling for
+*authored* rows. 1b's aliases are transcription, so 20–40 in one rider is plausible. **Parallel riders
+need the brief to forbid the shared files** (`intrinsic/special/mod.rs`, the ledgers) with the
+orchestrator doing that wiring centrally.
+
+## ⬜ OPEN FORKS — measured, not decided
+
+```
+the FOURTH registry     41 stdlib macros, 0 visible. `:wat::core::defn` answers None — same as a
+                        name that does not exist. is_reserved_prefix is all that keeps the two
+                        namespaces disjoint, and it is the thing 3a deletes.
+unquote's containment   "legal only inside X" wants a FIELD naming the enclosing form, not a variant.
+                        intueri killed the @Position axis: 2 of its 3 variants ARE @Purity Unevaluated.
+role = eval can't stack the shim is keyed on the fn identifier, not the FQDN. Compile error, but the
+                        message names a mangled symbol and never says role/eval/stacking.
+defclause               lost its named refusal this session; it has no registry row. Register it.
+meta_has_doc_axis_key   a COMPLIANT wat-side alias has zero axis keys → misclassified. Not live.
+```
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I miscounted nine times, shipped a brief whose table
-> caused a live regression, wrote a probe that scored 386/386 by measuring in the space it was trying
-> to escape, and disarmed a test while the floor stayed green. **Every correction came from outside
-> me.** The riders refused three of my instructions and were right all three times.
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I named the wrong witness three times in one design
+> and broke eight tests. I minted the campaign's own contradiction inside an hour. I mis-aimed three
+> sabotages and nearly published two greens as verdicts. I argued against a cure this arc had already
+> written down. **Every one of those was caught by a rider, a gate, a cast, or the builder — not once
+> by re-reading my own claim.**
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** 49 commits, every one green at push. `runtime.rs`
-> 34,152 → 19,045. Two dispatch doors opened that never existed. Five ratchets built and
-> sabotage-proven. A third registry found. A two-month-dead ascription slot surfaced. And the campaign that
-> ends all of it is drawn, phased, and instrumented with a falsifiable finish line.
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** 96 commits, every one green at push. The first
+> hand-list is dead, with its meter. Eight forms stopped being told they do not exist. The registry
+> learned three regimes, two poles, a category and an alias — and the alias is the dispatch.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`
