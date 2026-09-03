@@ -4,13 +4,20 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (thirty-fifth — 33 STRIKES LANDED; D6 CLOSED; ⛔ I PUSHED A RED FLOOR). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-03 (thirty-ninth — 38 STRIKES LANDED. ⭐⭐ THIS ARC FOUND A TYPE-SOUNDNESS HOLE AND CLOSED IT.). Supersedes every earlier stamp and every dated block below.**
+
+> ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
+> *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
+> `str.replace(old, new)` whose `old` no longer matched; **`.replace()` returns the string unchanged
+> on a miss**, so each edit reported success and changed nothing. The block-insertions in the same
+> scripts were `assert`ed and landed; the stamp line was not. **Assert that an edit CHANGED
+> something, not merely that its anchor was found.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline e38b1f46a..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat e38b1f46a..HEAD --name-only
+git log --oneline 8f34088d6..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 8f34088d6..HEAD --name-only
 ```
 
 **PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -71,294 +78,25 @@ instruments are the worse. Neither is done.**
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-**Floor at stamp: `5351 tests run: 5351 passed, 21 skipped`, clippy rc=0, lints 210/210.**
-
-### ⭐⭐ D10 — A SOUNDNESS HOLE: THE `:then` RHS WAS NEVER TYPE-CHECKED
-
-The same record construction is checked everywhere in the language **except** inside a rule's
-`:then`. Driven: `(:tr::Bad :n ?s)` with `?s : String` into `n <- i64` compiled, fired, and put
-`#tr/Bad {:n "not-an-i64"}` **into the fact set** — where joins, queries, the oracle and `explain`
-all trust the declared schema. The RHS walls that existed (`RhsArityMismatch`, `RhsMissingFields`,
-`RhsPositionalConstructionRetired`, `RhsUnresolvableOperand`) are **every one structural.**
-
-✅ Cured by `RhsFieldTypeMismatch` at both producers. **Corpus measured BEFORE the cure was written:
-1664 `.wat` scanned, ZERO newly-failing.** Proven not to over-refuse — making
-`ComputedNotDerivableHere` a refusal REDs the not-knowable probe *and takes four pre-existing corpus
-tests with it*.
-
-⚠ **Still open: D11** — the identical defect one level down, since `walk_nested_constructors` has no
-`binds`. Driven against the cured binary: `#nh/Inner {:n "nested-string"}`.
-
-⛔ **My brief's load-bearing sentence was false.** *"Everything needed is already in the file and in
-scope"* — `resolve_operand_type` needs `binds`, which was computed in an inner block and dropped
-before the `:then` loop. Without hoisting it, the literal arm is caught and **the bound-`?var` arm —
-the repro's own subject — silently passes.** A rider taking me literally ships a cure that is green
-on its own scorecard while the defect still fires. And my example of a not-knowable operand was wrong
-in the direction that **reopens the hole for every cascading rule**.
-
-### ⛔⛔ C18 — EVERY `.wat.bad` PROBE HAS A HALF THAT CANNOT FAIL
-
-Those fixtures end with a `nil` main, which is **itself** a startup failure. With the wall they exist
-to prove mutated away, the file still fails — for the wrong reason — so `assert!(!ok)` **cannot go
-red under the mutation it exists to detect.** Only the `.edn` golden can. Five-plus fixtures named.
-**This is a sweep.**
-
-### ⛔ HOW LONG THIS TOOK, AND WHAT ACTUALLY FOUND IT
-
-`probare` classed a cost test hollow → the instrument sweep (C3–C6) → C4's probe **refuted my own
-counter** → D7's audit → the parametric trigger → the builder's question *"you found an issue with
-our type checking?"* → **D10**. Six strikes of distance between the ward and the bug. No single lens
-saw it; the chain did.
-
-### ⭐ D7 CURED — AND C16, THE GATE THAT SAT GREEN THROUGH IT
-
-**`native=2 oracle=3` → `native=3 oracle=3`.** The native engine no longer drops a derived fact.
-
-**The cure is class-uniform batching**: a class batches only if EVERY fact of it packed; otherwise
-all of them activate in fact order. One writer per `aid`, ordering preserved by construction.
-Chosen over declared-schema packability — which needs a `TypeEnv` in `FireSession` **and is strictly
-more conservative** — and over a non-replacing writer 2, since `d_alpha` holds indices and appending
-reorders. **+1.9% median** (27 samples, overlapping quartiles) against a batch worth **30.8%**.
-
-⭐ **And C16 is closed with it.** The occupancy differential filtered `predicted` by the same
-predicate that decides batch membership, so it compared writer 2's output against writer 2's output.
-Driven: filter present + D7 live → `extra=[]`; **filter removed + D7 live → `extra=1`.** The gate
-that was blind to a fact-dropping bug now names it.
-
-**The trigger is parametric records.** `(:d7::Box :- [T] [k <- i64  v <- :T])` erases its type
-argument into **one runtime class**, so `Box[i64]` and `Box[String]` share a class whose instances
-differ in *packability*. `pack_i64_row` tests **runtime values**, so one joins the occupancy batch and
-the other falls to `alpha_activate_fact`; `arm.rs:334` files each node under exactly one type head,
-so **both writers reach the same `aid`**; and `pass/alpha.rs:130`'s `insert` replaces the whole
-`Arc<Vec<Element>>`, discarding the push. `d_alpha` still holds the pushed slot indices, which now
-index **different elements**.
-
-⚠ **The strike was drawn expecting a bounded negative like D2. It is not one**, and framing a
-scorecard around the outcome you expect is how it stops being independent of the result.
-
-### ⛔⛔ AND THE INSTRUMENT I TOLD THE RIDER TO TRUST CANNOT SEE IT
-
-My D7 brief said the `leaf_occ` differential *"computes `extra`/`missing` for exactly this invariant,
-and a non-empty `extra` is the collision, observed."* **False.** `predicted` is built by
-`continue`-ing on any fact whose `i64_by_fact[i]` is `None` — **the same predicate that decides batch
-membership** — so it re-derives writer 2's output and compares it against writer 2's output.
-Measured while the fact was being dropped: `predicted=2 actual=2 extra=[] missing=[]`. **A rider
-obeying only that instruction files a confident false negative on a live bug.** The divergence was
-found because the rider reached OUTSIDE the tree, to the oracle. **C16.**
-
-### ⛔ AND I DELETED THE CLASS D TABLE WITH MY OWN EDIT
-
-The D8 withdrawal used a two-anchor slice whose second anchor was the next `### ` heading — and D8's
-block sat above the class table, so the slice took **D1 through D7** with it, in a commit about
-withdrawing one row. `git status` was clean; the file still had 502 plausible lines. Restored and
-counted (70 rows → 80). The commit after it then shipped a message claiming to open C16/C17 that a
-raised `ValueError` had prevented — because the python and the `git commit` were newline-separated
-rather than `&&`-joined.
-
-### ⛔⛔ I PUSHED A RED FLOOR — AND THE GATE THAT CAUGHT IT IS ITSELF INCOMPLETE
-
-`c9bb8044b`, my own D6 strike-draw, committed a reconnaissance `.wat` into
-`wat-scripts/scratch-pad/`. **Two gates read every `.wat` under that tree and I ran neither before
-pushing.** I had run the full floor at `ab606b671` — *before* the commit that added the file. **A
-`.wat` landing in a gated tree is exactly the case where "the floor was green earlier" is worth
-nothing.** The rider found it; I reproduced it; the probe now lives beside the strike that cites it,
-which is what it always was.
-
-⚠ **And it is a real lint gap, not just my mistake.** `:wat::rete::DerivationNode/via` is **live** —
-the program runs — but record accessors are *synthesized at freeze* from the `defrecord` at
-`wat/rete.wat:374` and never appear textually under `src/`/`wat/`, the only place the resolver looks.
-**Any `wat-scripts/` file touching a rete record accessor is unavoidably RED**, and none of the
-gate's three offered fixes applies. **C15.**
-
-### ⭐ D6 CLOSED — TWO GATES, AND THE SECOND WAS WAITING BEHIND THE FIRST
-
-`explain` — the surface a user consults *to check the engine's reasoning* — dropped constraints
-silently. Driven: two constraints in, one out. `sym: None` blocked the literal; threading it makes
-the value resolve and meet `value_to_ast_literal`, which had **no `Value::Enum` arm** and would have
-dropped it one line later. **Mutation 2 (revert only the arm) REDs** — that is what separates a
-two-gate cure from a one-gate one, and it fires on the **left** operand, which my own DESIGN's
-`b=false` line implied was fine.
-
-Part 2 is the class: an unrenderable operand now yields a positional marker whose head is
-deliberately **not** a `RETE_OPS` row, so `constraints.length` always equals the condition's
-constraint count and an omission cannot be evaluated by mistake.
-
-⛔ A third `continue` I briefed **could never fire** — `Constraint` has one guarded producer. Deleted,
-with a bidirectional gate installed so a second route reds there instead of the payload going short.
-
-### ⭐ D5 CLOSED — AND THE ENUMERATION SAVED THE CURE FROM BEING THREE TIMES TOO BIG
-
-A legal `match` in `:then` now compiles, and both spellings agree. The walker recurses into the
-scrutinee and each arm's **BODY**, never an arm's **PATTERN**.
-
-**The enumeration was the first act and it disconfirmed my own worry.** I had flagged the class as
-possibly 3x wider (`match` 264 uses, `let` 485, `fn` 330). It is not: the walker opens
-`let WatAST::List(..) = operand else { return }` and **`let`/`fn` bind in Vectors**, so it never
-reaches them; `cond` clauses are Lists but carry a *call form* at `items[0]`. One form, not three —
-and no dead branches.
-
-⛔ **MY THREE MUTATIONS COULD NOT REACH THE DECISION MY OWN DESIGN EMPHASISED.** All three pass with
-the naive `head == ":wat::rete::core::match"` key, which leaves the defect live for the core
-spelling. The rider added a fourth; it reddens. **A scorecard that gates every part of a change
-except the part it was pointing at has a hole exactly where it was looking.**
-
-⛔ And my read-list sent it to `clause.rs:260` — a different traversal. The shape the cure needed was
-**`purity.rs:1310`**, which carries the `resolve_core_name` guard line-for-line. Third strike running
-where the read-list is my weak part.
-
-### C10 + C11 CLOSED — AND C10 SHRANK ON AUDIT, THEN GREW A NEW ROW
-
-**C10 asked for a gate; the audit said the gate already exists.** Driven: forcing `skip_span = false`
-in the engine left the `compiled:calls == 80_200` assertion **PASSING** while C4's probe went **RED**.
-The blindness is real and the discrimination was landed this session, so the work was a
-cross-reference — *a row that asks for work already done should shrink on audit, not be briefed at
-its original size.*
-
-⛔ **But my brief said "a union of three sources" and named two.** The third is
-`fire/pass/alpha.rs:122` — `census_count_n("compiled:calls", ids.len() * aids.len())`, a
-**multiplicative bulk add**. So the counter **is not a call count**, and `accum_cost.rs:46-47`'s gloss
-of 80,200 as *"one per (fact, matching alpha) pair"* is a property of the workload, not of the
-counter. **C14.** I had already seen that line during the C4 crawl.
-
-**C11**: enumerated before sweeping — 4 blocks, 16 rows, 4 files inside the radius, and **zero**
-outside it. The 245 other deep-indent continuations are embedded `.wat` strings or wrapped assertion
-prose, where the strip is intended.
-
-### ⏭ D5 CRAWLED, NOT YET DRAWN — AND ITS CLASS IS WIDER THAN THE ROW
-
-`walk_nested_constructors` special-cases exactly one head (`kwargs-construct`) and otherwise
-*"recurses into every item anyway"* — so it walks into a `match` form's **arm patterns** as value
-expressions. `(:probe::E::A true)` arity-checks 0 declared fields against the arm's 1;
-`((:probe::E::A) true)` hides the keyword a level down and passes. **Which spelling compiles depends
-on the author's choice.**
-
-⚠ **The row names `match`. Three pattern-bearing forms exist** — `match` (95 refs), `let` (64), `fn`
-(42) — and the walker knows none of them. Whether `let`/`fn` are reachable in a `:then` operand is
-**unmeasured**; that enumeration is the first act of the strike, not an assumption.
-
-⚠ **The banked harness carries a SECOND, ungated L1** that no work-list row covers:
-`PersistentVector/length` is unreachable as an accumulator head because `wat/rete/compile.wat:597`
-admits by *"has a `RETE_OPS` row"* while `lower_named_rete_fn` dispatches through the **user-function**
-table. Its class — *any site that admits by one registry and dispatches by another* — has exactly one
-gate (`holon_rete_ops_have_opexec`); this is the second pair, ungated.
-
-### ⭐ C5 CLOSED — CLASS C's ORIGINAL FOUR ARE DONE. AND A REACHABILITY CLAIM OF MINE WAS FALSE.
-
-The release-floor assert was `extend_array_wins + get_array_wins < usize::MAX` under a comment
-declaring the real check. Now `> 0` plus three orderings measured at ≥2.6x; both tests head with the
-live `BindSpan`; the `163 ns` anchor is gone (its source measures **negative** — three drives gave
-−2, −4, −10 ns/fact, and only the **sign** reproduces).
-
-⭐ **The rider refused a fourth ordering my sketch implied** — EXTEND at card 1 ran 1.19–2.02x over
-twelve drives, inside the noise, and would have manufactured a flake in a repo that bans them. And
-its second mutation printed **`DOMINANCE: YES`** — R60's conclusion inverted — while the old
-tautology passed green.
-
-⛔⛔ **MY DESIGN CLAIMED IN BOLD THAT THE MATCHER PATH IS "REACHED ONLY FROM TESTS". IT IS NOT.**
-`matcher.rs:278,357` register those functions as the wat primitives `:wat::rete::alpha-match` /
-`-local` / `-under`, and `wat/rete/oracle/pass.wat` + `accum-pass.wat` call them. I counted Rust
-callers under `src/` and never grepped the `.wat` corpus. **In a self-hosting repo, a Rust-caller
-count is not a reachability proof — grep the corpus that calls the primitives.** That claim had
-already spawned C13 ("maybe a `purgare` target"), which would have proposed reaping the oracle's
-interpreter; **C13 is withdrawn, not left open, because an open row saying "maybe reap this" is a
-trap.**
-
-### ⛔ FIVE INSTRUMENT STRIKES IN, THE PATTERN IS THE FINDING
-
-C3's mark did not exist · C4's arm measured the opposite branch · C6's target was 18x stale and its
-verb is never called · C5's assertion could not fail. **Every one printed a plausible number the
-whole time, and three had a comment directly above the defect declaring the check that would have
-caught it.** The prose was right; the code never enforced it.
-
-### ⛔⛔ C6 CLOSED BY REFUSING TO ASSERT ITS OWN CHECK — AND THE ARM MEASURES DELETED WORK
-
-The benchmark checked its reconstruction against a constant frozen 2026-08-01, in a `println!` with
-nothing behind it, while the comment above it declared exactly the check that would catch staleness.
-Constant deleted, phase read **live**, reconstruction moved to the **native** arm.
-
-**The check is still not asserted, and that is the result.** Runnable for the first time it FAILS at
-**~7x**, structurally — six runs read 684/693/734/723/686/698%, a 7% spread inside the ~16% floor. No
-honest band admits 7x; one that did would re-create the defect being cleaned.
-
-⛔ **THE FIRE CALLS `exec_where` ZERO TIMES on this axis.** `dispatch_where_tests` takes the
-`proven && is_pure_cmp` reuse branch (`fire/mod.rs:2038`). Driven at every size: **`evals 0, envs 0,
-keyallocs 0`.** Arm `F` is scaled to the pre-where-tree 10,000, so *"ONE ROUND'S WORTH"* — the phrase
-the whole harness is built on — is itself stale, and no rescaling rescues it. Tracked as **C12**.
-
-⛔ **Two defects in my own brief.** I quoted the **10/200** row of a three-size census table as the
-**50/200** figure (0.14 vs 0.38), so five recorded numbers were wrong and my own STOP-2 would have
-tripped on my misreading. **Take a row with its block header, never by a bare grep.** And my central
-premise — that the arms and the phase are commensurable — was false; I checked `evals_per_round` and
-never asked how often the fire calls the verb.
-
-### ⛔ C3 CLOSED — AND MY OWN MEASUREMENT WAS THE THING THAT FAILED
-
-The dead mark was real: `unwrap_or(0)` turned an absent census row into `0.00 ms`, printed it as a
-measurement and subtracted it. Deeper than the row said — `fire/delta.rs:270-276` wraps BOTH
-`phase_end`s around the same two allocations, so `setup:seen` is **coextensive** with `:alloc` and
-the "insert half" is not in that phase at all. Gated by
-`census_name_read_by_a_cost_test_is_emitted.rs`: 4 arms, 5 mutations, lints **210/210**.
-
-⛔ **I measured "exactly one dead name" and briefed a STOP trigger on it. The answer is FIVE, and the
-rider's number was right.** My throwaway sweep used a naive `"…"` regex with no notion of comments
-or char literals; one unbalanced quote **inverted the parity**, so it matched the *gaps between*
-literals. It found the one name that a second, anchored regex happened to catch.
-
-**That is twice in one day**: the same morning my grid sweep reported 17 dead marks by conflating
-census counters with phase marks. Both times a refinement *felt* like diligence and neither was
-anchored against a known-positive case. **A throwaway sweep is an instrument; hand-check one row it
-should find before quoting its count** — and never brief a STOP trigger on an unanchored number.
-
-### ⭐ C4 CLOSED — and the same lesson bit me twice in one day
-
-The arm labelled **THE production path** handed `alpha_activate_fact` an empty `bind_only`, forcing
-`skip_span` off. Driven before briefing: **3 of 3** conds bind-only, production interns `pool=0`, the
-arms intern **120,200**. The obvious fix breaks both tables — they are cumulative ladders where
-`A−M` means *push* only while `A ⊇ M`, which holds *because* the branch is off. So the old arm was
-kept and relabelled, and a production row `Ap` added beside it, deriving nothing. Both sit **below
-`M`** — the production path does less work than the rung that merely adds `exec_compiled`.
-
-⛔ **My EXPECTATIONS pinned absolute milliseconds. Three readings of the unchanged tree spanned
-~16%** — one day after I proved the grid cannot resolve <20% and promoted *the noise floor is
-measured, not assumed*. The invariants `A > M` and `Ap < M` held every time; not one millisecond did.
-**Write benchmark scorecards as invariants, never as times.**
-
-### ⛔ THE CLARA GRID WAS RUN 2026-09-02, AND ITS RESOLUTION FLOOR IS ~±20%
-
-33/33 `:accuracy :match`, 33/33 `:winner :us`, no axis failed — and **no engine movement is
-detectable**, which is the honest headline because *as recorded the grid could not have said
-otherwise*. The verdict carried `:min`/`:max` for the RATIO and **nothing for `:wat-ns`** across all
-23 recorded grids. Driven: `fanout [40000]` looked +11.4% slower, but three same-binary verdicts
-spanned **10.4%**, and two same-build sweeps disagreed by up to **16.3%** per cell with the ratio
-column swinging **+42%**.
-
-⛔ **No perf claim in this arc that rests on a sub-20% grid delta is supported.** `c9fb…`/`d9fb1b88f`
-adds `:wat-ns-min`/`:wat-ns-max` and `compare-grids.sh`, which tests **disjoint intervals** and marks
-every pre-2026-09-02 grid `NO-SPREAD` — unfalsifiable, never "clean". Work-list **C8**.
-
-⛔ **AND THE SPEC HAS NEVER BEEN ASKED.** All 11 axes call `fire-rules$oracle`; **0 of 33 cells in
-every one of the 23 grids carries `:oracle-accuracy`**. The arc has 23 grids proving the fast path
-matches *Clara* and none proving it matches *its own spec*. That is work-list **C9**, and it is its
-own strike — the oracle takes the sweep to ~4 hours, so it must not share an artifact with a perf
-run.
-
-### The four C rows still open are one class
-
-The benchmarks lie about what they measure. **C4 is sharpest** — the arm labelled `A
-alpha_activate_fact`, *the production path*, is handed an empty `bind_only`, disabling what it times.
-C6 rebuilds a phase from the **retired interpreter**. C5 asserts a tautology on the release floor.
-C3 reads a phase mark the engine never emits. **Every cost number this arc has quoted came off that
-harness.**
-
-### ⛔ F3 HAS NO REFERENT
-
-The row says the 70 L2 *"live in the ward reports."* **They do not.** The 2026-08-25 cast left
-`GEN-VIGILIA-2026-08-25.md` (672 lines); the 2026-08-30 cast left only the work list — 19 ward
-returns were subagent messages and evaporated. Its clusters are **leads**, each to be re-derived and
-re-measured, never inherited. *(And a `partire` lead is not a verdict: that ward returns **LEAVE**,
-and did so in this very arc.)*
-
-## THE 25 LANDED STRIKES — each has a `SCORE.md` beside its DESIGN
+**Floor at stamp: `5375 tests run: 5375 passed, 21 skipped`, clippy rc=0, lints 228/228.**
+
+### THIS SESSION'S STRIKES — the detail is in each strike's own `SCORE.md`, not here
+
+| row | what it was | what it turned out to be |
+|---|---|---|
+| **D10 + D11** ⭐⭐ | *"the `:then` RHS is not type-checked"* | **A SOUNDNESS HOLE.** A wrong-typed value entered the **fact set**, which joins, queries, the oracle and `explain` all read as if the schema held. The same construction one line outside a rule was always a `TypeMismatch`. Cured at the top level **and** at any nesting depth. Corpus measured *before* the cure: 1664 files, zero newly-failing. |
+| **D7 + C16** ⭐ | *"two writers, a shape finding"* | **LIVE**: `native=2 oracle=3`, a derived fact silently dropped, triggered by parametric records erasing their type argument into one class. And C16 — the differential that should have caught it filtered `predicted` by the same predicate that decides batch membership, so it agreed with the corruption by construction. |
+| **C19 + C20** | *"a diagnostic prints an unstable counter"* | Cured in three lines — and its corpus-wide gate found **C20**: a diagnostic that **names a different function each run** (5 runs `:probe::a`, 3 runs `:probe::b`). Quarantined; `HashMap`-ordered traversal. |
+| **C3 C4 C5 C6** | four instrument rows | The benchmarks lied. C4's arm measured the *opposite branch*; C3's mark never existed; C6's target was 18× stale and its verb never called; C5's assertion could not fail. **Every one printed a plausible number the whole time**, and three carried a comment directly above the defect declaring the check that would have caught it. |
+| **C8** | — | The Clara grid recorded no dispersion for its own engine: it **cannot resolve <20%**, so no sub-20% perf claim in this arc is supported. |
+| **C9** | *"a 4-hour spec sweep"* | The **port half costs 5 seconds** — every axis emits both answers in one process. Drawn; the Clara half stays open. |
+| **D4 D5 D6** | engine behaviour | A cumulative arena strand; a `match` whose legality depended on which of two equivalent spellings you wrote; `explain` silently dropping constraints. All cured. |
+| **C10 C11 C17 D8 D9** | inherited rows | **Shrank or died on audit.** C10's gate already existed. D8 was cured two days before I rowed it. D9's "doctrine gap" never existed. C17 is closed by a downstream constraint. |
+
+**Still open:** C9's Clara half · C12 · C14 · C15 · C18 · C20 · F2. **D2 stands as a bounded negative
+and must NOT be reaped.**
+
+## THE LANDED STRIKES — each has a `SCORE.md` beside its DESIGN
 
 | | | |
 |---|---|---|
