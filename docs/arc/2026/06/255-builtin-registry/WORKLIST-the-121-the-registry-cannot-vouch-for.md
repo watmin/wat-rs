@@ -140,3 +140,158 @@ Of them: **0** are registry rows, **68** have a checker `TypeScheme` but no regi
       1 :wat::core::find-last-index
       1 :wat::core::conforms?
 ```
+
+---
+
+## ⛔ RE-DERIVED 2026-09-02 — **121 → 107**, and the answer to *"are we ready to rip out the whitelist?"* is NO
+
+The procedure at the top was re-run in full (patch → build → sweep 609 corpus files → revert):
+
+```
+                      2026-09-01        2026-09-02
+corpus files              599               609
+failing                   578               509
+distinct names            121               107
+```
+
+★ The campaign has moved it by **14 names** while the corpus grew by 10 files. **107 names still
+have no registry row**, so flipping `is_resolvable_call_head` today still fails **509 of 609**
+files. The order the RULING forces has not changed: registry answers → consumer asks → duplicate
+dies.
+
+## ★★★ Where the remaining 107 live — this is the road map, measured
+
+```
+:wat::rete::*            66     ← RETE_OPS' population. PHASE 1b. The single largest block.
+   core 19 · i64 15 · string 11 · f64 11 · holon 4 · vector 3 · map/vec/linkedlist 3
+:wat::core::             33     ← two DIFFERENT populations mixed:
+                                  · the 1a-ζ remainder — do · ann-form (+ extend-type, derive,
+                                    defclause, which are declare/parse's 6-name hand-list)
+                                  · collection/arithmetic verbs — = · first · second · get · map ·
+                                    str · foldl · < · > · apply · PersistentVector · PersistentMap ·
+                                    Tuple — NOT in special_forms.rs at all; these are GAP_B's own
+                                    population and need their own stones
+:wat::type               4      · Tuple · i64 · String · Vector
+misc                     4      · eval-ast! · eval-with-defs! · stream::lazy · spawn::process/grants
+```
+
+★★ **Phase 1b is worth 66 of the 107 on its own** — more than half, in one table. And it is no
+longer blocked: its stated blocker was *"until and/or/cond's targets are registered"*, and `and`/`or`
+were registered at Stone 1a-i.
+
+⚠ **The `:wat::core::` 33 are not one job.** Roughly a third are forms `special_forms.rs` knows about
+(1a-ζ's remainder, plus `declare`'s own hand-list population); the rest are ordinary collection and
+arithmetic verbs that were never special forms and are not on any table this campaign has yet
+attacked. **Counting them as one number is how a plan gets written that cannot be executed.**
+
+## The full 107, by corpus call-site count
+
+```
+688 :wat::core::=
+    609 :wat::core::do
+    483 :wat::core::PersistentVector
+    380 :wat::core::foldl
+    362 :wat::core::first
+    330 :wat::eval-ast!
+    271 :wat::core::Tuple
+    244 :wat::core::ann-form
+    230 :wat::core::second
+    222 :wat::core::PersistentMap
+    169 :wat::core::get
+    157 :wat::core::extend-type
+    135 :wat::core::str
+    111 :wat::rete::string::=
+     78 :wat::rete::i64::>
+     65 :wat::core::map
+     51 :wat::core::<
+     47 :wat::core::derive
+     34 :wat::rete::i64::+
+     33 :wat::rete::core::and
+     32 :wat::rete::string::starts-with?
+     32 :wat::rete::i64::=
+     32 :wat::core::>
+     26 :wat::core::apply
+     25 :wat::core::>=
+     23 :wat::rete::i64::<
+     19 :wat::rete::core::if
+     17 :wat::rete::i64::*
+     16 :wat::rete::core::or
+     15 :wat::stream::lazy
+     15 :wat::rete::i64::/
+     14 :wat::rete::core::not
+     13 :wat::rete::vector::get
+     11 :wat::rete::i64::-
+     10 :wat::rete::vector::length
+     10 :wat::rete::i64::mod
+     10 :wat::core::not=
+      9 :wat::type::Tuple
+      9 :wat::core::filter
+      8 :wat::rete::string::contains?
+      8 :wat::rete::map::contains-key?
+      8 :wat::rete::holon::cosine
+      8 :wat::rete::core::foldl
+      8 :wat::core::defclause
+      7 :wat::type::i64
+      7 :wat::rete::f64::>
+      7 :wat::core::contains?
+      6 :wat::rete::vector::contains?
+      6 :wat::rete::string::length
+      6 :wat::rete::core::let
+      6 :wat::rete::core::fn
+      6 :wat::rete::core::PersistentVector/first
+      6 :wat::core::stream->vec
+      6 :wat::core::<=
+      5 :wat::type::String
+      5 :wat::rete::string::subs
+      5 :wat::rete::i64::not=
+      5 :wat::rete::f64::/
+      5 :wat::rete::f64::*
+      5 :wat::core::third
+      4 :wat::rete::i64::>=
+      4 :wat::rete::core::match
+      4 :wat::rete::core::keyword::=
+      3 :wat::rete::i64::to-f64
+      3 :wat::rete::core::enum::=
+      3 :wat::eval-with-defs!
+      3 :wat::core::None
+      2 :wat::type::Vector
+      2 :wat::rete::vec::get
+      2 :wat::rete::string::trim
+      2 :wat::rete::string::to-lowercase
+      2 :wat::rete::string::ends-with?
+      2 :wat::rete::string::empty?
+      2 :wat::rete::string::concat
+      2 :wat::rete::linkedlist::get
+      2 :wat::rete::i64::rem
+      2 :wat::rete::i64::<=
+      2 :wat::rete::holon::dot
+      2 :wat::rete::f64::<
+      2 :wat::rete::core::enum::not=
+      2 :wat::rete::core::Vector/first
+      2 :wat::rete::core::PersistentVector
+      2 :wat::rete::core::List/first
+      2 :wat::core::println
+      2 :wat::core::mapv
+      2 :wat::core::edn::write
+      1 :wat::spawn::process/grants
+      1 :wat::rete::string::not=
+      1 :wat::rete::i64::to-string
+      1 :wat::rete::i64::quot
+      1 :wat::rete::holon::presence?
+      1 :wat::rete::holon::coincident?
+      1 :wat::rete::f64::to-string
+      1 :wat::rete::f64::not=
+      1 :wat::rete::f64::>X
+      1 :wat::rete::f64::>=
+      1 :wat::rete::f64::=
+      1 :wat::rete::f64::<=
+      1 :wat::rete::f64::+
+      1 :wat::rete::core::reduce
+      1 :wat::rete::core::map
+      1 :wat::rete::core::filter
+      1 :wat::rete::core::bool::to-string
+      1 :wat::core::tuple-get
+      1 :wat::core::reduce-walk
+      1 :wat::core::find-last-index
+      1 :wat::core::conforms?
+```
