@@ -46,6 +46,31 @@ DESIGN — build them as written.
     STASH-DANCE header before you touch it.
 11. **`src/comms/process.rs:1330-1395`** — read only, so you understand what you are walling off:
     `it_value = duration` with `{0,0}` is POSIX **disarm**.
+12. **`tests/lint/wat_scripts_fixes_load.rs:11-46`** — ⛔ **READ THIS BEFORE YOU FINISH.** The gate
+    `every_wat_scripts_file_loads_on_the_current_runtime` runs `startup_from_source` over **every**
+    `.wat` under `wat-scripts/` — parse and type-check, never execution. So
+    `wat-scripts/scratch-pad/probe-zero-duration-disarms-at-process.wat`, which today type-checks and
+    is **designed to stop type-checking when your wall lands**, will turn that gate RED.
+    **That is expected, and the fix is a MOVE, not a weakening.** See "THE PROBE MUST RELOCATE".
+13. **`tests/program/wat_arc278_sigma_fn_purity_gate.rs:11,71-101`** — the exemplar for a
+    must-not-compile fixture: a `.wat.bad` file under `tests/`, driven by a Rust test that calls
+    `startup_from_file` and asserts the error. Copy this shape.
+
+## ⛔ THE PROBE MUST RELOCATE — and this is a required part of the strike
+
+`probe-zero-duration-disarms-at-process.wat` is the acceptance criterion inverted: today it freezes
+and runs; after your wall it must not compile. Those two facts are incompatible with living under
+`wat-scripts/`, whose gate demands everything compiles.
+
+- **Move** it to `tests/kernel/probe_zero_is_not_a_wait.wat.bad`.
+- **Add** `tests/kernel/probe_zero_is_not_a_wait.rs`, shaped on room 13, asserting `startup_from_file`
+  **fails** and that the message names the axis (positive / identity element), not the sign.
+- **Leave** `wat-scripts/scratch-pad/probe-zero-duration-control.wat` exactly where it is. It still
+  compiles and still passes, and it is what proves the wall discriminates rather than rejecting
+  everything.
+
+⛔ **Do NOT delete the probe, do not comment out its zero cell, and do not relax the
+`wat-scripts` gate.** Any of those destroys the evidence this stone exists to produce.
 
 ## SKETCH
 

@@ -5,7 +5,8 @@ Written **before** the strike. Every row re-run by me on a quiet box (`ps -eo ar
 
 | # | what | the command that checks it | expected |
 |---|---|---|---|
-| 1 | ★ **zero has no form** | `./target/release/wat wat-scripts/scratch-pad/probe-zero-duration-disarms-at-process.wat` | **does not type-check.** The error names `(:wat::time::Nanosecond 0)` and says a wait must be positive |
+| 1 | ★ **zero has no form** | `cargo nextest run --release -E 'test(probe_zero_is_not_a_wait)'` — the relocated `tests/kernel/probe_zero_is_not_a_wait.wat.bad` | the Rust gate **passes by asserting the file FAILS to load**, and the message names the axis (positive / identity element), not the sign |
+| 1b | ★ **the relocation happened and nothing was weakened** | `git status --porcelain` + `grep -rn 'probe-zero-duration-disarms' wat-scripts/` | the probe is **moved** to `tests/kernel/*.wat.bad`, zero hits left under `wat-scripts/`, and `tests/lint/wat_scripts_fixes_load.rs` is **unedited** |
 | 2 | ★ **the wall discriminates** | `./target/release/wat wat-scripts/scratch-pad/probe-zero-duration-control.wat` | **still passes unchanged**, `EXIT=0`, both cells FIRED. A wall that rejects everything is not a wall |
 | 3 | ★ **the negative control** | force a zero at the Rust constructor; run it | the refusal fires and its message names **the identity element**, not the sign. If nothing can make it fire — STOP-3 |
 | 4 | **call sites are spelled identically** | `git diff --stat -- wat/ wat-scripts/ tests/` | **exactly one file, one line**: `wat/service.wat:67`. Any other `.wat` edit is STOP-1 |
@@ -49,7 +50,12 @@ the bulk of the time there, and expect it to waterfall to zero.
    a licence to hand-edit anything else.
 4. **The `-ago` / `-from-now` families take `i64`, not a Duration** (`check.rs:20850-20877`). They
    look like they should be affected and are not. Do not "fix" them.
-5. **The probe at row 1 must fail to COMPILE, not fail at runtime.** A runtime panic is rung 2 — the
+5. **The `wat-scripts` gate will go red if the probe is not relocated.**
+   `every_wat_scripts_file_loads_on_the_current_runtime` type-checks every `.wat` under
+   `wat-scripts/`, and the subject probe is built to stop type-checking. That red is **predicted**,
+   and the only correct response is the move to `tests/kernel/*.wat.bad`. Weakening the gate, or
+   deleting the probe, fails the stone.
+6. **The probe at row 1 must fail to COMPILE, not fail at runtime.** A runtime panic is rung 2 — the
    value still had a form. If the best achievable is a runtime raise, that is a real result: report
    it plainly as rung 2 and say what blocked rung 3. Do not report it as success.
 
