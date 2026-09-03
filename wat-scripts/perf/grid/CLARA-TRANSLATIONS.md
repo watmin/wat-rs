@@ -353,6 +353,55 @@ as rule-count N grows with a fixed shared prefix depth.
 
 ---
 
+## A10 — PARAMETRIC ERASURE (one class, heterogeneous fillers) — `parametric-erasure.clj`
+
+**(a) Is the wat form expressible in Clara? The DECLARATION is not; the FACT POPULATION is, natively.**
+
+`(:pe::Box :- [T] [k <- i64  v <- :T])` is wat's only parametric `defrecord` in the whole grid, and
+Clojure's `defrecord` has no type parameters. That difference is exactly why this axis was authored
+**without** a twin, with a header saying *"Clara has no parametric records either, so there is no
+`.clj` twin to author"*. **That reasoning is struck.** Rule 4 of this document (mirror the
+OPERATION, not the vocabulary) settles it, and so does the mechanism:
+
+- wat **erases** `T`. `Box[i64]`, `Box[String]` and `Box[Tag]` are ONE runtime class `pe::Box`, and
+  `build_alpha_index` files every one of their alpha nodes under a single erased `pat.type_head`.
+- What therefore reaches the RETE network is a bag of ordinary facts **of one class** whose `v`
+  fields hold values of different runtime types.
+- Clojure is dynamically typed, so that bag is its **native** case: one `(defrecord Box [k v])`
+  whose instances hold a `Long`, a `String`, and a `Tag` record. No construct is being faked.
+
+Clara is a referee for **rule semantics**, not for wat's type system. It cannot say anything about
+the declaration and is not asked to; it is asked what the rules derive.
+
+**(b) Grounded form** — three rules, no accumulator, no negation; the only translation decision is
+the seed cycle, which mirrors `:pe::box-for` value for value (`(str i)` for
+`(:wat::core::i64::to-string i)`, `mod` for `:pe::i64-mod` — every index is `>= 0`, so there is no
+floor-vs-truncate subtlety, cf. `where-multivar.clj`):
+
+```clojure
+(defrule r-box   [Box (= ?k k) (= ?v v)]                  => (insert! (->Hit ?k)))
+(defrule r-plain [Plain (= ?k k)]                         => (insert! (->PlainHit ?k)))
+(defrule r-pair  [Box (= ?k k) (= ?v v)] [Plain (= ?k k)] => (insert! (->Pair ?k)))
+```
+
+`?v` is bound and unused on BOTH sides. It is the heterogeneous field, and binding it is what makes
+the erased class's mixed packability reach the join at all.
+
+**(c) Same final derived set — yes, by construction.** Every key `k` in `[0,items)` has exactly one
+`Box` and one `Plain`, so each derives `Hit`, `PlainHit` and `Pair`: `3 * items` facts, encoded
+`tag * 1,000,000 + k` and sorted, byte-comparable with the wat line.
+
+**⛔ THIS IS AN ACCURACY AXIS AND IT IS THE MOST IMPORTANT ONE IN THE CORPUS.** It carries D7 — arc
+278's silent fact-drop, a right-sized WRONG answer produced by `d_alpha` indexing elements that had
+moved under it. A cardinality check passes that defect; only the full set names it. The twin is
+**STATIC** (no `gen-parametric-erasure.sh`) precisely so the axis stays off `run-all.sh`'s LADDER,
+whose sizes are a published artifact: `run-all.sh:81-87` discovers a perf axis as `<axis>.wat` WITH
+a `gen-` twin (`:85` is the `gen-<axis>.sh` requirement), and `:89-99` exits 2 for a discovered
+axis with no rung. Driven by
+`check-grid-three-way.sh`.
+
+---
+
 ## Summary for the orchestrator
 
 | axis | grounded against | accuracy caveat for the brief |
@@ -363,6 +412,11 @@ as rule-count N grows with a fixed shared prefix depth.
 | A6 | `accumulators.cljc` `accum`/`reduce-to-accum` + `DESIGN-STONE-8-custom.md` + repo differential test | shapes differ (wat: batch fold over PV<T>; Clara: streaming reduce+retract) — for non-incrementally-decomposable folds (percentile/top-k), write Clara's `accum` in collect-then-compute form so both sides compute the identical population statistic |
 | A7 | `dsl.clj` `:test` parse + repo differential test (literal `>= ?n 3` case already in the codebase) | none; straight composition of A5 + a boolean gate on a static snapshot |
 | A8 | `compiler.clj` `to-alpha-graph` (alpha sharing) + `add-conjunctions` (beta/join-prefix sharing) | this is a speed/node-count axis, not an accuracy axis — don't build an accuracy gate beyond a single derived-set sanity check |
+| A10 | wat's own erasure mechanism (`build_alpha_index` files one erased `pat.type_head`; `pack_i64_row` tests RUNTIME values) + Clojure's dynamic typing | the DECLARATION is inexpressible in Clara and is not mirrored; the FACT POPULATION is Clojure's native case. ★ an ACCURACY axis — it carries D7, whose signature is a right-sized WRONG answer, so compare the SET and never the count |
 
 No axis required marking UNVERIFIED — Clara's 0.24.0 source (extracted from the pinned jar) plus the
 repo's own existing Clara examples and wat differential tests fully grounded all six forms above.
+
+A10 was added 2026-09-03, after the axis had shipped WITHOUT a twin. Its absence was not a grounding
+failure but a category error — reading "Clara has no parametric records" as "Clara cannot referee
+this axis" — and it left the differential corpus with a hole exactly where the known bug lived.

@@ -199,7 +199,7 @@ jobs:
         run: bash wat-scripts/perf/grid/check-grid-speed.sh
 
   parity:
-    name: clara parity (where-family)
+    name: clara parity (where-family, query mouth, grid three-way)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -252,3 +252,11 @@ jobs:
       # 24-row gate that nothing had ever run, which is the same defect one directory over.
       - name: Clara parity — query mouth (three-way)
         run: bash wat-scripts/perf/grid/check-query-compat.sh
+
+      # ★ THE THIRD PAIRING, at LOW VOLUME. `oracle` vs `clara` — "the SPEC is wrong" — is the one
+      # pairing that can see a flaw the oracle and its Rust port SHARE, and it had never once run:
+      # all 47 recorded `GRID-*.txt` were produced under `GRID_SKIP_ORACLE=1` and 0 carry
+      # `:oracle-accuracy`, because the interpreted oracle on run-all.sh's LADDER costs hours.
+      # At the port gate's CORRECTNESS sizes it costs ~13 s for all 12 axes in ONE JVM.
+      - name: Clara parity — grid axes (three-way, correctness sizes)
+        run: bash wat-scripts/perf/grid/check-grid-three-way.sh

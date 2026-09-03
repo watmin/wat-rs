@@ -89,11 +89,11 @@ instruments are the worse. Neither is done.**
 | **C19 + C20** | *"a diagnostic prints an unstable counter"* | Cured in three lines — and its corpus-wide gate found **C20**: a diagnostic that **names a different function each run** (5 runs `:probe::a`, 3 runs `:probe::b`). Quarantined; `HashMap`-ordered traversal. |
 | **C3 C4 C5 C6** | four instrument rows | The benchmarks lied. C4's arm measured the *opposite branch*; C3's mark never existed; C6's target was 18× stale and its verb never called; C5's assertion could not fail. **Every one printed a plausible number the whole time**, and three carried a comment directly above the defect declaring the check that would have caught it. |
 | **C8** | — | The Clara grid recorded no dispersion for its own engine: it **cannot resolve <20%**, so no sub-20% perf claim in this arc is supported. |
-| **C9** | *"a 4-hour spec sweep"* | The **port half costs 5 seconds** — every axis emits both answers in one process. Drawn; the Clara half stays open. |
+| **C9** ⭐ **CLOSED** | *"a 4-hour spec sweep"* | **The price was the wrong VOLUME, not the wrong pairing.** Port half: a floor gate, 12 axes, **12.2 s, no JVM**. Third pairing: CI, **12 axes in 12.7 s**, one JVM — and **no Clara program needed changing**. ⛔ Both strikes' ★ was a FALSE CLAIM IN THE FILE THE BRIEF SENT THE RIDER TO TRUST — a test asserting a comparison its own setup made impossible, then a header of mine denying a twin that took one file to write. |
 | **D4 D5 D6** | engine behaviour | A cumulative arena strand; a `match` whose legality depended on which of two equivalent spellings you wrote; `explain` silently dropping constraints. All cured. |
 | **C10 C11 C17 D8 D9** | inherited rows | **Shrank or died on audit.** C10's gate already existed. D8 was cured two days before I rowed it. D9's "doctrine gap" never existed. C17 is closed by a downstream constraint. |
 
-**Still open:** C9's Clara half · C12 · C14 · C15 · C18 · C20 · F2. **D2 stands as a bounded negative
+**Still open:** C12 · C14 · C15 · C18 · C20 · F2. (**C9 CLOSED 2026-09-03 — all three pairings run.**) **D2 stands as a bounded negative
 and must NOT be reaped.**
 
 ## THE LANDED STRIKES
