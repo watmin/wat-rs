@@ -2235,6 +2235,9 @@ fn coerce_variant_single<'a>(
 /// | Target | EDN form expected | Result |
 /// |---|---|---|
 /// | `:wat::core::i64` | `Integer` | `Value::i64(n)` |
+/// | `:wat::time::Instant` | `Inst` | `Value::Instant(t)` |
+/// | `:wat::time::Duration` | `Integer`, `n >= 0` | `Value::Duration(n)` |
+/// | `:wat::time::NonZeroDuration` | `Integer`, `n > 0` | `Value::NonZeroDuration(…)` |
 /// | `:wat::core::f64` | `Float` OR `Integer` (widening) | `Value::f64(f)` |
 /// | `:wat::core::String` | `String` | `Value::String(s.into())` |
 /// | `:wat::core::bool` | `Bool` | `Value::Bool(b)` |
@@ -2296,6 +2299,33 @@ fn edn_to_typed_value_inner(
         TypeExpr::Path(p) => match p.as_str() {
             ":wat::core::i64" => match edn {
                 Edn::Integer(n) => Ok(Value::i64(*n)),
+                other => Err(mismatch(target, other)),
+            },
+            // Stone B-pre — time types on the typed coerce path. Instant's
+            // untyped decoder already has `Edn::Inst → Value::Instant`
+            // (`:2138`); the typed path did not, which is why
+            // `instant-EXEMPLAR` arrived as `Inst` and was still refused.
+            // Duration / NonZeroDuration encode as bare Integer (encode
+            // untouched); the declared target re-attaches the type.
+            ":wat::time::Instant" => match edn {
+                Edn::Inst(t) => Ok(Value::Instant(*t)),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::time::Duration" => match edn {
+                Edn::Integer(n) if *n >= 0 => Ok(Value::Duration(*n)),
+                other => Err(mismatch(target, other)),
+            },
+            ":wat::time::NonZeroDuration" => match edn {
+                Edn::Integer(n) if *n > 0 => Ok(Value::NonZeroDuration(
+                    std::num::NonZeroU64::new(*n as u64).expect("n > 0 checked above"),
+                )),
+                // Zero (and negative, and any other shape) is EdnCoerceError,
+                // not a panic: a peer sending UpTo(0) gets RequestMalformed
+                // and the service SURVIVES. Stone A's constructor wall is
+                // rung 2 for a computed zero (LociDiedError/Panic, kills
+                // the child at process locus). This is the first place the
+                // zero wall can answer a remote caller with a typed refusal
+                // instead of a corpse. Axis: a wait must be positive.
                 other => Err(mismatch(target, other)),
             },
             ":wat::core::f64" => match edn {
@@ -3430,8 +3460,7 @@ fn reconstruct_struct(
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownStructField { type_path: path.clone(), key: fname.clone() } }
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
-        let wrapped = rewrap_option_field(fty, inner);
+        let wrapped = decode_declared_field(fty, fv, types, allow_caps, foreign, ctx)?;
         fields.push(wrapped);
     }
     Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
@@ -3494,9 +3523,7 @@ fn reconstruct_record(
                 key: fname.clone(),
             },
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
-        // Apply Option-rewrapping when the field is Option<T>.
-        let wrapped = rewrap_option_field(fty, inner);
+        let wrapped = decode_declared_field(fty, fv, types, allow_caps, foreign, ctx)?;
         fields.push(wrapped);
     }
     // class stored without leading ':'; path has it — strip.
@@ -3570,8 +3597,7 @@ fn reconstruct_holon_record(
                 key: fname.clone(),
             },
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
-        let wrapped = rewrap_option_field(fty, inner);
+        let wrapped = decode_declared_field(fty, fv, types, allow_caps, foreign, ctx)?;
         field_names.push(fname.clone());
         fields.push(wrapped);
     }
@@ -3610,6 +3636,28 @@ fn reconstruct_holon_record(
 /// `Value::Unit` (Nil round-trip) → `None`; anything else → `Some`.
 /// Already-Option values pass through. Non-Option declared types
 /// pass through unchanged.
+/// Prefer the typed coerce so an `Integer` landing on a Duration field
+/// becomes `Value::Duration`, not `Value::i64`. Fall back to untyped
+/// decode on coerce failure so a wrong-typed body still reconstructs
+/// and the request-malformed wall can name it (MalBag posture).
+/// Instant does not need this — the untyped decoder already yields
+/// `Value::Instant` from `Edn::Inst`. Duration / NonZeroDuration do,
+/// because their wire form is a bare Integer.
+fn decode_declared_field(
+    fty: &crate::types::TypeExpr,
+    edn: &OwnedValue,
+    types: &crate::types::TypeEnv,
+    allow_caps: bool,
+    foreign: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
+) -> Result<Value, EdnReadError> {
+    if let Ok(v) = edn_to_typed_value_inner(fty, edn, Some(types), ctx) {
+        return Ok(rewrap_option_field(fty, v));
+    }
+    let inner = edn_to_value_caps(edn, Some(types), allow_caps, foreign, ctx)?;
+    Ok(rewrap_option_field(fty, inner))
+}
+
 fn rewrap_option_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
     let is_option = matches!(
         fty,
@@ -3681,10 +3729,9 @@ fn reconstruct_enum_tagged(
     };
     let mut fields: Vec<Value> = Vec::with_capacity(items.len());
     for (idx, item) in items.iter().enumerate() {
-        let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign, ctx)?;
         let wrapped = match declared_fields.get(idx) {
-            Some((_, fty)) => rewrap_option_field(fty, inner),
-            None => inner,
+            Some((_, fty)) => decode_declared_field(fty, item, types, allow_caps, foreign, ctx)?,
+            None => edn_to_value_caps(item, Some(types), allow_caps, foreign, ctx)?,
         };
         fields.push(wrapped);
     }
@@ -4691,6 +4738,77 @@ mod tests {
         assert_eq!(err.expected, ":wat::core::i64");
         assert_eq!(err.got, "String");
         assert_eq!(err.path, "");
+    }
+
+    fn coerce_time(target: &str, edn: &wat_edn::OwnedValue) -> Result<Value, EdnCoerceError> {
+        let t = TypeExpr::Path(target.into());
+        let sym = SymbolTable::default();
+        edn_to_typed_value(&t, edn, &sym)
+    }
+
+    #[test]
+    fn time_instant_coerces_from_inst() {
+        use chrono::TimeZone;
+        let t = chrono::Utc.timestamp_opt(1_000_000, 0).unwrap();
+        let edn = value_to_edn_with(&Value::Instant(t), None);
+        match coerce_time(":wat::time::Instant", &edn).expect("Instant from Inst") {
+            Value::Instant(got) => assert_eq!(got, t),
+            other => panic!("expected Instant; got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn time_duration_coerces_from_nonneg_integer_including_zero() {
+        match coerce_time(":wat::time::Duration", &wat_edn::OwnedValue::Integer(0))
+            .expect("Duration 0 is a legal measurement")
+        {
+            Value::Duration(0) => {}
+            other => panic!("expected Duration(0); got {other:?}"),
+        }
+        match coerce_time(":wat::time::Duration", &wat_edn::OwnedValue::Integer(1_000_000))
+            .expect("Duration 1e6")
+        {
+            Value::Duration(1_000_000) => {}
+            other => panic!("expected Duration(1000000); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn time_nonzero_duration_coerces_from_positive_integer() {
+        match coerce_time(":wat::time::NonZeroDuration", &wat_edn::OwnedValue::Integer(250_000_000))
+            .expect("NonZeroDuration 250ms")
+        {
+            Value::NonZeroDuration(d) => assert_eq!(d.get(), 250_000_000),
+            other => panic!("expected NonZeroDuration; got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn time_nonzero_duration_refuses_zero_as_coerce_error_not_panic() {
+        let err = coerce_time(":wat::time::NonZeroDuration", &wat_edn::OwnedValue::Integer(0))
+            .expect_err("zero is an illegal wait");
+        assert_eq!(err.expected, ":wat::time::NonZeroDuration");
+        assert_eq!(err.got, "Integer");
+        assert_eq!(err.path, "");
+    }
+
+    #[test]
+    fn time_duration_refuses_negative_integer() {
+        let err = coerce_time(":wat::time::Duration", &wat_edn::OwnedValue::Integer(-1))
+            .expect_err("negative Duration has no form");
+        assert_eq!(err.expected, ":wat::time::Duration");
+        assert_eq!(err.got, "Integer");
+    }
+
+    #[test]
+    fn time_duration_refuses_string() {
+        let err = coerce_time(
+            ":wat::time::Duration",
+            &wat_edn::OwnedValue::String(std::borrow::Cow::Borrowed("nope")),
+        )
+        .expect_err("arms must discriminate, not blanket-accept");
+        assert_eq!(err.expected, ":wat::time::Duration");
+        assert_eq!(err.got, "String");
     }
 
     #[test]
