@@ -1227,6 +1227,26 @@ mod tests {
         ":wat::rete::core::fn",
         ":wat::rete::core::List",
         ":wat::rete::holon::coincident?",
+        // Arc 255 Stone 1c-b-i — `first`/`second`/`third`/`PersistentVector`/`PersistentMap`
+        // join: each is now a registered `#[wat_intrinsic]` row (`src/runtime.rs` —
+        // `eval_first`/`eval_second`/`eval_third`/`eval_persistentvector`/
+        // `eval_persistentmap`), but NONE carries an `env.register()` TypeScheme, so
+        // `check_env.get` returns `None` for all five. Checked, not assumed: grepped
+        // `register_builtins` for `env.register(":wat::core::first"` / `"::second"` /
+        // `"::third"` / `"::PersistentVector"` / `"::PersistentMap"` — zero hits for all
+        // five. All five ARE checked for real by hand-written arms (`infer_positional_
+        // accessor` for the three accessors, `infer_persistentvector_constructor` /
+        // `infer_persistentmap_constructor` for the two constructors, `check.rs`) — exactly
+        // the `nth`/`reverse`/`drop`/`take` shape above: real checking, no scheme to verify
+        // the docs against. This is `probe_can_doc_types_reconstruct_the_checker_scheme`'s
+        // second measured instance of `Kind` being stamped by the registration vehicle, not
+        // the verb (recorded, not fixed, here — the ledger split is its own stone). `check.rs`
+        // stays untouched (STOP-4); the ledger grows by exactly five, 106 → 111.
+        ":wat::core::first",
+        ":wat::core::second",
+        ":wat::core::third",
+        ":wat::core::PersistentVector",
+        ":wat::core::PersistentMap",
     ];
 
     #[test]
@@ -1723,13 +1743,18 @@ mod tests {
     /// returns `Some` for all five and leaving them here would fail the gate below as STALE. All
     /// five stay in `GAP_B_CORPUS_CENSUS_121` above; only the shrinking "current gap" list drops
     /// them.
+    ///
+    /// Arc 255 Stone 1c-b-i — `:wat::core::first`/`second`/`third`/`PersistentVector`/
+    /// `PersistentMap` LEAVE: all five now carry a `#[wat_intrinsic]` wrapper row
+    /// (`src/runtime.rs` — `eval_first`/`eval_second`/`eval_third`/`eval_persistentvector`/
+    /// `eval_persistentmap`), so `registry().lookup_entry` returns `Some` for all five and
+    /// leaving them here would fail the gate below as STALE. All five stay in
+    /// `GAP_B_CORPUS_CENSUS_121` above; only the shrinking "current gap" list drops them. None
+    /// of the five carries an `env.register()` `TypeScheme` — they land on
+    /// `FROZEN_CHECKER_DEBT_LEDGER` below instead (DEBT traded for GAP_B, not paid).
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
         ":wat::core::=",
-        ":wat::core::PersistentVector",
-        ":wat::core::first",
         ":wat::eval-ast!",
-        ":wat::core::second",
-        ":wat::core::PersistentMap",
         ":wat::core::extend-type",
         ":wat::core::str",
         ":wat::rete::string::=",
@@ -1758,7 +1783,6 @@ mod tests {
         ":wat::rete::string::subs",
         ":wat::rete::f64::/",
         ":wat::rete::f64::*",
-        ":wat::core::third",
         ":wat::rete::core::keyword::=",
         ":wat::rete::core::enum::=",
         ":wat::eval-with-defs!",

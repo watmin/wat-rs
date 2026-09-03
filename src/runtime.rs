@@ -2542,15 +2542,11 @@ fn dispatch_keyword_head_value(
         // Arc 255.1c-kernel-remainder (home #8) — `:wat::kernel::retag-op` moved to the
         // intrinsic registry (`src/intrinsic/kernel/serve.rs`); dispatch now reaches
         // `eval_retag_op` (unchanged) via the registry lookup above, not a literal arm here.
-        ":wat::core::first" => {
-            eval_positional_accessor(args, list_span, env, sym, ":wat::core::first", 0)
-        }
-        ":wat::core::second" => {
-            eval_positional_accessor(args, list_span, env, sym, ":wat::core::second", 1)
-        }
-        ":wat::core::third" => {
-            eval_positional_accessor(args, list_span, env, sym, ":wat::core::third", 2)
-        }
+        // Arc 255 Stone 1c-b-i — `:wat::core::first`/`second`/`third`'s arms RETIRED; each
+        // now carries a registered `#[wat_intrinsic]` wrapper (`eval_first`/`eval_second`/
+        // `eval_third`, this file, immediately after `eval_positional_accessor`) — the
+        // pre-match registry check above (arc 255.1c-guard) intercepts each name before
+        // reaching here. `eval_positional_accessor` itself is unchanged.
         // Stone 118.B4-0 — `nth` promoted from a wat `defclause` to a Rust intrinsic so a
         // `defmacro` program body (which evaluates only through this dispatcher) can call it.
         // The runtime-index generalization of first/second/third, above. `:wat::core::nth-spec`
@@ -2866,31 +2862,16 @@ fn dispatch_keyword_head_value(
             let spliced_args = crate::check::unwrap_type_param_bracket(args);
             crate::collection::eval::eval_hashmap_ctor(&spliced_args, list_span, env, sym)
         }
-        // Arc 109 step ①b Room 3 — accept `(PersistentMap :- [K V] …)`. Still NOT wired
-        // to `crate::check::unwrap_type_param_bracket` (splicing would misalign the
-        // `args.chunks(2)` pairing, same as check-time — unchanged reasoning). Instead:
-        // strip a genuine leading bracket via `crate::check::split_type_param_bracket`,
-        // the same discriminator `infer_persistentmap_constructor` uses at check time, so
-        // check and eval agree on which forms have a bracket. Types are erased at
-        // runtime; `eval_persistentmap_ctor` itself stays untouched.
-        ":wat::core::PersistentMap" => {
-            let values = match crate::check::split_type_param_bracket(args) {
-                Some((_inner, _bspan, rest)) => rest,
-                None => args,
-            };
-            crate::collection::eval::eval_persistentmap_ctor(values, list_span, env, sym)
-        }
-        // Arc 109 step ①b Room 3 — accept `(PersistentVector :- [T] …)`. Same reasoning
-        // and mechanism as `PersistentMap` above: strip a genuine leading bracket via
-        // `crate::check::split_type_param_bracket`; `eval_persistentvector_ctor` itself
-        // stays untouched.
-        ":wat::core::PersistentVector" => {
-            let values = match crate::check::split_type_param_bracket(args) {
-                Some((_inner, _bspan, rest)) => rest,
-                None => args,
-            };
-            crate::collection::eval::eval_persistentvector_ctor(values, list_span, env, sym)
-        }
+        // Arc 255 Stone 1c-b-i — `:wat::core::PersistentMap`'s arm RETIRED; it now carries a
+        // registered `#[wat_intrinsic]` wrapper (`eval_persistentmap`, this file, immediately
+        // after `eval_third` — the `split_type_param_bracket` pre-processing this arm used to
+        // do inline moved into that wrapper VERBATIM, STOP-2) — the pre-match registry check
+        // above (arc 255.1c-guard) intercepts the name before reaching here.
+        // `eval_persistentmap_ctor` itself is unchanged.
+        // Arc 255 Stone 1c-b-i — `:wat::core::PersistentVector`'s arm RETIRED; same shape as
+        // `PersistentMap` immediately above — registered `#[wat_intrinsic]` wrapper
+        // (`eval_persistentvector`, this file), `split_type_param_bracket` carried verbatim,
+        // `eval_persistentvector_ctor` unchanged.
         ":wat::core::HashSet" => {
             // Arc 109 step ① Room 3 — accept `(HashSet [T] …)` alongside the existing
             // positional `(HashSet :T …)`; see `crate::check::unwrap_type_param_bracket`.
@@ -7277,6 +7258,322 @@ fn eval_positional_accessor(
             .into()),
         },
     }
+}
+
+/// `(:wat::core::first xs)` — arc 255 Stone 1c-b-i, registered `#[wat_intrinsic]`. THIN
+/// DELEGATE, not a reimplementation: `first`/`second`/`third` share ONE implementation
+/// (`eval_positional_accessor`, immediately above), parameterised by FQDN and index.
+/// `#[wat_intrinsic]` names its emitted shim from the FUNCTION IDENTIFIER, not the FQDN
+/// (`format_ident!("__wat_intrinsic_shim_{}", fn_name)`), so three annotations directly on
+/// `eval_positional_accessor` would emit three identically-named shims and fail to compile
+/// (`[[NOTE-role-eval-cannot-stack-and-the-error-does-not-say-so]]`, forecasting exactly
+/// this). This wrapper forwards exactly what the retired literal arm forwarded — `op =
+/// ":wat::core::first"`, `index = 0` — and `eval_positional_accessor` itself is untouched.
+///
+/// `check_args` requires exactly ONE `@arg` (named `args`, matching the sole `&[WatAST]`
+/// param ident — the same variadic-sniff shape `:wat::core::map`/`apply` use above): the real
+/// fixed arity (exactly 1) is enforced by `eval_positional_accessor`'s own `args.len() != 1`
+/// guard (`:7122`), unchanged.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** `eval_positional_accessor`'s body
+/// (`:7114-7280`) evaluates `args[0]` by ordinary call-by-value (`eval_inner`, `:7133` — "not
+/// itself an effect", the same convention `:wat::core::nth`'s own `Pure` ground states
+/// verbatim, `src/intrinsic/collection.rs:186-194` — `nth` is this fn's own runtime-index
+/// generalization, "same shape", per that fn's doc). Past that, the body only classifies the
+/// already-evaluated `Value` via `StreamContainer::of_value` and reads one element off it —
+/// no `apply_function`/`eval_inner` on caller-supplied code anywhere past the single initial
+/// evaluation, no I/O, no entropy or clock read. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Partial`:** the arity guard (`args.len() != 1`, `:7122`) is outside
+/// totality's domain (the established `nth`/`map` carve-out). The `TypeMismatch` arms
+/// (non-indexable/non-container receiver, `:7239-7278`) are checker-guaranteed unreachable
+/// for a well-typed call — `infer_positional_accessor` (`src/check.rs:9437-9528`) performs
+/// the IDENTICAL container-shape classification at check time and raises a `CheckError` for
+/// exactly the same rejected shapes (`:9462-9519`). But the out-of-range/short-container
+/// raises (`MalformedForm`, Tuple `:7146-7158`, Vector `:7165-7176`, List `:7184-7189`,
+/// PersistentVector `:7197-7202`, WatAstList `:7211-7219`) are a genuine RUNTIME-FACT
+/// partiality no static type can rule out — `(Vector :- [T])` says nothing about length.
+/// Arc-278 flipped this family from `Option`-returning to raising (this fn's own doc,
+/// `:7108-7110`, and each arm's own "was Option" comment) — per this stone's own framing, "a
+/// miss that returns `Option::None` is total; a miss that raises is not." `Partial`.
+///
+/// **Expand-time ground — `Legal`:** `src/macros/eval.rs`'s `is_expand_time_legal` residue
+/// hand-list names `":wat::core::first"` literally (`:504`, its "collection / sequence ops
+/// still on the pre-registry dispatch path" group, `:460-464`) — legal today, pre-
+/// registration. This stone's registration makes the registry-first consult (`:424-436`)
+/// answer `Some(Legal)` directly instead, the identical verdict, same pattern the `map`/
+/// `stream->vec` registrations already followed (the residue's own shadowing note, `:437-446`
+/// — the hand-list stays as a stale historical entry outside this stone's blast radius, not
+/// touched here). `Legal`.
+///
+/// **Category ground — `Projection`:** `wat/runtime-meta.wat:203-207`'s `:Projection` doc —
+/// "Returns a COMPONENT of a compound value that was already there... The inverse of
+/// `:Combine`... NOT `:Probe`: a probe computes a new fact; an accessor returns a part that
+/// already existed" — matches exactly, and matches `:wat::core::nth`'s own registered
+/// `Category` (`src/intrinsic/collection.rs:207`), the verb this fn's own runtime-index twin.
+///
+/// `@arg`/`@ret` grounded in `infer_positional_accessor` (`src/check.rs:9437-9528`), the arm
+/// that actually types `(:wat::core::first …)` (dispatched from `check.rs:4204-4211`, op
+/// `":wat::core::first"`, index 0) — no `env.register()` `TypeScheme` exists for this name, so
+/// `doc_arg_ret_types_match_checker_scheme` cannot verify these against anything; this is the
+/// ONLY ground available. The real domain is a union — `Tuple | (Vector :- [T]) | (List :- [T])
+/// | (PersistentVector :- [T]) | :wat::WatAST` (`check.rs:9462-9519`'s own container-shape
+/// dispatch) — the firm one-token `@arg` grammar cannot spell a union, so the anchor form
+/// below is `(Vector :- [T])`, the same anchor `:wat::core::nth`'s own `@arg xs` uses for the
+/// identical polymorphism; the union is prose only. `@ret :T` matches
+/// `infer_positional_accessor`'s own `Parametric{args: targs, ..}` extraction (`:9489-9494`),
+/// Tuple slot extraction (`:9468-9481`), and WatAstList's fixed `:wat::WatAST` (`:9484-9486`).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     args (:wat::core::Vector :- [T]) the receiver (position 0) — this call also
+///   accepts a Tuple, (List :- [T]), (PersistentVector :- [T]), or a WatAST list form
+///   (returning bare `:wat::WatAST`); a (Stream :- [T]) or HashSet is refused
+///   (`indexable()` gate excludes them — a lazy Stream has no first; advance it with
+///   `:wat::stream::next`); the variadic sniff admits one documented `@arg`, matching the
+///   fixed 1-arg shape `eval_positional_accessor`'s own arity guard enforces
+/// @ret     :T the element at index 0; raises `MalformedForm` on an empty/short container
+///   (never `Option` — arc-278 flip)
+/// @example (:wat::core::first (:wat::core::Vector 1 2 3)) #=> 1
+/// @see     :wat::core::nth
+/// @see     :wat::core::second
+#[wat_intrinsic(":wat::core::first")]
+fn eval_first(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_positional_accessor(args, list_span, env, sym, ":wat::core::first", 0)
+}
+
+/// `(:wat::core::second xs)` — arc 255 Stone 1c-b-i, registered `#[wat_intrinsic]`. THIN
+/// DELEGATE over the same shared `eval_positional_accessor` `eval_first`'s doc block
+/// (immediately above) explains in full — index 1 instead of 0 is the only difference in
+/// what this wrapper forwards; every axis ground given there (Purity/Determinism/Totality/
+/// ExpandTime/Category, and the ⛔ wrapper-not-in-place-annotation reasoning) applies
+/// identically, re-measured against this name.
+///
+/// **Totality ground — `Partial`**, re-confirmed at this index: the out-of-range raise for a
+/// 0- or 1-element container is exactly as reachable at index 1 as at index 0 — same arms,
+/// same lines (`:7146-7278`), same "runtime-fact, not type-preventable" argument.
+///
+/// **Expand-time ground — `Legal`:** `src/macros/eval.rs`'s residue hand-list names
+/// `":wat::core::second"` literally (`:505`, the same group `first` sits in).
+///
+/// `@arg`/`@ret` grounded in `infer_positional_accessor` (`src/check.rs:9437-9528`), dispatched
+/// from `check.rs:4212-4219`, op `":wat::core::second"`, index 1 — no `TypeScheme` exists.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     args (:wat::core::Vector :- [T]) the receiver (position 0) — this call also
+///   accepts a Tuple, (List :- [T]), (PersistentVector :- [T]), or a WatAST list form
+///   (returning bare `:wat::WatAST`); a (Stream :- [T]) or HashSet is refused
+///   (`indexable()` gate excludes them — advance a Stream with `:wat::stream::next`); the
+///   variadic sniff admits one documented `@arg`, matching the fixed 1-arg shape
+///   `eval_positional_accessor`'s own arity guard enforces
+/// @ret     :T the element at index 1; raises `MalformedForm` on a short container (never
+///   `Option` — arc-278 flip)
+/// @example (:wat::core::second (:wat::core::Vector 1 2 3)) #=> 2
+/// @see     :wat::core::first
+/// @see     :wat::core::third
+#[wat_intrinsic(":wat::core::second")]
+fn eval_second(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_positional_accessor(args, list_span, env, sym, ":wat::core::second", 1)
+}
+
+/// `(:wat::core::third xs)` — arc 255 Stone 1c-b-i, registered `#[wat_intrinsic]`. THIN
+/// DELEGATE over the same shared `eval_positional_accessor` `eval_first`'s doc block (above)
+/// explains in full — index 2 instead of 0 is the only difference in what this wrapper
+/// forwards; every axis ground given there applies identically, re-measured against this name.
+///
+/// **Totality ground — `Partial`**, re-confirmed at this index: same out-of-range arms
+/// (`:7146-7278`), same "runtime-fact, not type-preventable" argument, now at index 2.
+///
+/// **Expand-time ground — `Legal`:** `src/macros/eval.rs`'s residue hand-list names
+/// `":wat::core::third"` literally (`:506`, the same group `first`/`second` sit in).
+///
+/// `@arg`/`@ret` grounded in `infer_positional_accessor` (`src/check.rs:9437-9528`), dispatched
+/// from `check.rs:4220-4227`, op `":wat::core::third"`, index 2 — no `TypeScheme` exists.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     args (:wat::core::Vector :- [T]) the receiver (position 0) — this call also
+///   accepts a Tuple, (List :- [T]), (PersistentVector :- [T]), or a WatAST list form
+///   (returning bare `:wat::WatAST`); a (Stream :- [T]) or HashSet is refused
+///   (`indexable()` gate excludes them — advance a Stream with `:wat::stream::next`); the
+///   variadic sniff admits one documented `@arg`, matching the fixed 1-arg shape
+///   `eval_positional_accessor`'s own arity guard enforces
+/// @ret     :T the element at index 2; raises `MalformedForm` on a short container (never
+///   `Option` — arc-278 flip)
+/// @example (:wat::core::third (:wat::core::Vector 1 2 3)) #=> 3
+/// @see     :wat::core::second
+#[wat_intrinsic(":wat::core::third")]
+fn eval_third(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_positional_accessor(args, list_span, env, sym, ":wat::core::third", 2)
+}
+
+/// `(:wat::core::PersistentVector e1 e2 ...)` — arc 255 Stone 1c-b-i, registered
+/// `#[wat_intrinsic]`. THIN DELEGATE, not a reimplementation: forwards exactly what the
+/// retired literal arm forwarded, INCLUDING its `split_type_param_bracket` pre-processing,
+/// carried verbatim (STOP-2: dropping it would change what a `(PersistentVector :- [T] …)`
+/// call evaluates) — `eval_persistentvector_ctor` (`src/collection/eval.rs:1028-1041`) itself
+/// is untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** `eval_persistentvector_ctor`'s
+/// body evaluates each arg by ordinary call-by-value (`eval_inner`, `:1037`) and pushes it
+/// into a fresh `PVec` via `push_back_mut`, in argument order — no `apply_function`, no I/O,
+/// no entropy/clock read anywhere. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Total`:** `eval_persistentvector_ctor`'s own comment states it
+/// plainly — `let _ = call_span; // arity is any (0+ elements)` (`:1034`) — no arity
+/// restriction, and past evaluating each element (the sub-expression's own totality, not this
+/// ctor's domain), `pv.push_back_mut(v)` cannot fail: no type-mismatch raise, no hashability
+/// check, nothing — the same "past this gate, construction cannot fail" convention
+/// `quote.rs`'s own `Total` ground uses. Genuinely `Total`, unlike its `PersistentMap`
+/// sibling below.
+///
+/// **Expand-time ground — `Legal`, a real gap this stone CLOSES, not widens:** grepped
+/// `src/macros/eval.rs` — `":wat::core::PersistentVector"` appears in NEITHER the
+/// registry-first consult NOR the residue hand-list (zero hits) — silently refused today
+/// (`is_expand_time_legal` returns `false` for it, so a `defmacro` body calling it is
+/// rejected by `validate_pure_total`, `:169-207`), with no ruling ever made. A THIRD instance
+/// of the defect this arc has already found twice (`ann-form`, `apply`, per this stone's own
+/// brief). Structurally identical mechanism to the residue-`Legal` siblings
+/// `:wat::core::Vector`/`:wat::core::HashMap`/`:wat::core::HashSet` (residue `:496-499` — bare
+/// element/pair data constructors, no macro-expansion-time state dependency) — the honest
+/// grounded pole is `Legal`, matching those siblings, not the `RuntimeOnly` today's silent
+/// refusal produces by accident.
+///
+/// **Category ground — `Transform`:** matches `:wat::core::List`'s own registered ctor
+/// (`src/intrinsic/list.rs`, `@Category Transform`) — the identical "bare elements in, one new
+/// container out" shape; `wat/runtime-meta.wat:121-126`'s `:Transform` doc — "the OUTPUT IS A
+/// FORM OF THE INPUT."
+///
+/// `@arg`/`@ret` grounded in `infer_persistentvector_constructor` (`src/check.rs:14698-14763`),
+/// dispatched from `check.rs:3195-3202` — no `TypeScheme` exists. `@arg` spelling
+/// (`:wat::core::Value`) matches `:wat::core::List`'s own precedent (`src/intrinsic/list.rs`)
+/// for a heterogeneous-until-unified bare-element variadic ctor. `@ret`
+/// `(:wat::core::PersistentVector :- [T])` matches the `TypeExpr::Parametric` constructed at
+/// `check.rs:14758-14761`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args… :wat::core::Value the elements, in order (0 or more); each is
+///   `unify`/`assignable`-checked against a common `T` — a fresh variable inferred from the
+///   first element, or the declared target of a leading `(PersistentVector :- [T] …)` bracket
+/// @ret     (:wat::core::PersistentVector :- [T]) a new persistent vector holding each
+///   argument, in order
+/// @example (:wat::core::PersistentVector 1 2 3) #=> (:wat::core::PersistentVector 1 2 3)
+#[wat_intrinsic(":wat::core::PersistentVector")]
+fn eval_persistentvector(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let values = match crate::check::split_type_param_bracket(args) {
+        Some((_inner, _bspan, rest)) => rest,
+        None => args,
+    };
+    crate::collection::eval::eval_persistentvector_ctor(values, list_span, env, sym)
+}
+
+/// `(:wat::core::PersistentMap k1 v1 k2 v2 ...)` — arc 255 Stone 1c-b-i, registered
+/// `#[wat_intrinsic]`. THIN DELEGATE, not a reimplementation: forwards exactly what the
+/// retired literal arm forwarded, INCLUDING its `split_type_param_bracket` pre-processing,
+/// carried verbatim (STOP-2: dropping it would change what a `(PersistentMap :- [K V] …)`
+/// call evaluates) — `eval_persistentmap_ctor` (`src/collection/eval.rs:657-686`) itself is
+/// untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** `eval_persistentmap_ctor`'s body
+/// evaluates each key/value by ordinary call-by-value (`eval_inner`, `:674-675`) and builds
+/// via `PMap::from_pairs` over the ordered pairs — no `apply_function`, no I/O, no
+/// entropy/clock read anywhere. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Partial`, unlike its `PersistentVector` sibling above:**
+/// `eval_persistentmap_ctor` raises `MalformedForm` on odd arity (`:663-671` — an arity-shape
+/// guard, outside totality's domain per the established carve-out) AND raises `TypeMismatch`
+/// on a non-hashable key (`:676-682`, via `value_is_key_hashable`/`value_is_hashable`,
+/// `src/runtime.rs:6197-6199`/`:6168-6185` — excludes `Fn`/`Sender`/`Receiver`/`HandlePool`/
+/// `ChildHandle`/`RustOpaque`/`IOReader`/`IOWriter`/`OnlineSubspace`/`Reckoner`/`Engram`/
+/// `EngramLibrary`/`Hologram`). This second raise IS a genuine runtime-fact partiality the
+/// checker does not prevent: `infer_persistentmap_constructor` (`src/check.rs:14609-14696`)
+/// places NO hashability restriction on `K` — any type is accepted (a fresh variable or the
+/// declared bracket target, `:14655-14671`) — so a well-typed call can still supply e.g. a
+/// `:wat::core::fn` value as a key and hit this raise at runtime. `Partial`.
+///
+/// **Expand-time ground — `Legal`, a real gap this stone CLOSES, not widens:** grepped
+/// `src/macros/eval.rs` — `":wat::core::PersistentMap"` appears in NEITHER the registry-first
+/// consult NOR the residue hand-list (zero hits) — silently refused today, with no ruling
+/// ever made. A FOURTH instance of the defect this arc has already found (`ann-form`,
+/// `apply`, and this fn's own `PersistentVector` sibling immediately above). Structurally
+/// identical mechanism to the residue-`Legal` sibling `:wat::core::HashMap` (residue `:498` —
+/// bare key/value-pair data constructor). The honest grounded pole is `Legal`, matching that
+/// sibling, not the `RuntimeOnly` today's silent refusal produces by accident.
+///
+/// **Category ground — `Transform`:** same reasoning as `PersistentVector` above — matches
+/// `:wat::core::List`'s own registered ctor Category; `wat/runtime-meta.wat:121-126`'s
+/// `:Transform` doc.
+///
+/// `@arg`/`@ret` grounded in `infer_persistentmap_constructor` (`src/check.rs:14609-14696`),
+/// dispatched from `check.rs:3179-3186` — no `TypeScheme` exists. The wrapper's canonical
+/// variadic signature admits one documented `@arg`, describing the alternating-pair shape in
+/// prose. `@ret` `(:wat::core::PersistentMap :- [K V])` matches the `TypeExpr::Parametric`
+/// constructed at `check.rs:14691-14694`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args… :wat::core::Value alternating key/value pairs, in order (arity must be
+///   even — raises `MalformedForm` otherwise); each key raises `TypeMismatch` at runtime if
+///   its value is not hashable (`value_is_key_hashable`), a check the type system does not
+///   perform; keys/values are `unify`/`assignable`-checked against common `K`/`V` — fresh
+///   variables inferred from the first pair, or the declared targets of a leading
+///   `(PersistentMap :- [K V] …)` bracket
+/// @ret     (:wat::core::PersistentMap :- [K V]) a new persistent map holding each pair
+/// @example (:wat::core::PersistentMap :a 1 :b 2) #=> (:wat::core::PersistentMap :a 1 :b 2)
+#[wat_intrinsic(":wat::core::PersistentMap")]
+fn eval_persistentmap(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let values = match crate::check::split_type_param_bracket(args) {
+        Some((_inner, _bspan, rest)) => rest,
+        None => args,
+    };
+    crate::collection::eval::eval_persistentmap_ctor(values, list_span, env, sym)
 }
 
 // Arc 255 Stone P6-c-W6 — `:wat::core::nth` moved verbatim into a `#[wat_intrinsic]`
