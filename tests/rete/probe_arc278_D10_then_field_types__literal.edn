@@ -1,0 +1,31 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/RhsFieldTypeMismatch {:message \"defrule `dlt::bad`: `:then` insert of `:dlt::Bad` fills field `:n`, declared `:wat::core::i64` (rete `i64`), with operand `\\\"LITERAL-STRING\\\"`, whose type is `string` — the same construction written outside a rule is a TypeMismatch, and a `:then` value is checked the same way. Supply a value of type `i64`, or change `:n`'s declared type\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_D10_then_field_types_literal.wat.bad\" :line 14 :col 24 :end #wat.core.Option/Some [#wat.core/Pos {:line 14 :col 40}]} :causes [] :rule \"dlt::bad\" :fact-type \"dlt::Bad\" :field \"n\" :field-type \":wat::core::i64\" :field-rete-type \"i64\" :operand \"\\\"LITERAL-STRING\\\"\" :operand-type \"string\"}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/RhsFieldTypeMismatch {
+          :rule "dlt::bad"
+          :fact-type "dlt::Bad"
+          :field "n"
+          :field-type ":wat::core::i64"
+          :field-rete-type "i64"
+          :operand "\"LITERAL-STRING\""
+          :operand-type "string"
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_D10_then_field_types_literal.wat.bad"
+            :line 14
+            :col 24
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 14
+                :col 40
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]

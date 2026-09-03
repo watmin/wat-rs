@@ -146,6 +146,52 @@ pub enum ReteCheckErrorKind {
         fact_type: String,
         missing: Vec<String>,
     },
+    /// Arc 278 D10 — a `:then` field VALUE whose type is KNOWABLE and disagrees with the
+    /// destination field's declared type.
+    ///
+    /// The hole this closes was driven (`wat-scripts/scratch-pad/d10-then-rhs-is-not-type-checked.wat`):
+    /// the same construction that is a `#wat.check/TypeMismatch` everywhere else in the language
+    /// was accepted inside a `:then`, so `#tr/Bad {:n "not-an-i64"}` entered the FACT SET — where
+    /// joins, queries, the oracle and `explain` all trust the declared schema. The four RHS walls
+    /// that already existed (`RhsArityMismatch`, `RhsMissingFields`,
+    /// `RhsPositionalConstructionRetired`, `RhsUnresolvableOperand`) are every one of them
+    /// STRUCTURAL; none typed a value.
+    ///
+    /// ⛔ **KNOWABLE, and only knowable.** The producer refuses exactly one shape:
+    /// `OperandType::Resolved(a)` against a destination whose declared type also resolves to a
+    /// rete segment, with `a` different. Every other answer the resolver can give —
+    /// `UnboundInThisRule`, `ComputedNotDerivableHere`, `NotComparable`, `MistypedEnumVariant` —
+    /// is NOT-KNOWABLE-HERE, which is not the same as wrong, and is passed. That distinction is
+    /// the whole difficulty: refusing a not-knowable operand would reject a `?var` bound from a
+    /// derived fact, a computed operand whose head is `Form`/`Redispatch`, or a type variable,
+    /// while every new probe went green.
+    ///
+    /// ## Why BOTH `field_type` and `field_rete_type`, which no sibling kind carries
+    ///
+    /// The comparison is made at the rete SEGMENT the destination's declared type maps to
+    /// (`rete_type_segment_of`), not at the declared path — `operand_type` is a segment because
+    /// `resolve_operand_type` answers in segments. Reporting only the declared path would state a
+    /// comparison that was not the one performed (two distinct enums both segment to `enum`, and
+    /// this kind does NOT separate them); reporting only the segment would hide the `defrecord`
+    /// line the author has to go and read. Both are carried so the message can be checked against
+    /// the check that produced it — the granularity is part of the finding, not a footnote.
+    RhsFieldTypeMismatch {
+        rule: String,
+        fact_type: String,
+        /// The DESTINATION field, by name — `:then` fills fields by name, so the field is the
+        /// thing to name first. `RhsArityMismatch` can only say "argument #n"; this can do better.
+        field: String,
+        /// That field's type AS DECLARED in the `defrecord`, rendered by `check::format_type`
+        /// (the substrate's ONE TypeExpr renderer) so it reads exactly as the checker's messages.
+        field_type: String,
+        /// The rete segment `field_type` maps to — the LEFT side of the comparison actually made.
+        field_rete_type: String,
+        /// The offending value, rendered as wat source (`describe_operand`) — never Rust `Debug`,
+        /// the same contract `RhsUnresolvableOperand.operand` states.
+        operand: String,
+        /// The rete segment the value resolves to — the RIGHT side of the comparison.
+        operand_type: String,
+    },
     /// Arc 278 BRIEF-construction-total-three-walls.md #1 — a NESTED surface aggregate-
     /// constructor operand (an operand's VALUE, not a `:then` item's own top-level head) written
     /// with MORE THAN ONE positional argument. Once #1 wires a nested constructor to actually
@@ -320,6 +366,16 @@ impl fmt::Display for ReteCheckErrorKind {
                 f,
                 "defrule `{rule}`: `:then` insert of `:{fact_type}` is missing required field(s): [{}]",
                 missing.join(", ")
+            ),
+            ReteCheckErrorKind::RhsFieldTypeMismatch {
+                rule, fact_type, field, field_type, field_rete_type, operand, operand_type,
+            } => write!(
+                f,
+                "defrule `{rule}`: `:then` insert of `:{fact_type}` fills field `:{field}`, declared \
+                 `{field_type}` (rete `{field_rete_type}`), with operand `{operand}`, whose type is \
+                 `{operand_type}` — the same construction written outside a rule is a TypeMismatch, \
+                 and a `:then` value is checked the same way. Supply a value of type \
+                 `{field_rete_type}`, or change `:{field}`'s declared type"
             ),
             ReteCheckErrorKind::RhsPositionalConstructionRetired { rule, fact_type, got } => write!(
                 f,

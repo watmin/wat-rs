@@ -1,0 +1,25 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D10, arm 2/4: a LITERAL of the wrong type.
+;;
+;; A separate fixture from the bound-`?var` arm because it reaches the wall through a DIFFERENT
+;; source of `resolve_operand_type` — source 3 (a literal's own type) rather than source 2 (the
+;; field a `(?v <- :field)` bind names). One mutation cannot prove a multi-source gate: each
+;; source is its own arm, and an arm nothing drives is an arm nothing protects.
+;;
+;; Driven at HEAD: `#tl/Bad {:n "LITERAL-STRING"}` reached the fact set.
+(:wat::core::defrecord :dlt::Box [k <- :wat::core::i64])
+(:wat::core::defrecord :dlt::Bad [n <- :wat::core::i64])
+
+(:wat::rete::defrule :dlt::bad
+  :when [(:dlt::Box (?k <- :k))]
+  :then [(:dlt::Bad :n "LITERAL-STRING")])
+
+;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.
+;;
+;; The neighbouring negative fixtures end `(:user::main [] -> :wat::core::nil nil)`, and with the
+;; D10 cure reverted that shape makes this file fail ANYWAY — `#wat.macro/MainSignatureError`
+;; (UselessMain) — so `assert!(!ok)` would pass whether or not the wall exists. Driven, not
+;; supposed: the mutation run of 2026-09-03 produced exactly that face. A main that DOES something
+;; makes the rete refusal the ONLY reason this file can fail, which is what makes the probe's
+;; failure assertion mean something on its own, before the `.edn` golden is even consulted.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

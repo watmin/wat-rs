@@ -1,0 +1,31 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/RhsFieldTypeMismatch {:message \"defrule `dcp::bad`: `:then` insert of `:dcp::Bad` fills field `:t`, declared `:wat::core::String` (rete `string`), with operand `(:wat.rete.core.i64/+ ?k 1 :undefined 0)`, whose type is `i64` — the same construction written outside a rule is a TypeMismatch, and a `:then` value is checked the same way. Supply a value of type `string`, or change `:t`'s declared type\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_D10_then_field_types_computed.wat.bad\" :line 21 :col 24 :end #wat.core.Option/Some [#wat.core/Pos {:line 21 :col 68}]} :causes [] :rule \"dcp::bad\" :fact-type \"dcp::Bad\" :field \"t\" :field-type \":wat::core::String\" :field-rete-type \"string\" :operand \"(:wat.rete.core.i64/+ ?k 1 :undefined 0)\" :operand-type \"i64\"}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/RhsFieldTypeMismatch {
+          :rule "dcp::bad"
+          :fact-type "dcp::Bad"
+          :field "t"
+          :field-type ":wat::core::String"
+          :field-rete-type "string"
+          :operand "(:wat.rete.core.i64/+ ?k 1 :undefined 0)"
+          :operand-type "i64"
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_D10_then_field_types_computed.wat.bad"
+            :line 21
+            :col 24
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 21
+                :col 68
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]

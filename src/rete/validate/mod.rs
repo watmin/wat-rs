@@ -214,13 +214,20 @@ fn validate_rule_when_and_reorder_then(
         other => other.map(render_form).unwrap_or_else(|| "<unknown-rule>".to_string()),
     };
 
+    // ★ D10 — the bind map is HOISTED out of the `:when` block because the `:then` needs it too.
+    // A `:then` operand's type is knowable exactly when the `?var` it names is bound by this
+    // rule's `:when`, and that is the SAME rule-wide map the constraint typer already builds; a
+    // second, `:then`-local collection would be a second place for a join variable to go missing.
+    // Empty when `mr[2]` is not a `(quote [...])` — then every `?var` is `UnboundInThisRule`,
+    // which is the honest answer, not a skipped check dressed as one.
+    let mut binds: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     // :when (mr[2] = (quote [<cond>…])) — validate only, no rewrite.
     if let Some(when_conds) = quote_vector(mr.get(2)) {
         // ★ Binds collected across EVERY condition of the rule, before any is validated. A join
         // variable is bound in one pattern and compared in another, so a per-pattern map would
         // leave it unresolvable — and "unresolvable" was quietly meaning "skip the check". It is
         // knowable; it just is not knowable from one pattern.
-        let binds = collect_rule_bind_types(when_conds, types);
+        binds = collect_rule_bind_types(when_conds, types);
         for cond in when_conds {
             validate_when_entry(cond, &rule_name, types, &binds, errors);
         }
@@ -240,7 +247,7 @@ fn validate_rule_when_and_reorder_then(
     if let Some(WatAST::List(quote_items, _)) = mr.get_mut(3) {
         if let Some(WatAST::Vector(then_forms, _)) = quote_items.get_mut(1) {
             for fact_form in then_forms.iter_mut() {
-                validate_then_form(fact_form, &rule_name, types, errors);
+                validate_then_form(fact_form, &rule_name, types, &binds, errors);
             }
         }
     }
@@ -967,6 +974,7 @@ fn validate_then_form(
     fact_form: &mut WatAST,
     rule_name: &str,
     types: &TypeEnv,
+    binds: &std::collections::HashMap<String, String>,
     errors: &mut Vec<ReteCheckError>,
 ) {
     let fact_span = fact_form.span().clone();
@@ -1002,6 +1010,11 @@ fn validate_then_form(
         // genuinely unknown/malformed head still surfaces there, just not from this function.
         None => return,
     };
+    // D10 — the DECLARED type of each field, index-aligned with `field_names` (both read the same
+    // `TypeDef::Aggregate`, so a `lookup_fields` hit implies a `lookup_field_types` hit; the
+    // `unwrap_or_default` is the belt, and an empty vector makes every `get(i)` miss and every
+    // per-field type check skip rather than mis-index).
+    let field_types = lookup_field_types(types, &fact_type).unwrap_or_default();
 
     // Arc 294 item 9a — the SAME kwargs-shape test `build_insert_fact` uses:
     // even arity, ≥2 args, a keyword at every even index.
@@ -1054,6 +1067,28 @@ fn validate_then_form(
         // the operand reported is the one the author wrote, at the span they wrote it at.
         let kwargs_values: Vec<WatAST> = kv_pairs.iter().map(|(_, v)| v.clone()).collect();
         check_rhs_operands(&kwargs_values, rule_name, &fact_type, errors);
+        // ★ D10 — the TYPE wall, kwargs side. `kv_pairs` has paired the destination field with
+        // its value AST all along; this is the call that was missing. Checked BEFORE the reorder,
+        // for the same reason `check_rhs_operands` above is: the operand named in the diagnostic
+        // must be the one the author wrote, at the span they wrote it at.
+        //
+        // An operand `check_rhs_operands` has already flagged is SKIPPED — `rhs_operand_can_never_resolve`
+        // is the same predicate that produced that finding. Reporting both would tell the author
+        // to fix the type of an operand whose real fault is that it can never resolve at all, and
+        // two ruins pointing opposite ways teach worse than one (R29 `RVINA ERVDIT`).
+        for (field, value) in &kv_pairs {
+            if rhs_operand_can_never_resolve(value) {
+                continue;
+            }
+            let Some(declared) =
+                field_names.iter().position(|f| f == field).and_then(|i| field_types.get(i))
+            else {
+                continue;
+            };
+            check_then_field_type(
+                field, declared, value, rule_name, &fact_type, binds, types, errors,
+            );
+        }
         // Arc 278 #1/#3 — recurse for a NESTED constructor operand (e.g. `:inner (:usr::Inner
         // :x 1)`); the top-level shape above only covers THIS item's own head.
         for v in &kwargs_values {
@@ -1066,6 +1101,24 @@ fn validate_then_form(
         // wrong-arity AND carry an unresolvable operand, and batching every finding is this
         // validator's whole contract (`validate_rete_rules` returns them all, not the first).
         check_rhs_operands(args, rule_name, &fact_type, errors);
+        // ★ D10 — the TYPE wall, positional side. Positional args ARE declaration order by
+        // definition (`eval_insert.rs`'s `rete_kwargs_value_asts` says so), so arg `i` fills field
+        // `i` — but ONLY when the counts agree. Under a count mismatch there is no defensible
+        // pairing, `RhsArityMismatch` below is the finding, and inventing an alignment would
+        // report a type fault against a field the author never addressed.
+        if args.len() == field_names.len() {
+            for (i, arg) in args.iter().enumerate() {
+                if rhs_operand_can_never_resolve(arg) {
+                    continue;
+                }
+                let (Some(field), Some(declared)) = (field_names.get(i), field_types.get(i)) else {
+                    continue;
+                };
+                check_then_field_type(
+                    field, declared, arg, rule_name, &fact_type, binds, types, errors,
+                );
+            }
+        }
         // Arc 278 #1/#3 — recurse for a NESTED constructor operand, same as the kwargs branch.
         for a in args {
             walk_nested_constructors(a, rule_name, types, errors);

@@ -1,0 +1,32 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D10, arm 4/4: a COMPUTED operand — source 4.
+;;
+;; ⚠ THE SOURCE THAT HAS ALREADY GONE MISSING ONCE. `resolve_operand_type`'s doc called its list
+;; exhaustive while source 4 was absent, and a computed operand fell to a `_` arm meaning "unbound
+;; `?var`" — so wrapping an operand in a call made its type error DISAPPEAR (measured 2026-08-28,
+;; on the `:when` side). D10 reuses that same resolver from the `:then` side, so the identical
+;; hole is one edit away here. This fixture pins it: `(:wat::rete::core::i64::+ ?k 1 :undefined 0)`
+;; has a `RETE_OPS` row whose `ret` is declared i64 — a FACT about the row, not a guess, since
+;; every rete row is `total` — and putting it into a String field must be refused.
+;;
+;; Its POSITIVE twin is `probe_arc278_D10_then_field_types_ok.wat`'s row 3 (the same computed
+;; operand, into an i64 field, which compiles and derives 8) and
+;; `..._notknowable.wat`'s nk1 (a computed operand whose head states NO type, which must pass).
+;; Three fixtures over the same source, because "knowable and right", "knowable and wrong" and
+;; "not knowable" are three different verdicts and only one of them is a refusal.
+(:wat::core::defrecord :dcp::Box [k <- :wat::core::i64])
+(:wat::core::defrecord :dcp::Bad [t <- :wat::core::String])
+
+(:wat::rete::defrule :dcp::bad
+  :when [(:dcp::Box (?k <- :k))]
+  :then [(:dcp::Bad :t (:wat::rete::core::i64::+ ?k 1 :undefined 0))])
+
+;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.
+;;
+;; The neighbouring negative fixtures end `(:user::main [] -> :wat::core::nil nil)`, and with the
+;; D10 cure reverted that shape makes this file fail ANYWAY — `#wat.macro/MainSignatureError`
+;; (UselessMain) — so `assert!(!ok)` would pass whether or not the wall exists. Driven, not
+;; supposed: the mutation run of 2026-09-03 produced exactly that face. A main that DOES something
+;; makes the rete refusal the ONLY reason this file can fail, which is what makes the probe's
+;; failure assertion mean something on its own, before the `.edn` golden is even consulted.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

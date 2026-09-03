@@ -694,6 +694,95 @@ fn resolve_operand_type(
     }
 }
 
+/// D10 — the `:then` counterpart of [`check_constraint_head`]'s per-operand type test: does this
+/// value's type agree with the type the DESTINATION FIELD is declared to hold?
+///
+/// ★ THE INVARIANT: *a `:then` field value whose type is KNOWABLE and does not match the
+/// destination field's declared type is refused at rule-compile time.* Everything needed was
+/// already here — `resolve_operand_type` has been standalone since the `:when` side got it, and
+/// `validate_then_form` has paired the field NAME with its value AST for as long as it has built
+/// `kv_pairs`. Only the call was missing, and an error kind to carry the finding.
+///
+/// ## ⛔ NOT-KNOWABLE IS NOT WRONG, and that is the whole difficulty
+///
+/// Exactly ONE arm refuses: `Resolved(actual)` against a destination that also resolves, with the
+/// two segments different. The other four `OperandType` answers are each a *different reason* the
+/// type is not knowable HERE, and each is passed:
+///   · `UnboundInThisRule` — a `?var` this rule's `:when` does not bind (a `:where` let, host
+///     code reading the row by string key). Not a type question.
+///   · `ComputedNotDerivableHere` — a `Form`/`Redispatch` head, a `Var` ret, a container ret, or
+///     a non-rete head (a nested constructor, a user fn — Stone B's widened `:then` item). The
+///     row states a relation, not a type; the answer comes later, from `check.rs`.
+///   · `NotComparable(declared)` — the value's own declared type has no rete segment. It DOES
+///     carry a type string, and comparing it to the destination's would catch a record-into-i64
+///     — **and would also refuse a `?var` bound from a PARAMETRIC record's erased field**, whose
+///     declared type renders as a bare type variable. D7's erasure is out of scope for this
+///     strike (`DESIGN.md`: "Out of scope = REJECTED"), so this arm passes and the gap is on the
+///     record rather than guessed at.
+///   · `MistypedEnumVariant` — already refused BY NAME elsewhere; two ruins pointing opposite
+///     ways teach worse than one (`check_constraint_head`'s own ruling, applied here).
+///
+/// A destination whose declared type has no rete segment (a record-valued field, a collection, an
+/// opaque, a type variable) returns before the resolver is even asked, for the same reason.
+///
+/// ## The granularity is a rete SEGMENT, and that is a real limit
+///
+/// `resolve_operand_type` answers in segments (`i64`/`f64`/`string`/`bool`/`keyword`/`enum`), so
+/// this check is exactly as sharp as that map. Two DISTINCT enums both segment to `enum` and a
+/// mismatch between them is NOT caught here. Sharpening it means making the resolver answer with
+/// the declared type rather than the segment — which would move the `:when` path too, since the
+/// four sources are shared. Left as a stated limit rather than a silent one, and the kind carries
+/// `field_rete_type` so the message says which comparison it actually made.
+// EIGHT parameters, and the allow is the honest shape here rather than a bundle. The `:when` side
+// bundles its six into [`ClauseCtx`] because a CLAUSE is a thing that exists and gets walked; a
+// `:then` field check has no such subject — it is (one destination, one value, the two registries
+// needed to type them). A context struct minted to hold those four unrelated references would
+// exist only to satisfy a counter, and would name nothing. Same ruling as the ten sibling sites in
+// `check.rs`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn check_then_field_type(
+    field: &str,
+    declared: &str,
+    value: &WatAST,
+    rule_name: &str,
+    fact_type: &str,
+    binds: &std::collections::HashMap<String, String>,
+    types: &TypeEnv,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let Some(dest) = rete_type_segment_of(declared, types) else { return };
+    // `field_names`/`field_types` are EMPTY **on purpose**, and it is not a shortcut: a `:then`
+    // has no current fact, so a keyword in VALUE position is a constant, never a reference to a
+    // field of the type being built. Source 1 of the resolver therefore routes every keyword to
+    // `classify_keyword_constant`, which is the reading the RHS actually has.
+    let actual = match resolve_operand_type(value, &[], &[], binds, types) {
+        OperandType::Resolved(a) if a != dest => a,
+        // Agrees — nothing to report.
+        OperandType::Resolved(_) => return,
+        // The four not-knowable-here answers. Named individually, never collapsed into a `_`:
+        // collapsing reasons into outcomes is the conflation that has already cost this arc four
+        // separate defects, and a new `OperandType` variant must be a compile error here.
+        OperandType::NotComparable(_) => return,
+        OperandType::UnboundInThisRule => return,
+        OperandType::ComputedNotDerivableHere => return,
+        OperandType::MistypedEnumVariant => return,
+    };
+    errors.push(ReteCheckError {
+        // The VALUE's own span, not the fact form's — the caret must land on the operand the
+        // author wrote, the same contract `check_field_kw` keeps for the field keyword.
+        span: value.span().clone(),
+        kind: ReteCheckErrorKind::RhsFieldTypeMismatch {
+            rule: rule_name.to_string(),
+            fact_type: fact_type.to_string(),
+            field: field.to_string(),
+            field_type: declared.to_string(),
+            field_rete_type: dest.to_string(),
+            operand: describe_operand(value),
+            operand_type: actual.to_string(),
+        },
+    });
+}
+
 /// How to name an operand in a diagnostic: a field by its name, anything else by its source form.
 ///
 /// The fallback goes through [`render_form`], not Rust `Debug` — this file's own

@@ -1,0 +1,32 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D10, arm 3/4: the POSITIONAL producer.
+;;
+;; The wall has TWO producers in `validate_then_form` — the kwargs branch (which pairs a field
+;; NAME with its value) and the positional branch (where arg `i` fills field `i`, "declaration
+;; order BY DEFINITION"). A mutation to either must leave the other's probe green; that is what
+;; makes them two producers rather than one.
+;;
+;; The arity is CORRECT here (2 args, 2 fields) so `RhsArityMismatch` cannot fire and
+;; `RhsFieldTypeMismatch` is the only KIND in the batch — and it is the same reason the positional
+;; type check is guarded on the counts agreeing: under a mismatch there is no defensible pairing to
+;; report a type fault against.
+;;
+;; The args are SWAPPED, so BOTH fields are wrong and the golden carries TWO findings. That is
+;; deliberate: batching every finding is this validator's contract (`validate_rete_rules` returns
+;; them all, not the first), and a golden with one entry would not notice the loop stopping early.
+(:wat::core::defrecord :dps::Box [k <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :dps::Bad [n <- :wat::core::i64  t <- :wat::core::String])
+
+(:wat::rete::defrule :dps::bad
+  :when [(:dps::Box (?k <- :k) (?s <- :s))]
+  :then [(:dps::Bad ?s ?k)])
+
+;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.
+;;
+;; The neighbouring negative fixtures end `(:user::main [] -> :wat::core::nil nil)`, and with the
+;; D10 cure reverted that shape makes this file fail ANYWAY — `#wat.macro/MainSignatureError`
+;; (UselessMain) — so `assert!(!ok)` would pass whether or not the wall exists. Driven, not
+;; supposed: the mutation run of 2026-09-03 produced exactly that face. A main that DOES something
+;; makes the rete refusal the ONLY reason this file can fail, which is what makes the probe's
+;; failure assertion mean something on its own, before the `.edn` golden is even consulted.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))
