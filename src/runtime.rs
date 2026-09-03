@@ -2117,7 +2117,13 @@ fn dispatch_keyword_head_value(
         // The `dispatch_keyword_head` takes `sym: &SymbolTable` (immutable),
         // so there is no way to mutate the flag here — and no need to,
         // because freeze-time processing already set it.
-        ":wat::config::set-redef!" | ":wat::config::set-eval-redef!" => Ok(Value::Unit),
+        // ⛔ Arc 255 Stone 1a-ε — the `":wat::config::set-redef!" | ":wat::config::set-eval-redef!"
+        // => Ok(Value::Unit)` arm that stood here is DELETED. Both are registered rows carrying a
+        // `role = eval` handler now, so the registry-first door hoisted above this match answers
+        // them by name and this arm could never fire — the "a registered row may not keep its
+        // literal arm" gate (`intrinsic/mod.rs`) demanded the deletion and named both rows. The
+        // no-op semantics are unchanged; they moved to `intrinsic/special/config_set_redef.rs`,
+        // whose own doc records WHY the arm is a no-op: the flag was already applied at freeze.
         // Arc 170 Gap I-B — `:wat::core::def` at expression position.
         // The permissive arm (evaluate RHS, return Unit) that relied on
         // `validate_def_position_with_wrapper` as the entry guard is
@@ -2944,7 +2950,12 @@ fn dispatch_keyword_head_value(
         // declaration has done its job. Returns :() for the value
         // position (if a user writes it inside an expression — unusual
         // but not illegal).
-        ":wat::core::use!" => Ok(Value::Unit),
+        // ⛔ Arc 255 Stone 1a-ε — the `":wat::core::use!" => Ok(Value::Unit)` arm that stood here
+        // is DELETED, for the same reason and by the same gate as the two config setters above:
+        // `use!` is a registered row with a `role = eval` handler, so the registry-first door
+        // answers it and this arm was unreachable. The no-op moved to
+        // `intrinsic/special/use_form.rs`; the declaration's real work happens at the resolve
+        // pass (`collect_use_declarations`), which that row names as its `role = declare`.
 
         // Config accessors (:wat::config::dim-count/dim-capacity/global-seed/noise-floor) —
         // arc 255 Stone P6-c-W1 moved their dispatch arms into `#[wat_intrinsic]` handlers

@@ -6,10 +6,17 @@
 
 use crate::ast::WatAST;
 use super::error::UnresolvedReference;
+use wat_macros::wat_special_form_impl;
 
 /// Scan top-level forms for `(:wat::core::use! :rust::...)` and record
 /// them in `use_decls`. Emits an `UnresolvedReference` if the requested
 /// symbol isn't in the build-time rust-deps registry.
+///
+/// Arc 255 Stone 1a-ε — the `role = declare` pointer for `:wat::core::use!` (STOP-4 measured
+/// FALSE for this row: a real freeze-time processor exists — this fn, run as Pass 1 of
+/// `resolve_references`, called from `freeze.rs` step 7, strictly before evaluation). See
+/// `src/intrinsic/special/use_form.rs`'s module doc for the full finding.
+#[wat_special_form_impl(":wat::core::use!", role = declare)]
 pub(super) fn collect_use_declarations(
     form: &WatAST,
     registry: &crate::rust_deps::RustDepsRegistry,

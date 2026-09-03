@@ -4764,11 +4764,16 @@ fn infer_list(
             // direction 2026-05-07). Source-level `:wat::core::lambda`
             // surfaces standard "unknown form" error post-arc-155.
             ":wat::core::use!" => {
-                // use! is a resolve-pass declaration. It validates at
-                // resolve time; the type checker treats it as a no-op
-                // returning :(). The argument is a keyword path; we
-                // don't recurse into it.
-                return CheckResult::ok(TypeExpr::Tuple(vec![]));
+                // Arc 255 Stone 1a-ε — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/use_form.rs`'s `infer_use_form`, which is the fn
+                // `:wat::core::use!`'s `role = check` names — so the registry points at real,
+                // reachable code instead of at a fn nothing calls. Semantics unchanged: `use!`
+                // is a resolve-pass declaration, validated at resolve time, and the checker
+                // treats it as a no-op returning `:()`; the argument is a keyword path and is
+                // deliberately not recursed into.
+                return crate::intrinsic::special::use_form::infer_use_form(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             _ if k.starts_with(":rust::") => {
                 let result = dispatch_rust_scheme(k, head_span, args, env, locals, fresh, subst);
@@ -8418,6 +8423,13 @@ fn infer_defclause(
 /// `check_program`'s sequential loop AFTER this function returns, via
 /// `extract_redef_setter`. Same two-phase split as `infer_def` /
 /// `extract_def_binding`.
+///
+/// Arc 255 Stone 1a-ε — the `role = check` pointer for BOTH
+/// `:wat::config::set-redef!` AND `:wat::config::set-eval-redef!` (same stacking
+/// shape `infer_boolean_shortcircuit`, above, uses for `and`/`or` — one fn, two
+/// FQDNs, because both setters are checked by this exact same body).
+#[wat_special_form_impl(":wat::config::set-redef!", role = check)]
+#[wat_special_form_impl(":wat::config::set-eval-redef!", role = check)]
 fn infer_config_set_bool(
     head: &str,
     args: &[WatAST],

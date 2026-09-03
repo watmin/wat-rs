@@ -1738,6 +1738,19 @@ pub fn register_runtime_defs(
 }
 
 /// Recursive helper for [`register_runtime_defs`]. Processes a single form.
+///
+/// Arc 255 Stone 1a-ε — the OTHER of TWO `role = declare` pointers for
+/// `:wat::config::set-redef!` AND `:wat::config::set-eval-redef!` (STOP-3: measured, not one
+/// honest primary — see `collect_entry_file_inner`'s own pointer, `src/config.rs`, for the
+/// leading-position half). This fn is the LATER-position processor: both setter heads are
+/// listed in `RUNTIME_DECLARATION_HEADS` (`src/declare/parse.rs:136`), so a setter that is NOT
+/// the entry file's leading form — legal, if unusual — falls through
+/// `collect_entry_file_inner`'s leading-setter scan untouched and is processed here instead,
+/// mutating `sym.redef_allowed`/`sym.eval_redef_allowed` directly. Measured with a probe
+/// (`wat-scripts/scratch-pad/1a-epsilon-probe/probe-nonleading-setredef.wat`): a `set-redef!`
+/// placed after an earlier top-level `defn` is accepted and the program runs to completion.
+#[wat_special_form_impl(":wat::config::set-redef!", role = declare)]
+#[wat_special_form_impl(":wat::config::set-eval-redef!", role = declare)]
 fn register_runtime_defs_form(
     form: &WatAST,
     env: &Environment,

@@ -2240,7 +2240,20 @@ mod completeness_gate {
     ":wat::core::seqable->stream",
     ":wat::core::struct->form",
     ":wat::core::subtype?",
-    ":wat::core::use!",
+    // Arc 255 Stone 1a-ε — `:wat::core::use!` LEAVES. `intrinsic_meta`'s registry-first
+    // consult (`:473` above) now answers `Some` for it (the `@Purity Pure` /
+    // `@Determinism Deterministic` / `@Totality Total` this stone registered), so
+    // `dispatch_verbs`'s scan classifies it instead of leaving it unreviewed. Leaving the name
+    // here after registering would fail this ledger's own STALE check.
+    //
+    // ⛔ CORRECTED at the end of the same stone: this note first said the scan "still finds the
+    // `\":wat::core::use!\" => Ok(Value::Unit)` arm at `runtime.rs:2947` — that arm is unchanged
+    // by this stone, STOP-5". Both halves went stale within the hour. The brief's STOP-5 said not
+    // to touch the eval arms; registering a `role = eval` handler then made
+    // `registry_first_door_owns_every_handler_row_no_literal_arm_survives` demand the arm's
+    // DELETION by name — the registry-first door answers `use!` now, so the arm could never fire.
+    // **The gate outranked the STOP, and the gate was right.** The arm is gone; the no-op lives in
+    // `intrinsic/special/use_form.rs`.
     // `:wat::core::show` DELETED from this ledger arc 255 Stone the-seven-that-need-no-
     // extraction: homed into a `#[wat_intrinsic]` handler (`src/runtime.rs`'s `eval_show`)
     // with its full directive block, so `intrinsic_meta` now classifies it from the registry

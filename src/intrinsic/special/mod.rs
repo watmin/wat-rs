@@ -9,6 +9,8 @@
 
 pub(crate) mod and_form;
 pub(crate) mod binding;
+pub(crate) mod config_set_eval_redef;
+pub(crate) mod config_set_redef;
 pub(crate) mod control_flow;
 pub(crate) mod def;
 pub(crate) mod defalias;
@@ -24,3 +26,4 @@ pub(crate) mod or_form;
 pub(crate) mod signed_load;
 pub(crate) mod structtype;
 pub(crate) mod typealias;
+pub(crate) mod use_form;

@@ -761,7 +761,7 @@ mod uuid;
 mod vec;
 mod vector;
 mod witness;
-mod special;
+pub(crate) mod special;
 mod time;
 
 /// Arc 255 Stone P5-b — derive the single callback parameter type from a canonical
@@ -1112,6 +1112,17 @@ mod tests {
         ":wat::digest-load!",
         ":wat::load-file!",
         ":wat::signed-load!",
+        // ★★★ Arc 255 Stone 1a-ε — the three no-ops join for the same reason the loaders just
+        // above did: registered `Kind::SpecialForm` rows with no `env.register()` TypeScheme,
+        // so `check_env.get` returns `None`. Checked, not assumed: `register_builtins` has zero
+        // `env.register(":wat::core::use!"` / `":wat::config::set-redef!"` / `":wat::config::
+        // set-eval-redef!"` calls. Unlike the loaders, these three DO carry a real check impl
+        // (`infer_config_set_bool` for both setters, `infer_use_form` for `use!`) — exactly the
+        // `and`/`or` shape at the top of this ledger: real checking, no scheme to verify the
+        // docs against. No `register_builtins` scheme added; the ledger grows by three, 86 → 89.
+        ":wat::core::use!",
+        ":wat::config::set-redef!",
+        ":wat::config::set-eval-redef!",
     ];
 
     #[test]

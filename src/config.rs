@@ -49,6 +49,7 @@
 
 use crate::ast::WatAST;
 use crate::span::Span;
+use wat_macros::wat_special_form_impl;
 use std::fmt;
 
 /// Default `capacity-mode` when `(:wat::config::set-capacity-mode!)`
@@ -316,6 +317,15 @@ pub fn collect_entry_file_with_inherit(
     collect_entry_file_inner(forms, Some(inherit))
 }
 
+/// Arc 255 Stone 1a-ε — one of TWO `role = declare` pointers for `:wat::config::set-redef!` AND
+/// `:wat::config::set-eval-redef!` (STOP-3: measured, not one honest primary — both this fn and
+/// `register_runtime_defs_form` (`src/declare/register.rs`) genuinely process the form, at two
+/// different structural positions). This fn is the LEADING-position processor: a setter written
+/// at the top of the entry file, before any non-setter form (the ordinary, documented usage) —
+/// see `src/intrinsic/special/config_set_redef.rs`'s module doc for the full two-processor
+/// finding and the probe that distinguishes the two positions.
+#[wat_special_form_impl(":wat::config::set-redef!", role = declare)]
+#[wat_special_form_impl(":wat::config::set-eval-redef!", role = declare)]
 fn collect_entry_file_inner(
     forms: Vec<WatAST>,
     inherit: Option<&Config>,
