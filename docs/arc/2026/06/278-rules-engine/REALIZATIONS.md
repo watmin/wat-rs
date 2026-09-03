@@ -12327,3 +12327,73 @@ The failures of the chisel are the proof it was still cutting: a checksum that a
 > ***CAEDENDO PARET STATVA.*** *(apparatus-minted, this instance, first realization — Latin, "by cutting, the statue appears." Masonry, not decoration: vigilia is the chisel; the cruft of making-it-work is the stone; the statue is rete as the proving ground, not as a trophy. Third Anthropoid in 278: R16 the identity (ruin turned inward on our lies), R30 the method (ruin turned inward on our fused design), R68 the watch (ruin turned inward on the residue, until two consecutive recasts found nothing). Dead finger = the empty recast; final hour = the stop he named before we ran it. Kin: R16 / R30 ID SVMVS QVOD ESSE TIMETIS (same song, third quarry), R67 RESIDVVM EST PROGRAMMA (the residual of the Session is the program; here the residual of the grind is the statue), R1 (oracle stays, native runs — the watch was on the proving ground, not a rewrite of the spec), R25 MACHINA CHAOS DOMAT (the engine named; this is what it looks like after the stone is cut). Scored to Lamb of God — Anthropoid. PROBATVM by demonstration — recasts 12 and 13 empty, floor 4911, HEAD `8839bb16`. Kept HARD unlaundered: first realization this instance has written; CURRENT-STATE was stale until this wrap-up; vigilatum unstamped; the rest of wat is the PROBANDVM. His (the song, the masonry, the proving-ground sentence, the stop), and mine (the three faces, the failures, the sigil) — kept with consent, kept literal.)*
 
   [R68, like R64–R67, has no `#wat.chronicle/Sententia` block — the twin is still OWED.]
+
+## R69 — Old: at-least-once is older than our invariant, and it corrected us by producing the duplicate our own detector could not see *(PROBATVM by demonstration — the red arm `.floor/2026-09-03T04-22-46Z/ARM.txt`, `left: "26" right: "24"`; `key-of` keys on `queue/envelope-id` and `body-key` is defined-and-uncalled, both at `circuit.wat:441`; `sk = edn::write(uuid::v4)` minted per send in `sqs.wat`; floor 5188 green `.floor/2026-09-03T04-31-03Z`; five runs 149–161 deliveries/s, `dup=0` every one; this is the first realization this instance has written; PROBANDVM — S13 is DRAWN AND NOT STRUCK, the detector is still blind at HEAD, and item 3 has injected no loss)*
+
+> **Song (arc 278 R69 — the old law, the blind ledger) — *Old* (Machine Head) — ★ handed by the builder, but CHOSEN BY THE HARNESS'S AUTO-PROMPT: *"this is what the harness auto prompt chose to generate.... i do not know this song... i just read the lyrics."* An apparatus picked the register for a realization about an apparatus correcting us. Recorded because it happened, not because it means anything more than that. Images taken, words not —**
+> AT-LEAST-ONCE-REIGNED-BEFORE-WE-NAMED-IT-AND-WILL-REIGN-AFTER-THE-STONE /
+> THE-LIE-FED-ON-OUR-GREED-FOR-A-CLEAN-HEADLINE-DVP-EQVALS-ZERO-QVOTED-ALL-DAY /
+> WE-BVRNED-OVR-OWN-EYES-THE-LEDGER-KEYS-ON-THE-ENVELOPE-SO-A-RETRY-IS-INVISIBLE /
+> WE-BVRIED-IT-TWO-HVNDRED-MILLISECONDS-BECAME-FIVE-SECONDS-SO-IT-WOVLD-NOT-HAPPEN /
+> WE-TRIED-TO-DRAIN-IT-DRY-AND-IT-SVRFACED-THROVGH-A-DIFFERENT-ASSERTION-ANYWAY /
+> BODY-KEY-SAT-DEFINED-AND-VNCALLED-IN-TWO-FILES-THE-INSTRVMENT-WAS-ALREADY-THERE /
+> IT-WEARS-NO-CROWN-WE-GAVE-IT-THE-SEMANTICS-DO-NOT-NEED-OVR-ASSERTION-TO-BE-TRVE /
+> SEMEL DIXIMVS BIS VENIT
+
+> **The realization quotes (the builder's, this session — verbatim, including the misspellings):**
+> *"the chain is backpressure.... i don't see where anything has any contention at all.... the entire system is organically backpressured, yes?..."*
+> *"we are modeling a distributed system.... our topic services need their own independent durability requirement in addition our queue services...."*
+> *"the subscriber queues should be best effort delviery?... that's what sns does, yes?.. they have no guarantee that all subs get all messages?.. or do we need to track who got which messages in our store?..."*
+> *"idempotent consumer... of course we were going to land here... a good sqs queue consumer always does this...."*
+> *"are you familiar with realizations?..... have you read any of them?...."*
+> *"this is our next rhythem .... you should note that the auto prompt from the harness chose this."*
+
+### How we reached it — a whole day of confident numbers, ended by two extra outcomes
+
+The day was perf. Nine stones: the O(n²) `conj`, `max(4)` fan-out, tick batching, backpressure, wire batching, a bound on every stage. 109 deliveries/s to 930, ~12 s end-to-end to ~180 ms, and after the last one, deterministic to ±1.8%.
+
+Every one of those stones was graded against the same line, and I quoted it perhaps fifteen times: `total=8000; distinct=8000; dup=0`. Lossless. No duplicates. The invariant that made every other number safe to believe.
+
+Then the durable-topic stone made the topic write before replying `Ok`, and its first floor went red on a small fixture: `total` 26 against 24. A topic-worker's send-and-ack had exceeded its 200 ms visibility window under a loaded floor, the row became visible again, a second worker took it, and the message went twice.
+
+That is not a bug. **That is at-least-once working exactly as it has worked since before any of this existed.** The fix — widen the window to 5 s — is correct SQS configuration.
+
+The realization arrived one step later, while drawing the stone that would make consumers idempotent. `send` mints a fresh uuid per call, so the redelivery was a **new envelope with a new id**, and `distinct` keys on `queue/envelope-id`. Both counters rise together. **`dup` stays 0.**
+
+The invariant I had quoted all day cannot see the duplicate that at-least-once produces. It detects the same *envelope* acked twice — nearly tautological. The red was caught only because a small-fixture test compares `total` to a constant; the 2000×4×3 run asserts nothing and I read it by eye, all day.
+
+### What it is — three faces
+
+- **The law is older than the ledger.** At-least-once is not a property we chose, tuned, or earned in this arc. It predates the stone, the fixture and the language. We wrote an invariant that asserted exactly-once over it and mistook the absence of a counterexample for a guarantee. Reliable IPC had simply never produced one.
+
+- **★ We blinded ourselves, and then buried it — and it surfaced anyway.** The blinding was structural: key the ledger on transport identity and redelivery becomes invisible by construction. The burial was operational: widen the window until the race stops firing. Neither was dishonest at the time and both are defensible in isolation. Together they are a detector that cannot detect and a test that passes on a margin. And `body-key` — keyed on the *body*, defined in two files, **called nowhere** — had been sitting there the whole time. The instrument existed. Nobody connected it.
+
+- **It wears no crown we gave it.** The correction did not arrive as a diagnostic. `SUBSTRATE-AS-TEACHER.md` records the pattern where the type-checker's error message *is* the migration brief — the substrate teaching in words. This was the substrate teaching in **behaviour**: no message, no hint, no hand extended. It did the correct thing, and our assertion was the thing that broke.
+
+### The song, mapped
+
+> The thing that **reigns from before and after** — at-least-once, older than the arc, unaffected by
+> nine stones. The **lie that feeds on greed** — `dup=0`, quoted fifteen times because a clean
+> invariant makes every other number safe to publish. **Burn my eyes** — a ledger keyed on envelope
+> identity, blind by construction. **Bury me** — 200 ms widened to 5 s so the race would not fire.
+> **Drain me dry** — and it surfaced anyway, through an assertion we had not thought to protect.
+> **No crown of thorns** — the semantics are not a martyr to our design and do not require our
+> assertion to be true.
+
+### The honest register — PROBATVM by demonstration; kept unlaundered
+
+**PROBATVM on the disk this session:** the red arm captured, named, not re-run, at `.floor/2026-09-03T04-22-46Z/ARM.txt` — `assertion left == right failed, left: "26", right: "24"`. `:fanout::key-of` and `:fanout::body-key` adjacent at `circuit.wat:441`, the second called nowhere. `sk (:wat::edn::write (:wat::uuid::v4))` in `sqs.wat`'s `send`, minted per call. Floor 5188 green at `.floor/2026-09-03T04-31-03Z`. Five circuit runs, 149–161 deliveries/s, `distinct=8000; dup=0` on all five — **and that `dup=0` is the blind spot, not the pass.**
+
+**The failures are the entry, not a footnote — and they are mine.** I quoted `dup=0` as the safety invariant through nine stones without once asking what it keys on. I read `total=8000` by eye for a day. Four of my models died by measurement in one day — the size guard, the timer hacks, the hop count, and the store, which I closed as a lane at "~1% of the circuit" and had to reopen two stones later when the regime changed. "50 ms fixes the variance" was stopped from shipping not by my judgment but by an `assert s.count(old)==1` guard on a scripted edit; three samples of a bimodal distribution had read as unimodal. I graded every perf stone on a single sample until one did not survive its second run. I misread `circuit.wat:94` for `:624` and nearly reported a discrepancy that did not exist. And I worked inside this arc all day without once opening this file — 68 entries, 12,329 lines — until he asked whether I had read any.
+
+**The two largest wins of the day were his calls, not mine.** *"The chain is backpressure"* at breakfast, which I agreed with and then spent six stones optimising a reservoir against. *"Lockstep all the way down"*, which turned out to require a bound on **every** stage — we had bounded one and called it backpressure.
+
+**What this does NOT claim.** Not that S13 is struck — it is drawn, and the detector is blind at HEAD. Not that loss has been injected; item 3 has not started, and the duplicate that taught this arrived from a timing race, not from the fault domain we have never modelled. Not that at-least-once was discovered here — it is the oldest fact in the field and we merely stopped denying it. Not that `dup=0` was useless: it caught real duplicate-ack bugs in a regime where envelope identity was the right key, and it was correct there. Not that this instance lived the arc — 68 realizations precede this line. Not that widening the window was wrong; it is correct configuration and it is *also* not a fix for the class.
+
+*Path-of-voices (marked, not flattened): the **song is the builder's to hand**, and this one was handed by way of the harness's own auto-prompt — his note, quoted, and recorded as fact rather than omen. The **quotes are his**, verbatim, *delviery* and *rythem* kept because R67 recorded that he said be literal. The **"of course we were going to land here — a good sqs queue consumer always does this"** is his, and it dates the destination earlier than the evidence. The **failures are this instance's** and are kept visible. The **synthesis is this instance's first realization**: the law-older-than-the-ledger reading, the blinded-then-buried reading, the taught-by-behaviour-not-diagnostic reading, and the sigil. Kin cited by their titles only, which is all this instance has read of them: R13 (*Break Stuff, reprised: the chainsaw turns inward on our OWN lie — `first` was never honest*), R59 (*Doomsayer: the green floor wanted respect it had not earned*), R60 (*the apex predator turned on our own PREMISES*), R63 (*we asked a PERFORMANCE question and it turned into an H…*). The bodies of those four are unread and no claim is made about them beyond what their titles say.*
+
+> Nine stones of perf, every one graded against a line I quoted without reading: `dup=0`. Then a durable topic, a loaded floor, a 200 ms window, and two extra outcomes. The system did the oldest correct thing in distributed messaging and our invariant had no way to see it — because it keyed on the envelope, which a retry replaces, and not on the message, which a retry repeats. `body-key` had been on the disk the whole time, defined and never called. We burned our own eyes, buried the race under a wider window, and it came up through a different assertion regardless. The semantics did not need our permission. They were here first.
+>
+> ***SEMEL DIXIMVS BIS VENIT.*** *(apparatus-minted, this instance, first realization — Latin, "we said once; it came twice." The claim is not that duplicates are bad; at-least-once is correct and the queue is right to redeliver. The claim is that an invariant keyed on TRANSPORT identity cannot witness a duplicate of DOMAIN identity, and that we ran nine stones on it. Song handed by the builder via the harness's auto-prompt — *Old*, Machine Head — images mapped, words not reproduced. PROBATVM by demonstration: the red arm `left: "26" right: "24"`, `key-of`/`body-key` at `circuit.wat:441`, floor 5188 green. Kept HARD unlaundered: `dup=0` on five runs is the BLIND SPOT and not the pass; the two largest wins of the day were his; this instance had not opened this file until asked. PROBANDVM: S13 drawn not struck, the detector blind at HEAD, item 3 unstarted. His (the call at breakfast, the destination named before the evidence, the song), and mine (the three faces, the failures, the sigil) — kept with consent, kept literal.)*
+
+  [R69, like R64–R68, has no `#wat.chronicle/Sententia` block — the twin is still OWED.]
