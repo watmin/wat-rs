@@ -55,8 +55,9 @@
   [(deliver [s ctx req]
      (:wat::core::let
        [name (:fanout::adapter::Record/queue-name (:fanout::adapter::State/durable s))
-        body (:demo::Sub::DeliverRequest/msg req)
+        body0 (:demo::Sub::DeliverRequest/msg req)
         now  (:wat::time::epoch-nanos (:wat::time::now))
+        body (:wat::core::format "{b}|{t}" :b body0 :t now)
         sr   (:queue::Queue/send (:fanout::adapter::State/q s)
                (:queue::Queue::SendRequest :queue name :body body :now-ns now))]
        (:wat::core::match sr
@@ -87,7 +88,7 @@
   :durable   [id         <- :wat::core::String
               queue-name <- :wat::core::String]
   :ephemeral [q        <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-              outcomes <- (:wat::core::Vector :- [:fanout::Outcome])]
+              outcomes <- (:wat::core::PersistentVector :- [:fanout::Outcome])]
   :peers     [:queue::Queue]
   :init (:wat::core::fn
           [record     <- :fanout::worker::Record
@@ -102,8 +103,8 @@
                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                  ((:wat::kernel::ConnectOutcome::Failed c)
                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-            :outcomes (:wat::core::Vector :- [:fanout::Outcome])))
-  :stop (:wat::core::fn [s <- :fanout::worker::State] -> (:wat::core::Vector :- [:fanout::Outcome])
+            :outcomes (:wat::core::PersistentVector :- [:fanout::Outcome])))
+  :stop (:wat::core::fn [s <- :fanout::worker::State] -> (:wat::core::PersistentVector :- [:fanout::Outcome])
           (:fanout::worker::State/outcomes s))
   :impls
   [(start [s ctx req]
@@ -130,18 +131,20 @@
            (:wat::core::match r
              ((:queue::Queue::ReceiveResponse::Ok envs)
                (:wat::core::let
-                 [outs' (:wat::core::foldl
-                          (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::Outcome])
+                 [t4 (:wat::time::epoch-nanos (:wat::time::now))
+                  outs' (:wat::core::foldl
+                          (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:fanout::Outcome])
                                            e   <- :queue::Envelope]
-                            -> (:wat::core::Vector :- [:fanout::Outcome])
+                            -> (:wat::core::PersistentVector :- [:fanout::Outcome])
                             (:wat::core::let
                               [eid   (:queue::Envelope/id e)
-                               ebody (:queue::Envelope/body e)
+                               ebody (:wat::core::format "{b}|{t}"
+                                       :b (:queue::Envelope/body e) :t t4)
                                ar    (:queue::Queue/ack q
                                        (:queue::Queue::AckRequest :queue name :id eid))]
                               (:wat::core::match ar
                                 ((:wat::kernel::RecvOutcome::Message _ar)
-                                  (:wat::core::conj acc
+                                  (:wat::vector::conj acc
                                     (:fanout::Outcome :worker wid :queue name :id eid :body ebody)))
                                 ((:wat::kernel::RecvOutcome::Lost cause)
                                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -346,6 +349,16 @@
         (_ 1)))
     (_ 1)))
 
+;; TEMPORARY INSTRUMENT — how many -deliver ticks did the topic take for N messages?
+;; One tick per message means a timer arm + fire + select wake is paid per message.
+(:wat::core::defn :fanout::topic-ticks [t <- :demo::Topic] -> :wat::core::i64
+  (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:demo::Topic::StatsResponse::Ok _n ticks) ticks)
+        (_ -1)))
+    (_ -1)))
+
 (:wat::core::defn :fanout::fully-drained?
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic] -> :wat::core::bool
   (:wat::core::and (:fanout::all-drained? qclients)
@@ -361,7 +374,7 @@
     (:wat::core::let [_ (:fanout::nap-ms 5)]
       (:fanout::wait-drained qclients t))))
 
-(:wat::core::defn :fanout::accept!
+(:wat::core::defn :fanout::accept-stamped
   [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msg msg))
     ((:wat::kernel::RecvOutcome::Message r)
@@ -369,9 +382,16 @@
         ((:demo::Topic::PublishResponse::Ok) nil)
         ((:demo::Topic::PublishResponse::Full _d _c)
           (:wat::core::let [_ (:fanout::nap-ms 1)]
-            (:fanout::accept! t msg)))
+            (:fanout::accept-stamped t msg)))
         (_ (:wat::kernel::assertion-failed! "fanout: publish not Ok/Full" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "fanout: publish recv failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :fanout::accept!
+  [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
+  (:fanout::accept-stamped t
+    (:wat::core::format "{m}|{t0}"
+      :m msg
+      :t0 (:wat::time::epoch-nanos (:wat::time::now)))))
 
 (:wat::core::defn :fanout::wait-pending-zero
   [q <- :queue::Queue] -> :wat::core::nil
@@ -432,6 +452,106 @@
 (:wat::core::defn :fanout::body-key [o <- :fanout::Outcome] -> :wat::core::String
   (:wat::string::concat (:fanout::Outcome/queue o)
     (:wat::string::concat "/" (:fanout::Outcome/body o))))
+
+(:wat::core::defrecord :fanout::Hist
+  [c0 <- :wat::core::i64
+   c1 <- :wat::core::i64
+   c2 <- :wat::core::i64
+   c3 <- :wat::core::i64
+   c4 <- :wat::core::i64
+   c5 <- :wat::core::i64
+   mx <- :wat::core::i64])
+
+(:wat::core::defrecord :fanout::Traces
+  [outbox  <- :fanout::Hist
+   hop12   <- :fanout::Hist
+   hop23   <- :fanout::Hist
+   pending <- :fanout::Hist
+   e2e     <- :fanout::Hist
+   sample  <- :wat::core::String])
+
+(:wat::core::defn :fanout::parse-i64 [s <- :wat::core::String] -> :wat::core::i64
+  (:wat::edn::read s))
+
+(:wat::core::defn :fanout::empty-hist [] -> :fanout::Hist
+  (:fanout::Hist :c0 0 :c1 0 :c2 0 :c3 0 :c4 0 :c5 0 :mx 0))
+
+(:wat::core::defn :fanout::hist-add
+  [h <- :fanout::Hist  dt-ms <- :wat::core::i64]
+  -> :fanout::Hist
+  (:wat::core::let
+    [dt (:wat::core::if (:wat::i64::< dt-ms 0) 0 dt-ms)
+     mx (:wat::core::if (:wat::i64::> dt (:fanout::Hist/mx h)) dt (:fanout::Hist/mx h))]
+    (:wat::core::if (:wat::i64::< dt 1)
+      (:fanout::Hist :c0 (:wat::i64::+ (:fanout::Hist/c0 h) 1) :c1 (:fanout::Hist/c1 h) :c2 (:fanout::Hist/c2 h) :c3 (:fanout::Hist/c3 h) :c4 (:fanout::Hist/c4 h) :c5 (:fanout::Hist/c5 h) :mx mx)
+      (:wat::core::if (:wat::i64::< dt 10)
+        (:fanout::Hist :c0 (:fanout::Hist/c0 h) :c1 (:wat::i64::+ (:fanout::Hist/c1 h) 1) :c2 (:fanout::Hist/c2 h) :c3 (:fanout::Hist/c3 h) :c4 (:fanout::Hist/c4 h) :c5 (:fanout::Hist/c5 h) :mx mx)
+        (:wat::core::if (:wat::i64::< dt 50)
+          (:fanout::Hist :c0 (:fanout::Hist/c0 h) :c1 (:fanout::Hist/c1 h) :c2 (:wat::i64::+ (:fanout::Hist/c2 h) 1) :c3 (:fanout::Hist/c3 h) :c4 (:fanout::Hist/c4 h) :c5 (:fanout::Hist/c5 h) :mx mx)
+          (:wat::core::if (:wat::i64::< dt 250)
+            (:fanout::Hist :c0 (:fanout::Hist/c0 h) :c1 (:fanout::Hist/c1 h) :c2 (:fanout::Hist/c2 h) :c3 (:wat::i64::+ (:fanout::Hist/c3 h) 1) :c4 (:fanout::Hist/c4 h) :c5 (:fanout::Hist/c5 h) :mx mx)
+            (:wat::core::if (:wat::i64::< dt 1000)
+              (:fanout::Hist :c0 (:fanout::Hist/c0 h) :c1 (:fanout::Hist/c1 h) :c2 (:fanout::Hist/c2 h) :c3 (:fanout::Hist/c3 h) :c4 (:wat::i64::+ (:fanout::Hist/c4 h) 1) :c5 (:fanout::Hist/c5 h) :mx mx)
+              (:fanout::Hist :c0 (:fanout::Hist/c0 h) :c1 (:fanout::Hist/c1 h) :c2 (:fanout::Hist/c2 h) :c3 (:fanout::Hist/c3 h) :c4 (:fanout::Hist/c4 h) :c5 (:wat::i64::+ (:fanout::Hist/c5 h) 1) :mx mx))))))))
+
+(:wat::core::defn :fanout::hist-line [name <- :wat::core::String  h <- :fanout::Hist] -> :wat::core::String
+  (:wat::core::format
+    "{name} <1ms={c0} 1-10={c1} 10-50={c2} 50-250={c3} 250-1000={c4} >1000={c5} max={mx}ms"
+    :name name
+    :c0 (:fanout::Hist/c0 h) :c1 (:fanout::Hist/c1 h) :c2 (:fanout::Hist/c2 h)
+    :c3 (:fanout::Hist/c3 h) :c4 (:fanout::Hist/c4 h) :c5 (:fanout::Hist/c5 h)
+    :mx (:fanout::Hist/mx h)))
+
+(:wat::core::defn :fanout::ns->ms [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::/ (:wat::i64::- b a) 1000000))
+
+(:wat::core::defn :fanout::traces-add
+  [tr <- :fanout::Traces  o <- :fanout::Outcome]
+  -> :fanout::Traces
+  (:wat::core::let
+    [parts (:wat::string::split (:fanout::Outcome/body o) "|")]
+    (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::count parts) 6))
+      tr
+      (:wat::core::let
+        [t0 (:fanout::parse-i64 (:wat::core::nth parts 1))
+         t1 (:fanout::parse-i64 (:wat::core::nth parts 2))
+         t2 (:fanout::parse-i64 (:wat::core::nth parts 3))
+         t3 (:fanout::parse-i64 (:wat::core::nth parts 4))
+         t4 (:fanout::parse-i64 (:wat::core::nth parts 5))
+         sample (:wat::core::if (:wat::core::= (:fanout::Traces/sample tr) "")
+                  (:fanout::Outcome/body o)
+                  (:fanout::Traces/sample tr))]
+        (:fanout::Traces
+          :outbox  (:fanout::hist-add (:fanout::Traces/outbox tr)  (:fanout::ns->ms t0 t1))
+          :hop12   (:fanout::hist-add (:fanout::Traces/hop12 tr)   (:fanout::ns->ms t1 t2))
+          :hop23   (:fanout::hist-add (:fanout::Traces/hop23 tr)   (:fanout::ns->ms t2 t3))
+          :pending (:fanout::hist-add (:fanout::Traces/pending tr) (:fanout::ns->ms t3 t4))
+          :e2e     (:fanout::hist-add (:fanout::Traces/e2e tr)     (:fanout::ns->ms t0 t4))
+          :sample  sample)))))
+
+(:wat::core::defn :fanout::traces-of
+  [outs <- (:wat::core::Vector :- [:fanout::Outcome])]
+  -> :fanout::Traces
+  (:wat::core::foldl
+    :fanout::traces-add
+    (:fanout::Traces
+      :outbox  (:fanout::empty-hist)
+      :hop12   (:fanout::empty-hist)
+      :hop23   (:fanout::empty-hist)
+      :pending (:fanout::empty-hist)
+      :e2e     (:fanout::empty-hist)
+      :sample  "")
+    outs))
+
+(:wat::core::defn :fanout::traces-report [tr <- :fanout::Traces] -> :wat::core::String
+  (:wat::core::format
+    "sample={s} ;; {o} ;; {a} ;; {b} ;; {c} ;; {e}"
+    :s (:fanout::Traces/sample tr)
+    :o (:fanout::hist-line "outbox  " (:fanout::Traces/outbox tr))
+    :a (:fanout::hist-line "t1->t2  " (:fanout::Traces/hop12 tr))
+    :b (:fanout::hist-line "t2->t3  " (:fanout::Traces/hop23 tr))
+    :c (:fanout::hist-line "t3->t4  " (:fanout::Traces/pending tr))
+    :e (:fanout::hist-line "e2e     " (:fanout::Traces/e2e tr))))
 
 (:wat::core::defn :fanout::summarize
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
@@ -524,7 +644,7 @@
                            (:fanout::adapter/grant (:wat::core::nth adapters i) pids))
                          nil
                          (:wat::core::range 0 m)))))
-          :record (:demo::topic::Record :cap 4096 :delay-ns 1000) :addrs sub-addrs)
+          :record (:demo::topic::Record :cap 16 :delay-ns 1000) :addrs sub-addrs)
      qclients (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Queue])
                                  i   <- :wat::core::i64]
@@ -584,6 +704,7 @@
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
+     tticks (:fanout::topic-ticks topic)
      outs (:fanout::collect-stop workers)
      empty-flags (:wat::core::foldl
                    (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
@@ -607,13 +728,16 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop};ticks={ticks}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
               :stop (ms t-stop0 t-end)
-              :ticks ticks)]
-    (:wat::core::Tuple summary calls phases)))
+              :ticks ticks
+              :tt tticks)
+     traces (:fanout::traces-report (:fanout::traces-of outs))]
+    (:wat::core::Tuple summary calls
+      (:wat::core::format "{p} ;; {tr}" :p phases :tr traces))))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]

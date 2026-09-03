@@ -32,9 +32,10 @@
 ;; ── SUBSCRIBER ──────────────────────────────────────────────────────────────────
 (:wat::core::defsurface :demo::Sub :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :demo::Sub::DeliverRequest [msg <- :wat::core::String])
+  [(:wat::core::defrecord :demo::Sub::DeliverRequest
+     [msgs <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :demo::Sub::DeliverResponse :wat::enum::Pure
-     :Ok [reply <- :wat::core::String]
+     :Ok [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
@@ -49,7 +50,7 @@
   :impls
   [(deliver [s ctx req]
      (:wat::service::Outcome::Continue s
-       (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:demo::Sub::DeliverRequest/msg req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::sub::Op])])))])
+       (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:wat::core::count (:demo::Sub::DeliverRequest/msgs req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::sub::Op])])))])
 
 ;; ── TOPIC ───────────────────────────────────────────────────────────────────────
 ;; publish means ACCEPTED. Delivery is a -deliver tick. A full outbox refuses
@@ -244,45 +245,46 @@
          (:wat::core::let
            [nbox (:wat::vector::length box)
             k    (:wat::core::if (:wat::i64::< nbox 10) nbox 10)
-            _n   (:wat::core::foldl
-                   (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::let
-                       [msg0 (:wat::core::Option/expect (:wat::vector::get box i)
-                               "topic -deliver: batch index in range by construction")
-                        msg  (:wat::core::format "{m}|{t}"
-                               :m msg0
-                               :t (:wat::time::epoch-nanos (:wat::time::now)))
-                        ;; Issue every send before any recv — sum(N) becomes max(N).
-                        ;; Raw kernel::send: first user-level send to a defservice client
-                        ;; in the tree. Bypasses the generated client's :max-request-bytes
-                        ;; check; the server-side guard still fires (DESIGN).
-                        _sent (:wat::core::foldl
-                                (:wat::core::fn
-                                  [acc <- :wat::core::i64
-                                   p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
-                                  -> :wat::core::i64
-                                  (:wat::core::match
-                                    (:wat::kernel::send p
-                                      (:demo::Sub::Op::Deliver (:demo::Sub::DeliverRequest :msg msg)))
-                                    (:wat::kernel::SendOutcome::Sent    (:wat::i64::+ acc 1))
-                                    (:wat::kernel::SendOutcome::Closed  acc)
-                                    (:wat::kernel::SendOutcome::Stopped acc)
-                                    ((:wat::kernel::SendOutcome::Lost _c) acc)))
-                                0
-                                (:demo::topic::State/subs s))
-                        _recv (:wat::core::foldl
-                                (:wat::core::fn
-                                  [acc <- :wat::core::i64
-                                   p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
-                                  -> :wat::core::i64
-                                  (:wat::core::match (:wat::kernel::recv p)
-                                    ((:wat::kernel::RecvOutcome::Message _r) (:wat::i64::+ acc 1))
-                                    (_ acc)))
-                                0
-                                (:demo::topic::State/subs s))]
-                       (:wat::i64::+ acc 1)))
-                   0
+            t1   (:wat::time::epoch-nanos (:wat::time::now))
+            msgs (:wat::core::foldl
+                   (:wat::core::fn
+                     [acc <- (:wat::core::Vector :- [:wat::core::String])
+                      i   <- :wat::core::i64]
+                     -> (:wat::core::Vector :- [:wat::core::String])
+                     (:wat::core::conj acc
+                       (:wat::core::format "{m}|{t}"
+                         :m (:wat::core::Option/expect (:wat::vector::get box i)
+                              "topic -deliver: batch index in range by construction")
+                         :t t1)))
+                   (:wat::core::Vector :- [:wat::core::String])
                    (:wat::core::range 0 k))
+            ;; One round of (send-all, recv-all) carrying k. Concurrent shape
+            ;; unchanged — only what each send carries. No linger: send what
+            ;; the outbox holds, up to K, never wait to fill.
+            _sent (:wat::core::foldl
+                    (:wat::core::fn
+                      [acc <- :wat::core::i64
+                       p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
+                      -> :wat::core::i64
+                      (:wat::core::match
+                        (:wat::kernel::send p
+                          (:demo::Sub::Op::Deliver (:demo::Sub::DeliverRequest :msgs msgs)))
+                        (:wat::kernel::SendOutcome::Sent    (:wat::i64::+ acc 1))
+                        (:wat::kernel::SendOutcome::Closed  acc)
+                        (:wat::kernel::SendOutcome::Stopped acc)
+                        ((:wat::kernel::SendOutcome::Lost _c) acc)))
+                    0
+                    (:demo::topic::State/subs s))
+            _recv (:wat::core::foldl
+                    (:wat::core::fn
+                      [acc <- :wat::core::i64
+                       p   <- (:wat::kernel::Peer :- [:demo::Sub::Op :demo::Sub::Reply])]
+                      -> :wat::core::i64
+                      (:wat::core::match (:wat::kernel::recv p)
+                        ((:wat::kernel::RecvOutcome::Message _r) (:wat::i64::+ acc 1))
+                        (_ acc)))
+                    0
+                    (:demo::topic::State/subs s))
             rest (:wat::core::foldl
                    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                     i   <- :wat::core::i64]
@@ -428,7 +430,33 @@
              (:wat::kernel::RecvOutcome::Stopped nil)
              (:wat::kernel::RecvOutcome::Closed nil))]
        (:wat::service::Outcome::Continue s
-         (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:demo::Sub::DeliverRequest/msg req)))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::slow-sub::Op])]))))])
+         (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok (:wat::core::count (:demo::Sub::DeliverRequest/msgs req))))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::slow-sub::Op])]))))])
+
+;; Counting subscriber: deliver-calls vs messages. Row 1 of wire-batching —
+;; the only row an unbatched one-element vector would fail.
+(:wat::service::defservice :demo::counting-sub
+  :satisfies :demo::Sub
+  :durable   []
+  :ephemeral [calls <- :wat::core::i64
+              nmsgs <- :wat::core::i64]
+  :init (:wat::core::fn [record <- :demo::counting-sub::Record] -> :demo::counting-sub::State
+          (:demo::counting-sub::State :durable record :calls 0 :nmsgs 0))
+  :stop (:wat::core::fn [s <- :demo::counting-sub::State]
+          -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+          (:wat::core::Tuple (:demo::counting-sub::State/calls s)
+            (:demo::counting-sub::State/nmsgs s)))
+  :impls
+  [(deliver [s ctx req]
+     (:wat::core::let
+       [n (:wat::core::count (:demo::Sub::DeliverRequest/msgs req))
+        s' (:demo::counting-sub::State
+             :durable (:demo::counting-sub::State/durable s)
+             :calls (:wat::i64::+ (:demo::counting-sub::State/calls s) 1)
+             :nmsgs (:wat::i64::+ (:demo::counting-sub::State/nmsgs s) n))]
+       (:wat::service::Outcome::Continue s'
+         (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok n)))
+         (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])])
+         (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::counting-sub::Op])]))))])
 
 ;; Row 1: publish returns before a slow subscriber finishes.
 (:wat::core::defn :user::publish-is-async [] -> :wat::core::String
@@ -512,6 +540,33 @@
     (:wat::core::format "dt-ms={dt};shape={s}"
       :dt dt
       :s (:wat::core::if (:wat::i64::< dt 500) "max" "sum"))))
+
+;; ★ Wire-batching: one counting subscriber, N=20, K=10. Delay so the outbox
+;; fills before the first -deliver; two ticks, two deliver calls, 20 messages.
+;; An unbatched implementation (msgs of one every time) prints calls=20.
+(:wat::core::defn :user::wire-batches [] -> :wat::core::String
+  (:wat::core::let
+    [h  (:demo::counting-sub/start :locus (:wat::spawn::thread)
+          :record (:demo::counting-sub::Record))
+     addrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:demo::Sub::Op :demo::Sub::Reply])]
+             (:demo::counting-sub::Handle/addr h))
+     th (:demo::topic/start :locus (:wat::spawn::thread)
+          :record (:demo::topic::Record :cap 32 :delay-ns 100000000) :addrs addrs)
+     tc (:demo::dial-topic (:demo::topic::Handle/addr th))
+     n  20
+     _  (:wat::core::foldl
+          (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
+            (:demo::accept! tc (:wat::core::str i)))
+          nil
+          (:wat::core::range 0 n))
+     _  (:demo::wait-outbox-zero tc)
+     pair (:demo::counting-sub/stop h)
+     calls (:wat::core::first pair)
+     nmsgs (:wat::core::second pair)]
+    (:wat::core::format "calls={c};msgs={m};shape={s}"
+      :c calls :m nmsgs
+      :s (:wat::core::if (:wat::core::and (:wat::i64::< calls n) (:wat::core::= nmsgs n))
+           "batch" "one"))))
 
 (:wat::core::defn :user::async-gates [] -> :wat::core::String
   (:wat::core::format

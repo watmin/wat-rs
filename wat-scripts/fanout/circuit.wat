@@ -55,15 +55,23 @@
   [(deliver [s ctx req]
      (:wat::core::let
        [name (:fanout::adapter::Record/queue-name (:fanout::adapter::State/durable s))
-        body0 (:demo::Sub::DeliverRequest/msg req)
+        msgs0 (:demo::Sub::DeliverRequest/msgs req)
         now  (:wat::time::epoch-nanos (:wat::time::now))
-        body (:wat::core::format "{b}|{t}" :b body0 :t now)
+        msgs (:wat::core::foldl
+               (:wat::core::fn
+                 [acc <- (:wat::core::Vector :- [:wat::core::String])
+                  b   <- :wat::core::String]
+                 -> (:wat::core::Vector :- [:wat::core::String])
+                 (:wat::core::conj acc (:wat::core::format "{b}|{t}" :b b :t now)))
+               (:wat::core::Vector :- [:wat::core::String])
+               msgs0)
         sr   (:queue::Queue/send (:fanout::adapter::State/q s)
-               (:queue::Queue::SendRequest :queue name :body body :now-ns now))]
+               (:queue::Queue::SendRequest :queue name :bodies msgs :now-ns now))
+        n    (:wat::core::count msgs)]
        (:wat::core::match sr
          ((:wat::kernel::RecvOutcome::Message _r)
-           (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])))
-         (_ (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])]))))))])
+           (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok n))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])))
+         (_ (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok n))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])]))))))])
 
 ;; ── worker: self-scheduling process that pulls from ONE queue ────────────────
 (:wat::core::defsurface :fanout::Worker :nature :wat::kernel::Peer
@@ -644,7 +652,7 @@
                            (:fanout::adapter/grant (:wat::core::nth adapters i) pids))
                          nil
                          (:wat::core::range 0 m)))))
-          :record (:demo::topic::Record :cap 4096 :delay-ns 1000) :addrs sub-addrs)
+          :record (:demo::topic::Record :cap 16 :delay-ns 1000) :addrs sub-addrs)
      qclients (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:queue::Queue])
                                  i   <- :wat::core::i64]
@@ -792,7 +800,7 @@
                 [now (:wat::time::epoch-nanos (:wat::time::now))]
                 (:wat::core::match
                   (:queue::Queue/send q
-                    (:queue::Queue::SendRequest :queue "q0" :body (:wat::core::str i) :now-ns now))
+                    (:queue::Queue::SendRequest :queue "q0" :bodies (:wat::core::Vector :- [:wat::core::String] (:wat::core::str i)) :now-ns now))
                   ((:wat::kernel::RecvOutcome::Message _r) nil)
                   (_ nil))))
             nil

@@ -203,7 +203,7 @@
                  [now (:wat::time::epoch-nanos (:wat::time::now))]
                  (:wat::core::match
                    (:queue::Queue/send q
-                     (:queue::Queue::SendRequest :queue "q0" :body (:wat::core::str i) :now-ns now))
+                     (:queue::Queue::SendRequest :queue "q0" :bodies (:wat::core::Vector :- [:wat::core::String] (:wat::core::str i)) :now-ns now))
                    ((:wat::kernel::RecvOutcome::Message _r) nil)
                    (_ nil))))
              nil

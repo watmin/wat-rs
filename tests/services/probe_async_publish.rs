@@ -73,6 +73,33 @@ fn fanout_is_max_not_sum() {
 }
 
 #[test]
+fn wire_carries_a_batch() {
+    let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
+        .expect("topic should freeze");
+    let stored = call_string(&world, ":user::wire-batches");
+    assert_eq!(
+        field(&stored, "shape"),
+        "batch",
+        "N=20 K=10 must be two deliver calls not twenty; got {stored}"
+    );
+    let calls: i64 = field(&stored, "calls")
+        .parse()
+        .unwrap_or_else(|_| panic!("calls not an i64 in {stored}"));
+    let msgs: i64 = field(&stored, "msgs")
+        .parse()
+        .unwrap_or_else(|_| panic!("msgs not an i64 in {stored}"));
+    assert_eq!(msgs, 20, "counting subscriber must see every message; got {stored}");
+    assert!(
+        calls <= 4 && calls >= 1,
+        "deliver calls ≈ N/K=2, not N=20; got calls={calls} in {stored}"
+    );
+    assert!(
+        calls < msgs,
+        "a one-element vector every time is unbatched; got calls={calls} msgs={msgs} in {stored}"
+    );
+}
+
+#[test]
 fn idle_topic_never_ticks() {
     let world = startup_from_file("wat-scripts/topic/sns-fanout.wat")
         .expect("topic should freeze");

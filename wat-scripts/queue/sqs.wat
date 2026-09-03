@@ -40,8 +40,8 @@
       body <- :wat::core::String])
 
    (:wat::core::defrecord :queue::Queue::SendRequest
-     [queue <- :wat::core::String
-      body  <- :wat::core::String
+     [queue  <- :wat::core::String
+      bodies <- (:wat::core::Vector :- [:wat::core::String])
       now-ns <- :wat::core::i64])
    (:wat::core::defenum :queue::Queue::SendResponse :wat::enum::Pure
      :Ok []
@@ -229,22 +229,40 @@
      (:wat::core::let
        [store (:queue::queue::State/store s)
         q      (:queue::Queue::SendRequest/queue req)
-        body0  (:queue::Queue::SendRequest/body req)
-        body   (:wat::core::if (:wat::string::contains? body0 "|")
-                 (:wat::core::format "{b}|{t}"
-                   :b body0
-                   :t (:wat::time::epoch-nanos (:wat::time::now)))
-                 body0)
         now-ns (:queue::Queue::SendRequest/now-ns req)
-        sk     (:wat::edn::write (:wat::uuid::v4))
-        isk    (:wat::edn::write (:wat::time::at-nanos now-ns))
-        row   (:wat::query::StoredRow
-                :pk q :sk sk :data body
-                :index-keys (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
-                              "by-visible-at" (:wat::query::IndexKey :ipk q :isk isk)))
+        t3     (:wat::time::epoch-nanos (:wat::time::now))
+        bodies (:wat::core::foldl
+                 (:wat::core::fn
+                   [acc <- (:wat::core::Vector :- [:wat::core::String])
+                    b   <- :wat::core::String]
+                   -> (:wat::core::Vector :- [:wat::core::String])
+                   (:wat::core::conj acc
+                     (:wat::core::if (:wat::string::contains? b "|")
+                       (:wat::core::format "{b}|{t}" :b b :t t3)
+                       b)))
+                 (:wat::core::Vector :- [:wat::core::String])
+                 (:queue::Queue::SendRequest/bodies req))
+        n      (:wat::core::count bodies)
+        rows   (:wat::core::foldl
+                 (:wat::core::fn
+                   [acc <- (:wat::core::Vector :- [:wat::query::StoredRow])
+                    i   <- :wat::core::i64]
+                   -> (:wat::core::Vector :- [:wat::query::StoredRow])
+                   (:wat::core::let
+                     [body (:wat::core::nth bodies i)
+                      sk   (:wat::edn::write (:wat::uuid::v4))
+                      ;; 1ns stagger: equal isk makes scan-index :limit unspecified
+                      ;; (sqs.wat header). A batch of 10 sharing now-ns would hide.
+                      isk  (:wat::edn::write (:wat::time::at-nanos (:wat::i64::+ now-ns i)))]
+                     (:wat::core::conj acc
+                       (:wat::query::StoredRow
+                         :pk q :sk sk :data body
+                         :index-keys (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
+                                       "by-visible-at" (:wat::query::IndexKey :ipk q :isk isk))))))
+                 (:wat::core::Vector :- [:wat::query::StoredRow])
+                 (:wat::core::range 0 n))
         put-resp (:wat::query::Store/put store
-                   (:wat::query::Store::PutRequest
-                     (:wat::core::Vector :- [:wat::query::StoredRow] row)))]
+                   (:wat::query::Store::PutRequest rows))]
        (:wat::core::match put-resp
          ((:wat::kernel::RecvOutcome::Message sresp)
            (:wat::core::match sresp
@@ -258,7 +276,7 @@
                        :outbox (:queue::queue::State/outbox s)
                        :receive-calls (:queue::queue::State/receive-calls s)
                        :ticks (:queue::queue::State/ticks s)
-                       :pending (:wat::i64::+ (:queue::queue::State/pending s) 1)
+                       :pending (:wat::i64::+ (:queue::queue::State/pending s) n)
                        :in-flight (:queue::queue::State/in-flight s)
                        :tick-armed? (:queue::queue::State/tick-armed? s)
                        :arm-tick (:queue::queue::State/arm-tick s))]
@@ -664,7 +682,7 @@
 (:wat::core::defn :user::do-send
   [q <- :queue::Queue  name <- :wat::core::String  body <- :wat::core::String  now-ns <- :wat::core::i64]
   -> :wat::core::nil
-  (:wat::core::match (:queue::Queue/send q (:queue::Queue::SendRequest :queue name :body body :now-ns now-ns))
+  (:wat::core::match (:queue::Queue/send q (:queue::Queue::SendRequest :queue name :bodies (:wat::core::Vector :- [:wat::core::String] body) :now-ns now-ns))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::SendResponse::Ok) nil)
