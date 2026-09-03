@@ -141,14 +141,21 @@ pub(crate) fn record_seed_leaf_vs_alpha(
             if a.nature == Nature::Struct || a.class.as_ref() != class {
                 continue;
             }
-            if wm
-                .i64_by_fact
-                .get(i)
-                .and_then(|o| o.as_ref())
-                .is_none()
-            {
-                continue;
-            }
+            // ⛔ NO PACKABILITY FILTER HERE — and its absence is the point (work-list C16).
+            //
+            // This guard used to `continue` on any fact whose `i64_by_fact[i]` was `None`. That is
+            // **the same predicate that decides batch membership**, so `predicted` re-derived
+            // writer 2's output and was then compared against writer 2's output: the differential
+            // agreed with the corruption by construction. Measured while D7 was actively dropping a
+            // fact — `predicted=2 actual=2 extra=[] missing=[]`. A gate that consumes the corrupted
+            // state as its own oracle cannot fail.
+            //
+            // Packability is irrelevant to occupancy HERE, and `batchable` above is why: a class
+            // only reaches this loop when EVERY one of its leaves has `fact_bind().is_none()` and
+            // sits in `bind_only` — and `bind_only_fields` returns `Some` only when every op is a
+            // `Bind`, never a test (`compiled_cond.rs:952`). So every fact of the class occupies
+            // every leaf UNCONDITIONALLY, packed or not. Predicting `facts x leaves` is the honest
+            // prediction; filtering it by packability was predicting the batch.
             for &aid in leaves {
                 predicted.insert((aid, i as u32));
             }

@@ -756,3 +756,41 @@ fn seed_batches_uniform_classes_and_defers_mixed_ones() {
          batch; {uniform} class(es) did. Class-uniformity is per CLASS, not per session"
     );
 }
+
+/// C16 — the occupancy differential must PREDICT a mixed class, not mirror the batch.
+///
+/// It used to filter `predicted` by `i64_by_fact[i].is_some()` — the same predicate that decides
+/// batch membership — so it re-derived writer 2's output and compared it against writer 2's output.
+/// Driven at `523152b31` with D7 live: `predicted=2 actual=2 extra=[] missing=[]`, agreeing with a
+/// fact being dropped. With the filter gone and that same defect live: `predicted=3 actual=2
+/// extra=1`. This pins the capability — a mixed class must predict EVERY fact of the class.
+#[test]
+fn seed_leaf_occupancy_differential_predicts_a_mixed_class() {
+    const W: &str = "\
+(:wat::core::defrecord :c16::Box :- [T] [k <- :wat::core::i64  v <- :T])\n\
+(:wat::core::defrecord :c16::Hit [k <- :wat::core::i64])\n\
+(:wat::core::defn :c16::as-record [r <- :wat::core::Record] -> :wat::core::Record r)\n\
+(:wat::rete::defrule :c16::r :when [(:c16::Box (?k <- :k) (?v <- :v))] :then [(:c16::Hit :k ?k)])\n\
+(:wat::rete::defquery :c16::q :params [] :when [(?f <- :c16::Hit)])\n\
+";
+    let world = freeze_src(W);
+    let (_fired, diffs) = super::with_leaf_occ_diff(|| {
+        eval_in(&world,
+          "(:wat::core::let \
+             [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :c16) (:wat::core::PersistentVector (:c16::q))) ((:wat::rete::CompileOutcome::Compiled __s) __s) ((:wat::rete::CompileOutcome::MayNotTerminate __r __f) (:wat::kernel::assertion-failed! \"mnt\" :wat::core::None :wat::core::None)))\
+              s1 (:wat::core::match (:wat::rete::insert s0 (:c16::as-record (:c16::Box :k 0 :v 100))) ((:wat::rete::InsertOutcome::Inserted __x) __x) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __a __b __c) (:wat::kernel::assertion-failed! \"c\" :wat::core::None :wat::core::None)))\
+              s2 (:wat::core::match (:wat::rete::insert s1 (:c16::as-record (:c16::Box :k 1 :v \"x\"))) ((:wat::rete::InsertOutcome::Inserted __x) __x) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __a __b __c) (:wat::kernel::assertion-failed! \"c\" :wat::core::None :wat::core::None)))\
+              s3 (:wat::core::match (:wat::rete::insert s2 (:c16::as-record (:c16::Box :k 2 :v 300))) ((:wat::rete::InsertOutcome::Inserted __x) __x) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __a __b __c) (:wat::kernel::assertion-failed! \"c\" :wat::core::None :wat::core::None)))]\
+             (:wat::core::match (:wat::rete::fire-rules s3) ((:wat::rete::FireOutcome::Fired __f) __f) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __a __b __c) (:wat::kernel::assertion-failed! \"c\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __a __b) (:wat::kernel::assertion-failed! \"r\" :wat::core::None :wat::core::None))))")
+    });
+    let d = diffs.first().expect("the differential never armed — with_leaf_occ_diff saw no seed pass");
+    assert_eq!(
+        (d.predicted, d.actual, d.extra.len(), d.missing.len()),
+        (3, 3, 0, 0),
+        "a MIXED parametric class ({} facts, {} leaf aids): the differential must predict every \
+         fact of a batchable class and find every one of them occupying the leaf. A `predicted` \
+         below the fact count means it is filtering by packability again — mirroring the batch \
+         instead of checking it, which is how it agreed with D7 dropping a fact.",
+        d.n_facts, d.n_leaf_aids
+    );
+}
