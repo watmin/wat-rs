@@ -42,7 +42,7 @@
     (:queue::Queue/receive q
       (:queue::Queue::ReceiveRequest
         :queue "q" :now-ns (:wat::time::epoch-nanos (:wat::time::now))
-        :visibility-ns vis-ns :limit 1 :wait-ns 0))
+        :visibility-ns vis-ns :limit 1 :wait (:queue::Queue::Wait::Immediate)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::ReceiveResponse::Ok envs)

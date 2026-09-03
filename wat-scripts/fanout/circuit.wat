@@ -141,7 +141,7 @@
   [(start [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
-   ;; Park, don't poll. wait-ns 250 ms is the idle wait. An empty return is
+   ;; Park, don't poll. :wait :UpTo 250 ms is the idle wait. An empty return is
    ;; "nothing yet" — re-arm so the serve loop can take Admin::Stop. The
    ;; queue/topic now arm from state (level-triggered); the 1 ms after a
    ;; park is the Stop yield, not the idle poll.
@@ -158,7 +158,7 @@
         now  (:wat::time::epoch-nanos (:wat::time::now))
         rr   (:queue::Queue/receive q
                (:queue::Queue::ReceiveRequest
-                 :queue name :now-ns now :visibility-ns vis :limit 10 :wait-ns 250000000))]
+                 :queue name :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 250))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
@@ -340,7 +340,7 @@
             vis 1000000000000
             rr  (:queue::Queue/receive q
                   (:queue::Queue::ReceiveRequest
-                    :queue name :now-ns now :visibility-ns vis :limit 10 :wait-ns 50000000))]
+                    :queue name :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 50))))]
            (:wat::core::match rr
              ((:wat::kernel::RecvOutcome::Message r)
                (:wat::core::match r
@@ -869,7 +869,7 @@
                         now (:wat::time::epoch-nanos (:wat::time::now))
                         rr (:queue::Queue/receive qp
                              (:queue::Queue::ReceiveRequest
-                               :queue (:fanout::qname i) :now-ns now :visibility-ns 1000000000000 :limit 1 :wait-ns 0))]
+                               :queue (:fanout::qname i) :now-ns now :visibility-ns 1000000000000 :limit 1 :wait (:queue::Queue::Wait::Immediate)))]
                        (:wat::core::match rr
                          ((:wat::kernel::RecvOutcome::Message r)
                            (:wat::core::match r
@@ -1088,7 +1088,7 @@
               (:queue::Queue/receive q
                 (:queue::Queue::ReceiveRequest
                   :queue "q0" :now-ns (:wat::time::epoch-nanos (:wat::time::now))
-                  :visibility-ns 1000000000000 :limit 1 :wait-ns 0))
+                  :visibility-ns 1000000000000 :limit 1 :wait (:queue::Queue::Wait::Immediate)))
               ((:wat::kernel::RecvOutcome::Message r)
                 (:wat::core::match r
                   ((:queue::Queue::ReceiveResponse::Ok envs)

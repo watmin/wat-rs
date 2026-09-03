@@ -97,16 +97,16 @@
 ;; Same program, same race window, same 200 ms vis-ns. Two verbs swapped back to their
 ;; jobs:
 ;;   absence  -> Queue/stats (q-depth). Non-destructive. Cannot eat what it observes.
-;;   presence -> ONE Queue/receive with :wait-ns > 0. Arrives on the wire. No spin.
+;;   presence -> ONE Queue/receive with :wait :UpTo. Arrives on the wire. No spin.
 ;; Prediction: NEITHER cell stalls. gap=300 makes the race VISIBLE as pending=1 at the
 ;; absence check -- an assertion that names the race -- instead of swallowing it.
 (:wat::core::defn :rr::take-blocking
-  [q <- :queue::Queue  wait-ns <- :wat::core::i64] -> :wat::core::String
+  [q <- :queue::Queue  wait <- :queue::Queue::Wait] -> :wat::core::String
   (:wat::core::match
     (:queue::Queue/receive q
       (:queue::Queue::ReceiveRequest
         :queue "q0" :now-ns (:wat::time::epoch-nanos (:wat::time::now))
-        :visibility-ns 200000000 :limit 1 :wait-ns wait-ns))
+        :visibility-ns 200000000 :limit 1 :wait wait))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::ReceiveResponse::Ok envs)
@@ -148,7 +148,7 @@
      ;; "nap for zero" IS "don't nap", the mode-as-magnitude this arc removed.
      _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
      at-check (:wat::core::first (:demo::q-depth subq))
-     got (:rr::take-blocking subq 2000000000)]
+     got (:rr::take-blocking subq (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]
     (:wat::core::format "gap={g};pending-at-absence-check={c};delivered={d};raced={r}"
       :g gap-ms
       :c at-check

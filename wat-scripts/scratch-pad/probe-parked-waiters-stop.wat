@@ -1,10 +1,10 @@
 ;; probe-parked-waiters-stop.wat — VERIFY substrate finding (b).
 ;;
 ;; THE CLAIM (SCORE-the-sane-circuit.md:56, and circuit.wat:114 which acts on it):
-;;   "a parked receive (wait-ns>0) at process locus with >=4 waiters never completes,
+;;   "a parked receive (:wait :UpTo) at process locus with >=4 waiters never completes,
 ;;    so Admin::Stop hangs waiting on the tick."
 ;; Reported repro `1 1 2` stops / `1 1 4` hangs. Recorded as NOT independently verified,
-;; and the workaround it justifies -- workers polling at wait-ns 0, re-arming every 1ms --
+;; and the workaround it justifies -- workers polling at :wait :Immediate, re-arming every 1ms --
 ;; generates 94% of the circuit's hops (144,485 receive calls for 8,000 messages).
 ;;
 ;; So this is the gate on the whole perf lane, and it is verified here, not assumed.
@@ -49,7 +49,7 @@
        (:wat::core::Vector :- [(:wat::service::Directed :- [:vb::Parker::Reply])])
        [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
 
-   ;; THE PARKED RECEIVE. wait-ns 200ms on a queue that never gets a message.
+   ;; THE PARKED RECEIVE. :wait :UpTo 50ms on a queue that never gets a message.
    (-tick [s ctx]
      (:wat::core::let
        [name (:vb::parker::Record/queue-name (:vb::parker::State/durable s))
@@ -58,7 +58,7 @@
         rr   (:queue::Queue/receive q
                (:queue::Queue::ReceiveRequest
                  :queue name :now-ns now :visibility-ns 1000000000000
-                 :limit 10 :wait-ns 50000000))]
+                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 50))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message _r)
            (:wat::service::SelfOutcome::Continue s

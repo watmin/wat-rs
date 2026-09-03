@@ -6,7 +6,7 @@
 ;; the workers must ack, or drain waits forever on in-flight.
 ;;
 ;; SHAPE. One queue at process locus. J parker services at process locus, each
-;; with a -tick that parks (wait-ns 250ms), acks what it gets, re-arms on empty.
+;; with a -tick that parks (:wait :UpTo 250ms), acks what it gets, re-arms on empty.
 ;; Arm them, let them park, SEND n messages, then wait for pending=0 AND
 ;; in-flight=0 with a bound. A timeout prints leftover depth — that is the
 ;; finding. Parent thread only; parkers do not call sibling defns.
@@ -60,7 +60,7 @@
         rr   (:queue::Queue/receive q
                (:queue::Queue::ReceiveRequest
                  :queue name :now-ns now :visibility-ns vis
-                 :limit 10 :wait-ns 250000000))]
+                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 250))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r

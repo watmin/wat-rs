@@ -8,8 +8,10 @@
 ;;   `mora` forbids a sleep. send/receive therefore take `now-ns` (epoch nanos) so a
 ;;   fixture can drive the visibility window as a value: receive at T, then receive
 ;;   at T+timeout, with no wall-clock wait. Callers pass
-;;   `(:wat::time::epoch-nanos (:wat::time::now))`. Instant/Duration on the request
-;;   record is avoided — journal's wire-proven i64 time-ns is the precedent.
+;;   `(:wat::time::epoch-nanos (:wat::time::now))`. Time types cross a service
+;;   boundary now (Stone B-pre). `now-ns` / `visibility-ns` stay i64 so a fixture
+;;   can drive the clock as a value. `wait` is the exception: it is a mode
+;;   (`:Immediate` / `:UpTo [NonZeroDuration]`), not a magnitude.
 ;;
 ;; Design (every primitive already ships):
 ;;   pk  = the queue name
@@ -50,12 +52,19 @@
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
 
+   ;; The wait names its verb. Zero is not a short wait — it is a different
+   ;; operation (sweep, do not park). The mode is the constructor, never a
+   ;; comparison against a magnitude.
+   (:wat::core::defenum :queue::Queue::Wait :wat::enum::Pure
+     :Immediate []
+     :UpTo [d <- :wat::time::NonZeroDuration])
+
    (:wat::core::defrecord :queue::Queue::ReceiveRequest
      [queue         <- :wat::core::String
       now-ns        <- :wat::core::i64
       visibility-ns <- :wat::core::i64
       limit         <- :wat::core::i64
-      wait-ns       <- :wat::core::i64])
+      wait          <- :queue::Queue::Wait])
    (:wat::core::defrecord :queue::Queue::StatsRequest [])
    ;; pending = visible (not yet received). in-flight = received, not yet acked.
    ;; Both: stopping a worker that holds an unacked message loses that outcome —
@@ -440,7 +449,7 @@
         now-ns (:queue::Queue::ReceiveRequest/now-ns req)
         vis-ns (:queue::Queue::ReceiveRequest/visibility-ns req)
         lim    (:queue::Queue::ReceiveRequest/limit req)
-        wait   (:queue::Queue::ReceiveRequest/wait-ns req)
+        wait   (:queue::Queue::ReceiveRequest/wait req)
         calls  (:wat::i64::+ (:queue::queue::State/receive-calls s) 1)
         taken-pair (:wat::core::apply (:queue::queue::State/take s) store0 q [now-ns vis-ns lim])
         store  (:wat::core::first taken-pair)
@@ -484,7 +493,8 @@
              (:wat::core::Some (:queue::Queue::Reply::Receive (:queue::Queue::ReceiveResponse::Ok envs)))
              (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
              (:wat::core::second pair)))
-         (:wat::core::if (:wat::i64::<= wait 0)
+         (:wat::core::match wait
+           ((:queue::Queue::Wait::Immediate)
            (:wat::core::let
              [pair (:wat::core::apply (:queue::queue::State/arm-tick s-n)
                       (:queue::queue::State/tick-armed? s-n)
@@ -505,14 +515,16 @@
                (:wat::core::Some (:queue::Queue::Reply::Receive (:queue::Queue::ReceiveResponse::Ok
                  (:wat::core::Vector :- [:queue::Envelope]))))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               (:wat::core::second pair)))
+               (:wat::core::second pair))))
+           ((:queue::Queue::Wait::UpTo d)
            (:wat::core::let
              [w (:queue::Waiter
                   :conn-id (:wat::service::Invocation/conn-id ctx)
                   :queue q
                   :limit lim
                   :visibility-ns vis-ns
-                  :deadline-ns (:wat::core::+ (:wat::service::Invocation/start-ns ctx) wait))
+                  :deadline-ns (:wat::core::+ (:wat::service::Invocation/start-ns ctx)
+                                 (:wat::time::nanoseconds d)))
               s-w (:queue::queue::State
                     :durable (:queue::queue::State/durable s-n)
                     :store store
@@ -527,7 +539,8 @@
                     :arm-tick (:queue::queue::State/arm-tick s-n))
               pair (:wat::core::apply (:queue::queue::State/arm-tick s-w)
                       (:queue::queue::State/tick-armed? s-w)
-                      [(:wat::core::count (:queue::queue::State/waiters s-w)) wait])
+                      [(:wat::core::count (:queue::queue::State/waiters s-w))
+                       (:wat::time::nanoseconds d)])
               s-a (:queue::queue::State
                     :durable (:queue::queue::State/durable s-w)
                     :store store
@@ -543,7 +556,7 @@
              (:wat::service::Outcome::Continue s-a
                :wat::core::None
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               (:wat::core::second pair)))))))
+               (:wat::core::second pair))))))))
 
    (ack [s ctx req]
      (:wat::core::let
@@ -734,6 +747,12 @@
                     (:wat::core::if (:wat::i64::< rem d) rem d)))
                 1000000000000000
                 keep)
+        ;; Tick-rate floor, not a zero guard. The fold above keeps only waiters
+        ;; with deadline-ns > now, so delay >= 1 always. Without this, a 1 µs
+        ;; remainder would arm a 1 µs alarm and tick the queue a thousand times
+        ;; per millisecond. arm-tick builds (Nanosecond delay0) from a computed
+        ;; i64 — after Stone A a zero there is LociDiedError/Panic at process
+        ;; locus. Keep the floor; it is now also the panic boundary.
         delay0 (:wat::core::if (:wat::i64::< delay 1000000) 1000000 delay)
         pair (:wat::core::apply (:queue::queue::State/arm-tick s')
                 false
@@ -780,7 +799,7 @@
   -> (:wat::core::Vector :- [:queue::Envelope])
   (:wat::core::match
     (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait-ns 0))
+      (:queue::Queue::ReceiveRequest :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait (:queue::Queue::Wait::Immediate)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::ReceiveResponse::Ok envs) envs)
@@ -789,11 +808,11 @@
 
 (:wat::core::defn :user::do-receive-wait
   [q <- :queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64
-   vis-ns <- :wat::core::i64  lim <- :wat::core::i64  wait-ns <- :wat::core::i64]
+   vis-ns <- :wat::core::i64  lim <- :wat::core::i64  wait <- :queue::Queue::Wait]
   -> (:wat::core::Vector :- [:queue::Envelope])
   (:wat::core::match
     (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait-ns wait-ns))
+      (:queue::Queue::ReceiveRequest :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait wait))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::ReceiveResponse::Ok envs) envs)
@@ -858,14 +877,14 @@
 
 (:wat::core::defn :user::park-receive!
   [c <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])  name <- :wat::core::String  now-ns <- :wat::core::i64
-   vis-ns <- :wat::core::i64  lim <- :wat::core::i64  wait-ns <- :wat::core::i64]
+   vis-ns <- :wat::core::i64  lim <- :wat::core::i64  wait <- :queue::Queue::Wait]
   -> :wat::core::nil
   (:wat::core::let
     [_ (:user::send-ok!
          (:wat::kernel::send c
            (:queue::Queue::Op::Receive
              (:queue::Queue::ReceiveRequest
-               :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait-ns wait-ns))))
+               :queue name :now-ns now-ns :visibility-ns vis-ns :limit lim :wait wait))))
      _st (:user::send-ok!
            (:wat::kernel::send c (:queue::Queue::Op::Stats (:queue::Queue::StatsRequest))))
      _   (:wat::core::match (:wat::kernel::recv c)
@@ -950,7 +969,7 @@
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
      vis 100
-     _   (:user::park-receive! a "q" T0 vis 1 200000000)
+     _   (:user::park-receive! a "q" T0 vis 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
      _   (:user::do-send b "q" "hello" T0)
      got (:user::recv-envelopes! a)
      again (:user::do-receive b "q" T0 vis 10)]
@@ -968,7 +987,7 @@
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
-     _   (:user::park-receive! a "q" T0 100 1 5000000)
+     _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 5)))
      got (:user::recv-envelopes! a)
      ping (:user::do-receive b "q" T0 100 10)]
     (:wat::core::format "empty={empty};serving={serving}"
@@ -986,8 +1005,8 @@
      c   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
-     _   (:user::park-receive! a "q" T0 100 1 200000000)
-     _   (:user::park-receive! c "q" T0 100 1 200000000)
+     _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
+     _   (:user::park-receive! c "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
      _   (:user::do-send b "q" "first" T0)
      ga  (:user::recv-envelopes! a)
      _   (:user::do-send b "q" "second" T0)
@@ -1008,8 +1027,8 @@
      _   (:user::do-send q "q" "a" T0)
      _   (:user::do-send q "q" "b" T0)
      _   (:user::do-send q "q" "c" T0)
-     got (:user::do-receive-wait q "q" T0 1000000000 10 20000000)
-     _   (:user::do-receive-wait q "q" T0 1000000000 10 5000000)
+     got (:user::do-receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 20)))
+     _   (:user::do-receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 5)))
      st  (:user::do-stats q)]
     (:wat::core::format "n={n};calls={calls}"
       :n (:wat::core::count got)

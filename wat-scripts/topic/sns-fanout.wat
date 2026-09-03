@@ -214,7 +214,7 @@
         none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
         rr (:queue::Queue/receive inbox
              (:queue::Queue::ReceiveRequest
-               :queue "inbox" :now-ns now :visibility-ns vis :limit 10 :wait-ns 250000000))]
+               :queue "inbox" :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 250))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
@@ -487,7 +487,7 @@
     (:queue::Queue/receive q
       (:queue::Queue::ReceiveRequest
         :queue name :now-ns (:wat::time::epoch-nanos (:wat::time::now))
-        :visibility-ns 1000000000000 :limit 1 :wait-ns 0))
+        :visibility-ns 1000000000000 :limit 1 :wait (:queue::Queue::Wait::Immediate)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::ReceiveResponse::Ok envs)
