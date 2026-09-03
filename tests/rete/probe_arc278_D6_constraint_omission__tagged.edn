@@ -1,0 +1,4 @@
+#wat.core/PersistentVector [
+  (:wat.rete.core.i64/> 9 5)
+  (:wat.rete.explain/constraint-not-rendered :wat.rete.core.enum/not= 1 "a tagged enum variant (:d6t::Grade::Scored, 1 field(s)) has no literal spelling in the rete surface")
+]

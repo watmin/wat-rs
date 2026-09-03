@@ -1,0 +1,4 @@
+#wat.core/PersistentVector [
+  (:wat.rete.core.i64/> 9 5)
+  (:wat.rete.core.enum/= :d6u.Grade/Hi :d6u.Grade/Hi)
+]

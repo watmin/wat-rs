@@ -1,0 +1,29 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/ConstraintTypeNotComparable {:message \"defrule `d6x::hit` (`:d6x::Reading`): `:wat::rete::core::enum::not=` compares operand `?v`, declared `(:wat::core::PersistentVector :- [:wat::core::i64])`, for which rete has NO comparator — the rete equality surface is i64/f64/string/bool/keyword/enum. Compare a scalar FIELD of it instead\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_D6_constraint_omission_nonenum.wat.bad\" :line 30 :col 19 :end #wat.core.Option/Some [#wat.core/Pos {:line 30 :col 65}]} :causes [] :rule \"d6x::hit\" :fact-type \"d6x::Reading\" :head \":wat::rete::core::enum::not=\" :operand \"?v\" :field-type \"(:wat::core::PersistentVector :- [:wat::core::i64])\"}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/ConstraintTypeNotComparable {
+          :rule "d6x::hit"
+          :fact-type "d6x::Reading"
+          :head ":wat::rete::core::enum::not="
+          :operand "?v"
+          :field-type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_D6_constraint_omission_nonenum.wat.bad"
+            :line 30
+            :col 19
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 30
+                :col 65
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]

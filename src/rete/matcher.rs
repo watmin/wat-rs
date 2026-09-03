@@ -972,9 +972,14 @@ pub(crate) fn ast_literal_value(ast: &WatAST) -> Option<Value> {
 }
 
 /// Value → WatAST literal for explain substitution (`step_payload`).
-/// Keywords and Unit are included here; [`ast_literal_value`] excludes them
+/// Keywords, enum UNIT variants and Unit are included here; [`ast_literal_value`] excludes them
 /// because a keyword in operand position is a field ref, not a value.
-// rune:solvere(load-bearing-coupling) — encode includes keyword/unit; decode
+///
+/// **`None` is not "drop it".** The one caller ([`crate::rete::step_payload`]) turns a `None`
+/// into a visible omission marker that holds the constraint's position in the payload. Returning
+/// `None` for a value this function cannot spell is therefore safe; *silently skipping* it was
+/// the D6 defect.
+// rune:solvere(load-bearing-coupling) — encode includes keyword/unit/enum-unit; decode
 // for operands must not, or field refs become values.
 pub(crate) fn value_to_ast_literal(v: Value) -> Option<WatAST> {
     match v {
@@ -984,6 +989,21 @@ pub(crate) fn value_to_ast_literal(v: Value) -> Option<WatAST> {
         Value::String(s) => Some(WatAST::StringLit((*s).clone(), crate::rust_caller_span!())),
         Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), crate::rust_caller_span!())),
         Value::Unit => Some(WatAST::NilLit(crate::rust_caller_span!())),
+        // An enum UNIT variant's literal spelling is the keyword path the author wrote —
+        // `:d6::Grade::Hi` — and `expr_ir::keyword_value` reads that keyword straight back to this
+        // same `Value::Enum`, so the substitution round-trips exactly. Without this arm an
+        // `enum::=` constraint reached here with a resolved value and was dropped anyway (D6's
+        // SECOND gate, one line below the `sym: None` that used to hide it).
+        //
+        // ⛔ A TAGGED variant is deliberately absent. It is never a *literal* the author wrote (a
+        // tagged operand can only arrive bound from a fact field), `(:E::V 1 2)` and `#E/V [1 2]`
+        // are both defensible spellings with nothing here to choose between them, and either
+        // would need every field value recursively re-encoded — a different function from this
+        // one. It goes to the omission marker instead, which NAMES it.
+        Value::Enum(ev) if ev.fields.is_empty() => Some(WatAST::Keyword(
+            format!("{}::{}", ev.type_path, ev.variant_name),
+            crate::rust_caller_span!(),
+        )),
         _ => None,
     }
 }

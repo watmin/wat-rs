@@ -2,7 +2,7 @@
 
 use crate::ast::WatAST;
 use crate::rete::kernel::{alpha_cond_of, session_network};
-use crate::rete::clause::{classify_constraint_head, classify_rete_clause, ReteClauseShape};
+use crate::rete::clause::{classify_rete_clause, ReteClauseShape};
 use crate::rete::matcher::{
     alpha_pattern, class_field_names, fact_from_value, resolve_operand, value_to_ast_literal,
     FieldNames,
@@ -14,6 +14,72 @@ use std::sync::Arc;
 
 // ─── P12c: step-payload ───────────────────────────────────────────────────────
 
+/// The head of the payload's ONE spelling for *"this constraint was satisfied and could not be
+/// rendered"* — D6's cure for the silent `continue`.
+///
+/// **It is not, and must not become, a callable rete op.** A marker that evaluated would be a
+/// second way to be silently wrong: a consumer could run it and get a verdict about a comparison
+/// nobody performed. Because no `RETE_OPS` row bears this name, an attempt to evaluate the form
+/// fails by name — loudly, at the point of the mistake.
+pub(crate) const CONSTRAINT_NOT_RENDERED: &str = ":wat::rete::explain::constraint-not-rendered";
+
+/// Resolve ONE operand of a satisfied inline constraint and spell it as a `WatAST` literal, or
+/// say why it cannot be spelled.
+///
+/// The two failure modes are kept apart on purpose, because they predict different mechanisms:
+/// an operand that produced no `Value` at all is a *resolution* gap (a `?var` absent from the
+/// token's bindings, a keyword naming neither a declared field nor a known unit variant), while a
+/// `Value` with no literal form is a *spelling* gap in
+/// [`value_to_ast_literal`]. D6 was one of each, stacked: `sym: None` hid the second behind the
+/// first, so curing only the first moved the drop one line down and changed nothing a user saw.
+fn render_constraint_operand(
+    operand: &WatAST,
+    fact_fields: &[Value],
+    field_names: &[String],
+    bindings: &crate::value::pmap::PMap,
+    sym: &SymbolTable,
+) -> Result<WatAST, String> {
+    // `Some(sym)`, not `None`. With `None` an enum-variant keyword in direct operand position
+    // (`:d6::Grade::Hi`) resolves to nothing, because `resolve_operand`'s keyword arm needs the
+    // symbol table to tell a unit variant from a plain keyword — the FIRST of D6's two gates.
+    let Some(v) = resolve_operand(operand, fact_fields, field_names, bindings, Some(sym)) else {
+        return Err("operand resolved to no value (not a bound var, a declared field, or a literal)".to_string());
+    };
+    match value_to_ast_literal(v.clone()) {
+        Some(ast) => Ok(ast),
+        None => Err(match &v {
+            // Guarded on `!fields.is_empty()`, not on `Value::Enum` alone: a UNIT variant reaching
+            // here would mean `value_to_ast_literal` lost its enum arm, and calling that "tagged"
+            // would send the reader to the wrong mechanism entirely. It falls to the generic arm
+            // below instead, which describes what is true in both cases.
+            Value::Enum(ev) if !ev.fields.is_empty() => format!(
+                "a tagged enum variant ({}::{}, {} field(s)) has no literal spelling in the rete surface",
+                ev.type_path,
+                ev.variant_name,
+                ev.fields.len()
+            ),
+            other => format!("a {} value has no literal spelling in the rete surface", other.type_name()),
+        }),
+    }
+}
+
+/// Build the omission marker that holds an unrenderable constraint's POSITION in `constraints`.
+///
+/// One entry per inline constraint clause is the property this buys: a caller can no longer
+/// mistake an omission for a rule that genuinely had fewer constraints, which is exactly what the
+/// bare `continue` produced.
+fn constraint_not_rendered(op: &str, operand_index: i64, why: String, span: &Span) -> WatAST {
+    WatAST::List(
+        vec![
+            WatAST::Keyword(CONSTRAINT_NOT_RENDERED.to_string(), span.clone()),
+            WatAST::Keyword(op.to_string(), span.clone()),
+            WatAST::IntLit(operand_index, span.clone()),
+            WatAST::StringLit(why, span.clone()),
+        ],
+        span.clone(),
+    )
+}
+
 /// `(:wat::rete::step-payload session alpha-id bindings sfact supporting) -> :wat::rete::DerivationStep`
 ///
 /// Arc 278 Stone P12c — the explain payload builder. Given one (sfact, alpha-id) match edge
@@ -22,13 +88,32 @@ use std::sync::Arc;
 /// - **pattern**: the matched condition's fact-type FQDN (AlphaNode tests[0] head keyword).
 /// - **bindings** (per-step): the binder-clause vars that THIS condition bound, projected
 ///   from the token's accumulated bindings.
-/// - **constraints**: the rule's satisfied predicates with bound values substituted:
-///   `(:wat::rete::core::i64::< -5 0)` from `(:wat::rete::core::i64::< ?c 0)` with `?c=-5`.
+/// - **constraints**: the condition's satisfied INLINE constraint clauses — the per-type
+///   comparisons `classify_constraint_head` admits (`i64::<`, `enum::=`, …) — with bound values
+///   substituted: `(:wat::rete::core::i64::< -5 0)` from `(:wat::rete::core::i64::< ?c 0)` with
+///   `?c=-5`. **Exactly one entry per inline constraint clause, always** — see below.
+///   `:where` fences, `not`/`exists` sub-conditions and predicate clauses are NOT in this field
+///   and never were; they are separate `ReteClauseShape`s, not inline constraints.
 ///
 /// **Faithfulness by construction**: `classify_rete_clause` + `resolve_operand` reconstruct
 /// the matched clause for the payload. Native fire matches via `exec_compiled_with_key_ids`
 /// (STOP-1), not `alpha_match_inner` (the oracle). Substituted values still cannot drift
 /// from the classifier's spelling of what matched.
+///
+/// **⛔ An unrenderable constraint is NAMED, never dropped** (D6). Until this strike, a
+/// constraint whose operand did not resolve, or whose resolved value had no literal spelling,
+/// was skipped by a bare `continue` — and a caller cannot tell a shortened vector from a rule
+/// that genuinely had fewer constraints. It now keeps its position as
+///
+/// ```text
+/// (:wat::rete::explain::constraint-not-rendered <op-keyword> <operand-index> "<why>")
+/// ```
+///
+/// so `constraints.length` still equals the condition's inline-constraint count. The head is
+/// deliberately not a callable rete op: nothing can consume the marker as a satisfied predicate
+/// and get a wrong answer — evaluating it fails by name. See
+/// [`crate::rete::matcher::value_to_ast_literal`] for what is spellable today (a tagged enum
+/// variant is the one live residue).
 ///
 /// Arguments:
 ///   - `session`    — `:wat::rete::Session` (network via `session_network`)
@@ -137,22 +222,31 @@ pub(crate) fn eval_step_payload(
                 binder_vars.push(var.to_string());
             }
             ReteClauseShape::Constraint { op, lhs, rhs } => {
-                if classify_constraint_head(op).is_none() {
-                    continue;
-                }
-                let a_val = resolve_operand(lhs, sfact.fields, &sfact_field_names, &token_bindings, None);
-                let b_val = resolve_operand(rhs, sfact.fields, &sfact_field_names, &token_bindings, None);
-                let (Some(a_val), Some(b_val)) = (a_val, b_val) else { continue; };
-                let (Some(a_ast), Some(b_ast)) = (value_to_ast_literal(a_val), value_to_ast_literal(b_val)) else { continue; };
-                let substituted = WatAST::List(
-                    vec![
-                        WatAST::Keyword(op.to_string(), list_span.clone()),
-                        a_ast,
-                        b_ast,
-                    ],
-                    list_span.clone(),
-                );
-                constraints_pv.push_back_mut(Value::wat__WatAST(Arc::new(substituted)));
+                // ⚠ No `classify_constraint_head(op).is_none() → continue` guard here any more,
+                // and its absence is not an oversight: `classify_rete_clause` produces
+                // `Constraint` ONLY from the arm guarded by `classify_constraint_head(k).is_some()`
+                // (`clause.rs`), so the re-check could never fire. It was one of the three
+                // `continue`s D6 was drawn against and it was the dead one —
+                // `clause.rs`'s `a_constraint_shape_implies_a_classifying_head` pins BOTH
+                // directions of that, so if the classifier ever grows a second route to
+                // `Constraint` it goes RED there rather than this going silently short.
+                let a = render_constraint_operand(lhs, sfact.fields, &sfact_field_names, &token_bindings, sym);
+                let b = render_constraint_operand(rhs, sfact.fields, &sfact_field_names, &token_bindings, sym);
+                // Both failing reports operand 1 — the leftmost cause, so the message is stable
+                // rather than dependent on evaluation order.
+                let form = match (a, b) {
+                    (Ok(a_ast), Ok(b_ast)) => WatAST::List(
+                        vec![
+                            WatAST::Keyword(op.to_string(), list_span.clone()),
+                            a_ast,
+                            b_ast,
+                        ],
+                        list_span.clone(),
+                    ),
+                    (Err(why), _) => constraint_not_rendered(op, 1, why, list_span),
+                    (_, Err(why)) => constraint_not_rendered(op, 2, why, list_span),
+                };
+                constraints_pv.push_back_mut(Value::wat__WatAST(Arc::new(form)));
             }
             _ => continue,
         }

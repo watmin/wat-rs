@@ -467,6 +467,81 @@ mod constraint_head_tests {
         }
     }
 
+    /// ★ D6 — **a `Constraint` shape implies a classifying head**, so a consumer of
+    /// `classify_rete_clause` need not (and must not) re-check the head.
+    ///
+    /// `eval_step_payload` used to open its `Constraint` arm with
+    /// `if classify_constraint_head(op).is_none() { continue; }` — a silent drop guarding a
+    /// condition that cannot occur, because the ONLY arm of `classify_rete_clause` that produces
+    /// `Constraint` is itself guarded by `classify_constraint_head(k).is_some()`. The D6 strike
+    /// deleted that `continue`; this is the gate that keeps deleting it correct. If the classifier
+    /// ever grows a second route to `Constraint`, this goes RED here instead of the payload going
+    /// silently short there.
+    ///
+    /// Stated as an `==` over BOTH directions on a mixed head set, not as a one-way spot check:
+    /// a `Constraint` with an unclassifying head and a classifying head that fails to reach
+    /// `Constraint` are different defects and both are caught.
+    #[test]
+    fn a_constraint_shape_implies_a_classifying_head() {
+        let span = crate::rust_caller_span!();
+        let mut constraint_shapes = 0usize;
+
+        let mut heads: Vec<String> = RETE_OPS.iter().map(|op| op.rete_name.to_string()).collect();
+        heads.extend(
+            [
+                ":wat::core::=",
+                ":wat::core::not=",
+                ":wat::core::<",
+                ":wat::core::>",
+                ":wat::core::<=",
+                ":wat::core::>=",
+                ":wat::rete::and",
+                ":wat::rete::or",
+                ":wat::rete::not",
+                ":wat::rete::exists",
+                ":wat::rete::where",
+                ":no::such::head",
+            ]
+            .iter()
+            .map(|s| (*s).to_string()),
+        );
+
+        for head in &heads {
+            // The 3-item shape is the only one the `Constraint` arm accepts, so it is the shape
+            // that can distinguish the two directions at all.
+            let clause = WatAST::List(
+                vec![
+                    WatAST::Keyword(head.clone(), span.clone()),
+                    WatAST::IntLit(1, span.clone()),
+                    WatAST::IntLit(2, span.clone()),
+                ],
+                span.clone(),
+            );
+            let is_constraint = matches!(classify_rete_clause(&clause), ReteClauseShape::Constraint { .. });
+            if is_constraint {
+                constraint_shapes += 1;
+            }
+            assert_eq!(
+                is_constraint,
+                classify_constraint_head(head).is_some(),
+                "`{head}`: classify_rete_clause says Constraint={is_constraint}, \
+                 classify_constraint_head says {}. These must agree in BOTH directions — a \
+                 consumer of the `Constraint` shape (eval_step_payload) relies on the head having \
+                 already classified and no longer re-checks it.",
+                classify_constraint_head(head).is_some()
+            );
+        }
+
+        // Non-vacuity: a head set that produced zero `Constraint` shapes would satisfy the
+        // equality above trivially.
+        assert!(
+            constraint_shapes >= 12,
+            "only {constraint_shapes} of {} heads classified as `Constraint` — the probe is not \
+             reaching the arm it claims to pin",
+            heads.len()
+        );
+    }
+
     /// A head that is neither is not a constraint at all — the door must not over-admit.
     #[test]
     fn unrelated_heads_are_not_constraints() {

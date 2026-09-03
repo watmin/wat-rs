@@ -1,0 +1,43 @@
+;; probe_arc278_D6_constraint_omission_nonenum.wat.bad — THE BOUND ON THE RESIDUE, work-list D6.
+;;
+;; ⛔ THIS PROGRAM MUST BE REFUSED. It is the disconfirming half of the omission-marker arms.
+;;
+;; The obvious reading of D6's class is "every `Value` variant `value_to_ast_literal` cannot spell
+;; can reach the payload and used to vanish there". `validate/typing.rs`'s own header invites it:
+;; a constraint operand is schema-checked ONLY when it is a `:field` reference, and "a `?var` (free
+;; or bound) and a literal are left alone". A `?v` bound to a PersistentVector, compared with
+;; `enum::not=` — which is TRUE, since a vector is not an enum variant — would then fire the rule
+;; and build a payload holding a value with no literal form.
+;;
+;; DRIVEN, it does not: a SEPARATE freeze-time wall, `ConstraintTypeNotComparable`, reads the bound
+;; var's declared type and refuses the rule before any of that. That is what bounds the residue.
+;; The rete equality surface is i64/f64/string/bool/keyword/enum; five of those six render, and the
+;; only value inside the surface with no literal spelling is a TAGGED enum variant — which is
+;; exactly the one case `..._tagged.wat` drives.
+;;
+;; So this fixture is load-bearing in the negative direction: if this wall is ever relaxed, this
+;; goes green, and the tagged arm alone would no longer be the whole story.
+
+(:wat::core::defenum :d6x::Tag :wat::enum::Pure :A :B)
+
+(:wat::core::defrecord :d6x::Reading [n <- :wat::core::i64  v <- (:wat::core::PersistentVector :- [:wat::core::i64])])
+(:wat::core::defrecord :d6x::Hit     [n <- :wat::core::i64])
+
+(:wat::rete::defrule :d6x::hit
+  :when
+  [(:d6x::Reading (?n <- :n) (?v <- :v)
+                  (:wat::rete::core::i64::> ?n 5)
+                  (:wat::rete::core::enum::not= ?v :d6x::Tag::A))]
+  :then
+  [(:d6x::Hit :n ?n)])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :d6x)
+     session (:wat::core::match (:wat::rete::compile rules) ((:wat::rete::CompileOutcome::Compiled __s) __s) ((:wat::rete::CompileOutcome::MayNotTerminate __r __f) (:wat::kernel::assertion-failed! "may not terminate" :wat::core::None :wat::core::None)))
+     session (:wat::core::match (:wat::rete::insert session (:d6x::Reading :n 9 :v [1 2])) ((:wat::rete::InsertOutcome::Inserted __st) __st) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __l __u __c) (:wat::kernel::assertion-failed! "ceiling" :wat::core::None :wat::core::None)))
+     fired   (:wat::core::match (:wat::rete::fire-rules-explain session) ((:wat::rete::FireOutcome::Fired __e) __e) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r) (:wat::kernel::assertion-failed! "ceiling" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __c __s) (:wat::kernel::assertion-failed! "roundcap" :wat::core::None :wat::core::None)))
+     node    (:wat::rete::explain fired (:d6x::Hit :n 9))
+     steps   (:wat::rete::DerivationNode/via node)]
+    (:wat::kernel::println
+      (:wat::rete::DerivationStep/constraints (:wat::core::first steps)))))

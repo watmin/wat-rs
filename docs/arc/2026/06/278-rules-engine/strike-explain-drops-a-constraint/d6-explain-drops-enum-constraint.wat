@@ -1,5 +1,12 @@
 ;; d6-explain-drops-enum-constraint.wat — orchestrator reconnaissance for work-list D6.
 ;;
+;; ⛔ MOVED HERE OUT OF `wat-scripts/scratch-pad/`, 2026-09-02. Committing it there turned the
+;; floor RED: `rete_names_in_wat_scripts_resolve` cannot attest `:wat::rete::DerivationNode/via`
+;; or `:wat::rete::DerivationStep/constraints`, because record accessors are SYNTHESIZED at
+;; freeze from the `defrecord` at `wat/rete.wat:374` and never appear textually under `src/` or
+;; `wat/`. The names are live — this program runs — so none of that gate's three offered fixes
+;; applies. Tracked as work-list **C15**. It lives with the strike that cites it, as arc record.
+;;
 ;; QUESTION: `step_payload.rs`'s doc promises "constraints: the rule's satisfied predicates with
 ;; bound values substituted", under a bolded "Faithfulness by construction". Three `continue`s can
 ;; drop a constraint silently; the sharpest is `value_to_ast_literal` (matcher.rs:979), whose arms
