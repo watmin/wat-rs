@@ -169,10 +169,12 @@ pub enum Binding<'a> {
 /// 5. **Types** (`sym.types`) — only consulted when the SymbolTable
 ///    carries a type registry.
 /// 6. **Special forms** (`special_forms.rs`) — reachable today only for a special form the
-///    intrinsic registry does not (yet) carry, e.g. `quasiquote`/`struct->form`. `and`/`or`
-///    and the "eval-door" forms (`if`/`let`/`fn`/`match`) are registered in BOTH tables; step
-///    3 answers for them now, so this step never fires for those names — see
-///    `special_forms.rs`'s own note on why their rows still exist.
+///    intrinsic registry does not (yet) carry, e.g. `unquote`/`unquote-splicing` (1a-γ-ii's
+///    different shape — no eval arm at all, so they never join step 3). `and`/`or`, the
+///    "eval-door" forms (`if`/`let`/`fn`/`match`), and — arc 255 Stone 1a-gamma-i —
+///    `quote`/`quasiquote`/`forms`/`struct->form`/`macroexpand`/`macroexpand-1` are registered
+///    in BOTH tables; step 3 answers for them now, so this step never fires for those names —
+///    see `special_forms.rs`'s own note on why their rows still exist.
 ///
 /// Returns `None` only when every registry misses.
 pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> {
@@ -383,9 +385,10 @@ pub(crate) fn eval_lookup_define(
         Some(Binding::SpecialForm { name: n, .. }) => {
             // Slice 2 populated the SpecialForm registry (special_forms.rs). Arc 255
             // Stone 3a-i: this arm is reachable today only for a special form the
-            // intrinsic registry does NOT also carry (`quasiquote`, `struct->form`, …) —
-            // `if`/`let`/`fn`/`match`/`and`/`or` now resolve via `Binding::Registered`
-            // (lookup_form's step 3, ahead of this one).
+            // intrinsic registry does NOT also carry (`unquote`, `unquote-splicing`, …) —
+            // `if`/`let`/`fn`/`match`/`and`/`or` and — arc 255 Stone 1a-gamma-i —
+            // `quote`/`quasiquote`/`forms`/`struct->form`/`macroexpand`/`macroexpand-1` now
+            // resolve via `Binding::Registered` (lookup_form's step 3, ahead of this one).
             let span = name_ast.span().clone();
             let sentinel = WatAST::List(
                 vec![

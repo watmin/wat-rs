@@ -3287,18 +3287,14 @@ fn infer_list(
             // Arc 146 slice 3 — `:wat::core::get` retired here; it is
             // now a Dispatch (declared in `wat/core.wat`).
             ":wat::core::quote" => {
-                // Quote captures an unevaluated AST. The argument is
-                // DATA, not an expression — the type checker does not
-                // recurse into it. Return type is `:wat::WatAST`.
-                if args.len() != 1 {
-                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::core::quote".into(),
-                        expected: 1,
-                        got: args.len()
-                    } });
-                }
-                let ty = TypeExpr::Path(":wat::WatAST".into());
-                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+                // Arc 255 Stone 1a-gamma-i — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/quote.rs`'s `infer_quote`, which is the fn
+                // `:wat::core::quote`'s `role = check` names — so the registry points at real,
+                // reachable code instead of at a fn nothing calls. Semantics unchanged
+                // (STOP-3: extracted verbatim).
+                return crate::intrinsic::special::quote::infer_quote(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             // Arc 118 — `(:wat::stream::lazy <body>) -> (Stream :- [T])`. SPECIAL FORM.
             // The body is captured unevaluated at runtime (a thunk), but TYPED here:
@@ -3351,33 +3347,24 @@ fn infer_list(
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::core::forms" => {
-                // Variadic sibling of quote. Every positional arg is
-                // DATA, captured as `:wat::WatAST`. The checker does
-                // not recurse into any of them. Return type is
-                // `(:wat::core::Vector :- [wat::WatAST])` regardless of arity (including
-                // zero, which produces an empty Vec).
-                return CheckResult::ok(TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
-                });
+                // Arc 255 Stone 1a-gamma-i — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/forms.rs`'s `infer_forms`, which is the fn
+                // `:wat::core::forms`'s `role = check` names — so the registry points at real,
+                // reachable code instead of at a fn nothing calls. Semantics unchanged
+                // (STOP-3: extracted verbatim).
+                return crate::intrinsic::special::forms::infer_forms(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             ":wat::core::struct->form" => {
-                // Arc 091 slice 8 — lift a struct VALUE to its
-                // constructor-call FORM. ∀T. T → :wat::WatAST. The
-                // arg's type is inferred for context but not
-                // constrained (the runtime errors if T isn't a
-                // Struct). Return type is :wat::WatAST.
-                if args.len() != 1 {
-                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::core::struct->form".into(),
-                        expected: 1,
-                        got: args.len()
-                    } });
-                } else {
-                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                }
-                let ty = TypeExpr::Path(":wat::WatAST".into());
-                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+                // Arc 255 Stone 1a-gamma-i — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/struct_to_form.rs`'s `infer_struct_to_form`, which is the
+                // fn `:wat::core::struct->form`'s `role = check` names — so the registry points
+                // at real, reachable code instead of at a fn nothing calls. Semantics unchanged
+                // (STOP-3: extracted verbatim).
+                return crate::intrinsic::special::struct_to_form::infer_struct_to_form(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             ":wat::runtime::lookup-define"
             | ":wat::runtime::signature-of-defn"
@@ -3848,30 +3835,15 @@ fn infer_list(
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::core::macroexpand-1" | ":wat::core::macroexpand" => {
-                // Arc 030: macro debugging primitives.
-                // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
-                if args.len() != 1 {
-                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: k.clone(),
-                        expected: 1,
-                        got: args.len()
-                    } });
-                    let ty = TypeExpr::Path(":wat::WatAST".into());
-                    return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
-                }
-                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-                    let expected = TypeExpr::Path(":wat::WatAST".into());
-                    if !assignable(&arg_ty, &expected, subst, env) {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: k.clone(),
-                            param: "#1".into(),
-                            expected: format_type(&apply_subst(&expected, subst)),
-                            got: format_type(&apply_subst(&arg_ty, subst))
-                        } });
-                    }
-                }
-                let ty = TypeExpr::Path(":wat::WatAST".into());
-                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+                // Arc 255 Stone 1a-gamma-i — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/macroexpand.rs`'s `infer_macroexpand`, which is the fn
+                // BOTH `:wat::core::macroexpand-1` AND `:wat::core::macroexpand`'s `role = check`
+                // names (stacked, same shape `infer_config_set_bool` uses for the two config
+                // setters) — so the registry points at real, reachable code instead of at a fn
+                // nothing calls. Semantics unchanged (STOP-3: extracted verbatim).
+                return crate::intrinsic::special::macroexpand::infer_macroexpand(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             ":wat::core::match" => {
                 let (val, mut errs) = infer_match(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4887,12 +4859,14 @@ fn infer_list(
                 return CheckResult::ok(fresh.fresh());
             }
             ":wat::core::quasiquote" => {
-                // Arc 091 slice 8 — runtime quasiquote returns
-                // :wat::WatAST. Body isn't fully type-checked (it's
-                // a template); unquoted expressions infer into
-                // local context but their types don't constrain the
-                // outer result.
-                return CheckResult::ok(TypeExpr::Path(":wat::WatAST".into()));
+                // Arc 255 Stone 1a-gamma-i — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/quasiquote.rs`'s `infer_quasiquote`, which is the fn
+                // `:wat::core::quasiquote`'s `role = check` names — so the registry points at
+                // real, reachable code instead of at a fn nothing calls. Semantics unchanged
+                // (STOP-3: extracted verbatim).
+                return crate::intrinsic::special::quasiquote::infer_quasiquote(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             _ if k.starts_with(":wat::config::set-") => {
                 // HARVEST (236.2): silent-by-intent — config setter forms handled out-of-band.

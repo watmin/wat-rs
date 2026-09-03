@@ -2180,7 +2180,11 @@ fn dispatch_keyword_head_value(
         // Arc 251 Stone 251.4b — checked, type-erased identity.
         // The type slot is ERASED at runtime; only the expr is evaluated.
         ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
-        ":wat::core::quote" => eval_quote(args, list_span),
+        // Arc 255 Stone 1a-gamma-i — this arm RETIRED; `:wat::core::quote` carries a
+        // registered `role = eval` handler now (`eval_quote_form`,
+        // `src/intrinsic/special/quote.rs`), so the registry-first door above
+        // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to `eval_quote`
+        // (unchanged) before this match is ever reached.
         // Arc 118 — lazy-seq foundation primitives.
         // `seq-empty`/`cons`/`next` (arc 255 Stone P6-c-W2) moved into `#[wat_intrinsic]`
         // handlers (`src/intrinsic/stream.rs`); the pre-match registry check above
@@ -2192,8 +2196,14 @@ fn dispatch_keyword_head_value(
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
         // `Value::wat__WatAST` through `watast_to_holon` at runtime.rs:14437).
-        ":wat::core::quasiquote" => eval_quasiquote(args, list_span, env, sym),
-        ":wat::core::struct->form" => crate::reflect::render::eval_struct_to_form(args, list_span, env, sym),
+        // Arc 255 Stone 1a-gamma-i — this arm RETIRED; `:wat::core::quasiquote` carries a
+        // registered `role = eval` handler now (`eval_quasiquote`, annotated in place, same
+        // file), so the registry-first door above already dispatches it before this match is
+        // ever reached.
+        // Arc 255 Stone 1a-gamma-i — this arm RETIRED; `:wat::core::struct->form` carries a
+        // registered `role = eval` handler now (`eval_struct_to_form`,
+        // `src/reflect/render.rs`, annotated in place), so the registry-first door above
+        // already dispatches it before this match is ever reached.
         // Arc 143 slice 1 / slice 3, Arc 201 slice 5 — `lookup-define`, `signature-of-defn`,
         // `signature-of-fn`, `return-type-of`, `body-of`, `rename-callable-name`,
         // `extract-arg-names`, `extract-arg-types` (arc 255 Stone P6-c-W3) moved into
@@ -2336,9 +2346,18 @@ fn dispatch_keyword_head_value(
         // handler (`src/rete/collect.rs`, in place) with its real (1) arity declared; the
         // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
         // here.
-        ":wat::core::forms" => Ok(crate::reflect::r#match::eval_forms(args, list_span)?),
-        ":wat::core::macroexpand-1" => crate::reflect::expand::eval_macroexpand_1(args, list_span, env, sym),
-        ":wat::core::macroexpand" => crate::reflect::expand::eval_macroexpand(args, list_span, env, sym),
+        // Arc 255 Stone 1a-gamma-i — this arm RETIRED; `:wat::core::forms` carries a
+        // registered `role = eval` handler now (`eval_forms_form`,
+        // `src/intrinsic/special/forms.rs`), so the registry-first door above already
+        // dispatches it to `eval_forms` (unchanged) before this match is ever reached.
+        // Arc 255 Stone 1a-gamma-i — this arm RETIRED; `:wat::core::macroexpand-1` carries a
+        // registered `role = eval` handler now (`eval_macroexpand_1`,
+        // `src/reflect/expand.rs`, annotated in place), so the registry-first door above
+        // already dispatches it before this match is ever reached.
+        // Arc 255 Stone 1a-gamma-i — this arm RETIRED; `:wat::core::macroexpand` carries a
+        // registered `role = eval` handler now (`eval_macroexpand`, `src/reflect/expand.rs`,
+        // annotated in place), so the registry-first door above already dispatches it before
+        // this match is ever reached.
         // Arc 255 Stone HOME-8 — ":wat::holon::from-holon" (the one holon producer) is now
         // registered via `#[wat_intrinsic]` (`src/intrinsic/holon/atom.rs`); the registry-first
         // door at the top of `dispatch_keyword_head` finds it before this match is ever reached.
@@ -6117,6 +6136,11 @@ fn eval_ann_form(
 /// `(:wat::core::quasiquote X)` inside the body bumps depth + 1
 /// and preserves the wrapper; `(:wat::core::unquote X)` fires only
 /// at depth 1.
+///
+/// Arc 255 Stone 1a-gamma-i — the `role = eval` pointer for `:wat::core::quasiquote`.
+/// Annotated IN PLACE (signature already fits the canonical `NativeHandler` shape) — see
+/// `intrinsic/special/quasiquote.rs` for the doc-only struct and the `role = check` pointer.
+#[wat_special_form_impl(":wat::core::quasiquote", role = eval)]
 fn eval_quasiquote(
     args: &[WatAST],
     list_span: &Span,

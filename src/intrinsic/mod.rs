@@ -1123,6 +1123,22 @@ mod tests {
         ":wat::core::use!",
         ":wat::config::set-redef!",
         ":wat::config::set-eval-redef!",
+        // ★★★ Arc 255 Stone 1a-gamma-i — the six homoiconic verbs that really evaluate join for
+        // the same reason: registered `Kind::SpecialForm` rows with no `env.register()`
+        // TypeScheme, so `check_env.get` returns `None`. Checked, not assumed: grepped
+        // `register_builtins` for `env.register(":wat::core::quote"` / `"::quasiquote"` /
+        // `"::forms"` / `"::struct->form"` / `"::macroexpand"` / `"::macroexpand-1"` — zero
+        // hits for all six. All six DO carry a real check impl (`infer_quote`/`infer_forms`/
+        // `infer_struct_to_form`/`infer_quasiquote`/`infer_macroexpand`, this stone's
+        // extractions) — exactly the `and`/`or`/`use!` shape above: real checking, no scheme
+        // to verify the docs against. No `register_builtins` scheme added; the ledger grows by
+        // six, 89 → 95.
+        ":wat::core::quote",
+        ":wat::core::quasiquote",
+        ":wat::core::forms",
+        ":wat::core::struct->form",
+        ":wat::core::macroexpand",
+        ":wat::core::macroexpand-1",
     ];
 
     #[test]
@@ -1636,7 +1652,6 @@ mod tests {
     /// experiment genuinely could not vouch for it at the time; only the shrinking "current gap"
     /// list drops it.
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
-        ":wat::core::quote",
         ":wat::core::=",
         ":wat::core::do",
         ":wat::core::PersistentVector",
@@ -1650,8 +1665,6 @@ mod tests {
         ":wat::core::get",
         ":wat::core::extend-type",
         ":wat::core::str",
-        ":wat::core::forms",
-        ":wat::core::quasiquote",
         ":wat::rete::string::=",
         ":wat::rete::i64::>",
         ":wat::core::map",
@@ -1672,7 +1685,6 @@ mod tests {
         ":wat::rete::i64::/",
         ":wat::rete::core::not",
         ":wat::rete::vector::get",
-        ":wat::core::macroexpand",
         ":wat::rete::i64::-",
         ":wat::rete::vector::length",
         ":wat::rete::i64::mod",
@@ -1745,10 +1757,15 @@ mod tests {
         ":wat::rete::core::bool::to-string",
         ":wat::core::tuple-get",
         ":wat::core::reduce-walk",
-        ":wat::core::macroexpand-1",
         ":wat::core::find-last-index",
         ":wat::core::conforms?",
-    ];
+            // Arc 255 Stone 1a-γ-i — five homoiconic verbs LEAVE: `quote`, `forms`, `quasiquote`,
+        // `macroexpand`, `macroexpand-1` are registered rows now, so `registry().lookup_entry`
+        // answers `Some` and this ratchet's STALE arm demanded their deletion by name.
+        // ⚠ `:wat::core::struct->form` is NOT among them — it registered in the same stone but was
+        // never in `GAP_B_CORPUS_CENSUS_121` (the corpus experiment never measured it), so it was
+        // never on this list to remove. Checked, not assumed.
+];
 
     /// The bidirectional gate for Gap B. Walking the FIXED `GAP_B_CORPUS_CENSUS_121` domain
     /// (never recomputed — a rider/CI cannot re-run the corpus experiment) against LIVE

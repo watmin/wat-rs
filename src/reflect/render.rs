@@ -27,12 +27,18 @@ use crate::value::{
     Value, ValueSnapshot,
 };
 use std::sync::Arc;
+use wat_macros::wat_special_form_impl;
 
 // `eval_inner` (the evaluator's own entry point) and `value_to_watast` are genuinely defined
 // in `crate::runtime` (not a facade re-export of a `crate::value` type — see STOP-2);
 // `value_to_watast` sits just above this stone's moved range and stays there.
 use crate::runtime::{eval_inner, value_to_watast};
 
+/// Arc 255 Stone 1a-gamma-i — the `role = eval` pointer for `:wat::core::struct->form`.
+/// Annotated IN PLACE (unlike `quote`/`forms`, this fn's signature already fits the canonical
+/// `NativeHandler` shape, so no thin delegate is needed — see `intrinsic/special/
+/// struct_to_form.rs` for the doc-only struct and the `role = check` pointer).
+#[wat_special_form_impl(":wat::core::struct->form", role = eval)]
 pub(crate) fn eval_struct_to_form(
     args: &[WatAST],
     list_span: &Span,

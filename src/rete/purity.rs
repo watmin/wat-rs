@@ -2232,13 +2232,18 @@ mod completeness_gate {
     ":wat::core::defclause",
     ":wat::core::derive",
     ":wat::core::find-last-index",
-    ":wat::core::forms",
-    ":wat::core::macroexpand",
-    ":wat::core::macroexpand-1",
-    ":wat::core::quasiquote",
-    ":wat::core::quote",
+    // Arc 255 Stone 1a-gamma-i — `:wat::core::forms` / `:wat::core::macroexpand` /
+    // `:wat::core::macroexpand-1` / `:wat::core::quasiquote` / `:wat::core::quote` /
+    // `:wat::core::struct->form` LEAVE together. `intrinsic_meta`'s registry-first consult
+    // now answers `Some` for all six (the `@Purity`/`@Determinism`/`@Totality` this stone
+    // registered — `Pure`/`Deterministic`/`Total` for `quote`/`forms`, `Pure`/`Deterministic`/
+    // `Partial` for `struct->form`, `Preserving` across all three for `quasiquote`, `Pure`/
+    // `Nondeterministic`/`Partial` for `macroexpand`/`macroexpand-1`), so `dispatch_verbs`'s
+    // scan (which still finds each literal arm RETIRED in `runtime.rs`'s
+    // `dispatch_keyword_head_value`, STOP-1 unchanged past the arm deletion the registry-first
+    // door itself demanded) classifies all six instead of leaving them unreviewed. Leaving
+    // any name here after registering would fail this ledger's own STALE check.
     ":wat::core::seqable->stream",
-    ":wat::core::struct->form",
     ":wat::core::subtype?",
     // Arc 255 Stone 1a-ε — `:wat::core::use!` LEAVES. `intrinsic_meta`'s registry-first
     // consult (`:473` above) now answers `Some` for it (the `@Purity Pure` /

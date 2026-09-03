@@ -21,6 +21,7 @@ use crate::value::{
     Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use std::sync::Arc;
+use wat_macros::wat_special_form_impl;
 
 // `eval_inner` is genuinely defined in `crate::runtime` (not a facade re-export of a
 // `crate::value` type — see STOP-2); it is the evaluator's own entry point.
@@ -30,6 +31,15 @@ use crate::runtime::eval_inner;
 /// One expansion step. If the input AST is a macro call (list with a
 /// registered-macro keyword head), apply the macro's template and
 /// return the result. Otherwise return the input unchanged.
+///
+/// Arc 255 Stone 1a-gamma-i — the `role = eval` pointer for `:wat::core::macroexpand-1`.
+/// Annotated IN PLACE (signature already fits the canonical `NativeHandler` shape) — a
+/// SEPARATE fn from `eval_macroexpand`'s own pointer (below), never stacked on it: `role = eval`
+/// codegens a dispatch shim named from the fn identifier alone, so two FQDNs on one eval fn
+/// would mint a duplicate symbol (`[[NOTE-role-eval-cannot-stack-and-the-error-does-not-say-
+/// so]]`) — moot here regardless, since one-step vs. fixpoint are genuinely different bodies.
+/// See `intrinsic/special/macroexpand_1.rs` for the doc-only struct.
+#[wat_special_form_impl(":wat::core::macroexpand-1", role = eval)]
 pub(crate) fn eval_macroexpand_1(
     args: &[WatAST],
     list_span: &Span,
@@ -83,6 +93,13 @@ pub(crate) fn eval_macroexpand_1(
 /// `(:wat::core::macroexpand <wat::WatAST>) -> :wat::WatAST`. Arc 030.
 /// Fixpoint expansion. Applies macroexpand-1 repeatedly until the AST
 /// stops changing (bounded by EXPANSION_DEPTH_LIMIT to catch cycles).
+///
+/// Arc 255 Stone 1a-gamma-i — the `role = eval` pointer for `:wat::core::macroexpand`.
+/// Annotated IN PLACE (signature already fits the canonical `NativeHandler` shape) — a
+/// SEPARATE fn from `eval_macroexpand_1`'s own pointer, above (see its doc for why stacking is
+/// moot here). See `intrinsic/special/macroexpand.rs` for the doc-only struct and the shared
+/// `role = check` pointer.
+#[wat_special_form_impl(":wat::core::macroexpand", role = eval)]
 pub(crate) fn eval_macroexpand(
     args: &[WatAST],
     list_span: &Span,
