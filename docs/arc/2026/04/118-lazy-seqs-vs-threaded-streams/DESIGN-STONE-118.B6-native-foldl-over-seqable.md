@@ -25,9 +25,23 @@ native foldl      103 / 107 / 111 / 93 ms     0.52 us/elem
 interpreted walk  503 / 574 / 541 / 503 ms    2.65 us/elem      ★ 5.1x
 ```
 
+> ⚙ **RE-DERIVED 2026-09-03** (arc 255 Stone 1c-0a-ii). The bench had gone unrunnable when
+> `reduce-walk` was retired; repointing it to the live `:wat::core::foldl-spec-walk` — the SAME
+> walker under a new name (identical `match`/recursion/`Exhausted` body) — made it run again:
+>
+> ```
+> native foldl        80 /  83 /  80 /  83 ms     0.41 us/elem
+> interpreted walk   371 / 384 / 378 / 383 ms     1.89 us/elem      ★ ~4.6x
+> ```
+>
+> Three runs, both block orderings, non-vacuity held every run (all four arms = 19999900000).
+> **Both arms got faster** over the intervening fortnight — foldl ~21%, walk ~29% — so the ratio
+> fell from 5.1× to ~4.6×. **The ruling below is unaffected**; the numbers above are what it was
+> decided on and are kept for that reason.
+
 That 5.1× is why `reduce` could NOT collapse to one arm per arity when `reductions` did: its eager
-arms delegate to native `foldl`, and routing them through the interpreted `reduce-walk` would tax
-every eager reduce in the language. **A native `foldl` over `Seqable<T>` removes the trade
+arms delegate to native `foldl`, and routing them through the interpreted walker (`reduce-walk`
+then; `foldl-spec-walk` now) would tax every eager reduce in the language. **A native `foldl` over `Seqable<T>` removes the trade
 entirely** — `reduce` collapses AND stays fast, and `reduce-walk` dies.
 
 ## What it does

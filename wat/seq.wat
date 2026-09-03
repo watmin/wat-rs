@@ -262,8 +262,9 @@
 ;; `:wat::rete::insert-all-spec` (wat/rete.wat:1508), whose sibling comment states it exactly:
 ;; *"the native kernel is the fast impl, the spec keeps it honest."*
 ;;
-;; ⚠ SO ITS SLOWNESS IS THE DESIGN, NOT A DEFECT. Measured ~5x the native on 200k i64
-;; (`wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat`). A first cut of B6 read that
+;; ⚠ SO ITS SLOWNESS IS THE DESIGN, NOT A DEFECT. Measured ~4.6x the native on 200k i64
+;; (`wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat`, re-derived 2026-09-03; it
+;; read ~5.1x when B6 was decided, and both arms have since got faster). A first cut of B6 read that
 ;; ratio as an argument AGAINST routing folds through wat and built two RUST implementations
 ;; instead, calling one an "oracle" — two variants of one thing in one language, neither able to
 ;; specify the other. The differential is only meaningful because this side is INDEPENDENT.
@@ -607,9 +608,11 @@
 ;;
 ;; ⚠ `:wat::core::reduce` ABOVE IS DELIBERATELY *NOT* COLLAPSED, and the reason is measured, not
 ;; taste. Its eager arms delegate to `:wat::core::foldl`, a NATIVE intrinsic (src/runtime.rs:6354);
-;; routing them through the interpreted walker instead costs **5.1x** (200k i64 sum, both block
-;; orderings, non-vacuity held: foldl ~103ms vs walk ~530ms —
-;; `wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat`). `reductions` has no such
+;; routing them through the interpreted walker instead costs **~4.6x** (200k i64 sum, both block
+;; orderings, non-vacuity held: foldl ~81ms vs walk ~377ms —
+;; `wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat`, re-derived 2026-09-03. It read
+;; 5.1x when B6 was decided on 2026-08-18; both arms have since got faster and the ratio fell. The
+;; walker is now `foldl-spec-walk` — the same body `reduce-walk` had, under its live name). `reductions` has no such
 ;; native path — every one of its ten arms already delegated to `reductions-walk` — so this
 ;; collapse is free and `reduce`'s would not be. The two verbs LOOK like the same shape and are not.
 ;;
