@@ -233,21 +233,26 @@ three (`x /= r;`, `let (a,b) = (a / r, b / r);`, and `*x /= r;` inside a loop).
 ---
 
 ## CLASS D — engine behaviour
-### ⚠ D9 — THE SCRATCH-`.wat` DOCTRINE HAS NO HOME FOR A MUST-FAIL PROBE
+### ~~D9~~ ⛔ WITHDRAWN — THERE WAS NO GAP; I DID NOT CHECK THE CONVENTION THAT ALREADY EXISTS
 
-`wat-rs/CLAUDE.md` sends throwaway `.wat` to `wat-scripts/scratch-pad/`, and two gates read **every**
-`.wat` under `wat-scripts/` — `every_wat_scripts_file_loads` **reddens on anything that refuses.**
+Raised 2026-09-02 as *"the scratch-`.wat` doctrine has no home for a must-fail probe"*. **Withdrawn
+the same day, at the builder's correction.** The home exists and is large:
 
-But reconnaissance for a *refusal* defect is, by construction, a program that must fail to load. Two
-of the D5 rider's four probes (the core-spelling and arm-body cases) could not have lived under
-`wat-scripts/` at the moment they were needed. It used the session scratchpad and deleted them —
-correct in the circumstances, and **outside the written doctrine.**
+> `.wat.bad` is for tests that ensure a file fails correctly. `wat-scripts/scratch-pad/` is for
+> throwaway used *while building*. A test's fixtures are **adjacent `.wat` / `.edn` / `.wat.bad`
+> files next to the test that drives them.** — builder, 2026-09-02
 
-`harness-experiri/README.md` records the same tension independently, which is the tell that this is
-structural rather than one rider's inconvenience. The fix is a doctrine decision, not a code change:
-either a `scratch-pad/must-fail/` the loader gate skips by path, or a per-file declaration the way
-`docs_wat_loads_or_declares_why_not` already accepts. **Raised 2026-09-02; needs the builder, since
-`wat-rs/CLAUDE.md` is the artifact that would change.**
+Measured after the correction: **271 `.wat.bad` fixtures, 361 `.edn` goldens**, and `*.wat` **does not
+match** `foo.wat.bad`, so a must-fail fixture is invisible to `wat_scripts_fixes_load.rs` by
+construction. There was never a conflict to resolve. D5's own cure had already used the convention
+correctly (`probe_arc278_match_arm_body_bad.wat.bad` + `.edn`).
+
+⛔ **Two failures of mine, and the second is the worse one.** I asserted a gap in the repo's doctrine
+without grepping for the convention — against a 271-file population sitting in `tests/`. And I cited
+`harness-experiri/README.md` as *"recording the same tension independently, which is the tell that
+this is structural"* **without reading the paragraph**. It says something narrower and partly wrong
+(true of `.wat`, false of `.wat.bad`); corroboration I did not check was used to upgrade a guess into
+a structural claim.
 
 ### ⛔ D8 — NEW, AND IT HAS BEEN DRIVEN SINCE 2026-08-30 WITH NO ROW TO ITS NAME
 

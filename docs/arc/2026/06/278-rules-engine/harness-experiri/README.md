@@ -122,8 +122,17 @@ Procedure:
 4. Re-run: GREEN, with the calibration still showing mixed outcomes.
 5. Run the full floor before commit.
 
-The `.wat` repros live here rather than in `wat-scripts/` deliberately: they are programs that
-must FAIL, and `tests/lint/wat_scripts_fixes_load.rs` parses and type-checks every `.wat` under
-that tree. Putting them there would redden a gate for being correct about being wrong.
+The `.wat` repros live here because they are **arc record** — the evidence a cast produced — not
+because `wat-scripts/` has no home for a failing program.
+
+⚠ **An earlier version of this paragraph said putting them under `wat-scripts/` "would redden a gate
+for being correct about being wrong." That reason is over-broad.** `wat_scripts_fixes_load.rs` globs
+`*.wat`, and **`foo.wat.bad` does not match `*.wat`** — a must-fail fixture is invisible to that gate
+by construction. The repo already carries **271 `.wat.bad` fixtures and 361 `.edn` goldens**.
+
+**The convention, from the builder (2026-09-02):** `.wat.bad` is for tests that ensure a file fails
+correctly; `wat-scripts/scratch-pad/` is for throwaway used *while building*; and a test's fixtures
+are **adjacent `.wat` / `.edn` / `.wat.bad` files next to the test that drives them**. D5's cure
+followed exactly that — `tests/rete/probe_arc278_match_arm_body_bad.wat.bad` with its `.edn` golden.
 
 `exp-matrix.txt` and `then-matrix.txt` are the raw per-row drive results from the cast.
