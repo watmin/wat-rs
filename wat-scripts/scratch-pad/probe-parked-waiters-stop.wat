@@ -101,7 +101,7 @@
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:wat::query::mem-store/grant sh (:vb::pids pl))))
-          :record (:queue::queue::Record)
+          :record (:queue::queue::Record :cap 1024)
           :store-addr (:wat::query::mem-store::Handle/addr sh))
      parkers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:vb::parker::Handle])

@@ -45,6 +45,7 @@
       now-ns <- :wat::core::i64])
    (:wat::core::defenum :queue::Queue::SendResponse :wat::enum::Pure
      :Ok []
+     :Full [depth <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
@@ -100,7 +101,7 @@
 ;; ── service (holds a Store peer; init declares the GSI) ─────────────────────────
 (:wat::service::defservice :queue::queue
   :satisfies :queue::Queue
-  :durable   []
+  :durable   [cap <- :wat::core::i64]
   :ephemeral [store         <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
               take          <- [:wat::core::String :wat::core::i64 :wat::core::i64 :wat::core::i64 :-> (:wat::core::Vector :- [:queue::Envelope])]
               waiters       <- (:wat::core::PersistentVector :- [:queue::Waiter])
@@ -230,7 +231,19 @@
        [store (:queue::queue::State/store s)
         q      (:queue::Queue::SendRequest/queue req)
         now-ns (:queue::Queue::SendRequest/now-ns req)
-        t3     (:wat::time::epoch-nanos (:wat::time::now))
+        n0     (:wat::core::count (:queue::Queue::SendRequest/bodies req))
+        cap    (:queue::queue::Record/cap (:queue::queue::State/durable s))
+        depth  (:wat::i64::+ (:queue::queue::State/pending s)
+                 (:queue::queue::State/in-flight s))
+        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
+        sends  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])]
+       (:wat::core::if (:wat::i64::> (:wat::i64::+ depth n0) cap)
+         (:wat::service::Outcome::Continue s
+           (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Full depth cap)))
+           sends
+           none-alarms)
+         (:wat::core::let
+           [t3     (:wat::time::epoch-nanos (:wat::time::now))
         bodies (:wat::core::foldl
                  (:wat::core::fn
                    [acc <- (:wat::core::Vector :- [:wat::core::String])
@@ -384,7 +397,7 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "queue.send: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "queue.send: store peer closed" :wat::core::None :wat::core::None)))))
+           (:wat::kernel::assertion-failed! "queue.send: store peer closed" :wat::core::None :wat::core::None)))))))
 
    (receive [s ctx req]
      (:wat::core::let
@@ -686,6 +699,8 @@
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::SendResponse::Ok) nil)
+        ((:queue::Queue::SendResponse::Full _d _c)
+          (:wat::kernel::assertion-failed! "send Full" :wat::core::None :wat::core::None))
         (_ (:wat::kernel::assertion-failed! "send not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "send: recv failed" :wat::core::None :wat::core::None))))
 
@@ -820,7 +835,7 @@
   -> :wat::core::String
   (:wat::core::let
     [qh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record) :store-addr store-addr)
+           :record (:queue::queue::Record :cap 1024) :store-addr store-addr)
      q  (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
      vis 100
@@ -860,7 +875,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record)
+            :record (:queue::queue::Record :cap 1024)
             :store-addr (:wat::query::mem-store::Handle/addr msh))
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
@@ -880,7 +895,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record)
+            :record (:queue::queue::Record :cap 1024)
             :store-addr (:wat::query::mem-store::Handle/addr msh))
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
@@ -898,7 +913,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record)
+            :record (:queue::queue::Record :cap 1024)
             :store-addr (:wat::query::mem-store::Handle/addr msh))
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      c   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
@@ -920,7 +935,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record)
+            :record (:queue::queue::Record :cap 1024)
             :store-addr (:wat::query::mem-store::Handle/addr msh))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
@@ -940,7 +955,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record)
+            :record (:queue::queue::Record :cap 1024)
             :store-addr (:wat::query::mem-store::Handle/addr msh))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      _   (:user::nap-ms 20)
@@ -954,7 +969,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record)
+            :record (:queue::queue::Record :cap 1024)
             :store-addr (:wat::query::mem-store::Handle/addr msh))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000

@@ -36,7 +36,10 @@
 (:wat::service::defservice :fanout::adapter
   :satisfies :demo::Sub
   :durable   [queue-name <- :wat::core::String]
-  :ephemeral [q <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]
+  :ephemeral [q <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
+              pending-msgs <- (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::String])])
+              pending-n    <- :wat::core::i64
+              pending-conn <- :wat::core::i64]
   :peers     [:queue::Queue]
   :init (:wat::core::fn
           [record     <- :fanout::adapter::Record
@@ -50,20 +53,87 @@
                  ((:wat::kernel::ConnectOutcome::Rejected c)
                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
                  ((:wat::kernel::ConnectOutcome::Failed c)
-                   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+                   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+            :pending-msgs :wat::core::None
+            :pending-n 0
+            :pending-conn 0))
   :impls
   [(deliver [s ctx req]
      (:wat::core::let
        [name (:fanout::adapter::Record/queue-name (:fanout::adapter::State/durable s))
-        body0 (:demo::Sub::DeliverRequest/msg req)
+        msgs0 (:demo::Sub::DeliverRequest/msgs req)
         now  (:wat::time::epoch-nanos (:wat::time::now))
-        body (:wat::core::format "{b}|{t}" :b body0 :t now)
+        msgs (:wat::core::foldl
+               (:wat::core::fn
+                 [acc <- (:wat::core::Vector :- [:wat::core::String])
+                  b   <- :wat::core::String]
+                 -> (:wat::core::Vector :- [:wat::core::String])
+                 (:wat::core::conj acc (:wat::core::format "{b}|{t}" :b b :t now)))
+               (:wat::core::Vector :- [:wat::core::String])
+               msgs0)
+        n    (:wat::core::count msgs)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])])
+        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])
         sr   (:queue::Queue/send (:fanout::adapter::State/q s)
-               (:queue::Queue::SendRequest :queue name :body body :now-ns now))]
+               (:queue::Queue::SendRequest :queue name :bodies msgs :now-ns now))]
        (:wat::core::match sr
-         ((:wat::kernel::RecvOutcome::Message _r)
-           (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])))
-         (_ (:wat::service::Outcome::Continue s (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok body))) (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])]))))))])
+         ((:wat::kernel::RecvOutcome::Message r)
+           (:wat::core::match r
+             ((:queue::Queue::SendResponse::Ok)
+               (:wat::service::Outcome::Continue s
+                 (:wat::core::Some (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok n)))
+                 none-sends none-alarms))
+             ((:queue::Queue::SendResponse::Full _d _c)
+               (:wat::core::let
+                 [s' (:fanout::adapter::State
+                       :durable (:fanout::adapter::State/durable s)
+                       :q (:fanout::adapter::State/q s)
+                       :pending-msgs (:wat::core::Some msgs)
+                       :pending-n n
+                       :pending-conn (:wat::service::Invocation/conn-id ctx))]
+                 (:wat::service::Outcome::Continue s'
+                   :wat::core::None
+                   none-sends
+                   [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op (:fanout::adapter::Op::-Retry))])))
+             (_ (:wat::kernel::assertion-failed! "adapter: send not Ok/Full" :wat::core::None :wat::core::None))))
+         (_ (:wat::kernel::assertion-failed! "adapter: send recv failed" :wat::core::None :wat::core::None)))))
+   (-retry [s ctx]
+     (:wat::core::match (:fanout::adapter::State/pending-msgs s)
+       (:wat::core::None
+         (:wat::service::SelfOutcome::Continue s
+           (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])])
+           (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])))
+       ((:wat::core::Some msgs)
+         (:wat::core::let
+           [name (:fanout::adapter::Record/queue-name (:fanout::adapter::State/durable s))
+            now  (:wat::time::epoch-nanos (:wat::time::now))
+            n    (:fanout::adapter::State/pending-n s)
+            conn (:fanout::adapter::State/pending-conn s)
+            none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Sub::Reply])])
+            none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::adapter::Op])])
+            sr   (:queue::Queue/send (:fanout::adapter::State/q s)
+                   (:queue::Queue::SendRequest :queue name :bodies msgs :now-ns now))]
+           (:wat::core::match sr
+             ((:wat::kernel::RecvOutcome::Message r)
+               (:wat::core::match r
+                 ((:queue::Queue::SendResponse::Ok)
+                   (:wat::core::let
+                     [s' (:fanout::adapter::State
+                           :durable (:fanout::adapter::State/durable s)
+                           :q (:fanout::adapter::State/q s)
+                           :pending-msgs :wat::core::None
+                           :pending-n 0
+                           :pending-conn 0)]
+                     (:wat::service::SelfOutcome::Continue s'
+                       [(:wat::service::Directed :conn-id conn
+                          :reply (:demo::Sub::Reply::Deliver (:demo::Sub::DeliverResponse::Ok n)))]
+                       none-alarms)))
+                 ((:queue::Queue::SendResponse::Full _d _c)
+                   (:wat::service::SelfOutcome::Continue s
+                     none-sends
+                     [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op (:fanout::adapter::Op::-Retry))]))
+                 (_ (:wat::kernel::assertion-failed! "adapter -retry: send not Ok/Full" :wat::core::None :wat::core::None))))
+             (_ (:wat::kernel::assertion-failed! "adapter -retry: send recv failed" :wat::core::None :wat::core::None)))))))])
 
 ;; ── worker: self-scheduling process that pulls from ONE queue ────────────────
 (:wat::core::defsurface :fanout::Worker :nature :wat::kernel::Peer
@@ -606,7 +676,7 @@
                         :locus (:wat::spawn::process/post-spawn
                                  (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                                    (:wat::query::sqlite-store/grant sh (:fanout::pids pl))))
-                        :record (:queue::queue::Record)
+                        :record (:queue::queue::Record :cap 32)
                         :store-addr (:wat::query::sqlite-store::Handle/addr sh))]
                   (:wat::core::conj acc h)))
               (:wat::core::Vector :- [:queue::queue::Handle])
@@ -775,7 +845,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
-           :record (:queue::queue::Record)
+           :record (:queue::queue::Record :cap 1024)
            :store-addr (:wat::query::sqlite-store::Handle/addr msh))
      hh  (:fanout::held-worker/start
            :locus (:wat::spawn::process/post-spawn
@@ -792,7 +862,7 @@
                 [now (:wat::time::epoch-nanos (:wat::time::now))]
                 (:wat::core::match
                   (:queue::Queue/send q
-                    (:queue::Queue::SendRequest :queue "q0" :body (:wat::core::str i) :now-ns now))
+                    (:queue::Queue::SendRequest :queue "q0" :bodies (:wat::core::Vector :- [:wat::core::String] (:wat::core::str i)) :now-ns now))
                   ((:wat::kernel::RecvOutcome::Message _r) nil)
                   (_ nil))))
             nil
@@ -822,7 +892,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
-           :record (:queue::queue::Record)
+           :record (:queue::queue::Record :cap 1024)
            :store-addr (:wat::query::sqlite-store::Handle/addr msh))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
@@ -850,7 +920,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
-           :record (:queue::queue::Record)
+           :record (:queue::queue::Record :cap 1024)
            :store-addr (:wat::query::sqlite-store::Handle/addr msh))
      ah  (:fanout::adapter/start
            :locus (:wat::spawn::process/post-spawn
