@@ -66,12 +66,37 @@ fn accum_matcher_op_census() {
         "compiled:calls is {calls}, not 80,200 — the compiled path ran a different number of \
          times for the same (200, 200) workload"
     );
+    // ⛔ THIS USED TO PIN `rows.len() == 10`, AND A BARE COUNT IS THE WRONG INSTRUMENT HERE. It
+    // caps instrumentation downward — adding a counter anywhere in the fire path turns this test
+    // red while telling the reader nothing about WHICH counter moved
+    // ([[a-count-in-a-scorecard-bounds-the-executor]]), and it cannot see a swap (one counter
+    // gone, another arrived) at all. The NAMES are the claim the sentence was always making, so
+    // they are what is asserted; the length follows from them.
+    //
+    // `seed:batch-class-uniform` joined the set on 2026-09-02 with D7's class-uniform batching
+    // (`fire/pass/alpha.rs`): the occupancy batch and the activate path derive the same facts, so
+    // that decision is observable NOWHERE ELSE, and this world's two batched classes are its
+    // incidental witness. It is gated deliberately in
+    // `seed_batches_uniform_classes_and_defers_mixed_ones`.
+    let mut names: Vec<&str> = rows.iter().map(|(n, _)| *n).collect();
+    names.sort_unstable();
     assert_eq!(
-        rows.len(),
-        10,
-        "the operation census reported {} counters, not 10 — a counter appeared or vanished, so \
-         this census is no longer describing the same set of operations",
-        rows.len()
+        names,
+        [
+            "accum:index-builds",
+            "accum:index-elements",
+            "bind-card:ELEMENTS",
+            "compiled:calls",
+            "dbeta:alloc",
+            "dbeta:calls",
+            "dbeta:multi",
+            "dbeta:tokens",
+            "elem-card:0",
+            "prod:derivations",
+            "seed:batch-class-uniform",
+        ],
+        "the operation census is no longer describing the same set of operations — a counter \
+         appeared, vanished, or was renamed. Compare the two lists rather than a total"
     );
 
     let mut out = String::from("\naccum matcher ops — G=200 W=200 (40,200 facts)\n");

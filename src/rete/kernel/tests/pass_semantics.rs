@@ -624,3 +624,135 @@ fn hash_join_no_cross_loc_leakage() {
         "joined tokens must be exactly the Oslo and Bergen same-loc pairs"
     );
 }
+
+// ── D7: the seed pass's class-uniform batching decision, read in BOTH directions ─────────────
+//
+// `alpha_seed` has two writers of `wm.alpha[aid]` — `alpha_activate_fact`'s push and the
+// occupancy batch's whole-entry `insert` — and every alpha node is filed under exactly ONE erased
+// class, so both writers reach the same `aid` whenever one class sends some facts down each path.
+// A PARAMETRIC record is such a class: `pack_i64_row` tests RUNTIME values, so `Box[i64]` packs
+// and `Box[String]` does not while both are the class `d7c::Box`. The cure is class-uniform
+// batching: a class batches only if EVERY one of its facts packed.
+//
+// ⛔ CORRECTNESS ALONE CANNOT SEE THAT DECISION. The batch and the activate path derive the same
+// facts — that is the point of the batch — so a "cure" that simply stopped batching everything
+// would turn the whole differential green while deleting the occupancy fast path.
+// `docs/arc/2026/06/278-rules-engine/strike-cure-alpha-double-write/EXPECTATIONS.md` names that as
+// the way this strike fails with every test passing. These two counters are the
+// only place the decision is observable, and this test reads both of them.
+//
+// The native/oracle differential over the same seam is
+// `tests/rete/probe_arc278_d7_parametric_erasure_differential.rs` — the census counters live
+// under `#[cfg(test)]` in the lib, so an integration test compiles against no-ops and cannot
+// stand in for this.
+const D7_ERASURE_WORLD: &str = r#"
+(:wat::core::defrecord :d7c::Box :- [T] [k <- :wat::core::i64  v <- :T])
+(:wat::core::defrecord :d7c::Plain    [k <- :wat::core::i64])
+(:wat::core::defrecord :d7c::Hit      [k <- :wat::core::i64])
+(:wat::core::defrecord :d7c::PlainHit [k <- :wat::core::i64])
+
+(:wat::rete::defrule :d7c::r-box
+  :when [(:d7c::Box (?k <- :k) (?v <- :v))] :then [(:d7c::Hit ?k)])
+(:wat::rete::defrule :d7c::r-plain
+  :when [(:d7c::Plain (?k <- :k))] :then [(:d7c::PlainHit ?k)])
+
+(:wat::rete::defquery :d7c::q :params [] :when [(?fact <- :d7c::Hit)])
+
+(:wat::core::defn :d7c::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
+
+(:wat::core::defn :d7c::fire
+  [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])] -> :wat::rete::Session
+  (:wat::core::let
+    [s0 (:wat::core::match (:wat::rete::compile-all
+           (:wat::core::PersistentVector (:d7c::r-box) (:d7c::r-plain))
+           (:wat::core::PersistentVector (:d7c::q)))
+           ((:wat::rete::CompileOutcome::Compiled __s) __s)
+           ((:wat::rete::CompileOutcome::MayNotTerminate __r __f)
+             (:wat::kernel::assertion-failed! "compile" :wat::core::None :wat::core::None)))
+     s1 (:wat::core::match (:wat::rete::insert-all s0 facts)
+           ((:wat::rete::InsertOutcome::Inserted __s) __s)
+           ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __l __u __c)
+             (:wat::kernel::assertion-failed! "insert" :wat::core::None :wat::core::None)))]
+    (:wat::core::match (:wat::rete::fire-rules s1)
+      ((:wat::rete::FireOutcome::Fired __f) __f)
+      ((:wat::rete::FireOutcome::MemoryCeilingExceeded __l __u __r)
+        (:wat::kernel::assertion-failed! "ceiling" :wat::core::None :wat::core::None))
+      ((:wat::rete::FireOutcome::RoundCapExceeded __c __s)
+        (:wat::kernel::assertion-failed! "cap" :wat::core::None :wat::core::None)))))
+
+;; Every fact of every class packs: both classes must take the occupancy batch.
+(:wat::core::defn :d7c::all-uniform [] -> :wat::rete::Session
+  (:d7c::fire (:wat::core::PersistentVector
+    (:d7c::as-record (:d7c::Box :k 0 :v 100))
+    (:d7c::as-record (:d7c::Box :k 1 :v 150))
+    (:d7c::as-record (:d7c::Box :k 2 :v 200))
+    (:d7c::as-record (:d7c::Plain :k 0))
+    (:d7c::as-record (:d7c::Plain :k 1)))))
+
+;; `Box` is MIXED (one String filler) and must forfeit the batch for all three of its facts;
+;; `Plain` is untouched and must keep it.
+(:wat::core::defn :d7c::box-mixed [] -> :wat::rete::Session
+  (:d7c::fire (:wat::core::PersistentVector
+    (:d7c::as-record (:d7c::Box :k 0 :v 100))
+    (:d7c::as-record (:d7c::Box :k 1 :v "not-an-i64"))
+    (:d7c::as-record (:d7c::Box :k 2 :v 200))
+    (:d7c::as-record (:d7c::Plain :k 0))
+    (:d7c::as-record (:d7c::Plain :k 1)))))
+"#;
+
+fn seed_counts(world: &crate::freeze::FrozenWorld, entry: &str) -> (u64, u64, u64) {
+    let (_fired, rows) = super::with_count_census(|| eval_in(world, entry));
+    let get = |name: &str| {
+        rows.iter()
+            .find(|(n, _)| *n == name)
+            .map(|&(_, v)| v)
+            .unwrap_or(0)
+    };
+    (
+        get("seed:batch-class-uniform"),
+        get("seed:batch-class-mixed"),
+        get("seed:mixed-class-activate"),
+    )
+}
+
+/// The class-uniform decision is READ, not merely present — and it is read both ways.
+#[test]
+fn seed_batches_uniform_classes_and_defers_mixed_ones() {
+    let world = freeze_src(D7_ERASURE_WORLD);
+
+    // ── direction 1: nothing mixed → every leaf class batches ───────────────────────────────
+    let (uniform, mixed, activated) = seed_counts(&world, "(:d7c::all-uniform)");
+    assert_eq!(
+        mixed, 0,
+        "all-uniform world: no class may forfeit the batch, but {mixed} did"
+    );
+    assert_eq!(
+        activated, 0,
+        "all-uniform world: the deferred-activate loop must not run, but it activated {activated} \
+         fact(s)"
+    );
+    assert_eq!(
+        uniform, 2,
+        "all-uniform world: BOTH d7c::Box and d7c::Plain must take the occupancy batch; only \
+         {uniform} did. A cure that narrows batching to nothing satisfies every correctness gate \
+         in this arc while deleting the fast path — this assertion is what refuses it."
+    );
+
+    // ── direction 2: one mixed class, one uniform, in the SAME pass ─────────────────────────
+    let (uniform, mixed, activated) = seed_counts(&world, "(:d7c::box-mixed)");
+    assert_eq!(
+        mixed, 1,
+        "box-mixed world: d7c::Box holds one String filler and must forfeit the batch; \
+         {mixed} class(es) did"
+    );
+    assert_eq!(
+        activated, 3,
+        "box-mixed world: ALL THREE Box facts must take the activate path — batching the two \
+         that packed is the double-write that dropped a derived fact; {activated} were activated"
+    );
+    assert_eq!(
+        uniform, 1,
+        "box-mixed world: d7c::Plain is untouched by its neighbour's erasure and must still \
+         batch; {uniform} class(es) did. Class-uniformity is per CLASS, not per session"
+    );
+}
