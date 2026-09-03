@@ -255,36 +255,23 @@ this is structural"* **without reading the paragraph**. It says something narrow
 (true of `.wat`, false of `.wat.bad`); corroboration I did not check was used to upgrade a guess into
 a structural claim.
 
-### ⛔ D8 — NEW, AND IT HAS BEEN DRIVEN SINCE 2026-08-30 WITH NO ROW TO ITS NAME
+### ~~D8~~ ⛔ WITHDRAWN — IT WAS CURED TWO DAYS BEFORE I ROWED IT
 
-**`PersistentVector/length` is UNREACHABLE as an accumulator head**, and fires in all three other
-declared positions. `wat/rete/compile.wat:597` admits the acc-form on *pure ∧ deterministic ∧ total ∧
-`primitive?`* — and `primitive?` IS *"has a `RETE_OPS` row"*, so every row passes by construction.
-`expr_ir/mod.rs:947`'s `lower_named_rete_fn` then resolves through `sym.get(head)`, the **USER-function
-table**, with no `rete_op_for` branch — while its sibling `lower_list` has one and says so in a
-comment. The raise reads `unknown rete-defn` about a minted row of the one table.
+Rowed 2026-09-02 as *"a driven L1 with no row to its name … it sat driven, reproduced and unrowed
+for three days, which is precisely how a finding dies."* **Withdrawn the same day. It had been fixed
+on 2026-08-31 by `17fc5fb3e`, "the fence and the executor share one head-space".**
 
-**Repro, banked and paired:** `harness-experiri/experiri-acc-head.wat` refuses;
-`experiri-acc-wrapped.wat` — the same op behind a one-line user `defn`, same position — prints
-`"fired"`.
+Driven before withdrawing — **both repros now print `"fired"`**, including `experiri-acc-head.wat`,
+the one the harness README says refuses. `expr_ir/mod.rs:972` now opens with
+`if let Some(op) = rete_op_index(head)`, the minted-row ladder, carrying its own driven evidence and
+its rejected alternative (tightening the fence, refused because it would delete a working
+capability).
 
-⛔ **THE CLASS: any site that admits by one registry and dispatches by another.**
-`holon_rete_ops_have_opexec` gates exactly one such pair. **This is the second, and it is ungated.**
-
-⚠ Found by the first real `experiri` cast on 2026-08-30 and rescued from `/tmp` at the builder's
-word. It has sat driven, reproduced and unrowed for three days — which is precisely how a finding
-dies. Rowed 2026-09-02.
-
-
-| id | site | what | found by |
-|---|---|---|---|
-| ~~**D1**~~ ✅ `2733b9bd9` + residual `f22704f1f` | `validate/typing.rs:231` | D1 made the misspelled variant REFUSE; the refusal then **named the wrong thing** — `UnknownField`, *"has no field `:evt::G::Hii`; available fields: [k, grade]"*, pointing the author at FIELDS for a VARIANT typo. Driven: core has the same blind spot (*"expects keyword; got `:evt::G`"*, `remedies []`), so **agreement with core was the wrong target** — naming the mistake is. | ✅ `#wat.rete/UnknownEnumVariant` — *"`:evt::G` has no variant `Hii`; available variants: [Hi, Lo]"*. `keyword_constant_segment`'s `_ => "keyword"` was the **fifth catch-all** in this arc; now a named three-state `KeywordConstant`. ⛔ **My own sketch would have shipped a false message** — the guard sat after the arity-0 arm and inherited the TAGGED case, emitting *"has no variant `Hi`; available: [Hi]"*. Split on the discriminator, not a symptom. ⚠ **Bare tagged variant used as a value keeps the wrong remedy** — a third mistake, cut and PINNED with a golden. See `strike-variant-diagnostic/`. |
-| **D2** | `hash_join.rs:296` | `right_idx[J]` has two writers, only one maintains `right_idx_n[J]`. On `filter → HashJoin(a) → HashJoin(b)`, round 2 pushes without bumping, 3.7 re-appends the same element → doubled buckets, duplicate tokens. `seen_insert` hides it in the fact set; surfaces as doubled `:accumulate` counts and query rows | `sequi` |
-| ~~**D3**~~ ✅ `057f9d494` | `expr_ir/eval.rs:405` | **a silent WRONG ANSWER through the public surface**, driven: the fixture fence answers 1 hit; two args for one param at slot 1 → ACCEPTED, **0 hits** (the surplus overwrote the declared parameter, since it is written into the slot whose NUMBER equals its POSITION). Past the frame → silently dropped (2 hits). Missing → `unbound symbol: slot 1`. Class A a fifth time: `lower_expr` builds `CallUser` from `lower_args` + `lower_rete_defn` without comparing them. | ✅ refused at `exec_program_on` — the one place args and params meet, downstream of the wire, the lowering and all four HOF heads — and the surplus branch **deleted**, so the loop is total by construction. **A sixth import wall affirmatively cut**: it would turn every probe green while the executor still held no invariant. 5 arms + 2 controls. ⚠ the anti-vacuity control is load-bearing: refusing EVERY call leaves the untampered-fixture control green. See `strike-calluser-arity/`. |
-| ~~**D4**~~ ✅ `073546093` (code, swept) + rune | `expr_ir/eval.rs:85-126` | `EXEC_SP` is inert — the `RefMut` spans `f`, so every nested frame takes the `Err` arm and `start` is always 0. Doc holds BOTH claims: `:96` *"nested calls stack"* (false) and `:99` *"the `Err` arm is a correctness path"* (true). A panic through `f` strands `len` slots — driven **cumulative and unbounded**, (8,8) → (16,16) → (24,24) — no `Drop` guard | ✅ **the cursor is DELETED, not guarded** — a `SpGuard` would restore a `start` that is *provably* 0, so it would guard a constant. Deletion makes the strand **structurally impossible** rather than cured, dissolves the TLS-teardown trap (no `Drop` at all) and is *less* hot-path work. ⭐ **Licence measured, not argued:** cursor + correct guard + `assert_eq!(start, 0)` held **1508/1508**, and flipping it to `999` REDs — the assert runs, `left: 0`. ⭐ **The single-panic trap was real:** under mutation 1 the probe REDs at **round 2**, not round 1 — one panic passes on the bug. ⛔ **My brief cited the wrong file for `ArmLease`** (`kernel/fire/rules.rs`, which has zero of it; it is `kernel/arm.rs:829`). See `strike-exec-sp/SCORE.md`. |
-| ~~**D5**~~ ✅ | `validate/mod.rs:774` (⚠ the row said `:747`) | `match` refused in `:then`, byte-identical expression accepted in the `where` fence. `walk_nested_constructors` cannot tell a match ARM from a CALL; survives only by arity coincidence. | ✅ the walker now recurses into the match **scrutinee** and each arm's **BODY**, never an arm's **PATTERN**, keyed through `resolve_core_name` so BOTH spellings are covered. ⭐ **The enumeration came first and disconfirmed the wider class**: `let`/`fn` bind in **Vectors** so the walker returns before reaching them, and `cond` clauses have a call form at `items[0]` — `match` is the only List position where a bare variant keyword means something other than a constructor. One form, not three. ⛔ **My three mutations all passed the naive rete-only key**; the rider added a fourth that reddens it. The banked repro now LOADS and its `red-by-design` rune is retired — which returns it to the docs load-check, and that IS the regression gate. See `strike-match-arm-is-not-a-call/SCORE.md`. |
-| ~~**D6**~~ ✅ | `step_payload.rs:139-155` (⚠ the row said `:143`) | explain payload silently DROPS every keyword/enum-operand constraint (`sym = None`, and `value_to_ast_literal` has no `Value::Enum` arm), while its doc claims the constraint list is complete. | ✅ **driven first**: a rule with two constraints produced a payload with one. ⛔ **The row names two causes and only ONE fires** — `resolve_operand` with `sym: None`; `value_to_ast_literal`'s missing arm never executed, but was waiting one line behind. Both fixed; **mutation 2 (revert only the arm) REDs**, which is what proves a two-gate cure. Part 2 landed as a positional marker whose head is deliberately **not** a `RETE_OPS` row, so `constraints.length` always equals the condition's constraint count and an omission cannot be evaluated by mistake. ⛔ A third `continue` I briefed **could never fire** — `Constraint` has one guarded producer; deleted, with a bidirectional gate installed. See `strike-explain-drops-a-constraint/SCORE.md`. |
-| **D7** | `alpha.rs:85-98,129-132` | two writers of `wm.alpha[aid]` in one pass — one `push`, one `insert` (replace). Kept disjoint only by an index coincidence the same file's `_ =>` arm can break. Shape finding: not reached from the `insert` door | `struere` |
+⛔ **I rowed a cured defect from a cast report I never drove**, and rowed it *loudly* — the sentence
+about how a finding dies was itself the error. The harness README is a **dated record of one cast**,
+and I read it as a live work list. Its §2 happened to still be live (that became D5); its §1 was two
+days dead. **The tell was available and free: run the repro.** The README now carries a banner saying
+so.
 
 ### ⏭ D2 — DRIVEN 2026-08-31. The code asymmetry is REAL; no constructed input reaches it. **LATENT, not live.**
 

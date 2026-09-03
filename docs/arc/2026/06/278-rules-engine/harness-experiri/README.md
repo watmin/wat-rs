@@ -25,7 +25,19 @@ discriminates is a sweep that passes when it reaches nothing.
 
 ## What it proves
 
-Two L1s, both driven, both reproduced by the `.wat` files beside this README:
+Two L1s, both driven at the 2026-08-30 cast, both reproduced by the `.wat` files beside this README.
+
+> ⛔⛔ **BOTH ARE NOW CURED. THIS SECTION IS A DATED CAST RECORD, NOT A LIVE WORK LIST.** §1 was
+> fixed **2026-08-31** by `17fc5fb3e` ("the fence and the executor share one head-space"); §2 was
+> fixed **2026-09-02** by `ab606b671` (strike D5). Driven 2026-09-02: `experiri-acc-head.wat`,
+> `experiri-acc-wrapped.wat`, `experiri-then-match.wat` and `experiri-when-match.wat` **all four
+> print `"fired"` / `"loaded"`.**
+>
+> ⚠ The present tense below ("is UNREACHABLE", "refuses") is preserved as the record of what the
+> cast found. **It is false today.** An orchestrator read §1 on 2026-09-02, rowed it as a live
+> untracked finding — *"it sat driven, reproduced and unrowed for three days, which is precisely
+> how a finding dies"* — and never drove the repro. It had been fixed two days earlier. **Drive a
+> repro before rowing what a cast report claims.**
 
 1. **`PersistentVector/length` is UNREACHABLE as an accumulator head** and fires in all three
    other positions. `wat/rete/compile.wat:597` admits the acc-form on
