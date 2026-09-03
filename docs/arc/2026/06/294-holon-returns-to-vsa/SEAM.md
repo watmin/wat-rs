@@ -22,7 +22,12 @@
 ```
 floor ............ 5127/5127, 0 FAIL, 17 skipped, ~118s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-registry rows .... 490
+registry rows .... 515   ⛔ the 490 this line used to carry was WRONG, and so was every
+                         earlier reading of it: the census grepped for the SUBSTRING
+                         `wat_intrinsic("` and counted three PROSE PLACEHOLDERS as names —
+                         `<fqdn>`, `…`, and `:wat::holon::…` (an ellipsis that survives any
+                         "starts with `:`" filter). Anchor to the attribute SITE:
+                         `grep -rhoP '^\s*#\[wat_(special_form|intrinsic)\("\K[^"]+' src/`
 runtime.rs ....... 19,261   check.rs ....... 22,604   special_forms.rs ....... 379
 host ............. JohnDesktop · john · ~/work/holon/wat-rs
 ```
@@ -44,8 +49,10 @@ then we attack the hand lists."*
 ## ★★★ THE METER — and the finish line
 
 ```
-GAP_A 88 · GAP_B 106 · DEBT 95 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 20
-the whitelist experiment: 107 names still unvouchable (was 121) — 509 of 609 corpus files
+GAP_A 60 · GAP_B 78 · DEBT 95 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 20
+the whitelist experiment: 107 at last measurement — ⚠ NOT re-derived since 1b-i.
+28 of the 107 were registered by that stone, so the next run should read ~79 —
+that is a PREDICTION. Re-run the WORKLIST's four steps before quoting a number.
 ```
 
 ⚠ **DEBT GOING UP IS NOT A REGRESSION.** Registering a row with no `CheckEnv` scheme converts an
@@ -112,6 +119,26 @@ pushed on a diagnostic.
 - **The ratchets drive the next stone.** Four reds this session were gates demanding work I had not
   planned, by name.
 
+## ⛔ THE TWO NUMBER-SHAPED FAILURES, both caught by a rider on the same stone
+
+★★★ **A BAR YOU DERIVE LANDS; A BAR YOU ESTIMATE MISSES.** 1b-i's acceptance table had five
+rows. The three I derived from the rule — GAP_A 88→60, GAP_B 106→78, DEBT 95→95 — all landed
+EXACTLY. The two I estimated were both wrong:
+
+```
+floor "5127 → 5155"   I added 28. Registering a registry row mints no `#[test]` fn — the
+                      membership gates are single tests that iterate the registry internally.
+rows  "490 → 518"     My census grepped the SUBSTRING `wat_intrinsic("` and counted three PROSE
+                      PLACEHOLDERS as registered names: `<fqdn>`, `…`, and `:wat::holon::…` —
+                      an ellipsis in a doc comment that DEFEATS a "starts with `:`" filter.
+                      Anchored to the attribute SITE the answer is 515; the baseline was 487.
+```
+
+⛔ **ANCHOR A CENSUS TO THE SITE, NEVER THE SUBSTRING.** A doc comment that quotes the very
+construct you are counting is not a rare hazard — it is what good prose in this repo looks like,
+so the false positives scale with how well a module is documented. And the corrective came from
+the rider's live measurement, never from re-reading my own claim.
+
 ## ⛔ RULES THAT STILL COST TIME
 
 - ⛔ **THE ORCHESTRATOR RUNS THE FULL FLOOR. A RIDER'S TARGETED GREEN IS NOT A VERDICT.**
@@ -127,15 +154,30 @@ pushed on a diagnostic.
 ## ⬜ NEXT
 
 ```
-Phase 1b   the 54 ALIAS rows (Alias 35 · Form 9 · Redispatch 10) — a name and a target each,
-           no axis authoring, now that an alias inherits. 66 of the 107 live here.
-           ⛔ Fallback's 20 are NOT aliases: their `total: true` is the MACHINERY's, not the verb's.
-Phase 2b   the :undefined fallback machinery — Fallback's 20
-Phase 1a-ζ ann-form · do · stream::lazy
-Phase 3a   resolve asks the registry — kills is_reserved_prefix, THE FOUNDING TARGET.
-           ★ LOAD-BEARING, not tidying: it is the ONLY thing keeping the macro namespace
-             disjoint from the registry's (41 stdlib macros, 0 visible to the registry).
+✅ 1b-i    DONE (4e1d8e81d) — 29 OpClass::Alias rows. GAP_A −28, GAP_B −28, DEBT UNCHANGED.
+
+Phase 1b-ii  the 6 Form + 2 Redispatch rows whose target IS registered:
+             rete::core::{and or if let match fn} · rete::core::List · rete::holon::coincident?
+             ⚠ These have NO CheckEnv scheme by construction, so they TRADE GAP_B for DEBT
+               (GAP_B −7, DEBT +8). A different deliverable from 1b-i — say so in its own
+               acceptance row rather than reporting one number for two mechanisms.
+Phase 1b-iii the 17 BLOCKED rows. Gated on 11 core targets that are themselves GAP_B
+             population: = · not= · cond · first · PersistentVector · Vector · PersistentMap ·
+             Tuple · foldl · map · filter · reduce. Register those FIRST — it takes 11 off the
+             107 and unblocks 17 rete rows in the same motion.
+Phase 2b     the :undefined fallback machinery — Fallback's 20
+Phase 1a-ζ   ann-form · do · stream::lazy
+Phase 3a     resolve asks the registry — kills is_reserved_prefix, THE FOUNDING TARGET.
+             ★ LOAD-BEARING, not tidying: it is the ONLY thing keeping the macro namespace
+               disjoint from the registry's (41 stdlib macros, 0 visible to the registry).
 ```
+
+⛔ **1b WAS NEVER ONE STONE, AND THE LINE THAT SAID SO WAS MINE.** This SEAM used to read
+*"the 54 ALIAS rows — a name and a target each … 66 of the 107 live here."* Measured: 37 of the
+54 have a registered target; `no_dangling_or_chained_aliases` reds on the other 17. **You cannot
+alias to a name the registry cannot vouch for** — the RULING's forced order, third instance. And
+the WORKLIST had already written the warning I walked past: those core verbs *"need their own
+stones"*, and *"counting them as one number is how a plan gets written that cannot be executed."*
 
 ⚠ **Re-derive the 107 after each phase** — the procedure is in the WORKLIST. That number reaching 0
 licenses 3a.
