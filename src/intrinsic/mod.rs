@@ -617,6 +617,7 @@ mod stream;
 // nothing outside this module calls into it anymore.
 mod string;
 mod uuid;
+mod rand;
 mod vec;
 mod vector;
 mod witness;

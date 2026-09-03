@@ -18415,6 +18415,27 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Threaded PRNG + ambient wrapper. Distinct names: they sit in different
+    // purity classes (DESIGN-STONE-random-is-threaded.md). Both [lo, hi).
+    env.register(
+        ":wat::rand::int-from".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty(), i64_ty(), i64_ty()],
+            ret: TypeExpr::Tuple(vec![i64_ty(), i64_ty()]),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::rand::int".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty(), i64_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 220 slice 2 / Arc 221 Stone 221.2 — `:wat::core::char` typed primitive.
     // `char` is the only constructor; it takes a length-1 BMP String and
     // returns a `:wat::core::char`. The `\c` literal reader macro desugars to

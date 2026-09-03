@@ -252,7 +252,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // Pure but NON-deterministic: random. Not corpus-demanded for `total` (Uuid/v4 can never
     // reach a `where` fence today — it already fails the determinism conjunct — so DEFAULT-DENY
     // stands; it is trivially total in the absolute sense but that claim was never measured).
-    if head == ":wat::uuid::v4" {
+    if head == ":wat::uuid::v4" || head == ":wat::rand::int" {
         return Some(OpMeta { pure: true, deterministic: false, total: false });
     }
     // Keyed-collection ITERATION is pure and total but NOT deterministic — measured
@@ -663,6 +663,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::uuid::from-string"
             | ":wat::uuid::to-string"
             | ":wat::uuid::nil"
+            // Threaded PRNG — a pure function of (state, lo, hi). The ambient
+            // sibling `:wat::rand::int` is classified with uuid::v4 above
+            // (Pure, NOT Deterministic). Distinct names because they sit in
+            // distinct classes; see DESIGN-STONE-random-is-threaded.md.
+            | ":wat::rand::int-from"
             // Higher-order fold combinators — CONDITIONALLY pure∧det: the combinator itself is
             // referentially transparent + effect-free; its purity/determinism falls out of the
             // arg-recursion over its fn-argument (classify_expr recurses every arg, incl. the
@@ -1801,6 +1806,16 @@ mod classify_native_fn_tests {
         // Uuid/v4 — the one hand-documented pure-but-random op.
         assert!(classify_native_fn(":wat::uuid::v4", Axis::Pure).is_ok());
         assert!(classify_native_fn(":wat::uuid::v4", Axis::Deterministic).is_err());
+    }
+
+    #[test]
+    fn rand_int_and_int_from_classify_in_different_classes() {
+        // Row 6b — two verbs, two classes, two names. If both classify the
+        // same, one of them is wrong.
+        assert!(classify_native_fn(":wat::rand::int-from", Axis::Pure).is_ok());
+        assert!(classify_native_fn(":wat::rand::int-from", Axis::Deterministic).is_ok());
+        assert!(classify_native_fn(":wat::rand::int", Axis::Pure).is_ok());
+        assert!(classify_native_fn(":wat::rand::int", Axis::Deterministic).is_err());
     }
 }
 
