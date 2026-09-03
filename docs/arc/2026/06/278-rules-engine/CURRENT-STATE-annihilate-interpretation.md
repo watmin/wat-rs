@@ -9,8 +9,8 @@
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline d64cb888f..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat d64cb888f..HEAD --name-only
+git log --oneline de4ff4af9..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat de4ff4af9..HEAD --name-only
 ```
 
 **PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -71,15 +71,22 @@ instruments are the worse. Neither is done.**
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-**Floor at stamp: `5336 tests run: 5336 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+**Floor at stamp: `5345 tests run: 5345 passed, 21 skipped`, clippy rc=0, lints 210/210.**
 
-### ⛔⛔⛔ D7 IS LIVE AND UNCURED — THE NATIVE ENGINE DROPS A DERIVED FACT
+### ⭐ D7 CURED — AND C16, THE GATE THAT SAT GREEN THROUGH IT
 
-**`native=2 oracle=3`**, driven and re-driven. Three facts in, three derived facts expected; the
-native engine produces **two** while `fire-rules$oracle` on the identical staged session produces
-three. **A derived fact is lost with no diagnostic.** Repro:
-`wat-scripts/scratch-pad/d7-two-writers-one-alpha.wat`. **There is no cure — STOP-1 fired and the
-rider correctly stopped at the finding.**
+**`native=2 oracle=3` → `native=3 oracle=3`.** The native engine no longer drops a derived fact.
+
+**The cure is class-uniform batching**: a class batches only if EVERY fact of it packed; otherwise
+all of them activate in fact order. One writer per `aid`, ordering preserved by construction.
+Chosen over declared-schema packability — which needs a `TypeEnv` in `FireSession` **and is strictly
+more conservative** — and over a non-replacing writer 2, since `d_alpha` holds indices and appending
+reorders. **+1.9% median** (27 samples, overlapping quartiles) against a batch worth **30.8%**.
+
+⭐ **And C16 is closed with it.** The occupancy differential filtered `predicted` by the same
+predicate that decides batch membership, so it compared writer 2's output against writer 2's output.
+Driven: filter present + D7 live → `extra=[]`; **filter removed + D7 live → `extra=1`.** The gate
+that was blind to a fact-dropping bug now names it.
 
 **The trigger is parametric records.** `(:d7::Box :- [T] [k <- i64  v <- :T])` erases its type
 argument into **one runtime class**, so `Box[i64]` and `Box[String]` share a class whose instances
