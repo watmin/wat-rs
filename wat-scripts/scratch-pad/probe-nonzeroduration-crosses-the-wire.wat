@@ -28,7 +28,11 @@
      :UpTo [d <- :wat::time::NonZeroDuration]
      ;; THE CONTROL: does the OLD time type cross? If Duration also fails, this is a
      ;; pre-existing limit on every time type, not something Stone A left half-done.
-     :Measured [m <- :wat::time::Duration])
+     :Measured [m <- :wat::time::Duration]
+     ;; THE EXEMPLAR: Instant DOES cross, via EDN's native #inst
+     ;; (render.rs:4158 encode / :2138 decode). Duration next to it encodes to a bare
+     ;; OwnedValue::Integer (render.rs:4159-4160) and the type is ERASED.
+     :At [t <- :wat::time::Instant])
    (:wat::core::defrecord :wp::Echo::AskRequest [w <- :wp::Echo::Wait])
    (:wat::core::defenum :wp::Echo::AskResponse :wat::enum::Pure
      :Ok [ns <- :wat::core::i64]
@@ -54,7 +58,8 @@
              (:wat::core::match (:wp::Echo::AskRequest/w req)
                ((:wp::Echo::Wait::Immediate) 0)
                ((:wp::Echo::Wait::UpTo d) (:wat::time::nanoseconds d))
-               ((:wp::Echo::Wait::Measured m) (:wat::time::nanoseconds m))))))
+               ((:wp::Echo::Wait::Measured m) (:wat::time::nanoseconds m))
+               ((:wp::Echo::Wait::At t) (:wat::time::epoch-nanos t))))))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:wp::Echo::Reply])])
        (:wat::core::Vector :- [(:wat::service::Alarm :- [:wp::echo::Op])])))])
 
@@ -86,12 +91,14 @@
      a (:wp::ask p (:wp::Echo::Wait::Immediate))
      b (:wp::ask p (:wp::Echo::Wait::UpTo (:wat::time::Millisecond 250)))
      c (:wp::ask p (:wp::Echo::Wait::Measured
-          (:wat::time::- (:wat::time::at 2000000) (:wat::time::at 1000000))))]
+          (:wat::time::- (:wat::time::at 2000000) (:wat::time::at 1000000))))
+     d (:wp::ask p (:wp::Echo::Wait::At (:wat::time::at 1000000)))]
     (:wat::kernel::println
-      (:wat::core::format "immediate=[{a}];upto=[{b}];measured-CONTROL=[{c}];verdict={r}"
+      (:wat::core::format "immediate=[{a}];upto=[{b}];duration-CONTROL=[{c}];instant-EXEMPLAR=[{d}];verdict={r}"
         :a a
         :b b
         :c c
+        :d d
         :r (:wat::core::if (:wat::core::= b "ok:250000000")
              "NonZeroDuration-CROSSES-THE-WIRE"
              "NonZeroDuration-DOES-NOT-CROSS")))))
