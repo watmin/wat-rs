@@ -60,6 +60,52 @@ something, whose load-bearing call names a verb that does not exist — so it ha
 it says, and the whitelist is why nobody found out.** That is a sharper finding than "corpus
 rot," and it is `is_reserved_prefix`'s second indictment after the `>X` probe.
 
+---
+
+## ⛔ CORRECTED AFTER THE STONE RAN — I was wrong three times, and the truth is worse
+
+The rider did the git archaeology this design did not, and **all three of the paragraphs above
+are wrong in the same direction: these verbs are not names that never existed. They are names
+that were BUILT, USED, and then DELIBERATELY RETIRED — and nothing propagated the death.**
+
+**① `reduce-walk` existed and the bench WORKED.** Built `663e5daee` (2026-08-17); the bench was
+authored the next day (`4de24007f`) to measure it; **it produced a real number — `5.1×` — quoted
+verbatim in `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DESIGN-STONE-118.B6-native-foldl-over-seqable.md`,
+where it is the load-bearing justification for a standing ruling** (verified: that doc names this
+bench file as its source). `reduce-walk` was then deleted (`6c84ddf01`, same day, 118.B7) with
+`wat/seq.wat:311`'s comment *"A name dies in the stone that removes its last caller."*
+★ **But the bench WAS a caller — tracked, gated, type-checked.** The stone removed the last caller
+it knew about. The claim was never false; the artifact rotted the day its subject was retired.
+
+**② `process/grants` existed for about ten hours.** Built `36f3acbc8` (2026-07-08 11:03), deleted
+`bc472c7ce` (same day, 21:09). ★★★ **The probe was promoted into the tracked corpus the NEXT DAY**
+(`661a32216`, 2026-07-09) — already naming a retired verb — and it "froze clean" because the
+blanket accept type-checks it. **The promotion gate could not see that the probe's subject was
+already dead.** The grant mechanism moved twice more since; no rename can fix this probe, because
+its whole shape (grant info riding the locus argument) was superseded by a kwargs tail on
+`bracket/map`.
+
+**③ MY OWN CLAIM WAS FLATLY FALSE: the corpus DOES have a Tuple accessor.** `check.rs`'s
+`infer_positional_accessor` doc says it outright — *"Polymorphic over (Vector :- [T]) and tuple —
+both are index-addressed. Rank-1 HM can't express the union, so this is special-cased."*
+`(:wat::core::first t)` reads index 0 of a Tuple, and `wat/rete.wat:300` does exactly that on a
+live `(Tuple :- [Record i64])`. I searched for `tuple-*` and `Tuple/*` renderings, found none, and
+published **absence** — from a pattern that could never have matched the accessor, because the
+accessor is not tuple-shaped. `[[feedback_a_census_of_a_name_must_ask_every_rendering]]`, in a
+design written the same day I cited that memory.
+
+## ★★★ THE REAL CLASS, and it is `is_reserved_prefix`'s THIRD and sharpest indictment
+
+**Neither retired name is on the `RETIREMENT_TABLE`** — verified for `reduce-walk`,
+`process/grants` and its successor `process/uses`. The substrate has retirement machinery (the
+table, `retired_name_justified`, the doctrine that a name dies with its last caller) and **none of
+it can fire for a `:wat::*` head, because the checker never validates one.**
+
+So the whitelist does not merely hide typos. **It defeats the retirement machinery**: a verb can
+be deleted while gated corpus files still call it, and every gate stays green. Phase 3a is not
+tidying a redundant authority — it is restoring the only mechanism that could have caught any of
+this.
+
 ## THE FOUR QUESTIONS — the disposition of the three, per option
 
 | option | Obvious? | Simple? | Honest? | Good UX? | verdict |

@@ -50,4 +50,4 @@
   -> (:wat::core::Option :- [:wat::rete::Support])
   (:wat::map::get s f))
 
-(:wat::core::println "probe-stone-2a-bracket-mechanics: loaded")
+(:wat::kernel::println "probe-stone-2a-bracket-mechanics: loaded")
