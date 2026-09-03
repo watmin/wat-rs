@@ -706,6 +706,38 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 impls: impls_by_fqdn.remove(submission.name).unwrap_or_default(),
             });
         }
+
+        // arc 255 Stone 2a-b — resolve every alias row's five axes from its target, AFTER both
+        // fold loops above have finished. NOT folded into either loop (STOP-2, the DESIGN's own
+        // warning): the target may register AFTER the alias — `inventory`'s iteration order is
+        // unspecified — so a lookup attempted DURING either fold above would sometimes find
+        // nothing yet. This must be a genuine second pass over the FINISHED map.
+        //
+        // First collect (alias name, target name) pairs under one immutable borrow of
+        // `r.entries`, then release it before looking up each target's (already final, since
+        // both folds above are done) axes and writing them onto the alias entry through a
+        // second, non-overlapping borrow. A target that does not resolve (dangling `@alias`) is
+        // left alone here — that is 2a's own gate's job
+        // (`reflect::alias_target_is_registered`/`check_alias_refs`, unchanged per STOP-4); this
+        // pass only copies axes when the target actually exists, so a dangling alias's axes stay
+        // at the parsed placeholder rather than this pass inventing an answer.
+        let alias_targets: Vec<(&'static str, &'static str)> =
+            r.entries.values().filter_map(|e| e.alias_of.map(|target| (e.name, target))).collect();
+        for (alias_name, target_name) in alias_targets {
+            let target_axes = r
+                .entries
+                .get(target_name)
+                .map(|t| (t.purity, t.determinism, t.totality, t.expand_time, t.category));
+            let Some((purity, determinism, totality, expand_time, category)) = target_axes else { continue };
+            if let Some(alias_entry) = r.entries.get_mut(alias_name) {
+                alias_entry.purity = purity;
+                alias_entry.determinism = determinism;
+                alias_entry.totality = totality;
+                alias_entry.expand_time = expand_time;
+                alias_entry.category = category;
+            }
+        }
+
         r
     })
 }
@@ -1982,6 +2014,84 @@ mod tests {
             !super::reflect::alias_target_is_itself_aliased(":wat::i64::>", reg),
             "control: the witness's OWN target is a real handler, not itself an alias — the \
              chain check must not flag every registered name unconditionally."
+        );
+    }
+
+    /// Arc 255 Stone 2a-b — proves the fold-time axis RESOLUTION in `registry()` actually RAN,
+    /// not merely that an alias's axes happen to equal its target's by coincidence. This is
+    /// deliberately NOT the equality-gate the DESIGN disqualified ("a gate that compares two
+    /// tables is a measurement of the split, not a cure for it") — after this stone there is
+    /// only ONE declaration (the target's), so this checks that the COPY reached the alias
+    /// entry, never that two independent authors happened to agree.
+    ///
+    /// Non-vacuous (STOP-1's own warning, repeated here): asserts the corpus carries at least
+    /// one `alias_of` row — and names this stone's own witness among the rows it inspected —
+    /// before trusting the loop below to have proven anything.
+    #[test]
+    fn alias_axes_are_resolved_from_their_target() {
+        let reg = super::registry();
+        let alias_rows: Vec<_> = reg.all_entries().filter(|e| e.alias_of.is_some()).collect();
+        assert!(
+            !alias_rows.is_empty(),
+            "non-vacuity precondition failed: no `alias_of` row found in the corpus — a loop \
+             over zero rows would prove nothing about whether resolution ran."
+        );
+        let mut inspected: Vec<&str> = Vec::new();
+        for entry in &alias_rows {
+            // Dangling targets are `no_dangling_or_chained_aliases`'s job (STOP-4, unchanged) —
+            // this gate assumes that one already passed and a target row exists to compare
+            // against; if it does not, that is the more specific failure to fix first.
+            let target_name = entry.alias_of.expect("filtered on alias_of.is_some() above");
+            let target = reg.lookup_entry(target_name).unwrap_or_else(|| {
+                panic!(
+                    "`{}`'s @alias target `{}` is not a registered row — fix \
+                     `no_dangling_or_chained_aliases` first; this gate assumes a resolvable target",
+                    entry.name, target_name
+                )
+            });
+            inspected.push(entry.name);
+            assert_eq!(
+                entry.purity, target.purity,
+                "`{}`'s @Purity did not follow its target `{}`'s — the fold-time resolution \
+                 pass did not run (or the axes were never copied)",
+                entry.name, target_name
+            );
+            assert_eq!(
+                entry.determinism, target.determinism,
+                "`{}`'s @Determinism did not follow its target `{}`'s",
+                entry.name, target_name
+            );
+            assert_eq!(
+                entry.totality, target.totality,
+                "`{}`'s @Totality did not follow its target `{}`'s — the exact contradiction \
+                 this stone exists to remove",
+                entry.name, target_name
+            );
+            assert_eq!(
+                entry.expand_time, target.expand_time,
+                "`{}`'s @ExpandTime did not follow its target `{}`'s",
+                entry.name, target_name
+            );
+            assert_eq!(
+                entry.category, target.category,
+                "`{}`'s @Category did not follow its target `{}`'s — the exact contradiction \
+                 this stone exists to remove",
+                entry.name, target_name
+            );
+        }
+        // ⚠ The witness name is bound to a `const` rather than written inline, and it is not a
+        // style choice: the two lints that guard this line want OPPOSITE spellings of it.
+        // `tests/lint/no_loose_string_assert.rs` scans by line and cannot tell
+        // `Vec::contains(&"literal")` from the `str::contains("literal")` it bans; clippy's
+        // `manual_contains` demands exactly that `Vec::contains` form over `iter().any()`.
+        // A named const satisfies both — clippy sees the `contains`, the line-scanner sees no
+        // string literal. `[[feedback_a_guard_drawn_too_tight_makes_the_honest_path_noncompliant]]`
+        const WITNESS: &str = ":wat::rete::i64::>";
+        assert!(
+            inspected.contains(&WITNESS),
+            "non-vacuity: expected this stone's own witness `{WITNESS}` among the \
+             inspected rows, found {:?}",
+            inspected
         );
     }
 

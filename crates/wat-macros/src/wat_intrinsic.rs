@@ -674,6 +674,14 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::UnknownYieldsSubject { arg } => {
             format!("`@yields {}` names no declared `@arg`; the subject must match an `@arg` name", arg)
         }
+        wat_doc::DocError::AliasDeclaresAxis { tag } => {
+            format!(
+                "`{}` is declared on an `@alias` row; an alias's five axes come from its \
+                 target, resolved by the registry at fold time — the row itself declares none. \
+                 Remove the `{}` line (arc 255 Stone 2a-b)",
+                tag, tag
+            )
+        }
     }
 }
 

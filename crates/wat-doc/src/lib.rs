@@ -107,7 +107,30 @@ const PURITY_LEGAL_VALUES: &str = "value must be one of: Pure, Effectful, Preser
     ":wat::runtime::Category"
 );
 
-
+/// arc 255 Stone 2a-b — the five axis fields on [`DocComment`]/[`DocSpecialForm`] are concrete
+/// enums, not `Option`, but an alias row declares NONE of them (the registry derives them from
+/// the target at fold time — `src/intrinsic/mod.rs`'s `registry()`, the second pass over the
+/// finished map). These five constants are what `parse`/`parse_special_form`/`from_metadata`
+/// hand back for an alias row in the gap between "parsed" and "resolved".
+///
+/// They are NEVER authored (declaring an axis on an alias row is refused —
+/// [`DocError::AliasDeclaresAxis`]) and NEVER trusted as ground truth by any reader: every
+/// consumer reads through `IntrinsicEntry`/`registry()`, and the fold-time resolution pass
+/// overwrites an alias entry's axes before any lookup can observe these values. Fixed and
+/// arbitrary, not "guessed" from the target — reading the target HERE would need registry
+/// access this crate deliberately does not have (this file's own header: "no signature
+/// knowledge, no registry"). Chosen to be implausible defaults for a REAL row (not `Pure`/
+/// `Deterministic`/measured-`Total`/measured-`Legal`/an ordinary doing-category) precisely so a
+/// resolution bug that silently skips a row is machine-detectable: the step-4 gate
+/// (`src/intrinsic/mod.rs`'s `alias_axes_are_resolved_from_their_target`) asserts an alias
+/// entry's axes equal its target's, and a row whose resolution never ran would still be sitting
+/// at THESE exact values — very unlikely to coincide with any real target's, unlike a
+/// placeholder that happened to double as a common real answer.
+const ALIAS_PLACEHOLDER_PURITY: Purity = Purity::Unevaluated;
+const ALIAS_PLACEHOLDER_DETERMINISM: Determinism = Determinism::Preserving;
+const ALIAS_PLACEHOLDER_TOTALITY: Totality = Totality::Unreviewed;
+const ALIAS_PLACEHOLDER_EXPAND_TIME: ExpandTime = ExpandTime::Unreviewed;
+const ALIAS_PLACEHOLDER_CATEGORY: Category = Category::CheckGate;
 
 /// One parsed `@example` / `@example-norun` directive.
 ///
@@ -335,6 +358,17 @@ pub enum DocError {
     DuplicateYieldsSubject { arg: String },
     /// An `@yields` names an `@arg` that was never declared — a directive with no subject.
     UnknownYieldsSubject { arg: String },
+    /// arc 255 Stone 2a-b — an alias row (`@alias`/`:alias`) declared one of the five
+    /// closed-domain axis directives. An alias's axes are the TARGET's, resolved by the
+    /// registry at fold time (`src/intrinsic/mod.rs`'s `registry()`) — the row itself declares
+    /// none. Declaring one is refused outright, never silently ignored: a source that states
+    /// e.g. `@Totality Partial` on an alias row while the registry answers with the target's
+    /// `Total` would lie in the source with no way for a reader to tell which one wins — worse
+    /// than the contradiction this stone exists to remove. `tag` names the directive that was
+    /// declared (`"@Purity"`/`"@Determinism"`/`"@Totality"`/`"@ExpandTime"`/`"@Category"` for
+    /// the two text-grammar paths; `":purity"`/`":determinism"`/`":totality"`/`":expand-time"`/
+    /// `":category"` for [`from_metadata`]).
+    AliasDeclaresAxis { tag: String },
 }
 
 /// A fully-parsed special-form doc comment.
@@ -814,16 +848,46 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     if examples.is_empty() {
         return Err(DocError::MissingExample);
     }
-    let purity = purity_val.ok_or(DocError::MissingPurity)?;
-    let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
-    // Arc 255 Stone total-T3: `@Totality` is REQUIRED, exactly like purity/determinism/
-    // category above. Absence is `MissingTotality`, not a silent `Unreviewed` default.
-    let totality = totality_val.ok_or(DocError::MissingTotality)?;
-    // Arc 255 Stone expand-T3: `@ExpandTime` is REQUIRED, exactly like `@Totality`
-    // above. Absence is `MissingExpandTime`, not a silent `Unreviewed` default —
-    // T2's default is struck, mirroring totality's own T2→T3 arc.
-    let expand_time = expand_time_val.ok_or(DocError::MissingExpandTime)?;
-    let category = category_val.ok_or(DocError::MissingCategory)?;
+    // arc 255 Stone 2a-b — an alias row declares NONE of the five closed-domain axes; the
+    // registry derives them from `@alias`'s target at fold time. Declaring one here is refused
+    // (STOP-1), never silently accepted or silently ignored — see `DocError::AliasDeclaresAxis`.
+    // Every non-alias row keeps the exact required-directive enforcement below, unchanged.
+    let (purity, determinism, totality, expand_time, category) = if alias.is_some() {
+        if purity_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Purity".into() });
+        }
+        if determinism_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Determinism".into() });
+        }
+        if totality_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Totality".into() });
+        }
+        if expand_time_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@ExpandTime".into() });
+        }
+        if category_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Category".into() });
+        }
+        (
+            ALIAS_PLACEHOLDER_PURITY,
+            ALIAS_PLACEHOLDER_DETERMINISM,
+            ALIAS_PLACEHOLDER_TOTALITY,
+            ALIAS_PLACEHOLDER_EXPAND_TIME,
+            ALIAS_PLACEHOLDER_CATEGORY,
+        )
+    } else {
+        let purity = purity_val.ok_or(DocError::MissingPurity)?;
+        let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
+        // Arc 255 Stone total-T3: `@Totality` is REQUIRED, exactly like purity/determinism/
+        // category above. Absence is `MissingTotality`, not a silent `Unreviewed` default.
+        let totality = totality_val.ok_or(DocError::MissingTotality)?;
+        // Arc 255 Stone expand-T3: `@ExpandTime` is REQUIRED, exactly like `@Totality`
+        // above. Absence is `MissingExpandTime`, not a silent `Unreviewed` default —
+        // T2's default is struck, mirroring totality's own T2→T3 arc.
+        let expand_time = expand_time_val.ok_or(DocError::MissingExpandTime)?;
+        let category = category_val.ok_or(DocError::MissingCategory)?;
+        (purity, determinism, totality, expand_time, category)
+    };
 
     // Every `@yields` subject must name a declared `@arg` — a directive with no referent
     // is a doc error, not a silent no-op. Checked here (not by the caller) because `parse`
@@ -1020,30 +1084,53 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
         };
     }
 
-    let purity = read_axis!(":purity", Purity, DocError::MissingPurity, |_v: &WatAST| {
-        DocError::MalformedDirective {
-            tag: ":purity".into(),
-            why: PURITY_LEGAL_VALUES,
+    // arc 255 Stone 2a-b — the `from_metadata` sibling of `parse`/`parse_special_form`'s
+    // identical alias-axis block: an alias row (`:alias` key present) declares NONE of the
+    // five closed-domain axis keys. Looked up ahead of `:alias`'s own extraction below (which
+    // stays in its original position, for shape parity with `:see`/`:yields`) — `metadata_lookup`
+    // is a non-consuming read of `&pairs`, so querying it twice costs nothing. Declaring one of
+    // the five keys on an alias row is refused (STOP-1), never silently accepted or ignored.
+    let alias_present = metadata_lookup(&pairs, ":alias").is_some();
+    for key in [":purity", ":determinism", ":totality", ":expand-time", ":category"] {
+        if alias_present && metadata_lookup(&pairs, key).is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: key.into() });
         }
-    });
-    let determinism = read_axis!(":determinism", Determinism, DocError::MissingDeterminism, |_v: &WatAST| {
-        DocError::MalformedDirective {
-            tag: ":determinism".into(),
-            why: "value must be one of: Deterministic, Nondeterministic, Preserving",
-        }
-    });
-    let totality = read_axis!(":totality", Totality, DocError::MissingTotality, |v: &WatAST| {
-        DocError::InvalidTotalityVariant { got: metadata_describe(v) }
-    });
-    let expand_time = read_axis!(":expand-time", ExpandTime, DocError::MissingExpandTime, |v: &WatAST| {
-        DocError::InvalidExpandTimeVariant { got: metadata_describe(v) }
-    });
-    let category = read_axis!(":category", Category, DocError::MissingCategory, |_v: &WatAST| {
-        DocError::MalformedDirective {
-            tag: ":category".into(),
-            why: CATEGORY_LEGAL_VALUES,
-        }
-    });
+    }
+    let (purity, determinism, totality, expand_time, category) = if alias_present {
+        (
+            ALIAS_PLACEHOLDER_PURITY,
+            ALIAS_PLACEHOLDER_DETERMINISM,
+            ALIAS_PLACEHOLDER_TOTALITY,
+            ALIAS_PLACEHOLDER_EXPAND_TIME,
+            ALIAS_PLACEHOLDER_CATEGORY,
+        )
+    } else {
+        let purity = read_axis!(":purity", Purity, DocError::MissingPurity, |_v: &WatAST| {
+            DocError::MalformedDirective {
+                tag: ":purity".into(),
+                why: PURITY_LEGAL_VALUES,
+            }
+        });
+        let determinism = read_axis!(":determinism", Determinism, DocError::MissingDeterminism, |_v: &WatAST| {
+            DocError::MalformedDirective {
+                tag: ":determinism".into(),
+                why: "value must be one of: Deterministic, Nondeterministic, Preserving",
+            }
+        });
+        let totality = read_axis!(":totality", Totality, DocError::MissingTotality, |v: &WatAST| {
+            DocError::InvalidTotalityVariant { got: metadata_describe(v) }
+        });
+        let expand_time = read_axis!(":expand-time", ExpandTime, DocError::MissingExpandTime, |v: &WatAST| {
+            DocError::InvalidExpandTimeVariant { got: metadata_describe(v) }
+        });
+        let category = read_axis!(":category", Category, DocError::MissingCategory, |_v: &WatAST| {
+            DocError::MalformedDirective {
+                tag: ":category".into(),
+                why: CATEGORY_LEGAL_VALUES,
+            }
+        });
+        (purity, determinism, totality, expand_time, category)
+    };
 
     let mut args: Vec<DocArg> = Vec::new();
     if let Some(v) = metadata_lookup(&pairs, ":args") {
@@ -1551,15 +1638,44 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     if examples.is_empty() {
         return Err(DocError::MissingExample);
     }
-    let purity = purity_val.ok_or(DocError::MissingPurity)?;
-    let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
-    // Arc 255 Stone total-T3: `@Totality` is REQUIRED (special-form sibling resolution
-    // point — see the `parse` fn above for the same change and its rationale).
-    let totality = totality_val.ok_or(DocError::MissingTotality)?;
-    // Arc 255 Stone expand-T3: `@ExpandTime` is REQUIRED (special-form sibling
-    // resolution point — see the `parse` fn above for the same change).
-    let expand_time = expand_time_val.ok_or(DocError::MissingExpandTime)?;
-    let category = category_val.ok_or(DocError::MissingCategory)?;
+    // arc 255 Stone 2a-b — special-form sibling of `parse`'s identical block above: an alias
+    // row declares NONE of the five closed-domain axes; declaring one is refused (STOP-1), not
+    // silently accepted or ignored.
+    let (purity, determinism, totality, expand_time, category) = if alias.is_some() {
+        if purity_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Purity".into() });
+        }
+        if determinism_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Determinism".into() });
+        }
+        if totality_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Totality".into() });
+        }
+        if expand_time_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@ExpandTime".into() });
+        }
+        if category_val.is_some() {
+            return Err(DocError::AliasDeclaresAxis { tag: "@Category".into() });
+        }
+        (
+            ALIAS_PLACEHOLDER_PURITY,
+            ALIAS_PLACEHOLDER_DETERMINISM,
+            ALIAS_PLACEHOLDER_TOTALITY,
+            ALIAS_PLACEHOLDER_EXPAND_TIME,
+            ALIAS_PLACEHOLDER_CATEGORY,
+        )
+    } else {
+        let purity = purity_val.ok_or(DocError::MissingPurity)?;
+        let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
+        // Arc 255 Stone total-T3: `@Totality` is REQUIRED (special-form sibling resolution
+        // point — see the `parse` fn above for the same change and its rationale).
+        let totality = totality_val.ok_or(DocError::MissingTotality)?;
+        // Arc 255 Stone expand-T3: `@ExpandTime` is REQUIRED (special-form sibling
+        // resolution point — see the `parse` fn above for the same change).
+        let expand_time = expand_time_val.ok_or(DocError::MissingExpandTime)?;
+        let category = category_val.ok_or(DocError::MissingCategory)?;
+        (purity, determinism, totality, expand_time, category)
+    };
 
     Ok(DocSpecialForm {
         prose,
