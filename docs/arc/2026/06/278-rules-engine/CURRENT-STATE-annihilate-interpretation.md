@@ -9,8 +9,8 @@
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline de4ff4af9..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat de4ff4af9..HEAD --name-only
+git log --oneline e38b1f46a..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat e38b1f46a..HEAD --name-only
 ```
 
 **PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -71,7 +71,44 @@ instruments are the worse. Neither is done.**
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-**Floor at stamp: `5345 tests run: 5345 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+**Floor at stamp: `5351 tests run: 5351 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+
+### ⭐⭐ D10 — A SOUNDNESS HOLE: THE `:then` RHS WAS NEVER TYPE-CHECKED
+
+The same record construction is checked everywhere in the language **except** inside a rule's
+`:then`. Driven: `(:tr::Bad :n ?s)` with `?s : String` into `n <- i64` compiled, fired, and put
+`#tr/Bad {:n "not-an-i64"}` **into the fact set** — where joins, queries, the oracle and `explain`
+all trust the declared schema. The RHS walls that existed (`RhsArityMismatch`, `RhsMissingFields`,
+`RhsPositionalConstructionRetired`, `RhsUnresolvableOperand`) are **every one structural.**
+
+✅ Cured by `RhsFieldTypeMismatch` at both producers. **Corpus measured BEFORE the cure was written:
+1664 `.wat` scanned, ZERO newly-failing.** Proven not to over-refuse — making
+`ComputedNotDerivableHere` a refusal REDs the not-knowable probe *and takes four pre-existing corpus
+tests with it*.
+
+⚠ **Still open: D11** — the identical defect one level down, since `walk_nested_constructors` has no
+`binds`. Driven against the cured binary: `#nh/Inner {:n "nested-string"}`.
+
+⛔ **My brief's load-bearing sentence was false.** *"Everything needed is already in the file and in
+scope"* — `resolve_operand_type` needs `binds`, which was computed in an inner block and dropped
+before the `:then` loop. Without hoisting it, the literal arm is caught and **the bound-`?var` arm —
+the repro's own subject — silently passes.** A rider taking me literally ships a cure that is green
+on its own scorecard while the defect still fires. And my example of a not-knowable operand was wrong
+in the direction that **reopens the hole for every cascading rule**.
+
+### ⛔⛔ C18 — EVERY `.wat.bad` PROBE HAS A HALF THAT CANNOT FAIL
+
+Those fixtures end with a `nil` main, which is **itself** a startup failure. With the wall they exist
+to prove mutated away, the file still fails — for the wrong reason — so `assert!(!ok)` **cannot go
+red under the mutation it exists to detect.** Only the `.edn` golden can. Five-plus fixtures named.
+**This is a sweep.**
+
+### ⛔ HOW LONG THIS TOOK, AND WHAT ACTUALLY FOUND IT
+
+`probare` classed a cost test hollow → the instrument sweep (C3–C6) → C4's probe **refuted my own
+counter** → D7's audit → the parametric trigger → the builder's question *"you found an issue with
+our type checking?"* → **D10**. Six strikes of distance between the ward and the bug. No single lens
+saw it; the chain did.
 
 ### ⭐ D7 CURED — AND C16, THE GATE THAT SAT GREEN THROUGH IT
 
