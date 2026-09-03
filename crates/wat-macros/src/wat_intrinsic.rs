@@ -905,6 +905,17 @@ pub(crate) fn emit(
 
     let see_lit: Vec<&str> = doc.see.iter().map(String::as_str).collect();
 
+    // arc 255 Stone 2a — `@alias <fqdn>`: "this name means that name". `None` for every
+    // pre-existing handler (STOP-1/STOP-2's whole point — an alias needs no handler, no eval
+    // role, no delegate, so this token exists purely so `#[wat_intrinsic]`-annotated rows CAN
+    // carry the field symmetrically with `#[wat_special_form]`'s — the one live alias witness
+    // this stone registers is a doc-only `#[wat_special_form]` struct, not a `#[wat_intrinsic]`
+    // handler, precisely because THIS macro always requires a real fn body).
+    let alias_lit = match &doc.alias {
+        Some(a) => quote! { ::std::option::Option::Some(#a) },
+        None => quote! { ::std::option::Option::None },
+    };
+
     let purity_token = match doc.purity {
         wat_doc::Purity::Pure => quote! { ::wat_doc::Purity::Pure },
         wat_doc::Purity::Effectful => quote! { ::wat_doc::Purity::Effectful },
@@ -1156,6 +1167,7 @@ pub(crate) fn emit(
                 examples: &[#(#examples_lit),*],
                 deprecated: #deprecated_lit,
                 see: &[#(#see_lit),*],
+                alias_of: #alias_lit,
                 source: #source_lit,
                 purity: #purity_token,
                 determinism: #determinism_token,

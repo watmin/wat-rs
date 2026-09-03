@@ -257,6 +257,15 @@ pub(crate) struct IntrinsicSubmission {
     pub deprecated: Option<(&'static str, &'static str)>,
     /// `@see` FQDNs, in source order.
     pub see: &'static [&'static str],
+    /// `@alias <fqdn>` — arc 255 Stone 2a. `Some(core)` means this row is not an independent
+    /// implementation: `core` is the FQDN of the row that actually carries the behaviour. `None`
+    /// (the default) for every `#[wat_intrinsic]` handler that existed before this stone — that
+    /// macro always requires a real fn body, so a `Some` here would be a lie about what
+    /// `handler` above actually does. The one alias witness this stone registers is a
+    /// `#[wat_special_form]` doc-only struct (`SpecialFormSubmission::alias_of`, below), not an
+    /// `IntrinsicSubmission` — this field exists so the FUTURE Phase 1b migration (73 more rows)
+    /// can carry it here too, symmetrically with `@see`'s own threading.
+    pub alias_of: Option<&'static str>,
     /// Restringified handler source — `quote!(handler_fn).to_string()`.
     /// Faithful-if-reformatted (token restringify; comments may be lost).
     /// Consumed by `(:wat::core::show-source <fqdn>)`.
@@ -301,6 +310,12 @@ pub(crate) struct SpecialFormSubmission {
     pub ret: &'static str,
     pub examples: &'static [ExampleSubmission],
     pub see: &'static [&'static str],
+    /// `@alias <fqdn>` — arc 255 Stone 2a. `Some(core)` when this doc-only struct is not
+    /// naming a special form at all but a plain re-dispatch — "this name means that name" — and
+    /// the dispatch door reads it directly, never consulting a handler (there is none: this
+    /// submission carries no `handler` field by construction, exactly as an alias needs). See
+    /// `IntrinsicSubmission::alias_of`'s twin doc for the full contract.
+    pub alias_of: Option<&'static str>,
     pub purity: wat_doc::Purity,
     pub determinism: wat_doc::Determinism,
     /// Declared totality from `@Totality <Variant>` in the doc. `Unreviewed` when the
@@ -446,6 +461,17 @@ pub(crate) struct IntrinsicEntry {
     #[expect(dead_code)] // reader lands later → keep
     pub deprecated: Option<(&'static str, &'static str)>,
     pub see: &'static [&'static str],
+    /// `@alias <fqdn>` — arc 255 Stone 2a. `Some(core)` means the alias field IS the dispatch,
+    /// not documentation of one: `dispatch_keyword_head`/`dispatch_keyword_head_value`
+    /// (`src/runtime.rs`) read this field, after the registry-first handler lookup fails, and
+    /// re-invoke `core` with the same unevaluated args and span. An alias row therefore carries
+    /// `handler: None` and needs no `role = eval` implementation — the whole ★★★ contract
+    /// (`DESIGN-STONE-2a-the-alias-field-and-why-1b-was-blocked-twice.md`). `None` for every
+    /// pre-existing row (folded straight from `IntrinsicSubmission`/`SpecialFormSubmission`'s
+    /// own `alias_of`, below). Gated by `alias_target_is_registered`/
+    /// `alias_target_is_itself_aliased` (`reflect.rs`, cfg(test)): every `alias_of` target must
+    /// itself be a registered row, and no target may itself be an alias (no chains).
+    pub alias_of: Option<&'static str>,
     /// Restringified handler source (consumed by `show-source` / 255.1b-v).
     pub source: &'static str,
     #[allow(dead_code)] // read by declared_purity_vs_effectful_by_prefix_census + purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc + reflect.rs's eval_intrinsic_examples (arc 255.1c site 2)
@@ -589,6 +615,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 examples: submission.examples,
                 deprecated: submission.deprecated,
                 see: submission.see,
+                alias_of: submission.alias_of,
                 source: submission.source,
                 purity: submission.purity,
                 determinism: submission.determinism,
@@ -668,6 +695,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 examples: submission.examples,
                 deprecated: submission.deprecated,
                 see: submission.see,
+                alias_of: submission.alias_of,
                 source: "",
                 purity: submission.purity,
                 determinism: submission.determinism,
@@ -1409,14 +1437,19 @@ mod tests {
         ":wat::rete::holon::dot",
         ":wat::rete::holon::presence?",
         ":wat::rete::i64::*",
-        ":wat::rete::i64::+",
+        // ":wat::rete::i64::>" REMOVED — arc 255 Stone 2a. This stone registers it as the
+        // `@alias` witness (`src/intrinsic/special/rete_i64_gt_alias.rs`), so
+        // `registry().lookup_entry(":wat::rete::i64::>")` now returns `Some` and the gap
+        // (checker-knows-it, registry-doesn't) this list names is closed for this one name —
+        // exactly the STALE case `registry_membership_gap_a_is_named_and_frozen`'s own failure
+        // message names: "on the frozen list but now resolved … delete it."
         ":wat::rete::i64::-",
         ":wat::rete::i64::/",
         ":wat::rete::i64::<",
         ":wat::rete::i64::<=",
         ":wat::rete::i64::=",
-        ":wat::rete::i64::>",
         ":wat::rete::i64::>=",
+        ":wat::rete::i64::+",
         ":wat::rete::i64::mod",
         ":wat::rete::i64::not=",
         ":wat::rete::i64::quot",
@@ -1666,11 +1699,12 @@ mod tests {
         ":wat::core::extend-type",
         ":wat::core::str",
         ":wat::rete::string::=",
-        ":wat::rete::i64::>",
         ":wat::core::map",
         ":wat::core::<",
         ":wat::core::derive",
-        ":wat::rete::i64::+",
+        // ":wat::rete::i64::>" REMOVED -- arc 255 Stone 2a, same reason as its removal
+        // from REGISTRY_MEMBERSHIP_GAP_A above: now registered (the @alias witness), so
+        // registry().lookup_entry returns Some and this name is resolved, not gapped.
         ":wat::rete::core::and",
         ":wat::rete::string::starts-with?",
         ":wat::rete::i64::=",
@@ -1687,6 +1721,7 @@ mod tests {
         ":wat::rete::vector::get",
         ":wat::rete::i64::-",
         ":wat::rete::vector::length",
+        ":wat::rete::i64::+",
         ":wat::rete::i64::mod",
         ":wat::core::not=",
         ":wat::type::Tuple",
@@ -1889,6 +1924,64 @@ mod tests {
             ),
             "STOP-3: an @see target naming nothing in either store must still be flagged \
              dangling — a gate that accepts everything is indistinguishable from no gate."
+        );
+    }
+
+    /// Arc 255 Stone 2a — the `@alias` gate: every `alias_of` target must be a registered row,
+    /// and no target may itself be an alias (no chains). Non-vacuity FIRST (STOP-1's own
+    /// warning: "a structural gate that passes while dispatch is unchanged is the failure this
+    /// STOP exists to catch" applies just as much to a gate that trivially passes because it
+    /// inspected nothing) — asserts the corpus actually carries the one alias witness this
+    /// stone registers before trusting `check_alias_refs`'s empty result to mean anything.
+    #[test]
+    fn no_dangling_or_chained_aliases() {
+        let reg = super::registry();
+        assert!(
+            reg.lookup_entry(":wat::rete::i64::>").is_some_and(|e| e.alias_of == Some(":wat::i64::>")),
+            "non-vacuity precondition failed: the one alias witness this stone registers \
+             (`:wat::rete::i64::>` -> `:wat::i64::>`) is missing from the corpus — an empty \
+             `check_alias_refs()` result below would prove nothing about the gate."
+        );
+        let bad = super::reflect::check_alias_refs();
+        assert!(
+            bad.is_empty(),
+            "Found {} dangling/chained @alias reference(s) in the intrinsic corpus:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
+    }
+
+    /// Arc 255 Stone 2a, STOP-5 — the negative that makes the gate falsifiable, on BOTH halves,
+    /// exercised directly on two constructed FQDNs against the REAL registry (no second alias
+    /// row is added to the live corpus to manufacture the chain case — the stone registers
+    /// exactly one, and this test uses that one AS the chain target, since it already is itself
+    /// an alias):
+    ///
+    ///   1. DANGLING — a fabricated FQDN naming no verb anywhere must not resolve.
+    ///   2. CHAINED — `:wat::rete::i64::>` (this stone's own witness) is ITSELF an alias, so a
+    ///      hypothetical second alias pointed at it must read `true` here: the exact scenario
+    ///      Sabotage-2 (point a second alias at an aliased row) predicts red on.
+    ///   3. The control — `:wat::i64::+` (the witness's own target) is a real handler, not an
+    ///      alias, so pointing at IT must read `false`: proves the chain check discriminates
+    ///      rather than flagging every target unconditionally.
+    #[test]
+    fn alias_gate_catches_dangling_and_chained_targets() {
+        let reg = super::registry();
+        assert!(
+            !super::reflect::alias_target_is_registered(":wat::core::zorble", reg),
+            "STOP-1: a fabricated @alias target must not resolve as registered — the dangling \
+             half of the gate is meaningless if a made-up FQDN passes."
+        );
+        assert!(
+            super::reflect::alias_target_is_itself_aliased(":wat::rete::i64::>", reg),
+            "STOP-5: this stone's own witness is itself an alias — pointing a (hypothetical) \
+             second alias at it must be flagged as a chain. If this reads false, the chain half \
+             of the gate cannot fire on the one alias the live corpus actually has."
+        );
+        assert!(
+            !super::reflect::alias_target_is_itself_aliased(":wat::i64::>", reg),
+            "control: the witness's OWN target is a real handler, not itself an alias — the \
+             chain check must not flag every registered name unconditionally."
         );
     }
 
@@ -2566,6 +2659,19 @@ mod tests {
         let mut missing: Vec<String> = Vec::new();
         for entry in super::registry().all_entries() {
             if entry.kind != super::Kind::SpecialForm {
+                continue;
+            }
+            // Arc 255 Stone 2a — an alias row's evaluation route is `alias_of` itself, read
+            // directly by `dispatch_keyword_head`/`dispatch_keyword_head_value`
+            // (`src/runtime.rs`), never a `role = check`/`role = eval` implementation. STOP-2's
+            // whole contract is that an alias needs NEITHER — giving it one to satisfy this wall
+            // would be exactly the "field is not carrying the dispatch" finding STOP-2 names.
+            // This is the THIRD evaluation route this wall now recognises, alongside
+            // `Unevaluated`'s `declare` and the default `check`+`eval` pair — a row can be
+            // exempt from this wall's demand for one of two structurally-checkable reasons
+            // (never evaluated at all, OR evaluated entirely by re-dispatch), and this branch
+            // is the second.
+            if entry.alias_of.is_some() {
                 continue;
             }
             if entry.purity == wat_doc::Purity::Unevaluated {

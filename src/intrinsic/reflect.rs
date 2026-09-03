@@ -235,6 +235,70 @@ pub(crate) fn check_see_refs() -> Vec<String> {
     dangling
 }
 
+// ─── Arc 255 Stone 2a: `@alias` registry cross-check ─────────────────────────
+
+/// Does `target` (an `alias_of` payload) name a row actually registered in the intrinsic
+/// registry? Extracted so the dangling case (STOP-1's "point `@alias` at `:wat::core::zorble`")
+/// can be exercised directly, on a fabricated FQDN, without needing a real corpus entry that
+/// carries a dangling alias — mirrors `see_target_resolves`'s own reason for existing standalone.
+///
+/// Unlike `@see`, an alias target must resolve ONLY against the Rust intrinsic registry — `@see`
+/// crosses into the wat-declared store too (arc 255 STONE "`@see` can cross the boundary"), but
+/// an alias is not a cross-reference for a reader to follow: it is a literal FQDN the dispatch
+/// door re-invokes (`dispatch_keyword_head_value`), and that door only ever consults THIS
+/// registry — a wat-declared verb is reached through a completely different path
+/// (`sym.functions`), which `alias_of` never touches.
+#[cfg(test)]
+pub(crate) fn alias_target_is_registered(target: &str, reg: &crate::intrinsic::IntrinsicRegistry) -> bool {
+    reg.lookup_entry(target).is_some()
+}
+
+/// Does `target` (an `alias_of` payload) itself name ANOTHER alias row — i.e. would accepting it
+/// build a chain? STOP-5: the DESIGN's gate forbids chains outright ("no alias may point at
+/// another alias") because a chain makes dispatch order-dependent; this predicate is the
+/// mechanism, kept apart from `check_alias_refs`'s walk for the same falsifiability reason
+/// `see_target_resolves` is kept apart from `check_see_refs`'s: it can be exercised directly, on
+/// a target that IS itself a registered alias, without needing a second real alias row in the
+/// live corpus to manufacture the chain (there is exactly one witness row — `RETE_OPS` and this
+/// stone's own alias both have none today, per the DESIGN's own "freeze that while it is true").
+/// A target with no registered row at all (dangling, not chained) reads `false` here — that
+/// case is `alias_target_is_registered`'s to report, not this predicate's; the two are
+/// deliberately independent so `check_alias_refs` can name which failure fired.
+#[cfg(test)]
+pub(crate) fn alias_target_is_itself_aliased(target: &str, reg: &crate::intrinsic::IntrinsicRegistry) -> bool {
+    reg.lookup_entry(target).is_some_and(|e| e.alias_of.is_some())
+}
+
+/// Walk the intrinsic registry and collect every `alias_of` row whose target is dangling
+/// (resolves to no registered row at all) or chained (resolves to ANOTHER alias row). An empty
+/// result means every alias in the corpus points at one real, non-alias row — the ★★★ contract's
+/// own gate (`DESIGN-STONE-2a-…md`'s "an alias must point at something that exists").
+///
+/// Two distinct failure shapes, reported by name (STOP-1's "the gate must inspect ≥1 row and
+/// name it" — the DANGLING/CHAINED tag in each message is what makes an assertion failure here
+/// legible about WHICH half of the gate fired, mirroring `check_see_refs`'s single dangling
+/// shape but split in two because `@alias`'s gate has two independent halves `@see`'s does not).
+#[cfg(test)]
+pub(crate) fn check_alias_refs() -> Vec<String> {
+    let reg = crate::intrinsic::registry();
+    let mut bad: Vec<String> = Vec::new();
+    for entry in reg.all_entries() {
+        let Some(target) = entry.alias_of else { continue };
+        if !alias_target_is_registered(target, reg) {
+            bad.push(format!(
+                "DANGLING @alias `{}` on `{}` — target names no registered row",
+                target, entry.name
+            ));
+        } else if alias_target_is_itself_aliased(target, reg) {
+            bad.push(format!(
+                "CHAINED @alias `{}` on `{}` — target is itself an alias row",
+                target, entry.name
+            ));
+        }
+    }
+    bad
+}
+
 // ─── Arc 255.1b-v: show-source + render-doc ──────────────────────────────────
 
 /// Extract the FQDN string from a handler arg: if it's a keyword literal, use

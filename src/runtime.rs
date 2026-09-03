@@ -1909,6 +1909,24 @@ fn dispatch_keyword_head(
     // legally evaluates to `Unit` (`use_form.rs:76-77`), so a category-keyed guard would
     // refuse a form that works today.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(head) {
+        // Arc 255 Stone 2a — the alias field IS the dispatch, not documentation of one
+        // (`DESIGN-STONE-2a-the-alias-field-and-why-1b-was-blocked-twice.md`'s ★★★ contract).
+        // Checked FIRST, ahead of the `Unevaluated` guard just below: an alias row answers "this
+        // name means that name," which is the more specific, positive fact about what this row
+        // IS — the `Unevaluated` guard is a REFUSAL for rows with no route to evaluation at all,
+        // and an alias row is never that (it has a route: the target's own). The two guards
+        // read disjoint fields (`alias_of` vs `purity`) and neither's declared row is provable
+        // as satisfying the other today, so ordering does not change behavior for any existing
+        // row — this placement is a readability choice: resolve "what does this name mean" before
+        // asking "does this name refuse to run at all."
+        //
+        // This is also the ONLY point in either dispatch door where a rete-namespaced alias's
+        // head is intercepted BEFORE `dispatch_keyword_head_value`'s `RETE_PREFIX` gate — see
+        // that function's own copy of this check for why the same placement there does NOT
+        // reach a rete-prefixed head the same way.
+        if let Some(core) = entry.alias_of {
+            return dispatch_keyword_head_value(core, args, list_span, env, sym).map(TrackedValue::from);
+        }
         if entry.purity == wat_doc::Purity::Unevaluated {
             return Err(RuntimeError::new(
                 list_span.clone(),
@@ -2023,6 +2041,27 @@ fn dispatch_keyword_head_value(
     // old arm site, a few dozen lines below. See the sibling guard's comment above for the
     // full predicate rationale.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(head) {
+        // Arc 255 Stone 2a — the alias field IS the dispatch; see `dispatch_keyword_head`'s
+        // identical check for the full placement rationale (alias-before-`Unevaluated`, same
+        // reasoning, same disjoint fields). Recurses into THIS function (not
+        // `dispatch_keyword_head`) — the bare-`Value` re-invoke, exactly the shape
+        // `dispatch_rete_op`'s own `Alias | Form | Redispatch` arm already uses
+        // (`dispatch_keyword_head_value(op.core_name, args, list_span, env, sym)`), so an alias
+        // registered here composes with every OTHER caller of this function, not only the one
+        // reached via `dispatch_keyword_head`.
+        //
+        // ⚠ This check sits AFTER the `RETE_PREFIX` gate a few lines above (arc 278 #55's THE
+        // ONE TABLE consult, hoisted to the top of this function) — so for a head that starts
+        // with the rete namespace prefix and has an existing `RETE_OPS` row, THAT row answers
+        // first, via `dispatch_rete_op`, and this alias check is never reached for it ON THIS
+        // PATH. `dispatch_keyword_head` (this function's caller, for every top-level keyword-
+        // headed call) has NO `RETE_PREFIX` gate of its own, so its copy of this check — placed
+        // before it ever calls into this function — is what actually intercepts a rete-
+        // namespaced alias ahead of `dispatch_rete_op`; see that function's comment for the
+        // proof this stone's STOP-1 requires.
+        if let Some(core) = entry.alias_of {
+            return dispatch_keyword_head_value(core, args, list_span, env, sym);
+        }
         if entry.purity == wat_doc::Purity::Unevaluated {
             return Err(RuntimeError::new(
                 list_span.clone(),
@@ -19044,6 +19083,94 @@ mod tests {
             "255.1c-guard dispatch_keyword_head_value_perf: {:.2} ns/op over {} iters (elapsed {:?}, acc={})",
             ns_per_op, ITERS, elapsed, acc
         );
+    }
+
+    /// Arc 255 Stone 2a — the witness's own acceptance row: `(:wat::rete::i64::+ 1 2)` must
+    /// evaluate to `3` THROUGH THE REGISTRY'S `alias_of` field, not through
+    /// `dispatch_rete_op`'s `OpClass::Fallback` arm (`rete/vocabulary.rs`'s pre-existing,
+    /// untouched row for this same name).
+    ///
+    /// ⚠ Deliberately calls `dispatch_keyword_head` DIRECTLY on a hand-built 2-arg AST —
+    /// mirroring `dispatch_keyword_head_value_perf` just above, NOT a `.wat` fixture run
+    /// through the full parse+CHECK+eval pipeline. `check.rs`'s `infer_list`
+    /// (`crate::rete::vocabulary::rete_op_for` consulted before the registry, STOP-3 —
+    /// untouched by this stone) still validates `:wat::rete::i64::+` against the OLD
+    /// `Fallback`-class row's registered `TypeScheme` (4 params: `[I64, I64, Keyword, I64]`,
+    /// `register_builtins`, `check.rs`) — a `.wat` source file spelling a bare 2-arg call to
+    /// this name would FAIL STATIC TYPE CHECKING before ever reaching the runtime alias logic
+    /// this test proves. Direct dispatch is therefore not a shortcut here; it is the only way
+    /// to observe this stone's contract in isolation from that pre-existing, out-of-scope
+    /// checker gap.
+    ///
+    /// ⛔ HOW THE REGISTRY PATH IS ESTABLISHED — and why a behavioural differential is NOT
+    /// available for this witness, which is worth stating rather than faking.
+    ///
+    /// The witness is `:wat::rete::i64::>`, an `OpClass::Alias` row. Its old path and the new
+    /// one produce the SAME answer by construction — that is what "alias" means — so no
+    /// return value can distinguish them. The proof is therefore STRUCTURAL:
+    /// `dispatch_keyword_head`'s alias check returns before this call can ever reach
+    /// `dispatch_keyword_head_value`'s `RETE_PREFIX` gate, and that gate is the only route to
+    /// `dispatch_rete_op`. `dispatch_keyword_head` has exactly one caller reachable from
+    /// `eval_inner` for a keyword-headed form, so for this call `dispatch_rete_op` is provably
+    /// never invoked.
+    ///
+    /// ★ The orchestrator supplied the differential the test cannot: re-pointing this row's
+    /// `@alias` at `:wat::i64::<` and re-running flips the answer, which no change to
+    /// `RETE_OPS` could produce. That sabotage is recorded in the stone's commit; it is not
+    /// shipped as a test because a row whose `@alias` lies is not a state the corpus should
+    /// hold.
+    ///
+    /// ⚠ The stone's FIRST witness was `:wat::rete::i64::+`, chosen by a DESIGN that recorded
+    /// it as `Alias` class. It is `Fallback` — a 4-arg row carrying `:undefined` machinery —
+    /// so registering it as a 2-arg alias made the 4-arg form unreachable and broke eight
+    /// live rete tests. The rider implemented as briefed, measured the collision, and
+    /// reported it rather than absorbing it; the witness moved here.
+    #[test]
+    fn alias_witness_dispatches_through_registry_not_dispatch_rete_op() {
+        let (stdlib_sym, _stdlib_macros, _stdlib_types) = stdlib_loaded();
+        let env = Environment::new();
+        let list_span = crate::rust_caller_span!();
+        let head = ":wat::rete::i64::>";
+        let args = [
+            WatAST::IntLit(2, crate::rust_caller_span!()),
+            WatAST::IntLit(1, crate::rust_caller_span!()),
+        ];
+
+        // Positive control, read from the registry directly: this stone actually registered
+        // the alias — if this is `None`/wrong, the test below proves nothing about THIS
+        // stone's field, only that `:wat::i64::+` happens to work on its own.
+        let entry = crate::intrinsic::registry()
+            .lookup_entry(head)
+            .expect("`:wat::rete::i64::>` must be a registered row — the alias witness");
+        assert_eq!(
+            entry.alias_of,
+            Some(":wat::i64::>"),
+            "the registered row's alias_of must name the witness's declared target"
+        );
+        assert!(
+            entry.handler.is_none(),
+            "STOP-2: the alias witness must carry no handler — a `Some` here means the field \
+             is not carrying the dispatch, exactly the finding STOP-2 names"
+        );
+
+        let result = dispatch_keyword_head(head, &args, &list_span, &env, stdlib_sym);
+        match result {
+            Ok(tv) => match tv.value_owned() {
+                Value::bool(b) => assert!(
+                    b,
+                    "(:wat::rete::i64::> 2 1) must evaluate to true via the alias re-dispatch \
+                     to `:wat::i64::>` — a `false` here would mean the alias resolved to the \
+                     wrong target"
+                ),
+                other => panic!("unexpected non-bool result: {:?}", other),
+            },
+            Err(e) => panic!(
+                "(:wat::rete::i64::> 2 1) must dispatch cleanly through the alias, not error — \
+                 an error here means neither the registry's `alias_of` nor any other door \
+                 answered for a name the registry claims to know: {:?}",
+                e
+            ),
+        }
     }
 
     /// Arc 300 stone C5b — `walk_match_clause`'s `RawClause::Compare` arm is unreachable

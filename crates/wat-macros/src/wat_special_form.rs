@@ -199,6 +199,15 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
 
     let see_lit: Vec<&str> = doc.see.iter().map(String::as_str).collect();
 
+    // arc 255 Stone 2a — `@alias <fqdn>`. See `wat_intrinsic.rs`'s identical token: `Some` only
+    // for the one alias witness this stone registers (a doc-only struct with NO handler — the
+    // whole reason it is registered through THIS macro, not `#[wat_intrinsic]`, which always
+    // requires a real fn body).
+    let alias_lit = match &doc.alias {
+        Some(a) => quote! { ::std::option::Option::Some(#a) },
+        None => quote! { ::std::option::Option::None },
+    };
+
     let deprecated_lit = match &doc.deprecated {
         Some(d) => {
             let since = &d.since;
@@ -228,6 +237,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
                 ret: #ret_lit,
                 examples: &[#(#examples_lit),*],
                 see: &[#(#see_lit),*],
+                alias_of: #alias_lit,
                 purity: #purity_token,
                 determinism: #determinism_token,
                 totality: #totality_token,

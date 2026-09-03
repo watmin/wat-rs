@@ -36,6 +36,9 @@
 //! | `@example-norun <expr> [#=> <expected>]` | ≥1 of either kind | illustrative; `#=>` optional |
 //! | `@deprecated <ver> <use-instead>` | optional, singleton | soft-deprecation |
 //! | `@see <fqdn>` | optional, repeatable | cross-reference |
+//! | `@alias <fqdn>` | optional, singleton | arc 255 Stone 2a — "this name means that name": the
+//!   registry's dispatch door re-invokes `<fqdn>` with the same args, unevaluated; the row needs
+//!   no handler, no eval role, no delegate |
 //!
 //! An unrecognized `@word` is a hard [`DocError::UnknownDirective`] — never a
 //! silent skip. Old separator forms (` — `, ` -- `, ` - `, `: `) are REJECTED
@@ -213,6 +216,11 @@ pub struct DocComment {
     pub deprecated: Option<Deprecation>,
     /// `@see <fqdn>` cross-references, in source order.
     pub see: Vec<String>,
+    /// `@alias <fqdn>` — arc 255 Stone 2a. "This name means that name": when present, this row
+    /// is not an independent implementation — the dispatch door re-invokes `<fqdn>` with the
+    /// same args and span before ever consulting a handler. Optional singleton, `None` for
+    /// every row that carries its own real implementation (everything before this stone).
+    pub alias: Option<String>,
     /// `@Purity <Variant>` — declared purity.
     pub purity: Purity,
     /// `@Determinism <Variant>` — declared determinism.
@@ -369,6 +377,9 @@ pub struct DocSpecialForm {
     pub expand_time: ExpandTime,
     /// `@see` FQDNs, in source order.
     pub see: Vec<String>,
+    /// `@alias <fqdn>` — arc 255 Stone 2a. See `DocComment::alias`; the special-form sibling of
+    /// the same optional singleton.
+    pub alias: Option<String>,
     /// `@deprecated`, if present.
     pub deprecated: Option<Deprecation>,
 }
@@ -460,7 +471,7 @@ fn take_type_token(s: &str) -> (&str, &str) {
 /// Does NOT check `@arg` against any signature — that is [`check_args`].
 pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let recognized = &[
-        "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
+        "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see", "@alias",
         "@Purity", "@Determinism", "@Totality", "@ExpandTime", "@Category", "@yields",
     ];
 
@@ -486,6 +497,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let mut examples: Vec<DocExample> = Vec::new();
     let mut deprecated: Option<Deprecation> = None;
     let mut see: Vec<String> = Vec::new();
+    let mut alias: Option<String> = None;
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
     let mut totality_val: Option<Totality> = None;
@@ -693,6 +705,21 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
             "@see" => {
                 see.push(payload.to_string());
             }
+            "@alias" => {
+                // arc 255 Stone 2a — singleton, mirroring `@deprecated`'s duplicate guard: a row
+                // means at most one other name (STOP-5's no-chain rule presumes exactly one
+                // target per alias row, never a list to disambiguate).
+                if alias.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@alias".into() });
+                }
+                if payload.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@alias".into(),
+                        why: "target FQDN is empty; grammar is `@alias <fqdn>`",
+                    });
+                }
+                alias = Some(payload.to_string());
+            }
             "@Purity" => {
                 if purity_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Purity".into() });
@@ -807,7 +834,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
         }
     }
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, totality, expand_time, category, yields: yields_vals })
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, alias, purity, determinism, totality, expand_time, category, yields: yields_vals })
 }
 
 /// Look up `key` (e.g. `":purity"`, including the leading `:`) among a
@@ -1148,6 +1175,19 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
         }
     }
 
+    // arc 255 Stone 2a — `:alias`, a single keyword FQDN (not a `Vector`, unlike `:see`): the
+    // metadata-map sibling of `@alias <fqdn>`. Optional; `None` for every non-alias row.
+    let alias = match metadata_lookup(&pairs, ":alias") {
+        None => None,
+        Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+        Some(_) => {
+            return Err(DocError::MalformedDirective {
+                tag: ":alias".into(),
+                why: "@alias target must be a keyword FQDN",
+            })
+        }
+    };
+
     let mut yields_vals: Vec<DocYields> = Vec::new();
     if let Some(v) = metadata_lookup(&pairs, ":yields") {
         let items = match v {
@@ -1189,7 +1229,7 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
         }
     }
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, totality, expand_time, category, yields: yields_vals })
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, alias, purity, determinism, totality, expand_time, category, yields: yields_vals })
 }
 
 /// Parse a special-form doc block.
@@ -1202,7 +1242,7 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
 /// - `@yields` is NOT recognized for special forms
 pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let recognized = &[
-        "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
+        "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see", "@alias",
         "@Purity", "@Determinism", "@Totality", "@ExpandTime", "@Category", "@syntax",
     ];
 
@@ -1226,6 +1266,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     let mut examples: Vec<DocExample> = Vec::new();
     let mut deprecated: Option<Deprecation> = None;
     let mut see: Vec<String> = Vec::new();
+    let mut alias: Option<String> = None;
     let mut purity_val: Option<Purity> = None;
     let mut determinism_val: Option<Determinism> = None;
     let mut totality_val: Option<Totality> = None;
@@ -1425,6 +1466,19 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
             "@see" => {
                 see.push(payload.to_string());
             }
+            "@alias" => {
+                // arc 255 Stone 2a — special-form sibling of `parse`'s identical arm above.
+                if alias.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@alias".into() });
+                }
+                if payload.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@alias".into(),
+                        why: "target FQDN is empty; grammar is `@alias <fqdn>`",
+                    });
+                }
+                alias = Some(payload.to_string());
+            }
             "@Purity" => {
                 if purity_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@Purity".into() });
@@ -1521,6 +1575,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
         totality,
         expand_time,
         see,
+        alias,
         deprecated,
     })
 }

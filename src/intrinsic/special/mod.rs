@@ -28,6 +28,7 @@ pub(crate) mod newtype;
 pub(crate) mod or_form;
 pub(crate) mod quasiquote;
 pub(crate) mod quote;
+pub(crate) mod rete_i64_gt_alias;
 pub(crate) mod signed_load;
 pub(crate) mod struct_to_form;
 pub(crate) mod structtype;
