@@ -1199,6 +1199,22 @@ mod tests {
         ":wat::core::struct->form",
         ":wat::core::macroexpand",
         ":wat::core::macroexpand-1",
+        // Arc 255 Stone 1b-ii — the 6 `Form` + 2 `Redispatch` rete alias rows
+        // (`src/intrinsic/special/rete_alias.rs`). `RETE_OPS`'s `params`/`ret` are dead for
+        // these two classes, so they carry no `CheckEnv` scheme of their own (typechecking for
+        // `Form`/`Redispatch` is generic, dispatched by `OpClass` alone — `check.rs`'s
+        // `infer_rete_form`/`infer_list` — never a per-name `TypeScheme` registered under the
+        // rete-prefixed name). Exactly the `and`/`or`/`use!` shape above: real checking (via the
+        // class-generic path), no scheme to verify these docs against. Ledger grows by eight,
+        // 95 → 103.
+        ":wat::rete::core::and",
+        ":wat::rete::core::or",
+        ":wat::rete::core::if",
+        ":wat::rete::core::let",
+        ":wat::rete::core::match",
+        ":wat::rete::core::fn",
+        ":wat::rete::core::List",
+        ":wat::rete::holon::coincident?",
     ];
 
     #[test]
@@ -1710,13 +1726,10 @@ mod tests {
         // ":wat::rete::i64::>" REMOVED -- arc 255 Stone 2a, same reason as its removal
         // from REGISTRY_MEMBERSHIP_GAP_A above: now registered (the @alias witness), so
         // registry().lookup_entry returns Some and this name is resolved, not gapped.
-        ":wat::rete::core::and",
         ":wat::core::>",
         ":wat::core::apply",
         ":wat::core::>=",
-        ":wat::rete::core::if",
         ":wat::rete::i64::*",
-        ":wat::rete::core::or",
         ":wat::stream::lazy",
         ":wat::rete::i64::/",
         ":wat::rete::vector::get",
@@ -1731,8 +1744,6 @@ mod tests {
         ":wat::core::defclause",
         ":wat::type::i64",
         ":wat::core::contains?",
-        ":wat::rete::core::let",
-        ":wat::rete::core::fn",
         ":wat::rete::core::PersistentVector/first",
         ":wat::core::stream->vec",
         ":wat::core::<=",
@@ -1741,7 +1752,6 @@ mod tests {
         ":wat::rete::f64::/",
         ":wat::rete::f64::*",
         ":wat::core::third",
-        ":wat::rete::core::match",
         ":wat::rete::core::keyword::=",
         ":wat::rete::core::enum::=",
         ":wat::eval-with-defs!",
@@ -1761,7 +1771,6 @@ mod tests {
         ":wat::spawn::process/grants",
         ":wat::rete::string::not=",
         ":wat::rete::i64::quot",
-        ":wat::rete::holon::coincident?",
         ":wat::rete::f64::>X",
         ":wat::rete::f64::+",
         ":wat::rete::core::reduce",
@@ -1771,6 +1780,13 @@ mod tests {
         ":wat::core::reduce-walk",
         ":wat::core::find-last-index",
         ":wat::core::conforms?",
+        // Arc 255 Stone 1b-ii — 7 rete Form/Redispatch names LEAVE: `:wat::rete::core::
+        // {and,or,if,let,match,fn}` and `:wat::rete::holon::coincident?` are registered rows
+        // now (`src/intrinsic/special/rete_alias.rs`), so `registry().lookup_entry` answers
+        // `Some` and this ratchet's STALE arm demanded their deletion by name.
+        // ⚠ `:wat::rete::core::List` is NOT among them — it was never in
+        // `GAP_B_CORPUS_CENSUS_121` (the corpus experiment never measured it), so it was never
+        // on this list to remove. Checked, not assumed.
             // Arc 255 Stone 1a-γ-i — five homoiconic verbs LEAVE: `quote`, `forms`, `quasiquote`,
         // `macroexpand`, `macroexpand-1` are registered rows now, so `registry().lookup_entry`
         // answers `Some` and this ratchet's STALE arm demanded their deletion by name.

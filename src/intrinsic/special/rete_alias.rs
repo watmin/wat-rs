@@ -1,10 +1,13 @@
-//! Registry entries for the 29 `OpClass::Alias` rows in `RETE_OPS` whose target is
-//! already a registered row — arc 255 Stone 1b-i.
+//! Registry entries for the 37 `OpClass::Alias`/`Form`/`Redispatch` rows in `RETE_OPS` whose
+//! target is already a registered row — arc 255 Stones 1b-i (29 `Alias` rows) and 1b-ii (6
+//! `Form` rows + 2 `Redispatch` rows).
 //!
 //! DESIGN: `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-1b-i-the-alias-surface-and-why-1b-is-not-one-stone.md`
 //! BRIEF: `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-1b-i-the-alias-surface.md`
+//! DESIGN: `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-1b-ii-the-form-and-redispatch-rows-have-no-teacher.md`
+//! BRIEF: `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-1b-ii-the-form-and-redispatch-rows.md`
 //!
-//! Same contract, 29 times over: each struct below
+//! Same contract, 37 times over: each struct below
 //! declares a name and a target and nothing else. `dispatch_keyword_head`/
 //! `dispatch_keyword_head_value` (`src/runtime.rs`) read `alias_of` directly and re-invoke the
 //! target with the same unevaluated args and span, before ever consulting a handler — no
@@ -13,9 +16,14 @@
 //! None of these rows declares any of the five closed-domain axes (`@Purity`/`@Determinism`/
 //! `@Totality`/`@ExpandTime`/`@Category`) — arc 255 Stone 2a-b's contract: an alias's axes ARE
 //! the target's, resolved by the registry after every submission has folded
-//! (`DocError::AliasDeclaresAxis` refuses one declared here at parse time). `@arg`/`@ret` types
-//! are transcribed verbatim from each row's own `params`/`ret` in `src/rete/vocabulary.rs`'s
-//! `RETE_OPS` table — there is nothing to argue and nothing to decide.
+//! (`DocError::AliasDeclaresAxis` refuses one declared here at parse time). For the 29
+//! `OpClass::Alias` rows (Stone 1b-i), `@arg`/`@ret` types are transcribed verbatim from each
+//! row's own `params`/`ret` in `src/rete/vocabulary.rs`'s `RETE_OPS` table — there is nothing to
+//! argue and nothing to decide. **That is NOT true of the 8 `Form`/`Redispatch` rows below
+//! (Stone 1b-ii)** — `RETE_OPS`'s `params`/`ret` fields are dead for those two classes (`ReteOp`'s
+//! own field docs: "Empty for `Form`/`Redispatch`" / "unused for `Form`/`Redispatch`"), so their
+//! `@arg`/`@ret` (or `@syntax`/`@ret`, where the target itself has no `@arg`) are copied instead
+//! from the TARGET's own registry row, at the `file:line` Stone 1b-ii's BRIEF tabulates.
 //!
 //! ★★★ `OpClass::Fallback` rows may **never** be aliased. The alias check in
 //! `dispatch_keyword_head` fires BEFORE `dispatch_keyword_head_value`'s `RETE_PREFIX` gate is
@@ -23,8 +31,9 @@
 //! `:undefined` form **unreachable**: the call redirects to the arity-2 core verb and raises
 //! `ArityMismatch { expected: 2, got: 4 }` instead of substituting the caller's fallback. That
 //! is precisely what broke eight live rete tests when Stone 2a's DESIGN named
-//! `:wat::rete::i64::+`. **None of the 29 below is `Fallback`** — every one is
-//! `OpClass::Alias` in `RETE_OPS`, verified row by row.
+//! `:wat::rete::i64::+`. **None of the 37 below is `Fallback`** — every one is
+//! `OpClass::Alias`, `OpClass::Form`, or `OpClass::Redispatch` in `RETE_OPS`, verified row by
+//! row.
 //!
 //! ---
 //!
@@ -466,3 +475,134 @@ pub(crate) struct ReteCoreBoolToString;
 /// @example (:wat::rete::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::rete::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_special_form(":wat::rete::holon::presence?")]
 pub(crate) struct ReteHolonPresence;
+
+// ─── core (Form — lazy / short-circuiting, mirrored by re-dispatch) ───────────────────────────
+//
+// arc 255 Stone 1b-ii. These 6 rows are `OpClass::Form` in `RETE_OPS`, not `OpClass::Alias` —
+// `dispatch_rete_op`'s `Alias | Form | Redispatch` arm treats all three identically (re-invoke
+// `dispatch_keyword_head_value(core_name, …)`), so the alias contract here is unchanged. What
+// IS different: `RETE_OPS`'s `params`/`ret` fields are dead for `Form`/`Redispatch` rows
+// (`ReteOp`'s own field docs — "Empty for Form/Redispatch" / "unused for Form/Redispatch"), so
+// the `@arg`/`@ret` (or `@syntax`/`@ret`, for the three whose target itself has no `@arg`) below
+// are copied verbatim from each TARGET's own registry row, never from `RETE_OPS`.
+
+/// Alias for `:wat::core::and` — "this name means that name." Calling `(:wat::rete::core::and
+/// exprs...)` dispatches through the registry's `alias_of` field straight to `:wat::core::and`;
+/// no separate implementation exists at this name. `and` is a `Form`-class row (lazy,
+/// short-circuiting), unlike the plain-fn `Alias` rows above — `dispatch_rete_op` re-invokes the
+/// same core form under either class, so laziness carries no risk here.
+///
+/// @added 1.0.0
+/// @alias :wat::core::and
+/// @arg exprs… :wat::core::bool the operands, evaluated left to right until the first `:false` (or all of them)
+/// @ret :wat::core::bool `:false` at the first `:false` operand, else `:true` (`:true` when there are no operands)
+/// @example (:wat::rete::core::and true true) #=> true
+#[wat_special_form(":wat::rete::core::and")]
+pub(crate) struct ReteCoreAnd;
+
+/// Alias for `:wat::core::or` — "this name means that name." Calling `(:wat::rete::core::or
+/// exprs...)` dispatches through the registry's `alias_of` field straight to `:wat::core::or`;
+/// no separate implementation exists at this name. `or` is a `Form`-class row (lazy,
+/// short-circuiting), unlike the plain-fn `Alias` rows above — `dispatch_rete_op` re-invokes the
+/// same core form under either class, so laziness carries no risk here.
+///
+/// @added 1.0.0
+/// @alias :wat::core::or
+/// @arg exprs… :wat::core::bool the operands, evaluated left to right until the first `:true` (or all of them)
+/// @ret :wat::core::bool `:true` at the first `:true` operand, else `:false` (`:false` when there are no operands)
+/// @example (:wat::rete::core::or false true) #=> true
+#[wat_special_form(":wat::rete::core::or")]
+pub(crate) struct ReteCoreOr;
+
+/// Alias for `:wat::core::if` — "this name means that name." Calling `(:wat::rete::core::if cond
+/// then else)` dispatches through the registry's `alias_of` field straight to `:wat::core::if`;
+/// no separate implementation exists at this name. The untaken branch is never evaluated,
+/// exactly as at the target — `Form`-class laziness carries across the alias unchanged.
+///
+/// @added 1.0.0
+/// @alias :wat::core::if
+/// @arg cond :wat::core::Bool the condition to branch on
+/// @arg then :T returned when cond is :true (the taken branch)
+/// @arg else :T returned when cond is :false (the taken branch)
+/// @ret :T the taken branch value; both branches unify to T
+/// @example (:wat::rete::core::if true 1 2) #=> 1
+#[wat_special_form(":wat::rete::core::if")]
+pub(crate) struct ReteCoreIf;
+
+/// Alias for `:wat::core::let` — "this name means that name." Calling `(:wat::rete::core::let
+/// [<binder> <expr> ...] <body>+)` dispatches through the registry's `alias_of` field straight
+/// to `:wat::core::let`; no separate implementation exists at this name. The target's own row
+/// carries no `@arg` — `let`'s shape is structural, not positional — so this row expresses it
+/// with `@syntax`, copied from the target, exactly as the target does.
+///
+/// @added 1.0.0
+/// @alias :wat::core::let
+/// @syntax (:wat::rete::core::let [<binder> <expr> ...] <body>+)
+/// @ret :T the value of the final body form
+/// @example (:wat::rete::core::let [x 1 y 2] (:wat::i64::+ x y)) #=> 3
+#[wat_special_form(":wat::rete::core::let")]
+pub(crate) struct ReteCoreLet;
+
+/// Alias for `:wat::core::match` — "this name means that name." Calling
+/// `(:wat::rete::core::match <scrutinee> (<pattern> <body>) ...)` dispatches through the
+/// registry's `alias_of` field straight to `:wat::core::match`; no separate implementation
+/// exists at this name. The target's own row carries no `@arg` — `match`'s shape is structural,
+/// not positional — so this row expresses it with `@syntax`, copied from the target, exactly as
+/// the target does.
+///
+/// @added 1.0.0
+/// @alias :wat::core::match
+/// @syntax (:wat::rete::core::match <scrutinee> (<pattern> <body>) ...)
+/// @ret :T the taken arm's value; every arm unifies to T
+/// @example (:wat::rete::core::match (:wat::core::Some 3) ((:wat::core::Some x) x) (:wat::core::None 0)) #=> 3
+#[wat_special_form(":wat::rete::core::match")]
+pub(crate) struct ReteCoreMatch;
+
+/// Alias for `:wat::core::fn` — "this name means that name." Calling `(:wat::rete::core::fn
+/// [<param> <- :T ...] -> :RetType <body>+)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::core::fn`; no separate implementation exists at this name. The target's
+/// own row carries no `@arg` — `fn`'s shape is structural, not positional — so this row expresses
+/// it with `@syntax`, copied from the target, exactly as the target does. `@ret` is a function
+/// value, not the dead `ParamType::Bool` `RETE_OPS`'s own row carries for this class.
+///
+/// @added 1.0.0
+/// @alias :wat::core::fn
+/// @syntax (:wat::rete::core::fn [<param> <- :T ...] -> :RetType <body>+)
+/// @ret :wat::core::Fn the constructed closure, callable with the declared parameter and return types
+/// @example ((:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 7) #=> 7
+#[wat_special_form(":wat::rete::core::fn")]
+pub(crate) struct ReteCoreFn;
+
+// ─── core · holon (Redispatch) ─────────────────────────────────────────────────────────────────
+//
+// arc 255 Stone 1b-ii. These 2 rows are `OpClass::Redispatch` in `RETE_OPS` — `dispatch_rete_op`
+// treats `Redispatch` identically to `Alias`/`Form` (re-invoke `dispatch_keyword_head_value
+// (core_name, …)`). Same dead-`params`/`ret` finding as the `Form` rows above: `@arg`/`@ret`
+// below are copied verbatim from each target's own registry row, never from `RETE_OPS`.
+
+/// Alias for `:wat::core::List` — "this name means that name." Calling `(:wat::rete::core::List
+/// arg1 arg2 ...)` dispatches through the registry's `alias_of` field straight to
+/// `:wat::core::List`; no separate implementation exists at this name. `RETE_OPS`'s own row
+/// carries the dead placeholder `ret: ParamType::Bool` for this class — the target's real `@ret`
+/// is a `List`, copied here instead.
+///
+/// @added 1.0.0
+/// @alias :wat::core::List
+/// @arg vals… :wat::core::Value the elements of the new list, in order
+/// @ret :wat::core::List a `List` holding each argument, in order
+/// @example (:wat::rete::core::List 1 2 3) #=> (:wat::core::List 1 2 3)
+#[wat_special_form(":wat::rete::core::List")]
+pub(crate) struct ReteCoreList;
+
+/// Alias for `:wat::holon::coincident?` — "this name means that name." Calling
+/// `(:wat::rete::holon::coincident? a b)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::holon::coincident?`; no separate implementation exists at this name.
+///
+/// @added 1.0.0
+/// @alias :wat::holon::coincident?
+/// @arg a :wat::core::Value the two operands compared, in order
+/// @arg b :wat::core::Value the two operands compared, in order
+/// @ret :wat::core::bool true iff `a` clears the coincident floor against `b`
+/// @example (:wat::rete::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::rete::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
+#[wat_special_form(":wat::rete::holon::coincident?")]
+pub(crate) struct ReteHolonCoincident;
