@@ -1438,9 +1438,6 @@ mod tests {
         ":wat::core::apply",
         ":wat::core::conforms?",
         ":wat::core::contains?",
-        ":wat::core::filter",
-        ":wat::core::find-last-index",
-        ":wat::core::foldl",
         ":wat::core::get",
         // ":wat::core::i64/to-f64" / ":wat::core::i64/to-string" NOT deleted this stone —
         // STOP-5 finding (BRIEF-STONE-the-seven-that-need-no-extraction's report): the
@@ -1455,10 +1452,7 @@ mod tests {
         // `registry_membership_gap_a_is_named_and_frozen` below.
         ":wat::core::i64/to-f64",
         ":wat::core::i64/to-string",
-        ":wat::core::map",
-        ":wat::core::mapv",
         ":wat::core::stream->pvec",
-        ":wat::core::stream->vec",
         ":wat::core::subtype?",
         ":wat::eval-ast!",
         ":wat::eval-digest!",
@@ -1727,7 +1721,6 @@ mod tests {
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
         ":wat::core::=",
         ":wat::core::PersistentVector",
-        ":wat::core::foldl",
         ":wat::core::first",
         ":wat::eval-ast!",
         ":wat::core::Tuple",
@@ -1737,7 +1730,6 @@ mod tests {
         ":wat::core::extend-type",
         ":wat::core::str",
         ":wat::rete::string::=",
-        ":wat::core::map",
         ":wat::core::<",
         ":wat::core::derive",
         // ":wat::rete::i64::>" REMOVED -- arc 255 Stone 2a, same reason as its removal
@@ -1754,14 +1746,12 @@ mod tests {
         ":wat::rete::i64::mod",
         ":wat::core::not=",
         ":wat::type::Tuple",
-        ":wat::core::filter",
         ":wat::rete::holon::cosine",
         ":wat::rete::core::foldl",
         ":wat::core::defclause",
         ":wat::type::i64",
         ":wat::core::contains?",
         ":wat::rete::core::PersistentVector/first",
-        ":wat::core::stream->vec",
         ":wat::core::<=",
         ":wat::type::String",
         ":wat::rete::string::subs",
@@ -1782,7 +1772,6 @@ mod tests {
         ":wat::rete::core::PersistentVector",
         ":wat::rete::core::List/first",
         ":wat::core::println",
-        ":wat::core::mapv",
         ":wat::core::edn::write",
         ":wat::spawn::process/grants",
         ":wat::rete::string::not=",
@@ -1794,7 +1783,6 @@ mod tests {
         ":wat::rete::core::filter",
         ":wat::core::tuple-get",
         ":wat::core::reduce-walk",
-        ":wat::core::find-last-index",
         ":wat::core::conforms?",
         // Arc 255 Stone 1b-ii — 7 rete Form/Redispatch names LEAVE: `:wat::rete::core::
         // {and,or,if,let,match,fn}` and `:wat::rete::holon::coincident?` are registered rows

@@ -2555,9 +2555,11 @@ fn dispatch_keyword_head_value(
         // differential (`wat-tests/core/core-stream-materializers-differential.wat`). Same
         // shape as `nth` immediately above and `foldl` (B6): the fast native kernel, the wat
         // spec keeps it honest.
-        ":wat::core::stream->vec" => {
-            crate::collection::transform::eval_stream_to_vec(args, list_span, env, sym)
-        }
+        // Arc 255 Stone 1c-a-i — `:wat::core::stream->vec`'s arm RETIRED; it now carries a
+        // registered `#[wat_intrinsic]` handler (`src/collection/transform.rs`, in place — the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here. `:wat::core::stream->pvec` (its unregistered PersistentVector sibling) keeps its
+        // arm below — only `stream->vec` was in this stone's six.
         ":wat::core::stream->pvec" => {
             crate::collection::transform::eval_stream_to_pvec(args, list_span, env, sym)
         }
@@ -2565,11 +2567,11 @@ fn dispatch_keyword_head_value(
         // Arc 255 Stone P6-c-W6 — `:wat::core::last` moved into a `#[wat_intrinsic]` handler
         // (`src/collection/transform.rs`, in place) with its real (1) arity declared; the
         // pre-match registry check above (arc 255.1c-guard) intercepts the name before
-        // reaching here. `find-last-index` is a HOF wearing a reader's name (calls
-        // `apply_function` on a caller fn) and stays in this giant match — W7's family, not W6.
-        ":wat::core::find-last-index" => {
-            crate::collection::transform::eval_vec_find_last_index(args, list_span, env, sym)
-        }
+        // reaching here.
+        // Arc 255 Stone 1c-a-i — `:wat::core::find-last-index`'s arm RETIRED; it now carries a
+        // registered `#[wat_intrinsic]` handler (`src/collection/transform.rs`, in place — the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before reaching
+        // here.
         // Arc 255 Stone P6-c-W6 — `:wat::core::rest` moved into a `#[wat_intrinsic]` handler
         // (`src/collection/eval.rs`, in place) with its real (1) arity declared; the pre-match
         // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
@@ -2848,8 +2850,12 @@ fn dispatch_keyword_head_value(
         // `crate::collection::transform::eval_vec_sort_by` (in place, unmoved — the gate this
         // stone shipped lives there); the pre-match registry check above (arc 255.1c-guard)
         // intercepts the name before reaching here.
-        ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
-        ":wat::core::mapv" => crate::collection::transform::eval_mapv(args, list_span, env, sym),
+        // Arc 255 Stone 1c-a-i — `:wat::core::map`'s arm RETIRED; it now carries a registered
+        // `#[wat_intrinsic]` handler (`src/collection/transform.rs`, in place) — the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
+        // Arc 255 Stone 1c-a-i — `:wat::core::mapv`'s arm RETIRED; it now carries a registered
+        // `#[wat_intrinsic]` handler (`src/collection/transform.rs`, in place) — the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — the private eager→lazy
         // normalizer, native now (was a wat `defclause`, `wat/seq.wat`, that stepped its
         // source via repeated `rest` — O(n^2) on every eager container). Steps by position;
@@ -2857,16 +2863,16 @@ fn dispatch_keyword_head_value(
         ":wat::core::seqable->stream" => {
             crate::collection::transform::eval_seqable_to_stream(args, list_span, env, sym)
         }
-        ":wat::core::foldl" => {
-            crate::collection::transform::eval_vec_foldl(args, list_span, env, sym)
-        }
+        // Arc 255 Stone 1c-a-i — `:wat::core::foldl`'s arm RETIRED; it now carries a registered
+        // `#[wat_intrinsic]` handler (`src/collection/transform.rs`, in place) — the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — `:wat::core::filter` is
         // native again (was the arc-118.2a wat `defclause`, `wat/seq.wat`, which stepped its
         // source via repeated `rest` — O(n^2) on every eager container). Composes through
         // `seqable->stream`'s per-container normalization; see `eval_filter`'s doc.
-        ":wat::core::filter" => {
-            crate::collection::transform::eval_filter(args, list_span, env, sym)
-        }
+        // Arc 255 Stone 1c-a-i — `:wat::core::filter`'s arm RETIRED; it now carries a registered
+        // `#[wat_intrinsic]` handler (`src/collection/transform.rs`, in place) — the pre-match
+        // registry check above (arc 255.1c-guard) intercepts the name before reaching here.
         // Arc 255 Stone HOME-9 moved `:wat::seq::{zip,window,remove-at}` off the dead
         // `:wat::std::list::` namespace and made them Seqable-generic (Vector |
         // PersistentVector | List | Stream). Arc 255 Stone HOME-10 carved their dispatch

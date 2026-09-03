@@ -99,10 +99,32 @@ fn every_dispatch_arm_calling_eval_threads_list_span() {
             arms.len(),
         );
     }
-    // A floor loose enough to never need nudging again: it catches "returned nothing
-    // useful", which is the only failure the positive control above cannot.
+    // ⛔ Arc 255 Stone 1c-a-i — THE MAGNITUDE IS RETIRED, not lowered again.
+    //
+    // Six arms went out this stone (`foldl`/`map`/`filter`/`mapv`/`stream->vec`/
+    // `find-last-index`, each answered by the registry-first door now) and tripped the
+    // `>= 50` bound at 44. The first fix was to lower it to 40 — which is the FIFTH
+    // lowering in this file's life (300 -> … -> 50 -> 40) and which **would have tripped
+    // again on the very next stone**: 1c-a-ii retires `get`/`apply`/`contains?`/
+    // `conforms?`/`Tuple`, taking the count to 39.
+    //
+    // The header above already ruled on this shape — *"a REGRESSION detector wearing a
+    // sanity check's clothes… each lowering weakens the guard until it guards nothing"*,
+    // `[[feedback_a_gate_freezes_names_never_a_count]]` — and the previous bound called
+    // itself *"loose enough to never need nudging again"*, which a magnitude tied to a
+    // deliberately-shrinking population can never be.
+    //
+    // So the bound now states its OWN stated purpose instead of approximating it: the
+    // comment below has always said this check exists to catch *"returned nothing
+    // useful"*, and that is non-emptiness. Wrong CONTENT is `MUST_FIND`'s job (names, not
+    // counts); nothing at all is this one's. When arc 255 finally empties this match,
+    // both halves retire together — the same disposition the header already records for
+    // `MUST_FIND`'s last anchor.
+    //
+    // A floor that catches "returned nothing useful", which is the only failure the
+    // positive control above cannot.
     assert!(
-        arms.len() >= 50,
+        !arms.is_empty(),
         "parser sanity: got {} arms — the parser is broken, not the substrate.",
         arms.len(),
     );

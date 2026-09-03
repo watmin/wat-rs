@@ -39,6 +39,7 @@ use crate::runtime::{
 };
 use crate::span::Span;
 use std::sync::Arc;
+use wat_macros::wat_intrinsic;
 
 // Arc 255 Stone layer-1 — `:wat::core::reverse`/`range` impls, back where they lived
 // before Stone P6-c-W6 moved them into `src/intrinsic/collection.rs`'s
@@ -423,6 +424,63 @@ pub(crate) fn eval_vec_sort_by(
 /// has no such caller and ships as a genuine wat `defclause` instead (`wat/seq.wat`).
 ///
 /// Arc 247: fn-first — (map f xs).
+///
+/// Arc 255 Stone 1c-a-i — registered `#[wat_intrinsic]`. The Rust signature is the shared
+/// `crate::collection::transform` HOF shape (`args: &[WatAST]` + a context tail), which
+/// `#[wat_intrinsic]` sniffs as its VARIADIC form — `check_args` therefore requires exactly
+/// ONE `@arg`, matching the sole `args` ident; the real 2-arg shape stays enforced by this
+/// fn's own hand-rolled `args.len() != 2` guard (unchanged, per the stone's brief: no handler
+/// body edits). The single `@arg`'s type is pinned to the checker scheme's first param
+/// (`:wat::core::map`'s `TypeScheme`, `src/check.rs`) — the Fn `f` — so
+/// `doc_arg_ret_types_match_checker_scheme` still validates it; `@ret` is always checked
+/// regardless of arity-compression. `xs` (position 1, the receiver) is documented only in
+/// prose above, not as a second `@arg` — the variadic sniff leaves no second slot to declare.
+///
+/// **Purity/Determinism ground — measured `Pure ∧ Deterministic`, NOT `Preserving`:** this fn's
+/// OWN synchronous execution never calls `apply_function` on `f` and never forces `xs`. It
+/// evaluates both args by ordinary call-by-value, type-checks `f` (no invocation), converts
+/// `xs` via `crate::stream::value_as_stream` (`src/stream/mod.rs:241` — an already-lazy
+/// `Stream` is `Arc::clone`d; an eager Vector/List/PersistentVector is walked and `.clone()`d
+/// into fresh `Cons` cells via `eager_container_to_stream`, no forcing, no invocation), then
+/// builds a `NativeThunk` (`lazy_map_stream`, this file, immediately below) that CAPTURES
+/// `func`+`source` without entering either. `func` is only ever applied inside that thunk's
+/// closure, at FORCE time (`crate::stream::realize`, called by `:wat::stream::next` or an
+/// equivalent consumer) — exactly the shape `:wat::stream::cons`'s established ruling already
+/// covers (`src/intrinsic/stream.rs`): "a pure reshape... stores exactly what it is handed and
+/// never enters it to look inside — forcing is `next`'s job, not this one's." `Pure ∧
+/// Deterministic`, not `Preserving`: `Preserving` would (correctly, for `mapv`/`foldl`) claim
+/// this call's OWN purity is conditional on `f`; `map`'s call is unconditionally pure because it
+/// never touches `f` at all during THIS invocation.
+///
+/// **Totality ground — `Total`:** the only two failure arms (`f` not `Value::wat__core::fn`;
+/// `xs` not stream-convertible) are both checker-guaranteed unreachable for a well-typed call
+/// (the same "arity guard is outside totality's domain" carve-out extended to a
+/// checker-guaranteed type domain, the convention `:wat::stream::cons`'s `Total` ruling and
+/// `:wat::core::last`/`reverse`/`range`'s `rete/purity.rs` `total` sub-list already use). Past
+/// that, building the `NativeThunk` cannot fail — no domain hole of `map`'s own; whether
+/// FORCING it later succeeds is `f`'s/`next`'s totality, not this call's.
+///
+/// **Expand-time ground — `Legal`, load-bearing:** this file's own doc block above ("Stays a
+/// Rust intrinsic... `:wat::core::defrecord`/`:wat::holon::defrecord`/`:wat::service::
+/// defservice`/`:wat::rete::defrule` all call `:wat::core::map` INSIDE their own macro
+/// bodies") proves `map` must stay callable during macro expansion — `wat/core.wat`'s
+/// `defmacro :wat::core::defn` (and siblings) depend on it. Corroborated by
+/// `src/macros/eval.rs`'s residue: `:wat::core::map` is currently admitted there (this stone's
+/// registration makes the registry answer instead, so the residue's own copy is now shadowed,
+/// same pattern the runtime.rs arm retirement follows).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args [:T :-> :U] `f` (position 0, applied lazily per pulled element — see `@yields`) then `xs` (position 1, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @yields  args the element pulled from `xs`, handed to `f`
+/// @ret     (:wat::core::Vector :- [U]) — NOTE: the registered `TypeScheme` (`src/check.rs`) is a RETAINED fallback for `defalias` derivation only; real call-site checking routes through `infer_map` (checker's keyword-head arm), and the REAL runtime return (arc 118.2a) is a lazy `(:wat::stream::Stream :- [U])`, not a `Vector` — this `@ret` transcribes the checker scheme verbatim, per the stone's brief, not the corrected runtime type
+/// @example (:wat::core::stream->vec [] (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3 4)
+/// @see     :wat::core::filter
+#[wat_intrinsic(":wat::core::map")]
 pub(crate) fn eval_vec_map(
     args: &[WatAST],
     call_span: &Span,
@@ -470,6 +528,72 @@ pub(crate) fn eval_vec_map(
 /// List by position (no lazy Stream cells). Stream input still maps lazily then drains.
 /// Fanout protocol query spent 288 ms in `(into [] (map f pv))` — 40k NativeThunk
 /// cons cells plus apply (`DESIGN-STONE-mapv-eager`).
+///
+/// Arc 255 Stone 1c-a-i — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_vec_map`'s doc; the one `@arg` is pinned to `:wat::core::mapv`'s
+/// checker-scheme first param (`f`, `src/check.rs` — identical shape to `map`'s scheme) so the
+/// type gate still validates it; `coll` (position 1) is prose-only.
+///
+/// **Purity/Determinism ground — `Preserving`, NOT `Pure`, NOT `Effectful`:** unlike lazy
+/// `map`/`filter`, this fn's OWN synchronous body directly invokes caller-supplied code: the
+/// Vector/PersistentVector/List arms call `apply_function(func.clone(), vec![x.clone()], …)`
+/// (`apply_one`, this fn) once per element, unconditionally; the Stream arm builds the same
+/// lazy `map` cell (`lazy_map_stream`) but then immediately DRAINS it via
+/// `crate::stream::realize` in a loop until `Empty` — so `func` (and, for a Stream receiver,
+/// whatever thunk chain produced its cells) runs before this call returns, every time. `func`
+/// is the ONE named, `[T :-> U]`-typed, `@yields`-documented argument this call runs — the
+/// same "a form whose purity is its sub-forms', not its own" shape `if`/`and`/`do` use
+/// (`control_flow.rs`/`and_form.rs`/`do_form.rs`), extended here from a literal AST branch to a
+/// first-class fn VALUE this verb applies unconditionally to every element (and, for the
+/// Stream arm, extended once more to that stream's own cell-producing code — there is no
+/// second nameable subject, so this call's purity is simply "whatever code it runs", the same
+/// umbrella `do`'s multi-operand `Preserving` already covers). `mapv`'s own body adds no
+/// independent effect or source of variation past that. `Preserving ∧ Preserving`.
+/// Contrast `:wat::stream::next` (`src/intrinsic/stream.rs`), ruled `Effectful ∧
+/// Nondeterministic` for the structurally similar `realize`-forcing act: `next`'s sole
+/// argument is DATA-typed (`Stream<T>`, no `[X :-> Y]` anywhere in its signature) — there is no
+/// nameable fn-shaped subject to preserve FROM, so `next` cannot honestly claim
+/// `Preserving`. `mapv` can, because `func` is exactly such a subject.
+///
+/// **Totality ground — `Preserving`:** independently corroborated by `src/rete/purity.rs`'s
+/// pre-existing (pre-this-stone) `intrinsic_meta` ruling for the "W7 HOF family"
+/// (`map`/`mapv`/`filter`/`foldl`/`reduce`, that file's own naming): "a combinator's totality is
+/// CONDITIONAL on its fn-argument… `classify_expr`'s general-list arm already resolves that
+/// conditionality by recursing into the fn-literal body", demonstrated by that file's own
+/// differential run on `foldl` (`total?` is `TRUE` for a total fn-arg, `FALSE` for a partial
+/// one). `Totality::Preserving` is exactly the closed-domain formalization of that same
+/// conditional-on-`f` fact for the registry axis.
+///
+/// **Expand-time ground — `Preserving`:** `src/macros/eval.rs`'s residue currently admits
+/// `:wat::core::mapv` (grep confirms it in the "collection / sequence ops still on the
+/// pre-registry dispatch path" group) — `is_expand_time_legal`'s registry-first consult
+/// (`matches!(e.expand_time, Legal | ExpandOnly | Preserving)`) treats `Preserving` as
+/// admitted, same as `Legal`, so this registration does not narrow what was already permitted.
+/// `Preserving` (not `Legal`) is the honest pole: whether calling `mapv` during macro
+/// expansion is safe genuinely depends on whether `f` (and any Stream input's own thunk chain)
+/// is itself expand-time-safe — the same conditional shape `if`'s `@ExpandTime Preserving`
+/// argues for its branches (`control_flow.rs`). No corpus `defmacro` body was found calling
+/// `mapv` (unlike `map`'s proven `defrecord`/`defservice`/`defrule` callers, documented at
+/// `eval_vec_map`'s own doc) — `wat/bracket.wat`'s and `wat/string.wat`'s call sites are both
+/// inside ordinary `defn` bodies, plain runtime code, not macro bodies — so `Preserving`
+/// changes nothing observable for any call site this search found; it is the honest ground
+/// nonetheless, not merely the safe one. Per doctrine (`macros/eval.rs`'s own audit note, "every
+/// `@Purity Effectful` verb is NOT legal — zero exceptions across 202 entries"), `Effectful`
+/// would have forced a non-admitted `@ExpandTime` here — one more reason `Preserving`, not
+/// `Effectful`, is `mapv`'s Purity ground.
+///
+/// @added         1.0.0
+/// @Purity        Preserving
+/// @Determinism   Preserving
+/// @Totality      Preserving
+/// @ExpandTime    Preserving
+/// @Category      ControlFlow
+/// @arg     args [:T :-> :U] `f` (position 0, applied eagerly to every element — see `@yields`) then `coll` (position 1, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @yields  args the element applied to `f`
+/// @ret     (:wat::core::Vector :- [U]) each element of `coll`, mapped through `f`
+/// @example (:wat::core::mapv (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3)) #=> (:wat::core::Vector 2 3 4)
+/// @see     :wat::core::map
+#[wat_intrinsic(":wat::core::mapv")]
 pub(crate) fn eval_mapv(
     args: &[WatAST],
     call_span: &Span,
@@ -593,6 +717,62 @@ fn lazy_map_stream(
 /// `(:wat::core::foldl f init xs)` → acc. `f : (acc, item) → acc`.
 /// Left-associative: `f(f(f(init, x0), x1), x2)`. Sequential's driver.
 /// Arc 247: fn-first — (foldl f init xs).
+///
+/// Arc 255 Stone 1c-a-i — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_vec_map`'s doc; the one `@arg` is pinned to `:wat::core::foldl`'s
+/// checker-scheme first param (`f`, `src/check.rs`) so the type gate still validates it;
+/// `init`/`xs` (positions 1–2) are prose-only.
+///
+/// **Purity/Determinism ground — `Preserving`, same shape as `mapv` (this file, above),
+/// NOT `Pure`, NOT `Effectful`:** every one of the four container arms (Vector /
+/// PersistentVector / List / Stream — the `StreamContainer` match, this fn's body) calls
+/// `apply_function(func.clone(), vec![acc, x.clone()], …)` once per element, unconditionally;
+/// the Stream arm additionally walks via `crate::stream::realize` (the same call `mapv`'s
+/// Stream arm and `:wat::stream::next` use). `func` is the ONE named, `[Acc T :-> Acc]`-typed,
+/// `@yields`-documented argument this call runs on every element — the same "purity is the
+/// sub-form's, not the form's own" shape `if`/`and`/`do` use, extended from a literal AST
+/// branch to a first-class fn VALUE, and (for the Stream arm) once more to that stream's own
+/// cell-producing code, the same "no second nameable subject, so preserve the aggregate" reading
+/// `mapv`'s doc argues. `foldl`'s own body adds no independent effect. `Preserving ∧
+/// Preserving`. NOT `Effectful ∧ Nondeterministic` — see the Expand-time ground below: `foldl`
+/// is measurably load-bearing inside `defmacro` bodies, and `@Purity Effectful` is measurably
+/// incompatible with that (`macros/eval.rs`'s own audit: "every `@Purity Effectful` verb is NOT
+/// legal — zero exceptions across 202 entries").
+///
+/// **Totality ground — `Preserving`:** independently corroborated by `src/rete/purity.rs`'s
+/// pre-existing `intrinsic_meta` ruling, which names `foldl` BY EXAMPLE for exactly this axis —
+/// its own differential run: `(total? '(foldl (fn [a b] (rete i64::+ a b :undefined 0)) 0 xs))`
+/// evaluates `TRUE` (a total fn-arg), `(total? '(foldl (fn [a b] (core i64::/ a b)) 0 xs))`
+/// evaluates `FALSE` (a partial one) — proof, not assertion, that `foldl`'s own totality is
+/// exactly `f`'s. `Totality::Preserving` is the closed-domain formalization of that fact.
+///
+/// **Expand-time ground — `Preserving`, PROVEN LOAD-BEARING:** `wat/core.wat` calls
+/// `:wat::core::foldl` DIRECTLY inside numerous `defmacro` bodies — `kwargs-lower`, `defn`,
+/// `->`, `->>`, `cond`, `format`, `defstruct`, `extend-surface` among them (measured by grep,
+/// dozens of call sites) — so `foldl` MUST stay admitted during macro expansion; a `RuntimeOnly`
+/// or `Unreviewed` pole here would break the stdlib's own macro layer. `wat/core.wat:912`'s own
+/// comment, inside `defn`'s macro body, corroborates independently: it calls out `foldl`/`get`/
+/// `conj` as the verbs that "stay Rust-native and eager, unaffected by" the `take`/`map`
+/// lazy-flip, i.e. safe to keep using at expand time, in contrast to `mapv`/`into` ("any
+/// wat-defined helper… is [not yet] resolvable" this early in bootstrap). `Preserving` (not
+/// bare `Legal`) is the honest pole given the Stream arm's `f`-and-stream-chain conditionality
+/// argued above; `is_expand_time_legal`'s registry-first consult admits `Preserving` exactly
+/// like `Legal` (`matches!(e.expand_time, Legal | ExpandOnly | Preserving)`), so this
+/// registration preserves (no pun avoided) `foldl`'s current admission via
+/// `src/macros/eval.rs`'s residue rather than narrowing it.
+///
+/// @added         1.0.0
+/// @Purity        Preserving
+/// @Determinism   Preserving
+/// @Totality      Preserving
+/// @ExpandTime    Preserving
+/// @Category      ControlFlow
+/// @arg     args [:Acc :T :-> :Acc] `f` (position 0, applied left-associatively to every element — see `@yields`) then `init` (position 1, `:Acc`, the seed accumulator) then `xs` (position 2, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @yields  args the running `(acc, item)` pair applied to `f`
+/// @ret     :Acc the final accumulator after folding `f` over every element of `xs`
+/// @example (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x)) 0 (:wat::core::Vector 1 2 3)) #=> 6
+/// @see     :wat::core::mapv
+#[wat_intrinsic(":wat::core::foldl")]
 pub(crate) fn eval_vec_foldl(
     args: &[WatAST],
     call_span: &Span,
@@ -735,6 +915,60 @@ pub(crate) fn eval_vec_foldl(
 /// `Arc::try_unwrap` reclaims `acc`'s backing `Vec` in place when this call holds the only
 /// reference (the common case: `into`'s `[]`/fresh-Vector callers), falling back to one clone
 /// only when the accumulator is shared.
+///
+/// Arc 255 Stone 1c-a-i — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_vec_map`'s doc; the one `@arg` is pinned to `:wat::core::stream->vec`'s
+/// checker-scheme first param (`acc`, `src/check.rs`) so the type gate still validates it; `s`
+/// (position 1, the Stream drained) is prose-only.
+///
+/// **Purity/Determinism ground — measured `Preserving`, NOT `Pure`, NOT `Effectful`:** this
+/// verb has no fn-typed argument (`acc` is `(Vector :- [T])`, `s` is `(Stream :- [T])`), but its
+/// ENTIRE body is `crate::stream::realize(&cur, sym, call_span)`, looped until `Empty` — the
+/// IDENTICAL forcing call `:wat::stream::next`'s own established ruling covers
+/// (`src/intrinsic/stream.rs`): "FORCES a thunk… either can run ARBITRARY code this verb has no
+/// way to bound." `stream->vec` runs that exact mechanism over every cell of `s`, so — like
+/// `mapv`/`foldl`'s Stream arm (this file, above) — its own purity is exactly `s`'s cell-
+/// producing code's, the "no second nameable subject, so preserve the aggregate" reading those
+/// two docs argue, here with `s` as the ONLY subject rather than one of two. `Preserving ∧
+/// Preserving`. **REVISED from an earlier `Effectful ∧ Nondeterministic` draft**, corrected by
+/// `intrinsic::tests::declared_purity_vs_effectful_by_prefix_census`
+/// (`src/intrinsic/mod.rs:2620`): that gate hard-asserts every `@Purity Effectful` row's FQDN
+/// prefix is ALSO in `effectful_by_prefix`'s namespace list (`src/rete/purity.rs:2091` —
+/// `:wat::kernel::`/`:wat::io::`/`:wat::holon::`/`:wat::stream::`/… — zero exceptions, by the
+/// same doctrine `macros/eval.rs`'s residue argues for `ExpandTime`); `:wat::core::stream->vec`
+/// is namespaced `:wat::core::`, not `:wat::stream::`, despite operating on a Stream, so
+/// `Effectful` was mechanically refused. `Preserving` is not merely the pole that satisfies the
+/// gate — re-reading `next`'s own ground shows the SAME "no way to bound" hazard is what
+/// `mapv`/`foldl` already fold into their own `Preserving`; `stream->vec` is that same hazard
+/// with `s` as the sole subject, so `Preserving` is the more accurate ground on reflection, not
+/// a forced compromise.
+///
+/// **Totality ground — `Preserving`:** by the same reasoning `mapv`/`foldl` already argue (this
+/// file) — the receiver-type mismatches (`acc` not a `Vector`; `s` not stream-convertible) are
+/// checker-guaranteed unreachable, and the only real failure source left is whatever forcing
+/// `s`'s cells actually does — total exactly when `s`'s own producing code is.
+///
+/// **Expand-time ground — `Preserving`:** `is_expand_time_legal`'s registry-first consult
+/// (`src/macros/eval.rs`) admits `Preserving` exactly like `Legal`
+/// (`matches!(e.expand_time, Legal | ExpandOnly | Preserving)`), and the residue currently
+/// admits `:wat::core::stream->vec` (grep confirms it in the "collection / sequence ops still
+/// on the pre-registry dispatch path" group) — this registration preserves that admission. No
+/// `defmacro` body in `wat/` calls `stream->vec` (grep: every call site is inside
+/// `wat/seq.wat`'s `into` `defclause`/`defn`, ordinary runtime code), so nothing currently
+/// exercises this pole either way, but `Preserving` — "safe exactly when `s`'s own code is" —
+/// is the honest ground, the same conditional shape `if`'s branches argue.
+///
+/// @added         1.0.0
+/// @Purity        Preserving
+/// @Determinism   Preserving
+/// @Totality      Preserving
+/// @ExpandTime    Preserving
+/// @Category      ControlFlow
+/// @arg     args (:wat::core::Vector :- [T]) `acc` (position 0, the seed Vector appended onto) then `s` (position 1, `(:wat::stream::Stream :- [T])`, drained one cell at a time via `crate::stream::realize` — see `:wat::stream::next`'s identical forcing act); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @ret     (:wat::core::Vector :- [T]) `acc` with every element realized from `s` appended
+/// @example (:wat::core::stream->vec [] (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3 4)
+/// @see     :wat::core::foldl
+#[wat_intrinsic(":wat::core::stream->vec")]
 pub(crate) fn eval_stream_to_vec(
     args: &[WatAST],
     call_span: &Span,
@@ -1072,6 +1306,61 @@ pub(crate) fn eval_vec_last(
 /// returns `Some(i)` for the rightmost `i` where `pred` returned
 /// `true`. Returns `None` if no element matched (or `xs` is empty).
 /// Mirrors Rust's `iter().rposition(pred)`.
+///
+/// Arc 255 Stone 1c-a-i — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_vec_map`'s doc; the one `@arg` is pinned to
+/// `:wat::core::find-last-index`'s checker-scheme first param — here `xs`, NOT the fn: unlike
+/// `map`/`mapv`/`foldl`/`filter`'s fn-first convention, this verb's `TypeScheme`
+/// (`src/check.rs`) orders `[xs, pred]`, matching the handler body's own `args[0]`=`xs`,
+/// `args[1]`=`pred` — verified against the code, not assumed from the sibling verbs' shape.
+/// `pred` (position 1) is prose-only.
+///
+/// **Purity/Determinism ground — `Preserving`, same shape as `mapv`/`foldl` (this file),
+/// NOT `Pure`, NOT `Effectful`:** the receiver is gated by `require_vec` — `Value::Vec` ONLY,
+/// no `PersistentVector`/`List`/`Stream` branch and so no `crate::stream::realize` call
+/// anywhere in this body (the ONE hazard that pushes `mapv`/`foldl`/`stream->vec` toward
+/// `Effectful` when a Stream is admitted). The single opaque-code source is
+/// `apply_function(func.clone(), vec![x.clone()], …)`, called once per element, unconditionally
+/// — `func` is the ONE named, `[T :-> :wat::core::bool]`-typed, `@yields`-documented argument
+/// this call runs, the same "purity is the sub-form's, not the form's own" shape `if`/`and`
+/// use, extended to a first-class fn VALUE this verb applies unconditionally. Cleaner than
+/// `mapv`/`foldl`: there is exactly one code source, with nothing else to fold into the
+/// aggregate. `Preserving ∧ Preserving`.
+///
+/// **Totality ground — `Preserving`:** the receiver-type mismatch (not `Value::Vec`) and the
+/// predicate-result-type mismatch (`pred` returning non-bool) are both checker-guaranteed
+/// unreachable for a well-typed call (`xs: (Vector :- [T])`, `pred: [T :-> bool]` per the
+/// scheme). The only real failure source left is whatever `func` itself does — the same
+/// conditional-on-the-fn-argument shape `src/rete/purity.rs`'s pre-existing `intrinsic_meta`
+/// ruling names for the sibling "W7 HOF family" (`map`/`mapv`/`filter`/`foldl`/`reduce`), and
+/// its own differential proof on `foldl` (total iff the fn-arg is total) generalizes cleanly
+/// here — `find-last-index` was not itself in that hand-list, but its shape (apply a fn per
+/// element, contribute no domain hole of its own) is identical. `Totality::Preserving`.
+///
+/// **Expand-time ground — `Preserving`:** grep of `wat/*.wat` finds ZERO call sites for
+/// `:wat::core::find-last-index` — it is not currently exercised inside any `defmacro` body
+/// (nor any `defn` body in the visible corpus), so no proven dependency exists either way.
+/// `Preserving` is still the honest ground, not merely the safe one: whether calling this verb
+/// during macro expansion is safe genuinely depends on `func`'s own expand-time legality, the
+/// same conditional shape `if`'s `@ExpandTime Preserving` argues for its branches
+/// (`control_flow.rs`). `is_expand_time_legal`'s registry-first consult admits `Preserving`
+/// exactly like `Legal` (`matches!(e.expand_time, Legal | ExpandOnly | Preserving)`), and
+/// `src/macros/eval.rs`'s residue currently ALSO admits `:wat::core::find-last-index` (grep
+/// confirms it in the "collection / sequence ops still on the pre-registry dispatch path"
+/// group) — this registration preserves that admission rather than narrowing it.
+///
+/// @added         1.0.0
+/// @Purity        Preserving
+/// @Determinism   Preserving
+/// @Totality      Preserving
+/// @ExpandTime    Preserving
+/// @Category      ControlFlow
+/// @arg     args (:wat::core::Vector :- [T]) `xs` (position 0, the receiver — `Value::Vec` only, no `PersistentVector`/`List`/`Stream`) then `pred` (position 1, `[T :-> :wat::core::bool]`, applied to every element — see `@yields`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @yields  args the element applied to `pred`
+/// @ret     (:wat::core::Option :- [:wat::core::i64]) the rightmost index where `pred` returned true, or `None`
+/// @example (:wat::core::find-last-index (:wat::core::Vector 1 2 3 2) (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::= x 2))) #=> (:wat::core::Some 3)
+/// @see     :wat::core::foldl
+#[wat_intrinsic(":wat::core::find-last-index")]
 pub(crate) fn eval_vec_find_last_index(
     args: &[WatAST],
     call_span: &Span,
@@ -1257,6 +1546,48 @@ pub(crate) fn seqable_value_to_stream(
 /// `map`'s fn-first shape (`eval_vec_map`). A raising `pred` PROPAGATES (via `?` inside the
 /// lazy cell) rather than being swallowed — a filter that silently dropped an element on a
 /// predicate error would be a hidden failure, not an honest one.
+///
+/// Arc 255 Stone 1c-a-i — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_vec_map`'s doc above (this stone's brief forbids a signature reshape);
+/// the one `@arg` is pinned to `:wat::core::filter`'s checker-scheme first param (`pred`,
+/// `src/check.rs`) so the type gate still validates it; `coll` (position 1) is prose-only.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`, NOT `Preserving`:** this fn's own
+/// synchronous body never calls `apply_function` on `pred` and never forces `coll`. It
+/// evaluates both args by ordinary call-by-value, type-checks `pred` (no invocation), routes
+/// `coll` through [`seqable_value_to_stream`] (this file, above — same no-forcing per-container
+/// walk `map`'s `value_as_stream` performs: an already-lazy `Stream` is unwrapped, an eager
+/// container is stepped into fresh index-thunks or a `List` snapshot, no cell forced), then
+/// builds a `NativeThunk` (`lazy_filter_stream`, immediately below) capturing `pred`+`source`
+/// without entering either. `pred` runs only when that thunk is later FORCED — the identical
+/// `:wat::stream::cons`/`eval_vec_map` shape: "stores what it's handed, forcing is next's job."
+/// `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Total`:** the two failure arms (`pred` not a fn; `coll` not
+/// stream-convertible, raised inside `seqable_value_to_stream`) are both checker-guaranteed
+/// unreachable for a well-typed call — same checker-guaranteed-domain carve-out `eval_vec_map`
+/// and `:wat::stream::cons` already use. Building the `NativeThunk` cannot itself fail.
+///
+/// **Expand-time ground — `Legal`:** `src/macros/eval.rs`'s residue currently admits
+/// `:wat::core::filter` (grep confirms it in the "collection / sequence ops still on the
+/// pre-registry dispatch path" group); this stone's registration makes the registry answer
+/// instead (shadowing that residue row, same pattern the runtime.rs arm retirement follows).
+/// Unlike `map`, `filter`'s OWN handler has no proven macro-body caller in this doc's search,
+/// but the identical lazy/non-forcing shape makes `Legal` the same honest ground: it reads no
+/// state and performs no effect at call time, regardless of caller.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args [:T :-> :wat::core::bool] `pred` (position 0, applied lazily per pulled element — see `@yields`) then `coll` (position 1, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @yields  args the element pulled from `coll`, handed to `pred`
+/// @ret     (:wat::core::Vector :- [T]) — NOTE: as with `map`, the registered `TypeScheme` (`src/check.rs`) is a RETAINED fallback for `defalias` derivation; real call-site checking routes through `infer_filter`, and the REAL runtime return is a lazy `(:wat::stream::Stream :- [T])`, not a `Vector` — this `@ret` transcribes the checker scheme verbatim, per the stone's brief
+/// @example (:wat::core::stream->vec [] (:wat::core::filter (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3)
+/// @see     :wat::core::map
+#[wat_intrinsic(":wat::core::filter")]
 pub(crate) fn eval_filter(
     args: &[WatAST],
     call_span: &Span,

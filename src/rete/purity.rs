@@ -2249,7 +2249,12 @@ mod completeness_gate {
     // name, and restoring it would re-create the exact drift that left seven forms saying
     // "unknown function" for months. Tracked in the campaign worklist as a registration.
     ":wat::core::derive",
-    ":wat::core::find-last-index",
+    // Arc 255 Stone 1c-a-i — `:wat::core::find-last-index` LEAVES. `intrinsic_meta`'s
+    // registry-first consult now answers `Some` for it (`@Purity Preserving` /
+    // `@Determinism Preserving` / `@Totality Preserving`, registered at
+    // `src/collection/transform.rs`), so `dispatch_verbs`'s scan (whose literal arm was
+    // RETIRED in `runtime.rs`'s `dispatch_keyword_head_value` this same stone) no longer finds
+    // it dispatched-but-unclassified — it is classified, not merely no-longer-dispatched.
     // Arc 255 Stone 1a-gamma-i — `:wat::core::forms` / `:wat::core::macroexpand` /
     // `:wat::core::macroexpand-1` / `:wat::core::quasiquote` / `:wat::core::quote` /
     // `:wat::core::struct->form` LEAVE together. `intrinsic_meta`'s registry-first consult
