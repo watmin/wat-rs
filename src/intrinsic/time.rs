@@ -44,6 +44,7 @@
 //! clock → `Entropic`, matching the `Uuid/v4` precedent in the same fixture
 //! file (`crates/wat-doc/src/lib.rs:985`: nondeterministic + `Reflection`).
 
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
@@ -322,12 +323,14 @@ pub(crate) fn eval_time_epoch_nanos(
 //
 // Seven unit constructors at `:wat::time::*` (Nanosecond, Microsecond,
 // Millisecond, Second, Minute, Hour, Day). Each takes `:i64`, panics
-// on negative input (durations are non-negative; direction lives in
-// the operation, not the sign), panics on i64 multiplication overflow
-// (~290k years for Hour at i64::MAX nanos; nobody hits it; check is
-// free; clear error when someone mistypes a constant).
+// on n <= 0 (a wait must be positive; whether you wait lives in the
+// operation, not the magnitude — zero is a legal MEASUREMENT and an
+// illegal COMMITMENT: it disarms the timer), panics on i64
+// multiplication overflow (~290k years for Hour at i64::MAX nanos;
+// nobody hits it; check is free; clear error when someone mistypes a
+// constant). Return `Value::NonZeroDuration`.
 //
-// The shared `unit_constructor` helper does the type check, negativity
+// The shared `unit_constructor` helper does the type check, positivity
 // check, overflow-on-multiply check (arity is the macro shim's job now);
 // the seven public functions just thread their unit's nanos-per-unit
 // constant.
@@ -348,12 +351,12 @@ fn unit_constructor(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let n = require_i64(op, eval(n, env, sym)?, list_span)?;
-    if n < 0 {
+    if n <= 0 {
         panic!(
-            "({} {}): Duration must be non-negative; use ago / from-now \
-             helpers (or :wat::time::- on Instants) to express past or \
-             future intervals — direction lives in the operation, not \
-             the sign of the duration",
+            "({} {}): a wait must be positive; whether you wait lives in the \
+             operation, not the magnitude of the duration — zero is a legal \
+             MEASUREMENT (:wat::time::- on equal Instants) and an illegal \
+             COMMITMENT: it disarms the timer",
             op, n
         );
     }
@@ -368,18 +371,20 @@ fn unit_constructor(
             i64::MAX / unit_nanos
         )
     });
-    Ok(Value::Duration(nanos))
+    Ok(Value::NonZeroDuration(
+        NonZeroU64::new(nanos as u64).expect("n > 0 checked above"),
+    ))
 }
 
-/// Builds a Duration of N nanoseconds. Panics on negative N or overflow.
+/// Builds a NonZeroDuration of N nanoseconds. Panics on n <= 0 or overflow.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of nanoseconds (non-negative)
-/// @ret     :wat::time::Duration the Duration of N nanoseconds
+/// @arg     n :wat::core::i64 the count of nanoseconds (positive)
+/// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N nanoseconds
 /// @example (:wat::time::nanoseconds (:wat::time::Nanosecond 5)) #=> 5
 /// @see     :wat::time::nanoseconds
 #[wat_intrinsic(":wat::time::Nanosecond")]
@@ -392,15 +397,15 @@ pub(crate) fn eval_time_unit_nanosecond(
     unit_constructor(":wat::time::Nanosecond", 1, n, list_span, env, sym).map_err(Into::into)
 }
 
-/// Builds a Duration of N microseconds. Panics on negative N or overflow.
+/// Builds a NonZeroDuration of N microseconds. Panics on n <= 0 or overflow.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of microseconds (non-negative)
-/// @ret     :wat::time::Duration the Duration of N microseconds
+/// @arg     n :wat::core::i64 the count of microseconds (positive)
+/// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N microseconds
 /// @example (:wat::time::microseconds (:wat::time::Microsecond 5)) #=> 5
 /// @see     :wat::time::microseconds
 #[wat_intrinsic(":wat::time::Microsecond")]
@@ -414,15 +419,15 @@ pub(crate) fn eval_time_unit_microsecond(
         .map_err(Into::into)
 }
 
-/// Builds a Duration of N milliseconds. Panics on negative N or overflow.
+/// Builds a NonZeroDuration of N milliseconds. Panics on n <= 0 or overflow.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of milliseconds (non-negative)
-/// @ret     :wat::time::Duration the Duration of N milliseconds
+/// @arg     n :wat::core::i64 the count of milliseconds (positive)
+/// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N milliseconds
 /// @example (:wat::time::milliseconds (:wat::time::Millisecond 5)) #=> 5
 /// @see     :wat::time::milliseconds
 #[wat_intrinsic(":wat::time::Millisecond")]
@@ -436,15 +441,15 @@ pub(crate) fn eval_time_unit_millisecond(
         .map_err(Into::into)
 }
 
-/// Builds a Duration of N seconds. Panics on negative N or overflow.
+/// Builds a NonZeroDuration of N seconds. Panics on n <= 0 or overflow.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of seconds (non-negative)
-/// @ret     :wat::time::Duration the Duration of N seconds
+/// @arg     n :wat::core::i64 the count of seconds (positive)
+/// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N seconds
 /// @example (:wat::time::seconds (:wat::time::Second 5)) #=> 5
 /// @see     :wat::time::seconds
 #[wat_intrinsic(":wat::time::Second")]
@@ -457,15 +462,15 @@ pub(crate) fn eval_time_unit_second(
     unit_constructor(":wat::time::Second", NANOS_PER_SECOND, n, list_span, env, sym).map_err(Into::into)
 }
 
-/// Builds a Duration of N minutes. Panics on negative N or overflow.
+/// Builds a NonZeroDuration of N minutes. Panics on n <= 0 or overflow.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of minutes (non-negative)
-/// @ret     :wat::time::Duration the Duration of N minutes
+/// @arg     n :wat::core::i64 the count of minutes (positive)
+/// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N minutes
 /// @example (:wat::time::minutes (:wat::time::Minute 5)) #=> 5
 /// @see     :wat::time::minutes
 #[wat_intrinsic(":wat::time::Minute")]
@@ -478,15 +483,15 @@ pub(crate) fn eval_time_unit_minute(
     unit_constructor(":wat::time::Minute", NANOS_PER_MINUTE, n, list_span, env, sym).map_err(Into::into)
 }
 
-/// Builds a Duration of N hours. Panics on negative N or overflow.
+/// Builds a NonZeroDuration of N hours. Panics on n <= 0 or overflow.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of hours (non-negative)
-/// @ret     :wat::time::Duration the Duration of N hours
+/// @arg     n :wat::core::i64 the count of hours (positive)
+/// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N hours
 /// @example (:wat::time::hours (:wat::time::Hour 5)) #=> 5
 /// @see     :wat::time::hours
 #[wat_intrinsic(":wat::time::Hour")]
@@ -499,15 +504,15 @@ pub(crate) fn eval_time_unit_hour(
     unit_constructor(":wat::time::Hour", NANOS_PER_HOUR, n, list_span, env, sym).map_err(Into::into)
 }
 
-/// Builds a Duration of N days. Panics on negative N or overflow.
+/// Builds a NonZeroDuration of N days. Panics on n <= 0 or overflow.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Total         Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of days (non-negative)
-/// @ret     :wat::time::Duration the Duration of N days
+/// @arg     n :wat::core::i64 the count of days (positive)
+/// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N days
 /// @example (:wat::time::days (:wat::time::Day 5)) #=> 5
 /// @see     :wat::time::days
 #[wat_intrinsic(":wat::time::Day")]
@@ -740,11 +745,11 @@ pub(crate) fn eval_time_sub(
     let a = eval(a, env, sym)?;
     let b = eval(b, env, sym)?.value_owned();
     let a_inst = require_instant(OP, a, list_span)?;
-    match b {
-        Value::Duration(ns) => {
-            // Instant - Duration -> Instant.
-            // ns is non-negative (constructor invariant); subtract
-            // by adding chrono::Duration::nanoseconds(-ns).
+    if let Some(ns) = duration_nanos_i64(&b) {
+            // Instant - Duration/NonZeroDuration -> Instant.
+            // Duration ns is non-negative (constructor invariant);
+            // NonZeroDuration ns is positive. Subtract by adding
+            // chrono::Duration::nanoseconds(-ns).
             let new_inst = a_inst
                 .checked_sub_signed(chrono::Duration::nanoseconds(ns))
                 // chrono range error — evaluated Values have no AST trace; list_span is the best available location
@@ -754,8 +759,7 @@ pub(crate) fn eval_time_sub(
                     got: Box::new(ValueSnapshot::unavailable("out-of-range subtraction"))
                 }))?;
             Ok(Value::Instant(new_inst))
-        }
-        Value::Instant(b_inst) => {
+    } else if let Value::Instant(b_inst) = b {
             // Instant - Instant -> Duration. Compute elapsed via
             // chrono's signed_duration_since; panic if negative
             // per §2.
@@ -778,13 +782,13 @@ pub(crate) fn eval_time_sub(
                 );
             }
             Ok(Value::Duration(ns))
-        }
+    } else {
         // b is an evaluated Value with no AST trace at match point; list_span is the best available location
-        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+        Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "wat::time::Duration or wat::time::Instant",
-            got: Box::new(ValueSnapshot::of(&other))
-        }).into()),
+            expected: "wat::time::Duration or wat::time::NonZeroDuration or wat::time::Instant",
+            got: Box::new(ValueSnapshot::of(&b))
+        }).into())
     }
 }
 
@@ -812,14 +816,14 @@ pub(crate) fn eval_time_add(
     let a = eval(a, env, sym)?;
     let b = eval(b, env, sym)?.value_owned();
     let a_inst = require_instant(OP, a, list_span)?;
-    let ns = match b {
-        Value::Duration(ns) => ns,
-        other => {
+    let ns = match duration_nanos_i64(&b) {
+        Some(ns) => ns,
+        None => {
             // b is an evaluated Value with no AST trace at match point; list_span is the best available location
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::time::Duration",
-                got: Box::new(ValueSnapshot::of(&other))
+                expected: "wat::time::Duration or wat::time::NonZeroDuration",
+                got: Box::new(ValueSnapshot::of(&b))
             }).into())
         }
     };
@@ -1326,13 +1330,87 @@ fn require_instant(op: &'static str, tv: TrackedValue, list_span: &Span) -> Resu
     }
 }
 
+/// Extract nanoseconds from a measurement (`Duration`) or a commitment
+/// (`NonZeroDuration`). Constructors never mint a NonZeroDuration above
+/// `i64::MAX` (they multiply in i64); a larger value is a Rust-side
+/// construction error and is refused here rather than truncated.
+fn duration_nanos_i64(v: &Value) -> Option<i64> {
+    match v {
+        Value::Duration(ns) => Some(*ns),
+        Value::NonZeroDuration(n) => i64::try_from(n.get()).ok(),
+        _ => None,
+    }
+}
+
 fn require_duration(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<i64, RuntimeError> {
-    match tv.value_owned() {
-        Value::Duration(ns) => Ok(ns),
-        other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+    let other = tv.value_owned();
+    match duration_nanos_i64(&other) {
+        Some(ns) => Ok(ns),
+        None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
-            expected: "wat::time::Duration",
+            expected: "wat::time::Duration or wat::time::NonZeroDuration",
             got: Box::new(ValueSnapshot::of(&other))
         })),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::Environment;
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+
+    fn construct(n: i64) -> Result<Value, RuntimeError> {
+        let ast = WatAST::IntLit(n, crate::rust_caller_span!());
+        let env = Environment::new();
+        let sym = SymbolTable::new();
+        let span = ast.span().clone();
+        unit_constructor(":wat::time::Nanosecond", 1, &ast, &span, &env, &sym)
+    }
+
+    fn panic_message(n: i64) -> String {
+        let err = catch_unwind(AssertUnwindSafe(|| {
+            let _ = construct(n);
+        }))
+        .expect_err("a non-positive wait must panic");
+        err.downcast_ref::<String>()
+            .cloned()
+            .or_else(|| err.downcast_ref::<&str>().map(|s| (*s).to_string()))
+            .unwrap_or_else(|| panic!("unit_constructor panic payload was not a string"))
+    }
+
+    #[test]
+    fn nonzero_u64_refuses_zero() {
+        assert!(
+            NonZeroU64::new(0).is_none(),
+            "NonZeroU64::new(0) is None — zero has no form in the storage"
+        );
+    }
+
+    #[test]
+    fn unit_constructor_positive_is_nonzero_duration() {
+        match construct(1).expect("1 ns is a legal wait") {
+            Value::NonZeroDuration(d) => assert_eq!(d.get(), 1),
+            other => panic!("expected NonZeroDuration, got {other:?}"),
+        }
+    }
+
+    const ZERO_REFUSAL: &str = "(:wat::time::Nanosecond 0): a wait must be positive; whether you wait lives in the \
+             operation, not the magnitude of the duration — zero is a legal \
+             MEASUREMENT (:wat::time::- on equal Instants) and an illegal \
+             COMMITMENT: it disarms the timer";
+    const NEGATIVE_REFUSAL: &str = "(:wat::time::Nanosecond -1): a wait must be positive; whether you wait lives in the \
+             operation, not the magnitude of the duration — zero is a legal \
+             MEASUREMENT (:wat::time::- on equal Instants) and an illegal \
+             COMMITMENT: it disarms the timer";
+
+    #[test]
+    fn unit_constructor_zero_panics_naming_the_identity() {
+        assert_eq!(panic_message(0), ZERO_REFUSAL);
+    }
+
+    #[test]
+    fn unit_constructor_negative_panics_naming_the_identity() {
+        assert_eq!(panic_message(-1), NEGATIVE_REFUSAL);
     }
 }

@@ -2998,6 +2998,7 @@ fn value_to_json_natural_with(
             wat_edn::WriteOpts { inst_digits }.format_inst(t),
         )),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
+        Value::NonZeroDuration(d) => OwnedValue::Integer(d.get() as i64),
         Value::wat__core__keyword(k) => {
             OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
         }
@@ -4156,6 +4157,7 @@ pub fn value_to_edn_with(
         Value::Hologram(_) => opaque_nil("wat.holon", "Hologram"),
         Value::Instant(t) => OwnedValue::Inst(*t),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
+        Value::NonZeroDuration(d) => OwnedValue::Integer(d.get() as i64),
         // Arc 207 — typed Uuid → EDN `#uuid "..."` reader literal.
         // Mirrors `Value::Instant → OwnedValue::Inst` pattern.
         // `uuid::Uuid` is `Copy`; `OwnedValue::Uuid` already exists

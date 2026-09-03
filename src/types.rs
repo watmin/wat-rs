@@ -2847,11 +2847,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
         // stream — `wat-scripts/scratch-pad/probe-118B2-one-clause-lazy-producer.wat:34`
         // `-> (:wat::stream::Stream :- [U])`.
         ":wat::stream::Stream",
-        // time — `wat/service.wat:56` `after <- :wat::time::Duration` (field
+        // time — `wat/service.wat:67` `after <- :wat::time::NonZeroDuration` (field
         // type in the stdlib itself, not just a probe);
         // `wat-scripts/scratch-pad/probe-derive-chain-split.wat:98`
         // `t0 <- :wat::time::Instant`.
         ":wat::time::Duration",
+        ":wat::time::NonZeroDuration",
         ":wat::time::Instant",
         // rust-backed — the RHS of `:wat::kernel::Sender :- [T]` /
         // `:wat::kernel::Receiver :- [T]`'s own typealiases in the stdlib:
@@ -7249,6 +7250,7 @@ mod tests {
             ":wat::kernel::ThreadSelfPeer",
             ":wat::stream::Stream",
             ":wat::time::Duration",
+            ":wat::time::NonZeroDuration",
             ":wat::time::Instant",
             ":rust::crossbeam_channel::Sender",
             ":rust::crossbeam_channel::Receiver",

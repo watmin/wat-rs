@@ -290,10 +290,18 @@ pub enum Value {
     /// panic on negative input and arithmetic panics on negative results.
     /// NOTE: the `i64` storage does not itself enforce this; direct Rust
     /// construction (`Value::Duration(-n)`) bypasses the guard and must
-    /// uphold non-negativity as a caller contract. (A future stone makes
-    /// this type-enforced via `u64`.)
-    /// Constructed via `:wat::time::Hour`/`Minute`/`Second`/`Day`/etc.
+    /// uphold non-negativity as a caller contract. (S17 makes this
+    /// type-enforced via `u64`. That is not this stone — zero is a legal
+    /// MEASUREMENT and would still be representable as `0u64`.)
+    /// Produced by `:wat::time::-` on two Instants. Not by the unit
+    /// constructors — those mint [`Value::NonZeroDuration`].
     Duration(i64),
+    /// A COMMITMENT you write — a wait, a delay, an alarm. Stored as
+    /// `NonZeroU64` so zero (and negative) have no form. Minted by the
+    /// seven unit constructors (`Nanosecond` … `Day`). `:wat::kernel::after`
+    /// and `Alarm` accept only this. Zero is a legal measurement
+    /// ([`Value::Duration`]) and an illegal wait.
+    NonZeroDuration(std::num::NonZeroU64),
     /// Arc 207 — `:wat::core::Uuid`. Typed UUID primitive. Distinct
     /// runtime variant from `Value::String` so `(= some-uuid some-string)`
     /// returns type-mismatch rather than comparing by content — UUIDs are
@@ -679,6 +687,7 @@ impl PartialEq for Value {
             (Value::Instant(a), Value::Instant(b)) => a == b,
             // Duration is stored as i64 nanoseconds
             (Value::Duration(a), Value::Duration(b)) => a == b,
+            (Value::NonZeroDuration(a), Value::NonZeroDuration(b)) => a == b,
             // --- Opaque handles: pointer equality ---
             // These are never atomizable; pointer identity is the only meaningful equality.
             (Value::wat__core__fn(a), Value::wat__core__fn(b)) => Arc::ptr_eq(a, b),
@@ -879,6 +888,7 @@ impl std::hash::Hash for Value {
             Value::Instant(dt) => dt.timestamp_nanos_opt().hash(state),
             // Duration: stored as i64 nanoseconds
             Value::Duration(ns) => ns.hash(state),
+            Value::NonZeroDuration(d) => d.hash(state),
             // --- Non-atomizable variants: unreachable!() with predicate citation ---
             // The is_atomizable predicate at src/check.rs is the static guarantee
             // that these variants never reach hashing contexts (HashSet/HashMap key positions).
@@ -1040,7 +1050,8 @@ fn value_is_shallow(v: &Value) -> bool {
         | Value::wat__core__Char(_)
         | Value::wat__core__Uuid(_)
         | Value::Instant(_)
-        | Value::Duration(_) => true,
+        | Value::Duration(_)
+        | Value::NonZeroDuration(_) => true,
         Value::Aggregate(a) => a.identity != 0,
         Value::Enum(e) => e.fields.iter().all(value_is_shallow),
         _ => false,
@@ -1654,6 +1665,11 @@ value_key_eligibility_table! {
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::time::Duration".to_string()) ]
     },
+    Value::NonZeroDuration(_) => {
+        type_name: "wat::time::NonZeroDuration",
+        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        gate: [ TypeExpr::Path(":wat::time::NonZeroDuration".to_string()) ]
+    },
     // Arc 300 stone B — representation-only; not in is_atomizable.
     Value::wat__core__Rational(_) => {
         type_name: "wat::core::rational",
@@ -1757,6 +1773,7 @@ impl Value {
             Value::Hologram(_) => self.type_name().to_string(),
             Value::Instant(_) => self.type_name().to_string(),
             Value::Duration(_) => self.type_name().to_string(),
+            Value::NonZeroDuration(_) => self.type_name().to_string(),
             Value::wat__core__Uuid(_) => self.type_name().to_string(),
             Value::wat__core__Char(_) => self.type_name().to_string(),
             Value::wat__core__Rational(_) => self.type_name().to_string(),

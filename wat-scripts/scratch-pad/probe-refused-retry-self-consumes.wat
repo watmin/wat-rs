@@ -75,7 +75,9 @@
      _ (:demo::wait-inflight inbox)
      dummy-id (:demo::take-one subq "q0")
      _ (:demo::ack-one subq "q0" dummy-id)
-     _ (:demo::nap-ms gap-ms)
+     ;; `(nap-ms 0)` is itself a zero wait and has no form after Stone A —
+     ;; "nap for zero" IS "don't nap", the mode-as-magnitude this arc removed.
+     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
      after-drain (:demo::take-one subq "q0")
      _ (:demo::nap-ms 350)
      recovered (:rr::poll-pending subq 100 50)
@@ -142,7 +144,9 @@
      _ (:demo::wait-inflight inbox)
      dummy-id (:demo::take-one subq "q0")
      _ (:demo::ack-one subq "q0" dummy-id)
-     _ (:demo::nap-ms gap-ms)
+     ;; `(nap-ms 0)` is itself a zero wait and has no form after Stone A —
+     ;; "nap for zero" IS "don't nap", the mode-as-magnitude this arc removed.
+     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
      at-check (:wat::core::first (:demo::q-depth subq))
      got (:rr::take-blocking subq 2000000000)]
     (:wat::core::format "gap={g};pending-at-absence-check={c};delivered={d};raced={r}"

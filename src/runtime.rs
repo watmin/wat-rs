@@ -8629,6 +8629,7 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::Hologram(_) => ":wat::holon::Hologram",
         Value::Instant(_) => ":wat::time::Instant",
         Value::Duration(_) => ":wat::time::Duration",
+        Value::NonZeroDuration(_) => ":wat::time::NonZeroDuration",
         Value::wat__core__Uuid(_) => ":wat::core::Uuid",
         // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
         // (scalar types lowercase per Doctrine 2).
@@ -11099,6 +11100,7 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::Instant(a), Value::Instant(b)) => Some(a == b),
         // Arc 238 Stone 238.1 — Duration equality. i64 nanoseconds; mirrors values_compare.
         (Value::Duration(a), Value::Duration(b)) => Some(a == b),
+        (Value::NonZeroDuration(a), Value::NonZeroDuration(b)) => Some(a == b),
         // Arc 238 Stone 238.1 — WatAST structural equality.
         // WatAST derives PartialEq (ast.rs:33; span-agnostic — two nodes with same structure
         // but different spans compare equal). Symmetry with the holon__HolonAST arm above.
@@ -11202,6 +11204,7 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         // and uses i64 ord directly.
         (Value::Instant(x), Value::Instant(y)) => Some(x.cmp(y)),
         (Value::Duration(x), Value::Duration(y)) => Some(x.cmp(y)),
+        (Value::NonZeroDuration(x), Value::NonZeroDuration(y)) => Some(x.get().cmp(&y.get())),
         // Arc 148 slice 3 — Vec lex ord, recursive. Element-wise
         // comparison; first non-Equal element decides; on a prefix tie,
         // shorter < longer (matches Rust's `Vec::cmp`). Returns None if
@@ -26384,7 +26387,7 @@ pub(crate) fn eval_peer_select_prime(
 ///
 /// Three args:
 /// - `args[0]`: peer-kind — must evaluate to `:wat::program::PeerKind` enum value.
-/// - `args[1]`: duration — must evaluate to `Value::Duration(nanos: i64)`, non-negative.
+/// - `args[1]`: duration — must evaluate to `Value::NonZeroDuration`.
 /// - `args[2]`: msg — any `Value`; becomes the timer's output payload.
 pub(crate) fn eval_kernel_after(
     args: &[WatAST],
@@ -26443,38 +26446,34 @@ pub(crate) fn eval_kernel_after(
         }
     };
 
-    // arg 1: duration — must be Value::Duration(nanos: i64), non-negative.
+    // arg 1: duration — must be Value::NonZeroDuration. The constructor
+    // wall (`n <= 0`) and the type (`NonZeroU64`) make zero and negative
+    // structurally unrepresentable; the former `nanos < 0` guard is
+    // converted to this extraction (SCORE: converted, not kept — a
+    // second check of a type-enforced invariant is a deleted wall's
+    // ghost, and would re-admit Duration 0 if a caller reached here
+    // with the old variant).
     let duration_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let nanos: i64 = match &duration_val {
-        Value::Duration(n) => *n,
+    let nanos: u64 = match &duration_val {
+        Value::NonZeroDuration(n) => n.get(),
         other => {
             return Err(RuntimeError::new(
                 args[1].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::time::Duration value (e.g. (:wat::time::Millisecond 50))",
+                    expected: ":wat::time::NonZeroDuration value (e.g. (:wat::time::Millisecond 50))",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
             .into());
         }
     };
-    if nanos < 0 {
-        return Err(RuntimeError::new(
-            args[1].span().clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("after: duration must be non-negative; got {} nanos", nanos),
-            },
-        )
-        .into());
-    }
 
     // arg 2: msg — any Value.
     let msg = eval_inner(&args[2], env, sym)?.value_owned();
 
-    // Build the std::time::Duration from nanos.
-    let std_dur = std::time::Duration::from_nanos(nanos as u64);
+    // Build the std::time::Duration from nanos. NonZeroU64 so never zero.
+    let std_dur = std::time::Duration::from_nanos(nanos);
 
     use crate::rust_deps::custodia::ThreadOwnedCell;
     use crate::rust_deps::marshal::make_rust_opaque;
@@ -33779,6 +33778,25 @@ mod tests {
         let a = Value::Duration(100);
         let b = Value::Duration(200);
         assert_eq!(values_equal(&a, &b), Some(false));
+    }
+
+    #[test]
+    fn values_equal_nonzero_duration_same() {
+        let n = std::num::NonZeroU64::new(123_456_789).unwrap();
+        let a = Value::NonZeroDuration(n);
+        let b = Value::NonZeroDuration(n);
+        assert_eq!(values_equal(&a, &b), Some(true));
+    }
+
+    #[test]
+    fn values_equal_nonzero_duration_does_not_equal_duration() {
+        let a = Value::NonZeroDuration(std::num::NonZeroU64::new(100).unwrap());
+        let b = Value::Duration(100);
+        assert_eq!(
+            values_equal(&a, &b),
+            None,
+            "a commitment and a measurement of the same nanos are different types"
+        );
     }
 
     #[test]

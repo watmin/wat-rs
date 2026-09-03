@@ -434,6 +434,10 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::Hologram(_) => "<Hologram>".to_string(),
         Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
         Value::Duration(ns) => format!("<Duration {}ns>", ns),
+        // Same summarizer as Duration: show is bounded (`runtime.rs` "summarizer,
+        // not a renderer"). type_name() is NonZeroDuration; the nanos payload
+        // prints identically so constructor show goldens don't churn.
+        Value::NonZeroDuration(d) => format!("<Duration {}ns>", d.get()),
         // Arc 207 — Uuid renders as the EDN reader literal form.
         Value::wat__core__Uuid(u) => format!("#uuid \"{}\"", u),
         // Arc 220 — Char renders as the EDN character literal form `\c`.

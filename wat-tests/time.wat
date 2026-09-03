@@ -237,11 +237,13 @@
      h24 (:wat::time::Hour 24)]
     (:wat::test::assert-eq (:wat::core::show d) (:wat::core::show h24))))
 
-;; Zero is a valid non-negative Duration.
+;; Zero is a valid MEASUREMENT (Instant − Instant). It is not a wait —
+;; the unit constructors refuse n <= 0 (Stone A of zero-is-not-a-wait).
 (:wat::test::deftest :wat-tests::time::test-duration-zero-is-valid
   
   (:wat::core::let
-    [d (:wat::time::Hour 0)]
+    [t (:wat::time::at 1000000)
+     d (:wat::time::- t t)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))
 
 
@@ -311,7 +313,7 @@
   
   (:wat::core::let
     [origin (:wat::time::at 1000000)
-     zero (:wat::time::Hour 0)
+     zero (:wat::time::- origin origin)
      same (:wat::time::+ origin zero)
      delta
       (:wat::core::-
@@ -371,10 +373,12 @@
 
 (:wat::test::deftest :wat-tests::time::test-ago-zero-equals-now
   
-  ;; (ago (Hour 0)) = (now). Tolerance: same-second.
+  ;; (ago (Instant − Instant)) = (now). Tolerance: same-second.
+  ;; `(Hour 0)` has no form after Stone A; a measurement of zero still does.
   (:wat::core::let
-    [past
-      (:wat::time::ago (:wat::time::Hour 0))
+    [t (:wat::time::now)
+     past
+      (:wat::time::ago (:wat::time::- t t))
      now-i (:wat::time::now)
      past-s (:wat::time::epoch-seconds past)
      now-s (:wat::time::epoch-seconds now-i)]
@@ -387,8 +391,9 @@
 (:wat::test::deftest :wat-tests::time::test-from-now-zero-equals-now
   
   (:wat::core::let
-    [future
-      (:wat::time::from-now (:wat::time::Day 0))
+    [t (:wat::time::now)
+     future
+      (:wat::time::from-now (:wat::time::- t t))
      now-i (:wat::time::now)
      delta-s
       (:wat::core::-

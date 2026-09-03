@@ -1,0 +1,20 @@
+;; probe_zero_is_not_a_wait.wat.bad
+;;
+;; Relocated from wat-scripts/scratch-pad/probe-zero-duration-disarms-at-process.wat.
+;; That file type-checked on purpose: it was the subject that DISARMS at process
+;; locus. After Stone A a wait of zero has no form, so the file must FAIL to
+;; freeze — and `tests/lint/wat_scripts_fixes_load.rs` type-checks every `.wat`
+;; under wat-scripts/, so leaving it there would turn that gate red with no
+;; explanation in the BRIEF.
+;;
+;; The original used `(Nanosecond ns)` with `ns: i64` (a computed argument).
+;; That still type-checks after the wall — the runtime constructor panics, which
+;; is rung 2. Rung 3 is a LITERAL zero: `(Nanosecond 0)` has no form.
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [_ (:wat::kernel::after
+         :wat::program::PeerKind::thread
+         (:wat::time::Nanosecond 0)
+         :done)]
+    nil))

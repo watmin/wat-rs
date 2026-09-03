@@ -64,7 +64,7 @@
 ;;                    reorder). A vanished waiter (absent conn-id, or send Closed/Lost)
 ;;                    is not an error — keep serving. SendOutcome::Stopped is the world
 ;;                    stopping, same as every other reply arm.
-(:wat::core::defrecord :wat::service::Alarm :- [O] [after <- :wat::time::Duration  op <- :O])
+(:wat::core::defrecord :wat::service::Alarm :- [O] [after <- :wat::time::NonZeroDuration  op <- :O])
 
 ;; Directed — one named send on Continue.sends / Stop.sends. `conn-id` is the stable
 ;; monotonic i64 minted in the serve loop (Invocation/conn-id; never reused). `reply`

@@ -2320,6 +2320,7 @@ fn encode_value_with_path(
         | Value::Vector(_)
         | Value::Instant(_)
         | Value::Duration(_)
+        | Value::NonZeroDuration(_)
         // Arc 118 — Stream: lazy seqs carry closures/thunks; closure-extract encoding
         // is a later strike (not portable in slice 1; same as fn).
         | Value::wat__stream__Stream(_)

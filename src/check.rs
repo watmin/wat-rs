@@ -4418,11 +4418,62 @@ fn infer_list(
             }
             // Stone 237.8b — `+`/`-`/`*`/`/` HARD CUT from this arm: those now
             // route through wat defclauses (registered in env.defclause_registrations).
+            // Stone A — unit constructors return NonZeroDuration; a
+            // literal n <= 0 has no form (rung 3). Supersedes the
+            // TypeScheme registrations below (retained as documentation).
+            ":wat::time::Nanosecond"
+            | ":wat::time::Microsecond"
+            | ":wat::time::Millisecond"
+            | ":wat::time::Second"
+            | ":wat::time::Minute"
+            | ":wat::time::Hour"
+            | ":wat::time::Day" => {
+                let (val, mut errs) = infer_time_unit_constructor(
+                    k, args, head_span, env, locals, fresh, subst,
+                ).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            // Stone A — readouts accept Duration (measurement) OR
+            // NonZeroDuration (commitment). Same dispatch shape as
+            // infer_polymorphic_time_arith, not a coercion.
+            ":wat::time::nanoseconds"
+            | ":wat::time::microseconds"
+            | ":wat::time::milliseconds"
+            | ":wat::time::seconds"
+            | ":wat::time::minutes"
+            | ":wat::time::hours"
+            | ":wat::time::days" => {
+                let ret = TypeExpr::Path(":wat::core::i64".into());
+                let (val, mut errs) = infer_duration_like_unary(
+                    k, args, head_span, env, locals, fresh, subst, ret,
+                ).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::time::ago" | ":wat::time::from-now" => {
+                let ret = TypeExpr::Path(":wat::time::Instant".into());
+                let (val, mut errs) = infer_duration_like_unary(
+                    k, args, head_span, env, locals, fresh, subst, ret,
+                ).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 097 slice 2 — polymorphic Instant ± Duration. Result
             // type depends on the RHS variant:
             //   Instant - Duration -> Instant
             //   Instant - Instant  -> Duration
             //   Instant + Duration -> Instant
+            // Stone A: NonZeroDuration is a legal duration operand too.
             ":wat::time::-" | ":wat::time::+" => {
                 let (val, mut errs) = infer_polymorphic_time_arith(
                     k, head_span, args, env, locals, fresh, subst,
@@ -4576,7 +4627,7 @@ fn infer_list(
                 };
             }
             // Arc 292 — one-shot timer peer (thread tier).
-            // after : (locus, duration: :wat::time::Duration, msg: T) -> (Thread' :- [nil T])
+            // after : (locus, duration: :wat::time::NonZeroDuration, msg: T) -> (Thread' :- [nil T])
             ":wat::kernel::after" => {
                 let (val, mut errs) = infer_kernel_after(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -11361,7 +11412,7 @@ fn project_peer_io(
 /// Three positional args:
 /// - `args[0]`: peer-kind — inferred; must conform to `:wat::program::PeerKind`
 ///   (`:thread` | `:process`). TypeMismatch if not assignable.
-/// - `args[1]`: duration — must conform to `:wat::time::Duration`.
+/// - `args[1]`: duration — must conform to `:wat::time::NonZeroDuration`.
 /// - `args[2]`: msg — inferred; its type becomes the output type `O`.
 ///
 /// Returns `(Peer' :- [nil O])` where `O` is the inferred type of `msg`. arc 278 Stone 1:
@@ -11415,17 +11466,18 @@ fn infer_kernel_after(
         }
     }
 
-    // arg 1: duration — infer; check it conforms to :wat::time::Duration.
+    // arg 1: duration — infer; check it conforms to :wat::time::NonZeroDuration.
+    // A measurement (Duration, which may be zero) is not a wait.
     let dur_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(dur_ty) = &dur_ty_opt {
-        let expected_dur = TypeExpr::Path(":wat::time::Duration".into());
+        let expected_dur = TypeExpr::Path(":wat::time::NonZeroDuration".into());
         if !assignable(dur_ty, &expected_dur, subst, env) {
             local_errors.push(CheckError {
                 span: args[1].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "duration".into(),
-                    expected: ":wat::time::Duration".into(),
+                    expected: ":wat::time::NonZeroDuration".into(),
                     got: format_type(dur_ty),
                 },
             });
@@ -13481,6 +13533,7 @@ fn is_type_orderable(ty: &TypeExpr, subst: &Subst) -> bool {
                 | ":wat::core::keyword"
                 | ":wat::time::Instant"
                 | ":wat::time::Duration"
+                | ":wat::time::NonZeroDuration"
                 // Arc 148 slice 3 — algebra Vector (bit-exact i8 lex via values_compare).
                 | ":wat::holon::Vector"
         ),
@@ -14072,9 +14125,144 @@ fn infer_projection_verb_check(
     if local_errors.is_empty() { CheckResult::ok(backing_type) } else { CheckResult::partial_with(backing_type, local_errors) }
 }
 
-/// Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
-///
-/// Three valid shapes (LHS is always Instant):
+/// The seven time-unit constructors (`Nanosecond` … `Day`) return
+/// `NonZeroDuration`. A literal `n <= 0` is rejected at check time so a
+/// wait of zero has no form (BRIEF-zero-is-not-a-wait.md Stone A, rung 3).
+/// A computed argument still type-checks as i64 and is rejected at the
+/// runtime wall — row 9 of EXPECTATIONS is that case.
+fn infer_time_unit_constructor(
+    head: &str,
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let ret = TypeExpr::Path(":wat::time::NonZeroDuration".into());
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: head.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(ret, local_errors);
+    }
+    match &args[0] {
+        WatAST::IntLit(n, span) if *n <= 0 => {
+            local_errors.push(CheckError {
+                span: span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: head.into(),
+                    reason: format!(
+                        "a wait must be positive; whether you wait lives in the operation, \
+                         not the magnitude of the duration — zero is a legal MEASUREMENT \
+                         (:wat::time::- on equal Instants) and an illegal COMMITMENT: it \
+                         disarms the timer (got {n})"
+                    ),
+                    remedies: vec![],
+                },
+            });
+            return CheckResult::partial_with(ret, local_errors);
+        }
+        _ => {
+            let arg_ty = infer(&args[0], env, locals, fresh, subst)
+                .drain_errors_into(&mut local_errors);
+            if let Some(t) = &arg_ty {
+                let expected = TypeExpr::Path(":wat::core::i64".into());
+                if unify(t, &expected, subst, env.types()).is_err() {
+                    local_errors.push(CheckError {
+                        span: args[0].span().clone(),
+                        kind: CheckErrorKind::TypeMismatch {
+                            callee: head.into(),
+                            param: "n".into(),
+                            expected: ":wat::core::i64".into(),
+                            got: format_type(t),
+                        },
+                    });
+                }
+            }
+        }
+    }
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+/// Readouts (`nanoseconds` … `days`) plus `ago` / `from-now` accept
+/// Duration OR NonZeroDuration. Duration is the measurement (may be
+/// zero); NonZeroDuration is the commitment (cannot be). Both are
+/// durations — this is not a coercion, it is the same identity under
+/// two names (the `infer_polymorphic_time_arith` dispatch shape).
+fn infer_duration_like_unary(
+    head: &str,
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    ret: TypeExpr,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: head.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(ret, local_errors);
+    }
+    let arg_ty = infer(&args[0], env, locals, fresh, subst)
+        .drain_errors_into(&mut local_errors);
+    let resolved = arg_ty.as_ref().map(|t| apply_subst(t, subst));
+    let accepted = match &resolved {
+        Some(TypeExpr::Path(p))
+            if p == ":wat::time::Duration" || p == ":wat::time::NonZeroDuration" =>
+        {
+            true
+        }
+        // Unresolved var: defer to runtime, same policy as `is_type_orderable`.
+        Some(TypeExpr::Var(_)) => true,
+        Some(_) => false,
+        None => true, // already reported
+    };
+    if !accepted {
+        if let Some(t) = &resolved {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: head.into(),
+                    param: "d".into(),
+                    expected: ":wat::time::Duration or :wat::time::NonZeroDuration".into(),
+                    got: format_type(t),
+                },
+            });
+        }
+    }
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+/// Instant ± Duration → Instant; Instant − Instant → Duration.
 ///
 /// ```text
 /// (:wat::time::- Instant Duration) -> Instant
@@ -14084,6 +14272,9 @@ fn infer_projection_verb_check(
 ///
 /// The result type depends on (operator, RHS-variant). LHS-Duration
 /// is rejected; we don't ship Duration arithmetic in this slice.
+/// Stone A of BRIEF-zero-is-not-a-wait.md: NonZeroDuration is also a
+/// legal operand of Instant ± duration (it is a Duration that happens
+/// to be a commitment). Instant − Instant still returns Duration.
 fn infer_polymorphic_time_arith(
     op: &str,
     head_span: &Span,
@@ -14138,10 +14329,14 @@ fn infer_polymorphic_time_arith(
         (":wat::time::-", Some(TypeExpr::Path(p))) if p == ":wat::time::Instant" => {
             duration_ty
         }
-        (":wat::time::-", Some(TypeExpr::Path(p))) if p == ":wat::time::Duration" => {
+        (":wat::time::-", Some(TypeExpr::Path(p)))
+            if p == ":wat::time::Duration" || p == ":wat::time::NonZeroDuration" =>
+        {
             instant_ty
         }
-        (":wat::time::+", Some(TypeExpr::Path(p))) if p == ":wat::time::Duration" => {
+        (":wat::time::+", Some(TypeExpr::Path(p)))
+            if p == ":wat::time::Duration" || p == ":wat::time::NonZeroDuration" =>
+        {
             instant_ty
         }
         // RHS is something else — push a diagnostic, fall back to
@@ -14149,9 +14344,9 @@ fn infer_polymorphic_time_arith(
         _ => {
             if let Some(t) = &b_resolved {
                 let expected = if op == ":wat::time::+" {
-                    ":wat::time::Duration"
+                    ":wat::time::Duration or :wat::time::NonZeroDuration"
                 } else {
-                    ":wat::time::Duration or :wat::time::Instant"
+                    ":wat::time::Duration or :wat::time::NonZeroDuration or :wat::time::Instant"
                 };
                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
@@ -20790,8 +20985,12 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 097 — Duration constructors. Seven unit constructors at
     // :wat::time::* (Nanosecond, Microsecond, Millisecond, Second,
-    // Minute, Hour, Day). Each :i64 -> :wat::time::Duration.
+    // Minute, Hour, Day). Each :i64 -> :wat::time::NonZeroDuration
+    // (Stone A of BRIEF-zero-is-not-a-wait.md). Call-site inference
+    // is `infer_time_unit_constructor` above; these schemes are the
+    // documentation of the return type.
     let duration_ty = || TypeExpr::Path(":wat::time::Duration".into());
+    let nzd_ty = || TypeExpr::Path(":wat::time::NonZeroDuration".into());
     for name in [
         "Nanosecond",
         "Microsecond",
@@ -20806,7 +21005,7 @@ fn register_builtins(env: &mut CheckEnv) {
             TypeScheme {
                 type_params: vec![],
                 params: vec![i64_ty()],
-                ret: duration_ty(),
+                ret: nzd_ty(),
                 rest_param_type: None,
             },
         );

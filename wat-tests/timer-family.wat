@@ -10,7 +10,7 @@
 ;; nap — "sleep", done right: select' on a one-shot after, ignore the tick.
 ;; A delay is a select (cascade-interruptible by construction); never a thread::sleep.
 (:wat::core::defn :test::timer::nap
-  [d <- :wat::time::Duration]
+  [d <- :wat::time::NonZeroDuration]
   -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::select
