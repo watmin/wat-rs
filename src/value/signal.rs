@@ -706,8 +706,8 @@ impl RuntimeErrorKind {
             ),
             RuntimeErrorKind::DeclarationInExpressionPosition(head) => write!(
                 f,
-                "{}{} is a declaration form, not an expression — declaration forms are \
-                 top-level registration forms and cannot appear in expression position",
+                "{}{} is consumed before evaluation — it is registered or spliced at freeze \
+                 time and never evaluated, so it cannot appear in expression position",
                 prefix,
                 head
             ),

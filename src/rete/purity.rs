@@ -2229,7 +2229,19 @@ mod completeness_gate {
     // arm at `runtime.rs:2132` — that arm is unchanged by this stone, STOP-1) classifies it
     // instead of leaving it unreviewed. Leaving the name here after registering would fail
     // this ledger's own STALE check.
-    ":wat::core::defclause",
+    // ⛔ Arc 255 Stone the-hand-rolled-arms-retire — `:wat::core::defclause` LEAVES, and NOT
+    // because it was ruled on. Its literal `runtime.rs` arm was deleted with `def`'s, so
+    // `dispatch_verbs`'s scan no longer finds it and this ledger's own STALE check demanded the
+    // removal. ⚠ THAT IS A LOSS, RECORDED RATHER THAN ABSORBED: `defclause` has NO
+    // `#[wat_special_form]` row, so the replacement guard — keyed on `@Purity Unevaluated` —
+    // cannot see it either. Its named `DeclarationInExpressionPosition` refusal on the raw-AST
+    // path (the only path that reached the arm; `check.rs`'s resolve pass refuses the literal head
+    // before eval otherwise) is GONE until `defclause` is registered.
+    //
+    // ★ The fix is to register it, not to restore the arm: a single surviving hand-rolled arm is
+    // the `const DECLARATION_FORMS` anti-pattern the 2026-06-24 position-class NOTE refused by
+    // name, and restoring it would re-create the exact drift that left seven forms saying
+    // "unknown function" for months. Tracked in the campaign worklist as a registration.
     ":wat::core::derive",
     ":wat::core::find-last-index",
     // Arc 255 Stone 1a-gamma-i — `:wat::core::forms` / `:wat::core::macroexpand` /

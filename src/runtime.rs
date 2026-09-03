@@ -1898,6 +1898,25 @@ fn dispatch_keyword_head(
     if let Some(handler) = crate::intrinsic::registry().lookup(head) {
         return handler(args, list_span, env, sym);
     }
+    // Arc 255 Stone the-hand-rolled-arms-retire — the registry-first door above answers
+    // every row with a handler; a row that reaches THIS point and declares
+    // `@Purity Unevaluated` has no handler by construction
+    // (`unevaluated_purity_carries_no_route_to_evaluation`, `src/intrinsic/mod.rs`) — it is
+    // consumed before evaluation (registered or spliced at freeze time) and was never meant
+    // to land here at all. Keyed on `purity`, not `@Category` and not a hand list: the
+    // 2026-06-24 note's refused antipattern is a `const DECLARATION_FORMS: &[&str]`, and
+    // `@Category` is the wrong key too — `:wat::core::use!` is `@Category Declaration` and
+    // legally evaluates to `Unit` (`use_form.rs:76-77`), so a category-keyed guard would
+    // refuse a form that works today.
+    if let Some(entry) = crate::intrinsic::registry().lookup_entry(head) {
+        if entry.purity == wat_doc::Purity::Unevaluated {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::DeclarationInExpressionPosition(head.to_string()),
+            )
+            .into());
+        }
+    }
     // Producers + forms that preserve provenance: return TrackedValue directly.
     //
     // ⛔ THIS WAS A `match` UNTIL 2026-09-01. Arc 255's wave-3 homing took its last
@@ -1989,6 +2008,28 @@ fn dispatch_keyword_head_value(
     // producer never actually flows through this discard on that path.
     if let Some(handler) = crate::intrinsic::registry().lookup(head) {
         return handler(args, list_span, env, sym).map(TrackedValue::value_owned);
+    }
+    // Arc 255 Stone the-hand-rolled-arms-retire — same guard as `dispatch_keyword_head`'s
+    // copy above (this function's own registry-first door above proves no handler exists for
+    // an `Unevaluated` row, same as there); duplicated here rather than shared because this
+    // function is also reached directly by callers that bypass `dispatch_keyword_head`
+    // (e.g. `dispatch_rete_op`'s recursive calls) — a lookup is idempotent, so the repeat
+    // costs nothing when the first door already caught it. Retires the two hand-rolled arms
+    // (`def`, `defclause`) that used to be this match's only declaration-position refusals;
+    // of the 11 rows declaring `@Purity Unevaluated`, only `def` had one — the other 10
+    // (`defalias`, `defenum`, `defmacro`, `defsurface`, `newtype`, `structtype`, `typealias`,
+    // `load-file!`, `digest-load!`, `signed-load!`) fell through to `UnknownFunction` before
+    // this guard existed. `defclause` is a separate case — see the retirement comment at its
+    // old arm site, a few dozen lines below. See the sibling guard's comment above for the
+    // full predicate rationale.
+    if let Some(entry) = crate::intrinsic::registry().lookup_entry(head) {
+        if entry.purity == wat_doc::Purity::Unevaluated {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::DeclarationInExpressionPosition(head.to_string()),
+            )
+            .into());
+        }
     }
     match head {
         // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
@@ -2124,32 +2165,37 @@ fn dispatch_keyword_head_value(
         // literal arm" gate (`intrinsic/mod.rs`) demanded the deletion and named both rows. The
         // no-op semantics are unchanged; they moved to `intrinsic/special/config_set_redef.rs`,
         // whose own doc records WHY the arm is a no-op: the flag was already applied at freeze.
-        // Arc 170 Gap I-B — `:wat::core::def` at expression position.
-        // The permissive arm (evaluate RHS, return Unit) that relied on
-        // `validate_def_position_with_wrapper` as the entry guard is
-        // retired here. Gap I-A's lift mechanism made that assumption
-        // unsound: after the lift, the check-time validator is no longer
-        // the sole guard. The runtime arm is now self-sufficient and
-        // symmetric with the other 7 declaration forms: any eval-time
-        // encounter of `def` is definitionally at expression position and
-        // must be rejected. Top-level defs are processed by
-        // `register_runtime_defs_form` (freeze-time), which never routes
-        // through `eval` / `dispatch_keyword_head`.
-        ":wat::core::def" => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::DeclarationInExpressionPosition(":wat::core::def".into()),
-        )
-        .into()),
+        // Arc 170 Gap I-B — `:wat::core::def` at expression position. The permissive arm
+        // (evaluate RHS, return Unit) that used to live here, then this stone's own literal
+        // `":wat::core::def" => Err(DeclarationInExpressionPosition(...))` arm that replaced
+        // it, is now RETIRED (Arc 255 Stone the-hand-rolled-arms-retire,
+        // `BRIEF-STONE-the-hand-rolled-arms-retire.md`). `def` is a registered
+        // `#[wat_special_form]` row declaring `@Purity Unevaluated`, so the registry-first
+        // `Unevaluated`-keyed guard above this match now answers it by the SAME name before
+        // this match is ever reached — a hand-rolled arm can no longer shadow the guard by
+        // sitting higher in the match, same "registered wins, always" contract the 255.1c
+        // guard-hoist established. Top-level defs are still processed by
+        // `register_runtime_defs_form` (freeze-time), which never routes through `eval` /
+        // `dispatch_keyword_head`.
         // Stone 241.14 — `:wat::core::def-restricted` eval arm DELETED.
         // HARD CUT at check.rs fires before eval; no form reaches here.
-        // Stone 237.2 — `:wat::core::defclause` at expression position is
-        // a position violation. Top-level defclauses are processed by
-        // `register_runtime_defs_form` (freeze-time).
-        ":wat::core::defclause" => Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::DeclarationInExpressionPosition(":wat::core::defclause".into()),
-        )
-        .into()),
+        // Stone 237.2's `:wat::core::defclause` at expression-position arm is ALSO RETIRED
+        // this stone, but NOT by the guard above — `defclause` carries no
+        // `#[wat_special_form]` registration at all (it is parsed as a declaration only by
+        // `register_runtime_defs_form`/`preregister_defclause_in_env`, never entered into
+        // `crate::intrinsic::registry()`), so `lookup_entry(":wat::core::defclause")` is
+        // `None` and the purity guard does not fire for it — measured live: the literal head
+        // `:wat::core::defclause` in expression position does not even reach this dispatch
+        // through a check-passing program; `check.rs`'s resolve pass already refuses it as an
+        // `UnresolvedReference` (not a registered call head), so this arm was reachable only
+        // by an AST that bypasses `check.rs` entirely (no test in this repo exercised that
+        // path for `defclause` — `def`'s sibling probe,
+        // `tests/wat_lang/probe_def_not_special.rs`, only ever covered `def`). Retired anyway
+        // per the brief rather than kept as an orphaned special case: any raw-AST encounter of
+        // `:wat::core::defclause` now falls through to the ordinary `UnknownFunction` fallback,
+        // same as any other unregistered head — a narrower, honest answer (`defclause` really
+        // isn't a registry-known function) in place of a name this stone's guard cannot derive
+        // without the exact hand-list the 2026-06-24 note refused.
         // Stone 241.16 — `:wat::core::define` eval dispatch arm DELETED.
         // HARD CUT at check.rs (Stone 241.11 + 241.16) fires before eval;
         // no define-headed form reaches this dispatch. DefineInExpressionPosition
