@@ -2089,12 +2089,14 @@ fn dispatch_keyword_head_value(
         }
     }
     match head {
-        // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
-        // Universal escape hatch: takes a keyword head + [-> :T] annotation +
-        // optional leading positional args + a trailing :Vector (spread as
-        // trailing args). Routes EARLY before all other arms so apply is
-        // unambiguous at the dispatch level.
-        ":wat::core::apply" => eval_apply(args, env, sym, list_span.clone()),
+        // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive. Universal escape
+        // hatch: takes a keyword head + optional leading positional args + a trailing :Vector
+        // (spread as trailing args).
+        // Arc 255 Stone 1c-a-ii — RETIRED as a literal arm this stone; registry-routed via a
+        // thin `#[wat_intrinsic]` delegate (`eval_apply_intrinsic`, this file, immediately
+        // below the untouched `eval_apply`) with its real (variadic) shape declared; the
+        // pre-match registry check above (arc 255.1c-guard) intercepts the name before
+        // reaching here.
         // Arc 255 Stone A-2-ii-b-0 — `:wat::core::type` (arc 234 Stone 234.0's polymorphic
         // type-name primitive: HolonAST classifier-wrap → extract_classifier; other →
         // `Value::declared_type_name`; consumed by surface-method dispatch and all arc 234.x
@@ -2112,12 +2114,18 @@ fn dispatch_keyword_head_value(
         // Arc 237 Stone 237.7b-ii — `:wat::core::contains?` ∀T intrinsic with custom inference arm.
         // Polymorphic membership predicate: (Vector :- [T]) / (HashSet :- [T]) / (HashMap :- [K V]) → bool.
         // Tier B: element-typing enforced at check by infer_contains (src/check.rs); behavior-preserving.
-        ":wat::core::contains?" => eval_contains(args, list_span, env, sym),
+        // Arc 255 Stone 1c-a-ii — RETIRED as a literal arm this stone; registry-routed via
+        // `eval_contains` (this file), now a `#[wat_intrinsic]` handler with its real
+        // (variadic) shape declared; the pre-match registry check above (arc 255.1c-guard)
+        // intercepts the name before reaching here.
         // Arc 237 Stone 237.7b-iv — `:wat::core::get` ∀T intrinsic with custom inference arm.
         // Polymorphic indexed/keyed lookup: (Vector :- [T]) + i64 → (Option :- [T]); (HashMap :- [K V]) + K → (Option :- [V]).
         // Tier B: (Option :- [element]) precision enforced at check by infer_get (src/check.rs); behavior-preserving.
         // NO HashSet arm — HashSet has no positional get.
-        ":wat::core::get" => eval_get(args, list_span, env, sym),
+        // Arc 255 Stone 1c-a-ii — RETIRED as a literal arm this stone; registry-routed via
+        // `eval_get` (this file), now a `#[wat_intrinsic]` handler with its real (variadic)
+        // shape declared; the pre-match registry check above (arc 255.1c-guard) intercepts
+        // the name before reaching here.
         // Arc 255 Stone the-collection-readers — `:wat::core::conj`/`assoc` moved into
         // `#[wat_intrinsic]` handlers (`src/intrinsic/collection.rs`), thin delegates over
         // `eval_conj`/`eval_assoc` (in place, unmoved); the pre-match registry check above
@@ -2126,7 +2134,10 @@ fn dispatch_keyword_head_value(
         // Recursive walker over the TypeExpr grammar (Path / Parametric / Tuple / Alias / Union).
         // Signature: (value :TypeExpr) -> :wat::core::bool
         // Error contract: well-formed type + no-match → false; unknown/Fn/Var type → Err.
-        ":wat::core::conforms?" => eval_conforms(args, list_span, env, sym),
+        // Arc 255 Stone 1c-a-ii — RETIRED as a literal arm this stone; registry-routed via
+        // `eval_conforms` (this file), now a `#[wat_intrinsic]` handler with its real
+        // (variadic) shape declared; the pre-match registry check above (arc 255.1c-guard)
+        // intercepts the name before reaching here.
         // Arc 255 Stone HOME-11 — `:wat::edn::validate` RETIRED as a literal arm this stone;
         // registry-routed via `src/intrinsic/edn.rs` (`eval_edn_validate`'s body — the DEEP
         // shape check `conforms?` structurally cannot do — is untouched and un-moved; only the
@@ -2730,45 +2741,15 @@ fn dispatch_keyword_head_value(
         // `:wat::core::tuple` arm retired; Pattern 2 poison in
         // check.rs handles any remaining consumer sites at type-check.
         //
-        // Arc 109 step ①b Room 3 — accept `(Tuple :- [T1 T2 …] …)`. Still NOT wired to
-        // `crate::check::unwrap_type_param_bracket` (splicing would evaluate the bracket's
-        // type keywords as VALUES — same reasoning as step ①'s STOP-3, unchanged). Instead:
-        // strip a genuine leading bracket via `crate::check::split_type_param_bracket` —
-        // the SAME discriminator check.rs's `infer_tuple_constructor` uses, so check and
-        // eval never disagree on which forms have a bracket. A literal `WatAST::Vector`
-        // that is NOT a type-keyword bracket (e.g. `(Tuple [1 2 3] "tag")`,
-        // `tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`) is left as an ordinary
-        // first element, unchanged. Types are erased at runtime (mirrors `eval_ann_form`) —
-        // once check.rs has validated the bracket, only the VALUES matter here.
-        //
-        // Stone ②-i-b — one case `eval_tuple_ctor` cannot take: a `:-`-declared EMPTY
-        // bracket (`(Tuple :- [])`) strips to zero values, and `eval_tuple_ctor` treats
-        // `args.is_empty()` as the illegal bare `(Tuple)` head. A `:-`-declared empty
-        // bracket is different: it is the empty tuple VALUE this stone makes writable
-        // (measured: today `(Tuple [])` — a literal Vector element, not a param-spec,
-        // since arc 109 "THE LAST DOORS" retired bracket-sniffing entirely — builds
-        // `[[]]`, a 1-tuple holding an empty vector; only `(Tuple :- [])` now means the
-        // empty tuple). Build it directly here rather than teaching `eval_tuple_ctor` to
-        // disambiguate "no bracket, zero args" from "bracket, zero args" — it cannot, by
-        // the time it sees only `values`.
-        ":wat::core::Tuple" => {
-            match crate::check::split_type_param_bracket(args) {
-                // The empty tuple is a ZERO-LENGTH param-spec with zero values —
-                // `(Tuple :- [])`. Guard on `inner` too, not `rest` alone: a
-                // declared-but-unpopulated `(Tuple :- [A B])` is an arity mismatch
-                // (check.rs `infer_tuple_constructor` checks bracket arity against
-                // VALUE arity), and answering it with an empty tuple here would be a
-                // check-says-no / runtime-says-yes divergence — the exact class step
-                // ①b's Room 3 was found by. `inner.is_empty()` also confines this arm
-                // to the `:-` spelling for free: `split_type_param_bracket` only ever
-                // returns `Some` for the `:-`-marked spelling now.
-                Some((inner, _bspan, rest)) if inner.is_empty() && rest.is_empty() => {
-                    Ok(Value::Tuple(Arc::new(vec![])))
-                }
-                Some((_inner, _bspan, rest)) => eval_tuple_ctor(rest, list_span, env, sym),
-                None => eval_tuple_ctor(args, list_span, env, sym),
-            }
-        }
+        // Arc 255 Stone 1c-a-ii — RETIRED as a literal arm this stone. The 18-line inline arm
+        // this comment used to introduce (the check-says-no/runtime-says-yes empty-tuple guard)
+        // EXTRACTED verbatim into the named fn `eval_tuple` (this file, below
+        // `eval_tuple_ctor`), now a `#[wat_intrinsic]` handler with its real (variadic) shape
+        // declared — the guard, the `split_type_param_bracket` call, both `eval_tuple_ctor`
+        // paths, and the full explanatory comment all moved unchanged, see that fn's own doc
+        // for the complete Room 3 / Stone ②-i-b reasoning. The pre-match registry check above
+        // (arc 255.1c-guard) intercepts the name before reaching here. No behaviour changed by
+        // this stone.
         // ═══ PARTITION (runtime side) — see the CLAUSE vs INTRINSIC marker in
         // check.rs `infer_list`. INTRINSIC = type-level computation; two flavors.
         // See `docs/DISPATCH.md`.
@@ -5170,6 +5151,86 @@ fn eval_apply(
     .into())
 }
 
+/// `(:wat::core::apply <fn> <a1>...<an> <args-vec>)` — dynamic keyword-head invocation. See
+/// `eval_apply`, immediately above, for the full contract (shape, dispatch chain, special-form
+/// rejection); this fn is a THIN DELEGATE, not a reimplementation.
+///
+/// Arc 255 Stone 1c-a-ii — registered `#[wat_intrinsic]`. `eval_apply` takes `list_span: Span`
+/// BY VALUE (its own signature, immediately above) — `#[wat_intrinsic]`'s context-tail sniff
+/// accepts only `&Environment`/`&SymbolTable`/`&Span` (`crates/wat-macros/src/wat_intrinsic.rs`),
+/// so `eval_apply` itself cannot carry the attribute without reshaping a live fn (STOP-1,
+/// forbidden by the brief). This delegate carries the canonical signature and forwards to the
+/// untouched `eval_apply` via one `.clone()` on the span — the same move `quote.rs`'s
+/// `eval_quote_form` and `stream_lazy.rs`'s `eval_lazy_seq_form` already make for their own
+/// context-tail mismatches. `eval_apply`'s body, and its dispatch chain, are unchanged.
+///
+/// `check_args` requires exactly ONE `@arg` (named `args`, matching the sole `&[WatAST]` param
+/// ident, the same variadic-sniff shape `eval_get`/`eval_contains`/`eval_conforms` use above).
+/// The one `@arg`'s type is pinned to `:wat::core::apply`'s checker scheme's ONLY param
+/// (`check.rs`'s `register_builtins`: `TypeScheme { params: vec![keyword_ty()], ret: t_var() }`
+/// — a 1-arg sentinel; `infer_list`'s own `":wat::core::apply"` arm intercepts before this
+/// scheme is ever consulted for real checking, the scheme comment there says so explicitly);
+/// `@ret` is `:T` per that same scheme.
+///
+/// **Purity/Determinism ground — `Preserving`, NOT `Pure`, NOT `Effectful`:** `eval_apply`'s own
+/// body performs no I/O, mutation, or entropy read of its own; every observable effect it can
+/// produce is entirely the DISPATCHED target's — `apply_function` on a fn-valued head (Step 5),
+/// `eval_call_to_defclause_with_vals` on a clause-set head, or the keyword dispatch chain's
+/// `sym.get`/`sym.def_value`/`dispatch_substrate_impl` arms (Step 7), all immediately above.
+/// This is the same "a form whose purity is its sub-forms', not its own" shape `if`/`mapv`
+/// already argue (`control_flow.rs`/`transform.rs`), extended here from a literal AST branch or
+/// a single named fn-valued arg to a RUNTIME-RESOLVED callable — `apply`'s own execution adds no
+/// independent effect or source of variation past dispatching whatever it is handed. `Preserving
+/// ∧ Preserving`.
+///
+/// **Totality ground — `Preserving`:** past the arity/shape guards (outside totality's domain,
+/// same carve-out `map`/`get` use), whether the call succeeds is entirely the dispatched
+/// target's totality — `apply` adds no domain hole of its own past that point. Same conditional
+/// shape `rete/purity.rs`'s pre-existing HOF-family ruling already formalizes for `foldl`.
+/// `Preserving`.
+///
+/// **Expand-time ground — `RuntimeOnly`, a real gap this stone CLOSES, not widens:** before this
+/// stone, `":wat::core::apply"` was in NEITHER `is_expand_time_legal`'s registry (unregistered)
+/// NOR its residue hand-list (`src/macros/eval.rs`, grepped — absent) — a name silently refused
+/// today with no declared reason, the same shape Stone 1a-ζ found for `ann-form`. Unlike
+/// `mapv`'s `Preserving` (whose ONE effectful subject, `f`, is a literal AST argument
+/// `validate_pure_total`'s own recursion walks INTO — arc 255's walker, `src/macros/eval.rs`),
+/// `apply`'s dispatch target is a RUNTIME VALUE the head expression merely NAMES: a bare
+/// `WatAST::Keyword` naming an effectful verb (e.g. `:wat::io::write!`) is a harmless-looking
+/// leaf to that same recursive walker (`WatAST::Keyword(_, _) => Ok(())`) — the walker cannot
+/// see through `apply`'s indirection to the verb it will actually invoke. This is exactly
+/// `RuntimeOnly`'s own definition (`wat/runtime-meta.wat`): "needs state that does not exist yet
+/// at expand time — … or the evaluation of arbitrary submitted forms." The file's own residue
+/// header independently corroborates, naming `:wat::core::apply` by name among the effectful
+/// heads "denied by default." `Totality::Preserving` and `@ExpandTime RuntimeOnly` are
+/// independent axes (the same `:wat::i64::/` `Partial`+`Legal` precedent cited elsewhere in this
+/// stone, the other direction): `apply`'s OWN effect is conditional on its target, but whether
+/// the WALKER can safely admit it during expansion is a static-visibility question this
+/// indirection fails regardless. `RuntimeOnly`.
+///
+/// **Category ground —** `wat/runtime-meta.wat`'s `:ControlFlow` doc: "Directs evaluation —
+/// `if`, and applying a callable handed in as a value." `apply` is that verb, named verbatim.
+/// `ControlFlow`.
+///
+/// @added         1.0.0
+/// @Purity        Preserving
+/// @Determinism   Preserving
+/// @Totality      Preserving
+/// @ExpandTime    RuntimeOnly
+/// @Category      ControlFlow
+/// @arg     args :wat::core::keyword the head to dispatch (position 0, a `:wat::core::fn` value or a `:wat::core::keyword` FQDN) then zero or more leading positional args then a trailing `:wat::core::Vector` spread as further args (prose-only past position 0 — the variadic sniff leaves no further `@arg` slots)
+/// @ret     :T the dispatched call's own return value
+/// @example (:wat::core::apply (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1)) #=> 2
+#[wat_intrinsic(":wat::core::apply")]
+fn eval_apply_intrinsic(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_apply(args, env, sym, list_span.clone())
+}
+
 /// `:wat::core::=` — structural equality. Composites (Vec, Tuple,
 /// Option, Result, Struct) compare element-/field-wise; primitives
 /// fall through to the `eval_compare` path. Split from `eval_compare`
@@ -5782,6 +5843,106 @@ fn eval_not(
 // `:wat::core::conj` to `:Vector/conj` and `:HashSet/conj` per-Type
 // impls (above). HashMap doesn't conj — it requires key+value
 // pairing, so `:wat::core::assoc` is the right verb there.
+
+/// Arc 255 Stone 1c-a-ii — the `:wat::core::Tuple` dispatch arm, extracted VERBATIM out of
+/// `dispatch_keyword_head_value`'s match (this file) into this named fn so it can carry a
+/// `#[wat_intrinsic]` row. The body below — the `split_type_param_bracket` call, the empty-tuple
+/// guard, both `eval_tuple_ctor` paths — is byte-for-byte what the inline arm ran; only its
+/// location moved. This stone changes no behaviour (STOP-2: nothing here was reshaped).
+///
+/// Post-arc-165: `:wat::core::Tuple` is canonical PascalCase per slice 1f's vec→Vector playbook
+/// completed. Legacy `:wat::core::tuple` arm retired; Pattern 2 poison in check.rs handles any
+/// remaining consumer sites at type-check.
+///
+/// Arc 109 step ①b Room 3 — accept `(Tuple :- [T1 T2 …] …)`. Still NOT wired to
+/// `crate::check::unwrap_type_param_bracket` (splicing would evaluate the bracket's
+/// type keywords as VALUES — same reasoning as step ①'s STOP-3, unchanged). Instead:
+/// strip a genuine leading bracket via `crate::check::split_type_param_bracket` —
+/// the SAME discriminator check.rs's `infer_tuple_constructor` uses, so check and
+/// eval never disagree on which forms have a bracket. A literal `WatAST::Vector`
+/// that is NOT a type-keyword bracket (e.g. `(Tuple [1 2 3] "tag")`,
+/// `tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`) is left as an ordinary
+/// first element, unchanged. Types are erased at runtime (mirrors `eval_ann_form`) —
+/// once check.rs has validated the bracket, only the VALUES matter here.
+///
+/// Stone ②-i-b — one case `eval_tuple_ctor` cannot take: a `:-`-declared EMPTY
+/// bracket (`(Tuple :- [])`) strips to zero values, and `eval_tuple_ctor` treats
+/// `args.is_empty()` as the illegal bare `(Tuple)` head. A `:-`-declared empty
+/// bracket is different: it is the empty tuple VALUE this stone makes writable
+/// (measured: today `(Tuple [])` — a literal Vector element, not a param-spec,
+/// since arc 109 "THE LAST DOORS" retired bracket-sniffing entirely — builds
+/// `[[]]`, a 1-tuple holding an empty vector; only `(Tuple :- [])` now means the
+/// empty tuple). Build it directly here rather than teaching `eval_tuple_ctor` to
+/// disambiguate "no bracket, zero args" from "bracket, zero args" — it cannot, by
+/// the time it sees only `values`.
+///
+/// Registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg` mechanics as
+/// `eval_get`/`eval_contains`/`eval_conforms` above (`args: &[WatAST]` sniffs as the VARIADIC
+/// form; `check_args` requires exactly ONE `@arg`, named `args`). Real arity (1+, or 0 only via
+/// the `:-`-declared-empty-bracket path above) stays enforced by `eval_tuple_ctor`'s own
+/// `args.is_empty()` guard and this fn's bracket-guard, both unchanged. The one `@arg`'s type is
+/// pinned to `:wat::core::Tuple`'s checker scheme's first param (`t_var()` — `check.rs`'s
+/// `register_builtins`, a 1-element sentinel: "Tuple arity/element-types are structural and
+/// known at type-check time… the fingerprint registers a 1-element sentinel since TypeScheme has
+/// no variadic-heterogeneous shape today"); `@ret` is `(:wat::core::Tuple :- [T])` per that same
+/// scheme.
+///
+/// **Purity/Determinism ground —** `split_type_param_bracket` is a pure syntactic peel (never
+/// errors, `check.rs:12256`); every element is evaluated by ordinary call-by-value
+/// (`eval_tuple_ctor`, immediately below) — no `apply_function` on caller-supplied code anywhere
+/// in this call, the same "constructs a new value from evaluated args, nothing more" shape
+/// `aggregate-new`'s own `Pure` ground already uses (`src/intrinsic/record.rs`). `Pure ∧
+/// Deterministic`.
+///
+/// **Totality ground —** the ONLY fallible path is `eval_tuple_ctor`'s own `args.is_empty()`
+/// guard for a bare `(Tuple)` — a malformed-call guard, the same "outside totality's domain"
+/// carve-out `map`/`get`/`aggregate-new` already use; the empty-tuple `:-` bracket case (handled
+/// directly above, in this fn) exists precisely so that guard is never reached for the one
+/// legitimate zero-element call. Past both guards, construction (`Value::Tuple(Arc::new(...))`)
+/// cannot fail. `Total`.
+///
+/// **Expand-time ground —** `src/macros/eval.rs`'s `is_expand_time_legal` residue names
+/// `":wat::core::Tuple"` literally (its "collection constructors" group) — legal,
+/// pre-registration; this registration carries the SAME verdict. `Legal`.
+///
+/// **Category ground —** builds a brand-new compound value from several evaluated element
+/// values — the same "constructs a NEW value from what it is given" shape `aggregate-new`'s own
+/// `@Category Transform` grounding uses (`src/intrinsic/record.rs`), not `:Combine` (which grows
+/// an EXISTING value of the same kind — `concat`/`conj`/`assoc`/`join`). `Transform`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :T one or more heterogeneous element values, or a `:-`-marked leading type-param bracket (`(Tuple :- [T1 T2 …] v1 v2 …)`, or `(Tuple :- [])` for the empty tuple) — the variadic sniff leaves no further `@arg` slots
+/// @ret     (:wat::core::Tuple :- [T]) the newly constructed heterogeneous tuple
+/// @example (:wat::core::Tuple 1 2) #=> (:wat::core::Tuple 1 2)
+#[wat_intrinsic(":wat::core::Tuple")]
+fn eval_tuple(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    match crate::check::split_type_param_bracket(args) {
+        // The empty tuple is a ZERO-LENGTH param-spec with zero values —
+        // `(Tuple :- [])`. Guard on `inner` too, not `rest` alone: a
+        // declared-but-unpopulated `(Tuple :- [A B])` is an arity mismatch
+        // (check.rs `infer_tuple_constructor` checks bracket arity against
+        // VALUE arity), and answering it with an empty tuple here would be a
+        // check-says-no / runtime-says-yes divergence — the exact class step
+        // ①b's Room 3 was found by. `inner.is_empty()` also confines this arm
+        // to the `:-` spelling for free: `split_type_param_bracket` only ever
+        // returns `Some` for the `:-`-marked spelling now.
+        Some((inner, _bspan, rest)) if inner.is_empty() && rest.is_empty() => {
+            Ok(Value::Tuple(Arc::new(vec![])))
+        }
+        Some((_inner, _bspan, rest)) => eval_tuple_ctor(rest, list_span, env, sym),
+        None => eval_tuple_ctor(args, list_span, env, sym),
+    }
+}
 
 /// `(:wat::core::Tuple a b c ...)` — build a heterogeneous tuple
 /// `Value::Tuple`. Arity 1+; the 0-tuple is the unit `:()` handled
@@ -7698,6 +7859,49 @@ pub(crate) fn eval_type(
 /// - `Value::wat__std__HashMap(..)` → KEY membership (contains-key?, not value)
 ///
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+///
+/// Arc 255 Stone 1c-a-ii — registered `#[wat_intrinsic]`. `eval_contains`'s Rust signature
+/// (`args: &[WatAST]` + a context tail) is the shared "slice-of-args" shape `eval_not`/
+/// `eval_vec_map` already register under — `#[wat_intrinsic]` sniffs it as the VARIADIC form,
+/// so `check_args` requires exactly ONE `@arg` (named `args`, matching the sole param ident);
+/// the real 2-arg shape stays enforced by this fn's own `args.len() != 2` guard, unchanged.
+/// The one `@arg`'s type is pinned to `:wat::core::contains?`'s checker scheme's first param
+/// (`t_var()` — `check.rs`'s `register_builtins`, "contains? :: ∀T. T × T -> :bool"); `@ret`
+/// is `:wat::core::bool` per that same scheme.
+///
+/// **Purity/Determinism ground —** measured directly at this fn's own body, above: both args
+/// are evaluated by ordinary call-by-value (`eval_inner`), then dispatched to the per-container
+/// `*_contains_q_inner`/`*_contains_key_q_inner` helpers (`src/collection/eval.rs`), each a pure
+/// structural scan/hash lookup — no `apply_function` on caller-supplied code anywhere in this
+/// call. `Pure ∧ Deterministic`.
+///
+/// **Totality ground —** `infer_contains` (`src/collection/infer.rs:31`) and this fn's own
+/// `MapContainer`/`StreamContainer` dispatch (immediately above) accept the IDENTICAL container
+/// set (HashMap/PersistentMap/Record via `has_key`; Vector/HashSet/PersistentVector/List/Tuple/
+/// WatAstList via `searchable`) — the `TypeMismatch` arms this fn can reach are unreachable for
+/// any call the checker has already accepted, the same "arity guard is outside totality's
+/// domain" carve-out `map`/`mapv` already use, extended here to the container-shape guard too
+/// since the checker independently enforces the identical domain. `Total`.
+///
+/// **Expand-time ground —** `src/macros/eval.rs`'s `is_expand_time_legal` residue names
+/// `":wat::core::contains?"` literally (its "collection / sequence ops" group) — legal,
+/// pre-registration; this registration must carry the SAME verdict or it silently revokes
+/// today's legality. `Legal`.
+///
+/// **Category ground —** `wat/runtime-meta.wat`'s own `:Probe` doc names `contains?` as an
+/// example verb: "Interrogates a value and derives a FACT about it — `empty?`, `length`,
+/// `contains?`." `Probe`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :T the collection (position 0) then the element-or-key to test (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
+/// @ret     :wat::core::bool whether the collection contains the element (Vector/HashSet/List/PersistentVector/Tuple/WatAstList) or key (HashMap/PersistentMap) or field name (Record)
+/// @example (:wat::core::contains? (:wat::core::Vector 1 2 3) 2) #=> true
+#[wat_intrinsic(":wat::core::contains?")]
 fn eval_contains(
     args: &[WatAST],
     list_span: &Span,
@@ -7846,6 +8050,48 @@ pub(crate) fn eval_conj(
 ///
 /// HashSet excluded — HashSet has no positional get (use `contains?`).
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
+///
+/// Arc 255 Stone 1c-a-ii — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_contains`'s doc, immediately above (`args: &[WatAST]` sniffs as the
+/// VARIADIC form; `check_args` requires exactly ONE `@arg`, named `args`; the real 2-arg shape
+/// stays enforced by this fn's own `args.len() != 2` guard, unchanged). The one `@arg`'s type is
+/// pinned to `:wat::core::get`'s checker scheme's first param (`t_var()` — `check.rs`'s
+/// `register_builtins`, "get :: ∀T. T × T -> (:Option :- [T])"); `@ret` is
+/// `(:wat::core::Option :- [T])` per that same scheme.
+///
+/// **Purity/Determinism ground —** both args are evaluated by ordinary call-by-value
+/// (`eval_inner`), then dispatched to the per-container `*_get_inner` helpers
+/// (`src/collection/eval.rs`) — each a pure index/key lookup returning `Value::Option`, no
+/// `apply_function` on caller-supplied code anywhere in this call. `Pure ∧ Deterministic`.
+///
+/// **Totality ground —** `infer_get` (`src/collection/infer.rs:275`) and this fn's own
+/// `MapContainer`/`StreamContainer` dispatch (immediately above) accept the IDENTICAL container
+/// set (HashMap/PersistentMap/Record via `keyed_lookup`; Vector/PersistentVector/List/
+/// WatAstList/HashSet via `gettable`) — the `TypeMismatch` arms this fn can reach are
+/// unreachable for any call the checker has already accepted. A "not found" lookup is not a
+/// failure of this fn's own domain either: every arm answers with `Value::Option` (`None` on
+/// miss), never an `Err`, the same shape `:wat::core::last`/`reverse`/`range`'s `Total` ruling
+/// already covers for an absence encoded IN the return type rather than raised. `Total`.
+///
+/// **Expand-time ground —** `src/macros/eval.rs`'s `is_expand_time_legal` residue names
+/// `":wat::core::get"` literally (its "collection / sequence ops" group) — legal,
+/// pre-registration; this registration carries the SAME verdict. `Legal`.
+///
+/// **Category ground —** `wat/runtime-meta.wat`'s `:Projection` doc: "Returns a COMPONENT of a
+/// compound value that was already there… NOT `:Probe`: a probe computes a NEW fact; an
+/// accessor returns a part that already existed." `get` returns the element/value already
+/// stored at the given index/key — the return, not a derived fact about it. `Projection`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     args :T the collection (position 0) then the index-or-key to look up (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
+/// @ret     (:wat::core::Option :- [T]) `Some` the element/value at the index/key, or `None` if absent
+/// @example (:wat::core::get (:wat::core::Vector 1 2 3) 1) #=> (:wat::core::Some 2)
+#[wat_intrinsic(":wat::core::get")]
 fn eval_get(
     args: &[WatAST],
     list_span: &Span,
@@ -7964,6 +8210,50 @@ fn eval_get(
 ///
 /// Error contract: well-formed type + no match → `false`.
 /// Unknown/unregistered type name, Fn, or Var → `Err` (bad input, not negative result).
+///
+/// Arc 255 Stone 1c-a-ii — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_get`/`eval_contains`'s doc above (`args: &[WatAST]` sniffs as the
+/// VARIADIC form; `check_args` requires exactly ONE `@arg`, named `args`; the real 2-arg shape
+/// stays enforced by this fn's own `args.len() != 2` guard, unchanged). The one `@arg`'s type is
+/// pinned to `:wat::core::conforms?`'s checker scheme's first param (`t_var()` — `check.rs`'s
+/// `register_builtins`, "conforms? :: ∀T. T × :wat::core::keyword -> :wat::core::bool"); `@ret`
+/// is `:wat::core::bool` per that same scheme.
+///
+/// **Purity/Determinism ground —** arg0 (the value) is evaluated by ordinary call-by-value; arg1
+/// is parsed as a type expression (`parse_type_slot`, a pure syntactic read, never evaluated as
+/// code). `conforms_check` (this file) is a pure recursive structural comparison over the
+/// `TypeExpr` grammar — no `apply_function`/IO/mutation anywhere in the call. `Pure ∧
+/// Deterministic`.
+///
+/// **Totality ground — `Partial`, NOT `Total`:** unlike `get`/`contains?` above, the checker's
+/// `":wat::core::conforms?"` arm (`check.rs:2791`) validates ONLY that arg1 is Keyword-shaped
+/// syntax — it does not resolve the name against the type registry, so a well-typed call can
+/// still hand `conforms_check` an unknown/unregistered type name, or an `Fn`/`Var` `TypeExpr` —
+/// exactly the fn's own doc contract above: "Unknown/unregistered type name, Fn, or Var → `Err`
+/// (bad input, not negative result)." This is a genuine domain hole the checker does not close,
+/// not an arity guard. `Partial`.
+///
+/// **Expand-time ground —** `src/macros/eval.rs`'s `is_expand_time_legal` residue names
+/// `":wat::core::conforms?"` literally (its "value/control-flow ops" group) — legal,
+/// pre-registration. `Partial` totality does not bar `Legal` here — the same "different axes"
+/// precedent `:wat::i64::/`'s own `@Totality Partial` / `@ExpandTime Legal` pair already
+/// establishes: a raise during expansion is a deterministic, located `MacroError`, strictly
+/// better than a runtime one. `Legal`.
+///
+/// **Category ground —** `wat/runtime-meta.wat`'s `:Probe` doc: "Interrogates a value and
+/// derives a FACT about it." `conforms?` derives exactly one fact — does this value conform to
+/// this type — the same shape `contains?`'s own `Probe` grounding uses. `Probe`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :T the value to check (position 0) then the type-position keyword or `(Head :- [args])` reference form (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
+/// @ret     :wat::core::bool whether `args`'s value structurally conforms to the declared type
+/// @example (:wat::core::conforms? 1 :wat::core::i64) #=> true
+#[wat_intrinsic(":wat::core::conforms?")]
 fn eval_conforms(
     args: &[WatAST],
     list_span: &Span,

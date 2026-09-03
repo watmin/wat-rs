@@ -84,21 +84,15 @@ fn every_dispatch_arm_calling_eval_threads_list_span() {
     // place on `eval_ann_form`), so the registry-first door answers it and its dispatch arm is
     // gone (`runtime.rs`'s `dispatch_keyword_head_value`). The claim "no home carve relocates
     // it" is now false for `ann-form` too.
-    // ⚠ One anchor remains — `apply` — on the 121-name registration worklist
-    // (`WORKLIST-the-121-the-registry-cannot-vouch-for.md`). This control has at most one
-    // removal left before the comment above applies and it should be DELETED, not re-anchored.
-    const MUST_FIND: &[&str] = &[
-        ":wat::core::apply",
-    ];
-    for needle in MUST_FIND {
-        assert!(
-            arms.iter().any(|a| a.keywords.contains(needle)),
-            "parser sanity: {needle} is a structural dispatch arm that no home carve \
-             relocates, and the parser did not find it among {} arms. Investigate the \
-             parser before trusting the symmetry verdict.",
-            arms.len(),
-        );
-    }
+    // ⛔ Arc 255 Stone 1c-a-ii — `MUST_FIND` RETIRED, not re-anchored. `apply` was the last
+    // anchor (see the header above, "this positive control has nothing left to anchor on and
+    // should be DELETED rather than re-anchored — a parser-sanity check for a match that no
+    // longer exists is a test asserting the absence of its own subject"); this stone registers
+    // `:wat::core::apply` as a `#[wat_intrinsic]` (a thin delegate, `eval_apply_intrinsic` in
+    // `src/runtime.rs`), so its dispatch arm is gone and the const had nothing left to name.
+    // The symmetry assertion below — `classify_arm` over every arm, panicking on any arm that
+    // calls `eval` without threading `list_span` — is untouched: it is the test's real job, a
+    // live gate this stone does not touch.
     // ⛔ Arc 255 Stone 1c-a-i — THE MAGNITUDE IS RETIRED, not lowered again.
     //
     // Six arms went out this stone (`foldl`/`map`/`filter`/`mapv`/`stream->vec`/

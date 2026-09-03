@@ -2218,7 +2218,6 @@ mod completeness_gate {
         // population and their debt is visible again. Nothing here is classified; 255.3 owns
         // that. [[feedback_a_gate_freezes_names_never_a_count]] — the gate froze the names
         // correctly; the DISPOSITION of its red is what went wrong.
-    ":wat::core::Tuple",
     // Arc 255 Stone 1a-zeta — `:wat::core::ann-form` LEAVES. `intrinsic_meta`'s registry-first
     // consult now answers `Some` for it (the `@Purity Preserving` / `@Determinism Preserving` /
     // `@Totality Preserving` this stone registered — `intrinsic/special/ann_form.rs`), so
@@ -2226,8 +2225,13 @@ mod completeness_gate {
     // `runtime.rs`'s `dispatch_keyword_head_value`, STOP-1 unchanged past the arm deletion the
     // registry-first door itself demanded) classifies it instead of leaving it unreviewed.
     // Leaving the name here after registering would fail this ledger's own STALE check.
-    ":wat::core::apply",
-    ":wat::core::conforms?",
+    // Arc 255 Stone 1c-a-ii — `:wat::core::Tuple` / `:wat::core::apply` / `:wat::core::conforms?`
+    // LEAVE together. `intrinsic_meta`'s registry-first consult now answers `Some` for all three
+    // (`@Purity Pure`/`Preserving`, `@Totality Total`/`Partial`/`Preserving` — registered at
+    // `src/runtime.rs`: `eval_tuple`, `eval_apply_intrinsic`, `eval_conforms`), so `dispatch_verbs`'s
+    // scan (whose literal arms were RETIRED in `dispatch_keyword_head_value` this same stone) no
+    // longer finds them dispatched-but-unclassified. `:wat::core::get`/`:wat::core::contains?`
+    // (registered the same stone) were never on this ledger to begin with — nothing to remove.
     // Arc 255 Stone 1a-β-ii — `:wat::core::def` LEAVES. `intrinsic_meta`'s registry-first
     // consult (`:473` above) now answers `Some` for it (the `@Purity Unevaluated` /
     // `@Determinism Deterministic` / `@Totality Partial` this stone registered), so

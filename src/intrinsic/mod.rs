@@ -1433,12 +1433,11 @@ mod tests {
     const REGISTRY_MEMBERSHIP_GAP_A: &[&str] = &[
         ":wat::core::HashMap",
         ":wat::core::HashSet",
-        ":wat::core::Tuple",
         ":wat::core::Vector",
-        ":wat::core::apply",
-        ":wat::core::conforms?",
-        ":wat::core::contains?",
-        ":wat::core::get",
+        // Arc 255 Stone 1c-a-ii — ":wat::core::Tuple" / ":wat::core::apply" /
+        // ":wat::core::conforms?" / ":wat::core::contains?" / ":wat::core::get" DELETED: all
+        // five now carry a `#[wat_intrinsic]` row (`src/runtime.rs`), so `registry()` answers
+        // for them and the gap this list named is closed.
         // ":wat::core::i64/to-f64" / ":wat::core::i64/to-string" NOT deleted this stone —
         // STOP-5 finding (BRIEF-STONE-the-seven-that-need-no-extraction's report): the
         // brief's named handler for both, `crate::numeric::convert::eval_i64_to_f64`/
@@ -1718,15 +1717,19 @@ mod tests {
     /// `Some` for all three and leaving them here would fail the gate below as STALE. All three
     /// stay in `GAP_B_CORPUS_CENSUS_121` above (the fixed historical record — never edited);
     /// only the shrinking "current gap" list drops them.
+    ///
+    /// Arc 255 Stone 1c-a-ii — `:wat::core::Tuple`/`get`/`apply`/`contains?`/`conforms?` LEAVE:
+    /// all five now carry a `#[wat_intrinsic]` row (`src/runtime.rs`), so `registry().lookup_entry`
+    /// returns `Some` for all five and leaving them here would fail the gate below as STALE. All
+    /// five stay in `GAP_B_CORPUS_CENSUS_121` above; only the shrinking "current gap" list drops
+    /// them.
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
         ":wat::core::=",
         ":wat::core::PersistentVector",
         ":wat::core::first",
         ":wat::eval-ast!",
-        ":wat::core::Tuple",
         ":wat::core::second",
         ":wat::core::PersistentMap",
-        ":wat::core::get",
         ":wat::core::extend-type",
         ":wat::core::str",
         ":wat::rete::string::=",
@@ -1736,7 +1739,6 @@ mod tests {
         // from REGISTRY_MEMBERSHIP_GAP_A above: now registered (the @alias witness), so
         // registry().lookup_entry returns Some and this name is resolved, not gapped.
         ":wat::core::>",
-        ":wat::core::apply",
         ":wat::core::>=",
         ":wat::rete::i64::*",
         ":wat::rete::i64::/",
@@ -1750,7 +1752,6 @@ mod tests {
         ":wat::rete::core::foldl",
         ":wat::core::defclause",
         ":wat::type::i64",
-        ":wat::core::contains?",
         ":wat::rete::core::PersistentVector/first",
         ":wat::core::<=",
         ":wat::type::String",
@@ -1783,7 +1784,6 @@ mod tests {
         ":wat::rete::core::filter",
         ":wat::core::tuple-get",
         ":wat::core::reduce-walk",
-        ":wat::core::conforms?",
         // Arc 255 Stone 1b-ii — 7 rete Form/Redispatch names LEAVE: `:wat::rete::core::
         // {and,or,if,let,match,fn}` and `:wat::rete::holon::coincident?` are registered rows
         // now (`src/intrinsic/special/rete_alias.rs`), so `registry().lookup_entry` answers
