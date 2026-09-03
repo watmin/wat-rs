@@ -47,8 +47,17 @@ a green light on top.
   against `:oracle-derived`, failing with both sets named.
 - **The corpus gains a parametric axis**: one class, instances of mixed packability, the D7 shape.
   Without it the gate is green on a corpus that cannot express the defect.
-- **⚠ `fanout` emits `#fan/QuerySplit`, not `#grid/Result`** (driven). The gate must handle that or
-  say why it is excluded — a silent skip is how an axis goes dark.
+- **⚠ CORRECTED 2026-09-03, re-driven at HEAD `daa92c3b0`.** The earlier note here read *"`fanout`
+  emits `#fan/QuerySplit`, not `#grid/Result`"*. **That is false.** fanout emits **BOTH lines** — a
+  `#fan/QuerySplit` timing line FIRST, then a normal `#grid/Result` carrying both columns. Reading
+  the second line is all that is required; there is no record-type problem.
+- **⛔ THE REAL TRAP IS VACUITY, AND IT IS SHARPER.** `fanout` takes a **single-number** size
+  (`fanout.wat:5`, `:35`). Handed a two-element vector it does not refuse — it derives
+  **`:derived []` and `:oracle-derived []`** and the pairing compares equal. Driven at `[20 5]`,
+  `[100 20]` and `[50 10]`: **all three print `match` on two empty sets.** At `[500]` it derives 400.
+  **A wrong size on any axis is a green row that proves nothing** — this is C16's defect, one
+  directory over, reached by a size rather than a filter. The gate MUST assert each set is non-empty;
+  equality alone is satisfied by absence.
 
 ## Out of scope = REJECTED
 

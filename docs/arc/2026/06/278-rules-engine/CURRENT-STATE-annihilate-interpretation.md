@@ -96,7 +96,23 @@ instruments are the worse. Neither is done.**
 **Still open:** C9's Clara half · C12 · C14 · C15 · C18 · C20 · F2. **D2 stands as a bounded negative
 and must NOT be reaped.**
 
-## THE LANDED STRIKES — each has a `SCORE.md` beside its DESIGN
+## THE LANDED STRIKES
+
+> ⛔ **THIS HEADER READ *"each has a `SCORE.md` beside its DESIGN"* AND THAT WAS FALSE.** Measured
+> 2026-09-03 during a recolligere: **11 of 39 strike dirs have no `SCORE.md`**, and **10 of those 11
+> LANDED** — `acc-panics` (A2), `import-graph-wall` (A1), `silent-zero` (A2b), `session-origin` (A4),
+> `enum-variant-typo` (D1), `oracle-acc-refire`, `docs-graveyard`, `minimum-label`,
+> `nested-then-types` (D11), `stable-diagnostics` (C19). Each carries DESIGN + BRIEF + EXPECTATIONS
+> and some carry probe transcripts; their scores live in the work-list row and the commit message
+> instead. **Per F0 the fix is the command, not a corrected number** — derive it, never trust a
+> count in this sentence:
+>
+> ```
+> for d in docs/arc/2026/06/278-rules-engine/strike-*/; do [ -f "$d/SCORE.md" ] || echo "$d"; done
+> ```
+>
+> The one genuinely un-landed dir is `strike-port-check-on-the-floor/` (drawn, unreleased). **A row
+> below is evidence a strike landed; the presence of a `SCORE.md` is not.**
 
 | | | |
 |---|---|---|
