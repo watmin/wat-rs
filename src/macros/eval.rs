@@ -437,7 +437,7 @@ fn is_expand_time_legal(head: &str) -> bool {
     // ★ THE RESIDUE — arc 255 Stone expand-T4b. NOT a hand-list of "which verbs are
     // expand-time legal": every name below is one for which `registry().lookup_entry`
     // returns `None` — no registration site exists yet to carry an `@ExpandTime`
-    // ruling — so the verdict for exactly these 58 stays HERE until one exists. This
+    // ruling — so the verdict for exactly these 21 stays HERE until one exists. This
     // is a HOMING BACKLOG, not the 202-name hand-list it replaced: each row retires
     // the moment its verb gets a registration site — move the reasoning there (the
     // same motion `:wat::hashmap::keys` / `:wat::hashmap::values` just made above)
@@ -448,83 +448,59 @@ fn is_expand_time_legal(head: &str) -> bool {
     // `lookup_entry` on every one, not re-guessed). Down to 58 — arc 255 Stone A-2-ii-b
     // homed `:wat::core::sort$native` into `#[wat_intrinsic]` with its own
     // `@ExpandTime Legal`, so `lookup_entry` now answers for it above and the
-    // hand-list row would have been a shadowing copy.
+    // hand-list row would have been a shadowing copy. Down to 21 — arc 255 Stone
+    // `1c-c-the-residues-cannot-shadow-the-registry`: 33 of the 54 rows this residue
+    // actually carried had drifted the same way, one at a time, unnoticed — see the
+    // retirement bullet below.
     //
     // Grouped only for a reader's sake — the residue's DEFINITION is `lookup_entry ==
     // None`, nothing about these groupings:
-    //   value/control-flow ops with no per-verb home yet — `=`, `not=`, `and`, `or`,
-    //     `not`, `do`, `fn`, `match`, `bool::to-string`, `i64/to-f64` (dual spelling
-    //     of the homed `i64::to-f64`), `i64/to-string`, `str`, `show`, `type`,
-    //     `subtype?`, `conforms?`, `record?`, `List?`, `macro-error`
-    //   collection constructors — `Vector`, `Tuple`, `HashMap`, `HashSet`
+    //   value/control-flow ops with no per-verb home yet — `=`, `not=`,
+    //     `i64/to-f64` (dual spelling of the homed `i64::to-f64`), `i64/to-string`,
+    //     `str`, `subtype?`, `List?`
+    //   collection constructors — `Vector`, `HashMap`, `HashSet`
     //   collection / sequence ops still on the pre-registry dispatch path —
-    //     `assoc`, `conj`, `contains?`, `count`, `first`, `second`, `third`, `get`,
-    //     `into`, `drop`, `take`, `filter`, `filterv`, `map`, `mapv`, `foldl`,
-    //     `reduce`, `reduce-stream`, `doall`, `dorun`, `find-last-index`,
-    //     `stream::lazy`, `stream->vec`, `stream->pvec`
-    //   homoiconic AST helpers not yet homed — `forms`, `with-children`,
-    //     `write-forms`, `struct->form`
+    //     `count`, `into`, `filterv`, `reduce`, `reduce-stream`, `doall`, `dorun`,
+    //     `stream->pvec`
     //   ~~Option/Result unwrappers~~ — DELETED 2026-08-31. All four (`Option/expect`,
     //     `Option/try`, `Result/expect`, `Result/try`) are now `#[wat_intrinsic]`-registered,
     //     so the `registry().lookup_entry` door above answers first and these arms were
     //     unreachable dead text — precisely the "shadowed by a copy" defect this residue
     //     list's own header names. Found by a rider that was homing three of them and
     //     noticed the fourth had been stale since earlier the same day.
+    //   ~~and/or/not/do/fn/match/bool::to-string/show/type/conforms?/record?/macro-error,
+    //     Tuple, assoc/conj/contains?/first/second/third/get/drop/take/filter/map/mapv/
+    //     foldl/find-last-index/stream::lazy/stream->vec, and all four homoiconic AST
+    //     helpers (forms/with-children/write-forms/struct->form)~~ — DELETED arc 255
+    //     Stone `1c-c-the-residues-cannot-shadow-the-registry`. All 33 are now
+    //     `#[wat_intrinsic]`-registered, so the `registry().lookup_entry` door above
+    //     answers first and these arms were unreachable dead text — the identical
+    //     "shadowed by a copy" defect the 2026-08-31 deletion above names, this time
+    //     found by a GATE (`the_residues_cannot_shadow_the_registry`,
+    //     `src/intrinsic/mod.rs`) that asserts the rule this header states, rather than
+    //     by a rider noticing.
     //   ReadOutcome / Error field access — `ReadOutcome::Forms`,
     //     `ReadOutcome::Malformed`, `Error/message`
     matches!(
         head,
         | ":wat::core::="
         | ":wat::core::not="
-        | ":wat::core::and"
-        | ":wat::core::or"
-        | ":wat::core::not"
-        | ":wat::core::do"
-        | ":wat::core::fn"
-        | ":wat::core::match"
-        | ":wat::core::bool::to-string"
         | ":wat::core::i64/to-f64"
         | ":wat::core::i64/to-string"
         | ":wat::core::str"
-        | ":wat::core::show"
-        | ":wat::core::type"
         | ":wat::core::subtype?"
-        | ":wat::core::conforms?"
-        | ":wat::core::record?"
         | ":wat::core::List?"
-        | ":wat::core::macro-error"
         | ":wat::core::Vector"
-        | ":wat::core::Tuple"
         | ":wat::core::HashMap"
         | ":wat::core::HashSet"
-        | ":wat::core::assoc"
-        | ":wat::core::conj"
-        | ":wat::core::contains?"
         | ":wat::core::count"
-        | ":wat::core::first"
-        | ":wat::core::second"
-        | ":wat::core::third"
-        | ":wat::core::get"
         | ":wat::core::into"
-        | ":wat::core::drop"
-        | ":wat::core::take"
-        | ":wat::core::filter"
         | ":wat::core::filterv"
-        | ":wat::core::map"
-        | ":wat::core::mapv"
-        | ":wat::core::foldl"
         | ":wat::core::reduce"
         | ":wat::core::reduce-stream"
         | ":wat::core::doall"
         | ":wat::core::dorun"
-        | ":wat::core::find-last-index"
-        | ":wat::stream::lazy"
-        | ":wat::core::stream->vec"
         | ":wat::core::stream->pvec"
-        | ":wat::core::forms"
-        | ":wat::core::with-children"
-        | ":wat::core::write-forms"
-        | ":wat::core::struct->form"
         | ":wat::core::ReadOutcome::Forms"
         | ":wat::core::ReadOutcome::Malformed"
         | ":wat::core::Error/message"

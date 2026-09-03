@@ -3109,6 +3109,254 @@ mod tests {
              surrounding retirement commentary and the handler fn itself) for: {offenders:?}"
         );
     }
+
+    /// Arc 255 `DESIGN-STONE-1c-c-the-residues-cannot-shadow-the-registry.md` — THE MIRROR of
+    /// `registry_first_door_owns_every_handler_row_no_literal_arm_survives` (above), aimed at
+    /// two OTHER registry-first-then-hand-list functions: `is_expand_time_legal`
+    /// (`src/macros/eval.rs`) and `intrinsic_meta` (`src/rete/purity.rs`). Both consult
+    /// `crate::intrinsic::registry().lookup_entry(head)` first and return UNCONDITIONALLY on a
+    /// hit — verified by reading both functions, not assumed — before ever reaching a
+    /// hand-written `matches!` residue list below. Both residues' own header comments state the
+    /// rule about themselves: *"A REGISTERED verb does not belong here"* (`eval.rs`) / *"answer
+    /// ONLY for a head this lookup misses"* (`purity.rs`). A name in either list that DOES
+    /// resolve via `lookup_entry` is therefore unreachable dead text shadowing a real
+    /// registration — exactly the defect `registry_first_door_owns_every_handler_row_no_literal_arm_survives`
+    /// polices for `dispatch_keyword_head_value`, aimed at these two functions instead.
+    ///
+    /// `intrinsic_meta` carries TWO such lists (`let pure_det = matches!(...)`, and a further
+    /// `matches!` inside the `total` derivation's `Some(Unreviewed) | None =>` arm). The second
+    /// list's own local `registry().lookup_entry(head)` call is reached only when the FIRST,
+    /// unconditional-on-hit consult above already returned `None` for `head` — the registry is
+    /// side-effect-free and queried with the same `head`, so that second call cannot return
+    /// `Some` here either. Both lists are therefore governed by the SAME earlier consult, and
+    /// are checked together below as `intrinsic_meta`'s one combined residue.
+    ///
+    /// ⛔ THE GATE'S OWN INSTRUMENT MUST BE PROVEN (`[[feedback_a_green_test_can_prove_nothing]]`).
+    /// Both residues are `matches!(head, "a" | "b" | …)` chains in source, so this test reads
+    /// each file as data (`include_str!`), strips whole-line comments (this residue's comments
+    /// are never code-then-`//`, hand-verified, same discipline as the precedent test above),
+    /// bounds itself to ONE `matches!( … )` call via a text anchor plus balanced-paren counting
+    /// (not a fixed line range, which drifts), and requires a hit to look like a genuine arm —
+    /// immediately followed by `=>`/`|`/`)`/`,`, or at end-of-line with the next line starting
+    /// `|`/`)` — never a bare prose mention of the name. Before trusting what it parsed, it
+    /// proves the parse itself: a plausible per-list lower bound (checked on EACH list
+    /// separately — a combined total could hide an empty list), and one specific name per list
+    /// verified by eye against the line cited in the comment beside it.
+    #[test]
+    fn the_residues_cannot_shadow_the_registry() {
+        /// Blank out whole-line comments (leading-whitespace-then-`//`) so neither a prose
+        /// mention of a name nor a stray paren inside a comment can be read as code.
+        fn strip_line_comments(source: &str) -> String {
+            source
+                .lines()
+                .map(|l| if l.trim_start().starts_with("//") { "" } else { l })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+
+        /// `cleaned[open_paren_idx..]` must start with the `(` of a `matches!(` call (the byte
+        /// right after the macro name). Returns the balanced body between that `(` and its
+        /// matching `)`, skipping parens inside `"…"` string literals (none of this residue's
+        /// FQDN strings contain a paren, so a bare quote-toggle is sufficient — verified by eye).
+        fn matches_body(cleaned: &str, open_paren_idx: usize) -> &str {
+            let bytes = cleaned.as_bytes();
+            assert_eq!(
+                bytes.get(open_paren_idx),
+                Some(&b'('),
+                "expected `(` immediately after `matches!` at byte {open_paren_idx}"
+            );
+            let start = open_paren_idx + 1;
+            let mut depth: i32 = 1;
+            let mut in_string = false;
+            let mut i = start;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'"' => in_string = !in_string,
+                    b'(' if !in_string => depth += 1,
+                    b')' if !in_string => {
+                        depth -= 1;
+                        if depth == 0 {
+                            return &cleaned[start..i];
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            panic!("matches!( opened at {open_paren_idx} never closed — unbalanced parens");
+        }
+
+        /// The balanced body of the `{ … }` that opens right after `fn_sig` in `cleaned` — a
+        /// brace-depth count (skipping `"…"` string contents), NOT "up to the next top-level
+        /// `fn`" (`is_expand_time_legal` is the LAST top-level `fn` in its file, so that
+        /// heuristic has no next-`fn` to land on and would otherwise have to fall back to EOF,
+        /// which is unbounded — this bound is exact regardless of what follows).
+        fn fn_body_span<'a>(cleaned: &'a str, fn_sig: &str) -> &'a str {
+            let sig_start = cleaned
+                .find(fn_sig)
+                .unwrap_or_else(|| panic!("{fn_sig:?} not found — has it moved/renamed?"));
+            let open_brace = sig_start + fn_sig.len() - 1; // fn_sig itself ends in `{`
+            assert_eq!(
+                cleaned.as_bytes().get(open_brace),
+                Some(&b'{'),
+                "expected fn_sig to end with the function's opening `{{`"
+            );
+            let bytes = cleaned.as_bytes();
+            let start = open_brace + 1;
+            let mut depth: i32 = 1;
+            let mut in_string = false;
+            let mut i = start;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'"' => in_string = !in_string,
+                    b'{' if !in_string => depth += 1,
+                    b'}' if !in_string => {
+                        depth -= 1;
+                        if depth == 0 {
+                            return &cleaned[start..i];
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            panic!("{fn_sig:?}'s body never closed — unbalanced braces");
+        }
+
+        /// Every quoted string in `body` that looks like a genuine match-arm pattern — the same
+        /// continuation test `registry_first_door_owns_every_handler_row_no_literal_arm_survives`
+        /// uses to CHECK one name's presence, run here to COLLECT every name that passes it.
+        fn extract_arm_names(body: &str) -> Vec<String> {
+            let lines: Vec<&str> = body.lines().collect();
+            let mut names = Vec::new();
+            for (i, line) in lines.iter().enumerate() {
+                let mut rest = *line;
+                while let Some(pos) = rest.find('"') {
+                    let after_open = &rest[pos + 1..];
+                    let Some(end) = after_open.find('"') else {
+                        break;
+                    };
+                    let name = &after_open[..end];
+                    let after = after_open[end + 1..].trim_start();
+                    let is_arm_continuation = if after.is_empty() {
+                        // ⛔ SKIP BLANK LINES. `strip_line_comments` replaces a comment line with
+                        // an EMPTY one, so an arm followed by a comment — e.g. `| ":wat::core::u8"`
+                        // then `// Comparison` (src/rete/purity.rs) — had an empty next line and
+                        // was silently NOT counted. The stripping that prevents prose
+                        // false-POSITIVES was manufacturing false-NEGATIVES, and the gate's own
+                        // non-vacuity assertions cannot see under-coverage: they prove it found
+                        // SOMETHING, never that it found EVERYTHING. Caught by an independent
+                        // orchestrator census that disagreed by two.
+                        let next = lines[i + 1..]
+                            .iter()
+                            .map(|l| l.trim_start())
+                            .find(|l| !l.is_empty())
+                            .unwrap_or("");
+                        next.starts_with('|') || next.starts_with(')')
+                    } else {
+                        after.starts_with("=>")
+                            || after.starts_with('|')
+                            || after.starts_with(')')
+                            || after.starts_with(',')
+                    };
+                    if is_arm_continuation && name.starts_with(':') {
+                        names.push(name.to_string());
+                    }
+                    rest = &after_open[end + 1..];
+                }
+            }
+            names
+        }
+
+        // ── `is_expand_time_legal` (src/macros/eval.rs) ─────────────────────────────────────
+        const EVAL_SOURCE: &str = include_str!("../macros/eval.rs");
+        let eval_cleaned = strip_line_comments(EVAL_SOURCE);
+        let eval_fn_span = fn_body_span(&eval_cleaned, "fn is_expand_time_legal(head: &str) -> bool {");
+        // This function opens with `if let Some(e) = registry().lookup_entry(head) { return
+        // matches!(e.expand_time, …); }` — a matches! over ExpandTime ENUM VARIANTS, not FQDN
+        // strings. `rfind` skips past it to the function's final expression, the residue list.
+        let eval_macro_kw = eval_fn_span
+            .rfind("matches!")
+            .expect("no matches! found in is_expand_time_legal's span");
+        let eval_body = matches_body(eval_fn_span, eval_macro_kw + "matches!".len());
+        let expand_names = extract_arm_names(eval_body);
+
+        // ── `intrinsic_meta` (src/rete/purity.rs) — its two residue lists, combined ─────────
+        const PURITY_SOURCE: &str = include_str!("../rete/purity.rs");
+        let purity_cleaned = strip_line_comments(PURITY_SOURCE);
+        let purity_fn_span = fn_body_span(&purity_cleaned, "fn intrinsic_meta(head: &str) -> Option<OpMeta> {");
+
+        const PURE_DET_ANCHOR: &str = "let pure_det = matches!";
+        let pure_det_kw = purity_fn_span
+            .find(PURE_DET_ANCHOR)
+            .expect("`let pure_det = matches!` not found in intrinsic_meta — has it moved/renamed?");
+        let pure_det_body = matches_body(purity_fn_span, pure_det_kw + PURE_DET_ANCHOR.len());
+        let mut intrinsic_names = extract_arm_names(pure_det_body);
+
+        const TOTAL_ANCHOR: &str = "Some(wat_doc::Totality::Unreviewed) | None => matches!";
+        let total_kw = purity_fn_span
+            .find(TOTAL_ANCHOR)
+            .expect("the `total` derivation's fallback matches! not found in intrinsic_meta — has it moved/renamed?");
+        let total_body = matches_body(purity_fn_span, total_kw + TOTAL_ANCHOR.len());
+        intrinsic_names.extend(extract_arm_names(total_body));
+        intrinsic_names.sort();
+        intrinsic_names.dedup();
+
+        // ── STOP-1 territory: the gate's own instrument must be proven before it is trusted ──
+        //
+        // A plausible per-list lower bound, asserted SEPARATELY (a combined total could pass
+        // with one list silently empty and all the signal coming from the other).
+        assert!(
+            expand_names.len() >= 15,
+            "non-vacuity: `is_expand_time_legal`'s residue parsed only {} names — the parser is \
+             finding far fewer than a real residue list has; suspect the span/anchor, do not \
+             weaken this bound (STOP-1). Names found: {expand_names:?}",
+            expand_names.len()
+        );
+        assert!(
+            intrinsic_names.len() >= 15,
+            "non-vacuity: `intrinsic_meta`'s residue parsed only {} names — the parser is \
+             finding far fewer than a real residue list has; suspect the span/anchor, do not \
+             weaken this bound (STOP-1). Names found: {intrinsic_names:?}",
+            intrinsic_names.len()
+        );
+        // A specific name verified BY EYE, against the exact line it was read from.
+        assert!(
+            expand_names.iter().any(|n| n == ":wat::core::List?"),
+            "non-vacuity: `is_expand_time_legal`'s residue does not contain \
+             `:wat::core::List?`, which is present at `src/macros/eval.rs:492` — the \
+             parser is missing real content (STOP-1). Names found: {expand_names:?}"
+        );
+        assert!(
+            intrinsic_names.iter().any(|n| n == ":wat::core::reduce"),
+            "non-vacuity: `intrinsic_meta`'s residue does not contain `:wat::core::reduce`, \
+             which is present at `src/rete/purity.rs:547` — the parser is missing real content \
+             (STOP-1). Names found: {intrinsic_names:?}"
+        );
+
+        // ── The real assertion: no residue name resolves in the registry ───────────────────
+        let mut offenders: Vec<String> = Vec::new();
+        for name in &expand_names {
+            if super::registry().lookup_entry(name).is_some() {
+                offenders.push(format!("is_expand_time_legal (src/macros/eval.rs): {name}"));
+            }
+        }
+        for name in &intrinsic_names {
+            if super::registry().lookup_entry(name).is_some() {
+                offenders.push(format!("intrinsic_meta (src/rete/purity.rs): {name}"));
+            }
+        }
+        offenders.sort();
+
+        assert!(
+            offenders.is_empty(),
+            "residue row(s) name a verb the registry ALREADY answers for — the registry-first \
+             consult above each residue returns unconditionally on a hit, so these arms are \
+             unreachable dead text shadowing a real registration (arc 255 Stone 1c-c). Delete \
+             the row for each name below (leave the surrounding retirement commentary): \
+             {offenders:#?}"
+        );
+    }
 }
 
 // The `wat_mirror_tests` module that stood here is DELETED (2026-08-15). It
