@@ -13,7 +13,7 @@ git log --oneline d64cb888f..HEAD      # every commit since the last SUBSTANTIVE
 git diff --stat d64cb888f..HEAD --name-only
 ```
 
-**PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
+**PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —
 then trust the log and the source over every line below, and re-read before you move.
 
 > ⚠ Previous wordings pinned to a COUNT and to a `curare:` PREFIX; both rotted, because the cadence
@@ -72,6 +72,44 @@ instruments are the worse. Neither is done.**
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
 **Floor at stamp: `5336 tests run: 5336 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+
+### ⛔⛔⛔ D7 IS LIVE AND UNCURED — THE NATIVE ENGINE DROPS A DERIVED FACT
+
+**`native=2 oracle=3`**, driven and re-driven. Three facts in, three derived facts expected; the
+native engine produces **two** while `fire-rules$oracle` on the identical staged session produces
+three. **A derived fact is lost with no diagnostic.** Repro:
+`wat-scripts/scratch-pad/d7-two-writers-one-alpha.wat`. **There is no cure — STOP-1 fired and the
+rider correctly stopped at the finding.**
+
+**The trigger is parametric records.** `(:d7::Box :- [T] [k <- i64  v <- :T])` erases its type
+argument into **one runtime class**, so `Box[i64]` and `Box[String]` share a class whose instances
+differ in *packability*. `pack_i64_row` tests **runtime values**, so one joins the occupancy batch and
+the other falls to `alpha_activate_fact`; `arm.rs:334` files each node under exactly one type head,
+so **both writers reach the same `aid`**; and `pass/alpha.rs:130`'s `insert` replaces the whole
+`Arc<Vec<Element>>`, discarding the push. `d_alpha` still holds the pushed slot indices, which now
+index **different elements**.
+
+⚠ **The strike was drawn expecting a bounded negative like D2. It is not one**, and framing a
+scorecard around the outcome you expect is how it stops being independent of the result.
+
+### ⛔⛔ AND THE INSTRUMENT I TOLD THE RIDER TO TRUST CANNOT SEE IT
+
+My D7 brief said the `leaf_occ` differential *"computes `extra`/`missing` for exactly this invariant,
+and a non-empty `extra` is the collision, observed."* **False.** `predicted` is built by
+`continue`-ing on any fact whose `i64_by_fact[i]` is `None` — **the same predicate that decides batch
+membership** — so it re-derives writer 2's output and compares it against writer 2's output.
+Measured while the fact was being dropped: `predicted=2 actual=2 extra=[] missing=[]`. **A rider
+obeying only that instruction files a confident false negative on a live bug.** The divergence was
+found because the rider reached OUTSIDE the tree, to the oracle. **C16.**
+
+### ⛔ AND I DELETED THE CLASS D TABLE WITH MY OWN EDIT
+
+The D8 withdrawal used a two-anchor slice whose second anchor was the next `### ` heading — and D8's
+block sat above the class table, so the slice took **D1 through D7** with it, in a commit about
+withdrawing one row. `git status` was clean; the file still had 502 plausible lines. Restored and
+counted (70 rows → 80). The commit after it then shipped a message claiming to open C16/C17 that a
+raised `ValueError` had prevented — because the python and the `git commit` were newline-separated
+rather than `&&`-joined.
 
 ### ⛔⛔ I PUSHED A RED FLOOR — AND THE GATE THAT CAUGHT IT IS ITSELF INCOMPLETE
 
