@@ -4,13 +4,13 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-02 (thirty-third — 31 STRIKES LANDED; C10+C11 CLOSED; `compiled:calls` IS NOT A CALL COUNT). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-02 (thirty-fourth — 32 STRIKES LANDED; D5 CLOSED — A LEGAL `match` NOW COMPILES IN `:then`). Supersedes every earlier stamp and every dated block below.**
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline 2cd163bfd..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 2cd163bfd..HEAD --name-only
+git log --oneline ab606b671..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat ab606b671..HEAD --name-only
 ```
 
 **PASS:** every path in that diff is under `docs/`. **STALE:** any `src/`, `wat/`, or `tests/` path —
@@ -67,11 +67,31 @@ instruments are the worse. Neither is done.**
 | **E** — error shape (5) | ⭐ **CLOSED** |
 | **F1** — the five lints | ⭐ **CLOSED** (four built; one struck — C1 had already shipped it) |
 | **C** — the instruments | ⭐ **the original four (C3–C6) all CLOSED**, with C1, C2, C7, C8. C13 **withdrawn — it was never a question**. **C10, C11** closed. Open: **C9** spec check never run · **C12** no arm measures the filter phase as it exists · **C14** `compiled:calls` is not a call count |
-| **D** — engine behaviour | D1, D3, **D4** closed. D2 closed as a **bounded negative** (must NOT be reaped). **D5, D6, D7 OPEN** |
+| **D** — engine behaviour | D1, D3, D4, **D5** closed. D2 closed as a **bounded negative** (must NOT be reaped). Open: **D6, D7**; **D8** an unrowed L1 now rowed; **D9** a doctrine gap needing the builder |
 | **F2** — rotted claims | **7 of 9 open** — largest is *83 of 207 stones naming `src/rete/kernel.rs`*, deleted 2026-08-20 |
 | **F3** — the 70 L2 | ⛔ **LEADS ONLY. The ward reports DO NOT EXIST** — see below |
 
-**Floor at stamp: `5327 tests run: 5327 passed, 21 skipped`, clippy rc=0, lints 210/210.**
+**Floor at stamp: `5332 tests run: 5332 passed, 21 skipped`, clippy rc=0, lints green.**
+
+### ⭐ D5 CLOSED — AND THE ENUMERATION SAVED THE CURE FROM BEING THREE TIMES TOO BIG
+
+A legal `match` in `:then` now compiles, and both spellings agree. The walker recurses into the
+scrutinee and each arm's **BODY**, never an arm's **PATTERN**.
+
+**The enumeration was the first act and it disconfirmed my own worry.** I had flagged the class as
+possibly 3x wider (`match` 264 uses, `let` 485, `fn` 330). It is not: the walker opens
+`let WatAST::List(..) = operand else { return }` and **`let`/`fn` bind in Vectors**, so it never
+reaches them; `cond` clauses are Lists but carry a *call form* at `items[0]`. One form, not three —
+and no dead branches.
+
+⛔ **MY THREE MUTATIONS COULD NOT REACH THE DECISION MY OWN DESIGN EMPHASISED.** All three pass with
+the naive `head == ":wat::rete::core::match"` key, which leaves the defect live for the core
+spelling. The rider added a fourth; it reddens. **A scorecard that gates every part of a change
+except the part it was pointing at has a hole exactly where it was looking.**
+
+⛔ And my read-list sent it to `clause.rs:260` — a different traversal. The shape the cure needed was
+**`purity.rs:1310`**, which carries the `resolve_core_name` guard line-for-line. Third strike running
+where the read-list is my weak part.
 
 ### C10 + C11 CLOSED — AND C10 SHRANK ON AUDIT, THEN GREW A NEW ROW
 

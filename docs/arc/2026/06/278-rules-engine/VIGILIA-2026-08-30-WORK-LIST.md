@@ -233,6 +233,22 @@ three (`x /= r;`, `let (a,b) = (a / r, b / r);`, and `*x /= r;` inside a loop).
 ---
 
 ## CLASS D — engine behaviour
+### ⚠ D9 — THE SCRATCH-`.wat` DOCTRINE HAS NO HOME FOR A MUST-FAIL PROBE
+
+`wat-rs/CLAUDE.md` sends throwaway `.wat` to `wat-scripts/scratch-pad/`, and two gates read **every**
+`.wat` under `wat-scripts/` — `every_wat_scripts_file_loads` **reddens on anything that refuses.**
+
+But reconnaissance for a *refusal* defect is, by construction, a program that must fail to load. Two
+of the D5 rider's four probes (the core-spelling and arm-body cases) could not have lived under
+`wat-scripts/` at the moment they were needed. It used the session scratchpad and deleted them —
+correct in the circumstances, and **outside the written doctrine.**
+
+`harness-experiri/README.md` records the same tension independently, which is the tell that this is
+structural rather than one rider's inconvenience. The fix is a doctrine decision, not a code change:
+either a `scratch-pad/must-fail/` the loader gate skips by path, or a per-file declaration the way
+`docs_wat_loads_or_declares_why_not` already accepts. **Raised 2026-09-02; needs the builder, since
+`wat-rs/CLAUDE.md` is the artifact that would change.**
+
 ### ⛔ D8 — NEW, AND IT HAS BEEN DRIVEN SINCE 2026-08-30 WITH NO ROW TO ITS NAME
 
 **`PersistentVector/length` is UNREACHABLE as an accumulator head**, and fires in all three other
@@ -260,7 +276,7 @@ dies. Rowed 2026-09-02.
 | **D2** | `hash_join.rs:296` | `right_idx[J]` has two writers, only one maintains `right_idx_n[J]`. On `filter → HashJoin(a) → HashJoin(b)`, round 2 pushes without bumping, 3.7 re-appends the same element → doubled buckets, duplicate tokens. `seen_insert` hides it in the fact set; surfaces as doubled `:accumulate` counts and query rows | `sequi` |
 | ~~**D3**~~ ✅ `057f9d494` | `expr_ir/eval.rs:405` | **a silent WRONG ANSWER through the public surface**, driven: the fixture fence answers 1 hit; two args for one param at slot 1 → ACCEPTED, **0 hits** (the surplus overwrote the declared parameter, since it is written into the slot whose NUMBER equals its POSITION). Past the frame → silently dropped (2 hits). Missing → `unbound symbol: slot 1`. Class A a fifth time: `lower_expr` builds `CallUser` from `lower_args` + `lower_rete_defn` without comparing them. | ✅ refused at `exec_program_on` — the one place args and params meet, downstream of the wire, the lowering and all four HOF heads — and the surplus branch **deleted**, so the loop is total by construction. **A sixth import wall affirmatively cut**: it would turn every probe green while the executor still held no invariant. 5 arms + 2 controls. ⚠ the anti-vacuity control is load-bearing: refusing EVERY call leaves the untampered-fixture control green. See `strike-calluser-arity/`. |
 | ~~**D4**~~ ✅ `073546093` (code, swept) + rune | `expr_ir/eval.rs:85-126` | `EXEC_SP` is inert — the `RefMut` spans `f`, so every nested frame takes the `Err` arm and `start` is always 0. Doc holds BOTH claims: `:96` *"nested calls stack"* (false) and `:99` *"the `Err` arm is a correctness path"* (true). A panic through `f` strands `len` slots — driven **cumulative and unbounded**, (8,8) → (16,16) → (24,24) — no `Drop` guard | ✅ **the cursor is DELETED, not guarded** — a `SpGuard` would restore a `start` that is *provably* 0, so it would guard a constant. Deletion makes the strand **structurally impossible** rather than cured, dissolves the TLS-teardown trap (no `Drop` at all) and is *less* hot-path work. ⭐ **Licence measured, not argued:** cursor + correct guard + `assert_eq!(start, 0)` held **1508/1508**, and flipping it to `999` REDs — the assert runs, `left: 0`. ⭐ **The single-panic trap was real:** under mutation 1 the probe REDs at **round 2**, not round 1 — one panic passes on the bug. ⛔ **My brief cited the wrong file for `ArmLease`** (`kernel/fire/rules.rs`, which has zero of it; it is `kernel/arm.rs:829`). See `strike-exec-sp/SCORE.md`. |
-| **D5** | `validate/mod.rs:747` | `match` refused in `:then`, byte-identical expression accepted in the `where` fence. `walk_nested_constructors` cannot tell a match ARM from a CALL. Survives only by arity coincidence, so which spelling compiles depends on the author's choice. Diagnostic names a fact-type absent from the source. ✅ **FAILING GATE BANKED** in `harness-experiri/` | `experiri` (driven) |
+| ~~**D5**~~ ✅ | `validate/mod.rs:774` (⚠ the row said `:747`) | `match` refused in `:then`, byte-identical expression accepted in the `where` fence. `walk_nested_constructors` cannot tell a match ARM from a CALL; survives only by arity coincidence. | ✅ the walker now recurses into the match **scrutinee** and each arm's **BODY**, never an arm's **PATTERN**, keyed through `resolve_core_name` so BOTH spellings are covered. ⭐ **The enumeration came first and disconfirmed the wider class**: `let`/`fn` bind in **Vectors** so the walker returns before reaching them, and `cond` clauses have a call form at `items[0]` — `match` is the only List position where a bare variant keyword means something other than a constructor. One form, not three. ⛔ **My three mutations all passed the naive rete-only key**; the rider added a fourth that reddens it. The banked repro now LOADS and its `red-by-design` rune is retired — which returns it to the docs load-check, and that IS the regression gate. See `strike-match-arm-is-not-a-call/SCORE.md`. |
 | **D6** | `step_payload.rs:143` | explain payload silently DROPS every keyword/enum-operand constraint (`sym = None`, and `value_to_ast_literal` has no `Value::Enum` arm), while its doc claims the constraint list is complete | `solvere` |
 | **D7** | `alpha.rs:85-98,129-132` | two writers of `wm.alpha[aid]` in one pass — one `push`, one `insert` (replace). Kept disjoint only by an index coincidence the same file's `_ =>` arm can break. Shape finding: not reached from the `insert` door | `struere` |
 
