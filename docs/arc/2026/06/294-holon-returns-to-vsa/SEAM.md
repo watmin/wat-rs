@@ -49,10 +49,22 @@ then we attack the hand lists."*
 ## ★★★ THE METER — and the finish line
 
 ```
-GAP_A 60 · GAP_B 78 · DEBT 95 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 20
-the whitelist experiment: 107 at last measurement — ⚠ NOT re-derived since 1b-i.
-28 of the 107 were registered by that stone, so the next run should read ~79 —
-that is a PREDICTION. Re-run the WORKLIST's four steps before quoting a number.
+GAP_A 60 · GAP_B 71 · DEBT 103 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 20
+the whitelist experiment: **71** — RE-DERIVED 2026-09-03, patch reverted, diff empty.
+121 → 107 → 71 · 505 of 610 corpus files still fail the disarmed whitelist.
+
+⛔ **DEBT 103 IS TWO POPULATIONS, AND ONE OF THEM IS NOT DEBT.** Measured live:
+34 `Kind::SpecialForm, no scheme` ("a rank-1 scheme is the WRONG SHAPE" — a CENSUS
+of the un-schemeable, nothing owed, should never reach 0) + 69 `Kind::Intrinsic,
+no scheme` ("a scheme could exist and does not" — genuinely owed). The campaign's
+finish line (all ledgers empty and deleted) is UNREACHABLE while one number means
+both. ⚠ And the `Kind` split MISFILES every alias: `Kind` is stamped by the
+registration VEHICLE (`#[wat_special_form]` is the only doc-only macro), not by the
+verb — so `:wat::rete::core::List`, an alias to an ordinary function, is counted
+under "wrong shape" while its own target sits in the owed bucket.
+⚠ **"DEBT falls at Phase 2c" is UNSUPPORTED.** `probe_can_doc_types_reconstruct_the_
+checker_scheme` opens `let Some(scheme) = check_env.get(name) else { continue }` —
+its 384/386 has never looked at a single DEBT row.
 ```
 
 ⚠ **DEBT GOING UP IS NOT A REGRESSION.** Registering a row with no `CheckEnv` scheme converts an
@@ -155,12 +167,14 @@ the rider's live measurement, never from re-reading my own claim.
 
 ```
 ✅ 1b-i    DONE (4e1d8e81d) — 29 OpClass::Alias rows. GAP_A −28, GAP_B −28, DEBT UNCHANGED.
+✅ 1b-ii   DONE (fbbab0483) — 6 Form + 2 Redispatch. GAP_B −7, DEBT +8. 37 aliases total.
+           ⛔ It had NO gate on its own content; the orchestrator hand-compared all 8
+              against their targets after the report. 8/8 identical. Nothing carries that.
 
-Phase 1b-ii  the 6 Form + 2 Redispatch rows whose target IS registered:
-             rete::core::{and or if let match fn} · rete::core::List · rete::holon::coincident?
-             ⚠ These have NO CheckEnv scheme by construction, so they TRADE GAP_B for DEBT
-               (GAP_B −7, DEBT +8). A different deliverable from 1b-i — say so in its own
-               acceptance row rather than reporting one number for two mechanisms.
+★★★ NEXT, BY USE rather than by name — the re-derived 71 weighs:
+             :wat::core:: 33 names / 4,260 sites · :wat::rete:: 30 / 278 · type 4 / 23 · misc 4 / 349
+Phase 1a-ζ   ⬅ TAKE THIS FIRST. ann-form (244 sites) · do (609) · stream::lazy (15).
+             The last unfinished family of special_forms.rs's 35 — 3 rows, 868 call sites.
 Phase 1b-iii the 17 BLOCKED rows. Gated on 11 core targets that are themselves GAP_B
              population: = · not= · cond · first · PersistentVector · Vector · PersistentMap ·
              Tuple · foldl · map · filter · reduce. Register those FIRST — it takes 11 off the

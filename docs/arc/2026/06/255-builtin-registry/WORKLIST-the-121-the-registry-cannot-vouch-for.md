@@ -295,3 +295,118 @@ attacked. **Counting them as one number is how a plan gets written that cannot b
       1 :wat::core::find-last-index
       1 :wat::core::conforms?
 ```
+
+
+---
+
+## ⛔ RE-DERIVED 2026-09-03 — **107 → 71**, after Stones 1b-i and 1b-ii
+
+The procedure at the top of this file was re-run in full (patch → build → sweep → **revert**,
+diff verified empty):
+
+```
+                      2026-09-01        2026-09-02        2026-09-03
+corpus files              599               609               610
+failing                   578               509               505
+distinct names            121               107                71
+```
+
+The 36 that left are exactly the two alias stones: 28 `OpClass::Alias` rows (1b-i) and 8
+`Form`/`Redispatch` rows (1b-ii). `107 − 36 = 71`, with no surprises in either direction —
+the first phase of this campaign whose corpus effect was predicted exactly before it ran.
+
+## ★★★ THE ROAD MAP INVERTS WHEN YOU WEIGH IT BY USE, NOT BY NAME
+
+```
+                names   call sites   sites/name
+:wat::core::       33        4,260        129     ← 87% of ALL remaining unresolvable calls
+:wat::rete::       30          278          9
+:wat::type          4           23          6
+misc                4          349         87     ← eval-ast! alone is 330
+                   ──        ─────
+                   71        4,910
+```
+
+⚠ **The rete remainder is 42% of the NAMES and 6% of the USE.** Reading this worklist as a
+name-count — which is how it has been read all campaign, including in the SEAM's own NEXT —
+puts the cheapest half of the corpus's exposure at the top of the list. A count is not a share.
+
+★ And the single biggest lever is not a family at all: **`:wat::core::do` (609 sites) and
+`:wat::core::ann-form` (244) are two of the three names left in Phase 1a-ζ** — the last unfinished
+family of the `special_forms.rs` 35. Three rows, 868 call sites, already scoped.
+
+## The full 71, by corpus call-site count
+
+```
+    688 :wat::core::=
+    609 :wat::core::do
+    483 :wat::core::PersistentVector
+    380 :wat::core::foldl
+    362 :wat::core::first
+    330 :wat::eval-ast!
+    271 :wat::core::Tuple
+    244 :wat::core::ann-form
+    230 :wat::core::second
+    222 :wat::core::PersistentMap
+    169 :wat::core::get
+    157 :wat::core::extend-type
+    135 :wat::core::str
+    111 :wat::rete::string::=
+     65 :wat::core::map
+     51 :wat::core::<
+     47 :wat::core::derive
+     34 :wat::rete::i64::+
+     32 :wat::core::>
+     26 :wat::core::apply
+     25 :wat::core::>=
+     17 :wat::rete::i64::*
+     15 :wat::stream::lazy
+     15 :wat::rete::i64::/
+     13 :wat::rete::vector::get
+     11 :wat::rete::i64::-
+     10 :wat::rete::i64::mod
+     10 :wat::core::not=
+      9 :wat::type::Tuple
+      9 :wat::core::filter
+      8 :wat::rete::holon::cosine
+      8 :wat::rete::core::foldl
+      8 :wat::core::defclause
+      7 :wat::type::i64
+      7 :wat::core::contains?
+      6 :wat::rete::core::PersistentVector/first
+      6 :wat::core::stream->vec
+      6 :wat::core::<=
+      5 :wat::type::String
+      5 :wat::rete::string::subs
+      5 :wat::rete::f64::/
+      5 :wat::rete::f64::*
+      5 :wat::core::third
+      4 :wat::rete::core::keyword::=
+      3 :wat::rete::core::enum::=
+      3 :wat::eval-with-defs!
+      3 :wat::core::None
+      2 :wat::type::Vector
+      2 :wat::rete::vec::get
+      2 :wat::rete::linkedlist::get
+      2 :wat::rete::i64::rem
+      2 :wat::rete::holon::dot
+      2 :wat::rete::core::enum::not=
+      2 :wat::rete::core::Vector/first
+      2 :wat::rete::core::PersistentVector
+      2 :wat::rete::core::List/first
+      2 :wat::core::println
+      2 :wat::core::mapv
+      2 :wat::core::edn::write
+      1 :wat::spawn::process/grants
+      1 :wat::rete::string::not=
+      1 :wat::rete::i64::quot
+      1 :wat::rete::f64::>X
+      1 :wat::rete::f64::+
+      1 :wat::rete::core::reduce
+      1 :wat::rete::core::map
+      1 :wat::rete::core::filter
+      1 :wat::core::tuple-get
+      1 :wat::core::reduce-walk
+      1 :wat::core::find-last-index
+      1 :wat::core::conforms?
+```
