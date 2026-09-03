@@ -1,0 +1,31 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D11, arm 4/4: a nested constructor inside a `match` ARM
+;; BODY.
+;;
+;; ⛔ THIS IS THE FIXTURE THAT PROVES `binds` REACHED D5's RECURSION, and nothing else does.
+;;
+;; D5 (`strike-match-arm-is-not-a-call`) taught this same walker to SKIP a match arm's pattern and
+;; RECURSE into its body. That recursion is one of the five internal call sites `binds` had to be
+;; threaded through, and it is the one a hurried cure would satisfy by passing an EMPTY map — or
+;; by never reaching at all. Either way every sibling fixture here still goes red-as-required and
+;; the control still derives, because none of them types a `?var` inside an arm body. Only this
+;; file does.
+;;
+;; The counter-check lives beside it: `..._ok.wat`'s okF row is the same shape, well typed, and
+;; must still compile and derive 100 — and
+;; `docs/arc/.../harness-experiri/experiri-then-match.wat` must still load, which is what says the
+;; PATTERN is still being skipped rather than typed.
+(:wat::core::defenum :d11m::E :wat::enum::Pure :A :B)
+
+(:wat::core::defrecord :d11m::Box   [s <- :wat::core::String  v <- :d11m::E])
+(:wat::core::defrecord :d11m::Inner [n <- :wat::core::i64])
+(:wat::core::defrecord :d11m::Outer [i <- :d11m::Inner])
+
+(:wat::rete::defrule :d11m::bad
+  :when [(:d11m::Box (?s <- :s) (?v <- :v))]
+  :then [(:d11m::Outer :i (:wat::rete::core::match ?v
+                            (:d11m::E::A (:d11m::Inner :n 1))
+                            (:d11m::E::B (:d11m::Inner :n ?s))))])
+
+;; ⛔ A REAL `main` (arc 278 C18) — see `..._bound_var.wat.bad`'s note.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

@@ -778,10 +778,40 @@ fn check_rhs_operands(
 /// No AST rewrite here (unlike the top-level kwargs branch): a nested operand's kwargs are
 /// reordered again at FIRE time by `eval_kwargs_construct` regardless of what freeze validated
 /// (arc 278 #1), so this pass only has to prove the shape is constructible, never to reorder it.
+///
+/// ## ★ D11 — and it TYPES the values now, not only the shape
+///
+/// Everything above is STRUCTURAL: a field name, an arity, a missing field, a retired spelling.
+/// None of it typed a single value, because the walker had no `binds` and `resolve_operand_type`
+/// cannot answer for a `?var` without one. D10 closed exactly this hole at the top level and the
+/// nested one survived it by one commit: at `f87bb070b`, `:then [(:nh::Outer :i (:nh::Inner :n
+/// ?s))]` with `?s : String` into an `i64` field compiled, fired, and put
+/// `#nh/Outer {:i #nh/Inner {:n "nested-string"}}` into the FACT SET — where joins, queries, the
+/// oracle and `explain` all trust the declared schema.
+///
+/// The aggregate branch now pairs each nested field with its DECLARED type
+/// (`lookup_field_types`, the sibling of the `lookup_fields` it already called) and hands the pair
+/// to D10's own producer, `check_then_field_type` — unchanged, and reusing `RhsFieldTypeMismatch`
+/// unchanged, because a nested occurrence is the same claim at a different position. The
+/// invariant is therefore **at ANY depth**, which is what the recursion above was always for:
+/// `tests/rete/probe_arc278_D11_nested_then_field_types.rs` drives it at depth 2 and inside a
+/// `match` arm BODY, alongside the five constructed not-knowable operands that say the wall still
+/// stands down where the type is merely unknown.
+///
+/// ⛔ The ENUM-VARIANT branch below is NOT typed, deliberately. `enum_variant_ctor` answers with
+/// an arity and nothing else; getting a variant's per-field declared types is a different registry
+/// read and its own ruling. That branch keeps the arity diagnostic it had.
 fn walk_nested_constructors(
     operand: &WatAST,
     rule_name: &str,
     types: &TypeEnv,
+    // D11 — the rule's `?var` -> declared-type map, threaded so this walker can TYPE a nested
+    // field value and not merely count and name it. `resolve_operand_type` needs it for source 2
+    // (`?var`); without it the walker could only ever check names, arity and missing fields, and
+    // `(:nh::Outer :i (:nh::Inner :n ?s))` with `?s : String` into an `i64` field compiled, fired
+    // and put `#nh/Outer {:i #nh/Inner {:n "nested-string"}}` in the FACT SET (driven at
+    // `f87bb070b`, one commit after D10 closed the identical hole at the top level).
+    binds: &std::collections::HashMap<String, String>,
     errors: &mut Vec<ReteCheckError>,
 ) {
     let WatAST::List(items, span) = operand else { return };
@@ -817,7 +847,7 @@ fn walk_nested_constructors(
     if let Some(WatAST::Keyword(head, _)) = items.first() {
         if crate::rete::vocabulary::resolve_core_name(head) == ":wat::core::match" {
             if let Some(scrutinee) = items.get(1) {
-                walk_nested_constructors(scrutinee, rule_name, types, errors);
+                walk_nested_constructors(scrutinee, rule_name, types, binds, errors);
             }
             for arm in items.iter().skip(2) {
                 // A non-List arm is malformed; shape is not this walker's diagnostic (the freeze
@@ -825,7 +855,7 @@ fn walk_nested_constructors(
                 // no-op anyway — the bind at the top of this function returns on any non-List.
                 if let WatAST::List(parts, _) = arm {
                     for body_form in parts.iter().skip(1) {
-                        walk_nested_constructors(body_form, rule_name, types, errors);
+                        walk_nested_constructors(body_form, rule_name, types, binds, errors);
                     }
                 }
             }
@@ -874,6 +904,12 @@ fn walk_nested_constructors(
         if let Some(TypeDef::Aggregate(_)) = types.get(head) {
             let nested_type = head.trim_start_matches(':').to_string();
             let field_names = lookup_fields(types, &nested_type).unwrap_or_default();
+            // D11 — the DECLARED type of each nested field, index-aligned with `field_names`, the
+            // same pairing `validate_then_form` makes at the top level. Both accessors read the
+            // same `TypeDef::Aggregate`, so a `lookup_fields` hit implies a `lookup_field_types`
+            // hit; the `unwrap_or_default` is the belt, and an empty vector makes every `get(i)`
+            // miss and every per-field type check SKIP rather than mis-index.
+            let field_types = lookup_field_types(types, &nested_type).unwrap_or_default();
             let is_kwargs = crate::rete::eval_insert::rete_is_kwargs(args);
             if is_kwargs {
                 let mut supplied: Vec<String> = Vec::with_capacity(args.len() / 2);
@@ -887,6 +923,50 @@ fn walk_nested_constructors(
                     // form — which is how a promise made in three docs was broken at three
                     // sites: an inline `ReteCheckError { span, .. }` accepts any span in scope.
                     check_field_kw(&pair[0], rule_name, &nested_type, &field_names, errors);
+                    // ★ D11 — the TYPE wall, kwargs side, at DEPTH. Same producer, same error
+                    // kind, one level down: a nested occurrence is the same claim at a different
+                    // position, so `RhsFieldTypeMismatch` is reused unchanged.
+                    //
+                    // An unknown field name needs no guard of its own: `position` misses, the
+                    // `and_then` yields `None`, and the pair is skipped — so `check_field_kw`'s
+                    // `UnknownField` stands alone, exactly as the top level's early return
+                    // arranges. What is DELIBERATELY not mirrored is that return's OTHER half:
+                    // a `RhsMissingFields` on a SIBLING field does not suppress a type finding
+                    // here. The top level returns there to avoid `reorder_then_kwargs` rewriting
+                    // a form already flagged invalid; this walker performs no rewrite (a nested
+                    // operand's kwargs are reordered at FIRE time regardless — see this
+                    // function's header), so the only effect of copying the return would be to
+                    // drop a real, separate finding about a DIFFERENT field.
+                    //
+                    // ⚠ The `rhs_operand_can_never_resolve` skip is copied from the top level but
+                    // its REASON does not carry: up there it suppresses a second ruin over an
+                    // operand `check_rhs_operands` has already flagged, and `check_rhs_operands`
+                    // is NOT called at depth. Kept anyway, deliberately and narrowly: of the
+                    // shapes it excludes, `resolve_operand_type` answers `UnboundInThisRule` for
+                    // every one (non-`?` `Symbol`, `RationalLit`, `BigIntLit`, `NilLit`, `Vector`,
+                    // `Map`, `Set`) EXCEPT `Keyword`, which it types as a constant. So the skip
+                    // costs exactly one class — a keyword constant in a nested value position —
+                    // and typing that class would be NEW enforcement with no top-level twin
+                    // (up there such an operand is refused as unresolvable instead), which is a
+                    // different ruling from this strike's.
+                    if !rhs_operand_can_never_resolve(&pair[1]) {
+                        if let Some(declared) = field_names
+                            .iter()
+                            .position(|f| *f == field)
+                            .and_then(|i| field_types.get(i))
+                        {
+                            check_then_field_type(
+                                &field,
+                                declared,
+                                &pair[1],
+                                rule_name,
+                                &nested_type,
+                                binds,
+                                types,
+                                errors,
+                            );
+                        }
+                    }
                     supplied.push(field);
                 }
                 let missing: Vec<String> =
@@ -914,6 +994,40 @@ fn walk_nested_constructors(
                             got: args.len(),
                         },
                     });
+                } else {
+                    // ★ D11 — the TYPE wall, positional side, at DEPTH. Positional args ARE
+                    // declaration order by definition, so arg `i` fills field `i` — but ONLY when
+                    // the counts agree, which is what the `else` states: under a mismatch
+                    // `RhsArityMismatch` above is the finding and inventing an alignment would
+                    // report a type fault against a field the author never addressed. Same
+                    // ruling, same words, as the top level's positional branch.
+                    //
+                    // This arm is narrow BY CONSTRUCTION, not by oversight: it is only reached
+                    // for `args.len() <= 1`, so an equal count means a one-field record given one
+                    // positional arg (or a zero-field record given none). Every WIDER positional
+                    // spelling is already refused above as `RhsPositionalConstructionRetired`,
+                    // which `eval_kwargs_construct` retires unconditionally at fire time — so
+                    // there is no second positional shape here left to type.
+                    for (i, arg) in args.iter().enumerate() {
+                        if rhs_operand_can_never_resolve(arg) {
+                            continue;
+                        }
+                        let (Some(field), Some(declared)) =
+                            (field_names.get(i), field_types.get(i))
+                        else {
+                            continue;
+                        };
+                        check_then_field_type(
+                            field,
+                            declared,
+                            arg,
+                            rule_name,
+                            &nested_type,
+                            binds,
+                            types,
+                            errors,
+                        );
+                    }
                 }
             } else {
                 // Multi-arg, not kwargs — `eval_kwargs_construct` retires this shape
@@ -928,7 +1042,7 @@ fn walk_nested_constructors(
                 });
             }
             for arg in args {
-                walk_nested_constructors(arg, rule_name, types, errors);
+                walk_nested_constructors(arg, rule_name, types, binds, errors);
             }
             return;
         }
@@ -954,7 +1068,7 @@ fn walk_nested_constructors(
                         });
                     }
                     for arg in args {
-                        walk_nested_constructors(arg, rule_name, types, errors);
+                        walk_nested_constructors(arg, rule_name, types, binds, errors);
                     }
                     return;
                 }
@@ -964,7 +1078,7 @@ fn walk_nested_constructors(
     // Not a recognized constructor head — recurse into every item anyway (a plain call's
     // arguments, e.g. `(:wat::core::+ (:usr::Inner 1) ?a)`, may still nest a constructor deeper).
     for item in items {
-        walk_nested_constructors(item, rule_name, types, errors);
+        walk_nested_constructors(item, rule_name, types, binds, errors);
     }
 }
 
@@ -1092,7 +1206,7 @@ fn validate_then_form(
         // Arc 278 #1/#3 — recurse for a NESTED constructor operand (e.g. `:inner (:usr::Inner
         // :x 1)`); the top-level shape above only covers THIS item's own head.
         for v in &kwargs_values {
-            walk_nested_constructors(v, rule_name, types, errors);
+            walk_nested_constructors(v, rule_name, types, binds, errors);
         }
 
         reorder_then_kwargs(fact_items, &field_names, &kv_pairs, &fact_span);
@@ -1121,7 +1235,7 @@ fn validate_then_form(
         }
         // Arc 278 #1/#3 — recurse for a NESTED constructor operand, same as the kwargs branch.
         for a in args {
-            walk_nested_constructors(a, rule_name, types, errors);
+            walk_nested_constructors(a, rule_name, types, binds, errors);
         }
 
         // Positional: arg count must equal the type's field count.

@@ -1,0 +1,31 @@
+[
+  #wat.kernel.LociDiedError/StartupError [
+    #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/RhsFieldTypeMismatch {:message \"defrule `d11m::bad`: `:then` insert of `:d11m::Inner` fills field `:n`, declared `:wat::core::i64` (rete `i64`), with operand `?s`, whose type is `string` — the same construction written outside a rule is a TypeMismatch, and a `:then` value is checked the same way. Supply a value of type `i64`, or change `:n`'s declared type\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_D11_nested_then_field_types_match_body.wat.bad\" :line 27 :col 59 :end #wat.core.Option/Some [#wat.core/Pos {:line 27 :col 61}]} :causes [] :rule \"d11m::bad\" :fact-type \"d11m::Inner\" :field \"n\" :field-type \":wat::core::i64\" :field-rete-type \"i64\" :operand \"?s\" :operand-type \"string\"}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/RhsFieldTypeMismatch {
+          :rule "d11m::bad"
+          :fact-type "d11m::Inner"
+          :field "n"
+          :field-type ":wat::core::i64"
+          :field-rete-type "i64"
+          :operand "?s"
+          :operand-type "string"
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_D11_nested_then_field_types_match_body.wat.bad"
+            :line 27
+            :col 59
+            :end #wat.core.Option/Some [
+              #wat.core/Pos {
+                :line 27
+                :col 61
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+]
