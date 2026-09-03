@@ -126,7 +126,17 @@ by 2 and was discarded — the five verified totals reproduce the SEAM's meter e
 
 ```
                      before      after      why this exact number
-registry rows          490        518       +28 new #[wat_special_form] rows
+registry rows          487        515       +28 new #[wat_special_form] rows
+                                            ⛔ CORRECTED post-stone: this row read "490 → 518"
+                                            and BOTH numbers were wrong. My census grepped for
+                                            the SUBSTRING `wat_intrinsic("` anywhere, so it
+                                            counted three PROSE PLACEHOLDERS as registered
+                                            names: `<fqdn>`, `…`, and — the one that defeats a
+                                            "starts with `:`" filter — `:wat::holon::…`, an
+                                            ellipsis in a module doc comment. Anchoring the
+                                            pattern to an attribute SITE (`^\s*#\[wat_…`)
+                                            gives 515, which is exactly what the rider measured
+                                            live. The SEAM's ground block carried 490 too.
 GAP_A                   88         60       all 28 are on GAP_A (each has a scheme, no row)
 GAP_B                  106         78       all 28 are on GAP_B
 DEBT                    95         95       ⬅ UNCHANGED. Each already resolves in CheckEnv.
@@ -134,7 +144,12 @@ DEBT                    95         95       ⬅ UNCHANGED. Each already resolves
                                                or a non-Alias row was registered.
 KNOWN_UNREVIEWED        20         20       an alias inherits; it declares no Totality
 the 107                 79                  28 of the 107 are exactly this set
-floor              5127/5127   5155/5155    28 rows, no new tests beyond the ratchets' edits
+floor              5127/5127   5127/5127    ⛔ CORRECTED: this row read "→ 5155/5155", derived
+                                            by adding 28 to the current total. That was a PIN,
+                                            not a bar: registering a registry row mints no
+                                            `#[test]` fn. The membership gates are single tests
+                                            that iterate `registry().all_entries()` internally,
+                                            so the count cannot move. The rider caught it.
 ```
 
 ⛔ **DEBT unchanged is this stone's sharpest instrument.** It is the one row that cannot be
