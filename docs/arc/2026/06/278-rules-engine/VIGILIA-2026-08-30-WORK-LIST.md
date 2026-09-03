@@ -238,7 +238,7 @@ three (`x /= r;`, `let (a,b) = (a / r, b / r);`, and `*x /= r;` inside a loop).
 
 ## CLASS D — engine behaviour
 
-### ⛔⛔ D10 — THE RETE `:then` RHS DOES NOT TYPE-CHECK ITS FIELD VALUES
+### ~~D10~~ ✅ `e38b1f46a` — THE RETE `:then` RHS NOW TYPES ITS FIELD VALUES (top level)
 
 **Driven 2026-09-02.** The same record construction is type-checked everywhere in the language
 **except** inside a rule's `:then`:
@@ -263,6 +263,47 @@ specifically: a wrong-typed value enters the **fact set**, where every downstrea
 the declared schema.
 
 Repro: `wat-scripts/scratch-pad/d10-then-rhs-is-not-type-checked.wat`.
+✅ **CURED at the top level of a `:then` fact form** by `RhsFieldTypeMismatch` + `check_then_field_type`,
+called from **both** producers (kwargs and positional — each proven by a call-site mutation).
+**Corpus measured before the cure was written: 1664 `.wat` scanned, ZERO newly-failing.** Proven not
+to over-refuse: making `ComputedNotDerivableHere` a refusal REDs the not-knowable probe *and takes
+four pre-existing corpus tests with it.* Floor 5351/5351. See `strike-then-rhs-types/SCORE.md`.
+
+### ⛔ D11 — THE SAME DEFECT, ONE LEVEL DOWN: NESTED CONSTRUCTORS ARE STILL UNTYPED
+
+D10's cure types a `:then` fact form's own fields. It does **not** reach a constructor nested inside
+one, because `walk_nested_constructors` has no `binds`. Driven by the orchestrator at `e38b1f46a`:
+
+```
+:then [(:nh::Outer :i (:nh::Inner :n ?s))]      ?s : String, :nh::Inner.n : i64
+  ->  compiles, fires, #nh/Outer {:i #nh/Inner {:n "nested-string"}}
+```
+
+Same class, same fact set, one level deeper. The cure needs `binds` threaded into a **recursive**
+walker that has four other producers — a signature change the D10 rider deliberately declined rather
+than widen its blast radius, which was correct.
+
+⚠ Two further bounds on D10's cure, stated by that rider rather than discovered later: the check is
+only as sharp as `rete_type_segment_of` (two distinct enums both segment to `enum`), and
+`NotComparable` is **deliberately** passed — a parametric record's erased field arrives through that
+same channel, and refusing it would be D7's ground.
+
+### ⛔⛔ C18 — `assert!(!ok)` IS UNFALSIFIABLE IN THIS REPO'S NEGATIVE-FIXTURE IDIOM
+
+Every `.wat.bad` fixture ends `(:user::main [] -> :wat::core::nil nil)` — **which is itself a startup
+failure** (`#wat.macro/MainSignatureError`, UselessMain). So with the wall the fixture exists to
+prove mutated away, **the file still fails**, for the wrong reason, and the `!ok` half of the probe
+**cannot go red under the very mutation it exists to detect.** Only the `.edn` golden can.
+
+Found when a D10 mutation dumped `MainSignatureError` where the golden expected
+`RhsFieldTypeMismatch`. That rider gave its own four fixtures real `main`s — they now run and print
+when the wall is absent, so both halves are load-bearing.
+
+**Still carrying the `nil` main, named by that rider:** `probe_arc278_then_operand_wall.wat.bad`,
+`probe_arc278_match_arm_body_bad.wat.bad`, `probe_arc278_query_type_safe_typo.wat.bad`,
+`probe_arc278_rete_defn_*.wat.bad`, `probe_construction_*.wat.bad`. **This is a sweep, and it is
+bigger than any one strike** — every one of those probes has a half that cannot fail.
+
 
 ⚠ **Found by answering the builder's question "you found an issue with our type checking?" about D7
 — and the honest first answer was NO.** D7's parametric erasure is an engine bug; the checker
