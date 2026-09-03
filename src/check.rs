@@ -3229,60 +3229,16 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 251 Stone 251.4b — checked, type-erased identity.
-            // `(ann-form expr type)` at check time: arity 2; parse the
-            // type slot via `parse_type_node` (accepts Keyword, Symbol
-            // `wat.type/X`, and parametric List — the 251.3a surfaces);
-            // infer `expr` → S; require S assignable to T; result type = T.
-            // At runtime the type is ERASED (see eval_ann_form in runtime.rs).
             ":wat::core::ann-form" => {
-                if args.len() != 2 {
-                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::core::ann-form".into(),
-                        expected: 2,
-                        got: args.len()
-                    } });
-                    return CheckResult::errs(local_errors);
-                }
-                // Parse the type slot — accepts Keyword, Symbol (wat.type/X), or
-                // parametric List ((wat.type/Vector i64) etc).
-                let ascribed_ty = match crate::types::parse_type_node(&args[1]) {
-                    Ok(t) => t,
-                    Err(te) => {
-                        local_errors.push(CheckError { span: te.span().clone(), kind: CheckErrorKind::MalformedForm {
-                            head: ":wat::core::ann-form".into(),
-                            reason: format!("type slot failed to parse: {}", te.kind()),
-                            remedies: vec![],
-                        } });
-                        return CheckResult::errs(local_errors);
-                    }
-                };
-                // Arc-check-literal-elems (generalized, this strike): a parametric-
-                // compound literal/ctor-call (`[...]` / `{...}` / `#{...}` /
-                // `(:wat::core::Tuple ...)`) ascribed to a known matching expected
-                // type up-casts its components against the expected component
-                // type(s) (via infer_component_against -> check_compound_against_expected)
-                // instead of inferring the whole compound bottom-up and requiring
-                // `assignable` on the result. Non-compound / non-matching-shape exprs
-                // fall back to plain bottom-up infer inside the same helper, so the
-                // `assignable` check below still applies uniformly to both cases.
-                let expr_ty = infer_component_against(&args[0], &ascribed_ty, env, locals, fresh, subst, &mut local_errors);
-                // Require expr's type S assignable to the ascribed type T.
-                if let Some(s) = expr_ty {
-                    if !assignable(&s, &ascribed_ty, subst, env) {
-                        local_errors.push(CheckError {
-                            span: args[0].span().clone(),
-                            kind: CheckErrorKind::TypeMismatch {
-                                callee: ":wat::core::ann-form".into(),
-                                param: "expr".into(),
-                                expected: format_type(&apply_subst(&ascribed_ty, subst)),
-                                got: format_type(&apply_subst(&s, subst)),
-                            },
-                        });
-                    }
-                }
-                let ty = apply_subst(&ascribed_ty, subst);
-                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+                // Arc 255 Stone 1a-zeta — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/ann_form.rs`'s `infer_ann_form`, which is the fn
+                // `:wat::core::ann-form`'s `role = check` names — so the registry points at
+                // real, reachable code instead of at a fn nothing calls. Semantics unchanged
+                // (STOP-3: extracted verbatim; `infer_component_against` widened to
+                // `pub(crate)` so the new file can still call it).
+                return crate::intrinsic::special::ann_form::infer_ann_form(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             // Arc 146 slice 3 — `:wat::core::get` retired here; it is
             // now a Dispatch (declared in `wat/core.wat`).
@@ -3296,38 +3252,15 @@ fn infer_list(
                     k, args, head_span, env, locals, fresh, subst,
                 );
             }
-            // Arc 118 — `(:wat::stream::lazy <body>) -> (Stream :- [T])`. SPECIAL FORM.
-            // The body is captured unevaluated at runtime (a thunk), but TYPED here:
-            // it must produce a `(Stream :- [T])`, and lazy-seq returns that same `(Stream :- [T])`.
-            // (Unlike quote, the body IS type-checked — runtime laziness defers only
-            // EVALUATION, not type-checking. A mistyped body is still a static error.)
             ":wat::stream::lazy" => {
-                if args.len() != 1 {
-                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::stream::lazy".into(),
-                        expected: 1,
-                        got: args.len()
-                    } });
-                    let t = fresh.fresh();
-                    let seq_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![t] };
-                    return if local_errors.is_empty() { CheckResult::ok(seq_ty) } else { CheckResult::partial_with(seq_ty, local_errors) };
-                }
-                // Type-check the body and unify it with (Stream :- [fresh_T]).
-                let body_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                let elem = fresh.fresh();
-                let seq_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![elem] };
-                if let Some(bt) = body_ty {
-                    if unify(&bt, &seq_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: ":wat::stream::lazy".into(),
-                            param: "<body>".into(),
-                            expected: "(wat::stream::Stream :- [T])".into(),
-                            got: format_type(&apply_subst(&bt, subst))
-                        } });
-                    }
-                }
-                let result = apply_subst(&seq_ty, subst);
-                return if local_errors.is_empty() { CheckResult::ok(result) } else { CheckResult::partial_with(result, local_errors) };
+                // Arc 255 Stone 1a-zeta — DELEGATES rather than inlining. The body moved to
+                // `intrinsic/special/stream_lazy.rs`'s `infer_stream_lazy`, which is the fn
+                // `:wat::stream::lazy`'s `role = check` names — so the registry points at
+                // real, reachable code instead of at a fn nothing calls. Semantics unchanged
+                // (STOP-3: extracted verbatim).
+                return crate::intrinsic::special::stream_lazy::infer_stream_lazy(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
             // The enclosed form is DATA captured without evaluation (exactly
@@ -7740,6 +7673,12 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
 /// unification provides the static check arc 145 was attempting to add
 /// via REQUIRED `-> :T` (see arc 145 DESIGN top section, arc 136 DESIGN
 /// top section for the FOURTH amendment).
+///
+/// Arc 255 Stone 1a-zeta — the `role = check` pointer for `:wat::core::do`. Annotated IN
+/// PLACE (already fits the canonical 6-param check shape `infer_if`/`infer_let` use, same
+/// file) — see `intrinsic/special/do_form.rs` for the doc-only struct and the `role = eval`/
+/// `role = tail` pointers.
+#[wat_special_form_impl(":wat::core::do", role = check)]
 fn infer_do(
     args: &[WatAST],
     head_span: &Span,
@@ -15212,7 +15151,11 @@ fn vector_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeEx
 /// up-casts recursively), falling back to plain bottom-up `infer` when
 /// `node` isn't a recognized compound form or doesn't match `expected`'s
 /// shape. Errors drain into `local_errors` either way.
-fn infer_component_against(
+// Arc 255 Stone 1a-zeta — widened `fn` -> `pub(crate) fn`. `:wat::core::ann-form`'s check arm
+// (moved this stone to `intrinsic/special/ann_form.rs`'s `infer_ann_form`) is the first caller
+// outside this file; every other call site listed above stays in `check.rs`, unaffected —
+// logic untouched, visibility only.
+pub(crate) fn infer_component_against(
     node: &WatAST,
     expected: &TypeExpr,
     env: &CheckEnv,

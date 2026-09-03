@@ -995,7 +995,11 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                 // annotated by this stone — it had no `#[wat_special_form_impl]` of any role
                 // before), so the registry-first tail door above already dispatches it to
                 // `eval_match_tail` (unchanged) before this match is ever reached.
-                ":wat::core::do" => eval_do_tail(args, &list_span, env, sym),
+                // Arc 255 Stone 1a-zeta (`DESIGN-STONE-1a-zeta-the-last-three-of-the-special-form-
+                // table.md`) — this arm RETIRED; `:wat::core::do` carries a registered
+                // `role = tail` handler now (`eval_do_tail`, annotated in place, same file), so
+                // the registry-first tail door above already dispatches it to `eval_do_tail`
+                // (unchanged) before this match is ever reached.
                 // Arc 278 #59 — `and`/`or`/`ann-form` mirror the `if`/`match`/`let`/`do` pattern
                 // above: each is a legitimate tail context (see eval_and_tail/eval_or_tail/
                 // eval_ann_form_tail's docs for what each one does and, for and/or, the RULED
@@ -1004,9 +1008,13 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                 // `:wat::core::and`/`:wat::core::or` carry registered `role = tail` handlers now
                 // (`eval_and_tail`/`eval_or_tail` themselves — STOP-1's stacked-attribute pair, the
                 // same fns this arm used to name), so the registry-first tail door above already
-                // dispatches to them before this match is ever reached. `ann-form` has no
-                // registered tail handler yet and keeps its own arm below.
-                ":wat::core::ann-form" => eval_ann_form_tail(args, &list_span, env, sym),
+                // dispatches to them before this match is ever reached.
+                // Arc 255 Stone 1a-zeta — the `ann-form` arm that used to sit here is ALSO
+                // RETIRED (the comment above this one used to note it "keeps its own arm below"
+                // — no longer true); `:wat::core::ann-form` carries a registered `role = tail`
+                // handler now (`eval_ann_form_tail`, annotated in place, same file), so the
+                // registry-first tail door above already dispatches it to `eval_ann_form_tail`
+                // (unchanged) before this match is ever reached.
                 // DESIGN-STONE-insert-prime-split — foldl's inner is tail; without this
                 // arm the defclause TCO path apply_function's the wat 2-ary wrapper (~1.2 µs).
                 ":wat::rete::insert" => {
@@ -1262,6 +1270,11 @@ fn eval_let_tail(
 /// for their side effects (results discarded); the FINAL form is
 /// evaluated through [`eval_tail`] so a tail-call inside it propagates
 /// through the trampoline. Arc 136 slice 1a.
+///
+/// Arc 255 Stone 1a-zeta — the `role = tail` pointer for `:wat::core::do`. Annotated IN PLACE
+/// (signature already fits the canonical `TailHandler` shape), mirroring `if`/`let`/`match`'s
+/// own tail-door annotations a few hundred lines above.
+#[wat_special_form_impl(":wat::core::do", role = tail)]
 fn eval_do_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -1528,6 +1541,11 @@ fn eval_or_tail(
 /// observationally free. Unlike `eval_and_tail`/`eval_or_tail`, nothing is skipped or weakened:
 /// the arity guard is unconditional (mirrors `eval_ann_form`) and the wrapped expression is handed
 /// to `eval_tail` exactly as `eval_ann_form` hands it to `eval_inner`.
+///
+/// Arc 255 Stone 1a-zeta — the `role = tail` pointer for `:wat::core::ann-form`. Annotated IN
+/// PLACE (signature already fits the canonical `TailHandler` shape), mirroring `if`/`let`/
+/// `match`'s own tail-door annotations above.
+#[wat_special_form_impl(":wat::core::ann-form", role = tail)]
 fn eval_ann_form_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -2257,14 +2275,20 @@ fn dispatch_keyword_head_value(
         // `:wat::core::let` carries a registered `role = eval` handler now, so the
         // registry-first door above (`crate::intrinsic::registry().lookup(head)`) already
         // dispatches it to `eval_let` (unchanged) before this match is ever reached.
-        ":wat::core::do" => eval_do(args, list_span, env, sym),
+        // Arc 255 Stone 1a-zeta (`DESIGN-STONE-1a-zeta-the-last-three-of-the-special-form-
+        // table.md`) — this arm RETIRED; `:wat::core::do` carries a registered `role = eval`
+        // handler now (`eval_do`, annotated in place, same file), so the registry-first door
+        // above (`crate::intrinsic::registry().lookup(head)`) already dispatches it to
+        // `eval_do` (unchanged) before this match is ever reached.
         // Arc 255 `DESIGN-STONE-every-role-carries-its-pointer.md` — this arm RETIRED;
         // `:wat::core::if` carries a registered `role = eval` handler now, so the
         // registry-first door above (`crate::intrinsic::registry().lookup(head)`) already
         // dispatches it to `eval_if` (unchanged) before this match is ever reached.
-        // Arc 251 Stone 251.4b — checked, type-erased identity.
-        // The type slot is ERASED at runtime; only the expr is evaluated.
-        ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
+        // Arc 255 Stone 1a-zeta — this arm RETIRED; `:wat::core::ann-form` carries a
+        // registered `role = eval` handler now (`eval_ann_form`, annotated in place, same
+        // file), so the registry-first door above (`crate::intrinsic::registry().lookup(head)`)
+        // already dispatches it to `eval_ann_form` (unchanged) before this match is ever
+        // reached.
         // Arc 255 Stone 1a-gamma-i — this arm RETIRED; `:wat::core::quote` carries a
         // registered `role = eval` handler now (`eval_quote_form`,
         // `src/intrinsic/special/quote.rs`), so the registry-first door above
@@ -2274,9 +2298,13 @@ fn dispatch_keyword_head_value(
         // `seq-empty`/`cons`/`next` (arc 255 Stone P6-c-W2) moved into `#[wat_intrinsic]`
         // handlers (`src/intrinsic/stream.rs`); the pre-match registry check above
         // (arc 255.1c-guard) intercepts all three names before reaching here.
-        // `lazy-seq` is a SPECIAL FORM (capture-don't-eval): wrap the body in a
-        // 0-arg closure over the current env → Stream::Thunk. Mirrors `quote`.
-        ":wat::stream::lazy" => eval_lazy_seq(args, list_span, env),
+        // Arc 255 Stone 1a-zeta — the `:wat::stream::lazy` arm that used to sit here (`=>
+        // eval_lazy_seq(...)`) is RETIRED; the row carries a registered `role = eval` handler
+        // now (`eval_lazy_seq_form`, `src/intrinsic/special/stream_lazy.rs` — a thin delegate,
+        // since `eval_lazy_seq`'s own 3-param signature doesn't fit the canonical 4-param
+        // `NativeHandler` shape), so the registry-first door above already dispatches it before
+        // this match is ever reached. `lazy-seq` is a SPECIAL FORM (capture-don't-eval): wrap
+        // the body in a 0-arg closure over the current env → Stream::Thunk. Mirrors `quote`.
         // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
@@ -4157,6 +4185,12 @@ fn bind_let_binding(
 /// returned as the do form's value. Empty arg list → MalformedForm
 /// (belt-and-suspenders for programs reaching the dispatcher without
 /// the checker having run; the type checker fires the same diagnostic).
+///
+/// Arc 255 Stone 1a-zeta — the `role = eval` pointer for `:wat::core::do`. Annotated IN PLACE
+/// (signature already fits the canonical `NativeHandler` shape) — see
+/// `intrinsic/special/do_form.rs` for the doc-only struct and the `role = check`/`role = tail`
+/// pointers.
+#[wat_special_form_impl(":wat::core::do", role = eval)]
 fn eval_do(
     args: &[WatAST],
     list_span: &Span,
@@ -6126,7 +6160,11 @@ pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
 ///
 /// Mirrors `eval_quote`'s capture-don't-eval shape (runtime.rs) + the fn-closure
 /// construction in `function::eval_fn` (a 0-param `Function` with `closed_env`).
-fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value, EvalBreak> {
+// Arc 255 Stone 1a-zeta — widened `fn` -> `pub(crate) fn` so
+// `intrinsic/special/stream_lazy.rs`'s thin `role = eval` delegate (needed because this fn's
+// own 3-param signature — no `sym` — does not fit the canonical 4-param `NativeHandler` shape,
+// same asymmetry `eval_quote`/`eval_fn` hit) can call it from another module. Body untouched.
+pub(crate) fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -6172,6 +6210,12 @@ fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result
 /// only `expr` is evaluated and its value returned. The arity guard here
 /// is belt-and-suspenders (the checker enforces arity 2 before runtime;
 /// a well-typed program always has exactly 2 args).
+///
+/// Arc 255 Stone 1a-zeta — the `role = eval` pointer for `:wat::core::ann-form`. Annotated IN
+/// PLACE (signature already fits the canonical `NativeHandler` shape) — see
+/// `intrinsic/special/ann_form.rs` for the doc-only struct and the `role = check`/`role = tail`
+/// pointers.
+#[wat_special_form_impl(":wat::core::ann-form", role = eval)]
 fn eval_ann_form(
     args: &[WatAST],
     list_span: &Span,

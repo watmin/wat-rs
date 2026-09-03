@@ -8,6 +8,7 @@
 //! re-routing the runtime dispatch path.
 
 pub(crate) mod and_form;
+pub(crate) mod ann_form;
 pub(crate) mod binding;
 pub(crate) mod config_set_eval_redef;
 pub(crate) mod config_set_redef;
@@ -18,6 +19,7 @@ pub(crate) mod defenum;
 pub(crate) mod defmacro;
 pub(crate) mod defsurface;
 pub(crate) mod digest_load;
+pub(crate) mod do_form;
 pub(crate) mod fn_form;
 pub(crate) mod forms;
 pub(crate) mod load_file;
@@ -30,6 +32,7 @@ pub(crate) mod quasiquote;
 pub(crate) mod quote;
 pub(crate) mod rete_alias;
 pub(crate) mod signed_load;
+pub(crate) mod stream_lazy;
 pub(crate) mod struct_to_form;
 pub(crate) mod structtype;
 pub(crate) mod typealias;

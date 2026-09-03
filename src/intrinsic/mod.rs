@@ -977,6 +977,18 @@ mod tests {
         // untouched (STOP-4); the ledger grows by two, the same shape `if`/`let` already have.
         ":wat::core::fn",
         ":wat::core::match",
+        // Arc 255 Stone 1a-zeta — `do`/`ann-form`/`stream::lazy` join `if`/`let`/`fn`/`match`
+        // just above on this ledger the moment they become `Kind::SpecialForm` registry rows
+        // (this stone's deliverable). All three are checked FOR REAL by hand-written dispatch
+        // fns in `check.rs` (`infer_do`, annotated in place; `infer_ann_form`/`infer_stream_lazy`,
+        // extracted verbatim into `intrinsic/special/ann_form.rs`/`stream_lazy.rs` and delegated
+        // to from `check.rs`'s match), but NONE carries an `env.register()` TypeScheme, so
+        // `check_env.get` returns `None` for all three — exactly `if`/`let`/`fn`/`match`'s own
+        // shape. `check.rs`'s own LOGIC stays untouched (STOP-4: only extracted/delegated, never
+        // rewritten); the ledger grows by three, the same shape `fn`/`match` already used.
+        ":wat::core::do",
+        ":wat::core::ann-form",
+        ":wat::stream::lazy",
         // Arc 255 Stone P6-c-W6 — `nth`/`reverse` are checked for real (the hand-written
         // `check_call` arms `infer_nth`/`infer_reverse`), but NEITHER carries an
         // `env.register()` TypeScheme: `nth` never had one (custom arm from birth, stone
@@ -1705,15 +1717,20 @@ mod tests {
     /// `GAP_B_CORPUS_CENSUS_121` above (the fixed historical record — never edited) since that
     /// experiment genuinely could not vouch for it at the time; only the shrinking "current gap"
     /// list drops it.
+    ///
+    /// Arc 255 Stone 1a-zeta — `:wat::core::do` / `:wat::core::ann-form` / `:wat::stream::lazy`
+    /// LEAVE: each carries a registered `role = eval` handler now (`intrinsic/special/
+    /// do_form.rs` / `ann_form.rs` / `stream_lazy.rs`), so `registry().lookup_entry` returns
+    /// `Some` for all three and leaving them here would fail the gate below as STALE. All three
+    /// stay in `GAP_B_CORPUS_CENSUS_121` above (the fixed historical record — never edited);
+    /// only the shrinking "current gap" list drops them.
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
         ":wat::core::=",
-        ":wat::core::do",
         ":wat::core::PersistentVector",
         ":wat::core::foldl",
         ":wat::core::first",
         ":wat::eval-ast!",
         ":wat::core::Tuple",
-        ":wat::core::ann-form",
         ":wat::core::second",
         ":wat::core::PersistentMap",
         ":wat::core::get",
@@ -1730,7 +1747,6 @@ mod tests {
         ":wat::core::apply",
         ":wat::core::>=",
         ":wat::rete::i64::*",
-        ":wat::stream::lazy",
         ":wat::rete::i64::/",
         ":wat::rete::vector::get",
         ":wat::rete::i64::-",

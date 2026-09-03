@@ -79,12 +79,16 @@ fn every_dispatch_arm_calling_eval_threads_list_span() {
     // `aggregate-new` above: arc 255 Stone 1a-i registered it as a `#[wat_special_form]` with an
     // `eval` role, so the registry-first door answers it and its dispatch arm is gone. The claim
     // "no home carve relocates it" is now false for `and` too. `or` was never in this list.
-    // ⚠ Two anchors remain — `apply` and `ann-form` — and BOTH are on the 121-name registration
-    // worklist (`WORKLIST-the-121-the-registry-cannot-vouch-for.md`). This control has at most two
-    // removals left before the comment above applies and it should be DELETED, not re-anchored.
+    // ⛔ Arc 255 Stone 1a-zeta — `:wat::core::ann-form` REMOVED, same reasoning again: it now
+    // carries a registered `role = eval` handler (`intrinsic/special/ann_form.rs`, annotated in
+    // place on `eval_ann_form`), so the registry-first door answers it and its dispatch arm is
+    // gone (`runtime.rs`'s `dispatch_keyword_head_value`). The claim "no home carve relocates
+    // it" is now false for `ann-form` too.
+    // ⚠ One anchor remains — `apply` — on the 121-name registration worklist
+    // (`WORKLIST-the-121-the-registry-cannot-vouch-for.md`). This control has at most one
+    // removal left before the comment above applies and it should be DELETED, not re-anchored.
     const MUST_FIND: &[&str] = &[
         ":wat::core::apply",
-        ":wat::core::ann-form",
     ];
     for needle in MUST_FIND {
         assert!(

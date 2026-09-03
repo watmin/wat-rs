@@ -2219,7 +2219,13 @@ mod completeness_gate {
         // that. [[feedback_a_gate_freezes_names_never_a_count]] — the gate froze the names
         // correctly; the DISPOSITION of its red is what went wrong.
     ":wat::core::Tuple",
-    ":wat::core::ann-form",
+    // Arc 255 Stone 1a-zeta — `:wat::core::ann-form` LEAVES. `intrinsic_meta`'s registry-first
+    // consult now answers `Some` for it (the `@Purity Preserving` / `@Determinism Preserving` /
+    // `@Totality Preserving` this stone registered — `intrinsic/special/ann_form.rs`), so
+    // `dispatch_verbs`'s scan (which still finds `eval_ann_form`'s literal arm RETIRED in
+    // `runtime.rs`'s `dispatch_keyword_head_value`, STOP-1 unchanged past the arm deletion the
+    // registry-first door itself demanded) classifies it instead of leaving it unreviewed.
+    // Leaving the name here after registering would fail this ledger's own STALE check.
     ":wat::core::apply",
     ":wat::core::conforms?",
     // Arc 255 Stone 1a-β-ii — `:wat::core::def` LEAVES. `intrinsic_meta`'s registry-first
@@ -2341,9 +2347,15 @@ mod completeness_gate {
     ":wat::stdlib::sources",
     // `:wat::stream::cons`/`empty`/`next` RULED and CLASSIFIED — arc 255 Stone P6-c-W2
     // (`intrinsic_meta`, above: `cons`/`empty` pure∧det∧total; `next` false on all three —
-    // forcing a thunk runs arbitrary user code). `:wat::stream::lazy` is unaffected (SPECIAL
-    // FORM, stays in the giant match, stays unreviewed — no ruling made here).
-    ":wat::stream::lazy",
+    // forcing a thunk runs arbitrary user code).
+    //
+    // Arc 255 Stone 1a-zeta — `:wat::stream::lazy` LEAVES too now. `intrinsic_meta`'s
+    // registry-first consult answers `Some` for it (the `@Purity Pure` / `@Determinism
+    // Deterministic` / `@Totality Total` this stone registered — `intrinsic/special/
+    // stream_lazy.rs`), so `dispatch_verbs`'s scan (which still finds the literal arm RETIRED
+    // in `runtime.rs`'s `dispatch_keyword_head_value`, STOP-1 unchanged past the arm deletion
+    // the registry-first door itself demanded) classifies it instead of leaving it unreviewed.
+    // Leaving the name here after registering would fail this ledger's own STALE check.
 
         // ── ADDED 2026-08-27 (HOME-12, the AST registry home). These ten were ALWAYS
         // dispatched and ALWAYS unreviewed; the gate simply could not SEE them. Its scan
