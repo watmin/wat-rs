@@ -57,7 +57,46 @@ message-level unit would re-deliver to everyone on one subscriber's retry.
 subscribers as consumers, and the queue already has level-triggered wakeup, a depth bound, parked
 waiters and batching.
 
-### 3. Packet loss injection — NOT DRAWN, probably its own arc (builder's ruling)
+### 3. Packet loss injection — IN PROGRESS, and it split into four
+The reactor is `wat/service.wat` — **wat, not Rust** — so the drop lives where the serve loop
+sends, and its *placement in the loop* is what decides the fault:
+
+| drop lands | work happened? | caller knows? | duplicate on retry? |
+|---|---|---|---|
+| before dispatch | no | no | no |
+| **after the arm, before the reply-send** | **yes** | **no** | **YES** ← the acceptance criterion |
+
+- **3a. `:wat::rand::`** — ✅ STRUCK 2026-09-03. Two verbs, named apart, classified apart.
+- **3b. Bound every wait, and report** — NOT DRAWN. **Blocked on nothing; do this next.** See the
+  open red below.
+- **3c. Reactor drop, rate per component from `:durable`, seeded** — NOT DRAWN. Client-side drops
+  exercise reconnect; they cannot produce a duplicate, because arms run to completion and an alarm
+  fires *between* them.
+- **3d. Reply-drop after the arm** — NOT DRAWN. The only fault that produces the unknowable state,
+  and therefore the only one that validates S13. `wat/service.wat` is stdlib: `fix.wat`'s BOOTSTRAP
+  note applies, and the drop **must default to zero** or the whole corpus becomes lossy at once.
+
+### ⛔ OPEN RED — the floor is not green
+`.floor/2026-09-03T09-14-58Z/` — `5199 passed, 1 timed out`.
+
+```
+TIMEOUT [ 30.015s] probe_async_publish::refused_subscriber_is_retried_not_dropped
+stdout: running 1 test / (test timed out)
+```
+
+**Not disposed.** Established: the rand stone changed no `.wat`; the probe uses `:vis-ns 200000000`
+(the 200 ms window deliberately kept on the refusal probe); `:demo::wait-inflight` and
+`:demo::wait-pending` are **unbounded** (nap 1 ms, recurse); alone it runs 1336/1366/1402 ms.
+**Not established:** whether load stretched it >20× or the retry never fired — and that is the
+defect, not the timing.
+
+★ **The class: an unbounded wait in a floor-driven test converts a timing miss into an
+unfalsifiable hang.** The ARM is empty because there is nothing to print. Same family as a
+truncating pager and a piped exit code — all three destroy the evidence that would name the failure.
+**3b is the fix, and it must not be "widen the 350 ms nap"** — that patches the case and leaves the
+class.
+
+### 3-historical. Packet loss injection — the original entry
 The one fault domain never simulated. IPC has been giving us reliable networking for free.
 
 ★ **The acceptance criterion is that it BREAKS something:** `dup=0` is a property of the transport,
