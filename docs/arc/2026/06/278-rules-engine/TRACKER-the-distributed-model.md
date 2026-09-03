@@ -74,7 +74,8 @@ sends, and its *placement in the loop* is what decides the fault:
   | stone | what | state |
   |---|---|---|
   | **A** | `:wat::time::NonZeroDuration` (`NonZeroU64`). Zero-as-a-wait has no form. `src/` + ONE line of `wat/service.wat`, **no codemod** | **DRAWN** — DESIGN/BRIEF/EXPECTATIONS-`zero-is-not-a-wait` |
-  | **B** | queue `wait-ns i64` → `wait <- Queue::Wait` with `:Immediate` / `:UpTo [NonZeroDuration]`; delete `sqs.wat:737`'s clamp | blocked on A |
+  | **B** | queue `wait-ns i64` → `wait <- Queue::Wait` with `:Immediate` / `:UpTo [NonZeroDuration]` | ⛔ **BLOCKED on B-pre — see below** |
+  | **B-pre** | **make time types wire-admissible.** No time type crosses a service boundary today | **NEW, blocks B** |
   | **C** | the naming sweep — `Alarm :after`→`:delay` (64 sites/25 files), `Millisecond`→`Milliseconds`, `pending`/`in-flight`→`visible`/`unacked` | not drawn |
   | **D** | the helper vocabulary that hung the floor — `take-one`, `wait-pending`/`wait-inflight`, `q-depth`'s `(Tuple 1 1)`, `accept!`, the lying comment at `sns-fanout.wat:145`, the `1`-vs-`-1` sentinels | not drawn, **owns the open red** |
 
@@ -91,6 +92,48 @@ sends, and its *placement in the loop* is what decides the fault:
 - **3d. Reply-drop after the arm** — NOT DRAWN. The only fault that produces the unknowable state,
   and therefore the only one that validates S13. `wat/service.wat` is stdlib: `fix.wat`'s BOOTSTRAP
   note applies, and the drop **must default to zero** or the whole corpus becomes lossy at once.
+
+### ⛔ STONE B IS BLOCKED — the disconfirming probe fired before the brief, not after
+
+`wat-scripts/scratch-pad/probe-nonzeroduration-crosses-the-wire.wat`, 3/3:
+
+```
+immediate=[ok:0]
+upto=[MALFORMED:expected=:wat::time::NonZeroDuration;got=Integer]
+measured-CONTROL=[MALFORMED:expected=:wat::time::Duration;got=Integer]
+```
+
+`ReceiveRequest` lives inside `(defsurface :queue::Queue :nature :wat::kernel::Peer)` — a **wire
+protocol** record — so `:UpTo [NonZeroDuration]` requires the type to cross a service boundary.
+It does not. **The nullary arm round-trips; the payload arm is rejected as `RequestMalformed`**:
+the value serializes to an EDN Integer and the decoder never rebuilds the time type.
+
+★ **THE CONTROL IS THE FINDING. `Duration` fails identically.** This is NOT something Stone A left
+half-done — **no time type has ever crossed a service boundary in this tree.**
+
+And `sqs.wat:11-12` has said so all along, on a different axis:
+
+> *"Instant/Duration on the request record is avoided — journal's wire-proven i64 time-ns is the
+> precedent."*
+
+The header argues **testability** (a fixture drives the visibility window as a value). The probe
+shows there was never a choice to make. A stated reason concealed an unstated impossibility.
+
+**B-pre:** give `Duration` and `NonZeroDuration` a wire round-trip. The exemplar is in the tree —
+**arc 300 stone B did exactly this for `rational`**, `src/edn/bridge.rs:447` (encode) and `:661`
+(decode). `Edn::Uuid` by contrast is explicitly `UnsupportedEdnForm` at `:829`, so the bridge
+distinguishes *supported custom variant* from *unsupported* and rational is the shape to copy.
+
+⛔ **CORRECTION TO THE STONE-B DESIGN LINE: do NOT delete `sqs.wat:737`'s clamp.** I called it scar
+tissue. It is not:
+
+- `arm-tick` (`sqs.wat:211-223`) builds `(:wat::service::Alarm :after (:wat::time::Nanosecond delay0))`
+  **from a computed i64** — so after Stone A the clamp is a **panic boundary**, not a workaround.
+- It is a **tick-rate floor**, not a zero guard: the tick's fold (`sqs.wat:678`) keeps only waiters
+  with `deadline-ns > now`, so `delay >= 1` always. The clamp stops a 1 µs deadline from arming a
+  1 µs alarm and ticking the queue a thousand times a millisecond.
+
+It needs the WHY comment it never had, not deletion.
 
 ### ⛔ OPEN RED — the floor is not green
 `.floor/2026-09-03T09-14-58Z/` — `5199 passed, 1 timed out`.
