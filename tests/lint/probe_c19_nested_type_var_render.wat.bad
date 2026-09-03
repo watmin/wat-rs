@@ -1,0 +1,29 @@
+;; C19 (arc 278) — POSITIVE CONTROL for the NESTED type renderer, `check::format_type_inner`.
+;;
+;; Driven by `diagnostic_output_is_deterministic.rs`'s
+;; `the_nested_type_renderer_is_driven_and_renders_no_counter`. It exists because a measurement
+;; said this arm needed one: the C19 render fix touched TWO renderers in `check.rs`, and a sweep of
+;; all 280 `.wat.bad` with the inner arm marked showed **zero** of them reached it. So "break one
+;; site, the gate still reds" — the proof that BOTH renderers are covered — was unprovable for the
+;; inner one, and a mutation there would have shipped silently green.
+;;
+;; WHAT MAKES IT REACH THAT ARM: a tuple. `format_type`'s Parametric arm recurses through
+;; `format_type` (each binder element is a standalone keyword), so a parametric type's arguments
+;; never reach `format_type_inner`. Its Tuple arm does — tuple ELEMENTS are colon-stripped. So the
+;; body's type must be a TUPLE whose elements are undetermined:
+;;
+;;   []                  -> (Vector :- [?])   an empty vector literal: element type unresolved
+;;   (:wat::core::List)  -> ?                  a bare unresolved variable, directly as an element
+;;
+;; and the declared `-> :wat::core::bool` forces the whole thing into a ReturnTypeMismatch's `got`.
+;; That reaches the inner arm at BOTH depths in one message: nested inside a Parametric, and as a
+;; direct tuple element.
+;;
+;; ★ IT IS ALSO THE ONE MESSAGE IN THE CORPUS THAT CARRIES TWO **DISTINCT** UNKNOWNS, and it is
+;; here on purpose. C19 chose to render an unresolved variable as the wildcard `_` rather than
+;; renumber per diagnostic, and the price of that choice is exactly this: pre-fix these read
+;; `[INNERVAR3764]` and `INNERVAR3765` — two different variables — and post-fix both read `_`, so
+;; a reader cannot tell them apart from one variable used twice. The cost is not an argument in a
+;; comment; it is a line of output this repo runs on every floor.
+(:wat::core::defn :user::main [] -> :wat::core::bool
+  (:wat::core::Tuple [] (:wat::core::List)))

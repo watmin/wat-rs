@@ -16339,7 +16339,39 @@ pub fn format_type(t: &TypeExpr) -> String {
                 format!(":({})", inner.join(","))
             }
         }
-        TypeExpr::Var(id) => format!(":?{}", id),
+        // C19 (arc 278) — an unresolved unification variable renders as the WILDCARD
+        // `_`, never as `:?{id}`. `InferCtx::fresh` (line ~485) is a monotonic counter, so
+        // the id encoded HOW MANY vars had been allocated before this one — a number that
+        // varies per process (upstream traversal is `HashMap`-ordered under Rust's
+        // per-process random hasher). Same binary, same file, five runs, five different
+        // diagnostics; the D11 corpus scan paid for it with 9 false "regressions".
+        //
+        // Two halves to the fix and BOTH matter. (a) STABILITY: the id is fine internally
+        // and is NOT changed — only its rendering is. (b) MEANING: `:?3399` is an allocator
+        // counter, and it told the reader nothing even when stable — the SIBLING message in
+        // the same output renders a declared type parameter as `T`, so one output spelled
+        // one unknown `T` and another `:?3399`.
+        //
+        // WHY `_` AND WHY COLON-LESS: `_` is already wat's wildcard symbol ("anything") —
+        // check.rs:6598/6901, closure_extract.rs:769 — so it needs no legend. It carries no
+        // leading colon in either renderer because it is NOT a type keyword; the absent colon
+        // is the signal that this is a hole, not a name. Deliberately NOT `?`: bare `"?"` is
+        // already the sentinel for "this argument had NO inferred type at all"
+        // (`called_arg_types`, ~line 5484/5505) and the two must not collide in one output.
+        //
+        // COST, stated: two DISTINCT unknowns in one message now render identically, so
+        // `(Map :- [_ _])` cannot be told from a map whose key and value are the same
+        // unknown. Measured over all 280 `.wat.bad` (the DESIGN sampled 120 and found 1):
+        // 7 files' diagnostics carry a var, and ZERO carry two distinct vars anywhere in the
+        // WHOLE output, let alone in one message. Per-diagnostic renumbering (`?1`, `?2`) was the
+        // alternative and is worse HERE: `format_type` is a free function called
+        // independently for `expected` and for `got`, so any numbering it could do alone
+        // would be per-CALL — making `?1` in `expected` and `?1` in `got` look like the
+        // same variable when they are not. Genuine per-diagnostic numbering needs a map
+        // threaded through every error-construction site.
+        //
+        // Gated corpus-wide by `tests/lint/diagnostic_output_is_deterministic.rs`.
+        TypeExpr::Var(_) => "_".to_string(),
     }
 }
 
@@ -16369,7 +16401,12 @@ fn format_type_inner(t: &TypeExpr) -> String {
                 format!("({})", inner.join(","))
             }
         }
-        TypeExpr::Var(id) => format!("?{}", id),
+        // C19 — same wildcard rendering as `format_type`'s Var arm above, and deliberately
+        // the SAME SPELLING: the outer/inner split exists to add or drop a leading colon on
+        // a KEYWORD, and `_` is not one. Two spellings of "unknown" in one output is the
+        // confusion this strike removed, so this arm must not reintroduce it at the nested
+        // position. Both renderers are covered by the corpus determinism gate.
+        TypeExpr::Var(_) => "_".to_string(),
     }
 }
 

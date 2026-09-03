@@ -88,6 +88,35 @@ filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100                                            # schedule first
 
+# C19 (arc 278) — the diagnostic-determinism gate: every `.wat.bad` run TWICE in two fresh
+# processes, byte-identical output required (tests/lint/diagnostic_output_is_deterministic.rs).
+#
+# ⚠ ORDER IS LOAD-BEARING, same trap the `binary_id(wat::lint)` note below records: these tests
+# live INSIDE the lint binary, so this rule MUST stay ABOVE that one. Below it, the broader filter
+# would swallow them and hand them the default 15s/30s deadline, which a shard cannot meet.
+#
+# THE NUMBER, DERIVED NOT PICKED (measured 2026-09-03 on this box, 8 cores):
+#   `wat` per run on this corpus ..............  ~0.30s  (~0.16s of it is process startup alone)
+#   `.wat.bad` in the tree ....................  281  (278 asserted over, 3 quarantined)
+#   full corpus twice, sequential .............  ~167s CPU
+#   full corpus twice, 8-way parallel .........  33.4s wall  (3m55s CPU)
+#   ONE shard (16 shards, ~17 files = ~35 runs)  ~10.4s alone
+#   at this repo's own recorded contention band (3.5x-4.4x, see the rete cohort below): 36-46s
+# Warn 90s / kill 180s is ~2x margin on the top of that projection — the same generosity, and the
+# same derivation, the rete cohort's budget was given.
+#
+# ⛔ IF THIS EVER NEEDS RAISING, SPLIT INSTEAD. `N_SHARDS` in the gate is one constant; raising it
+# is the durable fix that the scripts gate above has twice been unable to take. Raising a number
+# here is not.
+#
+# `priority = 99` puts the shards in the same early wave as the lint binary they belong to. Without
+# it they would fall through to the default priority and become the tail the whole floor waits on —
+# 33s of wall added at the END rather than overlapped inside the scripts gate's window.
+[[profile.default.overrides]]
+filter = 'test(every_wat_bad_diagnostic_is_byte_stable)'
+slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+priority = 99
+
 # The REST of the lint binary, immediately behind the scripts gate.
 #
 # The `lint` target (Cargo.toml:219, tests/lint/mod.rs) is the second-longest
@@ -226,6 +255,14 @@ filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100
 
+# C19 — raised with [profile.default]; CI runs the same corpus on the same wall. A deadline only
+# the dev profile can meet is not a deadline (the same reasoning the scripts gate's ci override
+# records). MUST stay above the `binary_id(wat::lint)` rule — first match wins.
+[[profile.ci.overrides]]
+filter = 'test(every_wat_bad_diagnostic_is_byte_stable)'
+slow-timeout = { period = "90s", terminate-after = 2 }
+priority = 99
+
 [[profile.ci.overrides]]
 filter = 'binary_id(wat::lint)'
 priority = 99
@@ -260,6 +297,13 @@ filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 # corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100
+
+# C19 — raised with [profile.default]; same corpus, same box, same argument. MUST stay above the
+# `binary_id(wat::lint)` rule — first match wins.
+[[profile.slow.overrides]]
+filter = 'test(every_wat_bad_diagnostic_is_byte_stable)'
+slow-timeout = { period = "90s", terminate-after = 2 }
+priority = 99
 
 [[profile.slow.overrides]]
 filter = 'binary_id(wat::lint)'

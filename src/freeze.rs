@@ -1724,7 +1724,24 @@ pub fn format_type_expr(t: &TypeExpr) -> String {
                 format!(":({})", inner.join(","))
             }
         }
-        TypeExpr::Var(id) => format!(":?{}", id),
+        // C19 — the THIRD copy of the leaking spelling (the strike brief named two, both in
+        // `check.rs`). Rendered as the wildcard `_` for the same reason as
+        // `check::format_type`'s Var arm: the id is `InferCtx::fresh`'s allocation counter,
+        // it varies per process, and it is meaningless to a reader even when stable.
+        //
+        // ⚠ BUT CLASSIFY IT HONESTLY: this arm is NOT REACHABLE TODAY, and that was checked,
+        // not assumed. `format_type_expr` has exactly four call sites — lines 1645/1646/1659
+        // here and `distribution/mod.rs:206` — and every one of them renders a DECLARED
+        // signature type (`:user::main`'s / `:user::grep`'s `param_types` / `ret_type`),
+        // parsed from source. Source has no spelling for a unification variable, so a `Var`
+        // cannot arrive at any of them. Driven: breaking THIS arm alone leaves
+        // `tests/lint/diagnostic_output_is_deterministic.rs` fully GREEN over all 281
+        // `.wat.bad` — the two `check.rs` arms are what the corpus exercises.
+        //
+        // It is changed anyway because a third copy of a retired spelling is how the defect
+        // comes back: the next caller to hand this renderer an inferred type would reopen
+        // C19 silently, on a path no gate watches. Nothing here claims it is covered.
+        TypeExpr::Var(_) => "_".to_string(),
     }
 }
 
