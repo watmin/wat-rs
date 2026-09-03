@@ -9,22 +9,27 @@
 //! handler, no `role = eval` implementation, and no delegate — the whole ★★★ contract is that
 //! an alias needs none (STOP-2).
 //!
-//! ⚠ **A finding this file's own doc block must carry, not bury** — see the rider report for
-//! the full argument: `:wat::rete::i64::>` is ALREADY a live FQDN in `src/rete/vocabulary.rs`
-//! (`RETE_OPS`), registered there as `OpClass::Fallback` (NOT `OpClass::Alias`, contra this
-//! stone's own DESIGN prose), taking 4 positional args
-//! `(a b :undefined fallback)` and catching `IntegerOverflow` to substitute `fallback`. That row
-//! is untouched (STOP-3) and still present. But because `dispatch_keyword_head`'s new alias
-//! check (STOP-1's own proof requirement) must fire BEFORE `dispatch_keyword_head_value`'s
-//! `RETE_PREFIX` gate is ever reached, registering an alias under this SAME name makes the OLD
-//! 4-arg fallback-carrying form of `:wat::rete::i64::>` **unreachable** — a 4-arg call now
-//! redirects straight to `:wat::i64::>` (arity 2) and raises `ArityMismatch{expected:2,got:4}`
-//! instead of computing the sum with overflow fallback. Several `tests/rete/` fixtures call the
-//! 4-arg form today (`probe_arc278_8custom_native_differential.rs`,
-//! `probe_arc278_55_slice_one_vocabulary.wat`, `probe_arc278_then_user_forms*.{rs,wat}`,
-//! `rete/clause.rs`, `rete/compiled_rhs.rs`) and are expected to break. This is a consequence of
-//! the exact FQDN the BRIEF names (repeated in its work section, STOP-1, and Sabotage-1) — not a
-//! defect in how this struct is wired.
+//! ⛔ **CORRECTED 2026-09-02 — this paragraph used to assert the opposite, and it was false.**
+//! It was written about the DESIGN's ORIGINAL witness, `:wat::rete::i64::+`, where every word of
+//! it held; when the witness moved to `:wat::rete::i64::>` the NAME was substituted and the
+//! ASSERTIONS were not. Measured on disk: `RETE_OPS`'s `:wat::rete::i64::>` row is
+//! `class: OpClass::Alias`, `params: &[ParamType::I64, ParamType::I64]`, `ret: ParamType::Bool`
+//! — and `git blame` puts `OpClass::Alias` on that line since 2026-08-02, so this name was
+//! NEVER `Fallback`. No corpus call site passes it four arguments; every 4-arg `:undefined`
+//! site in the tree belongs to `i64::{+ - * / mod rem quot}` / `f64::*` / `vector::get` / the
+//! `*/first` trio / `string::subs`, which really are `Fallback` rows. Registering an alias at
+//! this name therefore collides with NOTHING — the registry now answers what `RETE_OPS` already
+//! said, which is the whole point of the fold.
+//!
+//! ★★★ **The warning that paragraph carried is real — it just belongs to a different class, and
+//! Phase 1b is the thing that must read it.** For a genuine `OpClass::Fallback` row,
+//! `dispatch_keyword_head`'s alias check fires BEFORE `dispatch_keyword_head_value`'s
+//! `RETE_PREFIX` gate is ever reached, so registering a 2-arg alias under a `Fallback` name
+//! makes the 4-arg `:undefined` form **unreachable**: the call redirects to the arity-2 core
+//! verb and raises `ArityMismatch { expected: 2, got: 4 }` instead of substituting the caller's
+//! fallback. That is precisely what broke eight live rete tests when the DESIGN named `+`.
+//! **`Fallback`'s 20 rows may not be registered as aliases** — that is a mechanism, not a
+//! preference, and it is why the SEAM carries the same prohibition.
 //!
 //! ---
 //!
