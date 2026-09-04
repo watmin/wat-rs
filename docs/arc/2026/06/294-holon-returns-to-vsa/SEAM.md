@@ -61,7 +61,10 @@ registration VEHICLE, not the verb.
 ## ✅ WHAT THIS SESSION SHIPPED
 
 ```
-PHASE 1a  COMPLETE      PHASE 1b  COMPLETE (the 37 rete alias rows)
+PHASE 1a  COMPLETE      PHASE 1b  ⛔ HALF DONE — 37 of RETE_OPS' 74 rows registered, 37 REMAIN
+                                  (29 of those 37 are CALLED in the corpus). MEASURED 2026-09-04;
+                                  the previous SEAM said "COMPLETE" and I transcribed it forward
+                                  without measuring. comm -23 <rete_names> <registry_names>.
 PHASE 1c-0 · a · b · c · d · e · f · g   COMPLETE
 
 ⭐ :wat::core:: IS DONE. NOTHING IS HELD. The by-name totality placeholder is DELETED —
