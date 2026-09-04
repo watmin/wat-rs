@@ -10,8 +10,7 @@ differential.
    **`any`**: one covered tid routes every tid through the tree path.
 2. `src/rete/kernel/fire/mod.rs:2036` and `:2039` — the two skips. `:2036` **drops** an evaluation;
    `:2039` **pushes a fact without evaluating**. These are the obligations.
-3. `src/rete/where_tree.rs:117` — `WhereTree::empty()`, `pub(crate)`, **zero callers in `src/`**. An
-   empty tree forces the reference branch. This is your lever.
+3. `src/rete/where_tree.rs:117` — `WhereTree::empty()`, `pub(crate)`. ⛔ **This brief said "zero callers in `src/`" and it was FALSE** — `:143` calls it in `build`'s own empty-input short-circuit. An empty tree forces the reference branch; that is your lever either way.
 4. `docs/arc/2026/06/278-rules-engine/strike-two-writers-one-alpha/SCORE.md` — D7: a fast path and a
    reference path disagreeing, found by hand because no differential ran. **Same shape.**
 5. `tests/rete/wat_scripts_grid_port_check.rs` — the native-vs-oracle differential landed this week.
