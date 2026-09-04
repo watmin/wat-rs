@@ -1,27 +1,27 @@
-;; probe-reply-drop-is-userland.wat — CAN 3d BE BUILT WITHOUT REACTOR SURGERY?
+
+;; probe-reply-drop-is-userland.wat — ⛔ ITS ORIGINAL CONCLUSION WAS WRONG, TWICE OVER.
 ;;
-;; wat/service.wat is 3120 lines containing exactly ONE top-level form: the defservice
-;; macro. There is no helper function — the whole serve loop is generated inside one
-;; quasiquote, and every service in the corpus expands through it. Weaving a drop in there
-;; is surgery with total blast radius.
+;; It was written to ask: can a service omit a reply, leaving the caller informed and the
+;; service alive? It printed `call2-RETURNED=LOST` and I concluded yes. Both halves were
+;; wrong:
 ;;
-;; ★ BUT `Outcome::Continue` carries `reply <- (Option :- [R])`. An arm can do its work,
-;; emit its sends, advance its state, and return NO REPLY. That is precisely the 3d fault
-;; — "after the arm, before the reply-send: work happened, caller does not know" — and if
-;; it behaves as the type suggests, 3d is a USERLAND stone.
+;;   1. The code was MALFORMED. It used `(:wat::core::None :cd::Drop::Reply)` — but None is
+;;      a KEYWORD, not a function. That form type-checks for a non-primitive type keyword
+;;      and raises UnknownFunction at runtime. See probe-none-is-not-a-function.wat.
+;;      The service died of that raise. The caller's LOST was DEATH, not omission.
+;;   2. The liveness instrument was in this file the whole time — `:cd::served-count`,
+;;      defined and never called. Connecting it is what exposed the misreading.
 ;;
-;; The drop here is by call COUNT, not random: rand is already proven replayable
-;; (probe-rand-is-usable-from-wat.wat) and mixing the two would confound this question.
-;; Call 1 replies. Call 2 returns None.
+;; Corrected to the only correct spelling. What it now measures is the TRUE behaviour:
+;; a `None` reply DEFERS. The caller blocks until something replies. sqs.wat:584-585 uses
+;; exactly this for the queue's long-poll park and works, because the tick answers later.
+;; This probe never answers, so its caller waits forever — the contract behaving as
+;; specified, and NOT a defect.
 ;;
-;; SELF-GUARDING BY ORDERING: the answering call runs FIRST and prints. The dropped call
-;; runs LAST, so the shell's `timeout` is the watchdog and the printed lines are the
-;; evidence. No wait in this file can swallow its own result.
+;; ★ Which is why stone 3d has no userland form: there is no "work done, caller informed,
+;; service alive". A reply is sent, or it is deferred. Those are the only two.
 ;;
-;;   $ timeout 20 ./target/release/wat .../probe-reply-drop-is-userland.wat
-;;   call1=ok:1          <- normal reply
-;;   served=2            <- the ARM RAN on call 2 (state advanced) …
-;;   (then: does call2 return, or does the caller wait forever?)
+;; Runs under `timeout` — the deferred cell never returns, by design.
 
 (:wat::config::set-redef! true)
 
@@ -60,7 +60,7 @@
        ;; ★ THE DROP. The arm RAN and the state advanced either way; only the reply differs.
        (:wat::core::if (:wat::core::= n 2)
          (:wat::service::Outcome::Continue s'
-           (:wat::core::None :cd::Drop::Reply)          ;; work happened, caller told nothing
+           :wat::core::None                             ;; the ONLY correct spelling
            no-sends no-arms)
          (:wat::service::Outcome::Continue s'
            (:wat::core::Some (:cd::Drop::Reply::Hit (:cd::Drop::HitResponse::Ok n)))
