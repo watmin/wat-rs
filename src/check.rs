@@ -3262,22 +3262,16 @@ fn infer_list(
                     k, args, head_span, env, locals, fresh, subst,
                 );
             }
-            // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
-            // The enclosed form is DATA captured without evaluation (exactly
-            // as `:wat::core::quote`). The checker does NOT recurse into the
-            // body — this is the entire point: heterogeneous EDN maps/sets
-            // bypass monomorphic `infer_map_literal` because the type is
-            // declared as `:wat::holon::HolonAST` at the head alone.
+            // Arc 255 Stone holon-literal-is-a-special-form — DELEGATES rather than inlining.
+            // The body moved to `intrinsic/special/holon_literal.rs`'s `infer_holon_literal`,
+            // which is the fn `:wat::holon::literal`'s `role = check` names — so the registry
+            // points at real, reachable code instead of at a fn nothing calls. Semantics
+            // unchanged (STOP-3: extracted verbatim). Also spelled as the `#holon <form>`
+            // reader tag (arc 294.b) — the two surface forms are the same verb.
             ":wat::holon::literal" => {
-                if args.len() != 1 {
-                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::holon::literal".into(),
-                        expected: 1,
-                        got: args.len()
-                    } });
-                }
-                let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
-                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+                return crate::intrinsic::special::holon_literal::infer_holon_literal(
+                    k, args, head_span, env, locals, fresh, subst,
+                );
             }
             ":wat::core::forms" => {
                 // Arc 255 Stone 1a-gamma-i — DELEGATES rather than inlining. The body moved to

@@ -103,14 +103,23 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     //
     // Only 3 of those 9 (`and`/`or`/`if`, all `#[wat_special_form]`) also gained their own
     // `@syntax` at the registration site, transcribing the LIVE `entry.args` rendering.
-    // The other 6 (`Option/expect`/`Option/try`/`Result/expect`/`Result/try`/
-    // `:wat::form::matches?`/`:wat::holon::literal`) are declared with
+    // The other 5 (`Option/expect`/`Option/try`/`Result/expect`/`Result/try`/
+    // `:wat::form::matches?`) are declared with
     // `#[wat_intrinsic(...)]`, and that macro's doc parser (`wat_doc::parse`, distinct from
     // `#[wat_special_form]`'s `parse_special_form`) does not recognize `@syntax` at all —
     // attempting it is a hard `compile_error!`, not a rendering mismatch. See the stone's
     // report: this is a real blocker on the BRIEF's literal instruction, not an oversight;
     // it costs nothing behaviourally because `entry.args` already renders these 6
     // identically with no `@syntax` at all, both before and after this deletion.
+    //
+    // ⛔ CORRECTED by the stone that followed (`:wat::holon::literal` is a special form):
+    // that list said SIX and named `:wat::holon::literal` among them. It is now FIVE. The
+    // verb captures its argument unevaluated (its own check arm: "DATA captured without
+    // evaluation, exactly as `:wat::core::quote`"), so it was misdeclared `#[wat_intrinsic]`;
+    // it is `#[wat_special_form]` now and carries a real `@syntax`. The rule the paragraph
+    // above states is still right — an intrinsic cannot carry `@syntax`, by design
+    // (`@arg` for positional forms, `@syntax` for structural ones) — but this verb was never
+    // positional, and the count was reading a mis-kinded row as evidence about the rule.
     //
     // What remains is exactly the DESIGN's third bucket — names with NO registration site
     // to carry a `@syntax`/`@arg` at all:

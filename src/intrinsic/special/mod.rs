@@ -25,6 +25,7 @@ pub(crate) mod do_form;
 pub(crate) mod extend_type;
 pub(crate) mod fn_form;
 pub(crate) mod forms;
+pub(crate) mod holon_literal;
 pub(crate) mod load_file;
 pub(crate) mod macroexpand;
 pub(crate) mod macroexpand_1;

@@ -17,7 +17,9 @@
   :Fn
 ;; Implemented in Rust, exposed under a `:wat::` FQDN.
   :Intrinsic
-;; A substrate special form — no NativeHandler; dispatched by the runtime.
+;; A substrate special form — dispatched by the runtime's own match arms; MAY also carry a
+;; registered `role = eval` NativeHandler (19 do, as of arc 255 Stone the-eval-door — e.g.
+;; `fn`/`if`/`let`/`match`/`quote`/`forms`/`holon::literal`), in which case `handler` is `Some`.
   :SpecialForm)
 
 ;; DefinedIn — implementation language.

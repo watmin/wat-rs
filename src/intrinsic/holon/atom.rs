@@ -88,7 +88,7 @@
 use std::sync::Arc;
 use std::collections::HashSet;
 
-use wat_macros::wat_intrinsic;
+use wat_macros::{wat_intrinsic, wat_special_form_impl};
 
 use crate::ast::WatAST;
 use crate::holon::*;
@@ -648,28 +648,24 @@ pub(crate) fn eval_holon_to_wat(
 }
 
 
-/// `(:wat::holon::literal form)` -> `(:wat::holon::to-holon (:wat::core::quote
-/// form))`, fused: quotes `form` without evaluating it, then lowers the
-/// quoted form to a HolonAST composition directly (shares `:wat::core::quote`'s
-/// `eval_quote`, which is genuinely shared between the two verbs and stays
-/// in `runtime.rs`).
-///
-/// @added         1.0.0
-/// @Purity        Pure
-/// @Determinism   Deterministic
-/// @Totality         Unreviewed
-/// @ExpandTime    Unreviewed
-/// @Category      Transform
-/// @arg     args… :wat::core::Value the unevaluated form, alone
-/// @ret     :wat::holon::HolonAST the HolonAST composition encoding the form's structure
-/// @example (:wat::holon::literal (f x)) #=> (:wat::holon::literal (f x))
-/// @see     :wat::holon::from-wat
-#[wat_intrinsic(":wat::holon::literal")]
+/// Arc 255 Stone holon-literal-is-a-special-form — the `role = eval` pointer for
+/// `:wat::holon::literal`. Reclassified from `#[wat_intrinsic]`: this verb captures `form` as
+/// DATA without evaluating it — exactly `:wat::core::quote`'s shape, its own check arm's own
+/// words (`intrinsic/special/holon_literal.rs`'s doc block carries the full axis block and
+/// `@syntax` now; this fn's doc stays implementation-only). `eval_holon_literal` already carries
+/// the canonical `NativeHandler` PARAM TYPES (`&[WatAST]`, `&Span`, `&Environment`,
+/// `&SymbolTable`) — unlike `quote`/`forms`, whose native evaluators predate that shape and need
+/// a thin wrapper, THIS fn needs none; it is annotated in place, with only its param ORDER
+/// reordered to match (`args, span, env, sym` — `env`/`sym` moved after `span`; no other caller
+/// exists, measured by grep, so the reorder is safe). Body unchanged (STOP-3: extracted nothing,
+/// moved nothing): still fuses `:wat::core::quote`'s `eval_quote` (`runtime.rs`), which the two
+/// verbs share deliberately.
+#[wat_special_form_impl(":wat::holon::literal", role = eval)]
 pub(crate) fn eval_holon_literal(
     args: &[WatAST],
+    span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
-    span: &Span,
 ) -> Result<Value, EvalBreak> {
     to_holon_inner(eval_quote(args, span)?, span)
 }
