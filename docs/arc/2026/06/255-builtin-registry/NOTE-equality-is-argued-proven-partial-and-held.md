@@ -26,6 +26,63 @@ they compare a `String` field to a string literal, which genuinely cannot raise.
 `properties_of(name, arg_types)`, and the fence becomes a consumer. **These two rows land the
 moment it can answer, and eight rete rows unblock with them.**
 
+## Stone 1c-b-iii update (2026-09-03) — the domain gate exists now; the grade does not change
+
+Stone 1c-b-iii built `is_type_equatable` (`src/check.rs`, sibling of `is_type_orderable`) and
+gated `infer_equality` on it — exactly the cure `RULING-rete-forged-the-paths-the-registry-
+claims-the-tools.md` and the "What must be true before they land" section below anticipated via
+`properties_of(name, arg_types)` + a rete-fence consumer. **That specific mechanism was not
+built; this narrower one supersedes it for `=`/`not=`'s own totality question** (the rete-fence
+question — "is this CALL total" vs "is this VERB total" — is untouched and still open for the
+eight rete rows named below).
+
+The gate **does** close the hole `probe-core-eq-is-partial.wat` measures: after this stone,
+`--check` on that file **rejects** it (previously exit 0). Direct calls comparing two
+`:wat::core::fn` values, or any other type `values_equal` has no arm for (a genuine
+pre-existing gap also found: `(:wat::core::PersistentMap :- [K V])` has no `values_equal` arm
+either — same shape as `Fn`, not previously named), now fail `--check` instead of raising at
+runtime.
+
+**But the measured question this stone was built to answer — "is `=` genuinely `Total`, or
+`Total`-at-concrete-sites-only?" — comes back `Total`-at-concrete-sites-only.** Built
+`wat-scripts/scratch-pad/probe-eq-generic-instantiation.wat`: a generic `eq-generic :- [T] [a <-
+:T b <- :T] -> :bool (:wat::core::= a b)`, called with two `:wat::core::fn` arguments.
+
+```
+--check  → exit 0            (the checker admits the call)
+run      → TypeMismatch      "expected matching comparable pair, got wat::core::fn"
+```
+
+Mechanism: `eq-generic`'s own body is checked ONCE, generically — `is_type_equatable` must admit
+the bare rigid type param (`Path(":T")`, per `check_function_body`'s "declared type parameters
+are RIGID... represented as `Path(\":T\")`", `:1780-1783`) or `wat/test.wat:61`'s `assert-eq`
+itself stops compiling (STOP-1). Once admitted, the CALL SITE `(eq-generic <fn> <fn>)` is checked
+only against `eq-generic`'s declared signature (`a <- :T`, `b <- :T` — both unify against the
+same fresh `T`, which two structurally-identical `Fn` types do) — ordinary call-site argument
+unification, a completely different code path from `infer_equality`. Nothing re-invokes the
+domain gate under the concrete instantiation. So the hole this stone closes at DIRECT call sites
+reopens, unchanged, one level of indirection inside a generic body.
+
+A second, incidental finding along the way: `is_type_orderable`'s own `TypeExpr::Var(_) => true`
+line (`check.rs:12871`) does **not** reach this same rigid-type-param case — a declared `:T`
+inside a generic body is `Path(":T")`, never `TypeExpr::Var`. Built `/tmp/probe_lt_generic.wat`
+(a generic `[T] [a <- :T b <- :T] -> :bool (:wat::core::< a b)`) and confirmed `--check` refuses
+it TODAY, independently of this stone — a dormant pre-existing gap in Stone 1c-b-ii's ordering
+gate, inert only because no corpus function currently orders two bare `:T` values.
+`is_type_equatable` does not repeat it: it defers on both `TypeExpr::Var(_)` and a rigid `Path`
+via `is_type_param_letter` (`check.rs:9932`), which is what keeps `assert-eq` compiling.
+
+**Grade stands: `@Totality Partial`.** The reason is narrower and now precisely located (the
+type-var door on a generic body, not an ungated `Fn`/`PersistentMap` domain at every call site),
+but a well-typed call can still reach `values_equal`'s raise. The rows below stay held, verbatim,
+unregistered — `intrinsic_meta`'s by-name placeholder for `=`/`not=` is untouched, and the four
+rete/sift fixtures were re-run unedited and still pass (the fence never got exercised by this
+stone — no registration means `lookup_entry` still returns `None` for these two heads). The gate
+itself ships regardless, on its own merits: it turns every DIRECT `(= <fn> <fn>)`-shaped call
+from a silent runtime raise into a located compile error, which is the majority of how `=` is
+actually called in this corpus (`assert-eq`'s own generic indirection is the outlier, not the
+rule).
+
 ## The argued blocks, kept verbatim so the follow-up stone lifts rather than re-derives
 
 Each carries its five axes with the fn or `file:line` each was grounded on. The `@Totality Partial`

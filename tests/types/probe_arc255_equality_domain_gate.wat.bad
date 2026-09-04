@@ -1,0 +1,26 @@
+;; probe_arc255_equality_domain_gate.wat.bad — arc 255 Stones 1c-b-ii / 1c-b-iii.
+;;
+;; A NEGATIVE FIXTURE: this file must NOT type-check. Its harness is
+;; `tests/types/probe_arc255_equality_domain_gate.rs`, which asserts the refusal.
+;;
+;; It was born under `wat-scripts/scratch-pad/` as the counterexample proving
+;; `:wat::core::=` is `@Totality Partial` — it CHECKED CLEAN and raised at runtime. Stone
+;; 1c-b-iii built `is_type_equatable` and gated `infer_equality` on it, so the same file now
+;; fails `--check`: that flip is the gate's proof it fires. It moved here because
+;; `every_wat_scripts_file_loads` censuses every `.wat` under `wat-scripts/` for "type-checks on
+;; the current runtime" and has no notion of a file whose purpose is to be refused. `.wat.bad`
+;; is the substrate's existing answer to exactly that — 275 such fixtures, every one referenced
+;; by a named harness.
+;;
+;; CLAIM: `:wat::core::=` is @Totality Partial, not Total. `infer_equality` admits a call whenever
+;; the two operand types unify, but `values_equal` (src/runtime.rs) has no `Value::Function` arm and
+;; falls to its catch-all `_ => None`, which the caller turns into a located TypeMismatch.
+;;
+;; EXPECTED: `--check` exits 0 (the checker admits it); RUNNING it raises TypeMismatch.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::kernel::println
+      (:wat::core::show
+        (:wat::core::= (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+                       (:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64 y))))
+    nil))

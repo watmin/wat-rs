@@ -12835,9 +12835,191 @@ fn infer_equality(
                 expected: format_type(&apply_subst(&a_resolved, subst)),
                 got: format_type(&apply_subst(&b_resolved, subst))
             } });
+        } else if !is_type_equatable(&a_resolved, subst, env.types())
+            || !is_type_equatable(&b_resolved, subst, env.types())
+        {
+            // Arc 255 Stone 1c-b-iii — `types_compatible` only asks whether the two types
+            // RELATE (unify / subtype / both-record / both-numeric); it never asked whether
+            // the resulting type is equatable AT ALL. `is_type_equatable` narrows `=`/`not='s
+            // declared domain to exactly what `values_equal` (runtime.rs) has an arm for —
+            // closing the `Fn` hole `probe-core-eq-is-partial.wat` measures.
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: "an equatable type (i64, u8, f64, bigint, rational, String, bool, keyword, Uuid, char, Instant, Duration, wat::holon::Vector, HolonAST, WatAST, (Vector :- [T]), (List :- [T]), (Option :- [T]), (Result :- [T E]), HashMap, HashSet, PersistentVector, Tuple, unit, a Record/Struct/HolonRecord, or a user enum)".into(),
+                got: format_type(&apply_subst(&a_resolved, subst))
+            } });
         }
     }
     if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) }
+}
+
+/// Arc 255 Stone 1c-b-iii — sibling of [`is_type_orderable`] for the equality family.
+/// Check whether a (fully-substituted / reduced) TypeExpr belongs to the equatable
+/// class: narrows `=`/`not=`'s declared domain to exactly what `values_equal`
+/// (`src/runtime.rs:5302`) actually has a match arm for. Unlike `is_type_orderable`
+/// this needs the `TypeEnv` — equality's domain is WIDER than ordering's (it includes
+/// user Records/Structs/HolonRecords and user enums, which `values_equal` recurses into
+/// structurally but `values_compare` has no arm for at all) so a bare `TypeExpr::Path`
+/// naming a user type must be resolved to find out which kind of declaration it is.
+///
+/// Leaf primitives (direct `values_equal` arm, no recursion):
+/// `i64`, `u8`, `f64`, `bigint`, `rational`, `String`, `bool`, `keyword`, `Uuid`, `char`,
+/// `Instant`, `Duration`, `wat::holon::Vector` (bit-exact holon algebra vector, distinct
+/// from the generic `(Vector :- [T])` container below), `wat::holon::HolonAST`, `wat::WatAST`.
+///
+/// Parametric containers that RECURSE into their element type(s) — mirrors `values_equal`'s
+/// own recursive arms (`Vec`, `wat__core__List`, `Option`, `Result`):
+/// `(Vector :- [T])`, `(List :- [T])`, `(Option :- [T])` on `T`; `(Result :- [T E])` on
+/// BOTH `T` and `E` (either variant may occur at runtime — the declared domain includes
+/// both, so both must be equatable, same conservative posture `is_type_orderable` already
+/// takes for `Result`).
+///
+/// Parametric containers admitted UNCONDITIONALLY (blanket `true`, no recursion into their
+/// type args): `HashMap`, `HashSet`, `PersistentVector`. Their `values_equal` arms
+/// (`:5504,5508,5519-5521`) delegate to `Value`'s own manual `PartialEq` impl
+/// (`src/value/value.rs:595`) — a TOTAL relation over every `Value` variant (opaque
+/// handles included, via `Arc::ptr_eq`) used for hash-keying — never the partial
+/// `values_equal` dispatcher, so nothing nested inside can make the comparison raise.
+///
+/// Deliberately EXCLUDED: `(PersistentMap :- [K V])` — a genuine pre-existing gap, NOT
+/// this stone's to close: `values_equal` has NO match arm for
+/// `Value::wat__core__PersistentMap` at all (unlike `PersistentVector`, which got one in
+/// `DESIGN-STONE-into-pv-from-vector.md`); it falls to the catch-all `_ => None` and
+/// raises today. Admitting it here would repeat exactly the `Fn` mistake this stone exists
+/// to fix.
+///
+/// Bare `TypeExpr::Path` naming a user type — resolved via `types.get`:
+/// - `TypeDef::Aggregate` (Record/Struct/HolonRecord, any `Nature`) → `true`. Mirrors
+///   `values_equal`'s `Value::Aggregate` arm (`:5481-5499`), which recurses into fields
+///   structurally regardless of nature.
+/// - `TypeDef::Enum` → `true`. Mirrors the `Value::Enum` arm (`:5446-5461`).
+/// - `TypeDef::Newtype`/`TypeDef::Alias` → recurse into the wrapped/aliased `TypeExpr`;
+///   a newtype/alias has no Value variant of its own, so its equatability is its inner
+///   type's.
+/// - `TypeDef::Union` → equatable iff every member is (a union value could be any member
+///   at runtime; same conservative "both branches" posture as `Result`).
+/// - `TypeDef::Surface` (row-polymorphic structural surface) or unregistered (a
+///   builtin-membership-only leaf per `TypeEnv::contains` — opaque handle/capability
+///   types like `Sender`/`Receiver`/`RustOpaque`-backed types, none of which have a
+///   `values_equal` arm) → `false`.
+///
+/// `TypeExpr::Fn { .. } => false` — **THE hole this gate closes.** `values_equal` has no
+/// `Value::wat__core__fn` arm (falls to `_ => None`); this is the counterexample
+/// `wat-scripts/scratch-pad/probe-core-eq-is-partial.wat` measures directly.
+///
+/// `TypeExpr::Tuple(elems) => elems.iter().all(equatable)` — UNLIKE `is_type_orderable`,
+/// the EMPTY tuple is equatable: `TypeExpr::Tuple([])` is the unit type, which resolves
+/// to `Value::Unit` at runtime (`src/value/value.rs:57-59`), and `values_equal` has a
+/// direct `(Value::Unit, Value::Unit) => Some(true)` arm (`:5361`). `is_type_orderable`
+/// excludes unit because `values_compare` has no `Unit` arm at all — a different runtime
+/// fact, so a different ruling; the two predicates track their own engines independently.
+///
+/// `TypeExpr::Var(_)` (a fresh HM unification metavariable) OR a RIGID declared type
+/// param — `is_type_param_letter` (`:9932`) recognizes both: `Var(_)`, and a bare
+/// `Path` whose colon-stripped name is `"Xt"` or a single ASCII uppercase letter
+/// (`check_function_body`'s doc, `:1780-1783`: "Declared type parameters are RIGID
+/// inside the body... Represented as `Path(\":T\")`") — **both defer to runtime**.
+///
+/// ★ MEASURED, not assumed: `is_type_orderable`'s own `TypeExpr::Var(_) => true` arm
+/// (`:12871`) does NOT reach the rigid case — a declared `:T` inside a generic body is
+/// `Path(":T")`, never `TypeExpr::Var`, so that line is dead for exactly the scenario its
+/// comment names. Built `/tmp/probe_lt_generic.wat` (a generic `[T] [a <- :T b <- :T]
+/// -> :bool (:wat::core::< a b)`) and ran `--check` against it: it FAILS TODAY, already,
+/// independently of this stone (`":wat::core::<": parameter #1 expects an orderable
+/// type...; got :T"`) — a pre-existing dormant gap in Stone 1c-b-ii's `is_type_orderable`,
+/// inert only because no corpus function orders two bare `:T` values. Equality cannot
+/// inherit that gap: `wat/test.wat:61`'s `assert-eq :- [T] [actual <- :T expected <- :T]`
+/// is exactly this shape, and it is load-bearing (STOP-1). So `is_type_equatable` uses
+/// `is_type_param_letter` directly rather than copying `is_type_orderable`'s narrower
+/// `Var(_)`-only line.
+fn is_type_equatable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
+    let resolved = apply_subst(ty, subst);
+    // ★ ONE RULE, UNIFORMLY APPLIED — arc 255 Stone 1c-b-iii, ruled in-chat 2026-09-03:
+    // **if the static type does not NARROW, defer to the runtime.** Two shapes qualify and they
+    // are the same epistemic position, so they get the same answer:
+    //
+    //   a type VARIABLE (`:T`)      — a holder two parties agree on at INSTANTIATION
+    //   `:wat::core::Value`         — a holder two parties agree on by PROTOCOL. The builder:
+    //                                 "its purpose is to allow a holder to be declared for two
+    //                                 other parties to agree on... rete does this to hold facts
+    //                                 for a producer and consumer to act on." `types.rs:1295`
+    //                                 says the same from the other side: a `Value` payload "can
+    //                                 be PRODUCED but never CONSUMED" without a downward check.
+    //
+    // A first cut admitted the type variable and REFUSED `Value` — two identical shapes answered
+    // oppositely, invisible only because one had a corpus witness (`assert-eq`) and the other's
+    // was a scratch probe. It also failed every one of the four questions when they were finally
+    // put to it. This is the corrected rule.
+    //
+    // ⛔ THE RESIDUAL HOLE IS NOT HIDDEN BY THIS — IT IS EXACTLY WHY `:wat::core::=` IS GRADED
+    // `@Totality Partial`. `wat-scripts/scratch-pad/probe-eq-generic-instantiation.wat` measures
+    // it: a generic body is checked ONCE with `:T` abstract and the call site is never re-gated,
+    // so an unnarrowed holder still reaches `values_equal`'s `_ => None` and raises. The grade
+    // carries that truth; this predicate closes every door where the declared type IS concrete.
+    if is_type_param_letter(&resolved) {
+        return true; // a holder agreed at instantiation — defer to runtime
+    }
+    if matches!(&resolved, TypeExpr::Path(p) if p == ":wat::core::Value") {
+        return true; // a holder agreed by protocol — defer to runtime, same rule as `:T`
+    }
+    match &resolved {
+        TypeExpr::Var(_) => true, // unreachable given the is_type_param_letter guard above; kept for exhaustiveness
+        TypeExpr::Fn { .. } => false, // no `Value::wat__core__fn` arm in `values_equal` — the hole
+        TypeExpr::Path(p) => match p.as_str() {
+            ":wat::core::i64"
+            | ":wat::core::u8"
+            | ":wat::core::f64"
+            | ":wat::core::bigint"
+            | ":wat::core::rational"
+            | ":wat::core::String"
+            | ":wat::core::bool"
+            | ":wat::core::keyword"
+            | ":wat::core::Uuid"
+            | ":wat::core::char"
+            | ":wat::time::Instant"
+            | ":wat::time::Duration"
+            | ":wat::holon::Vector"
+            | ":wat::holon::HolonAST"
+            | ":wat::WatAST" => true,
+            _ => match types.get(p) {
+                Some(crate::types::TypeDef::Aggregate(_)) => true,
+                Some(crate::types::TypeDef::Enum(_)) => true,
+                Some(crate::types::TypeDef::Newtype(n)) => {
+                    is_type_equatable(&n.inner, subst, types)
+                }
+                Some(crate::types::TypeDef::Alias(a)) => {
+                    is_type_equatable(&a.expr, subst, types)
+                }
+                Some(crate::types::TypeDef::Union(u)) => u
+                    .members
+                    .iter()
+                    .all(|m| is_type_equatable(m, subst, types)),
+                Some(crate::types::TypeDef::Surface(_)) | None => false,
+            },
+        },
+        TypeExpr::Parametric { head, args } => match head.as_str() {
+            "wat::core::Vector" => args.first().is_none_or(|el| is_type_equatable(el, subst, types)),
+            "wat::core::List" => args.first().is_none_or(|el| is_type_equatable(el, subst, types)),
+            "wat::core::Option" => args.first().is_none_or(|el| is_type_equatable(el, subst, types)),
+            "wat::core::Result" => {
+                args.first().is_none_or(|t| is_type_equatable(t, subst, types))
+                    && args.get(1).is_none_or(|e| is_type_equatable(e, subst, types))
+            }
+            // Blanket-admitted: their `values_equal` arms delegate to `Value`'s own total
+            // `PartialEq`, not the partial `values_equal` dispatcher — see the fn doc.
+            "wat::core::HashMap" | "wat::core::HashSet" | "wat::core::PersistentVector" => true,
+            // `wat::core::PersistentMap` deliberately falls here (see fn doc) — genuine gap,
+            // not admitted. A user-defined parametric type falls here too; resolved via the
+            // same TypeDef lookup the bare-Path arm uses, blanket-admitted for
+            // Aggregate/Enum (mirrors the bare-Path ruling one level up).
+            _ => matches!(
+                types.get(&crate::types::parametric_head_fqdn(head)),
+                Some(crate::types::TypeDef::Aggregate(_)) | Some(crate::types::TypeDef::Enum(_))
+            ),
+        },
+        TypeExpr::Tuple(elems) => elems.iter().all(|el| is_type_equatable(el, subst, types)),
+    }
 }
 
 // Stone 237.8b — HARD CUT: `infer_arithmetic` and `is_numeric` deleted.
