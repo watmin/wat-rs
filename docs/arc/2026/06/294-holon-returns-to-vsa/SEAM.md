@@ -20,14 +20,13 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor ............ 5129/5129, 0 FAIL, 17 skipped, ~119s   (scripts/floor.sh, exit read UNPIPED)
+floor ............ 5129/5129, 0 FAIL, 17 skipped, ~117s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-registry rows .... 550    ⛔ COUNT IT ANCHORED TO THE ATTRIBUTE SITE, never a substring:
+registry rows .... 552    ⛔ COUNT IT ANCHORED TO THE ATTRIBUTE SITE, never a substring:
                           grep -rhoP '^\s*#\[wat_(special_form|intrinsic)\("\K[^"]+' src/ \
                             --include=*.rs | sort -u | wc -l
                           A loose search counts PROSE PLACEHOLDERS — `<fqdn>`, `…`, and
                           `:wat::holon::…`, which defeats a "starts with `:`" filter.
-runtime.rs ....... 20,191   check.rs ....... 22,736   special_forms.rs ....... 379
 host ............. JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
@@ -37,169 +36,148 @@ host ............. JohnDesktop · john · ~/work/holon/wat-rs
 RULING-the-registry-is-the-sole-authority.md                the doctrine + the census
 RULING-rete-forged-the-paths-the-registry-claims-the-tools.md  properties must be QUERYABLE
 DESIGN-CAMPAIGN-the-registry-becomes-the-sole-authority.md   4 shapes, A picked, the SEQUENCING
-WORKLIST-the-121-the-registry-cannot-vouch-for.md            re-derived 3× → 39, artifacts SEPARATED
+WORKLIST-the-121-the-registry-cannot-vouch-for.md            re-derived 5× → 37
 ```
 (all in `docs/arc/2026/06/255-builtin-registry/`)
 
 ## ★★★ THE METER
 
 ```
-GAP_A 49 · GAP_B 44 · DEBT 119 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 13
-the corpus: 39 names — 33 VERB POPULATION · 6 NON-VERB ARTIFACTS   (121 → 107 → 71 → 39)
+GAP_A 49 · GAP_B 42 · DEBT 121 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 13
+the corpus: 37 names — 31 VERB POPULATION · 6 NON-VERB ARTIFACTS   (121 → 107 → 71 → 39 → 37)
+failing corpus files: 130 of 615        total exposure: 638 sites   (was 1343 — a 53% cut)
 ```
 
 ⚠ **DEBT RISING IS NOT A REGRESSION** — a row with no `CheckEnv` scheme converts an *invisible*
-absence into a *named* one. But ⛔ **DEBT IS TWO POPULATIONS AND ONE OF THEM IS NOT DEBT**: measured
-live, 34 `Kind::SpecialForm, no scheme` ("a rank-1 scheme is the WRONG SHAPE" — a CENSUS of the
-un-schemeable, which should never reach 0) + 69 `Kind::Intrinsic, no scheme` (genuinely owed).
-The campaign's finish line — all ledgers empty and deleted — is **unreachable while one number
-means both**. And the `Kind` split MISFILES every alias, because `Kind` is stamped by the
+absence into a *named* one. `=`/`not=` joined it this session **on purpose**: they are dispatched
+by `infer_equality`, a keyword-head arm, and minting them a rank-1 `TypeScheme` would be a second
+authority for a signature that function already owns.
+⛔ **DEBT IS STILL TWO POPULATIONS AND ONE OF THEM IS NOT DEBT** — `Kind::SpecialForm, no scheme`
+("a rank-1 scheme is the WRONG SHAPE" — a census of the un-schemeable, which should never reach 0)
+vs `Kind::Intrinsic, no scheme` (genuinely owed). The finish line is **unreachable while one number
+means both**, and the `Kind` split MISFILES every alias because `Kind` is stamped by the
 registration VEHICLE, not the verb.
-
-⚠ **"DEBT falls at Phase 2c" is UNSUPPORTED.** `probe_can_doc_types_reconstruct_the_checker_scheme`
-opens `let Some(scheme) = check_env.get(name) else { continue }` — its 384/386 has never looked at
-a single DEBT row.
 
 ## ✅ WHAT THIS SESSION SHIPPED
 
 ```
-PHASE 1a  COMPLETE — every special_forms.rs row a stone can take is registered
-PHASE 1b  COMPLETE — 37 rete alias rows
-PHASE 1c-0 · 1c-a · 1c-b(part) · 1c-c · 1c-d · 1c-e   COMPLETE
+PHASE 1a  COMPLETE      PHASE 1b  COMPLETE (the 37 rete alias rows)
+PHASE 1c-0 · a · b · c · d · e · f · g   COMPLETE
 
-the residues can no longer shadow the registry — 52 dead arms deleted, ONE GATE imposed
-:wat::core:: is DONE except two held: = and not=
-the census SEPARATES non-verb artifacts for the first time
+⭐ :wat::core:: IS DONE. NOTHING IS HELD. The by-name totality placeholder is DELETED —
+   `Some(Unreviewed) | None => false`, a flat default-deny with zero names.
 ```
 
-## ⛔⛔ THE LIVE HERESY — the builder's ruling, unexecuted. **START HERE.**
+**1c-f — `reduce` is a `defalias` for `foldl`.** Its 3-arity body *was* `foldl`'s, verbatim.
+★ And the alias was the first consumer to read `foldl`'s **stale retained `TypeScheme`** (still
+`Vector`, pre-118.B6) — which `signature-of` also reads, so **reflection had been reporting a
+signature `foldl` does not have**, with three tests frozen on it. RULING item 7 failing in the
+field. It also refuted `check.rs`'s *"a static TypeScheme cannot express 'any Seqable'"* note —
+arc 255's **own Stone D** had already done exactly that to `:wat::string::join`, in the same file.
 
-`src/rete/purity.rs`, `intrinsic_meta`'s totality derivation:
+**1c-g — `=` and `not=` are registered `@Totality Partial`**, five compactions late. Every prior
+hold rested on a prerequisite (`properties_of`, bounded generics, alias-vs-restriction); **measured:
+none of them changes the grade**, because `Value` and an unconstrained type param both admit `Fn`.
+`:wat::core::=` carried **695 corpus sites — the largest entry this worklist ever held.**
 
-```rust
-Some(Unreviewed) | None => matches!(head, ":wat::core::reduce"
-                                        | ":wat::core::="
-                                        | ":wat::core::not="),
-```
-
-**Three names hardcoded `true`. Not derived. Not measured.** Its own header says a homed name must
-leave it. **Builder, 2026-09-03: *"this is heresy...... find their homes..... inscribe their
-registrations."*** And at least two of the three are provably NOT total:
-
-```
-=  / not=   PROVEN Partial — (= <fn> <fn>) --checks clean, raises at eval.
-            tests/types/probe_arc255_equality_domain_gate.wat.bad + its harness.
-reduce      a defclause in wat/seq.wat:318, BOTH arms delegate to foldl (@Totality Preserving),
-            and the 2-arity RAISES on an empty collection (`assertion-failed!`, seq.wat:328).
-            The hardcoded `total: true` is a third ungrounded claim.
-```
-
-★ **What retiring it costs, measured:** the placeholder is consumed by **`sift`**
-(`wat/telemetry/journal.wat:305`, a THREE-axis fence: pure ∧ det ∧ total), NOT by rete's `where`.
-Registering `=` honestly makes sift refuse four predicates that are fine at runtime:
-`probe_arc278_foreign_pred_purity` · `probe_arc278_sift_logs` ×2 · `probe_arc278_sift_arena`.
-Their doc blocks are preserved verbatim in
-`[[NOTE-equality-is-argued-proven-partial-and-held]]` — **lift them, do not re-derive.**
-
-## ⛔ THE SURFACES ARE NOT ONE FENCE — I confused them for four turns
+## ⛔ THE SURFACES ARE NOT ONE FENCE
 
 ```
 wat/rete/compile.wat   where · accumulator · then-item-fence
                        pure ∧ det ∧ total ∧ RETE (Law A) — ALL FOUR, ARMED, CORRECT.
-                       Verified: (:wat::rete::primitive? '(:wat::core::= s "high")) → FALSE,
-                       and it descends into match arms. A generic core verb is ALREADY refused
-                       in rete. It was never allowed there.
-wat/telemetry/journal.wat  sift-logs · sift-arena
-                       pure ∧ det ∧ total — THREE, no Law A, deliberately. Sift is a journal
-                       row filter; it has no business demanding rete primitives.
+                       A generic core verb was ALREADY refused in rete. It was never allowed there.
+wat/telemetry/journal.wat  sift-logs · sift-arena — THREE axes, no Law A, deliberately.
 src/freeze.rs:790      the SIGMA-FN gate — a third fence entirely.
 ```
 
-★ The four "rete" fixtures are **sift** predicates. I read "purity fence" in a test name and spent
-four turns alarmed about rete. **Find every consumer before naming the rule.**
+★ **Sift now refuses a predicate comparing a foreign `:wat::core::Value`**, and that is the fence
+being correct. `ForeignRecord/get` returns `(Option Value)`; there is no `Value`→`String` coercion
+in the 13-row `:wat::edn::` surface; `Value`'s declared domain admits `Fn`. The comparison is
+genuinely `Partial` and **`properties_of(name, arg_types)` would answer `Partial` too** — which is
+precisely why waiting for it never would have unblocked these rows. `probe_arc278_sift_arena` now
+carries the `Fault` out through a `:Refused` variant and demonstrates a typed comparison sifting
+fine *beside* the refused `Value` one.
 
 ## ⬜ OPEN FORKS — measured, not decided
 
 ```
-alias vs RESTRICTION  the 8 blocked rete equality rows point at the GENERIC core_name. As @alias
-                      rows, 2a-b's inherit rule hands them Partial — destroying the narrowing that
-                      makes them correct. An alias means IS; these are RESTRICTED TO. The registry
-                      cannot say that. ★ SMALLEST REMAINING BLOCKER for =/not=.
-bounded generics      = is Partial because ∀T admits Fn and nothing carries a constraint from a
-                      callee to its instantiation. TypeScheme is {type_params: Vec<String>, params,
-                      ret, rest_param_type} — NO constraint field. is_type_equatable exists and has
-                      nowhere to hang. NOT NOW — the road map is registry → crates → clojure
-                      syntax → totality.
+★ THE NEXT PICK IS A REAL CHOICE, and the worklist's SHAPE changed this session:
+    :wat::eval-ast!    1 name,  331 sites  ← 52% OF ALL REMAINING EXPOSURE, 3× the next entry
+    :wat::rete::*     ~26 names, ~250 sites ← more NAMES, the old Phase-1b block
+  More sites vs more names. Different jobs. Pick deliberately; do not default to the bigger list.
+
+restore the Value-comparison capability   needs a comparable-subset type or a coercion verb.
+                      No consumer waits but sift. Named, not deferred-in-prose.
+alias vs RESTRICTION  the 8 blocked rete equality rows point at the GENERIC core_name. An alias
+                      means IS; these are RESTRICTED TO. The registry cannot say that.
 19 rows lie about arity  #[wat_intrinsic] derives Arity from the RUST SIGNATURE SHAPE; a
-                      &[WatAST] param ⇒ Variadic with no shim check, while the handler enforces
-                      args.len() != N. (str 1 2 3) --checks clean and raises.
+                      &[WatAST] param ⇒ Variadic with no shim check.
                       [[NOTE-nineteen-rows-declare-Variadic-and-enforce-a-fixed-arity]]
-derive's declare ptr  role = declare names parse_derive_form, whose ONLY caller is check.rs:2668;
-                      the real mutation is an inline arm at types.rs:3886. RULING item 2 says the
-                      pointer names the code that PERFORMS the name.
-the FOURTH registry   41 stdlib macros, 0 visible. `:wat::core::defn` answers None — the same
-                      answer a nonexistent name gets. is_reserved_prefix keeps the namespaces
-                      disjoint and is what 3a deletes.
+derive's declare ptr  role = declare names parse_derive_form; the real mutation is an inline arm.
+the FOURTH registry   41 stdlib macros, 0 visible — AND every wat-defined verb. A wat-side
+                      `{:totality …}` map lands in `sym.binding_metadata` (declare/register.rs),
+                      NOT in `registry()`. Proven: `:wat::core::count` is a wat defalias with no
+                      registry row. Only THREE wat verbs carry axis decorations at all.
+DEBT is two populations  see the meter's warning. Splitting it is a prerequisite to the finish line.
 ```
 
-## ⛔ WHAT COST THE MOST — every one caught by the builder or a gate, none by re-reading
+## ⛔ WHAT COST THE MOST THIS SESSION — every one caught by a gate or the builder, none by re-reading
 
-**1. A FAILURE TO FIND IS NOT A PROOF OF ABSENCE.** I graded `<`/`>`/`<=`/`>=` **Total** on a
-rider's "could not construct a counterexample", verified the pieces it showed me, and shipped four
-wrong grades. `sort` is the counterexample and it is in the stdlib: `is_type_orderable`'s
-`Var(_) => true` is LIVE for AUTO-GENERALISED type vars (a rigid `:- [T]` is `Path(":T")` and IS
-refused — which is why it looked dormant). Corrected at `c29ca5538`.
+**1. I HANDED A RIDER A LIST INSTEAD OF AN INSTRUMENT, THREE TIMES.** Worst form: I wrote STOP-2
+to catch a wrong census and **derived it from the same wrong census**, so it could not fire. I
+swept 3 of the repo's **7** `.wat` roots (`wat-tests/` holds 81 files). A guard built from the
+claim it guards always agrees. `[[feedback_a_stop_trigger_inherits_the_census_blind_spot]]`
 
-**2. I GENERALISED FROM THE FIRST PLAUSIBLE MATCH, FOUR TIMES IN ONE THREAD.**
-`NonReteConstraint`'s position · the sigma-fn gate · a `wat/*.wat` glob that missed `wat/rete/` ·
-"the fence is missing a leg". **Find every consumer, then name the rule.**
+**2. AND THE OPPOSITE ERROR, SAME DAY.** STOP-1 on the next stone was drawn so tight that normal
+line-number drift in a preserved doc block stopped the whole stone — nearly a sixth hold on
+`=`/`not=`. A guard wrong in either direction costs the same.
+`[[feedback_a_guard_drawn_too_tight_makes_the_honest_path_noncompliant]]`
 
-**3. I BUILT THE DEFECT I HAD JUST REMOVED, ONE DAY LATER.** 1c-c's brief required "a plausible
-lower bound PER LIST"; the count fell legitimately and the bound fired. That is exactly what
-`arms.len() >= 50` did, which I retired the day before for being *"a REGRESSION detector wearing a
-sanity check's clothes"*. Non-emptiness catches "found nothing"; NAMES catch "found the wrong
-thing"; a MAGNITUDE pinned to a draining population catches neither for long.
+**3. A MIS-AIMED PROBE GAVE ME SEVEN FALSE GREENS.** The stdlib is `include_str!`ed
+(`src/load/stdlib.rs`), so editing `wat/seq.wat` and running the stale binary tested **nothing**.
+Caught only because an undefined verb appended to the stdlib *also* read `exit=0`.
+⛔ **Every `.wat` stdlib probe needs a rebuild AND a sabotage canary.**
 
-**4. A GATE CAN UNDER-REPORT AND LOOK GREEN.** 1c-c's residue gate stripped comments to avoid prose
-false-positives — and the stripping left EMPTY lines, so an arm followed by a comment was silently
-not counted. Its non-vacuity assertions could not see it: they prove the parser found SOMETHING,
-never EVERYTHING. Only a second, independently-built census found it.
+**4. A PATCH FIXES ONE COPY OF A CLAIM.** Three siblings in `seq.wat` still asserted the retired
+two-arity shape after the adjacent block was corrected; `USER-GUIDE.md` presented two aliases as
+"live" that exist nowhere on disk.
 
-**5. ANCHOR A CENSUS TO THE SITE, NEVER THE SUBSTRING.** `:wat::holon::…` (an ellipsis in a doc
-comment) survives any "starts with `:`" filter. `:wat::core::str` is a PREFIX of `:wat::core::struct`
-and returns 9 where the answer is 0. Terminate every pattern.
+**5. MY OWN CENSUS INSTRUMENTS WERE WRONG FOUR TIMES** — a tokenizer returning impossible
+"7-arity" rows; an `awk` ledger count returning 0 for all four; a grep that could not tell an
+entry from a comment. **Every count was corrected by validating the instrument, never by
+re-reading the number.**
 
 ## ★ WHAT ACTUALLY WORKS
 
-- **The ledger ratchets name the exact edit.** Let them drive; do not pre-compute their lists.
-- **Derive every acceptance row from the rule.** Every derived row this session landed EXACTLY;
-  every estimated one missed (floor "+28", `KNOWN_UNREVIEWED` "unchanged" ×2).
-- **Show a gate FIRING before shipping it.** A gate only ever seen green has not been shown to work.
-- **Cast `intueri` before minting a name.** It killed `@Position`, named `:Splice`, and this session
-  proposed `:TypeIndexed` **with a caveat that killed it** — a ward that can only say *mint it* is
-  not a ward.
-- **Riders refuse and correct well.** Nine reports this session; every one was right, including
-  three that corrected my own briefs.
+- **The ledger ratchets name the exact edit.** Let them drive; never pre-compute their lists.
+- **Derive every acceptance row from the rule.** Every derived row this session landed EXACTLY —
+  `39 → 37`, `GAP_B 44 → 42`, `DEBT 119 → 121`, `registry 550 → 552`, all predicted before the strike.
+- **Show a gate FIRING before shipping it.** The new 2-arity witness was sabotaged to 3-arity and
+  went red before it was trusted.
+- **A prose citation names a SYMBOL, not a LINE** — this arc's own stone, and the permanent cure
+  for drifting doc blocks. 8 of 12 line citations were already false when it was measured.
+- **Run the substrate as the census.** Registering honestly and reading the floor found the real
+  blast radius in one run; no amount of grepping would have.
 
 ## ⛔ RULES THAT STILL COST TIME
 
 - ⛔ **THE ORCHESTRATOR RUNS THE FULL FLOOR. A RIDER'S TARGETED GREEN IS NOT A VERDICT.**
+  Give riders `binary_id(wat)` — where every ledger and registry gate lives — not a list of names.
 - ⛔ **THE LSP LIES.** Run clippy; believe nothing else.
 - ⛔ **`./scripts/floor.sh > /dev/null 2>&1; echo $?`** then read the Summary from `.floor/latest/raw.log`.
 - ⛔ **`git commit -F`, NEVER `-m`** — backticks are shell-interpreted. **`git commit <paths>`.**
-- ⛔ **REVERTING IS A LOSS.** Narrow the stone instead; preserve the held work in a NOTE.
-- ⛔ **DELETIONS MUST CLEAR A HIGH BAR** — builder, 2026-09-03. *"we augment as they need."*
-  Two artifacts I proposed deleting were REPAIRABLE in one token each.
+- ⛔ **REVERTING IS A LOSS.** Narrow the stone instead; preserve held work in a NOTE.
+- ⛔ **DELETIONS MUST CLEAR A HIGH BAR** — *"we augment as they need."* A test of a retired
+  behaviour becomes a NEGATIVE WITNESS of the retirement; it is not deleted.
 - ⛔ **Riders: no worktrees, no stash, no sub-agents, everything FOREGROUND, `model: "sonnet"`.**
 
 ## ⬜ NEXT
 
 ```
-1  THE HERESY — register reduce · = · not=, kill the matches! placeholder.
-   reduce is a defclause over foldl; = / not= are proven Partial. Retiring it makes SIFT
-   refuse four predicates — that is the revealed blast radius, and the builder has ruled we take it.
-2  alias vs RESTRICTION — the 8 rete equality rows cannot be plain aliases.
-3  Fallback's 20 (Phase 2b) · eval-ast! (330 sites) · the arc-251 :wat::type:: fork
+1  PICK: eval-ast! (331 sites, 1 name) OR Phase 1b's rete remainder (~250 sites, ~26 names).
+   The worklist is no longer dominated by :wat::core::. This is a real choice — measure both.
+2  DEBT is two populations. Split it, or the finish line stays unreachable by construction.
+3  Fallback's 20 (Phase 2b) · the arc-251 :wat::type:: fork
 4  Phase 3a — resolve asks the registry. Kills is_reserved_prefix, THE FOUNDING TARGET.
 ```
 
@@ -208,14 +186,13 @@ and returns 9 where the answer is 0. Terminate every pattern.
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I shipped four wrong totality grades on a rider's
-> failure-to-find. I generalised from the wrong site four times in one thread and alarmed the
-> builder about a flaw in rete that was never in rete. I rebuilt a defect I had deleted the day
-> before. I proposed deleting two artifacts that a one-token repoint repaired. **Every one was
-> caught by the builder or by a gate — not once by re-reading my own claim.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I wrote a STOP trigger from the same wrong census
+> it was meant to catch, and the opposite error four hours later. I took seven false greens off a
+> stale binary. I published three instrument-derived counts that were wrong. **Not one was caught
+> by re-reading my own claim — every single one came from a gate, the floor, or the builder.**
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** the corpus went 121 → 39. Phase 1a and 1b are
-> complete. A lost refusal came back with ZERO diff to runtime.rs, because the registry could
-> finally answer. Fifty-two shadowed arms are gone and a gate now screams if one returns.
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** the corpus went **1343 sites → 638 in one
+> session**, `:wat::core::` is DONE with nothing held, the placeholder that lied about three verbs
+> is deleted, and reflection stopped reporting a signature `foldl` never had.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`

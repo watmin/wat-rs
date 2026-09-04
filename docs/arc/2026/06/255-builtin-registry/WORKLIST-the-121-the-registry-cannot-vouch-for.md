@@ -550,3 +550,88 @@ rete::*`, ~350 sites across arithmetic/comparison/string/vector/holon per-type o
       1 :wat::rete::f64::>X  → nothing, by design (negative-control probe, docs/arc/2026/06/
                                 278-rules-engine/BRIEF-the-f64-surface-is-a-stub.md row 5)
 ```
+
+---
+
+## ⛔ RE-DERIVED 2026-09-03 — **39 → 37**, after Stones 1c-f and 1c-g. The two largest entries LEFT.
+
+The procedure at the top of this file was re-run in full (patch `is_resolvable_call_head` →
+`cargo build --release --bin wat` → sweep every `.wat` under `wat/` and `wat-scripts/` →
+**revert**, `git status` verified clean after).
+
+```
+                  2026-09-01  2026-09-02  2026-09-03(71)  2026-09-03(39)  2026-09-03(this)
+corpus files          599         609           610             614             615
+failing               578         509           505             226             130
+distinct names        121         107            71              39              37
+total call sites        —           —             —            1343             638
+```
+
+★★★ **Failing files nearly HALVED (226 → 130) on two names.** `:wat::core::=` carried **695**
+call sites — the single largest entry this worklist has ever held — and `not=` another 10.
+Stone 1c-g registered both `@Totality Partial`; Stone 1c-f's `reduce` had already left as a
+`defalias`. Total exposure fell **1343 → 638 sites, a 53% cut in one session.**
+
+The split holds at the same six non-verb artifacts (unchanged — all still answered by the frozen
+`TypeEnv`, or by nothing on purpose):
+
+```
+total names        37
+non-verb            6    :wat::type::Tuple/i64/String/Vector · :wat::core::None · :wat::rete::f64::>X
+verb population    31    (was 33)
+```
+
+⚠ **The shape of the remainder has changed, and it changes the road map.** With `=` gone, the
+worklist is no longer dominated by `:wat::core::`. It is now **two blocks and a remainder**:
+
+```
+:wat::rete::*      ~26 names, ~250 sites    RETE_OPS' population — PHASE 1b, now the clear majority
+:wat::eval-ast!      1 name,   331 sites    the single largest ENTRY left, by 3x
+:wat::type::*        4 names,   23 sites    non-verb, arc 251 dual-read
+remainder            5 names,  ~30 sites
+```
+
+**`:wat::eval-ast!` alone is 52% of all remaining exposure.** Phase 1b is more names; `eval-ast!`
+is more sites. They are different jobs and the next stone should pick deliberately between them.
+
+### The 37, by corpus call-site count
+
+```
+    331 :wat::eval-ast!
+    111 :wat::rete::string::=
+     34 :wat::rete::i64::+
+     17 :wat::rete::i64::*
+     15 :wat::rete::i64::/
+     13 :wat::rete::vector::get
+     11 :wat::rete::i64::-
+     10 :wat::rete::i64::mod
+      9 :wat::type::Tuple
+      8 :wat::rete::holon::cosine
+      8 :wat::rete::core::foldl
+      7 :wat::type::i64
+      6 :wat::rete::core::PersistentVector/first
+      5 :wat::type::String
+      5 :wat::rete::string::subs
+      5 :wat::rete::f64::/
+      5 :wat::rete::f64::*
+      4 :wat::rete::core::keyword::=
+      3 :wat::rete::core::enum::=
+      3 :wat::eval-with-defs!
+      3 :wat::core::None
+      2 :wat::type::Vector
+      2 :wat::rete::vec::get
+      2 :wat::rete::linkedlist::get
+      2 :wat::rete::i64::rem
+      2 :wat::rete::holon::dot
+      2 :wat::rete::core::enum::not=
+      2 :wat::rete::core::Vector/first
+      2 :wat::rete::core::PersistentVector
+      2 :wat::rete::core::List/first
+      1 :wat::rete::string::not=
+      1 :wat::rete::i64::quot
+      1 :wat::rete::f64::>X
+      1 :wat::rete::f64::+
+      1 :wat::rete::core::reduce
+      1 :wat::rete::core::map
+      1 :wat::rete::core::filter
+```
