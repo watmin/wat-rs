@@ -452,16 +452,22 @@ fn is_expand_time_legal(head: &str) -> bool {
     // `1c-c-the-residues-cannot-shadow-the-registry`: 33 of the 54 rows this residue
     // actually carried had drifted the same way, one at a time, unnoticed — see the
     // retirement bullet below. Down to 20 — arc 255 Stone 1c-e: `str` registered
-    // (`#[wat_intrinsic]`, `@ExpandTime Legal`), same shadowing-copy defect.
+    // (`#[wat_intrinsic]`, `@ExpandTime Legal`), same shadowing-copy defect. Down to
+    // 18 — arc 255 Stone 1c-g: `=`/`not=` registered (`#[wat_intrinsic]` wrappers in
+    // `src/runtime.rs`, each `@ExpandTime Legal`), same shadowing-copy defect.
     //
     // Grouped only for a reader's sake — the residue's DEFINITION is `lookup_entry ==
     // None`, nothing about these groupings:
-    //   value/control-flow ops with no per-verb home yet — `=`, `not=`,
+    //   value/control-flow ops with no per-verb home yet —
     //     `i64/to-f64` (dual spelling of the homed `i64::to-f64`), `i64/to-string`,
     //     `subtype?`, `List?`
     //   ~~str~~ — DELETED arc 255 Stone 1c-e: `#[wat_intrinsic]`-registered
     //     (`src/runtime.rs`'s `eval_str`, `@ExpandTime Legal`), so the `registry().lookup_entry`
     //     door above answers first and this arm was unreachable dead text — the identical
+    //     "shadowed by a copy" defect the header above names.
+    //   ~~=/not=~~ — DELETED arc 255 Stone 1c-g: both `#[wat_intrinsic]`-registered
+    //     (`src/runtime.rs`, each `@ExpandTime Legal`), so the `registry().lookup_entry` door
+    //     above answers first and these arms were unreachable dead text — the identical
     //     "shadowed by a copy" defect the header above names.
     //   collection constructors — `Vector`, `HashMap`, `HashSet`
     //   collection / sequence ops still on the pre-registry dispatch path —
@@ -488,8 +494,6 @@ fn is_expand_time_legal(head: &str) -> bool {
     //     `ReadOutcome::Malformed`, `Error/message`
     matches!(
         head,
-        | ":wat::core::="
-        | ":wat::core::not="
         | ":wat::core::i64/to-f64"
         | ":wat::core::i64/to-string"
         | ":wat::core::subtype?"

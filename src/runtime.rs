@@ -2677,17 +2677,16 @@ fn dispatch_keyword_head_value(
         // (`crate::intrinsic::registry().lookup(head)`) dispatches them to the identical
         // `eval_compare` engine (unchanged) before this match is ever reached.
         //
-        // ⛔ `=`/`not=` KEEP their arms and are NOT registered — HELD, not skipped. Their rows
-        // are argued and their `@Totality Partial` is proven by a committed counterexample
-        // (`wat-scripts/scratch-pad/probe-core-eq-is-partial.wat`); registering that honest
-        // grading retires `intrinsic_meta`'s by-name placeholder and the rete fence then
-        // refuses `=` on four fixtures that genuinely cannot raise — the fence asks "is this
-        // VERB total?" when the answerable question is "is this CALL total?". They land the
-        // moment the registry can answer it. See
-        // `docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`
-        // and `RULING-rete-forged-the-paths-the-registry-claims-the-tools.md`.
-        ":wat::core::=" => eval_eq(head, args, list_span, env, sym),
-        ":wat::core::not=" => eval_not_eq(head, args, list_span, env, sym),
+        // Arc 255 Stone 1c-g — the TWO `=`/`not=` arms that used to live here are RETIRED.
+        // Each now carries a registered `#[wat_intrinsic]` wrapper (`eval_eq_intrinsic`/
+        // `eval_not_eq_intrinsic`, this file, immediately after `eval_not_eq`) — the
+        // registry-first door above (`crate::intrinsic::registry().lookup(head)`) dispatches
+        // them to the identical `eval_eq`/`eval_not_eq` engines (unchanged) before this match
+        // is ever reached, the same "shadowed by a copy" retirement Stone 1c-b-ii made for
+        // `<`/`>`/`<=`/`>=` just above. `=`/`not=` are `@Totality Partial` — proven by a
+        // committed counterexample (`wat-scripts/scratch-pad/probe-core-eq-is-partial.wat`,
+        // superseded by `tests/types/probe_arc255_equality_domain_gate.wat.bad`) — see
+        // `docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`.
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => crate::numeric::convert::eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
@@ -5260,6 +5259,81 @@ fn eval_eq(
     }
 }
 
+/// `(:wat::core::= a b)` — arc 255 Stone 1c-g, registered `#[wat_intrinsic]`. THIN
+/// WRAPPER, not a reimplementation: `eval_eq` (immediately above) takes `head` as its first
+/// parameter — not the canonical `#[wat_intrinsic]` shape — so it cannot be annotated in
+/// place; this wrapper forwards its own FQDN as `head` and changes nothing else. `eval_eq`
+/// itself is untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** `eval_eq`'s body evaluates each
+/// operand by ordinary call-by-value (`eval_eq`'s own `eval_inner` calls on each operand)
+/// and then only classifies the two already-evaluated values via `values_equal` (a pure
+/// structural-match function with no `eval_inner`/`apply_function` on caller-supplied code,
+/// no I/O, no entropy/clock read). `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Partial`, empirically confirmed reachable:** `eval_eq` raises
+/// `TypeMismatch` when `values_equal` returns `None`. `infer_equality` (`src/check.rs`),
+/// dispatched from its `":wat::core::=" | ":wat::core::not="` match arm (`src/check.rs`),
+/// accepts a call as well-typed whenever the two operand types `unify`, OR one is a subtype
+/// of the other, OR both are subtypes of `:wat::core::Record`, OR both are numeric — it
+/// never asks whether `values_equal` actually HAS an arm for the resulting pair.
+/// `values_equal`'s own doc says plainly it returns `None` "for pairs whose shapes aren't
+/// comparable at all (e.g., comparing a `Value::Function` to anything...)", and its match
+/// falls to a bare `_ => None` (`values_equal`'s fallback arm) for exactly that case — no arm
+/// exists for `Value::Function` anywhere in it. Measured directly, not just read: a program
+/// comparing two same-signature `:wat::core::fn` values (`(:wat::core::= (:wat::core::fn [x
+/// <- :wat::core::i64] -> :wat::core::i64 x) (:wat::core::fn [y <- :wat::core::i64] ->
+/// :wat::core::i64 y))`) passes `target/release/wat --check` cleanly (exit 0 — `unify`
+/// (`src/check.rs`) on two structurally-identical `TypeExpr::Fn` succeeds) and then raises
+/// `#wat.runtime/TypeMismatch {..got wat::core::fn..}` at eval. A well-typed call reaches the
+/// raise. `Partial` — the same precedent Stone 1c-a-ii set for `conforms?`.
+///
+/// **Expand-time ground — `Legal`:** `src/macros/eval.rs`'s residue hand-list named
+/// `":wat::core::="` literally (the "value/control-flow ops with no per-verb home yet"
+/// group) — registering here REPLACES that residue entry, so it must carry the SAME verdict
+/// or silently revoke today's legality (arc 255 the `fn` lesson).
+///
+/// **Category ground — `Probe`:** matches the per-type sibling `:wat::i64::=`'s own
+/// registered `@Category Probe` (`src/intrinsic/i64.rs`) — interrogates two values and
+/// derives a FACT about their relationship; `wat/runtime-meta.wat:113-116`'s `:Probe` doc —
+/// "the output is a fact ABOUT the input... NOT 'returns a bool'."
+///
+/// `@arg`/`@ret` grounded in `infer_equality` (`src/check.rs`), dispatched from its
+/// `":wat::core::=" | ":wat::core::not="` match arm (`src/check.rs`) — no `TypeScheme`
+/// exists.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); the two must
+///   be compatible — their types `unify`, one is a subtype of the other, both are subtypes of
+///   `:wat::core::Record` (cross-flavor record comparison), or both are numeric
+///   (`infer_equality`, `src/check.rs`); the compatible pair is additionally gated by
+///   `is_type_equatable` (`src/check.rs`), which refuses statically non-equatable operands at
+///   check time — this NARROWS, not eliminates, where the raise below is reachable: a
+///   generic body's own rigid type parameter is still admitted (or `assert-eq` itself stops
+///   compiling), so a concrete instantiation one level of indirection inside a generic body
+///   still reaches it (`wat-scripts/scratch-pad/probe-eq-generic-instantiation.wat`); raises
+///   `TypeMismatch` at runtime if the compatible pair is not one `values_equal` can actually
+///   compare (e.g. two `:wat::core::fn` values)
+/// @ret     :wat::core::bool true iff position 0 structurally equals position 1
+///   (`values_equal`)
+/// @example (:wat::core::= 1 1) #=> true
+/// @see     :wat::core::not=
+#[wat_intrinsic(":wat::core::=")]
+fn eval_eq_intrinsic(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_eq(":wat::core::=", args, list_span, env, sym)
+}
+
 /// `(:wat::core::not= a b)` — Clojure-tradition inequality.
 ///
 /// Inverse of `:wat::core::=`. Same polymorphism (cross-numeric
@@ -5291,6 +5365,62 @@ fn eval_not_eq(
         )
         .into()),
     }
+}
+
+/// `(:wat::core::not= a b)` — arc 255 Stone 1c-g, registered `#[wat_intrinsic]`. THIN
+/// WRAPPER over `eval_not_eq` (immediately above), which itself delegates to `eval_eq` and
+/// inverts the result — same reasoning as `:wat::core::=`'s wrapper above, re-measured
+/// against this name; `eval_not_eq` is untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** identical to `:wat::core::=`
+/// above — `eval_not_eq` calls `eval_eq` (itself `Pure ∧ Deterministic`, grounded above) and
+/// inverts a `Value::bool`; no further evaluation of caller-supplied code.
+///
+/// **Totality ground — `Partial`, same mechanism as `:wat::core::=`:** `infer_equality`
+/// (`src/check.rs`) handles `=` and `not=` at the SAME match arm (`":wat::core::=" |
+/// ":wat::core::not="`, `src/check.rs`) with no distinction between them, and `eval_not_eq`
+/// raises the identical `TypeMismatch` `eval_eq` would, by propagating `eval_eq`'s own `?`.
+/// The `:wat::core::=` wrapper's empirical counterexample (two `:wat::core::fn` values)
+/// applies unchanged: swap `=` for `not=` in that program and the same
+/// well-typed-call-reaches-raise shape holds. `Partial`.
+///
+/// **Expand-time ground — `Legal`:** `src/macros/eval.rs`'s residue hand-list named
+/// `":wat::core::not="` literally (the same group `=` sits in) — registering here REPLACES
+/// that residue entry, so it must carry the SAME verdict.
+///
+/// **Category ground — `Probe`:** matches the per-type sibling `:wat::i64::not=`'s own
+/// registered `@Category Probe` (`src/intrinsic/i64.rs`) — same reasoning as `=` above,
+/// inverted.
+///
+/// `@arg`/`@ret` grounded in `infer_equality` (`src/check.rs`), dispatched from its
+/// `":wat::core::=" | ":wat::core::not="` match arm (`src/check.rs`) — no `TypeScheme`
+/// exists.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
+///   compatibility rule as `:wat::core::=` (`infer_equality`, `src/check.rs`), including the
+///   `is_type_equatable` (`src/check.rs`) narrowing described there — a generic body's rigid
+///   type parameter is still admitted, so a concrete instantiation one level of indirection
+///   inside it still reaches the raise
+///   (`wat-scripts/scratch-pad/probe-eq-generic-instantiation.wat`); raises `TypeMismatch` at
+///   runtime under the same condition `=` does
+/// @ret     :wat::core::bool true iff position 0 does not structurally equal position 1
+/// @example (:wat::core::not= 1 2) #=> true
+/// @see     :wat::core::=
+#[wat_intrinsic(":wat::core::not=")]
+fn eval_not_eq_intrinsic(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_not_eq(":wat::core::not=", args, list_span, env, sym)
 }
 
 /// Structural equality on [`Value`] — returns `Some(bool)` for pairs

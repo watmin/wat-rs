@@ -59,8 +59,8 @@ is gone. Retiring the placeholder retires that parser with it — see room 5.
 
 `:wat::edn::ForeignRecord/get` returns `(:wat::core::Option :- [:wat::core::Value])`
 (`src/intrinsic/edn.rs:278`). `s` is a `Value`. `:wat::rete::string::=` declares
-`[ParamType::String, ParamType::String]` (`src/rete/vocabulary.rs:1097`) and cannot take it, and
-the `:wat::edn::` surface has no `Value`→`String` coercion (all 13 rows enumerated).
+`[ParamType::String, ParamType::String]` (its `ReteOp` row, `src/rete/vocabulary.rs`) and cannot
+take it, and the `:wat::edn::` surface has no `Value`→`String` coercion (all 13 rows enumerated).
 
 ★ **So `(:wat::core::= s "high")` over a `Value` is not an illegal call — it is the only possible
 call, and it is genuinely `Partial`.** `Value`'s declared domain includes `Fn`; `values_equal` has

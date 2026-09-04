@@ -38,12 +38,26 @@ fn foreign_pred_is_deterministic() {
     );
 }
 
-/// The same predicate is total — `read-foreign` returns Outcome, `get` returns Option.
+/// arc 255 Stone 1c-g — NEGATIVE WITNESS, inverted from the original positive claim. The
+/// predicate under test ends in `(:wat::core::= s "high")`, where `s` comes out of
+/// `ForeignRecord/get` typed `:wat::core::Value` (the EDN reader has no `Value`→`String`
+/// coercion). Before this stone, `=`/`not=` were UNregistered, so `total?`'s registry-first
+/// consult returned `None` and fell through to `intrinsic_meta`'s by-name `matches!` placeholder
+/// — which named `":wat::core::="`/`":wat::core::not="` and answered `true` for both, a
+/// hardcoded lie about a verb with a reachable raise (the very placeholder this stone deletes).
+/// That lie is why the ORIGINAL `foreign_pred_is_total` assertion passed. Now that both are
+/// registered `@Totality Partial`, the SAME registry-first consult answers `Some(Partial) =>
+/// false` directly, before ever reaching the (now-empty) fallback — `Value`'s declared domain
+/// admits `Fn`, and `values_equal` has no `Fn` arm, so a well-typed call over a `Value` can still
+/// reach the raise. The assertion flips to false, and the false is the honest answer. `pure?`/
+/// `deterministic?` above are unaffected — this axis alone flips.
 #[test]
 fn foreign_pred_is_total() {
     assert!(
-        classify(":user::foreign-pred-is-total"),
-        "a read-foreign + ForeignRecord/get predicate is total"
+        !classify(":user::foreign-pred-is-total"),
+        "arc 255 Stone 1c-g: a foreign-reader predicate ending in `(= s \"high\")` over a \
+         `:wat::core::Value` is NOT total — `=` is registered `@Totality Partial` (Value's \
+         declared domain admits Fn, values_equal has no Fn arm), so `total?` must answer false"
     );
 }
 

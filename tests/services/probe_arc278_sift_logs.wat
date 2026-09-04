@@ -32,7 +32,7 @@
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))
      sieve (:wat::query::sieve-pred
              (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
-               (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
+               (:wat::rete::core::enum::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
@@ -97,7 +97,7 @@
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))
      sieve (:wat::query::sieve-pred
              (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
-               (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
+               (:wat::rete::core::enum::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]

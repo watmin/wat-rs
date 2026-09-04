@@ -1288,6 +1288,18 @@ mod tests {
         // identically before and after this registration. `check.rs` stays untouched (STOP-4);
         // the ledger grows by exactly one, 118 → 119.
         ":wat::core::str",
+        // Arc 255 Stone 1c-g — `=`/`not=` join: both are now registered `#[wat_intrinsic]`
+        // rows (`src/runtime.rs`'s `eval_eq_intrinsic`/`eval_not_eq_intrinsic`), but NEITHER
+        // carries an `env.register()` TypeScheme, so `check_env.get` returns `None` for both.
+        // Both ARE checked for real by `infer_equality` (`src/check.rs`), dispatched from
+        // `infer_list`'s `":wat::core::=" | ":wat::core::not="` arm — the same
+        // `first`/`second`/`third`/`<`/`>`/`<=`/`>=` shape above: a hand-written keyword-head
+        // arm owns the real signature, so minting a second `TypeScheme` in `register_builtins`
+        // would be a second authority for a signature `infer_equality` already owns (arc 255's
+        // own RULING). `check.rs` stays untouched (STOP-4); the ledger grows by exactly two,
+        // 119 → 121.
+        ":wat::core::=",
+        ":wat::core::not=",
     ];
 
     #[test]
@@ -1809,9 +1821,21 @@ mod tests {
     /// only the shrinking "current gap" list drops it. It carries no `env.register()`
     /// `TypeScheme` — it lands on `FROZEN_CHECKER_DEBT_LEDGER` below instead (DEBT traded for
     /// GAP_B, not paid). 45 → 44.
+    ///
+    /// Arc 255 Stone 1c-g — `:wat::core::=`/`not=` LEAVE: both now carry a `#[wat_intrinsic]`
+    /// wrapper row (`src/runtime.rs` — `eval_eq_intrinsic`/`eval_not_eq_intrinsic`), so
+    /// `registry().lookup_entry` returns `Some` for both and leaving them here would fail the
+    /// gate below as STALE. Both stay in `GAP_B_CORPUS_CENSUS_121` above; only the shrinking
+    /// "current gap" list drops them. Neither carries an `env.register()` `TypeScheme` — both
+    /// land on `FROZEN_CHECKER_DEBT_LEDGER` above instead (DEBT traded for GAP_B, not paid).
+    /// 44 → 42.
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
-        ":wat::core::=",
-        ":wat::core::not=",
+        // ":wat::core::=" / ":wat::core::not=" REMOVED -- arc 255 Stone 1c-g: both now
+        // registered (`#[wat_intrinsic]` wrappers in `src/runtime.rs`), so
+        // `registry().lookup_entry` returns `Some` for both and they are resolved, not gapped.
+        // Traded onto `FROZEN_CHECKER_DEBT_LEDGER` above (no `env.register()` TypeScheme exists
+        // for either — `infer_equality` owns the real check, same reasoning as `extend-type`/
+        // `str` above).
         ":wat::eval-ast!",
         // ":wat::core::extend-type" REMOVED -- arc 255 Stone 1c-d: now registered
         // (`intrinsic/special/extend_type.rs`), so `registry().lookup_entry` returns `Some` and
@@ -3342,7 +3366,19 @@ mod tests {
         let eval_body = matches_body(eval_fn_span, eval_macro_kw + "matches!".len());
         let expand_names = extract_arm_names(eval_body);
 
-        // ── `intrinsic_meta` (src/rete/purity.rs) — its two residue lists, combined ─────────
+        // ── `intrinsic_meta` (src/rete/purity.rs) — its `pure_det` residue list ─────────────
+        //
+        // ⛔ Arc 255 Stone 1c-g — the SECOND residue this gate used to parse here, the `total`
+        // derivation's `Some(Totality::Unreviewed) | None => matches!(head, ":wat::core::=" |
+        // ":wat::core::not=")` fallback, is GONE: both names left it (registered, `@Totality
+        // Partial`), which emptied it, so `src/rete/purity.rs` replaced the whole arm with a
+        // flat `=> false` — there is no more `matches!` there for this parser to find. Measured:
+        // with the block gone, extracting it panicked exactly as this test's own STOP-1
+        // discipline predicts a moved/renamed anchor would ("the total derivation's fallback
+        // matches! not found in intrinsic_meta — has it moved/renamed?"). That was this gate
+        // policing a hand-list that no longer exists, not a real residue escaping unchecked —
+        // `pure_det` below is the only FQDN-string residue `intrinsic_meta` carries now, and it
+        // is still fully parsed and asserted.
         const PURITY_SOURCE: &str = include_str!("../rete/purity.rs");
         let purity_cleaned = strip_line_comments(PURITY_SOURCE);
         let purity_fn_span = fn_body_span(&purity_cleaned, "fn intrinsic_meta(head: &str) -> Option<OpMeta> {");
@@ -3353,13 +3389,6 @@ mod tests {
             .expect("`let pure_det = matches!` not found in intrinsic_meta — has it moved/renamed?");
         let pure_det_body = matches_body(purity_fn_span, pure_det_kw + PURE_DET_ANCHOR.len());
         let mut intrinsic_names = extract_arm_names(pure_det_body);
-
-        const TOTAL_ANCHOR: &str = "Some(wat_doc::Totality::Unreviewed) | None => matches!";
-        let total_kw = purity_fn_span
-            .find(TOTAL_ANCHOR)
-            .expect("the `total` derivation's fallback matches! not found in intrinsic_meta — has it moved/renamed?");
-        let total_body = matches_body(purity_fn_span, total_kw + TOTAL_ANCHOR.len());
-        intrinsic_names.extend(extract_arm_names(total_body));
         intrinsic_names.sort();
         intrinsic_names.dedup();
 
@@ -3394,7 +3423,7 @@ mod tests {
         assert!(
             expand_names.iter().any(|n| n == ":wat::core::List?"),
             "non-vacuity: `is_expand_time_legal`'s residue does not contain \
-             `:wat::core::List?`, which is present at `src/macros/eval.rs:492` — the \
+             `:wat::core::List?`, which is present at `src/macros/eval.rs:500` — the \
              parser is missing real content (STOP-1). Names found: {expand_names:?}"
         );
         // Arc 255 Stone 1c-f, 2026-09-03: `:wat::core::reduce` LEFT the residue (it is a genuine

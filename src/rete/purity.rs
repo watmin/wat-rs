@@ -510,11 +510,14 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // followed by a COMMENT line — fixed in the same stone.
     // ⛔ Arc 255 Stone 1c-b-ii — `<`/`>`/`<=`/`>=` LEFT this list: all four are registered now
     // (`#[wat_intrinsic]` wrappers in `src/runtime.rs`, each `@Totality Total`), so the registry
-    // consult above answers for them and these arms were unreachable. `=`/`not=` STAY — they are
-    // deliberately UNregistered (held; see
-    // `docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`),
-    // so `lookup_entry` still returns `None` for them and the `total` fallback below is still the
-    // only thing that can answer. That is the residue working as designed, not a shadow.
+    // consult above answers for them and these arms were unreachable.
+    // ⛔ Arc 255 Stone 1c-g — `:wat::core::=` and `:wat::core::not=` LEFT this list: both are
+    // registered now (`#[wat_intrinsic]` wrappers in `src/runtime.rs`, each `@Totality
+    // Partial`), so the registry consult above answers for them and these arms were
+    // unreachable — the identical "shadowed by a copy" defect this list's own header names.
+    // They were HELD unregistered across multiple compactions
+    // (`docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`);
+    // this stone lifts the hold and registers the proven `Partial` grade.
     let pure_det = matches!(
         head,
         // Arithmetic
@@ -522,9 +525,6 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::-"
             | ":wat::core::*"
             | ":wat::core::/"
-            // Comparison
-            | ":wat::core::="
-            | ":wat::core::not="
             // Control flow whose sub-items are ALL plain exprs — safe to recurse element-wise.
             // (`cond`/`match` are handled with dedicated clause-aware arms in classify_expr, NOT
             // here, because their clauses are not calls. `if`/`let` are registered — Stone
@@ -581,41 +581,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // `matches!(purity, Pure | Preserving)`) — `Totality::Partial` fails it, and
     // `Totality::Unreviewed`/no registration at all falls through to the `matches!` below.
     //
-    // ★ THAT `matches!` IS A HOMING BACKLOG, NOT THE HAND-LIST IT REPLACED. Each of its 3 names
-    // is unhomed — no registration exists yet to carry its ruling — so the verdict for exactly
-    // these three stays HERE until one exists. Homing a name retires its row: move its reasoning
-    // to the registration site (the same motion `if`/`let` and their 25 siblings already made)
-    // and delete the arm. A verb that IS registered does not belong in this list (row 5's own
-    // gate) — if one shows up here alongside a registration, the derivation above is being
-    // shadowed by a copy, which is the exact defect this stone exists to remove.
-    //
-    //   ~~and/or/not/bool::to-string, map/mapv/filter/foldl~~ — DELETED arc 255 Stone
-    //     `1c-c-the-residues-cannot-shadow-the-registry`. All 8 are now `#[wat_intrinsic]`-
-    //     registered, so the registry consult above already answers first for every one of
-    //     them and these arms were unreachable dead text — the identical "shadowed by a copy"
-    //     defect this list's own header names, this time found by a GATE
-    //     (`the_residues_cannot_shadow_the_registry`, `src/intrinsic/mod.rs`) that asserts the
-    //     rule stated above, rather than by a rider noticing. 11 named FQDNs down to 3.
-    //
-    //   `=`/`not=` — the remaining P6-c dispatch population: value ops with no domain
-    //     restriction (a well-typed call always returns; type mismatches are the type
-    //     checker's concern, not this axis's, exactly the convention `pure`/`deterministic`
-    //     already use). Their typed siblings (`i64::=`/`i64::not=`/`i64::to-string`/
-    //     `f64::to-string`, …) are homed and registered `@Totality Total`; these
-    //     generic/untyped forms are not yet.
-    //   `reduce` — the last of the W7 HOF family still unhomed. A combinator's totality is
-    //     CONDITIONAL on its fn-argument, and `classify_expr`'s general-list arm already
-    //     resolves that conditionality by recursing into the fn-literal body and checking IT
-    //     against `Axis::Total` too — so `total: true` on the HEAD means exactly what
-    //     `pure: true`/`deterministic: true` already mean: "the combinator itself adds no
-    //     partiality of its own," proven by run on `foldl` before IT homed:
-    //
-    //       (total? '(foldl (fn [a b] (rete i64::+ a b :undefined 0)) 0 xs))  -> TRUE
-    //       (total? '(foldl (fn [a b] (core i64::/ a b))              0 xs))  -> FALSE
-    //
-    //     `foldr` is retired (arc 118.B6b — it was `reverse`+`foldl` wearing a name borrowed from
-    //     Haskell, where the verb is distinct only because it is LAZY, a property strict wat
-    //     cannot have); its replacement `(reduce f init (reverse coll))` is covered via `reduce`.
+    // ⛔ Arc 255 Stone 1c-g — `:wat::core::=` and `:wat::core::not=` LEFT the fallback `matches!`
+    // below: both are registered now (`#[wat_intrinsic]` wrappers in `src/runtime.rs`, each
+    // `@Totality Partial`), so the registry consult above answers for them first. Every name
+    // this "homing backlog" ever named (the 8 deleted at Stone 1c-c, `reduce` at Stone 1c-f,
+    // `=`/`not=` here) is now homed, so the backlog mechanism itself is retired — the fallback
+    // below is a flat `false` with no names left to carry. A verb that IS registered does not
+    // belong here (row 5's own gate) — if one shows up here alongside a registration, the
+    // derivation above is being shadowed by a copy, the exact defect this stone's own gate
+    // exists to catch.
     //
     // Explicitly and deliberately LEFT `false` (genuinely partial, confirmed by reading the
     // implementation, not assumed from the design stone's guess) even though every one appears
@@ -645,17 +619,16 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     let total = match crate::intrinsic::registry().lookup_entry(head).map(|e| e.totality) {
         Some(wat_doc::Totality::Total) | Some(wat_doc::Totality::Preserving) => true,
         Some(wat_doc::Totality::Partial) => false,
-        // No registration to consult: the verb is not homed yet. These two keep their ruling
-        // here until they have a registration site to carry it — see the comment block above
-        // this match for the per-verb reasoning (the remaining P6-c dispatch population).
+        // No registration to consult: the verb is not homed yet.
         // Arc 255 Stone 1c-f, 2026-09-03: `:wat::core::reduce` LEFT this arm — it was the last
         // unhomed member of the W7 HOF family, and it is a genuine `defalias` for `foldl` now,
         // so `head_ok`'s `sym.has_function` door answers for it before this placeholder is ever
         // consulted (MEASURED: delete-and-floor, `binary_id(wat::rete)` 377/377 green).
-        Some(wat_doc::Totality::Unreviewed) | None => matches!(
-            head,
-            ":wat::core::=" | ":wat::core::not="
-        ),
+        // Arc 255 Stone 1c-g, 2026-09-03: `:wat::core::=` and `:wat::core::not=` LEFT this arm
+        // — both are registered now (`#[wat_intrinsic]`, `@Totality Partial`), so the registry
+        // consult above answers first. This was the last homed member of the backlog; the
+        // fallback below has no names left to carry.
+        Some(wat_doc::Totality::Unreviewed) | None => false,
     };
 
     if pure_det {

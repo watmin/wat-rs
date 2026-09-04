@@ -60,11 +60,11 @@
                      (:wat::core::fn [i <- :wat::core::i64] -> :wat::telemetry::Log
                        (:wat::core::let
                          [shp (:wat::core::mod i 4)
-                          msg (:wat::core::if (:wat::core::= shp 0)
+                          msg (:wat::core::if (:wat::i64::= shp 0)
                                 (:wat::edn::write (:prod::Alert :severity "high" :code i))
-                                (:wat::core::if (:wat::core::= shp 1)
+                                (:wat::core::if (:wat::i64::= shp 1)
                                   (:wat::edn::write (:prod::Alert :severity "low" :code i))
-                                  (:wat::core::if (:wat::core::= shp 2)
+                                  (:wat::core::if (:wat::i64::= shp 2)
                                     (:wat::edn::write (:prod::Flow :proto "tcp" :bytes i))
                                     (:wat::edn::write (:prod::Query :rows i)))))]
                          (:wat::telemetry::Log :namespace ns :uuid (:wat::uuid::nil) :tags tags
@@ -96,12 +96,20 @@
   [(:wat::core::defrecord :cons::Consumer::SiftRequest [namespace <- :wat::core::String])
    (:wat::core::defenum :cons::Consumer::SiftResponse :wat::enum::Pure
      :Count           [n <- :wat::core::i64]
+     ;; arc 255 Stone 1c-g — the class-guarded predicate below compares an opaque foreign
+     ;; `Value` (`ForeignRecord/get`'s `severity`) to a string literal via `=`; `=` is
+     ;; `@Totality Partial` and NOT registered for `Value`, so sift's fence refuses this
+     ;; predicate at the FIRST page and every page raises `::Fatal`/`Fault` identically. This
+     ;; is the fence being correct, not a bug — `:Refused` carries that Fault's message back
+     ;; to the caller instead of the (now unreachable) survivor count.
+     :Refused         [message <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :cons::Consumer::PageState
-     [done <- :wat::core::bool
-      cur  <- (:wat::core::Option :- [:wat::core::String])
-      acc  <- :wat::core::i64])]
+     [done  <- :wat::core::bool
+      cur   <- (:wat::core::Option :- [:wat::core::String])
+      acc   <- :wat::core::i64
+      fault <- (:wat::core::Option :- [:wat::core::String])])]
   :features
   [(sift [self <- :cons::Consumer  req <- :cons::Consumer::SiftRequest] -> :cons::Consumer::SiftResponse :max-request-bytes 524288)])
 
@@ -123,7 +131,7 @@
        [journal    (:cons::consumer::State/journal s)
         ns         (:cons::Consumer::SiftRequest/namespace req)
         page-idxs  (:wat::core::range 0 8)
-        initial    (:cons::Consumer::PageState :done false :cur :wat::core::None :acc 0)
+        initial    (:cons::Consumer::PageState :done false :cur :wat::core::None :acc 0 :fault :wat::core::None)
         ;; the cursor-loop: pages `Journal/sift-logs` (small :limit) accumulating survivor count
         ;; until `next-cur` is None (:done true) — remaining iterations then no-op. The sieve is a
         ;; class-guarded FOREIGN predicate — `ForeignRecord/class` checked BEFORE
@@ -131,6 +139,16 @@
         ;; miss is None, never a raise. The class-guard is the semantic filter (only
         ;; Alert), not a raise-avoidance. `match` on the Option, not `Option/expect`
         ;; (expect raises — not total; journal sift-logs requires total?).
+        ;;
+        ;; arc 255 Stone 1c-g — `(= s "high")` below compares a `Value` (`ForeignRecord/get`'s
+        ;; result — the EDN reader has no `Value`→`String` coercion, and `s` is genuinely a
+        ;; `Value`, not a `String`) to a string literal. `=` is now registered `@Totality
+        ;; Partial` and carries no `Value` arm, so sift's fence refuses this predicate outright:
+        ;; every page of `Journal/sift-logs` below returns `::Fatal`/`Fault`, never `::Success`.
+        ;; This is deliberately LEFT AS-IS, not repointed or coerced — the refusal is the
+        ;; behaviour under test now, and the class-guard comparison just above it uses the typed
+        ;; `:wat::rete::string::=` (a real `String`, `ForeignRecord/class`'s return type) to show
+        ;; the contrast: a typed comparison still sifts fine, only the `Value` one is refused.
         final      (:wat::core::foldl
                      (:wat::core::fn [state <- :cons::Consumer::PageState  _i <- :wat::core::i64]
                        -> :cons::Consumer::PageState
@@ -143,7 +161,7 @@
                                         (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
                                         ((:wat::edn::ReadForeignOutcome::Value fr)
                                           (:wat::core::if
-                                            (:wat::core::= (:wat::edn::ForeignRecord/class fr) "prod::Alert")
+                                            (:wat::rete::string::= (:wat::edn::ForeignRecord/class fr) "prod::Alert")
                                             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
                                               ((:wat::core::Some s) (:wat::core::= s "high"))
                                               (:wat::core::None false))
@@ -153,25 +171,40 @@
                                     (:wat::telemetry::Journal::SiftLogsRequest :namespace ns
                                       :time-lo 0 :time-hi 100000 :limit 50
                                       :cursor (:cons::Consumer::PageState/cur state) :sieve sieve))]
-                           (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
+                           (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
                              ((:wat::telemetry::Journal::SiftLogsResponse::Success logs next-cur)
                                (:wat::core::let
                                  [new-acc (:wat::core::+ (:cons::Consumer::PageState/acc state)
                                             (:wat::core::count logs))]
-                                 (:wat::core::match next-cur 
+                                 (:wat::core::match next-cur
                                    (:wat::core::None
-                                     (:cons::Consumer::PageState :done true :cur :wat::core::None :acc new-acc))
+                                     (:cons::Consumer::PageState :done true :cur :wat::core::None :acc new-acc :fault :wat::core::None))
                                    ((:wat::core::Some c)
-                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Some c) :acc new-acc)))))
-                             (_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
+                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Some c) :acc new-acc :fault :wat::core::None)))))
+                             ((:wat::telemetry::Journal::SiftLogsResponse::Fatal err)
+                               ;; the fence's refusal — sift's own rejection, not a wire-breach.
+                               ;; Captured, not swallowed: `err`'s `reason` is the concrete
+                               ;; `:wat::query::Fault` the sift-logs implementation constructs,
+                               ;; and `Fault/message` reads its text straight off it.
+                               (:cons::Consumer::PageState :done true :cur :wat::core::None
+                                 :acc (:cons::Consumer::PageState/acc state)
+                                 :fault (:wat::core::Some
+                                          (:wat::query::Fault/message (:wat::query::Fatal/reason err)))))
+                             (_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1 :fault :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
                      initial
                      page-idxs)]
        (:wat::service::Outcome::Reply s
-         (:cons::Consumer::SiftResponse::Count (:cons::Consumer::PageState/acc final)))))])
+         (:wat::core::match (:cons::Consumer::PageState/fault final)
+           ((:wat::core::Some message) (:cons::Consumer::SiftResponse::Refused message))
+           (:wat::core::None (:cons::Consumer::SiftResponse::Count (:cons::Consumer::PageState/acc final)))))))])
 
 ;; ── the orchestrator (the circuit builder): mem-store' + journal' + producer' + consumer', all
-;; PROCESS-tier, grant-before-dial at every hop. flood (block), then sift (block); return count. ──
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+;; PROCESS-tier, grant-before-dial at every hop. flood (block), then sift (block); return the
+;; refusal's Fault message — arc 255 Stone 1c-g: `=` over the foreign `Value` is genuinely
+;; `Partial` and unregistered for it, so sift's fence refuses the consumer's predicate outright
+;; and `Consumer::SiftResponse::Count` is now UNREACHABLE for this scenario; a survivor count
+;; would mean the fence stopped enforcing. ──
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -200,8 +233,13 @@
      _flood   (:prod::Producer/flood producer
                 (:prod::Producer::FloodRequest :count 240 :namespace "arena-ns"))
      sr       (:cons::Consumer/sift consumer (:cons::Consumer::SiftRequest :namespace "arena-ns"))]
-    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
-      ((:cons::Consumer::SiftResponse::Count n) n)
+    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
+      ((:cons::Consumer::SiftResponse::Refused message) message)
+      ;; arc 255 Stone 1c-g — a survivor count here would mean the `Value`-comparing predicate
+      ;; was NOT refused; that is the regression this fixture now exists to catch.
+      ((:cons::Consumer::SiftResponse::Count n)
+        (:wat::kernel::assertion-failed! "compute: expected the Value-comparing predicate to be REFUSED by sift's fence (arc 255 Stone 1c-g), got a survivor count instead"
+          :wat::core::None :wat::core::None))
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:cons::Consumer::SiftResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
