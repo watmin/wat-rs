@@ -2507,6 +2507,12 @@ mod completeness_gate {
     ///     genuine expression-position evaluation is `src/runtime.rs:5045`'s
     ///     `if k == ":None" || k == ":wat::core::None"` — an `if`, not a match arm, so it sits
     ///     outside this stone's two shapes and was never a scream either way.
+    ///   - `:wat::core::Option::None` (`src/runtime.rs:8345`) — Stone 255-builtin-registry (the
+    ///     matcher gap) added this THIRD spelling to the SAME `try_match_pattern` guard arm as
+    ///     `:wat::core::None` immediately above, for the identical reason: a pattern-clause head,
+    ///     not a dispatched call. Its own genuine expression-position evaluation
+    ///     (`src/runtime.rs:1728`) is the same `if k == ... ` chain as the bare/FQDN forms — an
+    ///     `if`, not a match arm — so it is excluded by the same rule, not a new one.
     ///
     /// Test code is excluded wholesale: everything from the top-level `mod tests {` to EOF is one
     /// `#[cfg(test)]` block (verified: no production code follows it in this file), so the scan
@@ -2520,7 +2526,12 @@ mod completeness_gate {
     fn dispatch_verbs(src: &str) -> Vec<String> {
         // Not a dispatch arm — see the doc comment above for why each is excluded by name rather
         // than by a `KNOWN_UNREVIEWED` row pretending it is a verb.
-        const NOT_A_DISPATCH_ARM: &[&str] = &[":undefined", ":rust::", ":wat::core::None"];
+        const NOT_A_DISPATCH_ARM: &[&str] = &[
+            ":undefined",
+            ":rust::",
+            ":wat::core::None",
+            ":wat::core::Option::None",
+        ];
 
         // Strip whole-line `//`/`///`/`//!` comments and everything from the top-level test
         // module onward (see doc comment), replacing excluded text with blanks so every

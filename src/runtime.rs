@@ -1712,7 +1712,20 @@ pub(crate) fn eval_inner(
             // FQDN form; `:None` is a bare-grammar exception that
             // retires (poisoned at type-check time, runtime keeps
             // working).
-            if k == ":None" || k == ":wat::core::None" {
+            //
+            // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Option::None`
+            // is additive alongside the two above, and here it is load-bearing rather
+            // than cosmetic: `wat::core::Option` is registered as a genuine
+            // `TypeDef::Enum` (`types.rs:1239`) so it also has a generic unit-variant
+            // entry (`sym.unit_variant("wat::core::Option::None")`, arm below). Without
+            // this special-case running FIRST, the qualified spelling falls through to
+            // that generic arm and constructs `Value::Enum` instead of `Value::Option`
+            // — a real cross-representation split, measured live: matching such a value
+            // against the existing bare `:None` pattern raised `PatternMatchFailed` with
+            // `value-type "wat::core::Enum"`. Intercepting the exact qualified string
+            // here, ahead of the generic lookup, keeps the qualified spelling on the
+            // native `Value::Option` representation like its siblings.
+            if k == ":None" || k == ":wat::core::None" || k == ":wat::core::Option::None" {
                 return Ok(TrackedValue::new(
                     Value::Option(Arc::new(None)),
                     Provenance::Literal { span: span.clone() },
@@ -8318,13 +8331,24 @@ pub(crate) fn try_match_pattern(
     sym: &SymbolTable,
 ) -> Result<Option<Environment>, EvalBreak> {
     match pattern {
-        // `:None` / `:wat::core::None` — matches Option(None) only.
-        // Arc 109 slice 1h: FQDN form is canonical; bare form
+        // `:None` / `:wat::core::None` / `:wat::core::Option::None` — matches
+        // Option(None) only. Arc 109 slice 1h: FQDN form is canonical; bare form
         // continues to work at runtime (poisoned at type-check time).
-        WatAST::Keyword(k, _) if k == ":None" || k == ":wat::core::None" => match value {
-            Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
-            _ => Ok(None),
-        },
+        //
+        // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Option::None`
+        // is the `Enum::Variant` form every user enum uses, and the checker already
+        // recognises it (`pattern_coverage` accepts it against `MatchShape::Option`
+        // via the built-in `Option` enum registration in `types.rs`). Additive
+        // recognition, same move as `:wat::core::nil` (`types.rs:1056`): a third
+        // spelling is added beside the existing two; nothing is removed.
+        WatAST::Keyword(k, _)
+            if k == ":None" || k == ":wat::core::None" || k == ":wat::core::Option::None" =>
+        {
+            match value {
+                Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
+                _ => Ok(None),
+            }
+        }
         // Arc 055 — literal sub-patterns compare by equality.
         WatAST::IntLit(n, _) => match value {
             Value::i64(v) if v == n => Ok(Some(outer.clone())),
@@ -8407,9 +8431,11 @@ pub(crate) fn try_match_pattern(
             // falls through to the tuple-destructure arm below, same as any
             // other unrecognized list-pattern head — it no longer evaluates
             // the retired shorthand.
+            // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Option::Some`
+            // is additive alongside the bare FQDN, same move as the `None` guard above.
             let head_is_some = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Some"
+                WatAST::Keyword(k, _) if k == ":wat::core::Some" || k == ":wat::core::Option::Some"
             );
             if head_is_some {
                 if items.len() != 2 {
@@ -8436,9 +8462,11 @@ pub(crate) fn try_match_pattern(
             // STONE: the bare-symbol shorthand dies — only the FQDN keyword
             // form is recognized here now (see the "Some" comment above for
             // the full rationale; identical for "Ok"/"Err").
+            // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Result::Ok`
+            // is additive alongside the bare FQDN.
             let head_is_ok = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Ok"
+                WatAST::Keyword(k, _) if k == ":wat::core::Ok" || k == ":wat::core::Result::Ok"
             );
             if head_is_ok {
                 if items.len() != 2 {
@@ -8462,9 +8490,11 @@ pub(crate) fn try_match_pattern(
                     _ => Ok(None),
                 };
             }
+            // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Result::Err`
+            // is additive alongside the bare FQDN.
             let head_is_err = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Err"
+                WatAST::Keyword(k, _) if k == ":wat::core::Err" || k == ":wat::core::Result::Err"
             );
             if head_is_err {
                 if items.len() != 2 {
@@ -13007,9 +13037,24 @@ fn is_match_canonical(form: &WatAST) -> bool {
                 // `try_match_pattern_ast`'s head comparison stays generic (Symbol-vs-Symbol by
                 // name) — it was never the heresy; it only ever reached these forms because THIS
                 // arm blessed them as scrutinees.
+                // Stone 255-builtin-registry (the matcher gap) — the qualified
+                // `Enum::Variant` spellings are additive alongside the bare FQDN.
+                // Measured live before this addition: a CEK-stepper scrutinee
+                // written `(:wat::core::Option::Some 5)` was NOT match-canonical
+                // here, so `step_match` tried to reduce it as an ordinary call and
+                // failed with `no-step-rule for op: :wat::core::variant` — the same
+                // shape of gap as the tree-walk matcher's `PatternMatchFailed`, one
+                // layer down in the small-step stepper.
                 let s = k.as_str();
-                if matches!(s, ":wat::core::Some" | ":wat::core::Ok" | ":wat::core::Err")
-                    && items.len() >= 2
+                if matches!(
+                    s,
+                    ":wat::core::Some"
+                        | ":wat::core::Ok"
+                        | ":wat::core::Err"
+                        | ":wat::core::Option::Some"
+                        | ":wat::core::Result::Ok"
+                        | ":wat::core::Result::Err"
+                ) && items.len() >= 2
                 {
                     return items[1..].iter().all(is_match_canonical);
                 }
