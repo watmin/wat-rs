@@ -211,7 +211,17 @@ unquote's containment   "legal only inside X" wants a FIELD naming the enclosing
                         intueri killed the @Position axis: 2 of its 3 variants ARE @Purity Unevaluated.
 role = eval can't stack the shim is keyed on the fn identifier, not the FQDN. Compile error, but the
                         message names a mangled symbol and never says role/eval/stacking.
-defclause               lost its named refusal this session; it has no registry row. Register it.
+✅ defclause            CLOSED, Stone 1c-d. Registering it restored the named refusal BY
+                        CONSTRUCTION — runtime.rs has zero diff; the Unevaluated guard answers.
+⬜ derive's declare      NEW FORK. RULING item 2 says the registry holds the pointer to the code
+                        that PERFORMS a name. `derive`'s `role = declare` names
+                        `parse_derive_form`, whose ONLY caller in the tree is check.rs:2668 —
+                        the real `env.register_subtype` mutation is an inline arm at
+                        types.rs:3886 that never calls it. `defalias`/`defclause`/`extend-type`
+                        all follow "recognizer carries the annotation" honestly (their
+                        recognizers ARE consulted at declare time); derive's is not consulted by
+                        anything at declare time. Disclosed verbatim in derive_form.rs's own doc.
+                        Fix = extract the arm into a named fn and point at it.
 meta_has_doc_axis_key   a COMPLIANT wat-side alias has zero axis keys → misclassified. Not live.
 ```
 

@@ -1262,6 +1262,19 @@ mod tests {
         ":wat::core::>",
         ":wat::core::<=",
         ":wat::core::>=",
+        // Arc 255 Stone 1c-d — `extend-type`/`derive`/`defclause` join: each is now a registered
+        // `#[wat_special_form]` row (`intrinsic/special/extend_type.rs`/`derive_form.rs`/
+        // `defclause.rs`) carrying `@Purity Unevaluated`, but none is a value-producing
+        // expression with a `TypeScheme` — `env.register()` has nothing to register for a form
+        // that returns unit and is consumed before evaluation. `check_env.get` returns `None`
+        // for all three; each IS checked for real by a hand-written arm
+        // (`infer_defclause`/the `extend-type`/`derive` inline arms, `infer_list`,
+        // `src/check.rs`) — exactly the `and`/`or` shape at the top of this ledger: real
+        // checking, no scheme to verify the docs against. `check.rs` stays untouched (STOP-4
+        // in this stone's brief); the ledger grows by exactly three, 115 → 118.
+        ":wat::core::extend-type",
+        ":wat::core::derive",
+        ":wat::core::defclause",
     ];
 
     #[test]
@@ -1780,10 +1793,14 @@ mod tests {
         ":wat::core::=",
         ":wat::core::not=",
         ":wat::eval-ast!",
-        ":wat::core::extend-type",
+        // ":wat::core::extend-type" REMOVED -- arc 255 Stone 1c-d: now registered
+        // (`intrinsic/special/extend_type.rs`), so `registry().lookup_entry` returns `Some` and
+        // this name is resolved, not gapped. Traded onto `FROZEN_CHECKER_DEBT_LEDGER` below (no
+        // `env.register()` TypeScheme exists for it).
         ":wat::core::str",
         ":wat::rete::string::=",
-        ":wat::core::derive",
+        // ":wat::core::derive" REMOVED -- arc 255 Stone 1c-d: now registered
+        // (`intrinsic/special/derive_form.rs`), same reasoning as `extend-type` just above.
         // ":wat::rete::i64::>" REMOVED -- arc 255 Stone 2a, same reason as its removal
         // from REGISTRY_MEMBERSHIP_GAP_A above: now registered (the @alias witness), so
         // registry().lookup_entry returns Some and this name is resolved, not gapped.
@@ -1796,7 +1813,8 @@ mod tests {
         ":wat::type::Tuple",
         ":wat::rete::holon::cosine",
         ":wat::rete::core::foldl",
-        ":wat::core::defclause",
+        // ":wat::core::defclause" REMOVED -- arc 255 Stone 1c-d: now registered
+        // (`intrinsic/special/defclause.rs`), same reasoning as `extend-type`/`derive` above.
         ":wat::type::i64",
         ":wat::rete::core::PersistentVector/first",
         ":wat::type::String",

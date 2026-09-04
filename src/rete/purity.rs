@@ -2249,7 +2249,15 @@ mod completeness_gate {
     // the `const DECLARATION_FORMS` anti-pattern the 2026-06-24 position-class NOTE refused by
     // name, and restoring it would re-create the exact drift that left seven forms saying
     // "unknown function" for months. Tracked in the campaign worklist as a registration.
-    ":wat::core::derive",
+    //
+    // Arc 255 Stone 1c-d — `:wat::core::derive` LEAVES. `intrinsic_meta`'s registry-first
+    // consult (`:472` above) now answers `Some` for it (the `@Purity Unevaluated` /
+    // `@Determinism Deterministic` / `@Totality Partial` this stone registered —
+    // `intrinsic/special/derive_form.rs`), so this ledger's own STALE check (below) demands the
+    // removal — classified, not merely no-longer-dispatched. `defclause` and `extend-type` are
+    // registered the SAME stone but were never on this ledger to begin with (no dispatch arm
+    // for either predates this list — `dispatch_verbs`'s scan never found them here) — nothing
+    // to remove for those two.
     // Arc 255 Stone 1c-a-i — `:wat::core::find-last-index` LEAVES. `intrinsic_meta`'s
     // registry-first consult now answers `Some` for it (`@Purity Preserving` /
     // `@Determinism Preserving` / `@Totality Preserving`, registered at

@@ -8077,6 +8077,13 @@ fn infer_def(
 ///
 /// Stone 237.3: also validates `:guard` (must return `:bool`) and
 /// `:ensure` (must be 1-arity :fn; arg type matches clause return; returns `:bool`).
+///
+/// Arc 255 Stone 1c-d — `:wat::core::defclause`'s `role = check` pointer: the match arm at
+/// `:2635` (`infer_list`) does no independent validation of its own beyond calling this fn and
+/// propagating its `CheckResult` — genuinely this fn's job, a distinct function from
+/// `parse_defclause_form`'s `role = declare` (unlike `extend-type`/`derive`, whose checker arms
+/// have no separate named fn to point at).
+#[wat_special_form_impl(":wat::core::defclause", role = check)]
 fn infer_defclause(
     args: &[WatAST],
     head_span: &Span,

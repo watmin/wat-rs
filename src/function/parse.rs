@@ -62,6 +62,7 @@ use crate::span::Span;
 use crate::types::{parse_type_node, TypeErrorKind, TypeExpr};
 use crate::value::{Clause, ClauseSet, Function, FunctionBody, RuntimeError, RuntimeErrorKind};
 use std::sync::Arc;
+use wat_macros::wat_special_form_impl;
 
 // `synthesize_fn_body` is genuinely defined in `crate::runtime` (not a facade re-export of a
 // `crate::value` type — see STOP-2) and stays there; it is not one of this stone's 12 items.
@@ -683,6 +684,13 @@ mod arc109_two_iii_defclause_return_slot {
 /// top-level shared return type (Option A).
 ///
 /// Returns the name + Arc<ClauseSet> on success.
+///
+/// Arc 255 Stone 1c-d — `:wat::core::defclause`'s `role = declare` pointer: the recognizer
+/// `register_defclause_from_form`/`preregister_defclause_in_env` consult (same "recognizer
+/// carries the annotation, downstream mutator stays bare" shape `parse_defalias_form`'s own
+/// doc records) — the actual `ClauseSet` registration into `sym`/`env.defclause_registrations`
+/// runs downstream of a call here, in the same declare-time callers.
+#[wat_special_form_impl(":wat::core::defclause", role = declare)]
 pub(crate) fn parse_defclause_form(
     form: &WatAST,
     privilege: crate::resolve::Privilege,
@@ -931,6 +939,18 @@ pub(crate) fn parse_defclause_form(
 /// Each impl is parsed as a defclause clause body (argspec WITHOUT type
 /// annotations for the self/arg binders, then body). Returns `(canonical_key, Arc<ExtendDef>)`.
 /// Canonical key: `"extend:<P>:<T>"` — unique per `(P, T)` pair.
+///
+/// Arc 255 Stone 1c-d — `:wat::core::extend-type`'s `role = declare` pointer: the recognizer
+/// `declare/register.rs`'s registration paths (`register_extend_type_methods` and friends, at
+/// `:372`/`:558`/`:1980`) call directly to obtain the `ExtendDef` they register — the real
+/// declare-time consumer, not the checker. The SAME fn is ALSO `role = check`'s pointer just
+/// below (stacked, both roles on one fn): `check.rs`'s `:wat::core::extend-type` arm (`:2647`)
+/// has no logic of its own beyond re-invoking this parser for shape validation and wrapping
+/// `Ok`/`Err` into a `CheckResult`, so there is no separate checker fn to point at — this one
+/// genuinely does both jobs, the same way `parse_defalias_form`'s doc records for `def`'s
+/// declare-time recognizer (downstream mutation stays in the un-annotated caller either way).
+#[wat_special_form_impl(":wat::core::extend-type", role = declare)]
+#[wat_special_form_impl(":wat::core::extend-type", role = check)]
 pub(crate) fn parse_extend_type_form(
     form: &WatAST,
 ) -> Result<(String, Arc<crate::value::ExtendDef>), RuntimeError> {
@@ -1269,6 +1289,24 @@ pub(crate) fn parse_extend_type_form(
 /// Returns `(child, parent)` keyword strings. Shape: exactly 3 items;
 /// items[1] = :Child keyword, items[2] = :Parent keyword. No method-impl
 /// loop — `derive` is the edge-only half of `extend-type`.
+///
+/// Arc 255 Stone 1c-d — `:wat::core::derive`'s `role = declare` AND `role = check` pointer,
+/// both stacked on this ONE fn (verified, not assumed like `extend-type`'s parallel structure):
+/// this fn's only caller in the whole tree is `check.rs`'s `:wat::core::derive` arm (`:2666`),
+/// which does no independent work beyond calling this parser and wrapping `Ok`/`Err` into a
+/// `CheckResult` — genuinely `role = check`. The REAL declare-time registration (the mutating
+/// `env.register_subtype(&child, &parent, ...)` call) does NOT go through this fn at all — it
+/// lives as an inline, hand-rolled `items.get(1)`/`items.get(2)` match arm inside
+/// `splice_type_decls` (`src/types.rs:3886`), a function shared with `let`-body recursion and
+/// `extend-type`'s own edge registration, so annotating THAT function `role = declare` for
+/// `derive` alone would misrepresent `show-source` for every other form it also processes.
+/// This fn is nonetheless the one genuinely-existing, `derive`-specific function to carry
+/// `role = declare` — the same "recognizer carries the annotation, the downstream mutator
+/// stays bare" shape `parse_defalias_form`'s own doc records, generalized to a mutator that
+/// isn't even a call THROUGH the recognizer (a stronger asymmetry than `defalias`'s, reported
+/// rather than smoothed over).
+#[wat_special_form_impl(":wat::core::derive", role = declare)]
+#[wat_special_form_impl(":wat::core::derive", role = check)]
 pub(crate) fn parse_derive_form(form: &WatAST) -> Result<(String, String), RuntimeError> {
     const HEAD: &str = ":wat::core::derive";
     let form_span = form.span().clone();
