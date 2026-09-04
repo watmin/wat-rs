@@ -50,10 +50,19 @@ SEED pass 2 — one reserved fill per batched alpha:
     for aid in batch_class[class]:
         alpha[aid] = els.clone()     // memcpy
         d_alpha[aid] = 0..n
-    census compiled:calls += n × |aids|
+    census alpha:leaf-fill-pairs += n × |aids|
 
 DELTA / Cmp / unpacked: old activate.
 ```
+
+> **2026-09-03 (C14).** Pass 2's bulk add emitted
+> `compiled:calls` until this date. It executes no
+> compiled condition — it is a (fact, alpha) PAIR
+> count — and it supplied 100% of that counter on
+> the accum axis, so the two real per-call sites
+> could be deleted unnoticed. Renamed to
+> `alpha:leaf-fill-pairs`; `compiled:calls` is now
+> calls only.
 
 Pass 2 is the large write: grow the vec once,
 fill it, memcpy to the sibling alpha. Not rayon.

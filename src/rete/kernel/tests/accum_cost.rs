@@ -12,10 +12,14 @@ use super::*;
 /// Arc 278 DESIGN-STONE-compiled-conditions.md — a real fire's step 1 no longer
 /// runs `alpha_match_inner`: `match:calls` (and its `match:clause`/`match:bind-insert`
 /// siblings) are armed INSIDE `alpha_match_inner`'s own body, so they read zero here
-/// now by construction, not by regression. `compiled:calls` is what actually fires
-/// on this path — occupancy leaf-fill, skip-span, and `exec_compiled_with_key_ids`
-/// all increment it (`DESIGN-STONE-occupancy-leaf-column`). [`exec_compiled`] is
-/// the `#[cfg(test)]` door (no interned keys).
+/// now by construction, not by regression. `compiled:calls` counts the two places a
+/// compiled condition is EXECUTED — the `skip_span` arm of `alpha_activate_fact`
+/// (`fire/delta.rs`) and `exec_compiled_with_key_ids` (`compiled_cond.rs`) — and it
+/// reads ZERO on this axis, which the census below asserts and explains.
+/// `alpha:leaf-fill-pairs` is the OTHER unit: the batched occupancy leaf-fill in
+/// `alpha_seed` (`fire/pass/alpha.rs`, `DESIGN-STONE-occupancy-leaf-column`) executes
+/// no condition at all and bulk-adds (fact, alpha) PAIRS. The two shared one key until
+/// 2026-09-03 (C14). [`exec_compiled`] is the `#[cfg(test)]` door (no interned keys).
 ///
 /// `match:key-alloc` is printed but NOT asserted at zero here: this world's RHS insert forms
 /// (`build_insert_fact`, the production pass) resolve `?var` args through the SAME
@@ -33,39 +37,71 @@ fn accum_matcher_op_census() {
         "the operation census counted NOTHING — the counters were never reached, so any \
              rate derived from them would be an artifact"
     );
-    let calls = rows
-        .iter()
-        .find(|(n, _)| *n == "compiled:calls")
-        .map(|(_, c)| *c)
-        .unwrap_or(0);
-    assert!(
-        calls > 0,
-        "compiled:calls is zero — occupancy fill / skip-span / exec_compiled never counted"
-    );
-    // ⛔ `probare` classed this test hollow — the two guards above are liveness. The workload is
-    // FIXED at (200, 200), so the counter is deterministic: measured 80,200 calls, which is one
-    // per (fact, matching alpha) pair — the same 80,200 `accum_alpha_memory_shape` pins as the
-    // alpha-memory size. A drift means the compiled path is being entered a different number of
-    // times for identical input, which is the regression this census exists to reveal.
+    // ⛔ TWO COUNTERS, TWO UNITS — and they were ONE KEY until 2026-09-03 (arc 278 C14).
     //
-    // ⛔ WHAT THIS NUMBER CANNOT SEE. `compiled:calls` is a deliberate UNION of three increment
-    // sites — occupancy leaf-fill (`fire/pass/alpha.rs:122`, `census_count_n`), the `skip_span`
-    // arm (`fire/delta.rs:78`), and the ELSE arm inside `exec_compiled_with_key_ids`
-    // (`compiled_cond.rs:928`) — so 80,200 is a total, never an attribution. The two delta arms
-    // are interchangeable to it BY CONSTRUCTION: driven 2026-09-02, forcing `skip_span = false`
-    // at `fire/delta.rs:71` left this test PASSING at 80,200 while
-    // `c4_probe_bind_only_decides_skip_span_for_the_accum_axis` (accum_alpha_cost.rs) went RED —
-    // `assertion 'left != right' failed: ... identical pools mean the two benchmark arms
-    // measure the same path after all`. That probe is where the arm IS discriminated, and it
-    // reads bind-pool/bind-vals LENGTH rather than a count, because the skip arm returns
-    // `Some((0,0))` and interns nothing while the else arm drives `BindIntern` and grows the
-    // pools. Do NOT split this counter to close the gap: that is a hot-path engine edit for an
-    // instrument's benefit, and the discrimination already exists one file over.
-    assert_eq!(
-        calls, 80_200,
-        "compiled:calls is {calls}, not 80,200 — the compiled path ran a different number of \
-         times for the same (200, 200) workload"
+    // `alpha:leaf-fill-pairs` is a PAIR count: `alpha_seed`'s batched occupancy leaf-fill bulk-adds
+    // `facts × alphas` in a single `census_count_n` and executes no compiled condition at all.
+    // `compiled:calls` is a CALL count: one bump per compiled-condition execution, at the
+    // `skip_span` arm of `alpha_activate_fact` (`fire/delta.rs`) and inside
+    // `exec_compiled_with_key_ids` (`compiled_cond.rs`).
+    //
+    // Both used to emit `compiled:calls`, and on THIS axis the product supplied 100% of it —
+    // driven 2026-09-03 by renaming only the `alpha_seed` key, which took `compiled:calls` to
+    // ZERO. So the 80,200 pinned here was the pair count wearing a call count's name
+    // (`[[a-right-number-vouches-for-a-wrong-label]]`), and DELETING EITHER PER-CALL SITE MOVED
+    // NOTHING THIS TEST COULD SEE.
+    let count_of = |want: &str| -> u64 {
+        rows.iter()
+            .find(|(n, _)| *n == want)
+            .map(|(_, c)| *c)
+            .unwrap_or(0)
+    };
+    let pairs = count_of("alpha:leaf-fill-pairs");
+    let calls = count_of("compiled:calls");
+
+    // LIVENESS, naming ONLY the mechanism it can observe. The old guard here read `calls > 0` and
+    // blamed "occupancy fill / skip-span / exec_compiled" — three mechanisms, of which it could
+    // ever see one, so the other two were vouched for and never touched.
+    assert!(
+        pairs > 0,
+        "alpha:leaf-fill-pairs is zero — `alpha_seed`'s batched occupancy leaf-fill never ran, so \
+         every count below describes a fire that filled no alpha memory in batch"
     );
+
+    // ⛔ ZERO IS THE MEASUREMENT, NOT A BROKEN TEST. On this axis the compiled path is entered
+    // exactly zero times, and that is a property of the world, not a threshold: `alpha_seed` fills
+    // all three alpha memories through the batch (every class here is uniform and packable, so no
+    // fact takes the per-fact activate path), and round 1's 1,000 derived facts are
+    // `:apx::CountF`/`SumF`/`MinF`/`MaxF`/`ExistsF` — classes NO rule condition mentions — so
+    // `candidates_into` comes back empty and `alpha_activate_fact` returns before either bump.
+    //
+    // Therefore THIS TEST CANNOT GATE THE COMPILED PATH and no longer pretends to. The workload
+    // that does enter it is `c4_probe_bind_only_decides_skip_span_for_the_accum_axis`
+    // (`accum_alpha_cost.rs`), which drives `alpha_activate_fact` per fact directly and asserts
+    // the two arms make the SAME number of calls — that is where a lost call site REDs.
+    // ⛔ Do NOT re-dial (200, 200) to make a call appear here: these sizes are a recorded perf
+    // artifact. Name a workload instead.
+    //
+    // ⛔ AND DO NOT SPLIT THE TWO DELTA ARMS (C10). Forcing `skip_span = false` at
+    // `fire/delta.rs` left the OLD shared counter reading 80,200 while
+    // `c4_probe_bind_only_decides_skip_span_for_the_accum_axis` went RED — which looked like a
+    // designed union and was in fact both arms reading zero, the product covering for them.
+    // Discriminating the arms is still a hot-path engine edit for an instrument's benefit, and
+    // the discrimination already exists one file over, in bind-pool LENGTH.
+    assert_eq!(
+        calls, 0,
+        "compiled:calls is {calls}, not 0 — a compiled condition is now EXECUTED on this axis, \
+         where the batched occupancy fill previously supplied every alpha element without one. \
+         That is a real change in how this fire matches: say what entered the path. Do NOT \
+         re-pin the number"
+    );
+
+    // ⛔ THE 80,200 PIN IS GONE FROM HERE, DELIBERATELY — do not restore it under the new name.
+    // `ids.len() * aids.len()` IS the alpha-element count, so pinning it here restated
+    // `accum_alpha_memory_shape`'s `alpha_elements == 80_200` (`accum_alpha_cost.rs`) under a
+    // second name in a second file: two tests, one quantity, and this one called it a call count.
+    // That test keeps the pin, where the number is named for what it is. This one asserts the SET
+    // of counters and the UNITS they carry.
     // ⛔ THIS USED TO PIN `rows.len() == 10`, AND A BARE COUNT IS THE WRONG INSTRUMENT HERE. It
     // caps instrumentation downward — adding a counter anywhere in the fire path turns this test
     // red while telling the reader nothing about WHICH counter moved
@@ -78,6 +114,12 @@ fn accum_matcher_op_census() {
     // that decision is observable NOWHERE ELSE, and this world's two batched classes are its
     // incidental witness. It is gated deliberately in
     // `seed_batches_uniform_classes_and_defers_mixed_ones`.
+    //
+    // `compiled:calls` is ABSENT ON PURPOSE, and this exact-equality list is what holds it absent:
+    // the compiled path is entered zero times here, so the counter is never created (see the
+    // `calls == 0` assertion above for why, and for where it IS entered). `alpha:leaf-fill-pairs`
+    // took the place it used to occupy in this list on 2026-09-03 (C14) — a rename, not a new
+    // mark: the same bulk add, under a name that says which unit it carries.
     let mut names: Vec<&str> = rows.iter().map(|(n, _)| *n).collect();
     names.sort_unstable();
     assert_eq!(
@@ -85,8 +127,8 @@ fn accum_matcher_op_census() {
         [
             "accum:index-builds",
             "accum:index-elements",
+            "alpha:leaf-fill-pairs",
             "bind-card:ELEMENTS",
-            "compiled:calls",
             "dbeta:alloc",
             "dbeta:calls",
             "dbeta:multi",
