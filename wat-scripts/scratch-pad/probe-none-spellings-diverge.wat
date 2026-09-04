@@ -1,29 +1,35 @@
 
-;; probe-none-spellings-diverge.wat — ONE VARIABLE, TWO FAILURES.
+;; probe-none-spellings-diverge.wat — ⛔ ITS FIRST HEADER OVERCLAIMED. CORRECTED.
 ;;
-;; Byte-identical to probe-reply-drop-is-userland.wat except for ONE token: the reply
-;; passed to Outcome::Continue on the dropping call.
+;; WHAT THIS IS NOT: an Option defect. Option/Some/None are fine and every other user of
+;; them is fine, because every other user puts Option in an ORDINARY FUNCTION'S RETURN
+;; POSITION. This probe puts it in the `reply` field of `Outcome::Continue` — a serve-loop
+;; protocol slot. Whatever happens here is about the generated serve loop, not Option.
 ;;
-;;   (:wat::core::None :cd::Drop::Reply)   TYPED    -> served-after=-1; redial=REFUSED
-;;                                                     THE SERVICE DIES            (3/3)
-;;   :wat::core::None                      UNTYPED  -> the caller never returns
-;;                                                     THE CALLER HANGS FOREVER    (timeout 143)
+;; ON THE FORM: `(:wat::core::None <Type>)` as a CONSTRUCTOR is real but nearly unique —
+;; ONE site in the whole corpus, positional-to-kwargs.wat:27, in a plain function returning
+;; (Option :- [WatAST]). The ~150 other `(:wat::core::None X)` occurrences are MATCH ARMS
+;; (pattern, then the arm's body), not constructor calls. The first header's framing of
+;; "two spellings of a value" was drawn from that miscount.
 ;;
-;; ★ Both are `Option<Reply>` to the checker. src/check.rs:2415-2424 special-cases the
-;; bare keyword as "nullary constructor of the built-in (:Option :- [T]) enum … infers as
-;; (:Option :- [T]) with a fresh T; unification against the expected type sharpens T at
-;; the use site." So the type system says these are the same value.
+;; WHAT IS ACTUALLY MEASURED:
+;;   (:wat::core::None :cd::Drop::Reply)   caller LOST ; served-after=-1 ; redial=REFUSED
+;;                                         the service is GONE                     (3/3)
+;;   :wat::core::None                      the caller never returns                (exit 124)
+;;                                         ⛔ SERVICE STATE UNMEASURED — the hang prevents
+;;                                            this file's own liveness check from running.
 ;;
-;; They are not the same at runtime, and NEITHER is "reply omitted, caller informed,
-;; service alive" — which is why stone 3d has no userland form.
+;; ⛔ THOSE TWO ROWS ARE NOT A COMPARISON. One is a measured death; the other is a hang with
+;; the liveness question unanswered. The first header set them side by side as if both had
+;; been observed.
 ;;
-;; ⛔ WHAT IS NOT ESTABLISHED. The CAUSE. And the obvious framings are already dead:
-;;   · "typed vs untyped" is not the whole story -- sqs.wat:584-585 uses the UNTYPED form
-;;     in the queue's long-poll park and it works, because the TICK ANSWERS LATER.
-;;   · "a public arm must not return None" cannot be the wall -- that park depends on it.
-;; The live hypothesis, unproven: bare None is a PROMISE TO REPLY LATER, and nothing
-;; enforces that the promise is kept. A service that defers and never answers strands its
-;; caller silently. That is a rung-3 candidate, and it is not yet a drawn stone.
+;; AND THE HANG IS NOT A DEFECT. `None` in the reply slot means "I am not replying now."
+;; sqs.wat:584-585 uses exactly that for the queue's long-poll park and works, because the
+;; TICK ANSWERS LATER. This probe never answers, so its caller waits forever. That is the
+;; deferred-reply contract behaving as specified.
+;;
+;; ★ THE ONE REAL OPEN QUESTION: why does the typed constructor in the reply slot take the
+;; service down? One call site, unexplained, and NOT established to be about the spelling.
 
 (:wat::config::set-redef! true)
 
