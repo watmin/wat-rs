@@ -110,6 +110,9 @@
 ;; ── service (holds a Store peer; init declares the GSI) ─────────────────────────
 (:wat::service::defservice :queue::queue
   :satisfies :queue::Queue
+  ;; 8192: a 10KB disrupt send severs the sender. Normal circuit envelopes fit.
+  ;; Contract cap stays 524288. Thread locus does not tear.
+  :max-frame-bytes 8192
   :durable   [cap <- :wat::core::i64
               store-addr <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])]
   :ephemeral [store         <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])

@@ -59,8 +59,9 @@
 
 (:wat::service::defservice :fanout::seen
   :satisfies :fanout::Seen
-  ;; 256: small enough that a 2KB poison claim severs ONE worker's connection
-  ;; (row 1); normal claims (`q0/1999`) fit. Contract cap stays 524288.
+  ;; 256: small enough that a 2KB disrupt claim severs ONE worker's connection.
+  ;; Normal claims (`q0/1999`) fit. Contract cap stays 524288. Thread locus
+  ;; does not tear — that is a property, not a second mechanism.
   :max-frame-bytes 256
   :durable   []
   :ephemeral [claimed <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])]
@@ -100,10 +101,18 @@
      :Ok []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :fanout::Worker::DisruptsRequest [])
+   (:wat::core::defenum :fanout::Worker::DisruptsResponse :wat::enum::Pure
+     :Ok [hits <- :wat::core::i64  draws <- :wat::core::i64  points <- :wat::core::String]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(start [self <- :fanout::Worker  req <- :fanout::Worker::StartRequest]
-     -> :fanout::Worker::StartResponse :max-request-bytes 524288)])
+     -> :fanout::Worker::StartResponse :max-request-bytes 524288)
+   (disrupts [self <- :fanout::Worker  req <- :fanout::Worker::DisruptsRequest]
+     -> :fanout::Worker::DisruptsResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :fanout::worker
   :satisfies :fanout::Worker
@@ -112,7 +121,15 @@
               vis-ns     <- :wat::core::i64
               delay-ms   <- :wat::core::i64
               queue-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
-              seen-addr  <- (:wat::kernel::Address :- [:fanout::Seen::Op :fanout::Seen::Reply])]
+              seen-addr  <- (:wat::kernel::Address :- [:fanout::Seen::Op :fanout::Seen::Reply])
+              disrupt-rate-bp   <- :wat::core::i64
+              disrupt-seed      <- :wat::core::i64
+              disrupt-lo-ms     <- :wat::core::i64
+              disrupt-hi-ms     <- :wat::core::i64
+              disrupt-max-draws <- :wat::core::i64
+              disrupt-hits      <- :wat::core::i64
+              disrupt-draws     <- :wat::core::i64
+              disrupt-points    <- :wat::core::String]
   :ephemeral [q        <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
               seen     <- (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
               outcomes <- (:wat::core::PersistentVector :- [:fanout::Outcome])]
@@ -142,45 +159,126 @@
           (:fanout::worker::State/outcomes s))
   :impls
   [(start [s ctx req]
-     ;; Row 1, process locus: an oversized claim exceeds Seen's 256-byte frame
-     ;; cap and severs this worker's connection (Lost), the next touch is Closed,
-     ;; we redial and thread the fresh peer in. Thread locus does not enforce
-     ;; FOO the same way — poison lands as Message and we keep the original
-     ;; handle. Do not assert either way: a missing sever is not death.
+     ;; Rate 0 arms nothing. Rate > 0 draws a first delay and arms -disrupt.
+     ;; 3c-pre's always-on poison in start is gone — that was a proof instrument.
+     (:wat::core::let
+       [rec  (:fanout::worker::State/durable s)
+        rate (:fanout::worker::Record/disrupt-rate-bp rec)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
+        tick (:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]
+       (:wat::core::if (:wat::i64::> rate 0)
+         (:wat::core::let
+           [pair (:wat::rand::int-from (:fanout::worker::Record/disrupt-seed rec)
+                    (:fanout::worker::Record/disrupt-lo-ms rec)
+                    (:fanout::worker::Record/disrupt-hi-ms rec))
+            seed1 (:wat::core::first pair)
+            delay (:wat::core::second pair)
+            rec'  (:fanout::worker::Record
+                    :id (:fanout::worker::Record/id rec)
+                    :queue-name (:fanout::worker::Record/queue-name rec)
+                    :vis-ns (:fanout::worker::Record/vis-ns rec)
+                    :delay-ms (:fanout::worker::Record/delay-ms rec)
+                    :queue-addr (:fanout::worker::Record/queue-addr rec)
+                    :seen-addr (:fanout::worker::Record/seen-addr rec)
+                    :disrupt-rate-bp rate
+                    :disrupt-seed seed1
+                    :disrupt-lo-ms (:fanout::worker::Record/disrupt-lo-ms rec)
+                    :disrupt-hi-ms (:fanout::worker::Record/disrupt-hi-ms rec)
+                    :disrupt-max-draws (:fanout::worker::Record/disrupt-max-draws rec)
+                    :disrupt-hits (:fanout::worker::Record/disrupt-hits rec)
+                    :disrupt-draws (:fanout::worker::Record/disrupt-draws rec)
+                    :disrupt-points (:fanout::worker::Record/disrupt-points rec))
+            s' (:fanout::worker::State :durable rec'
+                 :q (:fanout::worker::State/q s)
+                 :seen (:fanout::worker::State/seen s)
+                 :outcomes (:fanout::worker::State/outcomes s))]
+           (:wat::service::Outcome::Continue s'
+             (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
+             none-sends
+             [tick (:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]))
+         (:wat::service::Outcome::Continue s
+           (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
+           none-sends
+           [tick]))))
+   (disrupts [s ctx req]
+     (:wat::core::let
+       [rec (:fanout::worker::State/durable s)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
+        none-arms  (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::worker::Op])])]
+       (:wat::service::Outcome::Continue s
+         (:wat::core::Some (:fanout::Worker::Reply::Disrupts
+           (:fanout::Worker::DisruptsResponse::Ok
+             (:fanout::worker::Record/disrupt-hits rec)
+             (:fanout::worker::Record/disrupt-draws rec)
+             (:fanout::worker::Record/disrupt-points rec))))
+         none-sends none-arms)))
+   (-disrupt [s ctx]
      (:wat::core::let
        [rec   (:fanout::worker::State/durable s)
-        seen0 (:fanout::worker::State/seen s)
+        old   (:fanout::worker::State/seen s)
+        rate  (:fanout::worker::Record/disrupt-rate-bp rec)
+        lo    (:fanout::worker::Record/disrupt-lo-ms rec)
+        hi    (:fanout::worker::Record/disrupt-hi-ms rec)
+        maxd  (:fanout::worker::Record/disrupt-max-draws rec)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
+        draw1 (:wat::rand::int-from (:fanout::worker::Record/disrupt-seed rec) 0 10000)
+        seed1 (:wat::core::first draw1)
+        bp    (:wat::core::second draw1)
+        draws (:wat::i64::+ (:fanout::worker::Record/disrupt-draws rec) 1)
+        hit?  (:wat::i64::< bp rate)
         pad   (:wat::core::foldl
                 (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
                   (:wat::string::concat acc "xxxxxxxxxx"))
-                ""
-                (:wat::core::range 0 200))
-        first (:wat::core::match
-                (:fanout::Seen/claim seen0
-                  (:fanout::Seen::ClaimRequest :queue "poison" :seq pad))
-                ((:wat::kernel::RecvOutcome::Message _r) "ok")
-                ((:wat::kernel::RecvOutcome::Lost _c) "lost")
-                (:wat::kernel::RecvOutcome::Closed "closed")
-                (:wat::kernel::RecvOutcome::Stopped "stopped"))
-        seen1 (:wat::core::if (:wat::core::= first "ok")
-                seen0
-                (:wat::core::let
-                  [_again (:wat::core::match
-                            (:fanout::Seen/claim seen0
-                              (:fanout::Seen::ClaimRequest :queue "poison2" :seq "x"))
-                            (:wat::kernel::RecvOutcome::Closed "closed")
-                            ((:wat::kernel::RecvOutcome::Lost _c) "lost")
-                            ((:wat::kernel::RecvOutcome::Message _r) "ok")
-                            (:wat::kernel::RecvOutcome::Stopped "stopped"))]
-                  (:wat::core::match
-                    (:wat::kernel::connect (:fanout::worker::Record/seen-addr rec))
-                    ((:wat::kernel::ConnectOutcome::Connected p) p)
-                    (_ (:wat::kernel::assertion-failed! "fanout worker: redial seen failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))))
-        s' (:fanout::worker::State :durable rec
-             :q (:fanout::worker::State/q s) :seen seen1
-             :outcomes (:fanout::worker::State/outcomes s))]
-       (:wat::service::Outcome::Continue s' (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
-         (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+                "" (:wat::core::range 0 200))
+        poisoned (:wat::core::if hit?
+                    (:wat::core::match
+                      (:fanout::Seen/claim old
+                        (:fanout::Seen::ClaimRequest :queue "disrupt" :seq pad))
+                      ((:wat::kernel::RecvOutcome::Message _r) "message")
+                      ((:wat::kernel::RecvOutcome::Lost _c) "lost")
+                      (:wat::kernel::RecvOutcome::Closed "closed")
+                      (:wat::kernel::RecvOutcome::Stopped
+                        (:wat::kernel::assertion-failed! "fanout worker: disrupt poison stopped" :wat::core::None :wat::core::None)))
+                    "miss")
+        tore? (:wat::core::or (:wat::core::= poisoned "lost") (:wat::core::= poisoned "closed"))
+        seen' (:wat::core::if tore?
+                (:wat::core::match (:wat::kernel::connect (:fanout::worker::Record/seen-addr rec))
+                  ((:wat::kernel::ConnectOutcome::Connected p) p)
+                  (_ (:wat::kernel::assertion-failed! "fanout worker: redial seen failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                old)
+        hits' (:wat::core::if tore?
+                (:wat::i64::+ (:fanout::worker::Record/disrupt-hits rec) 1)
+                (:fanout::worker::Record/disrupt-hits rec))
+        points' (:wat::core::if tore?
+                  (:wat::core::format "{p}{d},"
+                    :p (:fanout::worker::Record/disrupt-points rec) :d draws)
+                  (:fanout::worker::Record/disrupt-points rec))
+        draw2 (:wat::rand::int-from seed1 lo hi)
+        seed2 (:wat::core::first draw2)
+        delay (:wat::core::second draw2)
+        rec'  (:fanout::worker::Record
+                :id (:fanout::worker::Record/id rec)
+                :queue-name (:fanout::worker::Record/queue-name rec)
+                :vis-ns (:fanout::worker::Record/vis-ns rec)
+                :delay-ms (:fanout::worker::Record/delay-ms rec)
+                :queue-addr (:fanout::worker::Record/queue-addr rec)
+                :seen-addr (:fanout::worker::Record/seen-addr rec)
+                :disrupt-rate-bp rate
+                :disrupt-seed seed2
+                :disrupt-lo-ms lo
+                :disrupt-hi-ms hi
+                :disrupt-max-draws maxd
+                :disrupt-hits hits'
+                :disrupt-draws draws
+                :disrupt-points points')
+        s' (:fanout::worker::State :durable rec'
+             :q (:fanout::worker::State/q s) :seen seen'
+             :outcomes (:fanout::worker::State/outcomes s))
+        rearm? (:wat::core::or (:wat::core::= maxd 0) (:wat::i64::< draws maxd))
+        arms (:wat::core::if rearm?
+               [(:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]
+               (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::worker::Op])]))]
+       (:wat::service::SelfOutcome::Continue s' none-sends arms)))
    ;; Park, don't poll. :wait :UpTo 250 ms is the idle wait. An empty return is
    ;; "nothing yet" — re-arm so the serve loop can take Admin::Stop. The
    ;; queue/topic now arm from state (level-triggered); the 1 ms after a
@@ -348,6 +446,12 @@
   [(start [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+   (disrupts [s ctx req]
+     (:wat::service::Outcome::Continue s
+       (:wat::core::Some (:fanout::Worker::Reply::Disrupts
+         (:fanout::Worker::DisruptsResponse::Ok 0 0 "")))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
+       (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::held-worker::Op])])))
    (-tick [s ctx]
      (:wat::core::let
        [rec  (:fanout::held-worker::State/durable s)
@@ -509,6 +613,24 @@
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
     (:wat::kernel::RecvOutcome::Closed nil)))
+
+;; Parent-side constructor. Chaos fields default off (rate 0 arms nothing).
+(:wat::core::defn :fanout::mk-worker
+  [id         <- :wat::core::String
+   queue-name <- :wat::core::String
+   vis-ns     <- :wat::core::i64
+   delay-ms   <- :wat::core::i64
+   queue-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
+   seen-addr  <- (:wat::kernel::Address :- [:fanout::Seen::Op :fanout::Seen::Reply])
+   rate-bp    <- :wat::core::i64
+   seed       <- :wat::core::i64]
+  -> :fanout::worker::Record
+  (:fanout::worker::Record
+    :id id :queue-name queue-name :vis-ns vis-ns :delay-ms delay-ms
+    :queue-addr queue-addr :seen-addr seen-addr
+    :disrupt-rate-bp rate-bp :disrupt-seed seed
+    :disrupt-lo-ms 50 :disrupt-hi-ms 150 :disrupt-max-draws 0
+    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points ""))
 
 ;; Sentinel: -1 means unread. Matches ticks-of / q-depth. (1,1) satisfied both waits.
 (:wat::core::defn :fanout::depth-of
@@ -680,6 +802,25 @@
     0
     qclients))
 
+(:wat::core::defn :fanout::sum-disrupts
+  [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64
+                     w   <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
+      -> :wat::core::i64
+      (:wat::core::match (:fanout::Worker/disrupts w (:fanout::Worker::DisruptsRequest))
+        ((:wat::kernel::RecvOutcome::Message r)
+          (:wat::core::match r
+            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points) (:wat::i64::+ acc hits))
+            ((:fanout::Worker::DisruptsResponse::RequestTooLarge _b _c) acc)
+            ((:fanout::Worker::DisruptsResponse::RequestMalformed _p _e _g) acc)))
+        ((:wat::kernel::RecvOutcome::Lost _c) acc)
+        (:wat::kernel::RecvOutcome::Stopped acc)
+        (:wat::kernel::RecvOutcome::Closed acc)))
+    0
+    wpeers))
+
 (:wat::core::defn :fanout::collect-stop
   [handles <- (:wat::core::Vector :- [:fanout::worker::Handle])]
   -> (:wat::core::Vector :- [:fanout::Outcome])
@@ -841,8 +982,10 @@
       :n n :m m :j j :total total :distinct distinct :dup dup :workers wcount :empty empty)))
 
 ;; Wiring + input stream. start workers → publish → drain on depth → Stop.
-(:wat::core::defn :user::run*
-  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
+;; rate 0 (the default) arms no -disrupt alarm at all.
+(:wat::core::defn :fanout::run-with
+  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
+   rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -908,9 +1051,7 @@
                        ;; of one envelope can exceed 200ms, vis expires, a second
                        ;; worker re-sends, total > N×M. Refusal retry stays on the
                        ;; 200ms probe; the circuit happy path must not race its ack.
-                       :record (:demo::topic-worker::Record :vis-ns 5000000000
-                                 :inbox-addr (:queue::queue::Handle/addr inbox-qh)
-                                 :sub-addrs qaddrs))))
+                       :record (:demo::mk-tw 5000000000 (:queue::queue::Handle/addr inbox-qh) qaddrs rate seed))))
                  (:wat::core::Vector :- [:demo::topic-worker::Handle])
                  (:wat::core::range 0 j))
      qclients (:wat::core::foldl
@@ -949,13 +1090,13 @@
                                                   [pids (:fanout::pids pl)
                                                    _ (:queue::queue/grant qh pids)]
                                                   (:fanout::seen/grant seenh pids))))
-                                     :record (:fanout::worker::Record
-                                               :id (:fanout::wid qi wi)
-                                               :queue-name (:fanout::qname qi)
-                                               :vis-ns 1000000000000
-                                               :delay-ms 0
-                                               :queue-addr (:queue::queue::Handle/addr qh)
-                                               :seen-addr (:fanout::seen::Handle/addr seenh)))]
+                                     :record (:fanout::mk-worker
+                                               (:fanout::wid qi wi)
+                                               (:fanout::qname qi)
+                                               1000000000000 0
+                                               (:queue::queue::Handle/addr qh)
+                                               (:fanout::seen::Handle/addr seenh)
+                                               rate seed))]
                                 (:wat::core::conj wacc h)))
                             acc
                             (:wat::core::range 0 j))]
@@ -988,6 +1129,7 @@
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
      tticks (:fanout::topic-ticks topic)
+     dhits (:fanout::sum-disrupts wpeers)
      outs (:fanout::collect-stop workers)
      _stoptw (:wat::core::foldl
                (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
@@ -1017,16 +1159,28 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
               :stop (ms t-stop0 t-end)
               :ticks ticks
-              :tt tticks)
+              :tt tticks
+              :dh dhits)
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr}" :p phases :tr traces))))
+
+(:wat::core::defn :user::run*
+  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
+  (:fanout::run-with n m j 0 0))
+
+(:wat::core::defn :user::run-chaos*
+  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
+   rate <- :wat::core::i64  seed <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
+  (:fanout::run-with n m j rate seed))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -1048,6 +1202,14 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [triple (:user::run* 2000 4 3)]
+    (:wat::core::let
+      [_ (:wat::kernel::println
+           (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
+       _ (:wat::kernel::println (:wat::core::first triple))]
+      (:wat::kernel::println (:wat::core::third triple)))))
+
+(:wat::core::defn :user::chaos [] -> :wat::core::nil
+  (:wat::core::let [triple (:user::run-chaos* 2000 4 3 200 42)]
     (:wat::core::let
       [_ (:wat::kernel::println
            (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
@@ -1120,10 +1282,9 @@
                         [pids (:fanout::pids pl)
                          _ (:queue::queue/grant qh pids)]
                         (:fanout::seen/grant seenh pids))))
-           :record (:fanout::worker::Record :id "idle-0" :queue-name "q0"
-                     :vis-ns 1000000000000 :delay-ms 0
-                     :queue-addr (:queue::queue::Handle/addr qh)
-                     :seen-addr (:fanout::seen::Handle/addr seenh)))
+           :record (:fanout::mk-worker "idle-0" "q0" 1000000000000 0
+                     (:queue::queue::Handle/addr qh)
+                     (:fanout::seen::Handle/addr seenh) 0 0))
      w   (:fanout::dial-worker (:fanout::worker::Handle/addr wh))
      _   (:fanout::face-start w)
      _   (:fanout::nap-ms 20)
@@ -1166,10 +1327,9 @@
                         [pids (:fanout::pids pl)
                          _ (:queue::queue/grant qh pids)]
                         (:fanout::seen/grant seenh pids))))
-           :record (:fanout::worker::Record :id "ob-0" :queue-name "q0"
-                     :vis-ns 1000000000000 :delay-ms 0
-                     :queue-addr (:queue::queue::Handle/addr qh)
-                     :seen-addr (:fanout::seen::Handle/addr seenh)))
+           :record (:fanout::mk-worker "ob-0" "q0" 1000000000000 0
+                     (:queue::queue::Handle/addr qh)
+                     (:fanout::seen::Handle/addr seenh) 0 0))
      topic (:fanout::dial-topic (:demo::topic::Handle/addr th))
      q     (:fanout::dial-queue (:queue::queue::Handle/addr qh))
      w     (:fanout::dial-worker (:fanout::worker::Handle/addr wh))
@@ -1257,15 +1417,13 @@
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
               :record (:fanout::seen::Record))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
-          :record (:fanout::worker::Record :id "a" :queue-name "q0"
-                    :vis-ns 200000000 :delay-ms 350
-                    :queue-addr (:queue::queue::Handle/addr qh)
-                    :seen-addr (:fanout::seen::Handle/addr seenh)))
+          :record (:fanout::mk-worker "a" "q0" 200000000 350
+                    (:queue::queue::Handle/addr qh)
+                    (:fanout::seen::Handle/addr seenh) 0 0))
      w2 (:fanout::worker/start :locus (:wat::spawn::thread)
-          :record (:fanout::worker::Record :id "b" :queue-name "q0"
-                    :vis-ns 200000000 :delay-ms 350
-                    :queue-addr (:queue::queue::Handle/addr qh)
-                    :seen-addr (:fanout::seen::Handle/addr seenh)))
+          :record (:fanout::mk-worker "b" "q0" 200000000 350
+                    (:queue::queue::Handle/addr qh)
+                    (:fanout::seen::Handle/addr seenh) 0 0))
      q  (:fanout::dial-queue (:queue::queue::Handle/addr qh))
      _  (:fanout::face-start (:fanout::dial-worker (:fanout::worker::Handle/addr w1)))
      _  (:fanout::face-start (:fanout::dial-worker (:fanout::worker::Handle/addr w2)))

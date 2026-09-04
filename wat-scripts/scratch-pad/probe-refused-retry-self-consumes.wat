@@ -63,9 +63,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
-          :record (:demo::topic-worker::Record :vis-ns 200000000
-                    :inbox-addr (:queue::queue::Handle/addr iqh)
-                    :sub-addrs qaddrs))
+          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
      subq  (:demo::dial-queue (:queue::queue::Handle/addr sqh))
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -134,9 +132,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
-          :record (:demo::topic-worker::Record :vis-ns 200000000
-                    :inbox-addr (:queue::queue::Handle/addr iqh)
-                    :sub-addrs qaddrs))
+          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
      subq  (:demo::dial-queue (:queue::queue::Handle/addr sqh))
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))

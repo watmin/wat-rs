@@ -181,16 +181,32 @@
      :Ok []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :demo::TopicWorker::DisruptsRequest [])
+   (:wat::core::defenum :demo::TopicWorker::DisruptsResponse :wat::enum::Pure
+     :Ok [hits <- :wat::core::i64  draws <- :wat::core::i64  points <- :wat::core::String]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(start [self <- :demo::TopicWorker  req <- :demo::TopicWorker::StartRequest]
-     -> :demo::TopicWorker::StartResponse :max-request-bytes 524288)])
+     -> :demo::TopicWorker::StartResponse :max-request-bytes 524288)
+   (disrupts [self <- :demo::TopicWorker  req <- :demo::TopicWorker::DisruptsRequest]
+     -> :demo::TopicWorker::DisruptsResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :demo::topic-worker
   :satisfies :demo::TopicWorker
   :durable   [vis-ns <- :wat::core::i64
               inbox-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
-              sub-addrs  <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])]
+              sub-addrs  <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+              disrupt-rate-bp   <- :wat::core::i64
+              disrupt-seed      <- :wat::core::i64
+              disrupt-lo-ms     <- :wat::core::i64
+              disrupt-hi-ms     <- :wat::core::i64
+              disrupt-max-draws <- :wat::core::i64
+              disrupt-hits      <- :wat::core::i64
+              disrupt-draws     <- :wat::core::i64
+              disrupt-points    <- :wat::core::String]
   :ephemeral [inbox <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
               subs  <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])]
   :peers     [:queue::Queue]
@@ -220,10 +236,124 @@
                 (:demo::topic-worker::Record/sub-addrs record))))
   :impls
   [(start [s ctx req]
-     (:wat::service::Outcome::Continue s
-       (:wat::core::Some (:demo::TopicWorker::Reply::Start (:demo::TopicWorker::StartResponse::Ok)))
-       (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+     (:wat::core::let
+       [rec  (:demo::topic-worker::State/durable s)
+        rate (:demo::topic-worker::Record/disrupt-rate-bp rec)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
+        tick (:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]
+       (:wat::core::if (:wat::i64::> rate 0)
+         (:wat::core::let
+           [pair (:wat::rand::int-from (:demo::topic-worker::Record/disrupt-seed rec)
+                    (:demo::topic-worker::Record/disrupt-lo-ms rec)
+                    (:demo::topic-worker::Record/disrupt-hi-ms rec))
+            seed1 (:wat::core::first pair)
+            delay (:wat::core::second pair)
+            rec'  (:demo::topic-worker::Record
+                    :vis-ns (:demo::topic-worker::Record/vis-ns rec)
+                    :inbox-addr (:demo::topic-worker::Record/inbox-addr rec)
+                    :sub-addrs (:demo::topic-worker::Record/sub-addrs rec)
+                    :disrupt-rate-bp rate
+                    :disrupt-seed seed1
+                    :disrupt-lo-ms (:demo::topic-worker::Record/disrupt-lo-ms rec)
+                    :disrupt-hi-ms (:demo::topic-worker::Record/disrupt-hi-ms rec)
+                    :disrupt-max-draws (:demo::topic-worker::Record/disrupt-max-draws rec)
+                    :disrupt-hits (:demo::topic-worker::Record/disrupt-hits rec)
+                    :disrupt-draws (:demo::topic-worker::Record/disrupt-draws rec)
+                    :disrupt-points (:demo::topic-worker::Record/disrupt-points rec))
+            s' (:demo::topic-worker::State :durable rec'
+                 :inbox (:demo::topic-worker::State/inbox s)
+                 :subs (:demo::topic-worker::State/subs s))]
+           (:wat::service::Outcome::Continue s'
+             (:wat::core::Some (:demo::TopicWorker::Reply::Start (:demo::TopicWorker::StartResponse::Ok)))
+             none-sends
+             [tick (:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]))
+         (:wat::service::Outcome::Continue s
+           (:wat::core::Some (:demo::TopicWorker::Reply::Start (:demo::TopicWorker::StartResponse::Ok)))
+           none-sends
+           [tick]))))
+   (disrupts [s ctx req]
+     (:wat::core::let
+       [rec (:demo::topic-worker::State/durable s)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
+        none-arms  (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic-worker::Op])])]
+       (:wat::service::Outcome::Continue s
+         (:wat::core::Some (:demo::TopicWorker::Reply::Disrupts
+           (:demo::TopicWorker::DisruptsResponse::Ok
+             (:demo::topic-worker::Record/disrupt-hits rec)
+             (:demo::topic-worker::Record/disrupt-draws rec)
+             (:demo::topic-worker::Record/disrupt-points rec))))
+         none-sends none-arms)))
+   (-disrupt [s ctx]
+     (:wat::core::let
+       [rec   (:demo::topic-worker::State/durable s)
+        old   (:demo::topic-worker::State/inbox s)
+        rate  (:demo::topic-worker::Record/disrupt-rate-bp rec)
+        lo    (:demo::topic-worker::Record/disrupt-lo-ms rec)
+        hi    (:demo::topic-worker::Record/disrupt-hi-ms rec)
+        maxd  (:demo::topic-worker::Record/disrupt-max-draws rec)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
+        draw1 (:wat::rand::int-from (:demo::topic-worker::Record/disrupt-seed rec) 0 10000)
+        seed1 (:wat::core::first draw1)
+        bp    (:wat::core::second draw1)
+        draws (:wat::i64::+ (:demo::topic-worker::Record/disrupt-draws rec) 1)
+        hit?  (:wat::i64::< bp rate)
+        pad   (:wat::core::foldl
+                (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
+                  (:wat::string::concat acc "xxxxxxxxxx"))
+                "" (:wat::core::range 0 1000))
+        poisoned (:wat::core::if hit?
+                    (:wat::core::match
+                      (:queue::Queue/send old
+                        (:queue::Queue::SendRequest :queue "inbox"
+                          :bodies (:wat::core::Vector :- [:wat::core::String] pad)
+                          :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
+                      ((:wat::kernel::RecvOutcome::Message r)
+                        (:wat::core::match r
+                          ((:queue::Queue::SendResponse::Ok) "message")
+                          ((:queue::Queue::SendResponse::Full _d _c) "message")
+                          ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "message")
+                          ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "message")))
+                      ((:wat::kernel::RecvOutcome::Lost _c) "lost")
+                      (:wat::kernel::RecvOutcome::Closed "closed")
+                      (:wat::kernel::RecvOutcome::Stopped
+                        (:wat::kernel::assertion-failed! "topic-worker: disrupt poison stopped" :wat::core::None :wat::core::None)))
+                    "miss")
+        tore? (:wat::core::or (:wat::core::= poisoned "lost") (:wat::core::= poisoned "closed"))
+        inbox' (:wat::core::if tore?
+                 (:wat::core::match (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                   ((:wat::kernel::ConnectOutcome::Connected p) p)
+                   (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                 old)
+        hits' (:wat::core::if tore?
+                (:wat::i64::+ (:demo::topic-worker::Record/disrupt-hits rec) 1)
+                (:demo::topic-worker::Record/disrupt-hits rec))
+        points' (:wat::core::if tore?
+                  (:wat::core::format "{p}{d},"
+                    :p (:demo::topic-worker::Record/disrupt-points rec) :d draws)
+                  (:demo::topic-worker::Record/disrupt-points rec))
+        draw2 (:wat::rand::int-from seed1 lo hi)
+        seed2 (:wat::core::first draw2)
+        delay (:wat::core::second draw2)
+        rec'  (:demo::topic-worker::Record
+                :vis-ns (:demo::topic-worker::Record/vis-ns rec)
+                :inbox-addr (:demo::topic-worker::Record/inbox-addr rec)
+                :sub-addrs (:demo::topic-worker::Record/sub-addrs rec)
+                :disrupt-rate-bp rate
+                :disrupt-seed seed2
+                :disrupt-lo-ms lo
+                :disrupt-hi-ms hi
+                :disrupt-max-draws maxd
+                :disrupt-hits hits'
+                :disrupt-draws draws
+                :disrupt-points points')
+        s' (:demo::topic-worker::State :durable rec'
+             :inbox inbox'
+             :subs (:demo::topic-worker::State/subs s))
+        rearm? (:wat::core::or (:wat::core::= maxd 0) (:wat::i64::< draws maxd))
+        arms (:wat::core::if rearm?
+               [(:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]
+               (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic-worker::Op])]))]
+       (:wat::service::SelfOutcome::Continue s' none-sends arms)))
    (-tick [s ctx]
      (:wat::core::let
        [rec   (:demo::topic-worker::State/durable s)
@@ -471,6 +601,19 @@
     (:wat::kernel::RecvOutcome::Stopped nil)
     (:wat::kernel::RecvOutcome::Closed nil)))
 
+(:wat::core::defn :demo::mk-tw
+  [vis-ns     <- :wat::core::i64
+   inbox-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
+   sub-addrs  <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
+   rate-bp    <- :wat::core::i64
+   seed       <- :wat::core::i64]
+  -> :demo::topic-worker::Record
+  (:demo::topic-worker::Record
+    :vis-ns vis-ns :inbox-addr inbox-addr :sub-addrs sub-addrs
+    :disrupt-rate-bp rate-bp :disrupt-seed seed
+    :disrupt-lo-ms 50 :disrupt-hi-ms 150 :disrupt-max-draws 0
+    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points ""))
+
 ;; Sentinel: -1 means unread. A dead peer must not look like work. ticks-of
 ;; already returned -1; q-depth / depth-of-topic join it.
 (:wat::core::defn :demo::depth-of-topic [t <- :demo::Topic] -> :wat::core::i64
@@ -652,9 +795,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 3 :inbox-addr (:queue::queue::Handle/addr iqh)))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
-          :record (:demo::topic-worker::Record :vis-ns 200000000
-                    :inbox-addr (:queue::queue::Handle/addr iqh)
-                    :sub-addrs qaddrs))
+          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      qclients (:wat::core::foldl
@@ -735,9 +876,7 @@
                            (:queue::queue/grant (:wat::core::nth queues i) pids))
                          nil
                          (:wat::core::range 0 3)))))
-          :record (:demo::topic-worker::Record :vis-ns 200000000
-                    :inbox-addr (:queue::queue::Handle/addr iqh)
-                    :sub-addrs qaddrs))
+          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      qclients (:wat::core::foldl
@@ -883,9 +1022,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
-          :record (:demo::topic-worker::Record :vis-ns 200000000
-                    :inbox-addr (:queue::queue::Handle/addr iqh)
-                    :sub-addrs qaddrs))
+          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
      subq  (:demo::dial-queue (:queue::queue::Handle/addr sqh))
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -927,9 +1064,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 2 :inbox-addr (:queue::queue::Handle/addr iqh)))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
-          :record (:demo::topic-worker::Record :vis-ns 200000000
-                    :inbox-addr (:queue::queue::Handle/addr iqh)
-                    :sub-addrs qaddrs))
+          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      q0 (:demo::dial-queue (:queue::queue::Handle/addr q0h))
      q1 (:demo::dial-queue (:queue::queue::Handle/addr q1h))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
