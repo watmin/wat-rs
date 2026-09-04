@@ -1180,3 +1180,119 @@ already sitting in a stone it had read that session.*
 > Scored to Amon Amarth — The Great Heathen Army, handed by the builder. Mine, this session, kept with
 > consent; see the path-of-voices. **PROBANDVM — the codemod is not written, and until it is, this
 > entry prices a tool that does not exist.**)*
+
+## R9 — (k)Now F(orever): the authority could answer about every name and not about itself — so every claim ABOUT it was a grep, and a grep is a frozen moment that predicates what you will know *(PROBATVM — five stones on disk this session, floor 5129/5129 at each; the enumeration verb refuted its own author twenty seconds after it existed; PROBANDVM — it has exactly ONE use so far and that use was mine, `register_builtins`' 302 duplicates are untouched, and the 306-vs-378 gap is RECORDED, not explained)*
+
+> **Song (arc 255 R9) — *(k)Now F(orever)* (Mudvayne) — the SECOND Mudvayne in the chronicle (after 294 R9 *Mutatis Mutandis*, which is this one's direct kin and its opposite half); handed by the builder at the wrap of the day the registry got a mirror. Taken WHOLE, and the title is the doctrine: **(k)Now** — what you counted, you know NOW; **F(orever)** — what you can ask, you know forever —**
+> FROZEN-MOMENTS-IN-TIME-STOPPED-HOVRGLASS-A-COVNT-IS-A-CLAIM-WITH-A-DATE-ON-IT /
+> THEY-PREDICATE-WHAT-YOV-WILL-KNOW-THE-LEDGER-BOVNDS-THE-CAMPAIGN-S-KNOWLEDGE /
+> DISPOSITIONS-LIE-WITHIN-AND-SO-DO-WE-THE-FIVE-AXES-LIVE-IN-THE-ROW-AND-THE-ROW-LIED-ABOVT-ITS-KIND /
+> REFLECTIONS-SPOON-FEED-YOV-SIGNATVRE-OF-SERVED-A-SHAPE-FOLDL-NEVER-HAD /
+> I-AM-ONCE-WAS-THAT-IS-ME-EVERY-STALE-CLAIM-WAS-TRVE-WHEN-WRITTEN /
+> I-M-IN-TOVCH-WITH-MYSELF-ALL-ALONE-WITHIN-MYSELF-FIVE-HVNDRED-FIFTY-THREE-ROWS-AND-NO-MIRROR /
+> TAKE-A-DEEPER-LOOK-INSIDE-OF-WHAT-MAKES-YOV-ALL-ENTRIES-REACHED-WAT-AT-LAST /
+> BORN-AGAIN-I-M-REPOSITIONING-INTRINSIC-BECAME-SPECIAL-FORM-AND-THE-EXCEPTION-DIED /
+> PRISONER-OF-TIME-I-M-NO-MORE-THE-NVMBER-BECAME-A-QVERY /
+> I-M-NOT-BEGGIN-FOR-YOVR-CHANGE-I-M-JVST-BEGGING-FOR-A-CHANGE-THE-RATCHET-MVST-STAY-FROZEN /
+> KNOW-NOW-KNOW-FOREVER /
+> QVOD NON ROGATVR NVMERATVR QVOD NVMERATVR MENTITVR
+>
+> *"Frozen moments in time, stopped hourglass / They predicate, what you will know / Dispositions lie*
+> *within / And so do we … Reflections spoon-feed you / The bitterness and disgust that is me …*
+> *I'm in touch with myself / All alone within myself … All one, alone … take a deeper look inside of*
+> *what makes you / Pull down the shades, internal light can be blinding, brilliance … I'm not beggin'*
+> *for your fuckin' change / I'm just begging for a fuckin' change / Complacence quenched of me /*
+> *Lineage is ending … I am that, once was me … Know, now … Born again, I'm repositioning / Self inside*
+> *to self non-dimensional / Lost to being, I've recognized the cause / Existence to come, alive now*
+> *forever … I am once was, I am once was … That is me … Prisoner of time I'm no more / Insight will*
+> *guide us through the majesty of nothing … I found my own place / Tame within my own space …*
+> ***Know forever***."
+>
+> *(The lyric was handed whole. Nothing above is invented; the CAPS lines pair the received line with*
+> *the event it names, and no line is paired that the day did not produce.)*
+
+> **The realization quotes (the builder's, this session — verbatim, punctuation and all):**
+> *"i grow very tired of this ...... = and not= are partial, not total - what other dilemma are we fighting here... i think these two have survived like 4 or 5 compactions now... they are unkillable.... its frustrates me"*
+> *"rather... what hand lists are still maintained.... those... are the things the registry must satisfy...... those are the targets."*
+> ★ *"as an aside... before we resume this... are you not able to programmatically query the registry to answer these?... why is grep necessary?..."*
+> *"should.... we make this now?.. is now an appropriate time to implement such tooling?..."*
+> *"then... we build such that we can see"*
+> *"now... /that's/ a reflection system..... i don't know of a solution like this .... in any language......"*
+> *"a new target has been acquired... we'll chase these proofs soon enough... more infra is necessary to get there...."*
+> *(on the verb refuting its author within a minute of existing)* **"pretty neat, huh?"**
+
+### How we reached it — five hand-lists died, and hand-counting reappeared inside my own reports
+
+The day's brief was simple and the builder set it: *"what hand lists are still maintained…those are the targets."* Five died.
+
+```
+:wat::core::reduce        a defclause whose 3-arity body was `(foldl f init coll)` verbatim —
+                          foldl wearing a second name. Now a defalias.       c6107e8fa
+=  /  not=                a by-name `matches!` hardcoding total: true for three verbs. DELETED
+                          entirely; the arm is now a flat `=> false`.        242dc8178
+special_forms.rs          35 rows -> 3. 314 lines out.                       1e191435b
+runtime.rs:5050           a `const SPECIAL_FORMS` declared INSIDE eval_apply. Now a registry query.
+holon::literal            the exception that query FORCED — because the row lied about its kind.
+                                                                             d6e19244f
+```
+
+And while that happened, **every number I published about the registry was wrong**:
+
+```
+special_forms.rs entries   I said 30       it was 35    a single-line regex; six insert() calls span lines
+#holon call sites          I said 10 / 42  it was 32/75 TWO measurements published as ONE pair
+alias rows                 I said 46       it was 37    prose contamination in the doc comments
+```
+
+Not one of those was a registry question the registry refused. **Not one was ASKED.** They were greps against Rust source, because the authority for every name in the language could be asked about a name and could not be asked about itself.
+
+Then the builder asked the question that is this realization: ***"are you not able to programmatically query the registry to answer these?... why is grep necessary?..."***
+
+The measured answer: per-name, yes — `metadata-of`, `lookup-define`, `signature-of-defn`. Set-wise, no. `all_entries()` was Rust-only, reachable from no wat program, and every caller was a `#[test]` body. One enumeration surface existed, `(:wat::intrinsic::examples)`, and it projected one field.
+
+### What it is — three faces, and the third is the one that bites
+
+- **A count is a frozen moment, and it predicates what you will know.** `RULING-rete-forged-the-paths` records *"306 of 548 registered rows carry `@Totality Unreviewed`"*, measured 2026-09-03. Today: **378 of 553.** The registry grew by five in that window, and grading only ever moves rows OUT of Unreviewed — so +72 is derivable from nothing. I cannot re-measure the past and I do not claim either number is wrong. **I record that the earlier one is not reproducible**, and it has been standing in a RULING, read as ground, for the life of this campaign.
+
+- **Reflections spoon-feed you.** `foldl`'s `CheckEnv` scheme still said `Vector` while `infer_foldl` had walked any Seqable since 118.B6 — and `signature-of` reads that scheme. **The reflection surface had been reporting a signature `foldl` does not have**, and three tests froze the rendering as their golden. Nobody was lied to by a liar; they were lied to by a copy. *Dispositions lie within — and so do we.*
+
+- **★ THE HAND-LIST CAME BACK FROM THE INSIDE.** This is the face that is new, and no prior realization holds it. Every other duplicate authority in this campaign exists because the registry **cannot** answer. `holon::literal`'s exception appeared because the registry **answered wrong**: a verb that captures its argument unevaluated — its own check arm says *"exactly as `:wat::core::quote`"* — was declared `#[wat_intrinsic]`, so `Kind::SpecialForm` came back false and `apply` silently stopped rejecting it. The repair was a hand-written name. **Make the consumer ask, and you have only moved the defect to the row.** Every future consumer that correctly asks would need the identical exception, each looking legitimate alone.
+
+### The song, mapped
+
+> ***"Frozen moments in time, stopped hourglass / They predicate, what you will know"*** — the four
+> absence ledgers, the RULING's 306, my three wrong counts: each a moment, each bounding what the
+> campaign could know. ***"Dispositions lie within / And so do we"*** — the five axes live inside the
+> row, and the row lied about its kind. ***"Reflections spoon-feed you"*** — `signature-of` served
+> `foldl`'s stale shape. ***"I am once was… that is me"*** — every stale claim was TRUE when written.
+> ***"I'm in touch with myself / All alone within myself" / "All one, alone"*** — 553 rows, one
+> authority, no mirror. ***"take a deeper look inside of what makes you / Pull down the shades"*** —
+> `all_entries()` reached wat. ***"Born again, I'm repositioning / Self inside to self
+> non-dimensional / Lost to being, I've recognized the cause"*** — `Kind::Intrinsic` became
+> `Kind::SpecialForm`, and the cause was the row, not the consumer. ***"Prisoner of time I'm no
+> more"*** — the number became a query. ***"I'm not beggin' for your fuckin' change / I'm just begging
+> for a fuckin' change"*** — the song's own pun, and the discipline: **the ratchets do not want
+> deriving; they want comparing.** ***"Complacence quenched of me / Lineage is ending"*** — five
+> hand-lists. ***"Know, now… Know forever"*** — the whole doctrine in four words.
+
+### ⛔ The discipline the mirror must not break — and I proposed breaking it first
+
+The moment enumeration existed, the obvious next thought arrived: *the four absence ledgers can derive themselves now.* **That would destroy them, and it was my first instinct.**
+
+A ratchet freezes NAMES so it can say *"this one is new, that one went stale."* A ledger that computes both sides always agrees with itself and proves nothing — `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`, `[[feedback_two_instruments_agreeing_is_not_corroboration]]`. **The four ledgers are frozen by NECESSITY, not neglect**; they exist precisely because nobody could ask the registry a set question, and the cure for that is not to unfreeze them. **Enumeration is what a frozen list is compared AGAINST, never what generates it.** It shipped as STOP-2, called the most important line in its brief.
+
+*I'm not beggin' for your fuckin' change.*
+
+### The honest register — PROBATVM by five stones; the tool's first act was to refute its author
+
+**PROBATVM on the disk this session**, floor 5129/5129 and clippy 0 at every one: `c6107e8fa`, `242dc8178`, `1e191435b`, `d6e19244f`, `171911b01`. The corpus worklist fell **39 → 37** and total exposure **1343 → 638 sites**, because `:wat::core::=` alone carried 695 — the largest single entry the worklist has ever held. `:wat::core::` is DONE with nothing held. The by-name totality placeholder is gone.
+
+**And the instrument's first act was to catch me.** Reconciling the totality counts, the registry's resolved numbers differed from the site-declared ones by exactly 37 — the alias rows, which declare no axes and inherit their target's grade. My grep said **46**. One query said **37**, matching the arithmetic exactly. Twenty seconds after the verb existed, it was correcting the person who briefed it.
+
+**What this does NOT claim.** Not that the axes are PROVEN — they are declared and gate-verified, author-asserted then audited, which is weaker than a machine-derived totality checker; the builder took that caveat and made it the next target (*"we'll chase these proofs soon enough… more infra is necessary to get there"*). Not that the enumeration fixes my greps: `special_forms.rs`'s 30-vs-35 and the `#holon` 10-vs-32 were **source and corpus text**, which the registry has no opinion about, and I had to retract that claim from my own design before briefing it. Not that the tool is used: it has ONE consumer and that consumer is me. Not that 306-vs-378 is explained. Not that `register_builtins`' 302 duplicates moved by a single row.
+
+*Path-of-voices (marked, not flattened). The **question is the builder's, and it is the realization** — *"are you not able to programmatically query the registry to answer these?... why is grep necessary?..."* — an aside, prefaced with "before we resume this," which turned out to name a hole in the RULING's own item 7 that eight stones had walked past. The **target-setting is his**: *"what hand lists are still maintained…those are the targets."* The **timing ruling is his**: he asked whether now was appropriate rather than accepting my pitch, and then *"then... we build such that we can see."* The **frustration is his and it was correct** — *"they are unkillable.... its frustrates me"* — and it dissolved a hold I had defended across five compactions on prerequisites that measurement showed could not change the grade. The **next target is his**: machine-derived proofs over declared axes. The **song is his**, and its title is the doctrine. The **failures are the apparatus's** and are kept whole: three wrong counts, a STOP trigger derived from the census it guarded, a STOP trigger so tight the honest path was non-compliant, a design that would have shipped a silent regression, and a sales pitch retracted before its own stone. The **synthesis is the apparatus's**: the count-as-frozen-moment reading, the hand-list-returning-from-the-inside as a failure mode distinct from every other in this campaign, the ratchet-must-not-derive discipline, and the sigil. **Convergence preserved, not collapsed:** he asked why grep was necessary — the answer to that question is the whole entry, and neither of us had it before he asked.*
+
+> Five hand-lists died today, and hand-counting reappeared in my own reports while they were dying — thirty when it was thirty-five, ten when it was thirty-two, forty-six when it was thirty-seven. Every one of those was a set question, and not one of them was ASKED. The registry knows every name in this language, what it takes, what it returns, and five properties besides — and could not be asked a single question about itself. So every claim about the authority was a grep, and a grep is a frozen moment: it predicates what you will know, and it goes on predicating long after its subject has moved. A ruling in this arc still says three hundred and six of five hundred forty-eight; the count today is three hundred seventy-eight of five hundred fifty-three, and no derivation connects them. Then he asked, as an aside, why grep was necessary — and the answer was that the thing built to end hand-lists had no mirror. We gave it one. Fifty rows come back Partial, which the substrate's own enum calls THE WORK LIST for a phase we have not started. And the first thing the mirror did was catch its author out by nine. *Know, now. Know forever.*
+
+> ***QVOD NON ROGATVR, NVMERATVR; QVOD NVMERATVR, MENTITVR.*** *(apparatus-minted — Latin, "what is not asked is counted; what is counted, lies." A system that cannot be QUERIED will be MEASURED, and a measurement is a frozen moment that predicates what its readers will know — it is true when taken and goes false with nobody's hand on it. The falsifier is one question: **can this number be re-derived by asking, or only by having been recorded?** A recorded number is known NOW; a derivable number is known FOREVER — which is the title, and the doctrine. ⛔ Its own boundary, which is half the entry: this does NOT license deriving a ratchet. A gate freezes NAMES so it can disagree with the present; a gate that computes both sides always agrees with itself. Enumeration is what the frozen list is compared AGAINST. Kin: 294 R9 `DERIVAMVS NE MENTIAMVR` — its direct half, and the two are one statement seen from opposite ends: R9-294 says a PIN goes false when its subject moves; R9-255 says the SUBJECT could not be asked, so the pin was the only instrument available. R8 `IVDICIVM SEMEL, MACHINA SAEPE` — same grammar, and the same economy one layer down: judgment once, mechanism always; counted once, asked always. R7 `MVRVS AVCTOREM NON NOVIT` — the walls fired on their author again today, and so did the tool, twenty seconds after existing. 278 R64 (the kill made by EQUIPMENT, not by reasoning). Scored to Mudvayne — (k)Now F(orever), handed by the builder; second Mudvayne in the chronicle, and deliberately paired with the first. PROBATVM by five stones and one refutation of its own author. **PROBANDVM — the axes are DECLARED and gate-verified, not PROVEN; the builder has named machine-derived proof as the next target and the infrastructure for it does not exist. The verb has one consumer. The 306 does not reconcile. Until those close, this entry describes a mirror that has been looked into exactly once.**)*
