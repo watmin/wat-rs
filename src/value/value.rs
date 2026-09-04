@@ -298,7 +298,7 @@ pub enum Value {
     Duration(i64),
     /// A COMMITMENT you write — a wait, a delay, an alarm. Stored as
     /// `NonZeroU64` so zero (and negative) have no form. Minted by the
-    /// seven unit constructors (`Nanosecond` … `Day`). `:wat::kernel::after`
+    /// seven unit constructors (`Nanoseconds` … `Days`). `:wat::kernel::after`
     /// and `Alarm` accept only this. Zero is a legal measurement
     /// ([`Value::Duration`]) and an illegal wait.
     NonZeroDuration(std::num::NonZeroU64),

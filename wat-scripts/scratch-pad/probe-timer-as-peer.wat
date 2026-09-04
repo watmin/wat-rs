@@ -49,7 +49,7 @@
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::keyword :wat::core::nil])]
               -> :wat::core::nil
               (:wat::core::let
-                [t (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 30) :tick)]
+                [t (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds 30) :tick)]
                 (:probe::serve-thread self l
                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t)))))
      got  (:wat::core::match (:wat::kernel::recv svc)
@@ -85,7 +85,7 @@
                (:wat::core::let
                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::keyword :wat::core::nil)
                   self (:wat::program::self-peer :wat::core::keyword :wat::core::nil)
-                  t    (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Millisecond 30) :tick)]
+                  t    (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Milliseconds 30) :tick)]
                  (:probe::serve-proc self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t))))))
      got (:wat::core::match (:wat::kernel::recv svc)

@@ -39,7 +39,7 @@
   [;; The one difference from the sibling `.wat.bad`: arms `-tick` (INTERNAL), not `bump`.
    (start [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Tick2::Reply::Start (:probe::Tick2::StartResponse::Ok)))
-       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Tick2::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5)
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Tick2::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5)
           :op (:probe::tick2::Op::-Tick))]))
 
    (bump [s ctx req]

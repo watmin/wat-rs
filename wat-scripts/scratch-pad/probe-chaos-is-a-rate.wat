@@ -106,7 +106,7 @@
            (:wat::service::Outcome::Continue s'
              (:wat::core::Some (:cr::Front::Reply::Start (:cr::Front::StartResponse::Ok)))
              none-sends
-             [(:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]))
+             [(:wat::service::Alarm :delay (:wat::time::Milliseconds delay) :op :-disrupt)]))
          (:wat::service::Outcome::Continue s
            (:wat::core::Some (:cr::Front::Reply::Start (:cr::Front::StartResponse::Ok)))
            none-sends
@@ -180,7 +180,7 @@
         s' (:cr::front::State :durable rec' :sink sink')
         rearm? (:wat::core::or (:wat::core::= maxd 0) (:wat::i64::< draws maxd))
         arms (:wat::core::if rearm?
-               [(:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]
+               [(:wat::service::Alarm :delay (:wat::time::Milliseconds delay) :op :-disrupt)]
                (:wat::core::Vector :- [(:wat::service::Alarm :- [:cr::front::Op])]))]
        (:wat::service::SelfOutcome::Continue s' none-sends arms)))])
 
@@ -189,7 +189,7 @@
 
 (:wat::core::defn :cr::nap [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c)
       (:wat::kernel::assertion-failed! "cr: nap lost" :wat::core::None :wat::core::None))

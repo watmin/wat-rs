@@ -240,7 +240,7 @@
        [rec  (:demo::topic-worker::State/durable s)
         rate (:demo::topic-worker::Record/disrupt-rate-bp rec)
         none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
-        tick (:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]
+        tick (:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]
        (:wat::core::if (:wat::i64::> rate 0)
          (:wat::core::let
            [pair (:wat::rand::int-from (:demo::topic-worker::Record/disrupt-seed rec)
@@ -266,7 +266,7 @@
            (:wat::service::Outcome::Continue s'
              (:wat::core::Some (:demo::TopicWorker::Reply::Start (:demo::TopicWorker::StartResponse::Ok)))
              none-sends
-             [tick (:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]))
+             [tick (:wat::service::Alarm :delay (:wat::time::Milliseconds delay) :op :-disrupt)]))
          (:wat::service::Outcome::Continue s
            (:wat::core::Some (:demo::TopicWorker::Reply::Start (:demo::TopicWorker::StartResponse::Ok)))
            none-sends
@@ -351,7 +351,7 @@
              :subs (:demo::topic-worker::State/subs s))
         rearm? (:wat::core::or (:wat::core::= maxd 0) (:wat::i64::< draws maxd))
         arms (:wat::core::if rearm?
-               [(:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]
+               [(:wat::service::Alarm :delay (:wat::time::Milliseconds delay) :op :-disrupt)]
                (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic-worker::Op])]))]
        (:wat::service::SelfOutcome::Continue s' none-sends arms)))
    (-tick [s ctx]
@@ -364,7 +364,7 @@
         none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::TopicWorker::Reply])])
         rr (:queue::Queue/receive inbox
              (:queue::Queue::ReceiveRequest
-               :queue "inbox" :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 250))))]
+               :queue "inbox" :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 250))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
@@ -522,7 +522,7 @@
                        :subs (:wat::core::second peers))]
                  (:wat::service::SelfOutcome::Continue s'
                    none-sends
-                   [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+                   [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
              (_ (:wat::kernel::assertion-failed! "topic-worker: receive not Ok" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
@@ -533,7 +533,7 @@
               s' (:demo::topic-worker::State :durable rec :inbox fresh :subs subs)]
              (:wat::service::SelfOutcome::Continue s'
                none-sends
-               [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+               [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "topic-worker: receive stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
@@ -545,7 +545,7 @@
               s' (:demo::topic-worker::State :durable rec :inbox fresh :subs subs)]
              (:wat::service::SelfOutcome::Continue s'
                none-sends
-               [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))))))])
+               [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))))])
 
 ;; ── parent-side helpers ────────────────────────────────────────────────────────
 (:wat::core::defn :demo::dial-topic
@@ -603,7 +603,7 @@
 (:wat::core::defn :demo::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
@@ -1084,7 +1084,7 @@
      after-visible (:wat::core::first (:demo::q-depth subq))
      _ (:demo::await-timer-ms 350)
      after-expiry (:demo::receive-blocking subq "q0" 1000000000000
-                    (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]
+                    (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 2000)))]
     (:wat::core::format "inflight=yes;after-drain={a};after-expiry={b}"
       :a (:wat::core::if (:wat::core::= after-visible 0) "none"
            (:wat::core::if (:wat::i64::< after-visible 0) "unread" "got"))
@@ -1123,7 +1123,7 @@
      t1 (:wat::time::epoch-nanos (:wat::time::now))
      dt (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)
      healthy (:demo::receive-blocking q0 "q0" 1000000000000
-                (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))
+                (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 2000)))
      stalled-v (:wat::core::first (:demo::q-depth q1))]
     (:wat::core::format "healthy={h};stalled={s};dt-ms={dt};blocked={b}"
       :h (:wat::core::if (:wat::core::= healthy "") "none" "got")

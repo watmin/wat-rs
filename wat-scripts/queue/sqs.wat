@@ -231,7 +231,7 @@
                           (:wat::core::if armed?
                             (:wat::core::Tuple true none)
                             (:wat::core::Tuple true
-                              [(:wat::service::Alarm :after (:wat::time::Nanosecond delay0)
+                              [(:wat::service::Alarm :delay (:wat::time::Nanoseconds delay0)
                                  :op (:queue::queue::Op::-Tick))]))))]
             (:queue::queue::State
               :durable record
@@ -963,7 +963,7 @@
 (:wat::core::defn :user::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
@@ -1020,7 +1020,7 @@
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
      vis 100
-     _   (:user::park-receive! a "q" T0 vis 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
+     _   (:user::park-receive! a "q" T0 vis 1 (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 200)))
      _   (:user::send b "q" "hello" T0)
      got (:user::recv-envelopes! a)
      again (:user::receive b "q" T0 vis 10)]
@@ -1038,7 +1038,7 @@
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
-     _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 5)))
+     _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 5)))
      got (:user::recv-envelopes! a)
      ping (:user::receive b "q" T0 100 10)]
     (:wat::core::format "empty={empty};serving={serving}"
@@ -1056,8 +1056,8 @@
      c   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
-     _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
-     _   (:user::park-receive! c "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
+     _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 200)))
+     _   (:user::park-receive! c "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 200)))
      _   (:user::send b "q" "first" T0)
      ga  (:user::recv-envelopes! a)
      _   (:user::send b "q" "second" T0)
@@ -1078,8 +1078,8 @@
      _   (:user::send q "q" "a" T0)
      _   (:user::send q "q" "b" T0)
      _   (:user::send q "q" "c" T0)
-     got (:user::receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 20)))
-     _   (:user::receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 5)))
+     got (:user::receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 20)))
+     _   (:user::receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 5)))
      st  (:user::read-call-counters q)]
     (:wat::core::format "n={n};calls={calls}"
       :n (:wat::core::count got)

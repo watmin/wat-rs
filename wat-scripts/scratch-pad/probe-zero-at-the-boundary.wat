@@ -66,7 +66,7 @@
          (_ (:wat::kernel::assertion-failed! "zb: dial failed" :wat::core::None :wat::core::None)))
      zero (:wat::edn::read "#zb.Echo/AskRequest {:w #zb.Echo.Wait/UpTo [0]}")
      r1 (:zb::ask p zero)
-     r2 (:zb::ask p (:zb::Echo::AskRequest :w (:zb::Echo::Wait::UpTo (:wat::time::Millisecond 250))))]
+     r2 (:zb::ask p (:zb::Echo::AskRequest :w (:zb::Echo::Wait::UpTo (:wat::time::Milliseconds 250))))]
     (:wat::kernel::println
       (:wat::core::format "zero=[{a}];then=[{b}]"
         :a r1

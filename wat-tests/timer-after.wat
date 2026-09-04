@@ -23,7 +23,7 @@
     (:wat::core::match
       (:wat::kernel::select
         (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
-          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 50) :tick)))
+          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds 50) :tick)))
        
       ((:wat::spawn::ServiceEvent::Message _idx msg) msg)
       ((:wat::spawn::ServiceEvent::Closed _idx) :no-tick)

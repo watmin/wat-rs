@@ -24,7 +24,7 @@
 (:wat::core::defn :vr::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)

@@ -26461,7 +26461,7 @@ pub(crate) fn eval_kernel_after(
                 args[1].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::time::NonZeroDuration value (e.g. (:wat::time::Millisecond 50))",
+                    expected: ":wat::time::NonZeroDuration value (e.g. (:wat::time::Milliseconds 50))",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )

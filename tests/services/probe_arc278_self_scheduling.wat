@@ -42,7 +42,7 @@
   [;; client op: arm the FIRST tick (reply Ok + arm) — the tick re-arms itself thereafter.
    (start [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::Ticker::Reply::Start (:probe::Ticker::StartResponse::Ok)))
-       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5) :op :-tick)]))
 
    ;; client op: reply the current count (proves the reactor serves clients between ticks).
    (poll [s ctx req]
@@ -59,7 +59,7 @@
         s'   (:probe::ticker::State :durable rec')]
        (:wat::core::if (:wat::i64::< n (:probe::ticker::Record/target rec))
          (:wat::service::SelfOutcome::Continue s'
-           (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
+           (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5) :op :-tick)])
          (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::Ticker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:probe::ticker::Op])])))))])
 
 ;; ── nap — mora-honest wait (select' on a one-shot after; the driver runs on a thread) ─────────────
@@ -67,7 +67,7 @@
   (:wat::core::match
     (:wat::kernel::select
       (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
-        (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
+        (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done)))
     
     ((:wat::spawn::ServiceEvent::Message _i _m) nil)
     ((:wat::spawn::ServiceEvent::Closed _i) nil)

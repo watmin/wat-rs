@@ -91,7 +91,7 @@
                     :waiters (:wat::vector::conj
                                (:wat-tests::parker::Record/waiters (:wat-tests::parker::State/durable s))
                                (:wat::service::Invocation/conn-id ctx))))
-       :wat::core::None (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+       :wat::core::None (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::Parker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5) :op :-tick)]))
 
    ;; ★ STOP-2's target: an internal arm naming a client. Directed.reply is the wire Reply
    ;; the parked await-tick is waiting for (sent as-is; no invoking client to wrap for).
@@ -135,7 +135,7 @@
   :impls
   [(arm-tick [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:wat-tests::BadTick::Reply::ArmTick (:wat-tests::BadTick::ArmTickResponse::Ok)))
-       (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::BadTick::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:wat-tests::BadTick::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5) :op :-tick)]))
    ;; Internal arm — SelfOutcome, no reply field. The compile-time wall lives in
    ;; docs/arc/2026/06/278-rules-engine/probes/internal-arm-replies.wat (row 3).
    (-tick [s ctx]

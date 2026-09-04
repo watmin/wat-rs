@@ -453,7 +453,7 @@ pub(crate) fn eval_kernel_spawn_process_prime(
 /// @arg     duration :wat::time::NonZeroDuration positive delay before the timer fires
 /// @arg     msg :O the payload delivered when the timer fires; becomes the peer's output type
 /// @ret     (:wat::kernel::Thread :- [:wat::core::nil O]) a one-shot timer peer (`I` = nil — the timer takes no input)
-/// @example-norun (:wat::kernel::after (:thread) (:wat::time::Millisecond 50) "tick") #=> #wat.kernel/Thread{}
+/// @example-norun (:wat::kernel::after (:thread) (:wat::time::Milliseconds 50) "tick") #=> #wat.kernel/Thread{}
 // No registered `TypeScheme` — `check.rs`'s `infer_kernel_after`
 // (`:10595`) is the real authority: `peer-kind` must conform to
 // `PeerKind`, `duration` to `NonZeroDuration`; `O` is `msg`'s inferred type,

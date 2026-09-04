@@ -4421,13 +4421,13 @@ fn infer_list(
             // Stone A — unit constructors return NonZeroDuration; a
             // literal n <= 0 has no form (rung 3). Supersedes the
             // TypeScheme registrations below (retained as documentation).
-            ":wat::time::Nanosecond"
-            | ":wat::time::Microsecond"
-            | ":wat::time::Millisecond"
-            | ":wat::time::Second"
-            | ":wat::time::Minute"
-            | ":wat::time::Hour"
-            | ":wat::time::Day" => {
+            ":wat::time::Nanoseconds"
+            | ":wat::time::Microseconds"
+            | ":wat::time::Milliseconds"
+            | ":wat::time::Seconds"
+            | ":wat::time::Minutes"
+            | ":wat::time::Hours"
+            | ":wat::time::Days" => {
                 let (val, mut errs) = infer_time_unit_constructor(
                     k, args, head_span, env, locals, fresh, subst,
                 ).into_parts();
@@ -6298,12 +6298,12 @@ fn infer_list(
         let callee = canonical_ctor_callee(k, env);
 
         // Arc 278 BRIEF-arming-is-internal-only — the positional-PRIME door: a direct call
-        // `(:wat::service::Alarm' after-val op-val)` (proven live and used elsewhere for
+        // `(:wat::service::Alarm' delay-val op-val)` (proven live and used elsewhere for
         // other aggregates — e.g. `(:test::db::HR' 7 8)`, `tests/types/probe_arc293_surface_splice.wat`)
         // reaches THIS generic call path, NOT `infer_aggregate_new_check` — verified by an
         // instrumented run 2026-08-09: that fn only ever re-checks `:T'`'s OWN generated body
         // (whose args are always bound PARAMETER SYMBOLS, never a literal op ctor), so hooking
-        // it alone leaves this door open. The kwargs sugar `(:wat::service::Alarm :after … :op
+        // it alone leaves this door open. The kwargs sugar `(:wat::service::Alarm :delay … :op
         // …)` delegates HERE too — `infer_kwargs_construct_check` builds a synthetic `(:T'
         // …)` call and `infer()`s it — so this ONE hook covers both the exemplar kwargs form
         // and the positional-prime form; adding a second check inside
@@ -14125,7 +14125,7 @@ fn infer_projection_verb_check(
     if local_errors.is_empty() { CheckResult::ok(backing_type) } else { CheckResult::partial_with(backing_type, local_errors) }
 }
 
-/// The seven time-unit constructors (`Nanosecond` … `Day`) return
+/// The seven time-unit constructors (`Nanoseconds` … `Days`) return
 /// `NonZeroDuration`. A literal `n <= 0` is rejected at check time so a
 /// wait of zero has no form (BRIEF-zero-is-not-a-wait.md Stone A, rung 3).
 /// A computed argument still type-checks as i64 and is rejected at the
@@ -20984,21 +20984,21 @@ fn register_builtins(env: &mut CheckEnv) {
     }
 
     // Arc 097 — Duration constructors. Seven unit constructors at
-    // :wat::time::* (Nanosecond, Microsecond, Millisecond, Second,
-    // Minute, Hour, Day). Each :i64 -> :wat::time::NonZeroDuration
+    // :wat::time::* (Nanoseconds, Microseconds, Milliseconds, Seconds,
+    // Minutes, Hours, Days). Each :i64 -> :wat::time::NonZeroDuration
     // (Stone A of BRIEF-zero-is-not-a-wait.md). Call-site inference
     // is `infer_time_unit_constructor` above; these schemes are the
     // documentation of the return type.
     let duration_ty = || TypeExpr::Path(":wat::time::Duration".into());
     let nzd_ty = || TypeExpr::Path(":wat::time::NonZeroDuration".into());
     for name in [
-        "Nanosecond",
-        "Microsecond",
-        "Millisecond",
-        "Second",
-        "Minute",
-        "Hour",
-        "Day",
+        "Nanoseconds",
+        "Microseconds",
+        "Milliseconds",
+        "Seconds",
+        "Minutes",
+        "Hours",
+        "Days",
     ] {
         env.register(
             format!(":wat::time::{}", name),

@@ -89,7 +89,7 @@
               -> :wat::core::nil
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind::thread
-                     (:wat::time::Millisecond 5) (:probe-retag::Svc::Op::Tick))]
+                     (:wat::time::Milliseconds 5) (:probe-retag::Svc::Op::Tick))]
                 (:probe-retag::serve-thread self l
                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                   false -1))))
@@ -159,7 +159,7 @@
                    self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) :wat::core::nil)
                    _sa  (:wat::kernel::send self (:wat::spawn::Bound/address b2))
                    t    (:wat::kernel::after :wat::program::PeerKind::process
-                          (:wat::time::Millisecond 5) (:probe-retag::Svc::Op::Tick))]
+                          (:wat::time::Milliseconds 5) (:probe-retag::Svc::Op::Tick))]
                   (:probe-retag::serve-proc self (:wat::spawn::Bound/listener b2)
                     (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                     false -1)))))

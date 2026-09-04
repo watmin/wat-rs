@@ -80,7 +80,7 @@
    ;; client op: arm the ONE-SHOT `-mark` (no re-arm — one fire is all this gate needs).
    (arm-mark [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:probe::CallCtx3::Reply::ArmMark (:probe::CallCtx3::ArmMarkResponse::Ok)))
-       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::CallCtx3::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-mark)]))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:probe::CallCtx3::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5) :op :-mark)]))
    ;; ★ item (2) — the INTERNAL op. Its ctx (`SelfInvocation`) is read THROUGH the ctx binder and
    ;; stamped into durable state — the only channel available, since an internal op has no client
    ;; to reply to. Never `Invocation`, never a `conn-id` (STOP-3: SelfInvocation has no such field
@@ -125,7 +125,7 @@
 ;; processed a dropped client's Closed event by the time the caller proceeds.
 (:wat::core::defn :probe::nap! [] -> :wat::core::nil
   (:wat::core::let
-    [t (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Millisecond 60) :tick)]
+    [t (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Milliseconds 60) :tick)]
     (:wat::core::match (:wat::kernel::recv t)
       ((:wat::kernel::RecvOutcome::Message _tick) nil)
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)

@@ -80,7 +80,7 @@
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:pw::W::Reply::Start (:pw::W::StartResponse::Ok)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:pw::W::Reply])])
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 10) :op :-tick)]))
+       [(:wat::service::Alarm :delay (:wat::time::Milliseconds 10) :op :-tick)]))
    (got [s ctx req]
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:pw::W::Reply::Got (:pw::W::GotResponse::Ok (:pw::w::State/got s))))
@@ -104,7 +104,7 @@
 
 (:wat::core::defn :pw::nap [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     (_ nil)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

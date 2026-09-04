@@ -86,7 +86,7 @@
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:dz::Front::Reply::Start (:dz::Front::StartResponse::Ok)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:dz::Front::Reply])])
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 60) :op :-disrupt)]))
+       [(:wat::service::Alarm :delay (:wat::time::Milliseconds 60) :op :-disrupt)]))
    ;; ★ THE DISRUPTOR. Internal arm: SelfOutcome has NO reply field — a disruptor that
    ;; could answer a caller has no form. It reaps its own peer and re-acquires it.
    (-disrupt [s ctx]
@@ -133,7 +133,7 @@
 
 (:wat::core::defn :dz::nap [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     (_ nil)))
 
 (:wat::core::defn :dz::hit [p <- :dz::Front] -> :wat::core::String

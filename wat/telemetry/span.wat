@@ -129,7 +129,7 @@
        (:wat::core::if was-empty?
          (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Incr resp))
            (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
-              :after (:wat::time::Millisecond
+              :delay (:wat::time::Milliseconds
                        (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
               :op :-flush-metrics)])
          (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Incr resp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])])))))
@@ -188,7 +188,7 @@
        (:wat::core::if was-empty?
          (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Timed resp))
            (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
-              :after (:wat::time::Millisecond
+              :delay (:wat::time::Milliseconds
                        (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
               :op :-flush-metrics)])
          (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Timed resp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])])))))
@@ -249,22 +249,22 @@
          (:wat::core::if met-arm?
            (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp))
              (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
-                :after (:wat::time::Millisecond
+                :delay (:wat::time::Milliseconds
                          (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
                 :op :-flush-logs)
               (:wat::service::Alarm
-                :after (:wat::time::Millisecond
+                :delay (:wat::time::Milliseconds
                          (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
                 :op :-flush-metrics)])
            (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp))
              (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
-                :after (:wat::time::Millisecond
+                :delay (:wat::time::Milliseconds
                          (:wat::telemetry::span::Record/logs-flush-after-ms rec2))
                 :op :-flush-logs)]))
          (:wat::core::if met-arm?
            (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp))
              (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) [(:wat::service::Alarm
-                :after (:wat::time::Millisecond
+                :delay (:wat::time::Milliseconds
                          (:wat::telemetry::span::Record/metrics-flush-after-ms rec2))
                 :op :-flush-metrics)])
            (:wat::service::Outcome::Continue s' (:wat::core::Some (:wat::telemetry::Span::Reply::Log resp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Span::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::span::Op])]))))))

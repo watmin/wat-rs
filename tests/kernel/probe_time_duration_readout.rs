@@ -3,7 +3,7 @@
 //! The time-ops surface is asymmetric. `Instant` round-trips: you build one from
 //! an i64 (`at` / `at-millis` / `at-nanos`) and read it back to an i64
 //! (`epoch-seconds` / `epoch-millis` / `epoch-nanos`). `Duration` only has the
-//! IN half: seven unit constructors (`Nanosecond` … `Day`) build one from an i64,
+//! IN half: seven unit constructors (`Nanoseconds` … `Days`) build one from an i64,
 //! you can add/subtract and compare Durations — but there is NO way to read the
 //! number back OUT in any unit. A program can compute `(now - started-at)` and
 //! never learn how long it was.

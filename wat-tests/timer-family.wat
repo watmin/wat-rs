@@ -34,7 +34,7 @@
   -> :wat::core::i64
   (:wat::core::if (:wat::i64::>= attempt target) 
     attempt
-    (:wat::core::let [_ (:test::timer::nap (:wat::time::Millisecond millis))]
+    (:wat::core::let [_ (:test::timer::nap (:wat::time::Milliseconds millis))]
       (:test::timer::retry-until
         target
         (:wat::i64::+ attempt 1)
@@ -57,8 +57,8 @@
     (:wat::core::match
       (:wat::kernel::select
         (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
-          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 20) :slow)
-          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 1) :fast)))
+          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds 20) :slow)
+          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds 1) :fast)))
        
       ((:wat::spawn::ServiceEvent::Message _idx m) m)
       ((:wat::spawn::ServiceEvent::Closed _idx) :none)

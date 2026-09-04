@@ -181,60 +181,60 @@
 (:wat::test::deftest :wat-tests::time::test-duration-nanosecond
   
   (:wat::core::let
-    [d (:wat::time::Nanosecond 42)]
+    [d (:wat::time::Nanoseconds 42)]
     ;; Sanity: round-trip via render. 42 ns is the input.
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 42ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-microsecond
   
   (:wat::core::let
-    [d (:wat::time::Microsecond 1)]
+    [d (:wat::time::Microseconds 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-millisecond
   
   (:wat::core::let
-    [d (:wat::time::Millisecond 1)]
+    [d (:wat::time::Milliseconds 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-second
   
   (:wat::core::let
-    [d (:wat::time::Second 1)]
+    [d (:wat::time::Seconds 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-minute
   
   (:wat::core::let
-    [d (:wat::time::Minute 1)]
+    [d (:wat::time::Minutes 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 60000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-hour
   
   (:wat::core::let
-    [d (:wat::time::Hour 1)]
+    [d (:wat::time::Hours 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 3600000000000ns>")))
 
 (:wat::test::deftest :wat-tests::time::test-duration-day
   
   (:wat::core::let
-    [d (:wat::time::Day 1)]
+    [d (:wat::time::Days 1)]
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 86400000000000ns>")))
 
 ;; Compositional sanity — arithmetic relationships.
 (:wat::test::deftest :wat-tests::time::test-duration-hour-equals-60-minutes
   
   (:wat::core::let
-    [h (:wat::time::Hour 1)
-     m60 (:wat::time::Minute 60)]
+    [h (:wat::time::Hours 1)
+     m60 (:wat::time::Minutes 60)]
     ;; Same nanos count → same Duration → same render.
     (:wat::test::assert-eq (:wat::core::show h) (:wat::core::show m60))))
 
 (:wat::test::deftest :wat-tests::time::test-duration-day-equals-24-hours
   
   (:wat::core::let
-    [d (:wat::time::Day 1)
-     h24 (:wat::time::Hour 24)]
+    [d (:wat::time::Days 1)
+     h24 (:wat::time::Hours 24)]
     (:wat::test::assert-eq (:wat::core::show d) (:wat::core::show h24))))
 
 ;; Zero is a valid MEASUREMENT (Instant − Instant). It is not a wait —
@@ -262,7 +262,7 @@
   
   (:wat::core::let
     [origin (:wat::time::at 1000000)
-     one-min (:wat::time::Minute 1)
+     one-min (:wat::time::Minutes 1)
      earlier (:wat::time::- origin one-min)
      delta
       (:wat::core::-
@@ -275,7 +275,7 @@
   
   (:wat::core::let
     [origin (:wat::time::at 1000000)
-     one-hour (:wat::time::Hour 1)
+     one-hour (:wat::time::Hours 1)
      later (:wat::time::+ origin one-hour)
      delta
       (:wat::core::-
@@ -299,7 +299,7 @@
   
   (:wat::core::let
     [origin (:wat::time::at 1000000)
-     d (:wat::time::Day 1)
+     d (:wat::time::Days 1)
      later (:wat::time::+ origin d)
      back (:wat::time::- later d)
      delta
@@ -339,7 +339,7 @@
   
   (:wat::core::let
     [past
-      (:wat::time::ago (:wat::time::Hour 1))
+      (:wat::time::ago (:wat::time::Hours 1))
      now-i (:wat::time::now)
      ;; Past minus now should be a NEGATIVE duration normally, but
      ;; per §2 Durations are non-negative. So we reverse: now - past
@@ -360,7 +360,7 @@
   
   (:wat::core::let
     [future
-      (:wat::time::from-now (:wat::time::Hour 1))
+      (:wat::time::from-now (:wat::time::Hours 1))
      now-i (:wat::time::now)
      ;; Future - now should yield positive Duration ~ 1 hour.
      elapsed-ns

@@ -82,7 +82,7 @@
               -> :wat::core::nil
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind::thread
-                     (:wat::time::Millisecond 5) (:probe-homog::Op::Tick))]
+                     (:wat::time::Milliseconds 5) (:probe-homog::Op::Tick))]
                 (:probe-homog::serve-thread self l
                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-homog::Reply :probe-homog::Op])] t)
                   false -1))))
@@ -152,7 +152,7 @@
                    self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-homog::Op :probe-homog::Reply]) :wat::core::nil)
                    _sa  (:wat::kernel::send self (:wat::spawn::Bound/address b2))
                    t    (:wat::kernel::after :wat::program::PeerKind::process
-                          (:wat::time::Millisecond 5) (:probe-homog::Op::Tick))]
+                          (:wat::time::Milliseconds 5) (:probe-homog::Op::Tick))]
                   (:probe-homog::serve-proc self (:wat::spawn::Bound/listener b2)
                     (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-homog::Reply :probe-homog::Op])] t)
                     false -1)))))

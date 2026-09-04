@@ -7,5 +7,5 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [n 0
-     _ (:wat::time::Millisecond n)]
+     _ (:wat::time::Milliseconds n)]
     (:wat::kernel::println "unreachable")))

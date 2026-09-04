@@ -82,9 +82,9 @@
   (:wat::core::if (:wat::core::= lit "0")
     ":wait (:queue::Queue::Wait::Immediate)"
     (:wat::core::if (:wat::core::= lit "250000000")
-      ":wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 250))"
+      ":wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 250))"
       (:wat::core::if (:wat::core::= lit "50000000")
-        ":wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 50))"
+        ":wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 50))"
         ""))))
 
 (:wat::core::defn :wn::pair-edit

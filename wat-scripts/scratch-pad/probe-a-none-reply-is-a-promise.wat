@@ -56,7 +56,7 @@
            :answer (:pr::Late::AskRequest/n req)))
        :wat::core::None
        (:wat::core::Vector :- [(:wat::service::Directed :- [:pr::Late::Reply])])
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 60) :op :-settle)]))
+       [(:wat::service::Alarm :delay (:wat::time::Milliseconds 60) :op :-settle)]))
    (-settle [s ctx]
      ;; THE PROMISE KEPT. Internal arm: SelfOutcome has no reply field — it cannot answer
      ;; an invoker, because it has none. It answers the STASHED conn-id via `sends`.

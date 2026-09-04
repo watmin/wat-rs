@@ -40,7 +40,7 @@
               (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
                 (:wat::kernel::after
                   (:wat::program::Env/peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
-                  (:wat::time::Millisecond 50)
+                  (:wat::time::Milliseconds 50)
                   :tick)))
              
             ((:wat::spawn::ServiceEvent::Message _idx mm) mm)

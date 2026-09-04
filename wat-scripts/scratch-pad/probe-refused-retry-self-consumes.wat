@@ -148,7 +148,7 @@
      _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::await-timer-ms gap-ms) nil)
      at-check (:wat::core::first (:demo::q-depth subq))
      got (:demo::receive-blocking subq "q0" 200000000
-           (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]
+           (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 2000)))]
     (:wat::core::format "gap={g};pending-at-absence-check={c};delivered={d};raced={r}"
       :g gap-ms
       :c at-check

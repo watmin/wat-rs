@@ -62,7 +62,7 @@
          ((:wat::kernel::ConnectOutcome::Connected c) c)
          (_ (:wat::kernel::assertion-failed! "wt: dial failed" :wat::core::None :wat::core::None)))
      a (:wt::ask p (:wt::Echo::Wait::Immediate))
-     b (:wt::ask p (:wt::Echo::Wait::UpTo (:wat::time::Millisecond 250)))
+     b (:wt::ask p (:wt::Echo::Wait::UpTo (:wat::time::Milliseconds 250)))
      c (:wt::ask p (:wt::Echo::Wait::Measured
           (:wat::time::- (:wat::time::at 2000000) (:wat::time::at 1000000))))
      d (:wt::ask p (:wt::Echo::Wait::At (:wat::time::at 1000000)))]

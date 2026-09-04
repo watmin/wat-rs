@@ -13,13 +13,13 @@ use wat::freeze::{startup_from_file, StartupError};
 #[test]
 fn literal_zero_wait_has_no_form() {
     let err = startup_from_file("tests/kernel/probe_zero_is_not_a_wait.wat.bad")
-        .expect_err("(:wat::time::Nanosecond 0) must fail check — zero is not a wait");
+        .expect_err("(:wat::time::Nanoseconds 0) must fail check — zero is not a wait");
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
     wat::assert_check_error_present!(errs,
         CheckErrorKind::MalformedForm { head, reason, .. }
-            if head == ":wat::time::Nanosecond"
+            if head == ":wat::time::Nanoseconds"
             && reason.contains("positive")
             && (reason.contains("COMMITMENT") || reason.contains("MEASUREMENT"))
             && !reason.contains("non-negative")

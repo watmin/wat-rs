@@ -13,7 +13,7 @@
   (:wat::core::match
     (:wat::kernel::select
       (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
-        (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
+        (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done)))
     ((:wat::spawn::ServiceEvent::Message _i _m) nil)
     ((:wat::spawn::ServiceEvent::Closed _i) nil)
     ((:wat::spawn::ServiceEvent::Lost _i _c) nil)

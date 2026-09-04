@@ -48,7 +48,7 @@
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:vw::Parker::Reply::Arm (:vw::Parker::ArmResponse::Ok)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:vw::Parker::Reply])])
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+       [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))
 
    (-tick [s ctx]
      (:wat::core::let
@@ -60,7 +60,7 @@
         rr   (:queue::Queue/receive q
                (:queue::Queue::ReceiveRequest
                  :queue name :now-ns now :visibility-ns vis
-                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 250))))]
+                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 250))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
@@ -68,7 +68,7 @@
                (:wat::core::if (:wat::core::empty? envs)
                  (:wat::service::SelfOutcome::Continue s
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:vw::Parker::Reply])])
-                   [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])
+                   [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])
                  (:wat::core::let
                    [got' (:wat::core::foldl
                            (:wat::core::fn [acc <- :wat::core::i64  e <- :queue::Envelope]
@@ -87,13 +87,13 @@
                          :q q :n-got got')]
                    (:wat::service::SelfOutcome::Continue s'
                      (:wat::core::Vector :- [(:wat::service::Directed :- [:vw::Parker::Reply])])
-                     [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))))
+                     [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))
              (_ (:wat::service::SelfOutcome::Continue s
                   (:wat::core::Vector :- [(:wat::service::Directed :- [:vw::Parker::Reply])])
-                  [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))))
+                  [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))
          (_ (:wat::service::SelfOutcome::Continue s
               (:wat::core::Vector :- [(:wat::service::Directed :- [:vw::Parker::Reply])])
-              [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))))])
+              [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))))])
 
 (:wat::core::defn :vw::pids [pl <- :wat::spawn::ProcessLaunch]
   -> (:wat::core::Vector :- [:wat::core::i64])
@@ -103,7 +103,7 @@
 (:wat::core::defn :vw::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)

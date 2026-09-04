@@ -321,8 +321,8 @@ pub(crate) fn eval_time_epoch_nanos(
 
 // ─── Arc 097 — Duration constructors ────────────────────────────────
 //
-// Seven unit constructors at `:wat::time::*` (Nanosecond, Microsecond,
-// Millisecond, Second, Minute, Hour, Day). Each takes `:i64`, panics
+// Seven unit constructors at `:wat::time::*` (Nanoseconds, Microseconds,
+// Milliseconds, Seconds, Minutes, Hours, Days). Each takes `:i64`, panics
 // on n <= 0 (a wait must be positive; whether you wait lives in the
 // operation, not the magnitude — zero is a legal MEASUREMENT and an
 // illegal COMMITMENT: it disarms the timer), panics on i64
@@ -385,16 +385,16 @@ fn unit_constructor(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of nanoseconds (positive)
 /// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N nanoseconds
-/// @example (:wat::time::nanoseconds (:wat::time::Nanosecond 5)) #=> 5
+/// @example (:wat::time::nanoseconds (:wat::time::Nanoseconds 5)) #=> 5
 /// @see     :wat::time::nanoseconds
-#[wat_intrinsic(":wat::time::Nanosecond")]
+#[wat_intrinsic(":wat::time::Nanoseconds")]
 pub(crate) fn eval_time_unit_nanosecond(
     n: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    unit_constructor(":wat::time::Nanosecond", 1, n, list_span, env, sym).map_err(Into::into)
+    unit_constructor(":wat::time::Nanoseconds", 1, n, list_span, env, sym).map_err(Into::into)
 }
 
 /// Builds a NonZeroDuration of N microseconds. Panics on n <= 0 or overflow.
@@ -406,16 +406,16 @@ pub(crate) fn eval_time_unit_nanosecond(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of microseconds (positive)
 /// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N microseconds
-/// @example (:wat::time::microseconds (:wat::time::Microsecond 5)) #=> 5
+/// @example (:wat::time::microseconds (:wat::time::Microseconds 5)) #=> 5
 /// @see     :wat::time::microseconds
-#[wat_intrinsic(":wat::time::Microsecond")]
+#[wat_intrinsic(":wat::time::Microseconds")]
 pub(crate) fn eval_time_unit_microsecond(
     n: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    unit_constructor(":wat::time::Microsecond", NANOS_PER_MICRO, n, list_span, env, sym)
+    unit_constructor(":wat::time::Microseconds", NANOS_PER_MICRO, n, list_span, env, sym)
         .map_err(Into::into)
 }
 
@@ -428,16 +428,16 @@ pub(crate) fn eval_time_unit_microsecond(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of milliseconds (positive)
 /// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N milliseconds
-/// @example (:wat::time::milliseconds (:wat::time::Millisecond 5)) #=> 5
+/// @example (:wat::time::milliseconds (:wat::time::Milliseconds 5)) #=> 5
 /// @see     :wat::time::milliseconds
-#[wat_intrinsic(":wat::time::Millisecond")]
+#[wat_intrinsic(":wat::time::Milliseconds")]
 pub(crate) fn eval_time_unit_millisecond(
     n: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    unit_constructor(":wat::time::Millisecond", NANOS_PER_MILLI, n, list_span, env, sym)
+    unit_constructor(":wat::time::Milliseconds", NANOS_PER_MILLI, n, list_span, env, sym)
         .map_err(Into::into)
 }
 
@@ -450,16 +450,16 @@ pub(crate) fn eval_time_unit_millisecond(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of seconds (positive)
 /// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N seconds
-/// @example (:wat::time::seconds (:wat::time::Second 5)) #=> 5
+/// @example (:wat::time::seconds (:wat::time::Seconds 5)) #=> 5
 /// @see     :wat::time::seconds
-#[wat_intrinsic(":wat::time::Second")]
+#[wat_intrinsic(":wat::time::Seconds")]
 pub(crate) fn eval_time_unit_second(
     n: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    unit_constructor(":wat::time::Second", NANOS_PER_SECOND, n, list_span, env, sym).map_err(Into::into)
+    unit_constructor(":wat::time::Seconds", NANOS_PER_SECOND, n, list_span, env, sym).map_err(Into::into)
 }
 
 /// Builds a NonZeroDuration of N minutes. Panics on n <= 0 or overflow.
@@ -471,16 +471,16 @@ pub(crate) fn eval_time_unit_second(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of minutes (positive)
 /// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N minutes
-/// @example (:wat::time::minutes (:wat::time::Minute 5)) #=> 5
+/// @example (:wat::time::minutes (:wat::time::Minutes 5)) #=> 5
 /// @see     :wat::time::minutes
-#[wat_intrinsic(":wat::time::Minute")]
+#[wat_intrinsic(":wat::time::Minutes")]
 pub(crate) fn eval_time_unit_minute(
     n: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    unit_constructor(":wat::time::Minute", NANOS_PER_MINUTE, n, list_span, env, sym).map_err(Into::into)
+    unit_constructor(":wat::time::Minutes", NANOS_PER_MINUTE, n, list_span, env, sym).map_err(Into::into)
 }
 
 /// Builds a NonZeroDuration of N hours. Panics on n <= 0 or overflow.
@@ -492,16 +492,16 @@ pub(crate) fn eval_time_unit_minute(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of hours (positive)
 /// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N hours
-/// @example (:wat::time::hours (:wat::time::Hour 5)) #=> 5
+/// @example (:wat::time::hours (:wat::time::Hours 5)) #=> 5
 /// @see     :wat::time::hours
-#[wat_intrinsic(":wat::time::Hour")]
+#[wat_intrinsic(":wat::time::Hours")]
 pub(crate) fn eval_time_unit_hour(
     n: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    unit_constructor(":wat::time::Hour", NANOS_PER_HOUR, n, list_span, env, sym).map_err(Into::into)
+    unit_constructor(":wat::time::Hours", NANOS_PER_HOUR, n, list_span, env, sym).map_err(Into::into)
 }
 
 /// Builds a NonZeroDuration of N days. Panics on n <= 0 or overflow.
@@ -513,16 +513,16 @@ pub(crate) fn eval_time_unit_hour(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the count of days (positive)
 /// @ret     :wat::time::NonZeroDuration the NonZeroDuration of N days
-/// @example (:wat::time::days (:wat::time::Day 5)) #=> 5
+/// @example (:wat::time::days (:wat::time::Days 5)) #=> 5
 /// @see     :wat::time::days
-#[wat_intrinsic(":wat::time::Day")]
+#[wat_intrinsic(":wat::time::Days")]
 pub(crate) fn eval_time_unit_day(
     n: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    unit_constructor(":wat::time::Day", NANOS_PER_DAY, n, list_span, env, sym).map_err(Into::into)
+    unit_constructor(":wat::time::Days", NANOS_PER_DAY, n, list_span, env, sym).map_err(Into::into)
 }
 
 // ─── Duration readout family — symmetric OUT half of the constructors ──
@@ -558,8 +558,8 @@ fn unit_readout(
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in nanoseconds, truncated
-/// @example (:wat::time::nanoseconds (:wat::time::Nanosecond 5)) #=> 5
-/// @see     :wat::time::Nanosecond
+/// @example (:wat::time::nanoseconds (:wat::time::Nanoseconds 5)) #=> 5
+/// @see     :wat::time::Nanoseconds
 #[wat_intrinsic(":wat::time::nanoseconds")]
 pub(crate) fn eval_time_nanoseconds(
     d: &WatAST,
@@ -579,8 +579,8 @@ pub(crate) fn eval_time_nanoseconds(
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in microseconds, truncated
-/// @example (:wat::time::microseconds (:wat::time::Microsecond 5)) #=> 5
-/// @see     :wat::time::Microsecond
+/// @example (:wat::time::microseconds (:wat::time::Microseconds 5)) #=> 5
+/// @see     :wat::time::Microseconds
 #[wat_intrinsic(":wat::time::microseconds")]
 pub(crate) fn eval_time_microseconds(
     d: &WatAST,
@@ -600,8 +600,8 @@ pub(crate) fn eval_time_microseconds(
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in milliseconds, truncated
-/// @example (:wat::time::milliseconds (:wat::time::Millisecond 5)) #=> 5
-/// @see     :wat::time::Millisecond
+/// @example (:wat::time::milliseconds (:wat::time::Milliseconds 5)) #=> 5
+/// @see     :wat::time::Milliseconds
 #[wat_intrinsic(":wat::time::milliseconds")]
 pub(crate) fn eval_time_milliseconds(
     d: &WatAST,
@@ -621,8 +621,8 @@ pub(crate) fn eval_time_milliseconds(
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in seconds, truncated
-/// @example (:wat::time::seconds (:wat::time::Second 5)) #=> 5
-/// @see     :wat::time::Second
+/// @example (:wat::time::seconds (:wat::time::Seconds 5)) #=> 5
+/// @see     :wat::time::Seconds
 #[wat_intrinsic(":wat::time::seconds")]
 pub(crate) fn eval_time_seconds(
     d: &WatAST,
@@ -642,8 +642,8 @@ pub(crate) fn eval_time_seconds(
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in minutes, truncated
-/// @example (:wat::time::minutes (:wat::time::Minute 5)) #=> 5
-/// @see     :wat::time::Minute
+/// @example (:wat::time::minutes (:wat::time::Minutes 5)) #=> 5
+/// @see     :wat::time::Minutes
 #[wat_intrinsic(":wat::time::minutes")]
 pub(crate) fn eval_time_minutes(
     d: &WatAST,
@@ -663,8 +663,8 @@ pub(crate) fn eval_time_minutes(
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in hours, truncated
-/// @example (:wat::time::hours (:wat::time::Hour 5)) #=> 5
-/// @see     :wat::time::Hour
+/// @example (:wat::time::hours (:wat::time::Hours 5)) #=> 5
+/// @see     :wat::time::Hours
 #[wat_intrinsic(":wat::time::hours")]
 pub(crate) fn eval_time_hours(
     d: &WatAST,
@@ -684,8 +684,8 @@ pub(crate) fn eval_time_hours(
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
 /// @ret     :wat::core::i64 the duration's length in days, truncated
-/// @example (:wat::time::days (:wat::time::Day 5)) #=> 5
-/// @see     :wat::time::Day
+/// @example (:wat::time::days (:wat::time::Days 5)) #=> 5
+/// @see     :wat::time::Days
 #[wat_intrinsic(":wat::time::days")]
 pub(crate) fn eval_time_days(
     d: &WatAST,
@@ -731,7 +731,7 @@ pub(crate) fn eval_time_days(
 /// @arg     a :wat::time::Instant the instant to subtract from
 /// @arg     b :wat::time::Instant the RHS — a Duration or an Instant, dispatched at runtime
 /// @ret     :wat::time::Instant Instant when RHS is a Duration; :wat::time::Duration (elapsed, non-negative) when RHS is an Instant
-/// @example (:wat::time::- (:wat::time::at 10) (:wat::time::at 4)) #=> (:wat::time::Second 6)
+/// @example (:wat::time::- (:wat::time::at 10) (:wat::time::at 4)) #=> (:wat::time::Seconds 6)
 /// @see     :wat::time::+
 #[wat_intrinsic(":wat::time::-")]
 pub(crate) fn eval_time_sub(
@@ -802,7 +802,7 @@ pub(crate) fn eval_time_sub(
 /// @arg     a :wat::time::Instant the instant to advance
 /// @arg     b :wat::time::Duration the interval to advance by
 /// @ret     :wat::time::Instant the instant advanced by the duration
-/// @example (:wat::time::+ (:wat::time::at 4) (:wat::time::Second 6)) #=> (:wat::time::at 10)
+/// @example (:wat::time::+ (:wat::time::at 4) (:wat::time::Seconds 6)) #=> (:wat::time::at 10)
 /// @see     :wat::time::-
 #[wat_intrinsic(":wat::time::+")]
 pub(crate) fn eval_time_add(
@@ -855,7 +855,7 @@ pub(crate) fn eval_time_add(
 /// @Category      Entropic
 /// @arg     d :wat::time::Duration the interval before now
 /// @ret     :wat::time::Instant the instant `d` before wall-clock now
-/// @example-norun (:wat::time::ago (:wat::time::Hour 1)) #=> #inst "one hour before now"
+/// @example-norun (:wat::time::ago (:wat::time::Hours 1)) #=> #inst "one hour before now"
 /// @see     :wat::time::from-now
 #[wat_intrinsic(":wat::time::ago")]
 pub(crate) fn eval_time_ago(
@@ -888,7 +888,7 @@ pub(crate) fn eval_time_ago(
 /// @Category      Entropic
 /// @arg     d :wat::time::Duration the interval after now
 /// @ret     :wat::time::Instant the instant `d` after wall-clock now
-/// @example-norun (:wat::time::from-now (:wat::time::Hour 1)) #=> #inst "one hour after now"
+/// @example-norun (:wat::time::from-now (:wat::time::Hours 1)) #=> #inst "one hour after now"
 /// @see     :wat::time::ago
 #[wat_intrinsic(":wat::time::from-now")]
 pub(crate) fn eval_time_from_now(
@@ -915,7 +915,7 @@ pub(crate) fn eval_time_from_now(
 //
 // 14 sugars (7 units × {ago, from-now}). Each computes the relative
 // Instant in one call: `(hours-ago 1)` instead of
-// `(:wat::time::ago (:wat::time::Hour 1))`. Reads cleaner at every
+// `(:wat::time::ago (:wat::time::Hours 1))`. Reads cleaner at every
 // callsite. Each reads the wall clock (`Utc::now()`) via the shared
 // `unit_ago`/`unit_from_now` helper — Nondeterministic.
 
@@ -1365,7 +1365,7 @@ mod tests {
         let env = Environment::new();
         let sym = SymbolTable::new();
         let span = ast.span().clone();
-        unit_constructor(":wat::time::Nanosecond", 1, &ast, &span, &env, &sym)
+        unit_constructor(":wat::time::Nanoseconds", 1, &ast, &span, &env, &sym)
     }
 
     fn panic_message(n: i64) -> String {
@@ -1395,11 +1395,11 @@ mod tests {
         }
     }
 
-    const ZERO_REFUSAL: &str = "(:wat::time::Nanosecond 0): a wait must be positive; whether you wait lives in the \
+    const ZERO_REFUSAL: &str = "(:wat::time::Nanoseconds 0): a wait must be positive; whether you wait lives in the \
              operation, not the magnitude of the duration — zero is a legal \
              MEASUREMENT (:wat::time::- on equal Instants) and an illegal \
              COMMITMENT: it disarms the timer";
-    const NEGATIVE_REFUSAL: &str = "(:wat::time::Nanosecond -1): a wait must be positive; whether you wait lives in the \
+    const NEGATIVE_REFUSAL: &str = "(:wat::time::Nanoseconds -1): a wait must be positive; whether you wait lives in the \
              operation, not the magnitude of the duration — zero is a legal \
              MEASUREMENT (:wat::time::- on equal Instants) and an illegal \
              COMMITMENT: it disarms the timer";

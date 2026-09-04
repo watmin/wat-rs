@@ -89,7 +89,7 @@
          ((:wat::kernel::ConnectOutcome::Connected c) c)
          (_ (:wat::kernel::assertion-failed! "wp: dial failed" :wat::core::None :wat::core::None)))
      a (:wp::ask p (:wp::Echo::Wait::Immediate))
-     b (:wp::ask p (:wp::Echo::Wait::UpTo (:wat::time::Millisecond 250)))
+     b (:wp::ask p (:wp::Echo::Wait::UpTo (:wat::time::Milliseconds 250)))
      c (:wp::ask p (:wp::Echo::Wait::Measured
           (:wat::time::- (:wat::time::at 2000000) (:wat::time::at 1000000))))
      d (:wp::ask p (:wp::Echo::Wait::At (:wat::time::at 1000000)))]

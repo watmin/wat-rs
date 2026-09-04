@@ -7,14 +7,14 @@
 ;; under wat-scripts/, so leaving it there would turn that gate red with no
 ;; explanation in the BRIEF.
 ;;
-;; The original used `(Nanosecond ns)` with `ns: i64` (a computed argument).
+;; The original used `(Nanoseconds ns)` with `ns: i64` (a computed argument).
 ;; That still type-checks after the wall — the runtime constructor panics, which
-;; is rung 2. Rung 3 is a LITERAL zero: `(Nanosecond 0)` has no form.
+;; is rung 2. Rung 3 is a LITERAL zero: `(Nanoseconds 0)` has no form.
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [_ (:wat::kernel::after
          :wat::program::PeerKind::thread
-         (:wat::time::Nanosecond 0)
+         (:wat::time::Nanoseconds 0)
          :done)]
     nil))

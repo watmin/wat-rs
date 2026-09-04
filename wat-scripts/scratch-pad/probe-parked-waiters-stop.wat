@@ -47,7 +47,7 @@
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:vb::Parker::Reply::Arm (:vb::Parker::ArmResponse::Ok)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:vb::Parker::Reply])])
-       [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+       [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))
 
    ;; THE PARKED RECEIVE. :wait :UpTo 50ms on a queue that never gets a message.
    (-tick [s ctx]
@@ -58,12 +58,12 @@
         rr   (:queue::Queue/receive q
                (:queue::Queue::ReceiveRequest
                  :queue name :now-ns now :visibility-ns 1000000000000
-                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 50))))]
+                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 50))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message _r)
            (:wat::service::SelfOutcome::Continue s
              (:wat::core::Vector :- [(:wat::service::Directed :- [:vb::Parker::Reply])])
-             [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+             [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))
          (_ (:wat::service::SelfOutcome::Continue s
               (:wat::core::Vector :- [(:wat::service::Directed :- [:vb::Parker::Reply])])
               (:wat::core::Vector :- [(:wat::service::Alarm :- [:vb::parker::Op])]))))))])
@@ -76,7 +76,7 @@
 (:wat::core::defn :vb::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)

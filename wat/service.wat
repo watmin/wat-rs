@@ -48,8 +48,8 @@
 ;; Arc 278 Stone 2-A (self-scheduling) — GROW to :- [S R O]: a third type param O (the
 ;; service's concrete Op type — the synthesized `<service>::Op` superset). Only the
 ;; arm-carrying variants use it (phantom for Reply/Stop/NoReply/ReplyTo). A handler schedules a
-;; self-message by emitting `Alarm`s: `after` a Duration, deliver `op` (an `<service>::Op`
-;; value — armed into the service's own `select'` set as a `(Peer :- [Never O])` timer).
+;; self-message by emitting `Alarm`s (a delay and an op — armed into the service's
+;; own `select'` set as a `(Peer :- [Never O])` timer).
 ;;   :NoReply       — a cast / a fired self-op with no client to reply to (OTP {noreply,S}).
 ;;   :ReplyAndArm   — reply to the client AND arm one/more timers.
 ;;   :NoReplyAndArm — no reply, arm one/more timers (a re-arming heartbeat).
@@ -64,7 +64,7 @@
 ;;                    reorder). A vanished waiter (absent conn-id, or send Closed/Lost)
 ;;                    is not an error — keep serving. SendOutcome::Stopped is the world
 ;;                    stopping, same as every other reply arm.
-(:wat::core::defrecord :wat::service::Alarm :- [O] [after <- :wat::time::NonZeroDuration  op <- :O])
+(:wat::core::defrecord :wat::service::Alarm :- [O] [delay <- :wat::time::NonZeroDuration  op <- :O])
 
 ;; Directed — one named send on Continue.sends / Stop.sends. `conn-id` is the stable
 ;; monotonic i64 minted in the serve loop (Invocation/conn-id; never reused). `reply`
@@ -1619,7 +1619,7 @@
                                                  (:wat::core::conj (:wat::core::Vector :- [~selectable-peer-ty])
                                                    (:wat::kernel::after
                                                      (:wat::program::Env/peer-kind (:wat::program::env))
-                                                     (:wat::service::Alarm/after ~arm-alarm-sym)
+                                                     (:wat::service::Alarm/delay ~arm-alarm-sym)
                                                      (:wat::service::Alarm/op ~arm-alarm-sym)))))))]
                          (:wat::core::if is-internal
                            

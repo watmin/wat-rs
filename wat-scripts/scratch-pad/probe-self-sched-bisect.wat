@@ -39,7 +39,7 @@
   :impls
   [(start [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:sched::Ticker::Reply::Start (:sched::Ticker::StartResponse::Ok)))
-       (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5) :op :-tick)]))
 
    (poll [s ctx req]
      (:wat::service::Outcome::Continue s
@@ -54,7 +54,7 @@
         s'   (:sched::ticker::State :durable rec')]
        (:wat::core::if (:wat::i64::< n (:sched::ticker::Record/target rec))
          (:wat::service::SelfOutcome::Continue s'
-           (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
+           (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 5) :op :-tick)])
          (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:sched::Ticker::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:sched::ticker::Op])])))))])
 
 ;; mora-honest wait — a one-shot `after` selected on, never a sleep.
@@ -62,7 +62,7 @@
   (:wat::core::match
     (:wat::kernel::select
       (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
-        (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
+        (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done)))
     ((:wat::spawn::ServiceEvent::Message _i _m) nil)
     ((:wat::spawn::ServiceEvent::Closed _i) nil)
     ((:wat::spawn::ServiceEvent::Lost _i _c) nil)

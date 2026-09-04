@@ -5,7 +5,7 @@
   (:wat::core::let
     [t  (:wat::time::now)
      z  (:wat::time::- t t)
-     c  (:wat::time::Millisecond 5)
+     c  (:wat::time::Milliseconds 5)
      t2 (:wat::time::+ t c)
      n  (:wat::time::nanoseconds z)
      m  (:wat::time::milliseconds c)]

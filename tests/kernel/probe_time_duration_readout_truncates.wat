@@ -2,5 +2,5 @@
 ;; 1500ms read as whole seconds truncates to 1 (epoch-millis behavior).
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::time::seconds (:wat::time::Millisecond 1500)))
+  (:wat::time::seconds (:wat::time::Milliseconds 1500)))
 

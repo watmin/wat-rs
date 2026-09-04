@@ -33,7 +33,7 @@
 (:wat::core::defn :zd::fire-thread [ns <- :wat::core::i64] -> :wat::core::String
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Nanosecond ns) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Nanoseconds ns) :done))
     ((:wat::kernel::RecvOutcome::Message _m) "FIRED")
     ((:wat::kernel::RecvOutcome::Lost _c) "LOST")
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
@@ -42,7 +42,7 @@
 (:wat::core::defn :zd::fire-process [ns <- :wat::core::i64] -> :wat::core::String
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Nanosecond ns) :done))
+      (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Nanoseconds ns) :done))
     ((:wat::kernel::RecvOutcome::Message _m) "FIRED")
     ((:wat::kernel::RecvOutcome::Lost _c) "LOST")
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")

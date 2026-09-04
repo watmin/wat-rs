@@ -214,7 +214,7 @@
        [rec  (:fanout::worker::State/durable s)
         rate (:fanout::worker::Record/disrupt-rate-bp rec)
         none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
-        tick (:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]
+        tick (:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]
        (:wat::core::if (:wat::i64::> rate 0)
          (:wat::core::let
            [pair (:wat::rand::int-from (:fanout::worker::Record/disrupt-seed rec)
@@ -244,7 +244,7 @@
            (:wat::service::Outcome::Continue s'
              (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
              none-sends
-             [tick (:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]))
+             [tick (:wat::service::Alarm :delay (:wat::time::Milliseconds delay) :op :-disrupt)]))
          (:wat::service::Outcome::Continue s
            (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
            none-sends
@@ -325,7 +325,7 @@
              :outcomes (:fanout::worker::State/outcomes s))
         rearm? (:wat::core::or (:wat::core::= maxd 0) (:wat::i64::< draws maxd))
         arms (:wat::core::if rearm?
-               [(:wat::service::Alarm :after (:wat::time::Millisecond delay) :op :-disrupt)]
+               [(:wat::service::Alarm :delay (:wat::time::Milliseconds delay) :op :-disrupt)]
                (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::worker::Op])]))]
        (:wat::service::SelfOutcome::Continue s' none-sends arms)))
    ;; Park, don't poll. :wait :UpTo 250 ms is the idle wait. An empty return is
@@ -345,7 +345,7 @@
         now  (:wat::time::epoch-nanos (:wat::time::now))
         rr   (:queue::Queue/receive q
                (:queue::Queue::ReceiveRequest
-                 :queue name :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 250))))]
+                 :queue name :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 250))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
@@ -380,7 +380,7 @@
                                      _nap (:wat::core::if (:wat::i64::> delay 0)
                                              (:wat::core::match
                                                (:wat::kernel::recv
-                                                 (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond delay) :done))
+                                                 (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds delay) :done))
                                                ((:wat::kernel::RecvOutcome::Message _m) nil)
                                                (_ nil))
                                              nil)
@@ -441,7 +441,7 @@
                        :seen (:wat::core::second triple)
                        :outcomes (:wat::core::third triple))]
                  (:wat::service::SelfOutcome::Continue s'
-                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
              (_ (:wat::kernel::assertion-failed! "fanout worker: receive not Ok" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
@@ -451,7 +451,7 @@
                       (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
              (:wat::service::SelfOutcome::Continue s'
-               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "fanout worker: receive stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
@@ -462,7 +462,7 @@
                       (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
              (:wat::service::SelfOutcome::Continue s'
-               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))))))])
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))))])
 
 ;; Delayed-ack worker: receive this tick, ack the next. Row 2 removes the in-flight
 ;; term from the drain condition and requires a loss — same-tick ack would hide it.
@@ -494,7 +494,7 @@
   :impls
   [(start [s ctx req]
      (:wat::service::Outcome::Continue s (:wat::core::Some (:fanout::Worker::Reply::Start (:fanout::Worker::StartResponse::Ok)))
-       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))
+       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))
    (disrupts [s ctx req]
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:fanout::Worker::Reply::Disrupts
@@ -554,24 +554,24 @@
                  :outcomes (:wat::core::second pair)
                  :held (:wat::core::Vector :- [:queue::Envelope]))]
            (:wat::service::SelfOutcome::Continue s'
-             (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 500) :op :-tick)]))
+             (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 500) :op :-tick)]))
          (:wat::core::let
            [now (:wat::time::epoch-nanos (:wat::time::now))
             vis 1000000000000
             rr  (:queue::Queue/receive q
                   (:queue::Queue::ReceiveRequest
-                    :queue name :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 50))))]
+                    :queue name :now-ns now :visibility-ns vis :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 50))))]
            (:wat::core::match rr
              ((:wat::kernel::RecvOutcome::Message r)
                (:wat::core::match r
                  ((:queue::Queue::ReceiveResponse::Ok envs)
                    (:wat::core::if (:wat::core::empty? envs)
                      (:wat::service::SelfOutcome::Continue s
-                       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])
+                       (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])
                      (:wat::core::let
                        [s' (:fanout::held-worker::State :durable rec :q q :outcomes outs :held envs)]
                        (:wat::service::SelfOutcome::Continue s'
-                         (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 500) :op :-tick)]))))
+                         (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 500) :op :-tick)]))))
                  (_ (:wat::kernel::assertion-failed! "held-worker: receive not Ok" :wat::core::None :wat::core::None))))
              ((:wat::kernel::RecvOutcome::Lost _cause)
                (:wat::core::let
@@ -581,7 +581,7 @@
                           (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
                   s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)]
                  (:wat::service::SelfOutcome::Continue s'
-                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)])))
+                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
              (:wat::kernel::RecvOutcome::Stopped
                (:wat::kernel::assertion-failed! "held-worker: receive stopped" :wat::core::None :wat::core::None))
              (:wat::kernel::RecvOutcome::Closed
@@ -592,7 +592,7 @@
                           (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
                   s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)]
                  (:wat::service::SelfOutcome::Continue s'
-                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))))))))])
+                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))))))])
 
 ;; ── parent-side helpers (owner thread; Handles stay in :user::run's let) ────────
 (:wat::core::defn :fanout::qname [i <- :wat::core::i64] -> :wat::core::String
@@ -665,7 +665,7 @@
 (:wat::core::defn :fanout::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
-      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
+      (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)

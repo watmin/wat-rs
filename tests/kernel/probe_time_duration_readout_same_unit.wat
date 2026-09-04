@@ -2,5 +2,5 @@
 ;; Identity round-trip: 1500ms built as Millisecond reads back as 1500ms.
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::time::milliseconds (:wat::time::Millisecond 1500)))
+  (:wat::time::milliseconds (:wat::time::Milliseconds 1500)))
 
