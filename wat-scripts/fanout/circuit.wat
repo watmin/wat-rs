@@ -52,10 +52,18 @@
      :Dup []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :fanout::Seen::StatsRequest [])
+   (:wat::core::defenum :fanout::Seen::StatsResponse :wat::enum::Pure
+     :Ok [firsts <- :wat::core::i64  dups <- :wat::core::i64]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(claim [self <- :fanout::Seen  req <- :fanout::Seen::ClaimRequest]
-     -> :fanout::Seen::ClaimResponse :max-request-bytes 524288)])
+     -> :fanout::Seen::ClaimResponse :max-request-bytes 524288)
+   (stats [self <- :fanout::Seen  req <- :fanout::Seen::StatsRequest]
+     -> :fanout::Seen::StatsResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :fanout::seen
   :satisfies :fanout::Seen
@@ -63,7 +71,11 @@
   ;; Normal claims (`q0/1999`) fit. Contract cap stays 524288. Thread locus
   ;; does not tear — that is a property, not a second mechanism.
   :max-frame-bytes 256
-  :durable   []
+  ;; Counters are durable so a stats read is a fact about this run.
+  ;; claimed stays ephemeral: the ledger does not cross the wire and does not
+  ;; survive hibernation (S31). Restart seen and every message looks First again.
+  :durable   [firsts <- :wat::core::i64
+              dups   <- :wat::core::i64]
   :ephemeral [claimed <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])]
   :init (:wat::core::fn [record <- :fanout::seen::Record] -> :fanout::seen::State
           (:fanout::seen::State :durable record
@@ -74,19 +86,39 @@
        [key (:wat::string::concat (:fanout::Seen::ClaimRequest/queue req)
                (:wat::string::concat "/" (:fanout::Seen::ClaimRequest/seq req)))
         claimed (:fanout::seen::State/claimed s)
+        rec     (:fanout::seen::State/durable s)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Seen::Reply])])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])]
        (:wat::core::match (:wat::hashmap::get claimed key)
          ((:wat::core::Some _)
-           (:wat::service::Outcome::Continue s
+           (:wat::service::Outcome::Continue
+             (:fanout::seen::State
+               :durable (:fanout::seen::Record
+                          :firsts (:fanout::seen::Record/firsts rec)
+                          :dups (:wat::i64::+ (:fanout::seen::Record/dups rec) 1))
+               :claimed claimed)
              (:wat::core::Some (:fanout::Seen::Reply::Claim (:fanout::Seen::ClaimResponse::Dup)))
              sends none-alarms))
          (:wat::core::None
            (:wat::service::Outcome::Continue
-             (:fanout::seen::State :durable (:fanout::seen::State/durable s)
+             (:fanout::seen::State
+               :durable (:fanout::seen::Record
+                          :firsts (:wat::i64::+ (:fanout::seen::Record/firsts rec) 1)
+                          :dups (:fanout::seen::Record/dups rec))
                :claimed (:wat::hashmap::assoc claimed key true))
              (:wat::core::Some (:fanout::Seen::Reply::Claim (:fanout::Seen::ClaimResponse::First)))
-             sends none-alarms)))))])
+             sends none-alarms)))))
+   (stats [s ctx req]
+     (:wat::core::let
+       [rec (:fanout::seen::State/durable s)
+        sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Seen::Reply])])
+        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])]
+       (:wat::service::Outcome::Continue s
+         (:wat::core::Some (:fanout::Seen::Reply::Stats
+           (:fanout::Seen::StatsResponse::Ok
+             (:fanout::seen::Record/firsts rec)
+             (:fanout::seen::Record/dups rec))))
+         sends none-alarms)))])
 
 ;; ── worker: self-scheduling process that pulls from ONE queue ────────────────
 (:wat::core::defsurface :fanout::Worker :nature :wat::kernel::Peer
@@ -802,6 +834,26 @@
     0
     qclients))
 
+(:wat::core::defn :fanout::seen-stats
+  [seenh <- :fanout::seen::Handle]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:wat::core::let
+    [p (:fanout::dial-seen (:fanout::seen::Handle/addr seenh))]
+    (:wat::core::match (:fanout::Seen/stats p (:fanout::Seen::StatsRequest))
+      ((:wat::kernel::RecvOutcome::Message r)
+        (:wat::core::match r
+          ((:fanout::Seen::StatsResponse::Ok firsts dups) (:wat::core::Tuple firsts dups))
+          ((:fanout::Seen::StatsResponse::RequestTooLarge _b _c)
+            (:wat::kernel::assertion-failed! "fanout: seen stats too large" :wat::core::None :wat::core::None))
+          ((:fanout::Seen::StatsResponse::RequestMalformed _p _e _g)
+            (:wat::kernel::assertion-failed! "fanout: seen stats malformed" :wat::core::None :wat::core::None))))
+      ((:wat::kernel::RecvOutcome::Lost _c)
+        (:wat::kernel::assertion-failed! "fanout: seen stats lost" :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Stopped
+        (:wat::kernel::assertion-failed! "fanout: seen stats stopped" :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "fanout: seen stats closed" :wat::core::None :wat::core::None)))))
+
 (:wat::core::defn :fanout::sum-disrupts
   [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
   -> :wat::core::i64
@@ -1071,7 +1123,7 @@
              nil
              (:wat::core::range 0 j))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record))
+              :record (:fanout::seen::Record :firsts 0 :dups 0))
      workers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::worker::Handle])
                                 qi  <- :wat::core::i64]
@@ -1130,6 +1182,9 @@
      ticks (:fanout::sum-ticks qclients)
      tticks (:fanout::topic-ticks topic)
      dhits (:fanout::sum-disrupts wpeers)
+     spair (:fanout::seen-stats seenh)
+     sfirsts (:wat::core::first spair)
+     sdups (:wat::core::second spair)
      outs (:fanout::collect-stop workers)
      _stoptw (:wat::core::foldl
                (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
@@ -1154,19 +1209,23 @@
                          (_ 0))))
                    1
                    (:wat::core::range 0 m))
-     summary (:fanout::summarize n m j outs empty-flags)
+     summary0 (:fanout::summarize n m j outs empty-flags)
+     summary (:wat::core::format "{s};seen-firsts={f};seen-dups={d}"
+               :s summary0 :f sfirsts :d sdups)
      t-end (:wat::time::epoch-nanos (:wat::time::now))
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};seen-firsts={sf};seen-dups={sd}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
               :stop (ms t-stop0 t-end)
               :ticks ticks
               :tt tticks
-              :dh dhits)
+              :dh dhits
+              :sf sfirsts
+              :sd sdups)
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr}" :p phases :tr traces))))
@@ -1274,7 +1333,7 @@
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record))
+              :record (:fanout::seen::Record :firsts 0 :dups 0))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1319,7 +1378,7 @@
                       (:queue::queue/grant iqh (:fanout::pids pl))))
            :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record))
+              :record (:fanout::seen::Record :firsts 0 :dups 0))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1415,7 +1474,7 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
-              :record (:fanout::seen::Record))
+              :record (:fanout::seen::Record :firsts 0 :dups 0))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
           :record (:fanout::mk-worker "a" "q0" 200000000 350
                     (:queue::queue::Handle/addr qh)
@@ -1453,7 +1512,11 @@
                       -> (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
                       (:wat::hashmap::assoc acc (:fanout::key-of o) true))
                     (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
-                    outs)))]
+                    outs)))
+     spair (:fanout::seen-stats seenh)
+     sfirsts (:wat::core::first spair)
+     sdups (:wat::core::second spair)]
     (:wat::core::format
-      "total={t};distinct={d};dup={dup}"
-      :t total :d distinct :dup (:wat::core::- total distinct))))
+      "total={t};distinct={d};dup={dup};seen-firsts={f};seen-dups={sd}"
+      :t total :d distinct :dup (:wat::core::- total distinct)
+      :f sfirsts :sd sdups)))
