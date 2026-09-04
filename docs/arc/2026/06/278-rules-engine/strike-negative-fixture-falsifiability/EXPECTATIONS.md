@@ -1,52 +1,50 @@
-# EXPECTATIONS — negative-fixture falsifiability
+# EXPECTATIONS — `.wat.bad` becomes an enforced claim
 
-> ⚠ **This strike buys the CORPUS, not the call sites.** Migrating the 200 `assert!(is_err())` tests
-> to a kind-checking helper is a named successor and stays out. A report claiming C18 fully closed
-> must say which half.
+> ⛔ **This scorecard REPLACES one measured with the wrong driver.** The superseded version asserted
+> *"17 fail with MainSignatureError, 200 tests unfalsifiable"* — an artifact of driving
+> `./target/release/wat`, which requires a `:user::main` because it EVALS one. The tests use
+> `startup_from_file`, which does not. Every pre-value below was re-driven through that.
 
 ## ⛔ NO PINNED TEST COUNT
 
-**The floor must be ≥ 5,376 plus every arm you drive.** An equality caps coverage downward while
-looking like rigour.
+**The floor must be ≥ 5,376 plus every arm you drive.**
 
-## The scorecard — every pre-value driven at HEAD `545771b2f`
+## The scorecard — every pre-value driven at HEAD `beb0c9554` via `startup_from_file`
 
 | # | what | state AT HEAD (driven) | required after |
 |---|---|---|---|
-| 1 | ★ no fixture dies at startup for a missing entry point | **17 of 281 fail with `MainSignatureError`** (stable ×3) | **0**, except rune-carrying fixtures whose subject IS the main signature |
-| 2 | ★ the 17 resolved | 6 expired-premise (`arc237_8a/8b/8c/8d`), 2 legitimate (`arc170_slice_1e_*`), 9 others | each given a real `main`, or resolved with driven evidence |
-| 3 | ★ the class becomes falsifiable | `probe_arc294_9a_kwargs_ctor_bad` with its construct made VALID **still fails** | mutation 3: the same edit on a RESOLVED fixture turns its test RED — **both halves shown** |
-| 4 | the gate is discovered, not listed | — | walks `tests/`+`wat-scripts/`+`docs/`; population **281** or STOP-3 |
-| 5 | the exemption is rune-driven | — | mutation 2: removing a rune REDs |
-| 6 | the gate REDs on a regression | — | mutation 1: deleting an added `main` REDs, naming the file |
-| 7 | no fixture silently passes | **0 `DID NOT FAIL`** | still 0 — STOP-4 |
-| 8 | expired premises resolved with evidence | 6 files say *"retired"* / *"formerly"* in their own headers | each disposition backed by a drive against the current binary, **never a guess** |
-| 9 | floor / lints / clippy | **`5376 tests run: 5376 passed, 21 skipped`** (425.7 s, 0 FAIL rows), lints **228**, clippy rc=0 | **≥ 5376** + arms, 0 FAIL, lints ≥ 228, rc=0 |
-| 10 | `src/` | — | **zero diff, index AND worktree** — or STOP-2 fired and was reported |
+| 1 | ★ every `.wat.bad` actually fails at startup | ⛔ **16 of 281 return `Ok`** | **0**, enforced by a gate |
+| 2 | ★ the 16 renamed to `.wat` | 16 mis-named | renamed, every `.rs` referrer updated, each classified by reading its test |
+| 3 | ★ the gate is discovered, not listed | no gate reads this corpus for failure | walks `tests/`+`wat-scripts/`+`docs/`; population **281** or STOP-3 |
+| 4 | the gate REDs on a regression | — | mutation 1: renaming a passing fixture back REDs, naming it |
+| 5 | a renamed fixture stays load-bearing | — | mutation 2: breaking it REDs its own test |
+| 6 | ★ the gate cannot pass vacuously | — | mutation 3: an empty population FAILS, not passes |
+| 7 | the rowed mechanism, honestly scoped | **`MainSignature` = 2**, both `wat_arc170_slice_1e_user_main_nil_*`, whose subject IS the main signature | unchanged — **left alone, and said so** |
+| 8 | no fixture needs a `:user::main` added | — | **zero mains added.** A fixture needs one only if the binary will eval it |
+| 9 | floor / lints / clippy | **`5376 tests run: 5376 passed, 21 skipped`** (425.7 s, 0 FAIL), lints **228**, clippy rc=0 | ≥ 5376 + arms, 0 FAIL, lints ≥ 228, rc=0 |
+| 10 | `src/` | — | **zero diff, index AND worktree** |
 
 ## Runtime prediction
 
-**80–110 minutes.** The gate is an afternoon; the 17 fixtures are the work, and the six expired
-premises need a driven answer each.
+**60–90 minutes.** The gate is short; classifying and renaming the 16 with their referrers is the work.
 
 ## Trap doors named in advance
 
-- **⛔ DO NOT TRUNCATE THE FIXTURE OUTPUT.** The orchestrator's first classifier sliced
-  stdout+stderr to 400 chars and reported **16** where the truth is **17** —
-  `typed_if_match_bare_symbol_variant.wat.bad` carries its `MainSignature` at char **4441**. A
-  truncated sweep is how absence becomes unfalsifiable.
-- **A resolved fixture must still fail for its OWN reason.** Adding a `main` that itself errors just
-  moves the wrong reason. After each fix, confirm the error kind is the wall's, not the main's.
-- **The two `arc170_slice_1e_*` files are not bugs.** A gate that hard-codes them is a list; the rune
-  is what makes it a rule.
-- **`git checkout <sha> -- <path>` STAGES**, so `git diff --stat` shows nothing after a real
-  mutation. Verify restores by hash.
+- **⛔ THE DRIVER IS THE WHOLE QUESTION.** `./target/release/wat <file>` and `startup_from_file` give
+  opposite verdicts on these same 16 files. Measure through the one the tests use, or you will
+  rewrite this strike as the orchestrator did.
+- **A rename moves a file between gate populations.** `.wat` under `wat-scripts/` is read by two
+  gates (parse+type-check, rete-name resolution). Confirm where the 16 live before renaming.
+- **Do not truncate output.** An earlier cut of this probe sliced to 400 chars and lost a fixture
+  whose error sits at char 4441.
+- **`git checkout <sha> -- <path>` STAGES.** Verify restores by hash, never `git diff`.
 
 ## What would make this strike a failure even if every test passes
 
-**Giving the 17 fixtures a `main` without proving the class is fixed.** Row 3 is the strike: the same
-"make the construct valid" edit must turn a resolved fixture's test RED where it leaves an unresolved
-one green. Without both halves, this is 17 cosmetic edits and a gate nobody has shown to bite.
+**Adding a `:user::main` to any fixture.** That was the superseded design's prescription and it is
+now a defect: the test runners construct a world and invoke at will, so a main is required only when
+the binary evals. Row 8 exists to catch a rider that inherits the wrong draft.
 
-**And batch-deciding the six expired premises.** Each says its wall was retired. That is a claim in a
-comment — the same kind of claim that has been the ★ of the last two strikes. Drive each one.
+**And a gate that passes on an empty population.** Row 6. A discovered gate that finds nothing and
+reports success is precisely the defect this arc keeps re-finding — including in the strike that
+landed yesterday.

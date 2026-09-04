@@ -1,0 +1,42 @@
+// DISCONFIRMING PROBE for C18 — the orchestrator's, re-run through the RIGHT driver.
+// Run as an auto-discovered example (examples/zz_c18_measure.rs), then delete it:
+//     cargo run --release --example zz_c18_measure
+//
+// ⛔ THE FIRST VERSION OF THIS PROBE DROVE `./target/release/wat <file>` AND WAS WRONG.
+// The BINARY requires a `:user::main` because it EVALS one; `startup_from_file` does not
+// (src/freeze.rs:942 guards the check on a main being declared). 577 test files use
+// startup_from_file/startup_beside; 8 shell out to the binary. Measured through the binary,
+// 17 fixtures "fail with MainSignatureError"; measured through the driver the tests use,
+// that is 2 — and 16 files DO NOT FAIL AT ALL. Same corpus, opposite verdicts.
+//
+// (An earlier cut also sliced stdout+stderr to 400 chars and reported 16 where the untruncated
+// count was 17 — one fixture carries its error at char 4441. Never truncate the output.)
+use wat::freeze::{startup_from_file, StartupError};
+fn walk(dir: &str, out: &mut Vec<String>) {
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() { walk(p.to_str().unwrap(), out); }
+            else if p.to_str().unwrap().ends_with(".wat.bad") { out.push(p.to_str().unwrap().to_string()); }
+        }
+    }
+}
+fn main() {
+    let mut files = vec![];
+    for d in ["tests", "wat-scripts", "docs"] { walk(d, &mut files); }
+    files.sort();
+    let (mut ms, mut okf, mut other) = (vec![], vec![], 0);
+    for f in &files {
+        match startup_from_file(f) {
+            Err(StartupError::MainSignature(m)) => ms.push((f.clone(), m)),
+            Ok(_) => okf.push(f.clone()),
+            Err(_) => other += 1,
+        }
+    }
+    println!("POPULATION {}", files.len());
+    println!("MainSignature: {}", ms.len());
+    for (f, m) in &ms { println!("   MS  {f}  |  {}", m.chars().take(70).collect::<String>()); }
+    println!("DID NOT FAIL AT ALL: {}", okf.len());
+    for f in &okf { println!("   OK  {f}"); }
+    println!("failed for their own reason: {other}");
+}
