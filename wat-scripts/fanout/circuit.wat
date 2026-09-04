@@ -74,8 +74,11 @@
   ;; Counters are durable so a stats read is a fact about this run.
   ;; claimed stays ephemeral: the ledger does not cross the wire and does not
   ;; survive hibernation (S31). Restart seen and every message looks First again.
-  :durable   [firsts <- :wat::core::i64
-              dups   <- :wat::core::i64]
+  :durable   [firsts        <- :wat::core::i64
+              dups          <- :wat::core::i64
+              drop-rate-bp  <- :wat::core::i64
+              drop-seed     <- :wat::core::i64
+              drop-after?   <- :wat::core::bool]
   :ephemeral [claimed <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])]
   :init (:wat::core::fn [record <- :fanout::seen::Record] -> :fanout::seen::State
           (:fanout::seen::State :durable record
@@ -87,27 +90,41 @@
                (:wat::string::concat "/" (:fanout::Seen::ClaimRequest/seq req)))
         claimed (:fanout::seen::State/claimed s)
         rec     (:fanout::seen::State/durable s)
+        rate   (:fanout::seen::Record/drop-rate-bp rec)
+        after? (:fanout::seen::Record/drop-after? rec)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Seen::Reply])])
-        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])]
-       (:wat::core::match (:wat::hashmap::get claimed key)
-         ((:wat::core::Some _)
-           (:wat::service::Outcome::Continue
-             (:fanout::seen::State
-               :durable (:fanout::seen::Record
-                          :firsts (:fanout::seen::Record/firsts rec)
-                          :dups (:wat::i64::+ (:fanout::seen::Record/dups rec) 1))
-               :claimed claimed)
-             (:wat::core::Some (:fanout::Seen::Reply::Claim (:fanout::Seen::ClaimResponse::Dup)))
-             sends none-alarms))
-         (:wat::core::None
-           (:wat::service::Outcome::Continue
-             (:fanout::seen::State
-               :durable (:fanout::seen::Record
-                          :firsts (:wat::i64::+ (:fanout::seen::Record/firsts rec) 1)
-                          :dups (:fanout::seen::Record/dups rec))
-               :claimed (:wat::hashmap::assoc claimed key true))
-             (:wat::core::Some (:fanout::Seen::Reply::Claim (:fanout::Seen::ClaimResponse::First)))
-             sends none-alarms)))))
+        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])
+        pair (:wat::core::if (:wat::i64::> rate 0)
+               (:wat::rand::int-from (:fanout::seen::Record/drop-seed rec) 0 10000)
+               (:wat::core::Tuple (:fanout::seen::Record/drop-seed rec) 0))
+        seed1 (:wat::core::first pair)
+        bp    (:wat::core::second pair)
+        hit?  (:wat::core::and (:wat::i64::> rate 0) (:wat::i64::< bp rate))
+        already? (:wat::core::match (:wat::hashmap::get claimed key)
+                   ((:wat::core::Some _) true)
+                   (:wat::core::None false))
+        write? (:wat::core::or (:wat::core::not hit?) after?)
+        firsts' (:wat::core::if (:wat::core::and write? (:wat::core::not already?))
+                  (:wat::i64::+ (:fanout::seen::Record/firsts rec) 1)
+                  (:fanout::seen::Record/firsts rec))
+        dups' (:wat::core::if (:wat::core::and write? already?)
+                (:wat::i64::+ (:fanout::seen::Record/dups rec) 1)
+                (:fanout::seen::Record/dups rec))
+        claimed' (:wat::core::if (:wat::core::and write? (:wat::core::not already?))
+                   (:wat::hashmap::assoc claimed key true)
+                   claimed)
+        rec' (:fanout::seen::Record
+               :firsts firsts' :dups dups'
+               :drop-rate-bp rate :drop-seed seed1 :drop-after? after?)
+        s' (:fanout::seen::State :durable rec' :claimed claimed')
+        reply (:wat::core::if hit?
+                (:wat::core::None :fanout::Seen::Reply)
+                (:wat::core::Some
+                  (:fanout::Seen::Reply::Claim
+                    (:wat::core::if already?
+                      (:fanout::Seen::ClaimResponse::Dup)
+                      (:fanout::Seen::ClaimResponse::First)))))]
+       (:wat::service::Outcome::Continue s' reply sends none-alarms)))
    (stats [s ctx req]
      (:wat::core::let
        [rec (:fanout::seen::State/durable s)
@@ -1037,10 +1054,15 @@
 ;; rate 0 (the default) arms no -disrupt alarm at all.
 (:wat::core::defn :fanout::run-with
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
-   rate <- :wat::core::i64  seed <- :wat::core::i64]
+   rate <- :wat::core::i64  seed <- :wat::core::i64
+   drop-rate <- :wat::core::i64  drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
+     ;; Drop runs use 200ms vis so a lost claim-reply can expire and retry —
+     ;; the comment at the Lost arm ("vis + Dup absorb") is otherwise unreachable
+     ;; inside the drain bound (the default vis is 1000s).
+     vis (:wat::core::if (:wat::i64::> drop-rate 0) 200000000 1000000000000)
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::sqlite-store::Handle])
                                _i  <- :wat::core::i64]
@@ -1123,7 +1145,8 @@
              nil
              (:wat::core::range 0 j))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :firsts 0 :dups 0))
+              :record (:fanout::seen::Record :firsts 0 :dups 0
+                        :drop-rate-bp drop-rate :drop-seed drop-seed :drop-after? drop-after?))
      workers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::worker::Handle])
                                 qi  <- :wat::core::i64]
@@ -1145,7 +1168,7 @@
                                      :record (:fanout::mk-worker
                                                (:fanout::wid qi wi)
                                                (:fanout::qname qi)
-                                               1000000000000 0
+                                               vis 0
                                                (:queue::queue::Handle/addr qh)
                                                (:fanout::seen::Handle/addr seenh)
                                                rate seed))]
@@ -1233,13 +1256,19 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 0 0))
+  (:fanout::run-with n m j 0 0 0 0 false))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j rate seed))
+  (:fanout::run-with n m j rate seed 0 0 false))
+
+(:wat::core::defn :user::run-drop*
+  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
+   drop-rate <- :wat::core::i64  drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
+  (:fanout::run-with n m j 0 0 drop-rate drop-seed drop-after?))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -1269,6 +1298,22 @@
 
 (:wat::core::defn :user::chaos [] -> :wat::core::nil
   (:wat::core::let [triple (:user::run-chaos* 2000 4 3 200 42)]
+    (:wat::core::let
+      [_ (:wat::kernel::println
+           (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
+       _ (:wat::kernel::println (:wat::core::first triple))]
+      (:wat::kernel::println (:wat::core::third triple)))))
+
+(:wat::core::defn :user::drop-after [] -> :wat::core::nil
+  (:wat::core::let [triple (:user::run-drop* 2000 4 3 200 42 true)]
+    (:wat::core::let
+      [_ (:wat::kernel::println
+           (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
+       _ (:wat::kernel::println (:wat::core::first triple))]
+      (:wat::kernel::println (:wat::core::third triple)))))
+
+(:wat::core::defn :user::drop-before [] -> :wat::core::nil
+  (:wat::core::let [triple (:user::run-drop* 2000 4 3 200 42 false)]
     (:wat::core::let
       [_ (:wat::kernel::println
            (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
@@ -1333,7 +1378,7 @@
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :firsts 0 :dups 0))
+              :record (:fanout::seen::Record :firsts 0 :dups 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1378,7 +1423,7 @@
                       (:queue::queue/grant iqh (:fanout::pids pl))))
            :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :firsts 0 :dups 0))
+              :record (:fanout::seen::Record :firsts 0 :dups 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1474,7 +1519,7 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
-              :record (:fanout::seen::Record :firsts 0 :dups 0))
+              :record (:fanout::seen::Record :firsts 0 :dups 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
           :record (:fanout::mk-worker "a" "q0" 200000000 350
                     (:queue::queue::Handle/addr qh)

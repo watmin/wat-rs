@@ -103,5 +103,18 @@
      a (:cd::hit p 1)
      _ (:wat::kernel::println (:wat::core::format "call1={a}" :a a))
      ;; call 2 is the dropper — the arm runs, the state advances, no reply is sent.
-     b (:cd::hit p 2)]
-    (:wat::kernel::println (:wat::core::format "call2-RETURNED={b}" :b b))))
+     b (:cd::hit p 2)
+     _ (:wat::kernel::println (:wat::core::format "call2-RETURNED={b}" :b b))
+     ;; ★ THE QUESTION I DID NOT ASK. `served-count` was defined at :89 and never called.
+     ;; LOST tells you the caller got nothing. It does NOT tell you WHY. Two worlds print
+     ;; the same string: "a reply was omitted on a living connection", and "the service
+     ;; died". Only a liveness check separates them — and the instrument was already here.
+     alive (:cd::served-count p)
+     redial (:wat::core::match (:wat::kernel::connect (:cd::drop::Handle/addr h))
+              ((:wat::kernel::ConnectOutcome::Connected _c) "reconnected")
+              (_ "REFUSED"))]
+    (:wat::kernel::println
+      (:wat::core::format "served-after={s};redial={r};verdict={v}"
+        :s alive :r redial
+        :v (:wat::core::if (:wat::i64::>= alive 0)
+             "reply-omitted-service-LIVES" "service-DIED-the-LOST-was-death")))))
