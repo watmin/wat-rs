@@ -297,6 +297,14 @@ const STDLIB_FILES: &[WatSource] = &[
     // heterogeneous tuples) so `verify-examples` (iv-b2-b) can pass typed `expr`/`expected` to
     // `:wat::eval-ast!` without a down-cast. No eval-deps beyond Record.wat + builtins.
     // Loads after source.wat (same deps; ordered here for locality with other type-only files).
+    //
+    // Arc 255 STONE the-registry-can-be-enumerated — also carries :wat::intrinsic::Row (the
+    // typed element `:wat::intrinsic::rows` returns), added alongside Example. Row's five
+    // closed-domain axis fields (Kind/Purity/Determinism/Totality/ExpandTime/Category) reference
+    // wat/runtime-meta.wat's defenums, which load BEFORE Record.wat and this file — but Row
+    // itself must load AFTER Record.wat (defrecord's expansion calls :wat::core::Record::def at
+    // eval time), so runtime-meta.wat is NOT the right home despite declaring the axes; doctest.wat
+    // (already after both) is.
     WatSource {
         path: "wat/doctest.wat",
         source: include_str!("../../wat/doctest.wat"),

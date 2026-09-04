@@ -35,6 +35,12 @@ fn example_names() -> Arc<Vec<String>> {
     N.get_or_init(|| crate::value::value::names_arc_from_static(EXAMPLE_FIELDS)).clone()
 }
 
+::wat_source_derive::wat_field_names_from!(ROW_FIELDS, "wat/doctest.wat", ":wat::intrinsic::Row");
+fn row_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(ROW_FIELDS)).clone()
+}
+
 /// Walk the intrinsic registry and return every registered intrinsic's
 /// carried `@example`s as a `Vector` of `:wat::intrinsic::Example` records —
 /// the iv-b2-a reflection seam. The wat verifier (`verify-examples`, iv-b2-b)
@@ -150,6 +156,96 @@ pub(crate) fn eval_intrinsic_examples(
     }
 
     Ok(Value::Vec(Arc::new(tuples)))
+}
+
+// ─── Arc 255 STONE the-registry-can-be-enumerated: `:wat::intrinsic::rows` ──
+
+/// Walk the intrinsic registry and return one `:wat::intrinsic::Row` per
+/// registered entry — the set-level sibling of `:wat::intrinsic::examples`
+/// (immediately above): that seam projects only `@example`s; this one
+/// projects the whole row, so a wat program can run a CENSUS (`filter`/
+/// `count` over `kind`/`totality`/etc) instead of asking about one name at a
+/// time via `metadata-of`.
+///
+/// Each element is a `:wat::intrinsic::Row` `Value::wat__core__Record` with
+/// fields (declaration order): `name`, `kind`, `arity`, `purity`,
+/// `determinism`, `totality`, `expand-time`, `category`, `syntax`,
+/// `ret-type`, `alias-of`, `has-handler`. Deliberately excludes `doc`/
+/// `prose`/`ret` (description)/`source`/`examples` — 552 rows of prose in one
+/// value is why those stay per-name (`metadata-of`) or their own seam
+/// (`:wat::intrinsic::examples`), per the DESIGN's STOP-3.
+///
+/// `arity` uses `-1` for `Variadic` — `metadata-of`'s existing sentinel, not
+/// a second convention. `alias-of` is `None` for every non-alias row.
+/// `has-handler` reads `entry.handler.is_some()` — `Kind::SpecialForm` rows
+/// may or may not carry a registered `role = eval` NativeHandler (arc 255
+/// Stone the-eval-door); every `Kind::Intrinsic` row does.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Unreviewed
+/// @Category      Reflection
+/// @ret (:wat::core::Vector :- [:wat::intrinsic::Row]) a Vector of Row records, one per registered entry in the intrinsic registry
+/// @example-norun (:wat::intrinsic::rows)
+#[wat_intrinsic(":wat::intrinsic::rows")]
+pub(crate) fn eval_intrinsic_rows(
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    // Suppress unused-param warnings for the context tail — zero wat args,
+    // but the macro requires the tail and the NativeHandler ABI needs them.
+    let _ = (env, sym, span);
+
+    let mut rows: Vec<Value> = Vec::new();
+
+    for entry in crate::intrinsic::registry().all_entries() {
+        let name_kw = Value::wat__core__keyword(Arc::new(entry.name.to_string()));
+        let kind_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.kind);
+        // Same sentinel `metadata-of`'s intrinsic branch uses (runtime.rs).
+        let arity_val = match entry.arity {
+            crate::intrinsic::Arity::Exact(n) => Value::i64(n as i64),
+            crate::intrinsic::Arity::Variadic => Value::i64(-1),
+        };
+        let purity_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.purity);
+        let determinism_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.determinism);
+        let totality_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.totality);
+        let expand_time_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.expand_time);
+        let category_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.category);
+        let syntax_val = Value::String(Arc::new(entry.syntax.to_string()));
+        let ret_type_val = Value::String(Arc::new(entry.ret_type.to_string()));
+        let alias_of_val = Value::Option(Arc::new(
+            entry.alias_of.map(|a| Value::String(Arc::new(a.to_string()))),
+        ));
+        let has_handler_val = Value::bool(entry.handler.is_some());
+
+        // Builder doctrine (2026-06-21): EDN-representable data -> `Value::wat__core__Record`,
+        // the same shape `eval_intrinsic_examples` (above) builds its elements as — every field
+        // here is a keyword/enum/i64/String/Option<String>/bool, all EDN-able.
+        let record = Value::Aggregate(Arc::new(AggregateValue::record(
+            "wat::intrinsic::Row".to_string(),
+            row_names(),
+            Arc::new(vec![
+                name_kw,
+                kind_val,
+                arity_val,
+                purity_val,
+                determinism_val,
+                totality_val,
+                expand_time_val,
+                category_val,
+                syntax_val,
+                ret_type_val,
+                alias_of_val,
+                has_handler_val,
+            ]),
+        )));
+        rows.push(record);
+    }
+
+    Ok(Value::Vec(Arc::new(rows)))
 }
 
 // ─── Arc 255.1b-v: @see registry cross-check ─────────────────────────────────

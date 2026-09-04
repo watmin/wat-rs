@@ -17101,6 +17101,24 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 255 STONE the-registry-can-be-enumerated — `:wat::intrinsic::rows` :
+    // () → (Vector :- [:wat::intrinsic::Row]).
+    // Returns one Row per registered entry (name/kind/arity/purity/determinism/
+    // totality/expand-time/category/syntax/ret-type/alias-of/has-handler) — the
+    // set-level sibling of `:wat::intrinsic::examples`, immediately above.
+    // Zero params; records (not heterogeneous tuples), same reason as Example.
+    env.register(
+        ":wat::intrinsic::rows".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::intrinsic::Row".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     // Arc 255.1b-v — reflection surface: show-source + render-doc.
     // Both take one FQDN-keyword arg (mirroring metadata-of's keyword-arg shape
     // from the lookup-define/signature-of-defn checker arm at infer_list:4364)

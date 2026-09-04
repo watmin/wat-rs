@@ -18,6 +18,57 @@
    pure          <- :wat::core::bool
    deterministic <- :wat::core::bool])
 
+;; ─── Row — the enumerable registry census record ──────────────────────
+;;
+;; Arc 255 STONE "the registry can be enumerated" — the typed record returned by
+;; the `:wat::intrinsic::rows` reflection seam. `metadata-of` answers per-name;
+;; `(:wat::intrinsic::rows)` answers per-SET, one Row per registered entry, so a
+;; wat program can run a census (`filter`/`count` over kind/totality/etc) — the
+;; same four-site pattern `:wat::intrinsic::Example` (immediately above) already
+;; shipped once: a wat-side defrecord, a checker scheme, a load-order position,
+;; and a `#[wat_intrinsic]` walking `all_entries()`.
+;;
+;; Field list is DESIGN's, exactly — the exclusions are load-bearing, not an
+;; oversight: no `doc`/`prose`/`ret`(description)/`source`/`examples` (552 rows
+;; of prose in one value is why `metadata-of` and `:wat::intrinsic::examples`
+;; serve those per-name/via their own seam instead). `arity` uses `-1` for
+;; `Variadic`, `metadata-of`'s existing sentinel — not a second convention.
+;; `syntax` is `""` when absent (matches `IntrinsicEntry.syntax`'s own
+;; `&'static str` shape), not wrapped in an `Option`.
+;;
+;; The five closed-domain axis fields (`kind`/`purity`/`determinism`/
+;; `totality`/`expand-time`/`category`) reference the enums `wat/runtime-meta.wat`
+;; declares — this file loads well after that one (`src/load/stdlib.rs`), so
+;; every axis type is already registered. Row itself lives HERE, not in
+;; runtime-meta.wat: `defrecord`'s expansion calls `:wat::core::Record::def` at
+;; EVAL time, which requires `wat/Record.wat` to have already loaded —
+;; runtime-meta.wat loads BEFORE Record.wat (its own header: "no eval-deps
+;; beyond :wat::core::defenum"), so a `defrecord` placed there would break that
+;; ordering. `doctest.wat` already loads after Record.wat (see this file's own
+;; header, immediately above) and after runtime-meta.wat, so it is the correct
+;; home for the composition, mirroring `wat/program.wat`'s `Env` record (a
+;; `defenum` + a `defrecord` referencing it, same-file precedent for this exact
+;; shape).
+;;
+;; Load order: after Record.wat + runtime-meta.wat (both required — see above).
+;; The seam that RETURNS these records (:wat::intrinsic::rows) is a Rust
+;; intrinsic and does not need the record type at registration time — only at
+;; call time, same as Example/examples.
+
+(:wat::core::defrecord :wat::intrinsic::Row
+  [name          <- :wat::core::keyword
+   kind          <- :wat::runtime::Kind
+   arity         <- :wat::core::i64
+   purity        <- :wat::runtime::Purity
+   determinism   <- :wat::runtime::Determinism
+   totality      <- :wat::runtime::Totality
+   expand-time   <- :wat::runtime::ExpandTime
+   category      <- :wat::runtime::Category
+   syntax        <- :wat::core::String
+   ret-type      <- :wat::core::String
+   alias-of      <- (:wat::core::Option :- [:wat::core::String])
+   has-handler   <- :wat::core::bool])
+
 ;; ─── Doctest failure record ───────────────────────────────────────────
 
 (:wat::core::defrecord :wat::doctest::Failure
