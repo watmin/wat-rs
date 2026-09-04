@@ -2669,20 +2669,25 @@ fn dispatch_keyword_head_value(
         // that used to live here (Stone 237.3's per-Type aliases, restored by
         // DESIGN-STONE-per-type-equality-restored.md), same `eval_compare` /
         // `eval_f64_compare` engines, just reached through the registry now.
+        //
+        // Arc 255 Stone 1c-b-ii — the FOUR ordering arms that used to live here (`<`/`>`/
+        // `<=`/`>=`) are RETIRED. Each now carries a registered `#[wat_intrinsic]` wrapper
+        // (`eval_lt_intrinsic`/`eval_gt_intrinsic`/`eval_lte_intrinsic`/`eval_gte_intrinsic`,
+        // this file, immediately after `eval_compare`) — the registry-first door above
+        // (`crate::intrinsic::registry().lookup(head)`) dispatches them to the identical
+        // `eval_compare` engine (unchanged) before this match is ever reached.
+        //
+        // ⛔ `=`/`not=` KEEP their arms and are NOT registered — HELD, not skipped. Their rows
+        // are argued and their `@Totality Partial` is proven by a committed counterexample
+        // (`wat-scripts/scratch-pad/probe-core-eq-is-partial.wat`); registering that honest
+        // grading retires `intrinsic_meta`'s by-name placeholder and the rete fence then
+        // refuses `=` on four fixtures that genuinely cannot raise — the fence asks "is this
+        // VERB total?" when the answerable question is "is this CALL total?". They land the
+        // moment the registry can answer it. See
+        // `docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`
+        // and `RULING-rete-forged-the-paths-the-registry-claims-the-tools.md`.
         ":wat::core::=" => eval_eq(head, args, list_span, env, sym),
         ":wat::core::not=" => eval_not_eq(head, args, list_span, env, sym),
-        ":wat::core::<" => eval_compare(head, args, list_span, env, sym, |o| {
-            o == std::cmp::Ordering::Less
-        }),
-        ":wat::core::>" => eval_compare(head, args, list_span, env, sym, |o| {
-            o == std::cmp::Ordering::Greater
-        }),
-        ":wat::core::<=" => eval_compare(head, args, list_span, env, sym, |o| {
-            o != std::cmp::Ordering::Greater
-        }),
-        ":wat::core::>=" => eval_compare(head, args, list_span, env, sym, |o| {
-            o != std::cmp::Ordering::Less
-        }),
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => crate::numeric::convert::eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
@@ -5727,6 +5732,210 @@ pub(crate) fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
         },
     };
     Ok(Value::bool(result))
+}
+
+/// `(:wat::core::< a b)` — arc 255 Stone 1c-b-ii, registered `#[wat_intrinsic]`. THIN
+/// WRAPPER, not a reimplementation: `eval_compare` (`:5681-5730`, immediately above) takes
+/// `head` as its first parameter AND a predicate closure — neither is the canonical
+/// `#[wat_intrinsic]` shape — so it cannot be annotated in place; this wrapper forwards its
+/// own FQDN and carries the retired arm's `|o| o == Ordering::Less` closure VERBATIM
+/// (STOP-2: this is the exact arm from `rt:2674-2676` before its retirement below).
+/// `eval_compare` itself is untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** `eval_compare`'s body evaluates
+/// each operand by ordinary call-by-value (`eval_inner`, `:5698-5699`) and then only
+/// classifies the two already-evaluated values via `numeric_order`/`values_compare`
+/// (`:5703-5729`) — no `eval_inner`/`apply_function` on caller-supplied code, no I/O, no
+/// entropy/clock read. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Total`, unlike `=`/`not=` above:** `eval_compare` raises
+/// `TypeMismatch` when `values_compare` returns `None` (`:5710-5722`, reached only once
+/// `numeric_order` has already ruled the pair `NotNumeric`). `infer_ordering`
+/// (`src/check.rs:12909-12970`, dispatched from `check.rs:3813-3814`) requires the two
+/// operand types to `unify` STRICTLY (no subtype path — `:12938`) and then gates the
+/// unified, substitution-resolved type through `is_type_orderable` (`:12868-12904`). Read
+/// both helpers side by side against `values_compare` (`:5558-5679`): `is_type_orderable`'s
+/// allowed set — `i64`, `u8`, `f64`, `String`, `bool`, `keyword`, `Instant`, `Duration`, the
+/// algebra `Vector`, and recursively `(Vector :- [T])`/`(Option :- [T])`/`(Result :- [T E])`/
+/// non-empty `Tuple` — is exactly the set `values_compare` carries a `Some`-returning arm for,
+/// checked pairwise. It is if anything STRICTER than necessary: `values_compare` has same-type
+/// and cross-type arms for `BigInt`/`Rational` (`:5592-5617`), but `is_type_orderable` excludes
+/// both paths entirely (not in its `matches!` list, `:12876-12886`), so a well-typed `<` over
+/// two `BigInt`s is REJECTED AT CHECK TIME even though the runtime could answer it — a false
+/// negative, never a gap. `is_type_orderable` explicitly excludes `TypeExpr::Fn { .. }`
+/// (`:12902`, the doc above it names "fn types" as NOT orderable) — confirmed empirically:
+/// `(:wat::core::< (:wat::core::fn ...) (:wat::core::fn ...))` (the SAME functions that make
+/// `=` `Partial`) is REJECTED by `target/release/wat --check` (`CheckErrors`, exit 1, "expects
+/// an orderable type... got [:wat::core::i64 :-> :wat::core::i64]") — never reaches eval.
+///
+/// One real opening was investigated and not ignored: `is_type_orderable`'s
+/// `TypeExpr::Var(_) => true` arm (`:12871`, "unresolved — defer to runtime"; the surrounding
+/// comment names `values_compare`'s `None` as "the eval-side backstop"). This is a genuine,
+/// deliberate carve-out elsewhere in this checker (`src/collection/infer.rs`'s several
+/// "defers to the runtime backstop by design" sites; `src/check.rs:4535`). I tried to build a
+/// live counterexample through it: a `defn` with a bare `:T` parameter feeding `<` inside its
+/// own body. Measured (`target/release/wat --check`): a bare `:T` in a `defn` signature does
+/// NOT become a genuinely unresolved `TypeExpr::Var` at the point `is_type_orderable` runs —
+/// it is a concrete named `TypeExpr::Path(":T")`, rejected by the SAME `matches!` list as any
+/// other unrecognized path (error: "expects an orderable type... got :T", firing at the
+/// generic function's OWN definition-check, before any call site is even considered) — this
+/// mirrors arc 109 γ-i's independent finding that a bare uppercase type name in this checker
+/// is a concrete Path, not a type variable, outside the one `defn`-signature-union mechanism
+/// (`src/runtime.rs:3499`) that does NOT run through `is_type_orderable` at definition time.
+/// Every other route tried (an unconstrained `PersistentVector`'s element type, `None`'s
+/// unconstrained payload type) either resolved concretely once anything real flowed through
+/// it, or the only value able to carry a truly free `Var` (`(:wat::core::first
+/// (:wat::core::PersistentVector))`, `(:wat::core::None)`) either raises its OWN earlier
+/// partiality (`first`'s `MalformedForm` on empty) before `<` ever runs, or — for `None`,
+/// which never raises — resolves via `values_compare`'s `Option` arm (`:5657-5662`) without
+/// ever needing the hidden payload type at all (`None`/`None` is always `Some(Equal)`
+/// regardless of what `T` is). I could not construct a well-typed, successfully-evaluating
+/// call that reaches this raise. `Total`.
+///
+/// **Expand-time ground — `Legal`, a real gap this stone CLOSES, not widens:** grepped
+/// `src/macros/eval.rs`'s residue (`:437-484`) — unlike `=`/`not=` (`:486-487`), NONE of
+/// `":wat::core::<"`/`">"`/`"<="`/`">="` appears in it, and none was registered before this
+/// stone, so `is_expand_time_legal` returns `false` for all four TODAY — silently refused
+/// inside a macro body with no ruling ever made. A FIFTH instance of the defect this arc has
+/// already found four times (`ann-form`, `apply`, `PersistentVector`, `PersistentMap` — this
+/// stone's own brief names the first four). The honest grounded pole is `Legal`, matching the
+/// `=`/`not=` sibling ruling immediately above and the per-type siblings `:wat::i64::<`/
+/// `:wat::f64::<` (both `@ExpandTime Legal`, `src/intrinsic/i64.rs:406`/`src/intrinsic/f64.rs:331`)
+/// — same purity/determinism/totality shape, no macro-expansion-state dependency.
+///
+/// **Category ground — `Probe`:** matches the per-type siblings `:wat::i64::<`/`:wat::f64::<`
+/// (`@Category Probe`, `src/intrinsic/i64.rs:407`/`src/intrinsic/f64.rs:332`) — interrogates
+/// two values and derives a FACT about their order; `wat/runtime-meta.wat:113-116`.
+///
+/// `@arg`/`@ret` grounded in `infer_ordering`/`is_type_orderable` (`src/check.rs:12909-12970`/
+/// `:12868-12904`), dispatched from `check.rs:3813-3814` — no `TypeScheme` exists.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); both must be
+///   an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration,
+///   (Vector :- [T]), Tuple, (Option :- [T]), (Result :- [T E])), `unify`-ed STRICTLY against
+///   each other (no subtype path) (`infer_ordering`/`is_type_orderable`,
+///   `src/check.rs:12909-12970`/`:12868-12904`)
+/// @ret     :wat::core::bool true iff position 0 is less than position 1
+///   (`values_compare`/`numeric_order`,
+///   `src/runtime.rs:5558-5679`)
+/// @example (:wat::core::< 1 2) #=> true
+/// @see     :wat::core::>
+/// @see     :wat::core::<=
+#[wat_intrinsic(":wat::core::<")]
+fn eval_lt_intrinsic(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_compare(":wat::core::<", args, list_span, env, sym, |o| {
+        o == std::cmp::Ordering::Less
+    })
+}
+
+/// `(:wat::core::> a b)` — arc 255 Stone 1c-b-ii, registered `#[wat_intrinsic]`. THIN
+/// WRAPPER over `eval_compare` (`:5681-5730`), carrying the retired arm's own
+/// `|o| o == Ordering::Greater` closure VERBATIM (`rt:2677-2679` before retirement). Every
+/// axis ground given on `:wat::core::<` immediately above (Purity/Determinism/Totality —
+/// including the empirical Fn-rejection and the `Var`-carve-out investigation —
+/// /ExpandTime/Category) applies identically, re-measured against this name and this
+/// predicate; `eval_compare` is untouched.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
+///   orderable-class / strict-unify rule as `:wat::core::<` (`infer_ordering`/
+///   `is_type_orderable`, `src/check.rs:12909-12970`/`:12868-12904`)
+/// @ret     :wat::core::bool true iff position 0 is greater than position 1
+/// @example (:wat::core::> 2 1) #=> true
+/// @see     :wat::core::<
+/// @see     :wat::core::>=
+#[wat_intrinsic(":wat::core::>")]
+fn eval_gt_intrinsic(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_compare(":wat::core::>", args, list_span, env, sym, |o| {
+        o == std::cmp::Ordering::Greater
+    })
+}
+
+/// `(:wat::core::<= a b)` — arc 255 Stone 1c-b-ii, registered `#[wat_intrinsic]`. THIN
+/// WRAPPER over `eval_compare` (`:5681-5730`), carrying the retired arm's own
+/// `|o| o != Ordering::Greater` closure VERBATIM (`rt:2680-2682` before retirement). Every
+/// axis ground given on `:wat::core::<` above applies identically, re-measured against this
+/// name and this predicate; `eval_compare` is untouched.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
+///   orderable-class / strict-unify rule as `:wat::core::<` (`infer_ordering`/
+///   `is_type_orderable`, `src/check.rs:12909-12970`/`:12868-12904`)
+/// @ret     :wat::core::bool true iff position 0 is less than or equal to position 1
+/// @example (:wat::core::<= 2 2) #=> true
+/// @see     :wat::core::<
+/// @see     :wat::core::>=
+#[wat_intrinsic(":wat::core::<=")]
+fn eval_lte_intrinsic(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_compare(":wat::core::<=", args, list_span, env, sym, |o| {
+        o != std::cmp::Ordering::Greater
+    })
+}
+
+/// `(:wat::core::>= a b)` — arc 255 Stone 1c-b-ii, registered `#[wat_intrinsic]`. THIN
+/// WRAPPER over `eval_compare` (`:5681-5730`), carrying the retired arm's own
+/// `|o| o != Ordering::Less` closure VERBATIM (`rt:2683-2685` before retirement). Every axis
+/// ground given on `:wat::core::<` above applies identically, re-measured against this name
+/// and this predicate; `eval_compare` is untouched.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
+///   orderable-class / strict-unify rule as `:wat::core::<` (`infer_ordering`/
+///   `is_type_orderable`, `src/check.rs:12909-12970`/`:12868-12904`)
+/// @ret     :wat::core::bool true iff position 0 is greater than or equal to position 1
+/// @example (:wat::core::>= 2 2) #=> true
+/// @see     :wat::core::<=
+/// @see     :wat::core::>
+#[wat_intrinsic(":wat::core::>=")]
+fn eval_gte_intrinsic(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_compare(":wat::core::>=", args, list_span, env, sym, |o| {
+        o != std::cmp::Ordering::Less
+    })
 }
 
 // Arc 109 Stone 1 — `eval_f64_compare` moved to `src/numeric/compare.rs` (the numeric home;

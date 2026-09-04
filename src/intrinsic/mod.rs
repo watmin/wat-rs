@@ -1247,6 +1247,21 @@ mod tests {
         ":wat::core::third",
         ":wat::core::PersistentVector",
         ":wat::core::PersistentMap",
+        // Arc 255 Stone 1c-b-ii — `=`/`not=`/`<`/`>`/`<=`/`>=` join: each is now a registered
+        // `#[wat_intrinsic]` row (`src/runtime.rs` — `eval_eq_intrinsic`/`eval_not_eq_intrinsic`/
+        // `eval_lt_intrinsic`/`eval_gt_intrinsic`/`eval_lte_intrinsic`/`eval_gte_intrinsic`), but
+        // NONE carries an `env.register()` TypeScheme, so `check_env.get` returns `None` for all
+        // six. Checked, not assumed: grepped `register_builtins` for `env.register(":wat::core::="`
+        // / `"::not="` / `"::<"` / `"::>"` / `"::<="` / `"::>="` — zero hits for all six. All six
+        // ARE checked for real by hand-written helpers (`infer_equality` for `=`/`not=`,
+        // `infer_ordering` for the four orderings, both inside `infer_list`, `src/check.rs`) —
+        // exactly the `first`/`second`/`third`/`PersistentVector`/`PersistentMap` shape
+        // immediately above: real checking, no scheme to verify the docs against. `check.rs`
+        // stays untouched (STOP-4); the ledger grows by exactly six, 111 → 117.
+        ":wat::core::<",
+        ":wat::core::>",
+        ":wat::core::<=",
+        ":wat::core::>=",
     ];
 
     #[test]
@@ -1752,33 +1767,38 @@ mod tests {
     /// `GAP_B_CORPUS_CENSUS_121` above; only the shrinking "current gap" list drops them. None
     /// of the five carries an `env.register()` `TypeScheme` — they land on
     /// `FROZEN_CHECKER_DEBT_LEDGER` below instead (DEBT traded for GAP_B, not paid).
+    ///
+    /// Arc 255 Stone 1c-b-ii — `:wat::core::=`/`not=`/`<`/`>`/`<=`/`>=` LEAVE: all six now
+    /// carry a `#[wat_intrinsic]` wrapper row (`src/runtime.rs` — `eval_eq_intrinsic`/
+    /// `eval_not_eq_intrinsic`/`eval_lt_intrinsic`/`eval_gt_intrinsic`/`eval_lte_intrinsic`/
+    /// `eval_gte_intrinsic`), so `registry().lookup_entry` returns `Some` for all six and
+    /// leaving them here would fail the gate below as STALE. All six stay in
+    /// `GAP_B_CORPUS_CENSUS_121` above; only the shrinking "current gap" list drops them. None
+    /// of the six carries an `env.register()` `TypeScheme` — they land on
+    /// `FROZEN_CHECKER_DEBT_LEDGER` below instead (DEBT traded for GAP_B, not paid). 52 → 46.
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
         ":wat::core::=",
+        ":wat::core::not=",
         ":wat::eval-ast!",
         ":wat::core::extend-type",
         ":wat::core::str",
         ":wat::rete::string::=",
-        ":wat::core::<",
         ":wat::core::derive",
         // ":wat::rete::i64::>" REMOVED -- arc 255 Stone 2a, same reason as its removal
         // from REGISTRY_MEMBERSHIP_GAP_A above: now registered (the @alias witness), so
         // registry().lookup_entry returns Some and this name is resolved, not gapped.
-        ":wat::core::>",
-        ":wat::core::>=",
         ":wat::rete::i64::*",
         ":wat::rete::i64::/",
         ":wat::rete::vector::get",
         ":wat::rete::i64::-",
         ":wat::rete::i64::+",
         ":wat::rete::i64::mod",
-        ":wat::core::not=",
         ":wat::type::Tuple",
         ":wat::rete::holon::cosine",
         ":wat::rete::core::foldl",
         ":wat::core::defclause",
         ":wat::type::i64",
         ":wat::rete::core::PersistentVector/first",
-        ":wat::core::<=",
         ":wat::type::String",
         ":wat::rete::string::subs",
         ":wat::rete::f64::/",
@@ -3304,21 +3324,30 @@ mod tests {
 
         // ── STOP-1 territory: the gate's own instrument must be proven before it is trusted ──
         //
-        // A plausible per-list lower bound, asserted SEPARATELY (a combined total could pass
-        // with one list silently empty and all the signal coming from the other).
+        // ⛔ Arc 255 Stone 1c-b-ii — THE PER-LIST MAGNITUDES ARE RETIRED, not nudged.
+        //
+        // They were written one day after `probe_substrate_symmetry_list_span_threading`'s
+        // `arms.len() >= 50` was retired for being "a REGRESSION detector wearing a sanity
+        // check's clothes" — and they promptly did the same thing: this stone removed four
+        // legitimately-registered names from `intrinsic_meta`'s residue, the count fell 18 → 14,
+        // and the bound fired with "the parser is finding far fewer than a real residue list
+        // has". The parser was correct. The LIST had shrunk, which is the campaign succeeding.
+        // `[[feedback_a_gate_freezes_names_never_a_count]]`.
+        //
+        // A magnitude pinned to a population this campaign exists to DRAIN can never be a
+        // stable non-vacuity bound: at the finish line both residues are empty, and every step
+        // toward it looks identical to a broken parser. So non-vacuity is split the way the
+        // sibling control splits it — NAMES catch "found the wrong thing", NON-EMPTINESS catches
+        // "found nothing at all" — and the named anchors below are the half that discriminates.
         assert!(
-            expand_names.len() >= 15,
-            "non-vacuity: `is_expand_time_legal`'s residue parsed only {} names — the parser is \
-             finding far fewer than a real residue list has; suspect the span/anchor, do not \
-             weaken this bound (STOP-1). Names found: {expand_names:?}",
-            expand_names.len()
+            !expand_names.is_empty(),
+            "non-vacuity: `is_expand_time_legal`'s residue parsed NO names — the parser found \
+             nothing at all; suspect the span/anchor (STOP-1)."
         );
         assert!(
-            intrinsic_names.len() >= 15,
-            "non-vacuity: `intrinsic_meta`'s residue parsed only {} names — the parser is \
-             finding far fewer than a real residue list has; suspect the span/anchor, do not \
-             weaken this bound (STOP-1). Names found: {intrinsic_names:?}",
-            intrinsic_names.len()
+            !intrinsic_names.is_empty(),
+            "non-vacuity: `intrinsic_meta`'s residue parsed NO names — the parser found \
+             nothing at all; suspect the span/anchor (STOP-1)."
         );
         // A specific name verified BY EYE, against the exact line it was read from.
         assert!(

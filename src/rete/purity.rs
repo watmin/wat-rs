@@ -508,6 +508,13 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // so the registry consult above answers for them and these arms were unreachable. They
     // survived the stone's first sweep because the gate's arm-detector could not see an arm
     // followed by a COMMENT line — fixed in the same stone.
+    // ⛔ Arc 255 Stone 1c-b-ii — `<`/`>`/`<=`/`>=` LEFT this list: all four are registered now
+    // (`#[wat_intrinsic]` wrappers in `src/runtime.rs`, each `@Totality Total`), so the registry
+    // consult above answers for them and these arms were unreachable. `=`/`not=` STAY — they are
+    // deliberately UNregistered (held; see
+    // `docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`),
+    // so `lookup_entry` still returns `None` for them and the `total` fallback below is still the
+    // only thing that can answer. That is the residue working as designed, not a shadow.
     let pure_det = matches!(
         head,
         // Arithmetic
@@ -518,10 +525,6 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // Comparison
             | ":wat::core::="
             | ":wat::core::not="
-            | ":wat::core::<"
-            | ":wat::core::>"
-            | ":wat::core::<="
-            | ":wat::core::>="
             // Control flow whose sub-items are ALL plain exprs — safe to recurse element-wise.
             // (`cond`/`match` are handled with dedicated clause-aware arms in classify_expr, NOT
             // here, because their clauses are not calls. `if`/`let` are registered — Stone
