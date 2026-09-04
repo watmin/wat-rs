@@ -831,7 +831,7 @@
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :user::do-send
+(:wat::core::defn :user::send
   [q <- :queue::Queue  name <- :wat::core::String  body <- :wat::core::String  now-ns <- :wat::core::i64]
   -> :wat::core::nil
   (:wat::core::match (:queue::Queue/send q (:queue::Queue::SendRequest :queue name :bodies (:wat::core::Vector :- [:wat::core::String] body) :now-ns now-ns))
@@ -843,7 +843,7 @@
         (_ (:wat::kernel::assertion-failed! "send not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "send: recv failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :user::do-receive
+(:wat::core::defn :user::receive
   [q <- :queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64
    vis-ns <- :wat::core::i64  lim <- :wat::core::i64]
   -> (:wat::core::Vector :- [:queue::Envelope])
@@ -856,7 +856,7 @@
         (_ (:wat::kernel::assertion-failed! "receive not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "receive: recv failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :user::do-receive-wait
+(:wat::core::defn :user::receive-wait
   [q <- :queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64
    vis-ns <- :wat::core::i64  lim <- :wat::core::i64  wait <- :queue::Queue::Wait]
   -> (:wat::core::Vector :- [:queue::Envelope])
@@ -869,7 +869,7 @@
         (_ (:wat::kernel::assertion-failed! "receive-wait not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "receive-wait: recv failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :user::do-stats
+(:wat::core::defn :user::read-call-counters
   [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
@@ -879,7 +879,7 @@
         (_ (:wat::kernel::assertion-failed! "stats not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "stats: recv failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :user::do-depth
+(:wat::core::defn :user::read-queue-counts
   [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
@@ -889,7 +889,7 @@
         (_ (:wat::kernel::assertion-failed! "depth not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "depth: recv failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :user::do-ack
+(:wat::core::defn :user::ack
   [q <- :queue::Queue  name <- :wat::core::String  id <- :wat::core::String]
   -> :wat::core::nil
   (:wat::core::match (:queue::Queue/ack q (:queue::Queue::AckRequest :queue name :id id))
@@ -959,7 +959,8 @@
       (:wat::core::Vector :- [:queue::Envelope]))
     (_ (:wat::kernel::assertion-failed! "recv-envelopes: recv failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :user::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
+;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
+(:wat::core::defn :user::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
       (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
@@ -983,23 +984,23 @@
      Tr  1000000002
      Tw  1000000102
      ;; STOP-3: a message whose isk equals now must be returned (inclusive hi).
-     _bx (:user::do-send q "bound-q" "x" T0)
-     bound (:user::do-receive q "bound-q" T0 vis 10)
+     _bx (:user::send q "bound-q" "x" T0)
+     bound (:user::receive q "bound-q" T0 vis 10)
      ;; send 3, staggered by 1ns so isk order is a,b,c (limit-2 among equal isk is unspecified).
-     _sa (:user::do-send q "q" "a" T0)
-     _sb (:user::do-send q "q" "b" Ta)
-     _sc (:user::do-send q "q" "c" Tb)
-     r1 (:user::do-receive q "q" Tr vis 2)
-     r2 (:user::do-receive q "q" Tr vis 2)
+     _sa (:user::send q "q" "a" T0)
+     _sb (:user::send q "q" "b" Ta)
+     _sc (:user::send q "q" "c" Tb)
+     r1 (:user::receive q "q" Tr vis 2)
+     r2 (:user::receive q "q" Tr vis 2)
      ;; ack one of the first receive (a) and the third (c), leaving b unacked.
      ;; c is acked so redelivery is exactly the unacked one — and so equal-isk
      ;; order between b and c cannot make the backends disagree on the summary.
      _a1 (:wat::core::if (:wat::core::empty? r1) nil
-            (:user::do-ack q "q" (:queue::Envelope/id (:wat::core::first r1))))
+            (:user::ack q "q" (:queue::Envelope/id (:wat::core::first r1))))
      _a2 (:wat::core::if (:wat::core::empty? r2) nil
-            (:user::do-ack q "q" (:queue::Envelope/id (:wat::core::first r2))))
-     r3 (:user::do-receive q "q" Tr vis 10)
-     re (:user::do-receive q "q" Tw vis 10)]
+            (:user::ack q "q" (:queue::Envelope/id (:wat::core::first r2))))
+     r3 (:user::receive q "q" Tr vis 10)
+     re (:user::receive q "q" Tw vis 10)]
     (:wat::core::format
       "bound={bound};r1={r1};r2={r2};r3={r3};redel={redel}"
       :bound (:user::join-bodies bound)
@@ -1020,9 +1021,9 @@
      T0  1000000000
      vis 100
      _   (:user::park-receive! a "q" T0 vis 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
-     _   (:user::do-send b "q" "hello" T0)
+     _   (:user::send b "q" "hello" T0)
      got (:user::recv-envelopes! a)
-     again (:user::do-receive b "q" T0 vis 10)]
+     again (:user::receive b "q" T0 vis 10)]
     (:wat::core::format "got={got};hidden={hidden}"
       :got (:user::join-bodies got)
       :hidden (:wat::core::if (:wat::core::empty? again) "yes" (:user::join-bodies again)))))
@@ -1039,7 +1040,7 @@
      T0  1000000000
      _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 5)))
      got (:user::recv-envelopes! a)
-     ping (:user::do-receive b "q" T0 100 10)]
+     ping (:user::receive b "q" T0 100 10)]
     (:wat::core::format "empty={empty};serving={serving}"
       :empty (:wat::core::if (:wat::core::empty? got) "yes" "no")
       :serving (:wat::core::if (:wat::core::empty? ping) "yes" "no"))))
@@ -1057,9 +1058,9 @@
      T0  1000000000
      _   (:user::park-receive! a "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
      _   (:user::park-receive! c "q" T0 100 1 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 200)))
-     _   (:user::do-send b "q" "first" T0)
+     _   (:user::send b "q" "first" T0)
      ga  (:user::recv-envelopes! a)
-     _   (:user::do-send b "q" "second" T0)
+     _   (:user::send b "q" "second" T0)
      gc  (:user::recv-envelopes! c)]
     (:wat::core::format "a={a};c={c}"
       :a (:user::join-bodies ga)
@@ -1074,12 +1075,12 @@
             :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
-     _   (:user::do-send q "q" "a" T0)
-     _   (:user::do-send q "q" "b" T0)
-     _   (:user::do-send q "q" "c" T0)
-     got (:user::do-receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 20)))
-     _   (:user::do-receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 5)))
-     st  (:user::do-stats q)]
+     _   (:user::send q "q" "a" T0)
+     _   (:user::send q "q" "b" T0)
+     _   (:user::send q "q" "c" T0)
+     got (:user::receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 20)))
+     _   (:user::receive-wait q "q" T0 1000000000 10 (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 5)))
+     st  (:user::read-call-counters q)]
     (:wat::core::format "n={n};calls={calls}"
       :n (:wat::core::count got)
       :calls (:wat::core::first st))))
@@ -1092,8 +1093,8 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
             :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
-     _   (:user::nap-ms 20)
-     st  (:user::do-stats q)]
+     _   (:user::await-timer-ms 20)
+     st  (:user::read-call-counters q)]
     (:wat::core::format "ticks={ticks}"
       :ticks (:wat::core::second st))))
 
@@ -1107,14 +1108,14 @@
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
      vis 1000000000
-     _   (:user::do-send q "q" "a" T0)
-     _   (:user::do-send q "q" "b" T0)
-     _   (:user::do-send q "q" "c" T0)
-     d0  (:user::do-depth q)
-     r   (:user::do-receive q "q" T0 vis 2)
-     d1  (:user::do-depth q)
-     _   (:user::do-ack q "q" (:queue::Envelope/id (:wat::core::first r)))
-     d2  (:user::do-depth q)]
+     _   (:user::send q "q" "a" T0)
+     _   (:user::send q "q" "b" T0)
+     _   (:user::send q "q" "c" T0)
+     d0  (:user::read-queue-counts q)
+     r   (:user::receive q "q" T0 vis 2)
+     d1  (:user::read-queue-counts q)
+     _   (:user::ack q "q" (:queue::Envelope/id (:wat::core::first r)))
+     d2  (:user::read-queue-counts q)]
     (:wat::core::format
       "send=p={p0},f={f0};recv=p={p1},f={f1};ack=p={p2},f={f2}"
       :p0 (:wat::core::first d0) :f0 (:wat::core::second d0)

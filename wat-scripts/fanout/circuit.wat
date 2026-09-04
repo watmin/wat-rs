@@ -641,7 +641,14 @@
   -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))
 
-(:wat::core::defn :fanout::face-start
+;; Start arms the tick and replies Ok. Lost is not death (a peer is dead only
+;; when redial fails): the arm runs to completion, so a lost reply still means
+;; the tick is armed. Proceed; a truly dead worker shows as unread (-1) on the
+;; next drain. Stopped is the PARENT shutting down — certain, local, and
+;; continuing would arm workers we are tearing down. Closed is a clean EOF
+;; without a message; treated like Lost (proceed). Do not flip Closed to
+;; assert — that is a behaviour change, not a rename.
+(:wat::core::defn :fanout::start-worker!
   [w <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
   -> :wat::core::nil
   (:wat::core::match (:fanout::Worker/start w (:fanout::Worker::StartRequest))
@@ -654,7 +661,8 @@
       (:wat::kernel::assertion-failed! "fanout: start stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed nil)))
 
-(:wat::core::defn :fanout::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
+;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
+(:wat::core::defn :fanout::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
       (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
@@ -774,7 +782,7 @@
         (:wat::core::if (:wat::i64::<= left 1)
           (:wat::core::format "drained-never: last={s} outbox={b} attempts={a} elapsed={ms}"
             :s snap :b box :a total :ms (:fanout::elapsed-ms start-ns))
-          (:wat::core::let [_ (:fanout::nap-ms 5)]
+          (:wat::core::let [_ (:fanout::await-timer-ms 5)]
             (:fanout::poll-until-drained* qclients t (:wat::i64::- left 1) start-ns total)))))))
 
 (:wat::core::defn :fanout::poll-until-drained
@@ -782,21 +790,43 @@
   -> :wat::core::String
   (:fanout::poll-until-drained* qclients t attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
-(:wat::core::defn :fanout::accept-stamped
-  [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
+;; LIVENESS BOUND — only a hang may trip this. Full is correct backpressure
+;; (the queue is bounded; a waiting producer is the design). Giving up loses
+;; the message. 60000 ms is the floor from
+;; BRIEF-278-a-liveness-bound-only-catches-a-hang: a red here is STUCK, never
+;; "the box was busy". Force-expire via publish-until-accepted!* with
+;; limit-ms 0 against a full inbox.
+(:wat::core::defn :fanout::publish-until-accepted!*
+  [t <- :demo::Topic  msg <- :wat::core::String
+   attempts <- :wat::core::i64  start-ns <- :wat::core::i64  limit-ms <- :wat::core::i64]
+  -> :wat::core::String
   (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msg msg))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::PublishResponse::Ok) nil)
-        ((:demo::Topic::PublishResponse::Full _d _c)
-          (:wat::core::let [_ (:fanout::nap-ms 1)]
-            (:fanout::accept-stamped t msg)))
+        ((:demo::Topic::PublishResponse::Ok) "")
+        ((:demo::Topic::PublishResponse::Full d c)
+          (:wat::core::let [elapsed (:fanout::elapsed-ms start-ns)]
+            (:wat::core::if (:wat::i64::>= elapsed limit-ms)
+              (:wat::core::format "verdict=never-accepted;depth={d};cap={c};attempts={a};elapsed={ms}"
+                :d d :c c :a attempts :ms elapsed)
+              (:wat::core::let [_ (:fanout::await-timer-ms 1)]
+                (:fanout::publish-until-accepted!* t msg (:wat::i64::+ attempts 1) start-ns limit-ms)))))
         (_ (:wat::kernel::assertion-failed! "fanout: publish not Ok/Full" :wat::core::None :wat::core::None))))
-    (_ (:wat::kernel::assertion-failed! "fanout: publish recv failed" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::assertion-failed! "fanout: publish stopped" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :fanout::accept!
+(:wat::core::defn :fanout::publish-until-accepted!
   [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
-  (:fanout::accept-stamped t
+  (:fanout::require!
+    (:fanout::publish-until-accepted!* t msg 1 (:wat::time::epoch-nanos (:wat::time::now)) 60000)))
+
+(:wat::core::defn :fanout::publish-stamped-until-accepted!
+  [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
+  (:fanout::publish-until-accepted! t
     (:wat::core::format "{m}|{t0}"
       :m msg
       :t0 (:wat::time::epoch-nanos (:wat::time::now)))))
@@ -816,7 +846,7 @@
         (:wat::core::if (:wat::i64::<= left 1)
           (:wat::core::format "visible-never-zero: last={v}/{u} attempts={a} elapsed={ms}"
             :v v :u u :a total :ms (:fanout::elapsed-ms start-ns))
-          (:wat::core::let [_ (:fanout::nap-ms 5)]
+          (:wat::core::let [_ (:fanout::await-timer-ms 5)]
             (:fanout::poll-until-visible-zero* q (:wat::i64::- left 1) start-ns total)))))))
 
 (:wat::core::defn :fanout::poll-until-visible-zero
@@ -1139,7 +1169,7 @@
      topic (:fanout::dial-topic (:demo::topic::Handle/addr th))
      _twgo (:wat::core::foldl
              (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
-               (:demo::face-start-tw
+               (:demo::start-topic-worker!
                  (:demo::dial-topic-worker
                    (:demo::topic-worker::Handle/addr (:wat::core::nth twhandles i)))))
              nil
@@ -1189,13 +1219,13 @@
               (:wat::core::range 0 wcount))
      _go (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::core::nil  w <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])] -> :wat::core::nil
-             (:fanout::face-start w))
+             (:fanout::start-worker! w))
            nil
            wpeers)
      t-pub0 (:wat::time::epoch-nanos (:wat::time::now))
      _pub (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
-              (:fanout::accept! topic (:wat::core::str i)))
+              (:fanout::publish-stamped-until-accepted! topic (:wat::core::str i)))
             nil
             (:wat::core::range 0 n))
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -1339,7 +1369,7 @@
                      :queue-addr (:queue::queue::Handle/addr qh)))
      q   (:fanout::dial-queue (:queue::queue::Handle/addr qh))
      w   (:fanout::dial-worker (:fanout::held-worker::Handle/addr hh))
-     _   (:fanout::face-start w)
+     _   (:fanout::start-worker! w)
      _pub (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::let
@@ -1390,8 +1420,8 @@
                      (:queue::queue::Handle/addr qh)
                      (:fanout::seen::Handle/addr seenh) 0 0))
      w   (:fanout::dial-worker (:fanout::worker::Handle/addr wh))
-     _   (:fanout::face-start w)
-     _   (:fanout::nap-ms 20)
+     _   (:fanout::start-worker! w)
+     _   (:fanout::await-timer-ms 20)
      t0  (:wat::time::epoch-nanos (:wat::time::now))
      _   (:fanout::worker/stop wh)
      t1  (:wat::time::epoch-nanos (:wat::time::now))
@@ -1437,10 +1467,10 @@
      topic (:fanout::dial-topic (:demo::topic::Handle/addr th))
      q     (:fanout::dial-queue (:queue::queue::Handle/addr qh))
      w     (:fanout::dial-worker (:fanout::worker::Handle/addr wh))
-     _     (:fanout::face-start w)
+     _     (:fanout::start-worker! w)
      _pub  (:wat::core::foldl
              (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
-               (:fanout::accept! topic (:wat::core::str i)))
+               (:fanout::publish-stamped-until-accepted! topic (:wat::core::str i)))
              nil
              (:wat::core::range 0 n))
      _     (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
@@ -1529,8 +1559,8 @@
                     (:queue::queue::Handle/addr qh)
                     (:fanout::seen::Handle/addr seenh) 0 0))
      q  (:fanout::dial-queue (:queue::queue::Handle/addr qh))
-     _  (:fanout::face-start (:fanout::dial-worker (:fanout::worker::Handle/addr w1)))
-     _  (:fanout::face-start (:fanout::dial-worker (:fanout::worker::Handle/addr w2)))
+     _  (:fanout::start-worker! (:fanout::dial-worker (:fanout::worker::Handle/addr w1)))
+     _  (:fanout::start-worker! (:fanout::dial-worker (:fanout::worker::Handle/addr w2)))
      _  (:wat::core::match
           (:queue::Queue/send q
             (:queue::Queue::SendRequest :queue "q0"
@@ -1538,7 +1568,7 @@
               :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
           ((:wat::kernel::RecvOutcome::Message _r) nil)
           (_ nil))
-     _  (:fanout::nap-ms 800)
+     _  (:fanout::await-timer-ms 800)
      o1 (:fanout::worker/stop w1)
      o2 (:fanout::worker/stop w2)
      outs (:wat::core::foldl

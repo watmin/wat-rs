@@ -579,7 +579,14 @@
   -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))
 
-(:wat::core::defn :demo::face-start-tw
+;; Start arms the tick and replies Ok. Lost is not death (a peer is dead only
+;; when redial fails): the arm runs to completion, so a lost reply still means
+;; the tick is armed. Proceed; a truly dead worker shows as unread (-1) on the
+;; next drain. Stopped is the PARENT shutting down — certain, local, and
+;; continuing would arm workers we are tearing down. Closed is a clean EOF
+;; without a message; treated like Lost (proceed). Do not flip Closed to
+;; assert — that is a behaviour change, not a rename.
+(:wat::core::defn :demo::start-topic-worker!
   [w <- (:wat::kernel::Peer :- [:demo::TopicWorker::Op :demo::TopicWorker::Reply])]
   -> :wat::core::nil
   (:wat::core::match (:demo::TopicWorker/start w (:demo::TopicWorker::StartRequest))
@@ -592,7 +599,8 @@
       (:wat::kernel::assertion-failed! "topic-worker: start stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed nil)))
 
-(:wat::core::defn :demo::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
+;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
+(:wat::core::defn :demo::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
       (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
@@ -653,24 +661,46 @@
         (:wat::core::if (:wat::i64::<= left 1)
           (:wat::core::format "inbox-never-zero: last={n} attempts={a} elapsed={ms}"
             :n n :a total :ms (:demo::elapsed-ms start-ns))
-          (:wat::core::let [_ (:demo::nap-ms 1)]
+          (:wat::core::let [_ (:demo::await-timer-ms 1)]
             (:demo::poll-until-inbox-zero* t (:wat::i64::- left 1) start-ns total)))))))
 
 (:wat::core::defn :demo::poll-until-inbox-zero
   [t <- :demo::Topic  attempts <- :wat::core::i64] -> :wat::core::String
   (:demo::poll-until-inbox-zero* t attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
-(:wat::core::defn :demo::accept!
-  [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
+;; LIVENESS BOUND — only a hang may trip this. Full is correct backpressure
+;; (the queue is bounded; a waiting producer is the design). Giving up loses
+;; the message. 60000 ms is the floor from
+;; BRIEF-278-a-liveness-bound-only-catches-a-hang: a red here is STUCK, never
+;; "the box was busy". Force-expire via publish-until-accepted!* with
+;; limit-ms 0 against a full inbox.
+(:wat::core::defn :demo::publish-until-accepted!*
+  [t <- :demo::Topic  msg <- :wat::core::String
+   attempts <- :wat::core::i64  start-ns <- :wat::core::i64  limit-ms <- :wat::core::i64]
+  -> :wat::core::String
   (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msg msg))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::PublishResponse::Ok) nil)
-        ((:demo::Topic::PublishResponse::Full _d _c)
-          (:wat::core::let [_ (:demo::nap-ms 1)]
-            (:demo::accept! t msg)))
+        ((:demo::Topic::PublishResponse::Ok) "")
+        ((:demo::Topic::PublishResponse::Full d c)
+          (:wat::core::let [elapsed (:demo::elapsed-ms start-ns)]
+            (:wat::core::if (:wat::i64::>= elapsed limit-ms)
+              (:wat::core::format "verdict=never-accepted;depth={d};cap={c};attempts={a};elapsed={ms}"
+                :d d :c c :a attempts :ms elapsed)
+              (:wat::core::let [_ (:demo::await-timer-ms 1)]
+                (:demo::publish-until-accepted!* t msg (:wat::i64::+ attempts 1) start-ns limit-ms)))))
         (_ (:wat::kernel::assertion-failed! "topic publish not Ok/Full" :wat::core::None :wat::core::None))))
-    (_ (:wat::kernel::assertion-failed! "topic publish recv failed" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::assertion-failed! "topic publish: stopped" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::kernel::assertion-failed! "topic publish: closed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :demo::publish-until-accepted!
+  [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
+  (:demo::require!
+    (:demo::publish-until-accepted!* t msg 1 (:wat::time::epoch-nanos (:wat::time::now)) 60000)))
 
 (:wat::core::defn :demo::q-depth
   [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
@@ -697,7 +727,7 @@
         (:wat::core::if (:wat::i64::<= left 1)
           (:wat::core::format "unacked-never-rose: last={v}/{u} attempts={a} elapsed={ms}"
             :v v :u u :a total :ms (:demo::elapsed-ms start-ns))
-          (:wat::core::let [_ (:demo::nap-ms 1)]
+          (:wat::core::let [_ (:demo::await-timer-ms 1)]
             (:demo::poll-until-unacked* q (:wat::i64::- left 1) start-ns total)))))))
 
 (:wat::core::defn :demo::poll-until-unacked
@@ -806,8 +836,8 @@
                     (:demo::dial-queue (:queue::queue::Handle/addr (:wat::core::nth queues i)))))
                 (:wat::core::Vector :- [:queue::Queue])
                 (:wat::core::range 0 3))
-     _ (:demo::face-start-tw tw)
-     _ (:demo::accept! tc "hello")
+     _ (:demo::start-topic-worker! tw)
+     _ (:demo::publish-until-accepted! tc "hello")
      _ (:demo::require! (:demo::poll-until-inbox-zero tc 5000))
      got (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
@@ -887,8 +917,8 @@
                     (:demo::dial-queue (:queue::queue::Handle/addr (:wat::core::nth queues i)))))
                 (:wat::core::Vector :- [:queue::Queue])
                 (:wat::core::range 0 3))
-     _ (:demo::face-start-tw tw)
-     _ (:demo::accept! tc "hello")
+     _ (:demo::start-topic-worker! tw)
+     _ (:demo::publish-until-accepted! tc "hello")
      _ (:demo::require! (:demo::poll-until-inbox-zero tc 5000))
      got (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
@@ -921,7 +951,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
-     _  (:demo::accept! tc "hello")
+     _  (:demo::publish-until-accepted! tc "hello")
      n  (:demo::depth-of-topic tc)]
     (:wat::core::format "pending={n};durable={d}"
       :n n
@@ -937,7 +967,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 3 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
-     _  (:demo::accept! tc "hello")
+     _  (:demo::publish-until-accepted! tc "hello")
      n  (:demo::depth-of-topic tc)]
     (:wat::core::format "rows={n};unit={u}"
       :n n
@@ -987,6 +1017,23 @@
              (_ "fail")))]
     (:wat::core::format "a={a};b={b};c={c}" :a (tag r1) :b (tag r2) :c (tag r3))))
 
+;; Negative control for the publish liveness bound: a full inbox, no workers,
+;; so Full never clears. limit-ms 0 trips on the first Full and must name
+;; depth, cap, attempts, elapsed — a bound that only says "gave up" fails.
+(:wat::core::defn :user::publish-bound-reports [] -> :wat::core::String
+  (:wat::core::let
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     iqh (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+     th (:demo::topic/start :locus (:wat::spawn::thread)
+          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
+     tc (:demo::dial-topic (:demo::topic::Handle/addr th))
+     _a (:demo::publish-until-accepted! tc "a")
+     _b (:demo::publish-until-accepted! tc "b")
+     report (:demo::publish-until-accepted!* tc "c" 1 (:wat::time::epoch-nanos (:wat::time::now)) 0)]
+    report))
+
 ;; Idle topic never ticks: no waiters on the inbox, so the queue does not arm.
 (:wat::core::defn :user::idle-ticks [] -> :wat::core::String
   (:wat::core::let
@@ -997,7 +1044,7 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
-     _  (:demo::nap-ms 20)
+     _  (:demo::await-timer-ms 20)
      n  (:demo::ticks-of tc)]
     (:wat::core::format "ticks={n}" :n n)))
 
@@ -1028,14 +1075,14 @@
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw    (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      _ (:demo::send-one subq "q0" "dummy")
-     _ (:demo::face-start-tw tw)
-     _ (:demo::accept! tc "hello")
+     _ (:demo::start-topic-worker! tw)
+     _ (:demo::publish-until-accepted! tc "hello")
      _ (:demo::require! (:demo::poll-until-unacked inbox 2000))
      dummy-id (:demo::claim-one! subq "q0" 1000000000000)
      _ (:demo::ack-one subq "q0" dummy-id)
-     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
+     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::await-timer-ms gap-ms) nil)
      after-visible (:wat::core::first (:demo::q-depth subq))
-     _ (:demo::nap-ms 350)
+     _ (:demo::await-timer-ms 350)
      after-expiry (:demo::receive-blocking subq "q0" 1000000000000
                     (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]
     (:wat::core::format "inflight=yes;after-drain={a};after-expiry={b}"
@@ -1070,9 +1117,9 @@
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      _ (:demo::send-one q1 "q1" "dummy")
-     _ (:demo::face-start-tw tw)
+     _ (:demo::start-topic-worker! tw)
      t0 (:wat::time::epoch-nanos (:wat::time::now))
-     _ (:demo::accept! tc "hello")
+     _ (:demo::publish-until-accepted! tc "hello")
      t1 (:wat::time::epoch-nanos (:wat::time::now))
      dt (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)
      healthy (:demo::receive-blocking q0 "q0" 1000000000000

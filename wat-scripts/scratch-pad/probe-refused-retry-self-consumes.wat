@@ -8,7 +8,7 @@
 ;;     ack-one subq dummy-id                 ;; subq is now FREE
 ;;     after-drain <- take-one subq          ;; expects "" -- but this is a DESTRUCTIVE read
 ;;                                           ;; with :visibility-ns 1000000000000 (~1000 s)
-;;     nap-ms 350
+;;     await-timer-ms 350
 ;;     wait-pending subq                     ;; UNBOUNDED spin until pending >= 1
 ;; Stone D: absence is q-depth; presence is one blocking receive. wait-pending is gone.
 ;;
@@ -44,7 +44,7 @@
     (:wat::core::if (:wat::i64::>= (:wat::core::first (:demo::q-depth q)) 1)
       0
       (:wat::core::let
-        [_ (:demo::nap-ms ms)
+        [_ (:demo::await-timer-ms ms)
          r (:rr::poll-pending q (:wat::i64::- attempts 1) ms)]
         (:wat::core::if (:wat::i64::< r 0) -1 (:wat::i64::+ r 1))))))
 
@@ -69,16 +69,16 @@
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw    (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      _ (:demo::send-one subq "q0" "dummy")
-     _ (:demo::face-start-tw tw)
-     _ (:demo::accept! tc "hello")
+     _ (:demo::start-topic-worker! tw)
+     _ (:demo::publish-until-accepted! tc "hello")
      _ (:demo::require! (:demo::poll-until-unacked inbox 2000))
      dummy-id (:demo::claim-one! subq "q0" 1000000000000)
      _ (:demo::ack-one subq "q0" dummy-id)
-     ;; `(nap-ms 0)` is itself a zero wait and has no form after Stone A —
-     ;; "nap for zero" IS "don't nap", the mode-as-magnitude this arc removed.
-     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
+     ;; `(await-timer-ms 0)` is itself a zero wait and has no form after Stone A —
+     ;; "wait for zero" IS "don't wait", the mode-as-magnitude this arc removed.
+     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::await-timer-ms gap-ms) nil)
      after-visible (:wat::core::first (:demo::q-depth subq))
-     _ (:demo::nap-ms 350)
+     _ (:demo::await-timer-ms 350)
      recovered (:rr::poll-pending subq 100 50)
      d (:demo::q-depth subq)
      di (:demo::q-depth inbox)]
@@ -138,14 +138,14 @@
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw    (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      _ (:demo::send-one subq "q0" "dummy")
-     _ (:demo::face-start-tw tw)
-     _ (:demo::accept! tc "hello")
+     _ (:demo::start-topic-worker! tw)
+     _ (:demo::publish-until-accepted! tc "hello")
      _ (:demo::require! (:demo::poll-until-unacked inbox 2000))
      dummy-id (:demo::claim-one! subq "q0" 1000000000000)
      _ (:demo::ack-one subq "q0" dummy-id)
-     ;; `(nap-ms 0)` is itself a zero wait and has no form after Stone A —
-     ;; "nap for zero" IS "don't nap", the mode-as-magnitude this arc removed.
-     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
+     ;; `(await-timer-ms 0)` is itself a zero wait and has no form after Stone A —
+     ;; "wait for zero" IS "don't wait", the mode-as-magnitude this arc removed.
+     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::await-timer-ms gap-ms) nil)
      at-check (:wat::core::first (:demo::q-depth subq))
      got (:demo::receive-blocking subq "q0" 200000000
            (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]

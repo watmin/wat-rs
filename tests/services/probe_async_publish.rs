@@ -128,6 +128,43 @@ fn full_inbox_refuses_not_drops() {
     );
 }
 
+/// Row 2 of D2: force the publish liveness bound to expire. A bound that only
+/// says "gave up" fails — it must name depth, cap, attempts, elapsed.
+#[test]
+fn publish_liveness_bound_reports_what_it_saw() {
+    let world = load_topic();
+    let stored = call_string(&world, ":user::publish-bound-reports");
+    assert_eq!(
+        field(&stored, "verdict"),
+        "never-accepted",
+        "limit-ms 0 against a full inbox must trip the bound; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "depth"),
+        "2",
+        "Full must report the depth it saw; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "cap"),
+        "2",
+        "Full must report the cap it saw; got {stored}"
+    );
+    let attempts: i64 = field(&stored, "attempts")
+        .parse()
+        .unwrap_or_else(|_| panic!("attempts not an i64 in {stored}"));
+    assert!(
+        attempts >= 1,
+        "the bound must count the try that saw Full; got {stored}"
+    );
+    let elapsed: i64 = field(&stored, "elapsed")
+        .parse()
+        .unwrap_or_else(|_| panic!("elapsed not an i64 in {stored}"));
+    assert!(
+        elapsed >= 0,
+        "the bound must report elapsed; got {stored}"
+    );
+}
+
 #[test]
 fn idle_topic_never_ticks() {
     let world = load_topic();

@@ -20,7 +20,8 @@
 (:wat::config::set-redef! true)
 (:wat::load-file! "../queue/sqs.wat")
 
-(:wat::core::defn :vr::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
+;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
+(:wat::core::defn :vr::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
       (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
@@ -74,7 +75,7 @@
      _s (:vr::send-one q)
      first-id  (:vr::take-one q 200000000)          ;; 200 ms visibility, NOT acked
      while-inflight (:vr::take-one q 200000000)     ;; immediately again -> must be empty
-     _n (:vr::nap-ms 350)                           ;; past the window
+     _n (:vr::await-timer-ms 350)                           ;; past the window
      after-expiry (:vr::take-one q 200000000)       ;; must be the SAME id
      out (:wat::core::format "first={a};while-inflight={b};after-expiry={c};same={d}"
            :a (:wat::core::if (:wat::core::= first-id "") "NONE" "got")

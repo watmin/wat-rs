@@ -72,7 +72,8 @@
   -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))
 
-(:wat::core::defn :vb::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
+;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
+(:wat::core::defn :vb::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
       (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
@@ -120,7 +121,7 @@
               (:vb::arm! (:vb::dial-parker (:vb::parker::Handle/addr (:wat::core::nth parkers i)))))
             nil
             (:wat::core::range 0 j))
-     _settle (:vb::nap-ms 250)
+     _settle (:vb::await-timer-ms 250)
      _stop (:wat::core::foldl
              (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
                (:wat::core::let [_o (:vb::parker/stop (:wat::core::nth parkers i))] (:wat::i64::+ acc 1)))

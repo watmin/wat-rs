@@ -99,7 +99,8 @@
   -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))
 
-(:wat::core::defn :vw::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
+;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
+(:wat::core::defn :vw::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::recv
       (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done))
@@ -155,7 +156,7 @@
       (:wat::core::format "status=drained;left={left};p={p};f={f}" :left left :p p :f f)
       (:wat::core::if (:wat::i64::<= left 0)
         (:wat::core::format "status=timeout;left=0;p={p};f={f}" :p p :f f)
-        (:wat::core::let [_ (:vw::nap-ms 50)]
+        (:wat::core::let [_ (:vw::await-timer-ms 50)]
           (:vw::wait-depth q (:wat::i64::- left 1)))))))
 
 (:wat::core::defn :vw::run-j
@@ -187,7 +188,7 @@
               (:vw::arm! (:vw::dial-parker (:vw::parker::Handle/addr (:wat::core::nth parkers i)))))
             nil
             (:wat::core::range 0 j))
-     _settle (:vw::nap-ms 100)
+     _settle (:vw::await-timer-ms 100)
      q (:vw::dial-queue (:queue::queue::Handle/addr qh))
      ;; Drive stats while waiters are parked — a missed return path
      ;; used to drop the wakeup here. Send after this must still wake.
