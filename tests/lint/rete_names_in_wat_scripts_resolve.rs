@@ -33,7 +33,7 @@
 //! a routine event in the rete vocabulary. Textual resolution of exactly that family is
 //! proportionate; the general problem is out of scope and stays out.
 //!
-//! ── THE TWO HALVES OF THE RESOLVER, AND WHY THEY ARE SPLIT BY NAMESPACE ──────────────────────
+//! ── THE THREE SOURCES OF THE RESOLVER, AND WHY NO TWO OF THEM ARE A UNION ────────────────────
 //!
 //! 1. **The registry.** `:wat::rete::core::…` and `:wat::rete::holon::…` are the operator surface,
 //!    and `RETE_OPS` in `src/rete/vocabulary.rs` is their sole authority. A name in that namespace
@@ -46,6 +46,16 @@
 //!    frozen stdlib under `wat/`. That set is enumerated from the tree on every run, never from a
 //!    hand-written list that would rot the moment a verb is added.
 //!
+//! 3. **Declaration.** A field accessor `:wat::rete::<Type>/<field>` is text NOWHERE.
+//!    `register_aggregate_methods` (`src/runtime.rs`) mints one function per declared field at
+//!    `format!("{}/{}", agg.name, field_name)` at freeze, from the `defrecord`; the macro's own
+//!    accessor emission was removed in arc 293.R2.2, so nothing else registers those paths. The
+//!    third source is therefore the DECLARATION, parsed out of `wat/`. ⛔ **The field half is not
+//!    optional**: a rule admitting `<Type>/<anything>` cannot refuse a misspelling, and a resolver
+//!    that cannot refuse a misspelling has stopped resolving — it would trade one false RED for a
+//!    permanent blind spot over every field of every rete record, which is the worse trade because
+//!    nobody notices a gate that never fires.
+//!
 //! ⛔ **THE SPLIT IS LOAD-BEARING, AND A UNION WOULD BE A GATE THAT VOUCHED FOR ITSELF.** Measured
 //! 2026-09-01: every one of the 79 `RETE_OPS` row names is ALSO attested in a code position outside
 //! the registry file, so under a flat `rows ∪ attested` universe the registry half resolves exactly
@@ -53,6 +63,13 @@
 //! would pass green. Splitting by namespace makes each half the only authority for its own family:
 //! emptying the rows leaves 71 distinct names unresolved, and emptying the attestation leaves 63.
 //! Both halves can now fail loudly, which is the only reason either is worth having.
+//!
+//! ⛔ **AND THE THIRD IS NOT A SUBSET OF THE SECOND** — the same test, applied to the source added
+//! last. Measured 2026-09-03: 25 `:wat::rete::` records under `wat/` mint 80 accessors, and 30 of
+//! those appear in NO code position under `src/` or `wat/`, because nothing in the stdlib happens
+//! to call them. So emptying the declaration source leaves 30 names unresolvable and it can fail
+//! loudly on its own. The other 50 are attested only by accident, through their own use in the
+//! stdlib — which is exactly why this hole read as "some accessors resolve and some do not".
 //!
 //! ── CODE vs PROSE — the distinction that IS the design ───────────────────────────────────────
 //!
@@ -283,6 +300,264 @@ fn registry_rows(src: &str) -> BTreeSet<String> {
     out
 }
 
+/// The declaration forms that MINT an aggregate's field accessors.
+///
+/// `register_aggregate_methods` (`src/runtime.rs`) walks every `TypeDef::Aggregate` and registers
+/// one function per declared field at `format!("{}/{}", agg.name, field_name)`. Nothing else
+/// registers those paths — the macro's own accessor emission was removed in arc 293.R2.2 — so a
+/// `defrecord` in the tree IS the authority for which `<Type>/<field>` names exist, exactly as
+/// `RETE_OPS` is the authority for the operator namespace.
+const RECORD_DECL_FORMS: &[&str] = &[":wat::core::defrecord", ":wat::holon::defrecord"];
+
+/// The separator inside a field vector. Fields come in groups of three — `name <- Type` — which is
+/// the arithmetic `wat/Record.wat`'s own macro does (`n-fields = field-len / 3`).
+const FIELD_ARROW: &str = "<-";
+
+/// Split a form's body into top-level items: a balanced `(…)`/`[…]`/`{…}` group and a `"…"` string
+/// each count as ONE item.
+///
+/// ⚠ THIS IS WHERE A NAIVE PARSE LOSES FIELDS, and it has. A regex that ended a field vector at the
+/// first `])` read `:wat::rete::DerivationNode` as two fields, dropping `via` — whose type is
+/// `(:wat::core::PersistentVector :- [:wat::rete::DerivationStep])`, so the vector's own `]` is
+/// preceded by the nested type's. Balance is not optional here; see
+/// [`the_record_parse_reads_a_nested_last_field`], which anchors on that exact record.
+fn top_level_items(chars: &[char]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut depth = 0usize;
+    let mut start: Option<usize> = None;
+    let mut in_str = false;
+    let mut esc = false;
+    for (i, &c) in chars.iter().enumerate() {
+        if in_str {
+            if esc {
+                esc = false;
+            } else if c == '\\' {
+                esc = true;
+            } else if c == '"' {
+                in_str = false;
+                if depth == 0 {
+                    if let Some(s) = start.take() {
+                        out.push(chars[s..=i].iter().collect());
+                    }
+                }
+            }
+            continue;
+        }
+        match c {
+            '"' => {
+                in_str = true;
+                if start.is_none() {
+                    start = Some(i);
+                }
+            }
+            '(' | '[' | '{' => {
+                if start.is_none() {
+                    start = Some(i);
+                }
+                depth += 1;
+            }
+            ')' | ']' | '}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    if let Some(s) = start.take() {
+                        out.push(chars[s..=i].iter().collect());
+                    }
+                }
+            }
+            _ if c.is_whitespace() && depth == 0 => {
+                if let Some(s) = start.take() {
+                    out.push(chars[s..i].iter().collect());
+                }
+            }
+            _ => {
+                if start.is_none() {
+                    start = Some(i);
+                }
+            }
+        }
+    }
+    if let Some(s) = start {
+        out.push(chars[s..].iter().collect());
+    }
+    out
+}
+
+/// The index of the bracket closing the group opened at `open`, string-aware.
+fn matching_close(chars: &[char], open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut in_str = false;
+    let mut esc = false;
+    for (i, &c) in chars.iter().enumerate().skip(open) {
+        if in_str {
+            if esc {
+                esc = false;
+            } else if c == '\\' {
+                esc = true;
+            } else if c == '"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => in_str = true,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The field vector among a declaration form's top-level items: the LAST `[…]`.
+///
+/// `wat/Record.wat` picks the same slot the same way — `(last args)`, never by counting — because
+/// the optional generic binder sits BETWEEN the name and the fields:
+/// `(defrecord :Name :- [T…] [fields])`. Taking the first `[…]` would read the type parameters as
+/// the field list.
+fn field_vector_of(items: &[String]) -> Option<&String> {
+    items
+        .last()
+        .filter(|s| s.starts_with('[') && s.ends_with(']'))
+}
+
+/// The field NAMES declared INSIDE a `[name <- Type …]` vector (brackets already peeled), in order
+/// — or why the declaration could not be read.
+///
+/// ⛔ AN UNREADABLE VECTOR IS AN ERROR, NEVER AN EMPTY LIST. A record silently dropped here keeps
+/// its accessors out of the resolver's universe, which re-blocks exactly its fields while every
+/// other verdict stays green — the invisible re-blockage this whole source exists to prevent,
+/// arriving one record at a time instead of all at once.
+fn declared_field_names(inner: &str) -> Result<Vec<String>, String> {
+    let chars: Vec<char> = inner.chars().collect();
+    let cells = top_level_items(&chars);
+    if cells.is_empty() || !cells.len().is_multiple_of(3) {
+        return Err(format!(
+            "the field vector holds {} cell(s), not a multiple of 3 (`name {FIELD_ARROW} Type`)",
+            cells.len()
+        ));
+    }
+    let mut names = Vec::with_capacity(cells.len() / 3);
+    for group in cells.chunks(3) {
+        if group[1] != FIELD_ARROW {
+            return Err(format!(
+                "field `{}` is followed by `{}`, not `{FIELD_ARROW}`",
+                group[0], group[1]
+            ));
+        }
+        names.push(group[0].clone());
+    }
+    Ok(names)
+}
+
+/// What a source declares: `:wat::rete::<Type>` → its field names, plus every `:wat::rete::` record
+/// whose declaration could NOT be read.
+#[derive(Debug, Default)]
+struct RecordDecls {
+    fields: BTreeMap<String, Vec<String>>,
+    malformed: Vec<String>,
+}
+
+/// Read every `:wat::rete::` record declaration in one wat source.
+///
+/// Comments are masked first — `wat/gen.wat` and `wat/cache.wat` both show `defrecord` forms in
+/// prose — so a declaration that is commented out declares nothing, the same cut the rest of this
+/// gate makes between code and prose.
+fn record_decls(src: &str) -> RecordDecls {
+    record_decls_in(src, PREFIX)
+}
+
+/// [`record_decls`] over an arbitrary namespace. The gate itself only ever asks for [`PREFIX`];
+/// the parameter exists so [`the_record_parse_reads_a_nested_last_field`] can anchor the
+/// generic-binder rule on `wat/gen.wat`'s `:wat::gen::Pick`, a REAL declaration carrying both a
+/// `:- [T…]` binder and a nested type on its last field. No `:wat::rete::` record is generic, so
+/// that rule is unreachable from the corpus this gate walks — which is why the anchor reaches for
+/// a namespace that has one rather than for a hand-written example.
+fn record_decls_in(src: &str, namespace: &str) -> RecordDecls {
+    let chars: Vec<char> = wat_code_mask(src).chars().collect();
+    let mut out = RecordDecls::default();
+    for i in 0..chars.len() {
+        if chars[i] != '(' {
+            continue;
+        }
+        // Cheap head check before the balanced walk, so the O(form) split runs only on real
+        // declarations rather than on every open paren in the stdlib.
+        let mut h = i + 1;
+        while h < chars.len() && chars[h].is_whitespace() {
+            h += 1;
+        }
+        let head_text: String = chars[h..chars.len().min(h + 32)].iter().collect();
+        if !RECORD_DECL_FORMS.iter().any(|f| head_text.starts_with(f)) {
+            continue;
+        }
+        let Some(close) = matching_close(&chars, i) else {
+            continue;
+        };
+        let items = top_level_items(&chars[i + 1..close]);
+        let Some(head) = items.first() else { continue };
+        if !RECORD_DECL_FORMS.contains(&head.as_str()) {
+            continue;
+        }
+        let Some(name) = items.get(1) else { continue };
+        // Only this gate's namespace. A `:wat::query::` record is declared the same way and mints
+        // its accessors the same way; resolving those is the wider question the module header cuts.
+        if !name.starts_with(namespace) {
+            continue;
+        }
+        let Some(vector) = field_vector_of(&items) else {
+            out.malformed.push(format!(
+                "{name}: the last argument is not a `[…]` field vector, so its fields cannot be read"
+            ));
+            continue;
+        };
+        let inner: String = vector.chars().skip(1).take(vector.chars().count() - 2).collect();
+        match declared_field_names(&inner) {
+            Ok(names) => {
+                out.fields.insert(name.clone(), names);
+            }
+            Err(why) => out.malformed.push(format!("{name}: {why}")),
+        }
+    }
+    out
+}
+
+/// Every `:wat::rete::` record declared under `wat/`, with its fields.
+fn rete_record_decls() -> RecordDecls {
+    let mut wats = Vec::new();
+    collect(&root().join("wat"), "wat", &mut wats);
+    wats.sort();
+    let mut out = RecordDecls::default();
+    for p in wats {
+        let Ok(src) = std::fs::read_to_string(&p) else {
+            continue;
+        };
+        let one = record_decls(&src);
+        let rel = p.strip_prefix(root()).unwrap_or(&p).display().to_string();
+        out.malformed
+            .extend(one.malformed.into_iter().map(|m| format!("  {rel}  {m}")));
+        out.fields.extend(one.fields);
+    }
+    out
+}
+
+/// The accessor names a set of record declarations MINTS: one `<Type>/<field>` per declared field,
+/// matching `register_aggregate_methods`' `format!("{}/{}", agg.name, field_name)`.
+///
+/// ⛔ THE FIELD HALF IS THE GATE. `<Type>/<anything>` would resolve a misspelled accessor, trading
+/// one false RED for a permanent blind spot over every field of every rete record — and a gate that
+/// never fires is the one nobody notices. `DerivationNode/vai` must not be in this set.
+fn record_accessors(decls: &RecordDecls) -> BTreeSet<String> {
+    decls
+        .fields
+        .iter()
+        .flat_map(|(ty, fields)| fields.iter().map(move |f| format!("{ty}/{f}")))
+        .collect()
+}
+
 /// Is this token in the namespace `RETE_OPS` owns?
 fn in_registry_namespace(token: &str) -> bool {
     REGISTRY_NAMESPACES.iter().any(|ns| token.starts_with(ns))
@@ -414,7 +689,20 @@ fn every_rete_name_in_wat_scripts_code_resolves() {
             .unwrap_or_else(|e| panic!("read {REGISTRY}: {e}")),
     );
     let attested = attested();
+    let decls = rete_record_decls();
+    let accessors = record_accessors(&decls);
     let files = wat_scripts_files();
+
+    // A `:wat::rete::` record whose declaration could not be READ contributes zero accessors, so
+    // every one of its fields goes back to being unwritable — invisibly, because nothing under
+    // `wat-scripts/` names one today. A parser that meets a form it does not understand says so.
+    assert!(
+        decls.malformed.is_empty(),
+        "\n\n{} `:wat::rete::` record declaration(s) under wat/ could not be read, so their \
+         accessors are missing from the resolver's universe:\n\n{}\n",
+        decls.malformed.len(),
+        decls.malformed.join("\n")
+    );
 
     // NON-VACUITY, part 1 — the two halves of the RESOLVER. Either one silently coming back empty
     // would leave this gate flagging correct names, or (worse, if the walk emptied instead) waving
@@ -426,6 +714,22 @@ fn every_rete_name_in_wat_scripts_code_resolves() {
          unearned until it is fixed",
         rows.len(),
         attested.len()
+    );
+
+    // NON-VACUITY, part 1b — the THIRD source, the record declarations. A minted accessor is never
+    // text anywhere `attested` looks, so if this parse silently returned nothing every rete
+    // accessor would be unwritable again — and this gate would stay GREEN about it, because nothing
+    // under `wat-scripts/` names one today. The blockage would come back invisibly and the next
+    // hand would rediscover it from scratch, which is how it was found the first time. Measured
+    // 2026-09-03: 25 `:wat::rete::` record(s) under wat/, minting 80 accessors, of which 30 are
+    // attested NOWHERE else and so resolve by this source alone.
+    assert!(
+        decls.fields.len() >= 20 && accessors.len() >= 60,
+        "the record parse went blind: {} `:wat::rete::` record(s) read from wat/ minting {} \
+         accessor(s). A collapse here does not make this gate red — it makes every rete accessor \
+         unwritable while the gate reports a clean tree",
+        decls.fields.len(),
+        accessors.len()
     );
 
     // NON-VACUITY, part 2 — the SUBJECT walk, and the classifier over it. A count of files is not
@@ -467,7 +771,7 @@ fn every_rete_name_in_wat_scripts_code_resolves() {
             let ok = if in_registry_namespace(&token) {
                 rows.contains(&token) || KNOWN_FORMS.contains(&token.as_str())
             } else {
-                attested.contains(&token)
+                attested.contains(&token) || accessors.contains(&token)
             };
             if ok || !seen.insert(token.clone()) {
                 continue;
@@ -481,7 +785,9 @@ fn every_rete_name_in_wat_scripts_code_resolves() {
                     let family = if in_registry_namespace(&token) {
                         format!("no `RETE_OPS` row in {REGISTRY}, and not a known form")
                     } else {
-                        "not attested in any code position under src/ or wat/".to_string()
+                        "not attested in any code position under src/ or wat/, and not a \
+                         field accessor minted by any `:wat::rete::` record declared there"
+                            .to_string()
                     };
                     unresolved.push(format!("  {rel}:{line}  {token}\n      {family}"));
                 }
@@ -506,7 +812,9 @@ fn every_rete_name_in_wat_scripts_code_resolves() {
          THE FIX, one of three:\n\
          \n\
          1. It is a TYPO or a name that MOVED — spell it as the row that exists. Read {REGISTRY}; \
-         do not guess a twin. The rete map/filter family is `mapv`/`filterv`/`foldl`/`reduce`.\n\
+         do not guess a twin. The rete map/filter family is `mapv`/`filterv`/`foldl`/`reduce`. For \
+         a `<Type>/<field>` accessor the authority is the `defrecord` under wat/ — a field that \
+         is not declared there was never minted, whatever the type is.\n\
          \n\
          2. It is a name that was RETIRED and there is no correct replacement — then the code that \
          names it is dead, and the fix is to delete or rewrite it, not to invent a target. \
@@ -563,6 +871,93 @@ fn known_forms_are_real() {
              beside"
         );
     }
+}
+
+/// The record parse, anchored on the declarations a naive parse gets WRONG.
+///
+/// ⛔ THIS IS THE TEST THAT WOULD HAVE CAUGHT THE FIRST COUNT. A regex-shaped parse that ended the
+/// field vector at the first `])` read `:wat::rete::DerivationNode` as two fields and reported 46
+/// accessors instead of 80 — and the field it dropped was `via`, whose type is
+/// `(:wat::core::PersistentVector :- [:wat::rete::DerivationStep])` and which is the exact accessor
+/// that proved the resolver was short. A COUNT cannot notice that: same shape, fewer values. So the
+/// anchors here are field NAMES, in order, for the records the nesting bites — read by eye from
+/// `wat/rete.wat` before any total was quoted.
+///
+/// It also pins the two boundaries the source has: the declaration site is NOT one file (six
+/// `:wat::rete::` records live under `wat/rete/`, not in `wat/rete.wat`, and an accessor of theirs
+/// is exactly as minted), and the NAMESPACE is the cut (`wat/query.wat` declares its records the
+/// same way and mints its accessors the same way — they are not this gate's business).
+#[test]
+fn the_record_parse_reads_a_nested_last_field() {
+    let decls = rete_record_decls();
+    assert!(
+        decls.malformed.is_empty(),
+        "unreadable `:wat::rete::` record declaration(s):\n{}",
+        decls.malformed.join("\n")
+    );
+
+    assert_eq!(
+        decls.fields.get(":wat::rete::DerivationNode").map(Vec::as_slice),
+        Some(["fact", "rule", "via"].map(String::from).as_slice()),
+        "the last field of `DerivationNode` carries a nested type; losing it is the defect this \
+         source was added after"
+    );
+    assert_eq!(
+        decls.fields.get(":wat::rete::DerivationStep").map(Vec::as_slice),
+        Some(
+            ["supporting", "pattern", "bindings", "constraints"]
+                .map(String::from)
+                .as_slice()
+        )
+    );
+    // Two wide records, counted by eye in wat/rete.wat: `Export` declares 11 fields, `Session` 8.
+    // A parse that lost a trailing field would still produce a plausible-looking total.
+    assert_eq!(decls.fields.get(":wat::rete::Export").map(Vec::len), Some(11));
+    assert_eq!(decls.fields.get(":wat::rete::Session").map(Vec::len), Some(8));
+    // Declared in `wat/rete/compile.wat`, not `wat/rete.wat` — the authority is the declaration,
+    // wherever it sits.
+    assert_eq!(
+        decls.fields.get(":wat::rete::CompileState").map(Vec::as_slice),
+        Some(["network", "next-id", "dedup"].map(String::from).as_slice())
+    );
+    // `wat/query.wat` declares `:wat::query::Row` with the same form. Out of namespace, out of set.
+    assert_eq!(decls.fields.get(":wat::query::Row"), None);
+
+    // THE GENERIC BINDER, on a real declaration that has one AND a nested last field:
+    // `(defrecord :wat::gen::Pick :- [T] [rest <- :wat::core::i64 got <- (Option :- [T])])`.
+    // Taking the FIRST `[…]` would read the type parameters `[T]` as the field list; taking the
+    // last cuts nothing. No rete record is generic today, so this rule is unreachable from the
+    // corpus this gate walks — which is exactly why it is anchored somewhere it IS reachable.
+    let gen_src = std::fs::read_to_string(root().join("wat/gen.wat"))
+        .unwrap_or_else(|e| panic!("read wat/gen.wat: {e}"));
+    let gen = record_decls_in(&gen_src, ":wat::gen::");
+    assert!(
+        gen.malformed.is_empty(),
+        "unreadable `:wat::gen::` record declaration(s):\n{}",
+        gen.malformed.join("\n")
+    );
+    assert_eq!(
+        gen.fields.get(":wat::gen::Pick").map(Vec::as_slice),
+        Some(["rest", "got"].map(String::from).as_slice())
+    );
+
+    // EXACT, not membership: this is every accessor `DerivationNode` mints. It says `via` is in
+    // AND that nothing else is — so the misspelling `…/vai`, and the bare type name, are both
+    // refused by the same assertion. A `contains` pair could not have said the second half.
+    let node_accessors: BTreeSet<String> = record_accessors(&decls)
+        .into_iter()
+        .filter(|a| a.starts_with(":wat::rete::DerivationNode/"))
+        .collect();
+    assert_eq!(
+        node_accessors,
+        BTreeSet::from([
+            ":wat::rete::DerivationNode/fact".to_string(),
+            ":wat::rete::DerivationNode/rule".to_string(),
+            ":wat::rete::DerivationNode/via".to_string(),
+        ]),
+        "a field that is not declared must not mint an accessor — without that, the resolver \
+         accepts any token with a slash in it and has stopped resolving"
+    );
 }
 
 /// The negative control for the RUST comment stripper, and it is not hypothetical.
@@ -744,6 +1139,49 @@ mod classifier {
              exists to eliminate.\n"
         );
         assert!(!runes(&src).contains_key(":wat::rete::core::somethingelse"));
+    }
+
+    /// ⚠ The literals in these four are deliberately NOT parenthesised forms, for the same reason
+    /// the rest of this module's are: `no_inlined_wat_in_tests` reads any string literal that
+    /// parses as a list with a keyword or symbol head as an inlined world. A field vector is a
+    /// `[…]`, a commented-out declaration reads as nothing, and `field_vector_of` takes the items
+    /// already split — so the parser's three units are each reachable without one.
+
+    #[test]
+    fn a_field_vector_ending_in_a_nested_type_keeps_its_last_field() {
+        assert_eq!(
+            declared_field_names(
+                "a <- :wat::core::i64 b <- (:wat::core::PersistentVector :- [:wat::rete::Yy])"
+            ),
+            Ok(vec!["a".to_string(), "b".to_string()])
+        );
+    }
+
+    /// Both arms of the refusal, because they predict different mechanisms: a cell count that is
+    /// not a multiple of three says the GROUPING is not `name <- Type`, while a wrong separator
+    /// says the grouping held and the form is something else. Reporting either as an empty field
+    /// list would drop the record's accessors silently.
+    #[test]
+    fn a_field_vector_this_parser_cannot_read_is_reported_not_skipped() {
+        assert_eq!(
+            declared_field_names("a :wat::core::i64"),
+            Err("the field vector holds 2 cell(s), not a multiple of 3 (`name <- Type`)".to_string())
+        );
+        assert_eq!(
+            declared_field_names("a :wat::core::i64 b"),
+            Err("field `a` is followed by `:wat::core::i64`, not `<-`".to_string())
+        );
+        assert_eq!(
+            declared_field_names(""),
+            Err("the field vector holds 0 cell(s), not a multiple of 3 (`name <- Type`)".to_string())
+        );
+    }
+
+    #[test]
+    fn a_declaration_in_a_comment_declares_nothing() {
+        let d = record_decls(";; (:wat::core::defrecord :wat::rete::Zz [a <- :wat::core::i64])\n");
+        assert_eq!(d.fields, BTreeMap::new());
+        assert_eq!(d.malformed, Vec::<String>::new());
     }
 
     #[test]
