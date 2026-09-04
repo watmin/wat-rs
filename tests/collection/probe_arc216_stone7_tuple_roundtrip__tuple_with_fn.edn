@@ -3,6 +3,25 @@
   :location nil
   :causes []
   :errors [
+    #wat.check/ReturnTypeMismatch {
+      :message ":user::compute: body produces :wat::holon::HolonAST; signature declares :()"
+      :location #wat.core/Span {
+        :file "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad"
+        :line 4
+        :col 3
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 7
+            :col 31
+          }
+        ]
+      }
+      :causes []
+      :function ":user::compute"
+      :expected ":()"
+      :got ":wat::holon::HolonAST"
+      :remedies []
+    }
     #wat.check/TypeMismatch {
       :message ":wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T); got :([wat::core::i64 :-> wat::core::i64],wat::core::String)"
       :location #wat.core/Span {
@@ -21,25 +40,6 @@
       :param "#1"
       :expected "atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T)"
       :got ":([wat::core::i64 :-> wat::core::i64],wat::core::String)"
-      :remedies []
-    }
-    #wat.check/ReturnTypeMismatch {
-      :message ":user::compute: body produces :wat::holon::HolonAST; signature declares :()"
-      :location #wat.core/Span {
-        :file "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad"
-        :line 4
-        :col 3
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
-            :line 7
-            :col 31
-          }
-        ]
-      }
-      :causes []
-      :function ":user::compute"
-      :expected ":()"
-      :got ":wat::holon::HolonAST"
       :remedies []
     }
   ]

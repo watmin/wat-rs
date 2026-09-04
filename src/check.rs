@@ -744,6 +744,28 @@ pub fn check_program(
     if errors.is_empty() {
         Ok(())
     } else {
+        // Arc 278, C20 — SOURCE ORDER. Every error `check_program` returns leaves through
+        // here, and FOUR of the walks above iterate the function map — two
+        // `sym.functions_iter()` and two `sym.function_values()` — whose order Rust reseeds
+        // per process, so without this the per-function error blocks arrived in a different
+        // sequence every run. (The strike brief named two of the four; the sort covers all
+        // of them because it sits at the exit rather than at any one walk.)
+        //
+        // ⚠ This is NOT the only place a `CheckErrors` is built — `freeze::env`'s
+        // bare-legacy pre-pass builds its own from a `for form in &expanded_user` walk. That
+        // one is a Vec walk, so it is already in source order and is not part of this defect;
+        // it is called out because "the single exit for all check errors" is a claim that
+        // does not survive a grep, and the next hand should not inherit it.
+        //
+        // The key is TOTAL down to the variant payload, and that last component is
+        // load-bearing rather than defensive: this very corpus has a same-span pair
+        // (`probe_arc170_c2_mixed_macro_swap.wat.bad`, two params of one call, both at
+        // 156:5..158:53). A `(line, col)` key would leave such pairs in input — i.e. hash —
+        // order and only look like a fix. See `sort_into_source_order`'s docs and
+        // `tie_break_decides_a_same_span_pair_in_either_input_order`.
+        //
+        // This reorders the batch; it never changes which errors are in it.
+        error::sort_into_source_order(&mut errors);
         Err(CheckErrors(errors))
     }
 }

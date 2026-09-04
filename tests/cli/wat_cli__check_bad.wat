@@ -18,7 +18,12 @@
 ;; diagnostics — argument type-checking and return type-checking — rather than
 ;; on any one verb's walker, so it cannot be quietly hollowed out by a future
 ;; retirement the way its predecessor was. The SHAPE the tests measure is
-;; preserved exactly: two records, first carrying a `:callee` field, second
-;; carrying a `:function` field.
+;; preserved exactly: two records, one carrying a `:callee` field and one a
+;; `:function` field.
+;;
+;; Arc 278 C20 — THE ORDER OF THOSE TWO RECORDS FLIPPED, and it is now a stated property
+;; rather than an accident. Check errors leave `check_program` sorted into SOURCE order, so
+;; the ReturnTypeMismatch (span = the WHOLE body form) precedes the TypeMismatch at the
+;; argument nested inside it.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::i64::+ "not-a-number" 1))

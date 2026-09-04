@@ -4,24 +4,6 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: :my::Event::Pair is a tagged variant; pattern must be (`:my::Event::Pair` binders...)"
-      :location #wat.core/Span {
-        :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
-        :line 6
-        :col 6
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
-            :line 6
-            :col 22
-          }
-        ]
-      }
-      :causes []
-      :head ":wat::core::match"
-      :reason ":my::Event::Pair is a tagged variant; pattern must be (`:my::Event::Pair` binders...)"
-      :remedies []
-    }
-    #wat.check/MalformedForm {
       :message "malformed :wat::core::match form: non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)"
       :location #wat.core/Span {
         :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
@@ -37,6 +19,24 @@
       :causes []
       :head ":wat::core::match"
       :reason "non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)"
+      :remedies []
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::match form: :my::Event::Pair is a tagged variant; pattern must be (`:my::Event::Pair` binders...)"
+      :location #wat.core/Span {
+        :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
+        :line 6
+        :col 6
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 6
+            :col 22
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::match"
+      :reason ":my::Event::Pair is a tagged variant; pattern must be (`:my::Event::Pair` binders...)"
       :remedies []
     }
   ]

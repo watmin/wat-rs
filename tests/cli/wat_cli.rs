@@ -573,20 +573,32 @@ fn check_output_edn_emits_record_per_diagnostic() {
         stdout
     );
     // Arc 296: namespace changed from wat.diag to wat.check.
+    //
+    // ⚠ ORDER FLIPPED AT ARC 278 C20, AND THE FLIP IS THE CONTRACT NOW. Check errors leave
+    // `check_program` sorted into SOURCE order (`check::error::sort_into_source_order`), so the
+    // record that comes first is the one whose span STARTS first. Here that is the
+    // ReturnTypeMismatch: its span is the WHOLE body form, and the TypeMismatch sits at the
+    // argument inside it, so the body's start comes first. (No line number is quoted here on
+    // purpose — the fixture's leading comment block moves them, and a cite that its own file
+    // can invalidate is one nobody re-derives.) Before the sort this pair came out in
+    // emission order, which was not a property of anything a reader could see — the program has
+    // exactly one function, so its single-entry `HashMap` happened not to expose the hash
+    // randomisation the sort was written to kill.
     assert!( // rune:lint(loose-assert) — each EDN line includes :file "..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
-        lines[0].starts_with("#wat.check/TypeMismatch"),
-        "first line should be TypeMismatch tag; got: {}",
+        lines[0].starts_with("#wat.check/ReturnTypeMismatch"),
+        "first line should be ReturnTypeMismatch tag (its span is the whole body form, which \
+         starts before the argument mismatch inside it); got: {}",
         lines[0]
     );
     assert!( // rune:lint(loose-assert) — each EDN line includes :file "..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
-        lines[1].starts_with("#wat.check/ReturnTypeMismatch"),
-        "second line should be ReturnTypeMismatch tag; got: {}",
+        lines[1].starts_with("#wat.check/TypeMismatch"),
+        "second line should be TypeMismatch tag; got: {}",
         lines[1]
     );
     // Structured fields preserved verbatim — not text-wrapped.
-    // :file field is prepended first; callee and function follow.
-    assert!(lines[0].contains(":callee \":wat::core::i64::+\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
-    assert!(lines[1].contains(":function \":user::main\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    // :file field is prepended first; function and callee follow.
+    assert!(lines[0].contains(":function \":user::main\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[1].contains(":callee \":wat::core::i64::+\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 
 #[test]
@@ -611,19 +623,22 @@ fn check_output_json_emits_record_per_diagnostic() {
         stdout
     );
     // Arc 296: JSON shape uses #tag sentinel; field keys carry EDN colon prefix.
+    //
+    // ⚠ ORDER FLIPPED AT ARC 278 C20 — see the EDN twin above for why. Source order, so the
+    // record whose span starts first (the ReturnTypeMismatch over the whole body form) leads.
     assert!( // rune:lint(loose-assert) — each JSON line includes ":file":"..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
-        lines[0].contains("\"#tag\":\"wat.check/TypeMismatch\""),
-        "first line should have #tag=wat.check/TypeMismatch; got: {}",
+        lines[0].contains("\"#tag\":\"wat.check/ReturnTypeMismatch\""),
+        "first line should have #tag=wat.check/ReturnTypeMismatch; got: {}",
         lines[0]
     );
     assert!( // rune:lint(loose-assert) — each JSON line includes ":file":"..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
-        lines[1].contains("\"#tag\":\"wat.check/ReturnTypeMismatch\""),
-        "second line should have #tag=wat.check/ReturnTypeMismatch; got: {}",
+        lines[1].contains("\"#tag\":\"wat.check/TypeMismatch\""),
+        "second line should have #tag=wat.check/TypeMismatch; got: {}",
         lines[1]
     );
     // Keyword field keys carry leading colon in JSON (EDN keyword serialization).
-    assert!(lines[0].contains("\":callee\":\":wat::core::i64::+\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
-    assert!(lines[1].contains("\":function\":\":user::main\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[0].contains("\":function\":\":user::main\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[1].contains("\":callee\":\":wat::core::i64::+\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 
 #[test]

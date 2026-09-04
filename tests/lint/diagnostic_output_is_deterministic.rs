@@ -30,19 +30,20 @@
 //!
 //! ## THE FILES THIS GATE DOES NOT ASSERT OVER — A FINDING, NOT A FLAKE LIST
 //!
-//! ⛔ These are **not** "known flakes". Each is a SECOND, INDEPENDENT source of nondeterminism,
-//! captured, characterised, and reproducible on demand — a defect this strike found and did not
-//! have licence to fix (its blast radius was the renderers). They are listed here so the gate can
-//! ship green over the rest of the corpus instead of being deleted, and each carries the evidence
-//! needed to re-check it in ten seconds. Neither is a type-variable problem; normalising
-//! `:?[0-9]+` makes neither stable.
+//! ✅ **The quarantine is EMPTY as of C20's second strike (arc 278). All three entries were
+//! cured, and the two "CURED AND REMOVED" sections below are their record.** The section stays,
+//! with its rules intact, because it is the designated home for the next one.
 //!
-//! Reproduce either of them with:
+//! ⛔ An entry here is **not** a "known flake". It is a SECOND, INDEPENDENT source of
+//! nondeterminism — captured, characterised, and reproducible on demand — that the strike which
+//! found it did not have licence to fix. Entries live here so the gate can ship green over the
+//! rest of the corpus instead of being deleted, and each must carry the evidence needed to
+//! re-check it in ten seconds.
+//!
+//! Reproduce a suspected offender with:
 //! ```text
 //! for i in $(seq 1 30); do ./target/release/wat <path> 2>&1 | sed 's/:?[0-9]*/:?N/g' | md5sum; done | sort | uniq -c
 //! ```
-//! Each comes back with TWO hashes at roughly 50/50 (measured 10/20 and 16/14 over 30 runs;
-//! re-driven 2026-09-03 at 24 runs each — 16/8 and 13/11).
 //!
 //! ⚠ AND NOTE HOW THE THIRD ONE WAS FOUND, because it is the methodological finding of this
 //! strike. A 2-run scan of the corpus reported exactly TWO offenders. It was wrong: a defect whose
@@ -50,21 +51,6 @@
 //! evidence about the sweep, not about the corpus. `probe_arc170_c2_mixed_macro_swap.wat.bad` was
 //! caught only when this gate itself ran — and a 24-run-per-file sweep of all 280 was then needed
 //! to close the set at three. Any future audit of this property must sample deeply, not twice.
-//!
-//! 1. **`tests/services/probe_arc170_w2a_kwargs_check_mint_swap.wat.bad` — the error ORDER varies.**
-//!    The same four errors every run; the `:wat::core::match` scrutinee mismatch at line 40 appears
-//!    FIRST in some runs and LAST in others, with the other three unmoved.
-//!
-//! 2. **`tests/services/probe_arc170_c2_mixed_macro_swap.wat.bad` — the error ORDER varies.**
-//!    Same shape as (1) at larger scale: the same NINE errors every run, but they arrive as two
-//!    blocks that swap — seven `:wat::core::match` scrutinee mismatches (lines 91-127) and two
-//!    `:probe::enrich::kwargs-check::Kwargs` parameter mismatches (line 156) — so a reader diffing
-//!    two runs sees nine moved errors and zero real changes.
-//!
-//! Both sit in the SAME class: a `HashMap`-ordered traversal upstream deciding which errors
-//! are emitted, and in what order, per process. That is the STOP-1 territory this strike was
-//! explicitly barred from ("do not chase the traversal to determinism"), and it is a strictly
-//! larger job than a renderer.
 //!
 //! ### ✅ CURED AND REMOVED — `tests/rete/probe_arc278_rete_defn_recurse_mutual.wat.bad` (C20)
 //!
@@ -78,9 +64,8 @@
 //! every site now, so the order is unrepresentable rather than merely sorted at one call site.
 //! 48/48 identical after the change.
 //!
-//! ⚠ THE OTHER TWO WERE RE-DRIVEN AFTER THAT FIX AND ARE STILL NONDETERMINISTIC (24 runs each,
-//! two hashes each). Their root is check-phase error ORDER and is unlocated. One fix did not
-//! quietly cover three defects; two rows stay, with their evidence.
+//! ⚠ THE OTHER TWO WERE RE-DRIVEN AFTER THAT FIX AND WERE STILL NONDETERMINISTIC. One fix did not
+//! quietly cover three defects — their root was different and needed its own strike, below.
 //!
 //! ⚠ AND NOTE WHAT REMOVING A ROW DOES **NOT** PROVE. This gate runs each file TWICE, so
 //! re-admitting a file to the corpus is a 2-run assertion — 42-50% blind to a defect of this
@@ -92,13 +77,47 @@
 //!
 //! ★ Note what this contradicts: the C19 DESIGN's bounding table asserts that "error kinds, their
 //! ORDER, spans, message text" are **stable** and that normalising `:?N` makes runs byte-identical.
-//! That held over the 120 files it sampled; over all 280 it is false for these two. The bound was
+//! That held over the 120 files it sampled; over all 280 it was false for three. The bound was
 //! measured on a subset and read as a property.
+//!
+//! ### ✅ CURED AND REMOVED — the last two, `probe_arc170_{w2a_kwargs_check_mint,c2_mixed_macro}_swap.wat.bad`
+//!
+//! Entries 1 and 2 of three. Both emitted the same findings every run in a different ORDER:
+//!
+//! - `w2a_kwargs_check_mint_swap` — four errors; the `:wat::core::match` scrutinee mismatch at
+//!   line 40 appeared FIRST in some runs and LAST in others, the other three unmoved.
+//! - `c2_mixed_macro_swap` — NINE errors arriving as two blocks that swapped: seven
+//!   `:wat::core::match` scrutinee mismatches (lines 91-127) and two
+//!   `:probe::enrich::kwargs-check::Kwargs` parameter mismatches (line 156). A reader diffing two
+//!   runs saw nine moved errors and zero real changes.
+//!
+//! Re-driven at `75e82f882`, 24 runs each: **14/10 and 14/10**, two outputs apiece.
+//!
+//! The root: `check_program` (`src/check.rs`) collects errors in FOUR walks over the function
+//! map — two `functions_iter()`, two `function_values()`, a `HashMap<String, Arc<Function>>` —
+//! so the per-FUNCTION error blocks emerged in a per-process order. Unlike C20's first file this could NOT be cured
+//! by changing the container: `SymbolTable.functions` is a hot symbol-lookup path and C10's
+//! ruling forbids paying `O(log n)` there for a diagnostic's benefit. The batch is sorted at
+//! `check_program`'s exit instead (`check::error::sort_into_source_order`), into SOURCE order —
+//! which is strictly better than the hash-stable order a `BTreeMap` would have given, because a
+//! reader gets the findings in the order they occur in their file. 24/24 identical after, both.
+//!
+//! ⚠ THE SORT KEY IS TOTAL DOWN TO THE VARIANT PAYLOAD, AND THAT IS NOT DEFENSIVE. `c2` contains
+//! a genuine SAME-SPAN PAIR — two `TypeMismatch`es for parameters `#1` and `#2` of one call, both
+//! at `156:5..158:53`. Rust's sort is stable, so a key of `(line, col)`, or even
+//! `(file, line, col, end)`, would have left that pair in input — i.e. hash — order while looking
+//! exactly like a fix.
+//!
+//! ⚠ THE EVIDENCE IS NOT THESE ROWS' ABSENCE, for the same reason it was not C20's first file's.
+//! It is `tests/services/probe_arc278_c20_check_errors_in_source_order.rs`: two tests driving 24
+//! fresh processes each, pinning the WHOLE span sequence (not just "the two runs agreed") plus
+//! the same-span pair's order, and a third that feeds a constructed same-span pair through
+//! `sort_into_source_order` in both input orders.
 //!
 //! ## WHAT THIS GATE DELIBERATELY DOES NOT DO
 //!
-//! It does NOT assert that the two quarantined files are STILL nondeterministic. That assertion is
-//! attractive — it would make the list self-expiring — and it was rejected on purpose: with each
+//! It does NOT assert that a quarantined file is STILL nondeterministic. That assertion is
+//! attractive — it would make the list self-expiring — and it was rejected on purpose: with a
 //! file's two outcomes at ~50/50, "observe at least two distinct outputs in N runs" is wrong with
 //! probability `0.5^(N-1)`, which at any N cheap enough to run is a genuine, if rare, false
 //! (⛔ ARITHMETIC CORRECTED 2026-09-04, C20's rider: this read `2 * 0.5^(N-1)`, which evaluates to
@@ -141,16 +160,7 @@ const N_SHARDS: usize = 16;
 /// ⛔ NOT a flake list. Adding a row here means "I found another determinism defect and could not
 /// fix it in this blast radius" — it must come with captured evidence in the header above and it
 /// must move [`QUARANTINE_LEN`], which is what makes the addition deliberate.
-const QUARANTINE: &[(&str, &str)] = &[
-    (
-        "tests/services/probe_arc170_w2a_kwargs_check_mint_swap.wat.bad",
-        "the four errors are the same every run but their ORDER flips (the line-40 match mismatch moves first<->last)",
-    ),
-    (
-        "tests/services/probe_arc170_c2_mixed_macro_swap.wat.bad",
-        "the nine errors are the same every run but arrive as two blocks (7 match + 2 Kwargs) whose ORDER flips",
-    ),
-];
+const QUARANTINE: &[(&str, &str)] = &[];
 
 /// Pinned length of [`QUARANTINE`]. A further source of diagnostic nondeterminism cannot be
 /// absorbed silently: it has to change this number, and changing it is the moment someone asks why.
@@ -158,9 +168,17 @@ const QUARANTINE: &[(&str, &str)] = &[
 /// 3 → 2, C20 (arc 278): `probe_arc278_rete_defn_recurse_mutual.wat.bad` was CURED (see the
 /// header's "CURED AND REMOVED" section) and re-admitted to the asserted corpus.
 ///
+/// 2 → 0, C20's remaining two (arc 278): both were CURED by `check::error::sort_into_source_order`
+/// and re-admitted. **THE EVIDENCE IS NOT THIS ZERO** — see the header's second "CURED AND
+/// REMOVED" section. It is the pair of 24-fresh-process tests in
+/// `tests/services/probe_arc278_c20_check_errors_in_source_order.rs`, which pin the whole span
+/// sequence rather than merely observing that two runs agreed.
+///
 /// ⛔ THIS PIN CANNOT TELL A CURED FILE FROM A BROKEN ONE, AND IT IS NOT MEANT TO. Restoring a
-/// stale row and bumping this number back to 3 goes GREEN — the path still exists, the length
-/// still matches, and the gate simply stops looking at the file. That is the deliberate design
+/// stale row and bumping this number to match goes GREEN — the path still exists, the length
+/// still matches, and the gate simply stops looking at the file. **DRIVEN, not assumed** (C20's
+/// second strike): re-adding the cured `c2_mixed_macro_swap` row without touching this constant
+/// REDs on `left: 1, right: 0`; re-adding it AND setting this to 1 passes 17/17, shards included. That is the deliberate design
 /// recorded under "WHAT THIS GATE DELIBERATELY DOES NOT DO", not an oversight: asserting a
 /// quarantined file is STILL nondeterministic is a check that can go red for a reason other than
 /// the defect. What stops a cured file being re-quarantined by mistake is the file's OWN
@@ -168,7 +186,7 @@ const QUARANTINE: &[(&str, &str)] = &[
 /// `mutual_rete_defn_cycle_blames_the_same_member_every_run`
 /// (`tests/rete/probe_arc278_rete_defn_recurse.rs`, 24 fresh processes). A row added here without
 /// one of those is an exclusion with nothing behind it.
-const QUARANTINE_LEN: usize = 2;
+const QUARANTINE_LEN: usize = 0;
 
 /// The fixture that drives `check::format_type_inner`'s `Var` arm — the NESTED type renderer.
 ///
@@ -234,9 +252,10 @@ fn check_shard(shard: usize) {
     let paths = corpus();
 
     // NON-VACUITY: a walk that comes back empty asserts nothing over nothing and reports PASS. The
-    // floor sits well under the 266 non-quarantined `.wat.bad` this walk finds today (268 in the
-    // tree, 2 quarantined — the population dropped 281 -> 268 at C18, `04abe37fc`, which retired
-    // the ones that were not actually failing), so it catches
+    // floor sits well under the 268 non-quarantined `.wat.bad` this walk finds today (268 in the
+    // tree, 0 quarantined — the population dropped 281 -> 268 at C18, `04abe37fc`, which retired
+    // the ones that were not actually failing; the last 2 exclusions went at C20's second strike),
+    // so it catches
     // a walk gone blind — a moved root, a renamed extension — without rotting as the corpus grows.
     assert!(
         paths.len() > 200,

@@ -250,6 +250,33 @@ filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_
 slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
 priority = 98                                             # just below the lint binary
 
+# Arc 278, C20 — the two check-error source-order regression tests
+# (tests/services/probe_arc278_c20_check_errors_in_source_order.rs). Each spawns 24 fresh `wat`
+# processes, because the defect they guard is a per-process hash draw and a test that ran the
+# binary twice would go green over a live bug about a third of the time (the derivation is in
+# that file's header).
+#
+# THE NUMBER, DERIVED NOT PICKED. 24 sequential runs measured on this box, release, 6 samples:
+#   c2_mixed_macro_swap ....  9.64 9.73 9.69 9.74 9.66 9.68 s   (median 9.69, spread 0.10)
+#   w2a_kwargs_check_mint ..  8.00 7.94 7.91 7.87 7.92 7.96 s   (median 7.93, spread 0.13)
+# At this repo's own recorded floor-contention band (3.5x-4.4x, derived for the rete cohort
+# above) the worse of the two projects to 33.9-42.9s — i.e. it CANNOT fit the default 30s kill
+# at any factor this repo has measured, the same shape as the rete cohort's arrival. Warn 90s /
+# kill 180s is ~2.1x margin on the top of that projection, the same generosity the rete and
+# C19 cohorts were given on the same reasoning.
+#
+# ⛔ IF THIS EVER NEEDS RAISING, LOWER `RUNS` ONLY WITH THE ARITHMETIC. The run count is the
+# test's sensitivity, not a knob: at p≈0.58 the false-green probability is p^N, so 24 -> 12
+# trades a 1-in-30,000 blind spot for 1-in-176. Splitting per fixture (already done — that is
+# why there are two tests, not one 17.6s test) is the cheap lever and it is spent.
+#
+# `priority = 98` puts them in the same early wave as the rete cohort so ~18s of process
+# spawning overlaps the scripts gate's window instead of becoming the floor's tail.
+[[profile.default.overrides]]
+filter = 'test(check_errors_are_in_source_order_every_run)'
+slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+priority = 98
+
 [[profile.ci.overrides]]
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
@@ -278,6 +305,13 @@ priority = 99
 # scripts gate's ci override records).
 [[profile.ci.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
+slow-timeout = { period = "90s", terminate-after = 2 }
+priority = 98
+
+# raised with [profile.default] — CI runs the same 48 process spawns on the same box; a deadline
+# only the dev profile can meet is not a deadline (the reasoning the cohorts above record).
+[[profile.ci.overrides]]
+filter = 'test(check_errors_are_in_source_order_every_run)'
 slow-timeout = { period = "90s", terminate-after = 2 }
 priority = 98
 
@@ -318,5 +352,11 @@ priority = 99
 # raised with [profile.default] 2026-08-17 — same cohort, same box, same argument.
 [[profile.slow.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
+slow-timeout = { period = "90s", terminate-after = 2 }
+priority = 98
+
+# raised with [profile.default] — same tests, same box, same argument.
+[[profile.slow.overrides]]
+filter = 'test(check_errors_are_in_source_order_every_run)'
 slow-timeout = { period = "90s", terminate-after = 2 }
 priority = 98
