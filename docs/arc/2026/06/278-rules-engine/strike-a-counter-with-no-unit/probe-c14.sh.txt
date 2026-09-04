@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# DISCONFIRMING PROBE for C14 — the orchestrator's, run before the brief.
+# Rename ONLY the alpha.rs:195 key, change nothing else, and see what compiled:calls has left.
+#
+# AT HEAD d7464c95e:
+#   compiled:calls is zero — occupancy fill / skip-span / exec_compiled never counted
+#     (accum_cost.rs:41, the LIVENESS guard — not the 80,200 pin below it)
+# => 100% of the pinned 80,200 comes from the product `ids.len() * aids.len()`,
+#    and delta.rs:78 + compiled_cond.rs:928 contribute ZERO on this workload.
+#
+# ⛔ RESTORE BY HASH, NOT `git diff` — `git checkout <sha> -- <path>` STAGES.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+md5sum src/rete/kernel/fire/pass/alpha.rs > /tmp/alpha.md5
+cp src/rete/kernel/fire/pass/alpha.rs /tmp/alpha.orig
+sed -i 's/census_count_n("compiled:calls"/census_count_n("compiled:leaf-fill-pairs"/' \
+  src/rete/kernel/fire/pass/alpha.rs
+grep -c 'compiled:leaf-fill-pairs' src/rete/kernel/fire/pass/alpha.rs   # must be 1, or the sed missed
+cargo nextest run --release -E 'test(accum_matcher_op_census)' --no-capture 2>&1 | grep -E 'panicked|compiled:calls|Summary'
+cp /tmp/alpha.orig src/rete/kernel/fire/pass/alpha.rs
+md5sum -c /tmp/alpha.md5
