@@ -1275,6 +1275,19 @@ mod tests {
         ":wat::core::extend-type",
         ":wat::core::derive",
         ":wat::core::defclause",
+        // Arc 255 Stone 1c-e — `str` joins: now a registered `#[wat_intrinsic]` row
+        // (`src/runtime.rs`'s `eval_str`), but it has NO `env.register()` TypeScheme —
+        // measured exactly (zero `check.rs` mentions of `":wat::core::str"`, zero
+        // `register_builtins` scheme) — so `check_env.get` returns `None`. Unlike `and`/`or`/
+        // `extend-type`/`derive`/`defclause` above, `str` is NOT checked for real by any
+        // hand-written `check_call`/`infer_*` arm either: `check.rs`'s no-scheme fallback's own
+        // DOOR 2 (registry-arity gate) checks `Arity::Exact`, but a variadic-sniffed handler
+        // registers `Arity::Variadic` (never `Exact`), so that arm never fires for `str` and
+        // the call falls straight through to `CheckResult::ok(fresh.fresh())` — an
+        // unconstrained fresh type variable, no argument-count or argument-type check at all,
+        // identically before and after this registration. `check.rs` stays untouched (STOP-4);
+        // the ledger grows by exactly one, 118 → 119.
+        ":wat::core::str",
     ];
 
     #[test]
@@ -1789,6 +1802,13 @@ mod tests {
     /// `GAP_B_CORPUS_CENSUS_121` above; only the shrinking "current gap" list drops them. None
     /// of the six carries an `env.register()` `TypeScheme` — they land on
     /// `FROZEN_CHECKER_DEBT_LEDGER` below instead (DEBT traded for GAP_B, not paid). 52 → 46.
+    ///
+    /// Arc 255 Stone 1c-e — `:wat::core::str` LEAVES: it now carries a `#[wat_intrinsic]` row
+    /// (`src/runtime.rs`'s `eval_str`), so `registry().lookup_entry` returns `Some` and leaving
+    /// it here would fail the gate below as STALE. It stays in `GAP_B_CORPUS_CENSUS_121` above;
+    /// only the shrinking "current gap" list drops it. It carries no `env.register()`
+    /// `TypeScheme` — it lands on `FROZEN_CHECKER_DEBT_LEDGER` below instead (DEBT traded for
+    /// GAP_B, not paid). 45 → 44.
     const REGISTRY_MEMBERSHIP_GAP_B: &[&str] = &[
         ":wat::core::=",
         ":wat::core::not=",
@@ -1797,7 +1817,10 @@ mod tests {
         // (`intrinsic/special/extend_type.rs`), so `registry().lookup_entry` returns `Some` and
         // this name is resolved, not gapped. Traded onto `FROZEN_CHECKER_DEBT_LEDGER` below (no
         // `env.register()` TypeScheme exists for it).
-        ":wat::core::str",
+        // ":wat::core::str" REMOVED -- arc 255 Stone 1c-e: now registered (`#[wat_intrinsic]`,
+        // `src/runtime.rs`'s `eval_str`), so `registry().lookup_entry` returns `Some` and this
+        // name is resolved, not gapped. Traded onto `FROZEN_CHECKER_DEBT_LEDGER` below (no
+        // `env.register()` TypeScheme exists for it — same reasoning as `extend-type` above).
         ":wat::rete::string::=",
         // ":wat::core::derive" REMOVED -- arc 255 Stone 1c-d: now registered
         // (`intrinsic/special/derive_form.rs`), same reasoning as `extend-type` just above.

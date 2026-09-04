@@ -2920,9 +2920,11 @@ fn dispatch_keyword_head_value(
         // `:wat::core::show` carries a registered handler, so the registry-first door above
         // (`crate::intrinsic::registry().lookup(head)`) already dispatches it to `eval_show`
         // (unchanged) before this match is ever reached.
-        // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits. Unlike `show`,
-        // which wraps strings in `"..."`, `str` renders values as format fills them.
-        ":wat::core::str" => eval_str(args, list_span, env, sym),
+        // Arc 255 Stone 1c-e — this arm RETIRED; `:wat::core::str` carries a registered
+        // handler (`eval_str`, immediately below `eval_show` in this file), so the
+        // registry-first door above (`crate::intrinsic::registry().lookup(head)`) already
+        // dispatches it before this match is ever reached. Unquoted display: String→itself,
+        // i64/f64/bool→digits — unlike `show`, which wraps strings in `"..."`.
         // Arc 255 Stone HOME-11 — the remaining 9 `:wat::edn::` verbs (the 4 `write*`
         // renderers, and the 5 `ForeignRecord`/`ForeignVariant` accessors) RETIRED as literal
         // arms this stone; registry-routed via `src/intrinsic/edn.rs`. The registry-first door
@@ -9702,6 +9704,88 @@ fn eval_show(
 /// `(:wat::core::str v)` → `:String` (arc 279). Unquoted polymorphic
 /// renderer: String→itself, i64→digits, f64→decimal, bool→true/false.
 /// Distinct from `show` which wraps strings in `"..."`.
+///
+/// Arc 255 Stone 1c-e — registered `#[wat_intrinsic]`. Single-use, single-caller
+/// (`dispatch_keyword_head_value`'s `":wat::core::str"` arm was its only call site), and
+/// already the canonical `NativeHandler` signature — annotated in place, no wrapper, no
+/// extraction. The Rust signature is `(args: &[WatAST], list_span: &Span, env: &Environment,
+/// sym: &SymbolTable)` — a single leading `&[WatAST]` param — which `#[wat_intrinsic]` sniffs
+/// as its VARIADIC form, same shape `eval_show` (immediately above) already carries; the real
+/// 1-arg arity stays enforced by this fn's own hand-rolled `args.len() != 1` guard below,
+/// unchanged. `check_args` requires exactly ONE `@arg`, matching the sole `args` ident.
+///
+/// ⚠ **`str` has NO checker knowledge at all** — measured exactly: zero mentions of
+/// `":wat::core::str"` in `check.rs`, zero `register_builtins` `TypeScheme`. So the five axes
+/// below are grounded in THIS fn's own body, not mirrored against any scheme, and there is
+/// nothing to mirror `@arg`/`@ret` against — `doc_arg_ret_types_match_checker_scheme`
+/// (`src/intrinsic/mod.rs`) finds no scheme for `":wat::core::str"` and skips it, same as
+/// `:wat::edn::validate`/`require-wire-address` before it.
+///
+/// **What a `(str x)` call does at check time TODAY — and after this registration, unchanged:**
+/// `check.rs`'s keyword-call dispatch (`infer`'s no-scheme fallback, the "silent-by-intent — no
+/// scheme found for multi-arg form; accept and pass" arm) reaches `str` because `env.get(k)`
+/// returns `None` for it. That fallback's own DOOR 2 — "consult the registry's declared
+/// `arity`" — checks `if let Arity::Exact(n) = entry.arity`, but a VARIADIC-sniffed handler is
+/// registered with `Arity::Variadic` (`crates/wat-macros/src/wat_intrinsic.rs`'s `emit`: a
+/// sniffed `Variadic` param emits `Arity::Variadic`, never `Exact`), so that arm's `if let`
+/// never matches for `str` either before or after this stone. The call therefore falls straight
+/// through to `CheckResult::ok(fresh.fresh())` — an unconstrained fresh type variable, no
+/// argument-count check, no argument-type check — EXACTLY as it did before this stone. This
+/// registration adds a runtime registry row and a `FROZEN_CHECKER_DEBT_LEDGER` entry
+/// (`src/intrinsic/mod.rs`); it does not, and could not by itself, add checker enforcement —
+/// that would need a real `@arg`-typed `TypeScheme` registered in `register_builtins`, which is
+/// out of this stone's scope. `(str 1 2 3)` and `("not a value" :also :bogus)` both type-check
+/// clean today and will continue to after this stone lands; only `eval_str`'s own runtime
+/// `ArityMismatch`/`TypeMismatch` guards catch a malformed call, at RUNTIME, not at check time.
+///
+/// **Purity ground — `Pure`:** the sole arg is evaluated by ordinary call-by-value
+/// (`eval_inner`, not itself an effect, same as `eval_show` immediately above); past that the
+/// body calls only `crate::string::render_str_total` (`src/string/mod.rs:59`), a pure two-arm
+/// dispatch (`Value::String` → itself, bare; everything else →
+/// `crate::edn::render::value_to_edn_string_with`) that reads the already-evaluated `Value` and
+/// writes a `String` — no I/O, no ambient state, no `eval_inner`/`apply_function` on
+/// caller-supplied code anywhere in the call chain.
+///
+/// **Determinism ground — `Deterministic`:** `render_str_total`'s two arms and
+/// `value_to_edn_with`'s recursive structural walk (`src/edn/render.rs:3822`) are a pure
+/// function of the input `Value` — same value in, same string out, every time; no clock, no
+/// RNG, no thread-order dependence anywhere in the chain.
+///
+/// **Totality ground — `Total`:** `value_to_edn_with`'s `match v { … }` (`src/edn/render.rs`,
+/// lines 3826–4142) is EXHAUSTIVE over every `Value` variant with no wildcard `_` arm and no
+/// `panic!`/`unreachable!`/`todo!` inside it — every variant this stone's author could not
+/// otherwise render (`wat__core__fn`, the `Stream::Thunk`/`NativeThunk` lazy-seq states,
+/// `wat__core__clauses`, `wat__core__extend_def`) maps to an explicit `opaque_nil(...)`
+/// placeholder rather than failing. `render_str_total`'s own `Value::String` arm is a bare
+/// clone, also infallible. No domain hole exists for any well-formed `Value`.
+///
+/// **Expand-time ground — `Legal`:** on BOTH `src/macros/eval.rs`'s `is_expand_time_legal`
+/// residue AND `src/rete/purity.rs`'s `intrinsic_meta` `pure_det` residue today (each names
+/// `":wat::core::str"` unconditionally, i.e. legal / pure∧deterministic) — registering it here
+/// REPLACES both residue entries, so it must declare the SAME verdict or the registration
+/// silently revokes today's legality (arc 255 the `fn` lesson, same caution `eval_show`'s doc
+/// states above). This is also the honest ground independent of that residue: the body above
+/// never applies caller-supplied code and never touches ambient state, so calling it during
+/// macro expansion is unconditionally safe — the same `Legal` `eval_show` already claims for
+/// the structurally identical "evaluate one arg, run a pure renderer over it" shape. Both
+/// residue rows are deleted by this stone (their unconditional-true is now what the registry
+/// answers instead); `rete/purity.rs`'s `KNOWN_UNREVIEWED` ledger does NOT carry `str` today
+/// (checked against the constant), so no line is removed there — `str` was never unreviewed,
+/// only unregistered.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :T the value to render — `String` renders as itself (unquoted), `i64`/`f64`/
+/// `bool` render as their literal text, and every other `Value` renders via the shared EDN
+/// encoder (`value_to_edn_string_with`), so a record renders by field NAME
+/// @ret     :wat::core::String the unquoted rendering of `args`
+/// @example (:wat::core::str 42) #=> "42"
+/// @see     :wat::core::show
+#[wat_intrinsic(":wat::core::str")]
 fn eval_str(
     args: &[WatAST],
     list_span: &Span,

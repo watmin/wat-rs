@@ -532,7 +532,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // name, not derivation.)
             // Collection/map/vector readers and predicates — UNHOMED (no registration).
             | ":wat::core::stream->pvec"
-            | ":wat::core::str"
+            // ⛔ Arc 255 Stone 1c-e — `:wat::core::str` LEFT this list: it is registered now
+            // (`#[wat_intrinsic]`, `src/runtime.rs`'s `eval_str`, `@Purity Pure`/`@Determinism
+            // Deterministic`), so the registry consult above (total-T5) answers for it and this
+            // arm was unreachable — the identical "shadowed by a copy" defect `u8`/`do` (Stone
+            // 1c-c) and `<`/`>`/`<=`/`>=` (Stone 1c-b-ii) already left this same list for.
             // Bare TYPE constructors — the numerics/container HOME campaigns (arc 255 Stones
             // C/D/E-i/E-ii/E-iii) moved every `/`-verb OP to its own per-type namespace and
             // registered it (`:wat::vec::*`, `:wat::vector::*`, `:wat::linkedlist::*`,

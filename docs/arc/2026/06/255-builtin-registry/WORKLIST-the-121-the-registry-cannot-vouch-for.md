@@ -410,3 +410,143 @@ family of the `special_forms.rs` 35. Three rows, 868 call sites, already scoped.
       1 :wat::core::find-last-index
       1 :wat::core::conforms?
 ```
+
+---
+
+## ⛔ RE-DERIVED 2026-09-03 — **71 → 39**, after Stones 1c-a through 1c-e, and the census SEPARATES non-verb artifacts for the first time
+
+The procedure at the top of this file was re-run in full (patch `is_resolvable_call_head` →
+`cargo build --release --bin wat` → sweep every `.wat` under `wat/` and `wat-scripts/` → **revert**,
+`git diff --stat src/resolve/walk.rs` verified empty both before and after). Run twice
+independently (once mid-session, once after the final revert+rebuild) — identical 39 names, 1343
+call sites, byte-for-byte, both times.
+
+```
+                      2026-09-01   2026-09-02   2026-09-03 (71)   2026-09-03 (this stone)
+corpus files              599          609             610                614
+failing                   578          509             505                226
+distinct names            121          107              71                 39
+```
+
+The 32 that left since the last section are Stones 1c-a-i/ii, 1c-b-i/ii, 1c-c, 1c-d, and this
+stone's `str` (1c-e) — every `#[wat_intrinsic]`/`#[wat_special_form]` registration those stones
+made (`map`/`mapv`/`foldl`/`stream->vec`/`find-last-index`/`filter`, `Tuple`/`get`/`apply`/
+`contains?`/`conforms?`, `first`/`second`/`third`/`PersistentVector`/`PersistentMap`, `<`/`>`/
+`<=`/`>=`, `u8`/`do`, `extend-type`/`derive`/`defclause`, and now `str`) answers
+`is_resolvable_call_head` before the sweep ever reaches its patched branch.
+
+### ★★★ This is the first re-derivation to separate non-verb names from verb population
+
+Every prior section in this file reported **distinct names** as if it were **verb population** —
+arithmetic on whichever sweep ran, never audited for a name that occupies a call-head *position*
+without being a verb the registry could ever hold. This section asks, of all 39 names, one
+question per BRIEF-STONE-1c-e: **is this a verb the registry should hold, or a name another
+authority already answers?**
+
+**Two already-known non-verb kinds, both answered by the frozen `TypeEnv`** (the RULING's named
+exemption: *"`constructor_meta`/`accessor_meta` DERIVE from the frozen `TypeEnv` … Derivation from
+one source is not duplication"*):
+
+```
+:wat::type::Tuple     9   ┐
+:wat::type::i64        7   │ a TYPE PATH in arc 251's dual-read spelling (source spells
+:wat::type::String     5   │ `wat.type/Tuple`); `types.rs:5172` strips `wat::type::` →
+:wat::type::Vector     2   ┘ `wat::core::` before any checker/registry sees it. Zero corpus
+                            text spells the `::` form directly — the census sees it only
+                            because the TYPE-EXPR parse path and the CALL-HEAD resolve path
+                            are different code, and only the latter was patched.
+:wat::core::None       3   a declared UNIT VARIANT of `Option` (`types.rs:1248`,
+                            `EnumVariant::Unit("None")`). Grepping the full corpus for
+                            `(:wat::core::None …)` finds ~140 sites, all of them match-arm
+                            PATTERNS or plain VALUES (`:label :wat::core::None`); the census's
+                            3 are the sites where a pattern's head sits where the walker's
+                            call-head check also fires. Never a call.
+```
+
+**A third kind, found this stone, per the BRIEF's instruction to look for one** — a name that
+answers to no authority at all because it was never meant to resolve:
+
+```
+:wat::rete::f64::>X   1   a DELIBERATELY UN-MINTED bogus keyword, not a verb and not a typo
+                          nobody noticed. `wat-scripts/scratch-pad/probe-f64-comparator-bogus-
+                          head.wat` is a RUN-time negative-control fixture for
+                          `docs/arc/2026/06/278-rules-engine/BRIEF-the-f64-surface-is-a-stub.md`
+                          EXPECTATIONS row 5, and its own header says so verbatim: "`--check`
+                          does NOT validate `:wat::*` heads at all — a bogus rete keyword is
+                          opaque to the checker exactly like any other unregistered `:wat::`
+                          symbol, so this file TYPE-CHECKS … despite `:wat::rete::f64::>X` never
+                          having been minted." Running it (not `--check`ing it) raises a located
+                          `UnknownFunction` — the file exists to PROVE the checker's blind spot,
+                          not to exercise a real verb. Its real authority is: nothing answers it,
+                          by design; the census sweep is measuring its own instrument's blind
+                          spot (the same trap door the probe was built to demonstrate), not
+                          registry-cannot-vouch-for population.
+```
+
+★ **The three numbers, derived not predicted:**
+
+```
+total names           39
+non-verb artifacts      6   4 type-path dual-read rows + 1 unit-variant pattern + 1 deliberately
+                            un-minted negative-control probe head — all answered by an authority
+                            OTHER than the intrinsic registry (frozen TypeEnv ×5, "nothing, on
+                            purpose" ×1)
+verb population        33   genuine registry-cannot-vouch-for population: real dispatched verbs
+                            with no `#[wat_intrinsic]`/`#[wat_special_form]` row today
+```
+
+(1343 total call sites; 27 belong to the 6 non-verb names — 23 type-path + 3 `None` + 1 bogus
+probe — leaving 1316 sites of genuine verb-population exposure, still dominated by
+`:wat::core::=`/`not=` (705 sites, deliberately HELD — see
+`NOTE-equality-is-argued-proven-partial-and-held.md`) and the RETE_OPS Phase-1b family (`:wat::
+rete::*`, ~350 sites across arithmetic/comparison/string/vector/holon per-type ops).)
+
+### The 33 verbs, by corpus call-site count
+
+```
+    695 :wat::core::=            (held, Partial — bounded-generics door)
+    331 :wat::eval-ast!          (real TypeScheme in check.rs; no #[wat_intrinsic] row)
+    111 :wat::rete::string::=
+     34 :wat::rete::i64::+
+     17 :wat::rete::i64::*
+     15 :wat::rete::i64::/
+     13 :wat::rete::vector::get
+     11 :wat::rete::i64::-
+     10 :wat::rete::i64::mod
+     10 :wat::core::not=          (held, Partial — same NOTE as `=`)
+      8 :wat::rete::holon::cosine
+      8 :wat::rete::core::foldl
+      6 :wat::rete::core::PersistentVector/first
+      5 :wat::rete::string::subs
+      5 :wat::rete::f64::/
+      5 :wat::rete::f64::*
+      4 :wat::rete::core::keyword::=
+      3 :wat::rete::core::enum::=
+      3 :wat::eval-with-defs!
+      2 :wat::rete::vec::get
+      2 :wat::rete::linkedlist::get
+      2 :wat::rete::i64::rem
+      2 :wat::rete::holon::dot
+      2 :wat::rete::core::enum::not=
+      2 :wat::rete::core::Vector/first
+      2 :wat::rete::core::PersistentVector
+      2 :wat::rete::core::List/first
+      1 :wat::rete::string::not=
+      1 :wat::rete::i64::quot
+      1 :wat::rete::f64::+
+      1 :wat::rete::core::reduce
+      1 :wat::rete::core::map
+      1 :wat::rete::core::filter
+```
+
+### The 6 non-verb artifacts, by corpus call-site count, with real authority
+
+```
+      9 :wat::type::Tuple    → frozen TypeEnv (arc 251 dual-read alias, types.rs:5172)
+      7 :wat::type::i64      → frozen TypeEnv (arc 251 dual-read alias, types.rs:5172)
+      5 :wat::type::String   → frozen TypeEnv (arc 251 dual-read alias, types.rs:5172)
+      3 :wat::core::None     → frozen TypeEnv (Option unit variant, types.rs:1248)
+      2 :wat::type::Vector   → frozen TypeEnv (arc 251 dual-read alias, types.rs:5172)
+      1 :wat::rete::f64::>X  → nothing, by design (negative-control probe, docs/arc/2026/06/
+                                278-rules-engine/BRIEF-the-f64-surface-is-a-stub.md row 5)
+```

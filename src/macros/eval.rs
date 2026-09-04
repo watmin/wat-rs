@@ -437,7 +437,7 @@ fn is_expand_time_legal(head: &str) -> bool {
     // ★ THE RESIDUE — arc 255 Stone expand-T4b. NOT a hand-list of "which verbs are
     // expand-time legal": every name below is one for which `registry().lookup_entry`
     // returns `None` — no registration site exists yet to carry an `@ExpandTime`
-    // ruling — so the verdict for exactly these 21 stays HERE until one exists. This
+    // ruling — so the verdict for exactly these 20 stays HERE until one exists. This
     // is a HOMING BACKLOG, not the 202-name hand-list it replaced: each row retires
     // the moment its verb gets a registration site — move the reasoning there (the
     // same motion `:wat::hashmap::keys` / `:wat::hashmap::values` just made above)
@@ -451,13 +451,18 @@ fn is_expand_time_legal(head: &str) -> bool {
     // hand-list row would have been a shadowing copy. Down to 21 — arc 255 Stone
     // `1c-c-the-residues-cannot-shadow-the-registry`: 33 of the 54 rows this residue
     // actually carried had drifted the same way, one at a time, unnoticed — see the
-    // retirement bullet below.
+    // retirement bullet below. Down to 20 — arc 255 Stone 1c-e: `str` registered
+    // (`#[wat_intrinsic]`, `@ExpandTime Legal`), same shadowing-copy defect.
     //
     // Grouped only for a reader's sake — the residue's DEFINITION is `lookup_entry ==
     // None`, nothing about these groupings:
     //   value/control-flow ops with no per-verb home yet — `=`, `not=`,
     //     `i64/to-f64` (dual spelling of the homed `i64::to-f64`), `i64/to-string`,
-    //     `str`, `subtype?`, `List?`
+    //     `subtype?`, `List?`
+    //   ~~str~~ — DELETED arc 255 Stone 1c-e: `#[wat_intrinsic]`-registered
+    //     (`src/runtime.rs`'s `eval_str`, `@ExpandTime Legal`), so the `registry().lookup_entry`
+    //     door above answers first and this arm was unreachable dead text — the identical
+    //     "shadowed by a copy" defect the header above names.
     //   collection constructors — `Vector`, `HashMap`, `HashSet`
     //   collection / sequence ops still on the pre-registry dispatch path —
     //     `count`, `into`, `filterv`, `reduce`, `reduce-stream`, `doall`, `dorun`,
@@ -487,7 +492,6 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::not="
         | ":wat::core::i64/to-f64"
         | ":wat::core::i64/to-string"
-        | ":wat::core::str"
         | ":wat::core::subtype?"
         | ":wat::core::List?"
         | ":wat::core::Vector"
