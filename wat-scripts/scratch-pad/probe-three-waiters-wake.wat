@@ -131,16 +131,16 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks pending inflight)
-          (:wat::core::Tuple pending inflight))
-        (_ (:wat::core::Tuple 1 1))))
-    (_ (:wat::core::Tuple 1 1))))
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked)
+          (:wat::core::Tuple visible unacked))
+        (_ (:wat::core::Tuple -1 -1))))
+    (_ (:wat::core::Tuple -1 -1))))
 
 (:wat::core::defn :vw::calls-of [q <- :queue::Queue] -> :wat::core::i64
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok calls _ticks _p _f) calls)
+        ((:queue::Queue::StatsResponse::Ok calls _ticks _visible _unacked) calls)
         (_ -1)))
     (_ -1)))
 

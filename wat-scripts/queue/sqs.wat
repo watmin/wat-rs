@@ -66,13 +66,13 @@
       limit         <- :wat::core::i64
       wait          <- :queue::Queue::Wait])
    (:wat::core::defrecord :queue::Queue::StatsRequest [])
-   ;; pending = visible (not yet received). in-flight = received, not yet acked.
+   ;; visible = not yet received. unacked = received, not yet acked.
    ;; Both: stopping a worker that holds an unacked message loses that outcome —
    ;; the message stays invisible until its visibility timeout and the run ends
    ;; first. SQS exposes the same pair for the same reason.
    (:wat::core::defenum :queue::Queue::StatsResponse :wat::enum::Pure
      :Ok [receive-calls <- :wat::core::i64  ticks <- :wat::core::i64
-          pending <- :wat::core::i64  in-flight <- :wat::core::i64]
+          visible <- :wat::core::i64  unacked <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
@@ -118,8 +118,8 @@
               outbox        <- (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               receive-calls <- :wat::core::i64
               ticks         <- :wat::core::i64
-              pending       <- :wat::core::i64
-              in-flight     <- :wat::core::i64
+              visible       <- :wat::core::i64
+              unacked     <- :wat::core::i64
               tick-armed?   <- :wat::core::bool
               arm-tick      <- [:wat::core::bool :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::bool (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])])]]
   :peers     [:wat::query::Store]
@@ -238,8 +238,8 @@
               :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               :receive-calls 0
               :ticks 0
-              :pending 0
-              :in-flight 0
+              :visible 0
+              :unacked 0
               :tick-armed? false
               :arm-tick arm-tick)))
   :impls
@@ -250,8 +250,8 @@
         now-ns (:queue::Queue::SendRequest/now-ns req)
         n0     (:wat::core::count (:queue::Queue::SendRequest/bodies req))
         cap    (:queue::queue::Record/cap (:queue::queue::State/durable s))
-        depth  (:wat::i64::+ (:queue::queue::State/pending s)
-                 (:queue::queue::State/in-flight s))
+        depth  (:wat::i64::+ (:queue::queue::State/visible s)
+                 (:queue::queue::State/unacked s))
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
         sends  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])]
        (:wat::core::if (:wat::i64::> (:wat::i64::+ depth n0) cap)
@@ -295,8 +295,8 @@
                        :outbox (:queue::queue::State/outbox s)
                        :receive-calls (:queue::queue::State/receive-calls s)
                        :ticks (:queue::queue::State/ticks s)
-                       :pending (:wat::i64::+ (:queue::queue::State/pending s) n)
-                       :in-flight (:queue::queue::State/in-flight s)
+                       :visible (:wat::i64::+ (:queue::queue::State/visible s) n)
+                       :unacked (:queue::queue::State/unacked s)
                        :tick-armed? (:queue::queue::State/tick-armed? s)
                        :arm-tick (:queue::queue::State/arm-tick s))]
                  (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s'))
@@ -312,8 +312,8 @@
                            :outbox (:queue::queue::State/outbox s')
                            :receive-calls (:queue::queue::State/receive-calls s')
                            :ticks (:queue::queue::State/ticks s')
-                           :pending (:queue::queue::State/pending s')
-                           :in-flight (:queue::queue::State/in-flight s')
+                           :visible (:queue::queue::State/visible s')
+                           :unacked (:queue::queue::State/unacked s')
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s'))]
                      (:wat::service::Outcome::Continue s2
@@ -376,8 +376,8 @@
                       keep (:wat::core::first inner)
                       box  (:wat::core::second inner)
                       taken (:wat::core::third inner)
-                      p0 (:queue::queue::State/pending s')
-                      f0 (:queue::queue::State/in-flight s')
+                      p0 (:queue::queue::State/visible s')
+                      f0 (:queue::queue::State/unacked s')
                       p1 (:wat::core::if (:wat::i64::< p0 taken) 0 (:wat::i64::- p0 taken))
                       f1 (:wat::i64::+ f0 taken)
                       s2 (:queue::queue::State
@@ -388,8 +388,8 @@
                            :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                            :receive-calls (:queue::queue::State/receive-calls s')
                            :ticks (:queue::queue::State/ticks s')
-                           :pending p1
-                           :in-flight f1
+                           :visible p1
+                           :unacked f1
                            :tick-armed? (:queue::queue::State/tick-armed? s')
                            :arm-tick (:queue::queue::State/arm-tick s'))
                       pair (:wat::core::apply (:queue::queue::State/arm-tick s2)
@@ -403,8 +403,8 @@
                            :outbox (:queue::queue::State/outbox s2)
                            :receive-calls (:queue::queue::State/receive-calls s2)
                            :ticks (:queue::queue::State/ticks s2)
-                           :pending (:queue::queue::State/pending s2)
-                           :in-flight (:queue::queue::State/in-flight s2)
+                           :visible (:queue::queue::State/visible s2)
+                           :unacked (:queue::queue::State/unacked s2)
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s2))
                       ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))]
@@ -425,15 +425,15 @@
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
                     :ticks (:queue::queue::State/ticks s)
-                    :pending (:queue::queue::State/pending s)
-                    :in-flight (:queue::queue::State/in-flight s)
+                    :visible (:queue::queue::State/visible s)
+                    :unacked (:queue::queue::State/unacked s)
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
              ;; Do not claim Ok — the put is unknowable. Full is the caller's retry.
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Send
                  (:queue::Queue::SendResponse::Full
-                   (:wat::i64::+ (:queue::queue::State/pending s) (:queue::queue::State/in-flight s))
+                   (:wat::i64::+ (:queue::queue::State/visible s) (:queue::queue::State/unacked s))
                    (:queue::queue::Record/cap (:queue::queue::State/durable s)))))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                none-alarms)))
@@ -455,8 +455,8 @@
         store  (:wat::core::first taken-pair)
         envs   (:wat::core::second taken-pair)
         n      (:wat::core::count envs)
-        p0     (:queue::queue::State/pending s)
-        f0     (:queue::queue::State/in-flight s)
+        p0     (:queue::queue::State/visible s)
+        f0     (:queue::queue::State/unacked s)
         p1     (:wat::core::if (:wat::core::empty? envs) p0
                  (:wat::core::if (:wat::i64::< p0 n) 0 (:wat::i64::- p0 n)))
         f1     (:wat::core::if (:wat::core::empty? envs) f0 (:wat::i64::+ f0 n))
@@ -468,8 +468,8 @@
                  :outbox (:queue::queue::State/outbox s)
                  :receive-calls calls
                  :ticks (:queue::queue::State/ticks s)
-                 :pending p1
-                 :in-flight f1
+                 :visible p1
+                 :unacked f1
                  :tick-armed? (:queue::queue::State/tick-armed? s)
                  :arm-tick (:queue::queue::State/arm-tick s))]
        (:wat::core::if (:wat::core::not (:wat::core::empty? envs))
@@ -485,8 +485,8 @@
                   :outbox (:queue::queue::State/outbox s-n)
                   :receive-calls calls
                   :ticks (:queue::queue::State/ticks s-n)
-                  :pending p1
-                  :in-flight f1
+                  :visible p1
+                  :unacked f1
                   :tick-armed? (:wat::core::first pair)
                   :arm-tick (:queue::queue::State/arm-tick s-n))]
            (:wat::service::Outcome::Continue s-a
@@ -507,8 +507,8 @@
                     :outbox (:queue::queue::State/outbox s-n)
                     :receive-calls calls
                     :ticks (:queue::queue::State/ticks s-n)
-                    :pending p1
-                    :in-flight f1
+                    :visible p1
+                    :unacked f1
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-n))]
              (:wat::service::Outcome::Continue s-a
@@ -533,8 +533,8 @@
                     :outbox (:queue::queue::State/outbox s-n)
                     :receive-calls calls
                     :ticks (:queue::queue::State/ticks s-n)
-                    :pending p1
-                    :in-flight f1
+                    :visible p1
+                    :unacked f1
                     :tick-armed? (:queue::queue::State/tick-armed? s-n)
                     :arm-tick (:queue::queue::State/arm-tick s-n))
               pair (:wat::core::apply (:queue::queue::State/arm-tick s-w)
@@ -549,8 +549,8 @@
                     :outbox (:queue::queue::State/outbox s-w)
                     :receive-calls calls
                     :ticks (:queue::queue::State/ticks s-w)
-                    :pending p1
-                    :in-flight f1
+                    :visible p1
+                    :unacked f1
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-w))]
              (:wat::service::Outcome::Continue s-a
@@ -572,7 +572,7 @@
            (:wat::core::match sresp
              ((:wat::query::Store::DeleteResponse::Success)
                (:wat::core::let
-                 [f0 (:queue::queue::State/in-flight s)
+                 [f0 (:queue::queue::State/unacked s)
                   f1 (:wat::core::if (:wat::i64::<= f0 0) 0 (:wat::i64::- f0 1))
                   s' (:queue::queue::State
                        :durable (:queue::queue::State/durable s)
@@ -582,8 +582,8 @@
                        :outbox (:queue::queue::State/outbox s)
                        :receive-calls (:queue::queue::State/receive-calls s)
                        :ticks (:queue::queue::State/ticks s)
-                       :pending (:queue::queue::State/pending s)
-                       :in-flight f1
+                       :visible (:queue::queue::State/visible s)
+                       :unacked f1
                        :tick-armed? (:queue::queue::State/tick-armed? s)
                        :arm-tick (:queue::queue::State/arm-tick s))
                   pair (:wat::core::apply (:queue::queue::State/arm-tick s')
@@ -597,8 +597,8 @@
                         :outbox (:queue::queue::State/outbox s')
                         :receive-calls (:queue::queue::State/receive-calls s')
                         :ticks (:queue::queue::State/ticks s')
-                        :pending (:queue::queue::State/pending s')
-                        :in-flight f1
+                        :visible (:queue::queue::State/visible s')
+                        :unacked f1
                         :tick-armed? (:wat::core::first pair)
                         :arm-tick (:queue::queue::State/arm-tick s'))]
                  (:wat::service::Outcome::Continue s-a
@@ -620,11 +620,11 @@
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
                     :ticks (:queue::queue::State/ticks s)
-                    :pending (:queue::queue::State/pending s)
-                    :in-flight (:queue::queue::State/in-flight s)
+                    :visible (:queue::queue::State/visible s)
+                    :unacked (:queue::queue::State/unacked s)
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
-             ;; Do not delete. Reply Ok so the worker does not hang; in-flight stays.
+             ;; Do not delete. Reply Ok so the worker does not hang; unacked stays.
              ;; Visibility + Seen absorb a possible duplicate.
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok)))
@@ -648,16 +648,16 @@
               :outbox (:queue::queue::State/outbox s)
               :receive-calls (:queue::queue::State/receive-calls s)
               :ticks (:queue::queue::State/ticks s)
-              :pending (:queue::queue::State/pending s)
-              :in-flight (:queue::queue::State/in-flight s)
+              :visible (:queue::queue::State/visible s)
+              :unacked (:queue::queue::State/unacked s)
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s))]
        (:wat::service::Outcome::Continue s-a
          (:wat::core::Some (:queue::Queue::Reply::Stats (:queue::Queue::StatsResponse::Ok
            (:queue::queue::State/receive-calls s)
            (:queue::queue::State/ticks s)
-           (:queue::queue::State/pending s)
-           (:queue::queue::State/in-flight s))))
+           (:queue::queue::State/visible s)
+           (:queue::queue::State/unacked s))))
          (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
          (:wat::core::second pair))))
 
@@ -724,8 +724,8 @@
         keep (:wat::core::first inner)
         box  (:wat::core::second inner)
         taken (:wat::core::third inner)
-        p0 (:queue::queue::State/pending s)
-        f0 (:queue::queue::State/in-flight s)
+        p0 (:queue::queue::State/visible s)
+        f0 (:queue::queue::State/unacked s)
         p1 (:wat::core::if (:wat::i64::< p0 taken) 0 (:wat::i64::- p0 taken))
         f1 (:wat::i64::+ f0 taken)
         ;; Tick consumed the outstanding alarm: flag is false before the helper.
@@ -737,8 +737,8 @@
              :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
              :receive-calls (:queue::queue::State/receive-calls s)
              :ticks ticks
-             :pending p1
-             :in-flight f1
+             :visible p1
+             :unacked f1
              :tick-armed? false
              :arm-tick (:queue::queue::State/arm-tick s))
         delay (:wat::core::foldl
@@ -765,8 +765,8 @@
               :outbox (:queue::queue::State/outbox s')
               :receive-calls (:queue::queue::State/receive-calls s')
               :ticks ticks
-              :pending p1
-              :in-flight f1
+              :visible p1
+              :unacked f1
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s'))]
        (:wat::service::SelfOutcome::Continue s-a box (:wat::core::second pair))))])
@@ -824,7 +824,7 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok calls ticks _pending _inflight)
+        ((:queue::Queue::StatsResponse::Ok calls ticks _visible _unacked)
           (:wat::core::Tuple calls ticks))
         (_ (:wat::kernel::assertion-failed! "stats not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "stats: recv failed" :wat::core::None :wat::core::None))))
@@ -834,8 +834,8 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks pending inflight)
-          (:wat::core::Tuple pending inflight))
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked)
+          (:wat::core::Tuple visible unacked))
         (_ (:wat::kernel::assertion-failed! "depth not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "depth: recv failed" :wat::core::None :wat::core::None))))
 
@@ -1047,7 +1047,7 @@
     (:wat::core::format "ticks={ticks}"
       :ticks (:wat::core::second st))))
 
-;; depth counters: send increments pending; receive moves pending → in-flight; ack decrements in-flight.
+;; depth counters: send increments visible; receive moves visible → unacked; ack decrements unacked.
 (:wat::core::defn :user::depth [] -> :wat::core::String
   (:wat::core::let
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)

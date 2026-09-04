@@ -129,10 +129,10 @@
        (:wat::core::match st
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
-             ((:queue::Queue::StatsResponse::Ok _calls ticks pending inflight)
+             ((:queue::Queue::StatsResponse::Ok _calls ticks visible unacked)
                (:wat::service::Outcome::Continue s
                  (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
-                   (:wat::i64::+ pending inflight) ticks)))
+                   (:wat::i64::+ visible unacked) ticks)))
                  sends none-alarms))
              (_ (:wat::kernel::assertion-failed! "topic stats: inbox stats not Ok" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
@@ -142,9 +142,10 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
-             ;; Conservative: not drained. Do not invent a depth we did not read.
+             ;; Conservative: not drained. -1 means unread (ticks-of already uses it).
+             ;; Do not invent a depth we did not read.
              (:wat::service::Outcome::Continue s'
-               (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok 1 0)))
+               (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1)))
                sends none-alarms)))
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "topic stats: stopped" :wat::core::None :wat::core::None))
@@ -425,13 +426,15 @@
     (:wat::kernel::RecvOutcome::Stopped nil)
     (:wat::kernel::RecvOutcome::Closed nil)))
 
+;; Sentinel: -1 means unread. A dead peer must not look like work. ticks-of
+;; already returned -1; q-depth / depth-of-topic join it.
 (:wat::core::defn :demo::depth-of-topic [t <- :demo::Topic] -> :wat::core::i64
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:demo::Topic::StatsResponse::Ok n _ticks) n)
-        (_ 1)))
-    (_ 1)))
+        (_ -1)))
+    (_ -1)))
 
 (:wat::core::defn :demo::ticks-of [t <- :demo::Topic] -> :wat::core::i64
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
@@ -441,11 +444,33 @@
         (_ -1)))
     (_ -1)))
 
-(:wat::core::defn :demo::wait-inbox-zero [t <- :demo::Topic] -> :wat::core::nil
-  (:wat::core::if (:wat::core::= (:demo::depth-of-topic t) 0)
+(:wat::core::defn :demo::require!
+  [r <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::if (:wat::core::= r "")
     nil
-    (:wat::core::let [_ (:demo::nap-ms 1)]
-      (:demo::wait-inbox-zero t))))
+    (:wat::kernel::assertion-failed! r :wat::core::None :wat::core::None)))
+
+(:wat::core::defn :demo::elapsed-ms [start-ns <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns) 1000000))
+
+(:wat::core::defn :demo::poll-until-inbox-zero*
+  [t <- :demo::Topic  left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::let [n (:demo::depth-of-topic t)]
+    (:wat::core::if (:wat::core::= n -1)
+      (:wat::core::format "inbox-unread: last={n} attempts={a} elapsed={ms}"
+        :n n :a (:wat::i64::- total left) :ms (:demo::elapsed-ms start-ns))
+      (:wat::core::if (:wat::core::= n 0)
+        ""
+        (:wat::core::if (:wat::i64::<= left 1)
+          (:wat::core::format "inbox-never-zero: last={n} attempts={a} elapsed={ms}"
+            :n n :a total :ms (:demo::elapsed-ms start-ns))
+          (:wat::core::let [_ (:demo::nap-ms 1)]
+            (:demo::poll-until-inbox-zero* t (:wat::i64::- left 1) start-ns total)))))))
+
+(:wat::core::defn :demo::poll-until-inbox-zero
+  [t <- :demo::Topic  attempts <- :wat::core::i64] -> :wat::core::String
+  (:demo::poll-until-inbox-zero* t attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
 (:wat::core::defn :demo::accept!
   [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
@@ -464,38 +489,68 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks pending inflight)
-          (:wat::core::Tuple pending inflight))
-        (_ (:wat::core::Tuple 1 1))))
-    (_ (:wat::core::Tuple 1 1))))
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked)
+          (:wat::core::Tuple visible unacked))
+        (_ (:wat::core::Tuple -1 -1))))
+    (_ (:wat::core::Tuple -1 -1))))
 
-(:wat::core::defn :demo::wait-inflight [q <- :queue::Queue] -> :wat::core::nil
-  (:wat::core::if (:wat::i64::>= (:wat::core::second (:demo::q-depth q)) 1)
-    nil
-    (:wat::core::let [_ (:demo::nap-ms 1)]
-      (:demo::wait-inflight q))))
+(:wat::core::defn :demo::poll-until-unacked*
+  [q <- :queue::Queue  left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::let
+    [d (:demo::q-depth q)
+     v (:wat::core::first d)
+     u (:wat::core::second d)]
+    (:wat::core::if (:wat::core::= u -1)
+      (:wat::core::format "unacked-unread: last={v}/{u} attempts={a} elapsed={ms}"
+        :v v :u u :a (:wat::i64::- total left) :ms (:demo::elapsed-ms start-ns))
+      (:wat::core::if (:wat::i64::>= u 1)
+        ""
+        (:wat::core::if (:wat::i64::<= left 1)
+          (:wat::core::format "unacked-never-rose: last={v}/{u} attempts={a} elapsed={ms}"
+            :v v :u u :a total :ms (:demo::elapsed-ms start-ns))
+          (:wat::core::let [_ (:demo::nap-ms 1)]
+            (:demo::poll-until-unacked* q (:wat::i64::- left 1) start-ns total)))))))
 
-(:wat::core::defn :demo::wait-pending [q <- :queue::Queue] -> :wat::core::nil
-  (:wat::core::if (:wat::i64::>= (:wat::core::first (:demo::q-depth q)) 1)
-    nil
-    (:wat::core::let [_ (:demo::nap-ms 1)]
-      (:demo::wait-pending q))))
+(:wat::core::defn :demo::poll-until-unacked
+  [q <- :queue::Queue  attempts <- :wat::core::i64] -> :wat::core::String
+  (:demo::poll-until-unacked* q attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
-(:wat::core::defn :demo::take-one
-  [q <- :queue::Queue  name <- :wat::core::String] -> :wat::core::String
+;; Presence: one receive, arrives on the wire, nothing to eat. Visibility is a
+;; required argument — the hold must be visible at the call site.
+(:wat::core::defn :demo::receive-blocking
+  [q <- :queue::Queue  name <- :wat::core::String  vis-ns <- :wat::core::i64  wait <- :queue::Queue::Wait]
+  -> :wat::core::String
   (:wat::core::match
     (:queue::Queue/receive q
       (:queue::Queue::ReceiveRequest
         :queue name :now-ns (:wat::time::epoch-nanos (:wat::time::now))
-        :visibility-ns 1000000000000 :limit 1 :wait (:queue::Queue::Wait::Immediate)))
+        :visibility-ns vis-ns :limit 1 :wait wait))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::ReceiveResponse::Ok envs)
           (:wat::core::if (:wat::core::empty? envs)
             ""
             (:queue::Envelope/id (:wat::core::first envs))))
-        (_ (:wat::kernel::assertion-failed! "take-one: receive not Ok" :wat::core::None :wat::core::None))))
-    (_ (:wat::kernel::assertion-failed! "take-one: recv failed" :wat::core::None :wat::core::None))))
+        (_ (:wat::kernel::assertion-failed! "receive-blocking: not Ok" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "receive-blocking: recv failed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :demo::claim-one!
+  [q <- :queue::Queue  name <- :wat::core::String  vis-ns <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::match
+    (:queue::Queue/receive q
+      (:queue::Queue::ReceiveRequest
+        :queue name :now-ns (:wat::time::epoch-nanos (:wat::time::now))
+        :visibility-ns vis-ns :limit 1 :wait (:queue::Queue::Wait::Immediate)))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::ReceiveResponse::Ok envs)
+          (:wat::core::if (:wat::core::empty? envs)
+            ""
+            (:queue::Envelope/id (:wat::core::first envs))))
+        (_ (:wat::kernel::assertion-failed! "claim-one!: receive not Ok" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "claim-one!: recv failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :demo::ack-one
   [q <- :queue::Queue  name <- :wat::core::String  id <- :wat::core::String] -> :wat::core::nil
@@ -567,7 +622,7 @@
                 (:wat::core::range 0 3))
      _ (:demo::face-start-tw tw)
      _ (:demo::accept! tc "hello")
-     _ (:demo::wait-inbox-zero tc)
+     _ (:demo::require! (:demo::poll-until-inbox-zero tc 5000))
      got (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::let [d (:demo::q-depth (:wat::core::nth qclients i))]
@@ -650,7 +705,7 @@
                 (:wat::core::range 0 3))
      _ (:demo::face-start-tw tw)
      _ (:demo::accept! tc "hello")
-     _ (:demo::wait-inbox-zero tc)
+     _ (:demo::require! (:demo::poll-until-inbox-zero tc 5000))
      got (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
              (:wat::core::let [d (:demo::q-depth (:wat::core::nth qclients i))]
@@ -766,6 +821,9 @@
 ;; a dummy (cap 0 never accepts). Worker hits Full, does not ack; after the dummy is
 ;; drained and vis expires, the message arrives. No retry counter.
 (:wat::core::defn :user::refused-is-retried [] -> :wat::core::String
+  (:user::refused-is-retried-gap 0))
+
+(:wat::core::defn :user::refused-is-retried-gap [gap-ms <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -790,15 +848,17 @@
      _ (:demo::send-one subq "q0" "dummy")
      _ (:demo::face-start-tw tw)
      _ (:demo::accept! tc "hello")
-     _ (:demo::wait-inflight inbox)
-     dummy-id (:demo::take-one subq "q0")
+     _ (:demo::require! (:demo::poll-until-unacked inbox 2000))
+     dummy-id (:demo::claim-one! subq "q0" 1000000000000)
      _ (:demo::ack-one subq "q0" dummy-id)
-     after-drain (:demo::take-one subq "q0")
+     _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
+     after-visible (:wat::core::first (:demo::q-depth subq))
      _ (:demo::nap-ms 350)
-     _ (:demo::wait-pending subq)
-     after-expiry (:demo::take-one subq "q0")]
+     after-expiry (:demo::receive-blocking subq "q0" 1000000000000
+                    (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]
     (:wat::core::format "inflight=yes;after-drain={a};after-expiry={b}"
-      :a (:wat::core::if (:wat::core::= after-drain "") "none" "got")
+      :a (:wat::core::if (:wat::core::= after-visible 0) "none"
+           (:wat::core::if (:wat::i64::< after-visible 0) "unread" "got"))
       :b (:wat::core::if (:wat::core::= after-expiry "") "none" "got"))))
 
 ;; Row 4: N=2, one subscriber full. The healthy one receives immediately; publish
@@ -835,11 +895,11 @@
      _ (:demo::accept! tc "hello")
      t1 (:wat::time::epoch-nanos (:wat::time::now))
      dt (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)
-     _ (:demo::wait-pending q0)
-     healthy (:demo::take-one q0 "q0")
-     stalled (:demo::take-one q1 "q1")]
+     healthy (:demo::receive-blocking q0 "q0" 1000000000000
+                (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))
+     stalled-v (:wat::core::first (:demo::q-depth q1))]
     (:wat::core::format "healthy={h};stalled={s};dt-ms={dt};blocked={b}"
       :h (:wat::core::if (:wat::core::= healthy "") "none" "got")
-      :s (:wat::core::if (:wat::core::= stalled "") "none" "held")
+      :s (:wat::core::if (:wat::i64::>= stalled-v 1) "held" "none")
       :dt dt
       :b (:wat::core::if (:wat::i64::< dt 100) "no" "yes"))))

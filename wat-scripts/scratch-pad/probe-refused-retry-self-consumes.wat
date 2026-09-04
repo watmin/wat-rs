@@ -3,13 +3,14 @@
 ;;
 ;; HYPOTHESIS: the test consumes the very message it then waits for.
 ;;
-;; :user::refused-is-retried does, in order:
+;; :user::refused-is-retried DID, in order:
 ;;     dummy-id    <- take-one subq          ;; drain the cap-1 filler
 ;;     ack-one subq dummy-id                 ;; subq is now FREE
 ;;     after-drain <- take-one subq          ;; expects "" -- but this is a DESTRUCTIVE read
 ;;                                           ;; with :visibility-ns 1000000000000 (~1000 s)
 ;;     nap-ms 350
 ;;     wait-pending subq                     ;; UNBOUNDED spin until pending >= 1
+;; Stone D: absence is q-depth; presence is one blocking receive. wait-pending is gone.
 ;;
 ;; The worker holds "hello" in-flight in the INBOX under a 200 ms visibility. When that
 ;; expires it re-receives and sends to subq -- which the ack above just freed. If that
@@ -72,26 +73,28 @@
      _ (:demo::send-one subq "q0" "dummy")
      _ (:demo::face-start-tw tw)
      _ (:demo::accept! tc "hello")
-     _ (:demo::wait-inflight inbox)
-     dummy-id (:demo::take-one subq "q0")
+     _ (:demo::require! (:demo::poll-until-unacked inbox 2000))
+     dummy-id (:demo::claim-one! subq "q0" 1000000000000)
      _ (:demo::ack-one subq "q0" dummy-id)
      ;; `(nap-ms 0)` is itself a zero wait and has no form after Stone A —
      ;; "nap for zero" IS "don't nap", the mode-as-magnitude this arc removed.
      _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
-     after-drain (:demo::take-one subq "q0")
+     after-visible (:wat::core::first (:demo::q-depth subq))
      _ (:demo::nap-ms 350)
      recovered (:rr::poll-pending subq 100 50)
      d (:demo::q-depth subq)
      di (:demo::q-depth inbox)]
     (:wat::core::format "gap={g};after-drain={a};pending={p};inflight={i};inbox={ip}/{ii};recovered-after-naps={r};verdict={v}"
       :g gap-ms
-      :a (:wat::core::if (:wat::core::= after-drain "") "none" "got")
+      :a (:wat::core::if (:wat::core::= after-visible 0) "none"
+           (:wat::core::if (:wat::i64::< after-visible 0) "unread" "got"))
       :p (:wat::core::first d)
       :i (:wat::core::second d)
       :ip (:wat::core::first di)
       :ii (:wat::core::second di)
       :r recovered
-      :v (:wat::core::if (:wat::i64::>= (:wat::core::first d) 1) "would-return" "SPINS-FOREVER"))))
+      :v (:wat::core::if (:wat::i64::>= (:wat::core::first d) 1) "would-return"
+           (:wat::core::if (:wat::i64::< (:wat::core::first d) 0) "unread" "empty-after-naps")))))
 
 ;; ── THE LOCKSTEP FORM ──────────────────────────────────────────────────────────────
 ;; Same program, same race window, same 200 ms vis-ns. Two verbs swapped back to their
@@ -141,14 +144,15 @@
      _ (:demo::send-one subq "q0" "dummy")
      _ (:demo::face-start-tw tw)
      _ (:demo::accept! tc "hello")
-     _ (:demo::wait-inflight inbox)
-     dummy-id (:demo::take-one subq "q0")
+     _ (:demo::require! (:demo::poll-until-unacked inbox 2000))
+     dummy-id (:demo::claim-one! subq "q0" 1000000000000)
      _ (:demo::ack-one subq "q0" dummy-id)
      ;; `(nap-ms 0)` is itself a zero wait and has no form after Stone A —
      ;; "nap for zero" IS "don't nap", the mode-as-magnitude this arc removed.
      _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::nap-ms gap-ms) nil)
      at-check (:wat::core::first (:demo::q-depth subq))
-     got (:rr::take-blocking subq (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]
+     got (:demo::receive-blocking subq "q0" 200000000
+           (:queue::Queue::Wait::UpTo (:wat::time::Millisecond 2000)))]
     (:wat::core::format "gap={g};pending-at-absence-check={c};delivered={d};raced={r}"
       :g gap-ms
       :c at-check

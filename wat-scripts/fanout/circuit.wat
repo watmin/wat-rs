@@ -24,7 +24,7 @@
 ;; ack" (visibility expiry), not a blocked in-flight Sub/deliver.
 ;;
 ;; Shape: start workers (consume immediately, on empty queues) → publish alongside
-;; them → drain on depth (pending = 0 AND in-flight = 0 AND topic inbox = 0) →
+;; them → drain on depth (visible = 0 AND unacked = 0 AND topic inbox = 0) →
 ;; Admin::Stop; tallies return via Status::Stopped. Publish means accepted; the
 ;; write is the N inbox rows. A completion check must cover every place a
 ;; message can rest — the inbox is the new one.
@@ -437,15 +437,16 @@
     (:wat::kernel::RecvOutcome::Stopped nil)
     (:wat::kernel::RecvOutcome::Closed nil)))
 
+;; Sentinel: -1 means unread. Matches ticks-of / q-depth. (1,1) satisfied both waits.
 (:wat::core::defn :fanout::depth-of
   [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks pending inflight)
-          (:wat::core::Tuple pending inflight))
-        (_ (:wat::core::Tuple 1 1))))
-    (_ (:wat::core::Tuple 1 1))))
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked)
+          (:wat::core::Tuple visible unacked))
+        (_ (:wat::core::Tuple -1 -1))))
+    (_ (:wat::core::Tuple -1 -1))))
 
 (:wat::core::defn :fanout::queue-drained? [q <- :queue::Queue] -> :wat::core::bool
   (:wat::core::let [d (:fanout::depth-of q)]
@@ -465,8 +466,8 @@
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:demo::Topic::StatsResponse::Ok n _ticks) n)
-        (_ 1)))
-    (_ 1)))
+        (_ -1)))
+    (_ -1)))
 
 ;; TEMPORARY INSTRUMENT — how many -deliver ticks did the topic take for N messages?
 ;; One tick per message means a timer arm + fire + select wake is paid per message.
@@ -478,20 +479,64 @@
         (_ -1)))
     (_ -1)))
 
+(:wat::core::defn :fanout::any-unread?
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool  q <- :queue::Queue] -> :wat::core::bool
+      (:wat::core::if acc true
+        (:wat::core::= (:wat::core::first (:fanout::depth-of q)) -1)))
+    false
+    qclients))
+
 (:wat::core::defn :fanout::fully-drained?
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic] -> :wat::core::bool
   (:wat::core::and (:fanout::all-drained? qclients)
     (:wat::core::= (:fanout::topic-outbox t) 0)))
 
-;; TCO. No attempts bound — if this hangs, the drain condition is wrong.
-;; Third term: topic outbox. An accepted-but-undelivered message rests there,
-;; invisible to pending and in-flight.
-(:wat::core::defn :fanout::wait-drained
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic] -> :wat::core::nil
-  (:wat::core::if (:fanout::fully-drained? qclients t)
+(:wat::core::defn :fanout::require!
+  [r <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::if (:wat::core::= r "")
     nil
-    (:wat::core::let [_ (:fanout::nap-ms 5)]
-      (:fanout::wait-drained qclients t))))
+    (:wat::kernel::assertion-failed! r :wat::core::None :wat::core::None)))
+
+(:wat::core::defn :fanout::elapsed-ms [start-ns <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns) 1000000))
+
+(:wat::core::defn :fanout::depth-snapshot
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  q <- :queue::Queue] -> :wat::core::String
+      (:wat::core::let [d (:fanout::depth-of q)]
+        (:wat::core::format "{acc}[{v}/{u}]"
+          :acc acc :v (:wat::core::first d) :u (:wat::core::second d))))
+    ""
+    qclients))
+
+;; Conjunction across N queues plus the topic inbox. No single wire event.
+;; Bounded, and it reports what it last saw — the check rung, taken only
+;; where the shape rung is unavailable.
+(:wat::core::defn :fanout::poll-until-drained*
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
+   left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::let
+    [snap (:fanout::depth-snapshot qclients)
+     box  (:fanout::topic-outbox t)]
+    (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::any-unread? qclients))
+      (:wat::core::format "drained-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
+        :s snap :b box :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
+      (:wat::core::if (:fanout::fully-drained? qclients t)
+        ""
+        (:wat::core::if (:wat::i64::<= left 1)
+          (:wat::core::format "drained-never: last={s} outbox={b} attempts={a} elapsed={ms}"
+            :s snap :b box :a total :ms (:fanout::elapsed-ms start-ns))
+          (:wat::core::let [_ (:fanout::nap-ms 5)]
+            (:fanout::poll-until-drained* qclients t (:wat::i64::- left 1) start-ns total)))))))
+
+(:wat::core::defn :fanout::poll-until-drained
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic  attempts <- :wat::core::i64]
+  -> :wat::core::String
+  (:fanout::poll-until-drained* qclients t attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
 (:wat::core::defn :fanout::accept-stamped
   [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
@@ -512,12 +557,27 @@
       :m msg
       :t0 (:wat::time::epoch-nanos (:wat::time::now)))))
 
-(:wat::core::defn :fanout::wait-pending-zero
-  [q <- :queue::Queue] -> :wat::core::nil
-  (:wat::core::if (:wat::core::= (:wat::core::first (:fanout::depth-of q)) 0)
-    nil
-    (:wat::core::let [_ (:fanout::nap-ms 5)]
-      (:fanout::wait-pending-zero q))))
+(:wat::core::defn :fanout::poll-until-visible-zero*
+  [q <- :queue::Queue  left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::let
+    [d (:fanout::depth-of q)
+     v (:wat::core::first d)
+     u (:wat::core::second d)]
+    (:wat::core::if (:wat::core::= v -1)
+      (:wat::core::format "visible-unread: last={v}/{u} attempts={a} elapsed={ms}"
+        :v v :u u :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
+      (:wat::core::if (:wat::core::= v 0)
+        ""
+        (:wat::core::if (:wat::i64::<= left 1)
+          (:wat::core::format "visible-never-zero: last={v}/{u} attempts={a} elapsed={ms}"
+            :v v :u u :a total :ms (:fanout::elapsed-ms start-ns))
+          (:wat::core::let [_ (:fanout::nap-ms 5)]
+            (:fanout::poll-until-visible-zero* q (:wat::i64::- left 1) start-ns total)))))))
+
+(:wat::core::defn :fanout::poll-until-visible-zero
+  [q <- :queue::Queue  attempts <- :wat::core::i64] -> :wat::core::String
+  (:fanout::poll-until-visible-zero* q attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
 (:wat::core::defn :fanout::sum-calls
   [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
@@ -526,7 +586,7 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok calls _ticks _p _f)
+            ((:queue::Queue::StatsResponse::Ok calls _ticks _visible _unacked)
               (:wat::i64::+ acc calls))
             (_ acc)))
         (_ acc)))
@@ -540,7 +600,7 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls ticks _p _f)
+            ((:queue::Queue::StatsResponse::Ok _calls ticks _visible _unacked)
               (:wat::i64::+ acc ticks))
             (_ acc)))
         (_ acc)))
@@ -850,7 +910,7 @@
             nil
             (:wat::core::range 0 n))
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
-     _drain (:fanout::wait-drained qclients topic)
+     _drain (:fanout::require! (:fanout::poll-until-drained qclients topic 4000))
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
@@ -952,7 +1012,7 @@
                   (_ nil))))
             nil
             (:wat::core::range 0 n))
-     _ (:fanout::wait-pending-zero q)
+     _ (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
      outs (:fanout::held-worker/stop hh)
      distinct (:wat::core::count
                 (:wat::hashmap::keys
@@ -1046,7 +1106,7 @@
                (:fanout::accept! topic (:wat::core::str i)))
              nil
              (:wat::core::range 0 n))
-     _     (:fanout::wait-pending-zero q)
+     _     (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
      outs  (:fanout::worker/stop wh)
      distinct (:wat::core::count
                 (:wat::hashmap::keys
