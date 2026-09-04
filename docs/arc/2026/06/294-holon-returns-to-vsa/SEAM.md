@@ -22,7 +22,7 @@
 ```
 floor ............ 5129/5129, 0 FAIL, 17 skipped, ~117s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-registry rows .... 552    ⛔ COUNT IT ANCHORED TO THE ATTRIBUTE SITE, never a substring:
+registry rows .... 553    ⛔ COUNT IT ANCHORED TO THE ATTRIBUTE SITE, never a substring:
                           grep -rhoP '^\s*#\[wat_(special_form|intrinsic)\("\K[^"]+' src/ \
                             --include=*.rs | sort -u | wc -l
                           A loose search counts PROSE PLACEHOLDERS — `<fqdn>`, `…`, and
@@ -46,6 +46,19 @@ WORKLIST-the-121-the-registry-cannot-vouch-for.md            re-derived 5× → 
 GAP_A 49 · GAP_B 42 · DEBT 121 · TYPES_UNCHECKED 10 · KNOWN_UNREVIEWED 13
 the corpus: 37 names — 31 VERB POPULATION · 6 NON-VERB ARTIFACTS   (121 → 107 → 71 → 39 → 37)
 failing corpus files: 130 of 615        total exposure: 638 sites   (was 1343 — a 53% cut)
+
+⭐ THE REGISTRY CAN NOW BE ASKED. `(:wat::intrinsic::rows)` returns one typed Row per entry.
+   ./target/release/wat wat-scripts/scratch-pad/255-registry-census.wat
+   553 rows · 70 SpecialForm · 37 alias · 87 Variadic · 517 no @syntax
+   totality: Partial 50 (THE WORK LIST) · Unreviewed 378 · expand Unreviewed 295 · BOTH 270
+   ⚠ Only Totality and ExpandTime HAVE an Unreviewed pole. Purity/Determinism/Category do NOT —
+   they are complete BY CONSTRUCTION. The grading endgame is TWO axes, not five.
+   ⛔ This is a MEASUREMENT, never a ratchet. It must NOT derive the four ledgers: a gate freezes
+   NAMES so it can DISAGREE with the present; one computing both sides always agrees with itself.
+
+⭐ DEBT 121 IS THREE POPULATIONS, MEASURED — 41 SpecialForm (a rank-1 scheme is the WRONG SHAPE)
+   + 60 with a custom `infer_*` arm (a STRONGER authority; a scheme would be DUPLICATION the
+   RULING forbids) + **20 GENUINELY OWED**. The ledger is 6× the real debt.
 ```
 
 ⚠ **DEBT RISING IS NOT A REGRESSION** — a row with no `CheckEnv` scheme converts an *invisible*
@@ -174,14 +187,28 @@ re-reading the number.**
   behaviour becomes a NEGATIVE WITNESS of the retirement; it is not deleted.
 - ⛔ **Riders: no worktrees, no stash, no sub-agents, everything FOREGROUND, `model: "sonnet"`.**
 
-## ⬜ NEXT
+## ⬜ NEXT — read `[[SEQUENCING-the-only-chain-that-gates-the-founding-target]]` FIRST
 
 ```
-1  PICK: eval-ast! (331 sites, 1 name) OR Phase 1b's rete remainder (~250 sites, ~26 names).
-   The worklist is no longer dominated by :wat::core::. This is a real choice — measure both.
-2  DEBT is two populations. Split it, or the finish line stays unreachable by construction.
-3  Fallback's 20 (Phase 2b) · the arc-251 :wat::type:: fork
-4  Phase 3a — resolve asks the registry. Kills is_reserved_prefix, THE FOUNDING TARGET.
+ONE CHAIN gates Phase 3a (resolve asks; is_reserved_prefix dies — THE FOUNDING TARGET).
+Everything else is PARALLEL and gates nothing.
+
+  1  ★ THE 3 ORPHAN core_name TARGETS — Vector · cond · reduce. Three rows gate TWENTY-NINE:
+       `no_dangling_or_chained_aliases` PANICS on an alias whose target is unregistered
+       (intrinsic/mod.rs:2119). Each needs a DIFFERENT answer and ONE MAY HAVE NONE —
+       `reduce` is a wat-side defalias, which is the FOURTH-registry fork wearing a new face.
+       Smallest thing on the board, most behind it, and it tests the chain's viability.
+  2  THE SIX NON-VERB ARTIFACTS need a RULING, not a registration. ⛔ The corpus can NEVER
+       reach 0 by registering. Nothing else in the campaign produces this work.
+  3  the ~29 RETE_OPS corpus rows (blocked by 1) · eval-ast! + eval-with-defs! (334 sites)
+  4  → then Phase 3a is decidable.
+
+PARALLEL, pick by value:
+  Phase 3b — check asks the registry. UNBLOCKED: 432/432 round-trip, freeze list EMPTY.
+             Kills register_builtins' 302 duplicates of 325.
+  the DEBT split (121 → 41+60+20) — makes the finish line reachable; gates nothing.
+  the 270 both-axes grading batch — holon 91 · kernel 49 · time 41 · io 29.
+  34 special forms with no @syntax · 19 rows lying about arity · the FOURTH registry.
 ```
 
 ---
