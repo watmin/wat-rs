@@ -1706,7 +1706,7 @@ pub(crate) enum ReteDefnCheckErrorKind {
 /// consults that marker instead of re-walking — that consultation is the membrane.
 pub(crate) fn apply_rete_defn_contracts(
     sym: &mut SymbolTable,
-    declared: &std::collections::HashSet<String>,
+    declared: &std::collections::BTreeSet<String>,
 ) -> ReteDefnCheckOutcome {
     for name in declared {
         // A name collected pre-expansion but absent from `sym.functions` means registration
@@ -1729,11 +1729,33 @@ pub(crate) fn apply_rete_defn_contracts(
         // The four axes stay silent on cycles; #87's refusal is the walk AFTER this check.
         //
         // AND SEED IT WITH EVERY OTHER DECLARED NAME, for the same reason one step out.
-        // `declared` is a HashSet, so `for name in declared` runs in ARBITRARY, run-varying
-        // order. Seeding only `name` leaves a MUTUAL reference order-dependent: `where-nesting`
-        // declares `c1` then `c2`, and `c2` calls `c1` — if the loop happens to reach `c2`
-        // first, `c1` is not yet stamped and `c2` is refused; reach `c1` first and both pass.
-        // A check that answers differently depending on hash iteration order is not a check.
+        // Seeding only `name` leaves a MUTUAL reference ORDER-dependent: `where-nesting`
+        // declares `c1` then `c2`, and `c2` calls `c1` — reach `c2` first and `c1` is not yet
+        // stamped, so `c2` is refused; reach `c1` first and both pass. The seeding makes the
+        // VERDICT independent of the order the loop happens to take.
+        //
+        // ⛔ THAT WAS ONLY HALF OF IT, AND THE OTHER HALF SHIPPED BROKEN FROM `a61056f07`
+        // (2026-08-08, the commit that introduced this set) TO `c6bfe2fbb` (2026-09-03) — 26
+        // days (C20, arc 278; `git log -S declared_rete_defns -- src/freeze/env.rs` is the
+        // check). `declared` used to be a `HashSet<String>`, so `for name in declared` ran in
+        // ARBITRARY, run-varying order under Rust's per-process random hasher. The seeding above
+        // cured the pass/fail VERDICT; it did nothing for `rete_defn_cycle` below, which returns
+        // on the FIRST failure and therefore blamed whichever member the hash happened to reach
+        // first. Driven at `c6bfe2fbb`, 24 runs of the same binary on
+        // `tests/rete/probe_arc278_rete_defn_recurse_mutual.wat.bad`: 16 blamed `:probe::a` at
+        // line 8, 8 blamed `:probe::b` at line 5. Both reports are truthful; the ENTRY POINT was
+        // the coin flip, and a user following the caret was sent to a different function next
+        // time. A check that answers differently depending on hash iteration order is not a
+        // check — and neither is a diagnostic that chooses its subject that way.
+        //
+        // THE CURE IS THE TYPE, NOT A CONVENTION. `declared` is a `BTreeSet<String>` at every
+        // site it exists (`freeze::FrozenWorld::declared_rete_defns`, `freeze::env::EnvBundle`,
+        // `freeze::env::extract_rete_defn_names`, `FrozenWorld::freeze`,
+        // `runtime::register_runtime_defs`, and this parameter). Iteration is ordered by
+        // construction, so there is no unordered value left for a future hand to forget to sort.
+        // `seen` below stays a `HashSet` on purpose: it is a membership probe, order-irrelevant.
+        // Gate: `mutual_rete_defn_cycle_blames_the_same_member_every_run`
+        // (tests/rete/probe_arc278_rete_defn_recurse.rs).
         //
         // Every member of `declared` is being proven in THIS pass, each independently against
         // its own body, so a call from one to another is a back-edge within the declaration
@@ -1742,7 +1764,7 @@ pub(crate) fn apply_rete_defn_contracts(
         // body passing all four axes; only the ORDER of proving stops mattering.
         //
         // One AST walk; first-failing axis at each call head (Pure → Det → Total → Rete).
-        let mut seen: HashSet<String> = declared.clone();
+        let mut seen: HashSet<String> = declared.iter().cloned().collect();
         seen.insert(name.clone());
         if let Some(v) = classify_expr(body_ast.as_ref(), &Axis::ALL, sym, &mut seen).err() {
             return ReteDefnCheckOutcome::Err(ReteDefnCheckError {

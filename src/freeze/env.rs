@@ -53,7 +53,10 @@ pub(crate) struct EnvBundle {
     /// doc). Carried out rather than consumed locally: the definition-site check moved to
     /// `register_runtime_defs` (STOP-3, one door — see `FrozenWorld::freeze`), which needs
     /// this exact set at BOTH its callers (the boot path and the live-session path).
-    pub declared_rete_defns: std::collections::HashSet<String>,
+    ///
+    /// ⛔ `BTreeSet`, NOT `HashSet` — C20 (arc 278); see `FrozenWorld::declared_rete_defns`
+    /// and `rete::purity::apply_rete_defn_contracts` for why the order is part of the type.
+    pub declared_rete_defns: std::collections::BTreeSet<String>,
     /// Arc 278 — a resolve failure DEFERRED so `check_program` (step 8) runs first.
     ///
     /// A malformed definition does not register, so every CALL to it becomes an
@@ -382,8 +385,13 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
 /// macro expansion touches anything. Top-level only — every corpus site the design stone
 /// measured is a bare top-level declaration (mirrors the fixture and every `where`-callee in
 /// the corpus); a form nested inside a macro-emitted `do`/`let` is out of this slice's scope.
-fn extract_rete_defn_names(forms: &[WatAST]) -> std::collections::HashSet<String> {
-    let mut declared = std::collections::HashSet::new();
+///
+/// ⛔ RETURNS A `BTreeSet`, NOT A `HashSet` — C20 (arc 278). This is the ONLY construction site
+/// for the value, and the consumer's loop picks the first cycle it finds, so the collection type
+/// here decides which function a user is told to go look at. See
+/// `rete::purity::apply_rete_defn_contracts`.
+fn extract_rete_defn_names(forms: &[WatAST]) -> std::collections::BTreeSet<String> {
+    let mut declared = std::collections::BTreeSet::new();
     for form in forms {
         let WatAST::List(items, _) = form else {
             continue;

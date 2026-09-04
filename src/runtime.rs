@@ -2498,7 +2498,7 @@ pub fn register_runtime_defs(
     program: &[WatAST],
     env: &Environment,
     sym: &mut SymbolTable,
-    declared_rete_defns: &std::collections::HashSet<String>,
+    declared_rete_defns: &std::collections::BTreeSet<String>,
 ) -> Result<(), EvalBreak> {
     for form in program {
         register_runtime_defs_form(form, env, sym)?;

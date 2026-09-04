@@ -457,7 +457,13 @@ pub struct FrozenWorld {
     /// using the exact same, correctly load-resolved set the boot path used, instead of
     /// re-scanning a raw pre-load-resolve form list that could miss a rete-defn arriving
     /// through a `:wat::load!`.
-    pub declared_rete_defns: std::collections::HashSet<String>,
+    ///
+    /// ⛔ `BTreeSet`, NOT `HashSet` — C20 (arc 278). `apply_rete_defn_contracts` iterates this
+    /// set and `rete_defn_cycle` returns on the FIRST failure, so an unordered iteration made
+    /// the BLAMED FUNCTION a per-process coin flip (24 runs: 16 `:probe::a`, 8 `:probe::b`).
+    /// Ordered by construction is the cure; see the long note at `rete::purity`'s seeding
+    /// comment for the drive and the gate. Do not "simplify" this back to a `HashSet`.
+    pub declared_rete_defns: std::collections::BTreeSet<String>,
 }
 
 /// BRIEF-construction-inside-a-fn.md, gap (b) — post-registration, freeze-time counterpart
@@ -516,7 +522,7 @@ impl FrozenWorld {
         mut symbols: SymbolTable,
         program: Vec<WatAST>,
         loader: Arc<dyn crate::load::SourceLoader>,
-        declared_rete_defns: std::collections::HashSet<String>,
+        declared_rete_defns: std::collections::BTreeSet<String>,
     ) -> Result<Self, StartupError> {
         let ctx = Arc::new(EncodingCtx::from_config(&config));
         // BRIEF-construction-inside-a-fn.md, gap (b) — the HolonRecord bundle-capacity

@@ -97,7 +97,13 @@ priority = 100                                            # schedule first
 #
 # THE NUMBER, DERIVED NOT PICKED (measured 2026-09-03 on this box, 8 cores):
 #   `wat` per run on this corpus ..............  ~0.30s  (~0.16s of it is process startup alone)
-#   `.wat.bad` in the tree ....................  281  (278 asserted over, 3 quarantined)
+#   `.wat.bad` in the tree ....................  268  (266 asserted over, 2 quarantined)
+#     ⛔ WAS `281 (278 asserted over, 3 quarantined)`, and it went stale the same day it was
+#     written: C18 (`04abe37fc`) renamed 13 fixtures that did not fail, and C20 (arc 278)
+#     dequarantined one. The derivation below is UNAFFECTED — a smaller corpus is cheaper, so
+#     the 90s/180s budget keeps its margin — but a derivation nobody re-derives is how a
+#     budget silently stops matching its workload. Re-derive with:
+#       find . -name '*.wat.bad' -not -path './target/*' | wc -l
 #   full corpus twice, sequential .............  ~167s CPU
 #   full corpus twice, 8-way parallel .........  33.4s wall  (3m55s CPU)
 #   ONE shard (16 shards, ~17 files = ~35 runs)  ~10.4s alone
