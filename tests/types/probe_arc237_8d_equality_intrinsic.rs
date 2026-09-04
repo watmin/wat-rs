@@ -83,7 +83,7 @@ fn regression_cross_numeric_now_type_checks() {
     // `(= 1 2.0)` still EVALS to `false` (category-aware `=`, C4's contract,
     // unchanged). Formerly `regression_cross_numeric_is_check_error`.
     let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cross_numeric.wat.bad",
+        "tests/types/probe_arc237_8d_equality_intrinsic_cross_numeric.wat",
     );
     assert!(r.is_ok(), "cross-numeric `=` now type-checks (arc 300 C5); got: {:?}", r);
 }

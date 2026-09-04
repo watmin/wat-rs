@@ -33,8 +33,8 @@
 //! Run: `cargo test --release --test probe_arc241_stone5_defclause_rest_dispatch`
 
 //! Wat source: tests/function/probe_arc241_stone5_defclause_rest_dispatch.wat
-//! Negative fixtures: probe_arc241_stone5_c05.wat.bad, probe_arc241_stone5_c06.wat.bad,
-//!   probe_arc241_stone5_c07.wat.bad.
+//! Startup-fail fixtures: probe_arc241_stone5_c06.wat.bad, probe_arc241_stone5_c07.wat.bad.
+//! EVAL-fail fixture (starts up CLEAN, so .wat not .wat.bad — arc 278 C18): probe_arc241_stone5_c05.wat.
 
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
@@ -101,7 +101,7 @@ fn contract_04_rest_only_empty_call_succeeds() {
 fn contract_05_rest_element_type_mismatch_errors() {
     // Passing "three" (String) where Vector<i64> element is expected.
     // Type mismatch is caught at eval time (rest element types are checked at dispatch).
-    let world = startup_from_file("tests/function/probe_arc241_stone5_c05.wat.bad")
+    let world = startup_from_file("tests/function/probe_arc241_stone5_c05.wat")
         .expect("startup should succeed (rest element type mismatch caught at dispatch, not check)");
     let func = world.symbols().get(":user::bad").expect(":user::bad").clone();
     let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());

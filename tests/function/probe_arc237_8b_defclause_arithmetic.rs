@@ -23,8 +23,9 @@
 //! Run: cargo test --release --test probe_arc237_8b_defclause_arithmetic
 
 //! Wat source: tests/function/probe_arc237_8b_defclause_arithmetic.wat
-//! Negative fixtures: probe_arc237_8b_gate2_cross.wat.bad, probe_arc237_8b_regression_cross_plus.wat.bad,
-//!   probe_arc237_8b_regression_cross_lt.wat.bad, probe_arc237_8b_zero_ary_minus.wat.bad.
+//! Negative fixtures: probe_arc237_8b_gate2_cross.wat.bad, probe_arc237_8b_zero_ary_minus.wat.bad.
+//! POSITIVE now (arc 300 C4/C5 retired 237.8a's reject, so they type-check and are .wat — arc 278 C18):
+//!   probe_arc237_8b_regression_cross_plus.wat, probe_arc237_8b_regression_cross_lt.wat.
 
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
@@ -122,7 +123,7 @@ fn regression_cross_type_plus_coerces_to_f64() {
     // arc 300 C4 RETIRED 237.8a's arithmetic reject — mixed 2-ary contagion adopted
     // (clojure's expressability): `(+ 1 2.0)` => f64, so the fixture now type-checks.
     // (The N-ary honest-gap superseded the blanket reject; comparison stays a separate thread.)
-    let result = startup_from_file("tests/function/probe_arc237_8b_regression_cross_plus.wat.bad");
+    let result = startup_from_file("tests/function/probe_arc237_8b_regression_cross_plus.wat");
     assert!(result.is_ok(), "cross-type i64+f64 now coerces to f64 (arc 300 C4); got Err: {:?}", result);
 }
 
@@ -130,7 +131,7 @@ fn regression_cross_type_plus_coerces_to_f64() {
 fn regression_cross_type_lt_coerces() {
     // arc 300 C5 RETIRED 237.8a's comparison-side reject — mixed-numeric ordering
     // (`(< 1 2.0)`) now type-checks, matching C4's arithmetic reversal + eval + clj.
-    let result = startup_from_file("tests/function/probe_arc237_8b_regression_cross_lt.wat.bad");
+    let result = startup_from_file("tests/function/probe_arc237_8b_regression_cross_lt.wat");
     assert!(result.is_ok(), "cross-type i64<f64 now coerces/type-checks (arc 300 C5); got Err: {:?}", result);
 }
 

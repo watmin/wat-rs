@@ -1,5 +1,8 @@
 ;; tests/wat_lang/probe_undefined_builtin_resolves_wrong_leaf.wat.bad
 ;; RED-at-HEAD: renamed-away operator leaf — should fail check/resolve after arc-255 fix.
+;; rune:lint(bad-is-banked) — resolve must check leaf membership, not just the namespace banked-by: wrong_operator_leaf_is_a_check_error
+;;   `(:wat::core::i64::+'2 ...)` freezes clean today and dies at RUNTIME as an 'unknown
+;;   function'. Starts up CLEAN, so the `.bad` claim is banked, not held.
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::i64::+'2 1 2))

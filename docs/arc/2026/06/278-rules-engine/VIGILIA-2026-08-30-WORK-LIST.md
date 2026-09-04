@@ -300,7 +300,36 @@ only as sharp as `rete_type_segment_of` (two distinct enums both segment to `enu
 `NotComparable` is **deliberately** passed — a parametric record's erased field arrives through that
 same channel, and refusing it would be D7's ground.
 
-### ⛔⛔ C18 — `assert!(!ok)` IS UNFALSIFIABLE IN THIS REPO'S NEGATIVE-FIXTURE IDIOM
+### ~~C18~~ ✅ **CLOSED 2026-09-03 — but NOT on the mechanism this row named**
+
+> ⛔ **THE ROW'S MECHANISM IS 2 FILES AND BOTH ARE LEGITIMATE. Its alarm was right; the defect
+> underneath was larger and different.** Measured through `startup_from_file` — the driver 577 test
+> files actually use, not the binary, which requires a `:user::main` only because it EVALS one
+> (`src/freeze.rs:942`; builder, 2026-09-03: *"the rust test runners can construct a world and invoke
+> some func at their will"*). All 281 `.wat.bad`: **263 fail for their own reason · 2 `MainSignature`
+> (both `wat_arc170_slice_1e_user_main_nil_*`, whose subject IS the main signature) · 16 DID NOT FAIL
+> AT ALL.**
+>
+> ✅ **`.wat.bad` now MEANS something:** `every_wat_bad_fixture_actually_fails` (sharded ×16, 16.1 s,
+> population 281, `CORPUS_FLOOR = 200`) fails any fixture that starts up clean. 13 renamed to `.wat`
+> (`.wat.bad` 281 → 268); the 2 legitimate left alone.
+>
+> ⛔⛔ **THE ★ WAS THE ORCHESTRATOR'S OWN CONTRACT DECISION.** The DESIGN pinned *"does not get a rune
+> — it gets renamed"*, from a two-kind taxonomy. **Three of the 16 are a third kind**:
+> `probe_diag_typealias_leniency_check`, `probe_undefined_builtin_resolves_{wrong_leaf,bogus}` — tests
+> asserting `is_err()`/`panic!` on `Ok`, all `#[ignore]`d as *"RED-at-HEAD … unlock when we circle
+> back to arc 255"*. **`.wat.bad` there is an ASPIRATION**, and renaming them would have **erased
+> three tracked known-gap markers**. The brief named all three while asserting no STOP applied.
+> ✅ Cured better than designed: `rune:lint(bad-is-banked)` whose owning test the gate **verifies
+> exists and is still `#[ignore]`d** — checked not declared, and **self-clearing** (arc 255
+> un-ignores it → the gate REDs). Rider's proposal, accepted over the DESIGN, mutation-proved.
+>
+> ★ **Row 6 re-driven by the orchestrator:** roots repointed at nothing → **all 16 shards RED**,
+> *"found only 0 file(s) … a green verdict below would mean nothing"*. Floor **5402/5402**, 0 FAIL,
+> lints **254**, clippy rc=0, **zero mains added**, `src/` untouched.
+> See `strike-negative-fixture-falsifiability/SCORE.md`.
+
+**The original row, kept for the lesson:**
 
 Every `.wat.bad` fixture ends `(:user::main [] -> :wat::core::nil nil)` — **which is itself a startup
 failure** (`#wat.macro/MainSignatureError`, UselessMain). So with the wall the fixture exists to

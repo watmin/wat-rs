@@ -1,5 +1,8 @@
 ;; tests/wat_lang/probe_undefined_builtin_resolves_bogus.wat.bad
 ;; RED-at-HEAD: bogus leaf under known namespace — should fail check/resolve after arc-255 fix.
+;; rune:lint(bad-is-banked) — arc 255's builtin registry must reject a bogus leaf at check banked-by: bogus_leaf_under_known_namespace_is_a_check_error
+;;   resolve blanket-accepts ANY leaf under a real namespace, so `(:wat::core::Bogus ...)`
+;;   freezes clean and surfaces only at runtime. Starts up CLEAN, so `.bad` is an aspiration.
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::Bogus 1 2))

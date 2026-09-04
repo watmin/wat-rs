@@ -1,8 +1,8 @@
 ;; tests/function/probe_diagnostic_dynamic_keyword_invocation.wat
 ;; Arc 232 Stone 232.0 — :wat::core::apply regression guard.
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Startup-fail negative cases: probe_diagnostic_non_keyword.wat.bad (probe 7),
-;;   probe_diagnostic_non_vector.wat.bad (probe 8).
+;; EVAL-fail negative cases (they START UP CLEAN — hence .wat, not .wat.bad, arc 278 C18):
+;;   probe_diagnostic_non_keyword.wat (probe 7), probe_diagnostic_non_vector.wat (probe 8).
 ;; Runtime-fail case: probe 6 (special-form head) — in this fixture, eval expected to Err.
 
 ;; Probe 1 — bound substrate-verb keyword dispatched via apply (result 5)

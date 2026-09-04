@@ -1,4 +1,7 @@
 ;; Negative fixture: undeclared field-type keyword accepted leniently (arc 255 gate).
 ;; Arc 255 banked disconfirming gate — un-ignores when undeclared type keywords become check errors.
+;; rune:lint(bad-is-banked) — arc 255 must make an undeclared field-type keyword a check error banked-by: probe_undeclared_field_type_keyword_rejected_or_lenient
+;;   Today the substrate accepts it leniently (the +'2 dark class, type-keyword flavour), so this
+;;   file starts up CLEAN and its `.bad` claim is an aspiration, not a fact.
 (:wat::core::defstruct :probe::Bogus
   [x <- :wat::kernel::CompletelyBogusNeverDeclared])

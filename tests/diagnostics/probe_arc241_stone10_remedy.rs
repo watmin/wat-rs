@@ -115,8 +115,8 @@ fn contract_03_ranked_multi_candidate_variant_typo() {
 fn contract_04_no_remedy_for_distant_unknown() {
     // `:wat::core::xyzzy` is far from any real form. No candidate within threshold.
     // Post-stone: error message renders without "did you mean" section.
-    // Fixture: probe_arc241_stone10_remedy_c04.wat.bad
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04.wat.bad");
+    // Fixture: probe_arc241_stone10_remedy_c04.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04.wat");
     assert_eq!(
         msg,
         "<startup succeeded — no error to display>",
@@ -187,8 +187,8 @@ fn contract_07_retirement_kind_annotation_canonical() {
 fn contract_08_threshold_filters_far_typos() {
     // `:wat::core::definitelywrong` is far from any real form (distance >> needle.len()/3).
     // Post-stone: no remedy offered (threshold filter).
-    // Fixture: probe_arc241_stone10_remedy_c08.wat.bad
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08.wat.bad");
+    // Fixture: probe_arc241_stone10_remedy_c08.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08.wat");
     assert_eq!(
         msg,
         "<startup succeeded — no error to display>",
