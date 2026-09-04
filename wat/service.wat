@@ -94,6 +94,19 @@
   :Stop     [state <- :S
              sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])])
 
+;; send-keep-serving? — the four-arm reply send. Closed/Lost is a vanished waiter
+;; (this file's vanished-waiter contract): keep serving. Stopped is the world
+;; stopping: do not recur. Extraction of the five identical sites in the serve
+;; template; no behaviour change. Peer I is the payload type (send projects I);
+;; the serve loop's selectable is (Peer :- [Reply Op]).
+(:wat::core::defn :wat::service::send-keep-serving? :- [R O]
+  [peer <- (:wat::kernel::Peer :- [:R :O])  payload <- :R] -> :wat::core::bool
+  (:wat::core::match (:wat::kernel::send peer payload)
+    (:wat::kernel::SendOutcome::Sent   true)
+    (:wat::kernel::SendOutcome::Closed true)
+    (:wat::kernel::SendOutcome::Stopped false)
+    ((:wat::kernel::SendOutcome::Lost _c) true)))
+
 ;; ── Invocation — the MANDATORY third arm param, `[s ctx req]` (arc 278 the call context) ──
 ;;
 ;; ★ SUPERSEDED 2026-08-09 by DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md: ctx is no longer
@@ -1656,11 +1669,7 @@
                                                    ~rt-sel-sym)
                                                  (:wat::core::None true)
                                                  ((:wat::core::Some peer)
-                                                   (:wat::core::match (:wat::kernel::send peer (:wat::service::Directed/reply ~rt-d-sym))
-                                                     (:wat::kernel::SendOutcome::Sent   true)
-                                                     (:wat::kernel::SendOutcome::Closed true)
-                                                     (:wat::kernel::SendOutcome::Stopped false)
-                                                     ((:wat::kernel::SendOutcome::Lost _c) true))))
+                                                   (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
                                                false))
                                            true
                                            sends)]
@@ -1694,11 +1703,7 @@
                                                    ~rt-sel-sym)
                                                  (:wat::core::None true)
                                                  ((:wat::core::Some peer)
-                                                   (:wat::core::match (:wat::kernel::send peer (:wat::service::Directed/reply ~rt-d-sym))
-                                                     (:wat::kernel::SendOutcome::Sent   true)
-                                                     (:wat::kernel::SendOutcome::Closed true)
-                                                     (:wat::kernel::SendOutcome::Stopped false)
-                                                     ((:wat::kernel::SendOutcome::Lost _c) true))))
+                                                   (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
                                                false))
                                            true
                                            sends)]
@@ -1781,11 +1786,7 @@
                                                           (:wat::core::match reply
                                                             (:wat::core::None true)
                                                             ((:wat::core::Some resp)
-                                                              (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) resp)
-                                                                (:wat::kernel::SendOutcome::Sent   true)
-                                                                (:wat::kernel::SendOutcome::Closed true)
-                                                                (:wat::kernel::SendOutcome::Stopped false)
-                                                                ((:wat::kernel::SendOutcome::Lost _c) true))))]
+                                                              (:wat::service::send-keep-serving? (:wat::core::second (:wat::core::nth selectables idx)) resp)))]
                                                         (:wat::core::if ~reply-keep-sym
                                                           (:wat::core::foldl
                                                             (:wat::core::fn [~rt-acc-sym <- :wat::core::bool
@@ -1808,11 +1809,7 @@
                                                                     selectables)
                                                                   (:wat::core::None true)
                                                                   ((:wat::core::Some peer)
-                                                                    (:wat::core::match (:wat::kernel::send peer (:wat::service::Directed/reply ~rt-d-sym))
-                                                                      (:wat::kernel::SendOutcome::Sent   true)
-                                                                      (:wat::kernel::SendOutcome::Closed true)
-                                                                      (:wat::kernel::SendOutcome::Stopped false)
-                                                                      ((:wat::kernel::SendOutcome::Lost _c) true))))
+                                                                    (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
                                                                 false))
                                                             true
                                                             sends)
@@ -1851,11 +1848,7 @@
                                                                 selectables)
                                                               (:wat::core::None true)
                                                               ((:wat::core::Some peer)
-                                                                (:wat::core::match (:wat::kernel::send peer (:wat::service::Directed/reply ~rt-d-sym))
-                                                                  (:wat::kernel::SendOutcome::Sent   true)
-                                                                  (:wat::kernel::SendOutcome::Closed true)
-                                                                  (:wat::kernel::SendOutcome::Stopped false)
-                                                                  ((:wat::kernel::SendOutcome::Lost _c) true))))
+                                                                (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
                                                             false))
                                                         true
                                                         sends)
