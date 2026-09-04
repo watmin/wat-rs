@@ -206,14 +206,14 @@
                                     (:wat::kernel::RecvOutcome::Stopped
                                       (:wat::kernel::assertion-failed! "queue.take: stop requested mid re-put" :wat::core::None :wat::core::None))
                                     (:wat::kernel::RecvOutcome::Closed
-                                      (:wat::kernel::assertion-failed! "queue.take: store peer closed" :wat::core::None :wat::core::None))))))
+                                      (:wat::core::Tuple (dial-store) empty-envs))))))
                             (_ (:wat::kernel::assertion-failed! "queue.take: scan-index failed" :wat::core::None :wat::core::None))))
                         ((:wat::kernel::RecvOutcome::Lost _cause)
                           (:wat::core::Tuple (dial-store) empty-envs))
                         (:wat::kernel::RecvOutcome::Stopped
                           (:wat::kernel::assertion-failed! "queue.take: stop requested" :wat::core::None :wat::core::None))
                         (:wat::kernel::RecvOutcome::Closed
-                          (:wat::kernel::assertion-failed! "queue.take: store peer closed" :wat::core::None :wat::core::None)))))
+                          (:wat::core::Tuple (dial-store) empty-envs)))))
              ;; Closed over nothing. Process children do not see sibling defns,
              ;; so the body lives here. ONE place decides whether to arm.
              none (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
@@ -440,7 +440,32 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "queue.send: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "queue.send: store peer closed" :wat::core::None :wat::core::None)))))))
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
+              s' (:queue::queue::State
+                    :durable (:queue::queue::State/durable s)
+                    :store fresh
+                    :take (:queue::queue::State/take s)
+                    :waiters (:queue::queue::State/waiters s)
+                    :outbox (:queue::queue::State/outbox s)
+                    :receive-calls (:queue::queue::State/receive-calls s)
+                    :ticks (:queue::queue::State/ticks s)
+                    :visible (:queue::queue::State/visible s)
+                    :unacked (:queue::queue::State/unacked s)
+                    :tick-armed? (:queue::queue::State/tick-armed? s)
+                    :arm-tick (:queue::queue::State/arm-tick s))]
+             ;; Do not claim Ok — the put is unknowable. Full is the caller's retry.
+             (:wat::service::Outcome::Continue s'
+               (:wat::core::Some (:queue::Queue::Reply::Send
+                 (:queue::Queue::SendResponse::Full
+                   (:wat::i64::+ (:queue::queue::State/visible s) (:queue::queue::State/unacked s))
+                   (:queue::queue::Record/cap (:queue::queue::State/durable s)))))
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+               none-alarms))))))))
 
    (receive [s ctx req]
      (:wat::core::let
@@ -633,7 +658,29 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "queue.ack: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "queue.ack: store peer closed" :wat::core::None :wat::core::None)))))
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              s' (:queue::queue::State
+                    :durable (:queue::queue::State/durable s)
+                    :store fresh
+                    :take (:queue::queue::State/take s)
+                    :waiters (:queue::queue::State/waiters s)
+                    :outbox (:queue::queue::State/outbox s)
+                    :receive-calls (:queue::queue::State/receive-calls s)
+                    :ticks (:queue::queue::State/ticks s)
+                    :visible (:queue::queue::State/visible s)
+                    :unacked (:queue::queue::State/unacked s)
+                    :tick-armed? (:queue::queue::State/tick-armed? s)
+                    :arm-tick (:queue::queue::State/arm-tick s))]
+             ;; Do not delete. Reply Ok so the worker does not hang; unacked stays.
+             ;; Visibility + Seen absorb a possible duplicate.
+             (:wat::service::Outcome::Continue s'
+               (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok)))
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+               (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))))))
 
    (stats [s ctx req]
      (:wat::core::let

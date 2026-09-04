@@ -118,7 +118,16 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "topic publish: send stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "topic publish: send closed" :wat::core::None :wat::core::None)))))
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
+             ;; Do not claim Ok — the inbox write is unknowable. Full is the caller's retry.
+             (:wat::service::Outcome::Continue s'
+               (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full 0 0)))
+               sends none-alarms))))))
 
    (stats [s ctx req]
      (:wat::core::let
@@ -150,7 +159,17 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "topic stats: stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "topic stats: closed" :wat::core::None :wat::core::None)))))])
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
+             ;; Conservative: not drained. -1 means unread (ticks-of already uses it).
+             ;; Do not invent a depth we did not read.
+             (:wat::service::Outcome::Continue s'
+               (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1)))
+               sends none-alarms))))))])
 
 ;; ── internal worker ────────────────────────────────────────────────────────────
 ;; Shape of :fanout::worker: park on the inbox, take a batch, act, ack. Failure
@@ -318,7 +337,10 @@
                                                     (:wat::kernel::RecvOutcome::Stopped
                                                       (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
                                                     (:wat::kernel::RecvOutcome::Closed
-                                                      (:wat::kernel::assertion-failed! "topic-worker: ack closed" :wat::core::None :wat::core::None))))
+                                                      (:wat::core::match
+                                                        (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                                                        ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                                        (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))))
                                                 inb
                                                 bucket)]
                                         (:wat::core::Tuple inb2 ss)))
@@ -345,7 +367,23 @@
                                 (:wat::kernel::RecvOutcome::Stopped
                                   (:wat::kernel::assertion-failed! "topic-worker: send stopped" :wat::core::None :wat::core::None))
                                 (:wat::kernel::RecvOutcome::Closed
-                                  (:wat::kernel::assertion-failed! "topic-worker: send closed" :wat::core::None :wat::core::None)))))))
+                                  ;; Hard site: this sub may have taken the batch. Do not ack
+                                  ;; the bucket — visibility redelivers; Seen absorbs if it landed.
+                                  (:wat::core::let
+                                    [fresh (:wat::core::match
+                                             (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i))
+                                             ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                             (_ (:wat::kernel::assertion-failed! "topic-worker: redial sub failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                                     ss' (:wat::core::foldl
+                                           (:wat::core::fn
+                                             [bacc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
+                                              j    <- :wat::core::i64]
+                                             -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
+                                             (:wat::core::conj bacc
+                                               (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j))))
+                                           (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
+                                           (:wat::core::range 0 nsubs))]
+                                    (:wat::core::Tuple inb ss'))))))))
                       (:wat::core::Tuple inbox subs)
                       (:wat::core::range 0 nsubs))
                   s' (:demo::topic-worker::State
@@ -369,7 +407,15 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "topic-worker: receive stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "topic-worker: receive closed" :wat::core::None :wat::core::None)))))])
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              s' (:demo::topic-worker::State :durable rec :inbox fresh :subs subs)]
+             (:wat::service::SelfOutcome::Continue s'
+               none-sends
+               [(:wat::service::Alarm :after (:wat::time::Millisecond 1) :op :-tick)]))))))])
 
 ;; ── parent-side helpers ────────────────────────────────────────────────────────
 (:wat::core::defn :demo::dial-topic
@@ -414,8 +460,7 @@
     ((:wat::kernel::RecvOutcome::Lost _cause) nil)
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "topic-worker: start stopped" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "topic-worker: start closed" :wat::core::None :wat::core::None))))
+    (:wat::kernel::RecvOutcome::Closed nil)))
 
 (:wat::core::defn :demo::nap-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
