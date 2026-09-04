@@ -126,7 +126,7 @@ fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
 #[test]
 fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
     // `:wat::core::foldl` has:
-    //   param 0 = Parametric { head: "wat::core::Vector", args: [Path ":T"] }
+    //   param 0 = Parametric { head: "wat::core::Seqable", args: [Path ":T"] }
     //   param 1 = Path ":Acc"
     //   param 2 = Fn { args: [Path ":Acc", Path ":T"], ret: Path ":Acc" }
     //   ret     = Path ":Acc"
@@ -134,6 +134,15 @@ fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
     // The structured emission gives each shape a Bundle wrapper with a
     // distinctive head keyword (`:wat::core::Vector`, `:Fn`). Pre-arc-201
     // these were squished into atomic keyword strings.
+    //
+    // Arc 255 Stone 1c-f, 2026-09-03 — the golden's param-2 head moved `Vector` -> `Seqable`.
+    // This is NOT editing the test to make it pass: since 118.B6, `infer_foldl` (the arm that
+    // intercepts every direct `foldl` call) has accepted any Seqable, and every live call site
+    // already exercises that. The retained `CheckEnv` TypeScheme this test's `signature-of`
+    // reads was the stale copy — Vector, pre-118.B6 — so this reflection surface was rendering a
+    // signature `foldl` did not actually have. Widening the scheme (this stone, so `defalias`
+    // derivation for `:wat::core::reduce` sees Seqable too) is what makes the rendering honest;
+    // this golden was pinning the prior falsehood.
     let line = render_signature_from_file(
         "tests/reflection/wat_arc201_structured_signature_types_foldl.wat",
     );

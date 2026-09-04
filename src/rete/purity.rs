@@ -549,12 +549,14 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::Vector"
             | ":wat::core::List?"
             | ":wat::core::HashSet"
-            // Higher-order fold combinators — CONDITIONALLY pure∧det: the combinator itself is
-            // referentially transparent + effect-free; its purity/determinism falls out of the
-            // arg-recursion over its fn-argument (classify_expr recurses every arg, incl. the
-            // fn-literal, whose body is classified by the `:wat::core::fn` arm). An impure fn-arg
-            // therefore still fails — conditional purity, not blanket-allow.
-            | ":wat::core::reduce"
+            // ⛔ Arc 255 Stone 1c-f — `:wat::core::reduce` LEFT this list: `register_defalias`
+            // (now that `reduce` is a genuine `defalias` for `foldl`, not a hand-rolled
+            // `defclause`) registers its synthesized delegating `Function` into `sym.functions`,
+            // so `head_ok`'s door 3 (`sym.has_function` → `classify_fn`) answers for it and this
+            // arm was unreachable — MEASURED (delete-and-floor: `binary_id(wat::rete)`, 377/377
+            // green), not assumed. The identical "shadowed by a copy" defect `str` (Stone 1c-e),
+            // `u8`/`do` (Stone 1c-c), and `<`/`>`/`<=`/`>=` (Stone 1c-b-ii) already left this same
+            // list for.
             // Scalar conversions — total, same-in-same-out.
             | ":wat::core::i64/to-f64" | ":wat::core::i64/to-string"
     );
@@ -643,13 +645,16 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     let total = match crate::intrinsic::registry().lookup_entry(head).map(|e| e.totality) {
         Some(wat_doc::Totality::Total) | Some(wat_doc::Totality::Preserving) => true,
         Some(wat_doc::Totality::Partial) => false,
-        // No registration to consult: the verb is not homed yet. These three keep their ruling
+        // No registration to consult: the verb is not homed yet. These two keep their ruling
         // here until they have a registration site to carry it — see the comment block above
-        // this match for the per-verb reasoning (the remaining P6-c dispatch population, then
-        // the last unhomed member of the W7 HOF family).
+        // this match for the per-verb reasoning (the remaining P6-c dispatch population).
+        // Arc 255 Stone 1c-f, 2026-09-03: `:wat::core::reduce` LEFT this arm — it was the last
+        // unhomed member of the W7 HOF family, and it is a genuine `defalias` for `foldl` now,
+        // so `head_ok`'s `sym.has_function` door answers for it before this placeholder is ever
+        // consulted (MEASURED: delete-and-floor, `binary_id(wat::rete)` 377/377 green).
         Some(wat_doc::Totality::Unreviewed) | None => matches!(
             head,
-            ":wat::core::reduce" | ":wat::core::=" | ":wat::core::not="
+            ":wat::core::=" | ":wat::core::not="
         ),
     };
 

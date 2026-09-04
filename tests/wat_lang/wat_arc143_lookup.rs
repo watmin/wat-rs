@@ -117,6 +117,12 @@ fn body_of_unknown_name_returns_none() {
 #[test]
 fn signature_of_defn_foldl_renders_synthesised_shape() {
     let line = unwrap_string(run_expr(":t::test10-sig-render"), "sig-render");
+    // Arc 255 Stone 1c-f, 2026-09-03 — the golden's collection param head moved `Vector` ->
+    // `Seqable`. NOT a test edited to make it pass: `infer_foldl` has accepted any Seqable since
+    // 118.B6 (every live call site proves it), but the retained `CheckEnv` TypeScheme this
+    // `signature-of` call reads was still the pre-118.B6 `Vector` copy — this test was pinning
+    // that stale, false rendering. Widening the scheme this stone (needed so `:wat::core::reduce`'s
+    // new `defalias` derives an accepting signature) is what makes the reflected shape honest.
     // rune:clojure-flip — string-eq bridge (not assert_edn_eq), historically because reflection
     // emitted a `<T,Acc>` multi-param generic head plain EDN could not round-trip. STONE-
     // defservice-emits-the-binder (arc 109) retired that head — the multi-param binder is now

@@ -1,0 +1,20 @@
+;; tests/collection/probe_arc255_1c_f_reduce_2arity_retired.wat.bad — NEGATIVE fixture.
+;; Loaded via startup_from_file, asserting startup (type-check) FAILS.
+;;
+;; Arc 255 Stone 1c-f, 2026-09-03 — `:wat::core::reduce` was a two-arm `defclause`: 3-arity
+;; (explicit init, `foldl`'s body verbatim) plus a 2-arity seed-from-first arm. The 3-arity arm
+;; WAS `foldl` wearing a second name, so it became a genuine `defalias` for `foldl` — and an
+;; alias has exactly one arity, `foldl`'s. The 2-arity arm cannot survive that: it was the only
+;; part of `reduce` that was not `foldl`.
+;;
+;; This fixture is the negative witness: `wat-tests/core/core-reduce.wat` used to carry a passing
+;; deftest, `reduce-2-arity-sum-i64`, whose entire purpose was this now-retired arm. Deleting a
+;; test outright would silently drop the coverage of a retirement — this file (and its harness,
+;; `probe_arc255_1c_f_reduce_2arity_retired.rs`) keeps it: the 2-arity call below must now be
+;; REFUSED at check time, naming the arity mismatch precisely (3 expected, 2 got).
+(:wat::core::defn :user::bad [] -> :wat::core::i64
+  (:wat::core::reduce
+    (:wat::core::fn [acc <- :wat::core::i64
+                     n   <- :wat::core::i64] -> :wat::core::i64
+      (:wat::i64::+ acc n))
+    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))

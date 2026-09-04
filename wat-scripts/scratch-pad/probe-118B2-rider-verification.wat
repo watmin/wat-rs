@@ -56,7 +56,11 @@
       (:wat::string::join ","
         (:wat::core::into [] (:wat::core::distinct (:wat::core::Vector :- [:wat::core::i64] 1 2 1 3 2 1)))))
 
-    ;; reduce — 3-arity and 2-arity Stream arms (via a `map` stage so coll is (Stream :- [T])).
+    ;; reduce — Stream arms (via a `map` stage so coll is (Stream :- [T])). Arc 255 Stone 1c-f,
+    ;; 2026-09-03: `reduce` is now a `defalias` for `foldl`, 3-arity only — the 2-arity
+    ;; seed-from-first arm that used to be exercised here is retired with the defclause it lived
+    ;; in. Both calls below are augmented to the 3-arity form (explicit init) so the Stream-walk
+    ;; coverage this probe was built to exercise (foldl consuming a lazy `map` stage) survives.
     (:wat::kernel::println
       (:wat::i64::to-string (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ acc x))
@@ -66,6 +70,7 @@
     (:wat::kernel::println
       (:wat::i64::to-string (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ acc x))
+        0
         (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
           (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)))))
 

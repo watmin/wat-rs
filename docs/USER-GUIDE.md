@@ -3014,18 +3014,24 @@ defines have a substrate-side query surface in the
 
 **The alias surface that composes them — `:wat::core::defalias`** (the
 sole alias mechanism since Stone 241.12 retired
-`:wat::runtime::define-alias`) points an alias name at its target; the
-live list-verb aliases are in `wat/list.wat`:
+`:wat::runtime::define-alias`) points an alias name at its target. Live
+examples are in `wat/seq.wat` and `wat/core.wat` (corrected here arc 255
+Stone 1c-f, 2026-09-03 — this block previously named `wat/list.wat` and
+`:wat::list::reduce`/`:wat::list::fold`, neither of which exists on disk):
 
 ```scheme
-(:wat::core::defalias :wat::list::reduce :wat::core::foldl)
-(:wat::core::defalias :wat::list::fold   :wat::core::foldl)
+(:wat::core::defalias :wat::core::reduce :wat::core::foldl)   ;; wat/seq.wat
+(:wat::core::defalias :wat::core::count  :wat::core::length)  ;; wat/seq.wat
+(:wat::core::defalias :wat::core::concat :wat::vec::concat)   ;; wat/core.wat
 ```
 
-The atomic forms are `:wat::core::foldl` and `:wat::core::foldr`;
-`:wat::list::reduce` and `:wat::list::fold` are opinionated helpers
-for users reaching for either name (Clojure's `reduce`, Haskell's
-`foldl`, Lisp's `fold`, JS / Python / Ruby flavor of `reduce`).
+The atomic form is `:wat::core::foldl` — `:wat::core::foldr` was HARD-CUT
+retired at arc 118.B6b (it was `reverse`+`foldl` wearing a Haskell name
+borrowed for a laziness property strict wat cannot have; calling it now
+is a check-time error naming `(:wat::core::reduce f init (:wat::core::reverse coll))`
+as the replacement). `:wat::core::reduce` is not a distinct implementation
+reaching for a familiar name — it IS `foldl`, aliased, for users reaching
+for Clojure's spelling.
 The macro fires at expand-time. Failure to look up the target name
 emits a panic naming the missing name.
 

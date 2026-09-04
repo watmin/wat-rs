@@ -20458,10 +20458,14 @@ fn register_builtins(env: &mut CheckEnv) {
     //   take     : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [T])
     //   drop     : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [T])
     //   map      : ∀T,U. (Vector :- [T]) × [T :-> U] -> (Vector :- [U])
-    //   foldl    : ∀T,Acc. (Vector :- [T]) × Acc × [Acc T :-> Acc] -> Acc
+    //   foldl    : ∀T,Acc. (Seqable :- [T]) × Acc × [Acc T :-> Acc] -> Acc
     //   Arc 255 Stone HOME-9 — zip/window/remove-at moved to :wat::seq::*, and Seqable-generic
     //   (custom infer_zip/infer_window/infer_remove_at arms, collection/infer.rs, same shape as
-    //   take/drop below — a static TypeScheme cannot express "any Seqable").
+    //   take/drop below). Arc 255 Stone 1c-f, 2026-09-03: the claim that "a static TypeScheme
+    //   cannot express 'any Seqable'" is measured FALSE — `TypeExpr::Parametric { head:
+    //   "wat::core::Seqable", args: [T] }` registers and unifies (see `foldl`'s own retained
+    //   scheme below, and `:wat::string::join`). zip/window/remove-at keep their custom infer
+    //   arms on their own merits; this note no longer cites impossibility as the reason.
     let u_var = || TypeExpr::Path(":U".into());
     let acc_var = || TypeExpr::Path(":Acc".into());
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
@@ -20546,7 +20550,10 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Arc 247: fn-first — (foldl f init xs) -> Acc
     // Arc-278-0d NOTE: direct calls intercepted by infer_foldl; scheme retained for aliases
-    // (:wat::seq::reduce, :wat::seq::fold) whose defalias derivation reads from this.
+    // (:wat::core::reduce) whose defalias derivation reads from this.
+    // Arc 255 Stone 1c-f, 2026-09-03: collection param widened Vector -> Seqable so that
+    // `(:wat::core::defalias :wat::core::reduce :wat::core::foldl)` derives a signature that
+    // accepts Stream/PersistentVector/List callers, not just Vector.
     env.register(
         ":wat::core::foldl".into(),
         TypeScheme {
@@ -20557,7 +20564,10 @@ fn register_builtins(env: &mut CheckEnv) {
                     ret: Box::new(acc_var()),
                 },
                 acc_var(),
-                vec_of(t_var()),
+                TypeExpr::Parametric {
+                    head: "wat::core::Seqable".into(),
+                    args: vec![t_var()],
+                },
             ],
             ret: acc_var(),
             rest_param_type: None,

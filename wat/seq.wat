@@ -30,8 +30,10 @@
 ;;     retires that shape: built directly over `foldl` (never over `:wat::stream::` primitives),
 ;;     it calls `f` exactly once per element of a plain Vector/List/PersistentVector, discards
 ;;     the return, and yields `nil`.
-;;   - `:wat::core::reduce` — proper clojure reduce (2-arity + 3-arity) built over `foldl` for
-;;     the eager containers, and a dedicated single-pass walker for `Stream`.
+;;   - `:wat::core::reduce` — a `defalias` for `:wat::core::foldl` (arc 255 Stone 1c-f,
+;;     2026-09-03: `reduce` was `foldl`'s body wearing a second name; now it IS `foldl`, 3-arity
+;;     only). No dedicated `Stream` walker — `foldl` itself walks any `Seqable`, `Stream`
+;;     included.
 ;;   - `:wat::core::count` — a defalias over the KEPT `length` primitive (clojure surface name).
 ;;
 ;; STOP surfaced (not built): `reduced` / `reduced?` (clojure's early-exit `reduce` marker).
@@ -288,12 +290,14 @@
       (:wat::core::foldl-spec-walk f (f acc value) rest))
     (:wat::stream::NextOutcome::Exhausted acc)))
 
-;; ─── reduce — proper clojure reduce (2-arity + 3-arity), no early-exit (see STOP note above) ──
+;; ─── reduce — an alias for foldl (see STOP note above) ──────────────────────────────────────
 ;;
 ;; 118.B2 — `reduce-stream` (the Stream-input walk `foldl` cannot do; foldl is Vector/List/
-;; PersistentVector-only) is DELETED as a named twin: its walk migrates inline into `reduce`'s
-;; own Stream arms below, over `:wat::stream::next` — one force per element, tail-recursive.
-;; ✅ 118.B6 + 118.B7 — `reduce` IS TWO CLAUSES NOW, one per arity, both over `(Seqable :- [T])`.
+;; PersistentVector-only) was DELETED as a named twin: its walk migrated inline into `reduce`'s
+;; own Stream arms, over `:wat::stream::next` — one force per element, tail-recursive.
+;; 118.B6 + 118.B7 — `reduce` WAS two clauses, one per arity, both over `(Seqable :- [T])`.
+;; ⚠ Both paragraphs are HISTORY, superseded below by Stone 1c-f — `reduce` is no longer a
+;; `defclause` with Stream arms of its own; it is an alias, and `foldl` does the Stream walk.
 ;;
 ;; It was EIGHT: three eager arms per arity delegating to the native `foldl`, plus a Stream arm per
 ;; arity that had to walk in wat because `foldl` REFUSED a Stream (`mappable()`'s "later strike.
@@ -302,7 +306,7 @@
 ;;   118.B2d  a generic satisfier's surface param binds from the receiver
 ;;   118.B6   the native `foldl` walks any seqable — so there is nothing left to hand-walk
 ;;
-;; ⚠ AND IT COST NOTHING, which was the whole point of doing B6 first. The 3-arity body is
+;; ⚠ AND IT COST NOTHING, which was the whole point of doing B6 first. The 3-arity body was
 ;; `(foldl f init coll)` — the value handed over is still a concrete Vector/List/PersistentVector,
 ;; so `foldl` takes its DIRECT iterator exactly as before. There is NO `(Seqable/seq coll)`
 ;; normalisation here, deliberately: that would force every eager reduce onto the lazy path for a
@@ -314,20 +318,20 @@
 ;; COPY" and naming the clause-TCO stone that would free it. Both the gap and the TCO stone are
 ;; closed, so the workaround dies with them rather than lingering as a name nobody calls.
 ;; A name dies in the stone that removes its last caller.
-
-(:wat::core::defclause :wat::core::reduce
-  ;; 3-arity: explicit init. Straight to the native `foldl` — no normalisation, no walker.
-  ([f <- [U T :-> U] init <- :U coll <- (:wat::core::Seqable :- [T])] -> :U
-    (:wat::core::foldl f init coll))
-  ;; 2-arity: no init — the first element seeds the fold. Empty raises, by name.
-  ([f <- [T T :-> T] coll <- (:wat::core::Seqable :- [T])] -> :T
-    (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
-        (:wat::core::foldl f value rest))
-      (:wat::stream::NextOutcome::Exhausted
-        (:wat::kernel::assertion-failed!
-          "reduce: the 2-arity form needs at least one element to seed the fold; got an empty collection"
-          :wat::core::None :wat::core::None)))))
+;;
+;; ✅ Arc 255 Stone 1c-f, 2026-09-03 — `reduce`'s 3-arity arm above was ALREADY `foldl`'s body
+;; verbatim: `(foldl f init coll)`, nothing else. That is not a delegation, it is a second name for
+;; the same verb — the heresy `[[RULING-the-registry-is-the-sole-authority]]` exists to kill. It is
+;; now a genuine `defalias`, not a `defclause` wrapping a call.
+;;
+;; The 2-arity seed-from-first arm is GONE — it was the only part of `reduce` that was not `foldl`
+;; (it seeded from the first element and raised `assertion-failed!` on empty), so it cannot survive
+;; becoming an alias. Its one caller — `probe-118B2-rider-verification.wat` — is augmented to call
+;; the 3-arity form. `foldl`'s own retained `TypeScheme` (`src/check.rs`, near its registration) is
+;; widened `Vector` -> `Seqable` in the same stone, since `defalias` derives its signature from that
+;; scheme (direct `foldl` calls go through `infer_foldl` instead and never see it) — without the
+;; widening, aliasing loses every non-Vector caller (Stream, PersistentVector).
+(:wat::core::defalias :wat::core::reduce :wat::core::foldl)
 
 ;; count — the clojure surface name over the KEPT `length` primitive (unchanged: an infinite/
 ;; lazy Stream still correctly rejects `length`/`count` — see `StreamContainer::measurable`).

@@ -50,6 +50,13 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn rename_callable_name_happy_path_foldl_to_reduce() {
     let line = unwrap_string(run_expr(":t::test1-rename-foldl-to-reduce"), "test1");
+    // Arc 255 Stone 1c-f, 2026-09-03 — the golden's param-2 head moved `Vector` -> `Seqable`.
+    // NOT a test edited to make it pass: the renamed head's params come straight from `foldl`'s
+    // retained `CheckEnv` TypeScheme, and that scheme was the stale pre-118.B6 `Vector` copy —
+    // `infer_foldl` (the arm every direct call actually goes through) has accepted any Seqable
+    // since 118.B6. Widening the scheme this stone (so `:wat::core::reduce`'s new `defalias`
+    // derives a signature that admits Stream/PersistentVector/List, not just Vector) is what
+    // makes this reflected rename output honest; the prior golden pinned the falsehood.
     // rune:clojure-flip — string-eq bridge (not assert_edn_eq), historically because reflection
     // emitted a `<T,Acc>` multi-param generic head plain EDN could not round-trip. STONE-
     // defservice-emits-the-binder (arc 109) retired that head — the multi-param binder is now

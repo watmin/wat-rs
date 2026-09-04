@@ -3397,11 +3397,21 @@ mod tests {
              `:wat::core::List?`, which is present at `src/macros/eval.rs:492` — the \
              parser is missing real content (STOP-1). Names found: {expand_names:?}"
         );
+        // Arc 255 Stone 1c-f, 2026-09-03: `:wat::core::reduce` LEFT the residue (it is a genuine
+        // `defalias` for `foldl` now, shadowed by `head_ok`'s `sym.has_function` door — see
+        // `src/rete/purity.rs`'s own "LEFT this list" note next to the old arm). Anchor repointed
+        // to `:wat::core::stream->pvec`: its comment at `src/rete/purity.rs:533` reads
+        // "Collection/map/vector readers and predicates — UNHOMED (no registration)" — of the
+        // remaining residue members it is the one least likely to gain a registration next (the
+        // bare-type-constructor members `HashMap`/`Vector`/`List?`/`HashSet` are the *current*
+        // per-type HOME campaign's own subject and could home any day; `=`/`not=` are the very
+        // next stone's target — do not anchor there either). Whoever drains this list next:
+        // pick a fresh anchor from the panic's `Names found:` list, not blind repetition.
         assert!(
-            intrinsic_names.iter().any(|n| n == ":wat::core::reduce"),
-            "non-vacuity: `intrinsic_meta`'s residue does not contain `:wat::core::reduce`, \
-             which is present at `src/rete/purity.rs:547` — the parser is missing real content \
-             (STOP-1). Names found: {intrinsic_names:?}"
+            intrinsic_names.iter().any(|n| n == ":wat::core::stream->pvec"),
+            "non-vacuity: `intrinsic_meta`'s residue does not contain \
+             `:wat::core::stream->pvec`, which is present at `src/rete/purity.rs:534` — the \
+             parser is missing real content (STOP-1). Names found: {intrinsic_names:?}"
         );
 
         // ── The real assertion: no residue name resolves in the registry ───────────────────
