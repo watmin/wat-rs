@@ -542,13 +542,18 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // registered it (`:wat::vec::*`, `:wat::vector::*`, `:wat::linkedlist::*`,
             // `:wat::hashset::*`, `:wat::map::*`, `:wat::hashmap::*`, `:wat::uuid::*`) — those
             // are all deleted from here this stone (the registry answers them now). The bare
-            // constructor keyword for each type (STOP-3 in each of those stones) stays unhomed.
-            // `:wat::core::List` (the bare type, no `?`) IS registered and was deleted; `List?`
-            // (the predicate) is not.
-            | ":wat::core::HashMap"
-            | ":wat::core::Vector"
+            // constructor keyword for each type (STOP-3 in each of those stones) used to "stay
+            // unhomed" here — that rule stopped being TRUE four stones ago: `:wat::core::List`,
+            // `:wat::core::PersistentVector`, `:wat::core::PersistentMap`, and
+            // `:wat::core::Tuple` are all registered (Stones 1c-a-ii / 1c-b-i), and this stone
+            // (`the-three-orphans`) registers the last three siblings the comment still claimed
+            // — `HashMap`/`Vector`/`HashSet` LEFT this list, each `@Totality Partial` (measured
+            // against its own constructor, `src/runtime.rs`'s `eval_hashmap`/`eval_vector`/
+            // `eval_hashset`), the identical "shadowed by a copy" defect `str`/`u8`/`do`/`reduce`
+            // already left this same list for. `List?` (the PREDICATE, a distinct FQDN from the
+            // now-registered bare `List` type) is the one bare-constructor-family member still
+            // genuinely unhomed — it stays.
             | ":wat::core::List?"
-            | ":wat::core::HashSet"
             // ⛔ Arc 255 Stone 1c-f — `:wat::core::reduce` LEFT this list: `register_defalias`
             // (now that `reduce` is a genuine `defalias` for `foldl`, not a hand-rolled
             // `defclause`) registers its synthesized delegating `Function` into `sym.functions`,

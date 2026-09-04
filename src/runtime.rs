@@ -2723,14 +2723,12 @@ fn dispatch_keyword_head_value(
         // arms retired. Type-checker Pattern 2 poison (check.rs:3840,
         // 3858) still surfaces friendly redirect for users typing
         // legacy keywords; runtime arm gone for defense-in-depth.
-        ":wat::core::Vector" => {
-            // Arc 109 step ① Room 3 — accept `(Vector [T] …)` alongside the existing
-            // positional `(Vector :T …)`; see `crate::check::unwrap_type_param_bracket`.
-            // Splice at the dispatch call site, mirroring check.rs's Room 2 arm exactly —
-            // `eval_vector_ctor` itself stays untouched.
-            let spliced_args = crate::check::unwrap_type_param_bracket(args);
-            crate::collection::eval::eval_vector_ctor(&spliced_args, list_span, env, sym)
-        }
+        // Arc 255 Stone the-three-orphans — `:wat::core::Vector`'s arm RETIRED; it now carries a
+        // registered `#[wat_intrinsic]` wrapper (`eval_vector`, this file, immediately after
+        // `eval_persistentmap` — the `unwrap_type_param_bracket` splice this arm used to do
+        // inline moved into that wrapper VERBATIM, STOP-2) — the pre-match registry check above
+        // (arc 255.1c-guard) intercepts the name before reaching here. `eval_vector_ctor` itself
+        // is unchanged.
         // Arc 146 slice 3 — `:wat::core::conj` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch_keyword_head
         // guard above intercepts before reaching this arm; the
@@ -2860,12 +2858,12 @@ fn dispatch_keyword_head_value(
         // arms into `#[wat_intrinsic]` handlers (`src/intrinsic/seq.rs`) — the pre-match
         // registry check above (arc 255.1c-guard) intercepts all three names before
         // reaching here, same shape as `:wat::time::*` a few dozen lines up.
-        ":wat::core::HashMap" => {
-            // Arc 109 step ① Room 3 — accept `(HashMap [K V] …)` alongside the existing
-            // positional `(HashMap :K :V …)`; see `crate::check::unwrap_type_param_bracket`.
-            let spliced_args = crate::check::unwrap_type_param_bracket(args);
-            crate::collection::eval::eval_hashmap_ctor(&spliced_args, list_span, env, sym)
-        }
+        // Arc 255 Stone the-three-orphans — `:wat::core::HashMap`'s arm RETIRED; it now carries a
+        // registered `#[wat_intrinsic]` wrapper (`eval_hashmap`, this file, immediately after
+        // `eval_vector` — the `unwrap_type_param_bracket` splice this arm used to do inline
+        // moved into that wrapper VERBATIM, STOP-2) — the pre-match registry check above (arc
+        // 255.1c-guard) intercepts the name before reaching here. `eval_hashmap_ctor` itself is
+        // unchanged.
         // Arc 255 Stone 1c-b-i — `:wat::core::PersistentMap`'s arm RETIRED; it now carries a
         // registered `#[wat_intrinsic]` wrapper (`eval_persistentmap`, this file, immediately
         // after `eval_third` — the `split_type_param_bracket` pre-processing this arm used to
@@ -2876,12 +2874,12 @@ fn dispatch_keyword_head_value(
         // `PersistentMap` immediately above — registered `#[wat_intrinsic]` wrapper
         // (`eval_persistentvector`, this file), `split_type_param_bracket` carried verbatim,
         // `eval_persistentvector_ctor` unchanged.
-        ":wat::core::HashSet" => {
-            // Arc 109 step ① Room 3 — accept `(HashSet [T] …)` alongside the existing
-            // positional `(HashSet :T …)`; see `crate::check::unwrap_type_param_bracket`.
-            let spliced_args = crate::check::unwrap_type_param_bracket(args);
-            crate::collection::eval::eval_hashset_ctor(&spliced_args, list_span, env, sym)
-        }
+        // Arc 255 Stone the-three-orphans — `:wat::core::HashSet`'s arm RETIRED; it now carries a
+        // registered `#[wat_intrinsic]` wrapper (`eval_hashset`, this file, immediately after
+        // `eval_hashmap` — the `unwrap_type_param_bracket` splice this arm used to do inline
+        // moved into that wrapper VERBATIM, STOP-2) — the pre-match registry check above (arc
+        // 255.1c-guard) intercepts the name before reaching here. `eval_hashset_ctor` itself is
+        // unchanged.
         // Arc 146 slice 3 — `:wat::core::get` and `:wat::core::contains?`
         // are now Dispatches (declared in `wat/core.wat`). The
         // dispatch_keyword_head guard above intercepts them; the
@@ -7923,6 +7921,226 @@ fn eval_persistentmap(
         None => args,
     };
     crate::collection::eval::eval_persistentmap_ctor(values, list_span, env, sym)
+}
+
+/// `(:wat::core::Vector :- [T] e1 e2 ...)` — arc 255 Stone the-three-orphans, registered
+/// `#[wat_intrinsic]`. THIN DELEGATE, not a reimplementation: forwards exactly what the retired
+/// literal arm forwarded, INCLUDING its `unwrap_type_param_bracket` pre-processing, carried
+/// verbatim (STOP-2: dropping it would change what a `(Vector :- [T] …)` call evaluates) —
+/// `eval_vector_ctor` (`src/collection/eval.rs:1454-1499`) itself is untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** past its own `args[0]` type-form
+/// guard, `eval_vector_ctor`'s body evaluates each remaining arg by ordinary call-by-value
+/// (`eval_inner`, `:1495-1498`) and collects into a `Vec`, wrapped `Value::Vec` — no
+/// `apply_function`, no I/O, no entropy/clock read anywhere. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Partial`, unlike its `PersistentVector` sibling above — same shape,
+/// different answer, which is Room 2's own point:** `eval_vector_ctor` raises `ArityMismatch` on
+/// zero args (an arity-shape guard, outside totality's domain per the established carve-out —
+/// see `eval_persistentmap`'s own `Partial` ground immediately above) AND raises `MalformedForm`
+/// when `args[0]` is neither a `WatAST::Keyword` nor a `WatAST::List`
+/// (`match &args[0] { Keyword => {} List => … other => MalformedForm }`, `collection/eval.rs`).
+/// This second raise IS a genuine runtime-fact partiality the checker does not prevent:
+/// `parse_type_node` (`src/types.rs:5023-5054`) — the SAME "one door reading all four type node
+/// shapes" that `infer_list_constructor`'s own `parse_param_spec_slot` (`check.rs:12332-12354`)
+/// calls to validate the `:-`-bracket's declared `T` at check time — accepts FOUR node shapes
+/// (`Keyword`/`Symbol`/`List`/`Vector`-as-fn-type-bracket `[arg… :-> ret]`, `types.rs:5040-5042`),
+/// while `eval_vector_ctor`'s own match accepts only TWO. Measured, not assumed: a well-typed
+/// `(Vector :- [[:wat::core::i64 :-> :wat::core::bool]])` — a `Vector` of function values, its
+/// `T` spelled with the fn-type bracket surface — passes `--check` with zero errors
+/// (`wat-scripts/scratch-pad/probe-vector-fn-type-bracket.wat`) and then raises `MalformedForm`
+/// at eval time ("first argument must be a `(Head :- [T …])` type form"). `Partial`.
+///
+/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::core::Vector"` is
+/// present in the residue hand-list (`:501`), which already returns `true` for it there (ruled
+/// `Legal`, unlike the silent-refusal gap `ann-form`/`apply`/`PersistentVector`/`PersistentMap`
+/// had). This registration carries that same ruling forward as the honest `@ExpandTime Legal` —
+/// no macro-expansion-time state consulted anywhere in `eval_vector_ctor`'s body, the same "bare
+/// data constructor" shape its own residue comment gives.
+///
+/// **Category ground — `Transform`:** matches `:wat::core::List`'s registered ctor
+/// (`src/intrinsic/list.rs`, `@Category Transform`) and `PersistentVector`/`PersistentMap` above
+/// — the identical "bare elements in, one new container out" shape; `wat/runtime-meta.wat:
+/// 121-126`'s `:Transform` doc.
+///
+/// The one `@arg`'s type is pinned to `:wat::core::Vector`'s checker scheme's sole param
+/// (`t_var()` — `check.rs`'s `register_builtins`, `:21146-21154`, a 1-arg SENTINEL: its own
+/// comment states plainly "the first runtime arg is the element-type keyword; the fingerprint
+/// registers a 1-arg `:T` form to expose the polymorphism without modeling the type-keyword
+/// convention. Real arity + type-keyword + per-element checking lives in the handler" — this
+/// sentinel scheme is a SEPARATE registration from `infer_list_constructor`
+/// (`src/check.rs:15210-15308`, dispatched from `check.rs:3013-3025`), which is what actually
+/// type-checks a call; the sentinel exists only for introspection consumers
+/// (`:wat::runtime::signature-of-defn` and this doc-vs-scheme gate itself)). `@ret`
+/// `(:wat::core::Vector :- [T])` matches that same sentinel's `ret: vec_of(t_var())`
+/// (`check.rs:21151`).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :T a mandatory leading element-type declaration (position 0 — a bare type
+///   keyword, or the `:-`-marked bracket's single type node, spliced to this position by the
+///   dispatch call site's `unwrap_type_param_bracket`) followed by zero or more elements, in
+///   order — the variadic sniff leaves no further `@arg` slots
+/// @ret     (:wat::core::Vector :- [T]) a new vector holding each argument after the leading
+///   type declaration, in order
+/// @example (:wat::core::Vector :- [:wat::core::i64] 1 2 3) #=> [1 2 3]
+#[wat_intrinsic(":wat::core::Vector")]
+fn eval_vector(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let spliced_args = crate::check::unwrap_type_param_bracket(args);
+    crate::collection::eval::eval_vector_ctor(&spliced_args, list_span, env, sym)
+}
+
+/// `(:wat::core::HashMap :- [K V] k1 v1 k2 v2 ...)` — arc 255 Stone the-three-orphans,
+/// registered `#[wat_intrinsic]`. THIN DELEGATE: forwards exactly what the retired literal arm
+/// forwarded, INCLUDING its `unwrap_type_param_bracket` pre-processing, carried verbatim
+/// (STOP-2) — `eval_hashmap_ctor` (`src/collection/eval.rs:1502-1567`) itself is untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** past its own arity/type-form guards,
+/// `eval_hashmap_ctor`'s body evaluates each key/value by ordinary call-by-value (`eval_inner`)
+/// and inserts into a fresh `HashMap<Value, Value>`, wrapped `Value::wat__std__HashMap` — no
+/// `apply_function`, no I/O, no entropy/clock read anywhere. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Partial`, on TWO independent raises, neither shared with `Vector`'s own
+/// `Partial` ground above (a different constructor, a different pair of mechanisms):**
+///  1. `eval_hashmap_ctor` raises `MalformedForm` when `args[0]`/`args[1]` (post-splice) fails
+///     `is_type_arg_shaped` (`src/declare/parse.rs:996-998` — `Keyword | List` only), the exact
+///     same TWO-vs-FOUR-shape gap `Vector`'s ground above proves: `infer_hashmap_constructor`'s
+///     own `parse_param_spec_slot` calls (`check.rs:14703-14710`) accept the SAME four
+///     `parse_type_node` shapes for `K`/`V` that `is_type_arg_shaped` refuses two of. Measured: a
+///     well-typed `(HashMap :- [[:wat::core::i64 :-> :wat::core::bool] :wat::core::i64])` — `K`
+///     spelled with the fn-type bracket surface — passes `--check` with zero errors
+///     (`wat-scripts/scratch-pad/probe-hashmap-fn-type-bracket.wat`) and raises `MalformedForm`
+///     at eval time.
+///  2. `eval_hashmap_ctor` raises `TypeMismatch` on a non-hashable key via
+///     `value_is_key_hashable` (`src/runtime.rs:6527-6529`, delegating to `value_is_hashable`,
+///     `:6498-6514` — excludes `fn`/`Sender`/`Receiver`/`HandlePool`/`ChildHandle`/`RustOpaque`/
+///     `IOReader`/`IOWriter`/`OnlineSubspace`/`Reckoner`/`Engram`/`EngramLibrary`/`Hologram`).
+///     `infer_hashmap_constructor` (`check.rs:14675-14770`) places NO hashability restriction on
+///     `K` — any type unifies (`:14741-14750`) — so a well-typed call can still supply e.g. a
+///     `:wat::core::fn` value as a key and hit this raise at runtime, the identical gap its
+///     `PersistentMap` sibling's own `Partial` ground (above) already proves for the same
+///     predicate. `Partial`.
+///
+/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::core::HashMap"` is
+/// present in the residue hand-list (`:502`), already returning `true` there (ruled `Legal`).
+/// This registration carries that ruling forward; no macro-expansion-time state consulted in
+/// `eval_hashmap_ctor`'s body.
+///
+/// **Category ground — `Transform`:** matches `PersistentMap`'s registered ctor above (same
+/// key/value-pair-in, one-new-container-out shape); `wat/runtime-meta.wat:121-126`'s
+/// `:Transform` doc.
+///
+/// The one `@arg`'s type is pinned to `:wat::core::HashMap`'s checker scheme's FIRST param
+/// (`k_var()` — `check.rs`'s `register_builtins`, `:21180-21188`, a 2-arg SENTINEL, same
+/// "mirrors `:wat::core::Vector`'s `:T x0 x1 …`, two type-args for K + V" shape its own comment
+/// states; the entry's single `@arg` row only ever gets checked against `scheme.params[0]`, so
+/// only `K` needs pinning — `V` is still named, and so still recoverable, via `@ret`). This
+/// sentinel scheme is a SEPARATE registration from `infer_hashmap_constructor`
+/// (`src/check.rs:14675-14770`, dispatched from `check.rs:3161-3169`), which is what actually
+/// type-checks a call; the sentinel exists only for introspection consumers. `@ret`
+/// `(:wat::core::HashMap :- [K V])` matches that same sentinel's `ret: hashmap_of(k_var(),
+/// v_var())` (`check.rs:21185`).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :K two mandatory leading type declarations (positions 0, 1 — K then V — each a
+///   bare type keyword or a `:-`-marked bracket's spliced type node) followed by alternating
+///   key/value pairs, in order (arity after the two type args must be even; raises
+///   `MalformedForm` otherwise; each key raises `TypeMismatch` at runtime if not hashable) — the
+///   variadic sniff leaves no further `@arg` slots
+/// @ret     (:wat::core::HashMap :- [K V]) a new hash map holding each pair
+/// @example (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64] :a 1) #=> {:a 1}
+#[wat_intrinsic(":wat::core::HashMap")]
+fn eval_hashmap(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let spliced_args = crate::check::unwrap_type_param_bracket(args);
+    crate::collection::eval::eval_hashmap_ctor(&spliced_args, list_span, env, sym)
+}
+
+/// `(:wat::core::HashSet :- [T] e1 e2 ...)` — arc 255 Stone the-three-orphans, registered
+/// `#[wat_intrinsic]`. THIN DELEGATE: forwards exactly what the retired literal arm forwarded,
+/// INCLUDING its `unwrap_type_param_bracket` pre-processing, carried verbatim (STOP-2) —
+/// `eval_hashset_ctor` (`src/collection/eval.rs:1569-1624`) itself is untouched.
+///
+/// **Purity/Determinism ground — `Pure ∧ Deterministic`:** past its own `args[0]` type-form
+/// guard, `eval_hashset_ctor`'s body evaluates each element by ordinary call-by-value
+/// (`eval_inner`) and inserts into a fresh `HashSet<Value>` (duplicates collapse; `Value: Hash +
+/// Eq`), wrapped `Value::wat__std__HashSet` — no `apply_function`, no I/O, no entropy/clock read
+/// anywhere. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Partial`, on the SAME two-independent-raises SHAPE `HashMap`'s ground
+/// above proves, mirrored onto a single type param instead of two:**
+///  1. The identical `args[0]` `Keyword`/`List`-only match (`src/collection/eval.rs`) against
+///     `parse_type_node`'s four accepted shapes (`types.rs:5023-5054`) `Vector`'s ground above
+///     proves. Measured: a well-typed `(HashSet :- [[:wat::core::i64 :-> :wat::core::bool]])` —
+///     `T` spelled with the fn-type bracket surface — passes `--check` with zero errors
+///     (`wat-scripts/scratch-pad/probe-hashset-fn-type-bracket.wat`) and raises `MalformedForm`
+///     at eval time.
+///  2. `eval_hashset_ctor` raises `TypeMismatch` on a non-hashable element via
+///     `value_is_set_hashable` (`src/runtime.rs:6520-6522`, delegating to `value_is_hashable`,
+///     `:6498-6514`). `infer_hashset_constructor` (`check.rs:12370-12430`) places NO hashability
+///     restriction on `T` — only `unify` against the declared/inferred element type
+///     (`:12414-12423`) — so a well-typed call can supply e.g. a `:wat::core::fn` element and hit
+///     this raise at runtime, the same gap `HashMap`'s key ground and `PersistentMap`'s key
+///     ground both already prove for the identical predicate. `Partial`.
+///
+/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::core::HashSet"` is
+/// present in the residue hand-list (`:503`), already returning `true` there (ruled `Legal`).
+/// This registration carries that ruling forward; no macro-expansion-time state consulted in
+/// `eval_hashset_ctor`'s body.
+///
+/// **Category ground — `Transform`:** matches `Vector`'s registered ctor above (same
+/// bare-elements-in, one-new-container-out shape); `wat/runtime-meta.wat:121-126`'s `:Transform`
+/// doc.
+///
+/// The one `@arg`'s type is pinned to `:wat::core::HashSet`'s checker scheme's sole param
+/// (`t_var()` — `check.rs`'s `register_builtins`, `:21194-21202`, a 1-arg sentinel, "mirrors
+/// `:wat::core::Vector`" per its own comment). This sentinel scheme is a SEPARATE registration
+/// from `infer_hashset_constructor` (`src/check.rs:12370-12430`, dispatched from
+/// `check.rs:3222-3231`), which is what actually type-checks a call; the sentinel exists only
+/// for introspection consumers. `@ret` `(:wat::core::HashSet :- [T])` matches that same
+/// sentinel's `ret: hashset_of(t_var())` (`check.rs:21199`).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     args :T a mandatory leading element-type declaration (position 0 — a bare type
+///   keyword, or the `:-`-marked bracket's single type node, spliced to this position by the
+///   dispatch call site's `unwrap_type_param_bracket`) followed by zero or more elements, in
+///   order (duplicates collapse; each raises `TypeMismatch` at runtime if not hashable) — the
+///   variadic sniff leaves no further `@arg` slots
+/// @ret     (:wat::core::HashSet :- [T]) a new hash set holding each distinct argument after the
+///   leading type declaration
+/// @example (:wat::core::HashSet :- [:wat::core::i64] 1) #=> #{1}
+#[wat_intrinsic(":wat::core::HashSet")]
+fn eval_hashset(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let spliced_args = crate::check::unwrap_type_param_bracket(args);
+    crate::collection::eval::eval_hashset_ctor(&spliced_args, list_span, env, sym)
 }
 
 // Arc 255 Stone P6-c-W6 — `:wat::core::nth` moved verbatim into a `#[wat_intrinsic]`

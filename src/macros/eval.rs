@@ -469,7 +469,14 @@ fn is_expand_time_legal(head: &str) -> bool {
     //     (`src/runtime.rs`, each `@ExpandTime Legal`), so the `registry().lookup_entry` door
     //     above answers first and these arms were unreachable dead text — the identical
     //     "shadowed by a copy" defect the header above names.
-    //   collection constructors — `Vector`, `HashMap`, `HashSet`
+    //   ~~Vector/HashMap/HashSet~~ — DELETED arc 255 Stone `the-three-orphans`: all three
+    //     `#[wat_intrinsic]`-registered now (`src/runtime.rs`'s `eval_vector`/`eval_hashmap`/
+    //     `eval_hashset`, each `@ExpandTime Legal` — carrying forward the SAME ruling this
+    //     residue already made for them, just no longer a second hand-copy of it), so the
+    //     `registry().lookup_entry` door above answers first and these arms were unreachable
+    //     dead text — the identical "shadowed by a copy" defect this residue's own header names,
+    //     this time caught by the gate (`the_residues_cannot_shadow_the_registry`,
+    //     `src/intrinsic/mod.rs`) at registration time rather than by a rider noticing later.
     //   collection / sequence ops still on the pre-registry dispatch path —
     //     `count`, `into`, `filterv`, `reduce`, `reduce-stream`, `doall`, `dorun`,
     //     `stream->pvec`
@@ -498,9 +505,6 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::i64/to-string"
         | ":wat::core::subtype?"
         | ":wat::core::List?"
-        | ":wat::core::Vector"
-        | ":wat::core::HashMap"
-        | ":wat::core::HashSet"
         | ":wat::core::count"
         | ":wat::core::into"
         | ":wat::core::filterv"

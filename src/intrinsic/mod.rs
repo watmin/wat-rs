@@ -1504,13 +1504,16 @@ mod tests {
     /// `register_builtins` and `crate::rete::vocabulary::RETE_OPS` again, or — better — read
     /// this gate's own failure message, which names the true population directly.
     const REGISTRY_MEMBERSHIP_GAP_A: &[&str] = &[
-        ":wat::core::HashMap",
-        ":wat::core::HashSet",
-        ":wat::core::Vector",
         // Arc 255 Stone 1c-a-ii — ":wat::core::Tuple" / ":wat::core::apply" /
         // ":wat::core::conforms?" / ":wat::core::contains?" / ":wat::core::get" DELETED: all
         // five now carry a `#[wat_intrinsic]` row (`src/runtime.rs`), so `registry()` answers
         // for them and the gap this list named is closed.
+        // Arc 255 Stone the-three-orphans — ":wat::core::HashMap" / ":wat::core::HashSet" /
+        // ":wat::core::Vector" DELETED: all three now carry a `#[wat_intrinsic]` row
+        // (`eval_hashmap`/`eval_hashset`/`eval_vector`, `src/runtime.rs`), so `registry()`
+        // answers for them (`check_env` still holds their pre-existing sentinel `TypeScheme`s,
+        // `check.rs:21146-21202` — unchanged, unrelated to this gap) and the gap this list named
+        // is closed.
         // ":wat::core::i64/to-f64" / ":wat::core::i64/to-string" NOT deleted this stone —
         // STOP-5 finding (BRIEF-STONE-the-seven-that-need-no-extraction's report): the
         // brief's named handler for both, `crate::numeric::convert::eval_i64_to_f64`/
