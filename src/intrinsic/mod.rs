@@ -2294,13 +2294,26 @@ mod tests {
         // from "nothing happened", and its failure message cannot name the offender.
         // `[[feedback_a_gate_freezes_names_never_a_count]]`
         //
-        // Both frozen rows are SPELLING normalizations, measured — not lost information:
+        // Arc 255 STONE-the-round-trip-closes: both rows below were SPELLING normalizations,
+        // measured — not lost information — and both were DATA fixes on the outlier row, not
+        // instrument changes:
         //   `:wat::rete::lower` ret  — the parser canonicalizes `:wat::core::nil` to `Tuple([])`;
-        //                              the scheme holds `Path(":wat::core::nil")`. Same type.
-        //   `:wat::string::join` arg1 — the parser yields the type var as `Path(":T")`, the scheme
-        //                              as `Path("T")`. A leading colon. This is the recurring class:
-        //                              a comparison with one side normalized and the other not.
-        const FROZEN_SPELLING_MISMATCHES: &[&str] = &[":wat::rete::lower", ":wat::string::join"];
+        //                              13 other nil-returning schemes in `register_builtins`
+        //                              already spell it `Tuple([])`/`unit_ty()`. `lower` was the
+        //                              lone `Path(":wat::core::nil")`; now matches the house form.
+        //   `:wat::string::join` arg1 — the parser yields the type var as `Path(":T")` (bare doc
+        //                              symbols are colon-prefixed on parse); 14 other `Path`
+        //                              type-var occurrences in `register_builtins` (incl.
+        //                              `t_var()`, used by `:wat::core::foldl`) already carry the
+        //                              leading colon. `join` was the lone bare `Path("T")`; now
+        //                              uses `t_var()` like every sibling. This is the recurring
+        //                              class: a comparison with one side normalized and the
+        //                              other not — the FIX was on the un-normalized side, never
+        //                              the comparison itself (STOP-2 held).
+        // Freeze list is empty: the round trip is 432/432 and both rows above now pass like
+        // every other. Left as a `const` (not deleted) so a future regression on either name
+        // has a place to land with its measured reason, per the assert below.
+        const FROZEN_SPELLING_MISMATCHES: &[&str] = &[];
         let unexpected: Vec<&str> = failing_rows
             .iter()
             .filter(|n| !FROZEN_SPELLING_MISMATCHES.contains(n))

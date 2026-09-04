@@ -17913,7 +17913,11 @@ fn register_builtins(env: &mut CheckEnv) {
                 // `eval_string_join` in src/intrinsic/string.rs.
                 TypeExpr::Parametric {
                     head: "wat::core::Seqable".into(),
-                    args: vec![TypeExpr::Path("T".into())],
+                    // Arc 255 STONE-the-round-trip-closes, Q2: colon-prefixed (`:T`) is the
+                    // house spelling for a type var's `Path` — `t_var()` builds it that way,
+                    // and 14 other `Path(":<Var>")` occurrences in this function agree; this
+                    // was the file's lone bare `Path("T")`, measured. Same type, house spelling.
+                    args: vec![t_var()],
                 },
             ],
             ret: string_ty(),
@@ -21838,7 +21842,12 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::nil".into()),
+            // Arc 255 STONE-the-round-trip-closes, Q1: `:wat::core::nil` is a `TypeDef::Alias`
+            // to `Tuple(vec![])` (`src/types.rs:1069`); the doc-type parser canonicalizes it on
+            // every row, and `unit_ty()`/direct `Tuple(vec![])` is the house spelling for a
+            // nil return elsewhere in this function (13 occurrences vs. this row's lone
+            // unresolved `Path`, measured). Resolved to match — same type, house spelling.
+            ret: unit_ty(),
             rest_param_type: None,
         },
     );
