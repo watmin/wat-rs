@@ -220,15 +220,16 @@ pub(crate) fn eval_signature_of_defn(
         // to declare — authoring `@arg` for them would mint a type claim these forms don't
         // have, which is why they moved to the arm above instead of into this one.
         //
-        // A row with NEITHER `@syntax` nor `@arg` still falls through to the
-        // `special_forms.rs` deferral below (arm after this one) — that deferral is what
-        // still answers for the 23 rows Stone 1a-α does not touch, until each is registered
-        // with its own vehicle.
+        // A row with NEITHER `@syntax` nor `@arg` still falls through to the fallback below
+        // (the sentinel arm) — every one of the registry's current rows carries one or the
+        // other today (measured, arc 255 Stone "the three special-form tables"), so that
+        // fallback is not exercised for any live name, but it stays as the honest answer for
+        // a hypothetical future row registered with neither.
         Some(Binding::Registered {
             name: n, entry, ..
         }) if !entry.args.is_empty() => {
-            // Built through the SAME HolonAST helpers `special_forms.rs`'s `sketch()` uses,
-            // then `holon_to_watast` — one shape, not a second hand-rolled one.
+            // Built through the SAME HolonAST helpers `special_forms.rs`'s `sketch()` used
+            // to, then `holon_to_watast` — one shape, not a second hand-rolled one.
             let mut children = Vec::with_capacity(1 + entry.args.len());
             children.push(holon::HolonAST::keyword(&n));
             for (arg_name, _, _, is_rest) in entry.args {
@@ -244,15 +245,20 @@ pub(crate) fn eval_signature_of_defn(
                 holon_to_watast(&sketch),
             ))))))
         }
-        Some(Binding::Registered { name: n, entry, .. })
-            if crate::special_forms::lookup_special_form(&n).is_some() =>
-        {
-            let def = crate::special_forms::lookup_special_form(&n).expect("guard above");
-            let _ = entry;
-            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
-                holon_to_watast(&def.signature),
-            ))))))
-        }
+        // Arc 255 Stone "the three special-form tables" — the `special_forms.rs` deferral
+        // that used to sit here (guarded on `lookup_special_form(&n).is_some()`) is DELETED,
+        // not merely dead-coded: it is now provably unreachable, not just empirically so.
+        // Every name that can produce `Binding::Registered` here is, by construction, one of
+        // the registry's entries; `special_forms.rs` now holds only the three names with NO
+        // registration site (`defstruct`/`unquote`/`unquote-splicing`), so
+        // `lookup_special_form(&n).is_some()` can be true only for one of those three — and
+        // none of them can ever be `n` in this match, because none of them is registered.
+        // The intersection is empty by construction, not by the current census: this arm's
+        // guard could never fire again without re-registering one of the two tables to
+        // overlap, which is the exact duplication this stone exists to end. (It was ALSO
+        // already unreachable in practice before this stone touched anything: every
+        // registered name already carried either `@syntax` or non-empty `@arg`, so this arm
+        // never actually fired even when its guard could still, in principle, match.)
         Some(Binding::Registered { name: n, entry, .. }) => {
             // ⛔ Arc 255 Stone 3a-i FIX — the sentinel HEAD is derived from `entry.kind`,
             // not fixed to "registered". The registry carries the SpecialForm/Intrinsic

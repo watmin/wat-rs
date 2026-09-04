@@ -27,6 +27,7 @@ use wat_macros::wat_special_form;
 /// @Determinism Preserving
 /// @Totality       Preserving
 /// @ExpandTime  Legal
+/// @syntax (:wat::core::if <cond> <then> <else>)
 /// @arg cond :wat::core::Bool the condition to branch on
 /// @arg then :T returned when cond is :true (the taken branch)
 /// @arg else :T returned when cond is :false (the taken branch)

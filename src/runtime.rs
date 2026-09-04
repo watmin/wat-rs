@@ -5047,24 +5047,35 @@ fn eval_apply(
     // declaration forms or language special forms — they require AST-level
     // structural parsing that eval_apply does not perform. Attempting to
     // apply them would silently misfire; reject with a clean diagnostic.
-    const SPECIAL_FORMS: &[&str] = &[
-        ":wat::core::def",
-        // Stone 241.14 — ":wat::core::def-restricted" removed (HARD CUT; can't reach eval).
-        // Stone 241.16 — ":wat::core::define" removed (HARD CUT total; eval-time residue completed).
-        ":wat::core::defn",
-        ":wat::core::fn",
-        ":wat::core::let",
-        ":wat::core::if",
-        ":wat::core::do",
-        ":wat::core::match",
-        ":wat::core::quote",
-        ":wat::core::quasiquote",
-        // Arc 294.b — holon literal is a special form (body is data, not a callable).
-        ":wat::holon::literal",
-        // Arc 118 — lazy-seq is a special form (body is captured unevaluated, not a callable).
-        ":wat::stream::lazy",
-    ];
-    if SPECIAL_FORMS.contains(&head_kw.as_str()) {
+    //
+    // Arc 255 Stone "the three special-form tables" — this used to be a local `const
+    // SPECIAL_FORMS: &[&str]` duplicating the registry (10 of its 11 names are registered
+    // `Kind::SpecialForm` rows). Ask the registry instead — same test `reflect/lookup.rs:418`
+    // and `intrinsic/reflect.rs:384` already use (`entry.kind == Kind::SpecialForm`).
+    //
+    // TWO honest exceptions, both named here rather than silently dropped or folded into
+    // the registry query:
+    //
+    // `:wat::core::defn` — a stdlib MACRO, not a special form, with no registry row at all
+    // (the FOURTH-registry fork — 41 stdlib macros are invisible to
+    // `crate::intrinsic::registry()` today).
+    //
+    // `:wat::holon::literal` — IS registered, but as `Kind::Intrinsic`, not
+    // `Kind::SpecialForm`: it is declared with `#[wat_intrinsic(...)]`
+    // (`src/intrinsic/holon/atom.rs`), not `#[wat_special_form(...)]`, unlike every other
+    // name the old `const` listed (`def`/`fn`/`let`/`if`/`do`/`match`/`quote`/`quasiquote`/
+    // `stream::lazy` are all `#[wat_special_form]`, hence `Kind::SpecialForm`). Its body is
+    // still captured unevaluated (arc 294.b — `#holon <form>` reader tag), the same reason
+    // `stream::lazy` is rejected, so `apply` must still refuse it — measured, not assumed:
+    // gating on `Kind::SpecialForm` alone would have silently STOPPED rejecting it, a real
+    // regression no existing test caught.
+    let is_special_form = matches!(
+        head_kw.as_str(),
+        ":wat::core::defn" | ":wat::holon::literal"
+    ) || crate::intrinsic::registry()
+        .lookup_entry(head_kw.as_str())
+        .is_some_and(|entry| entry.kind == crate::intrinsic::Kind::SpecialForm);
+    if is_special_form {
         return Err(RuntimeError::new(
             list_span,
             RuntimeErrorKind::MalformedForm {

@@ -40,6 +40,7 @@ use wat_macros::wat_special_form;
 /// @Determinism Preserving
 /// @Totality Preserving
 /// @ExpandTime Preserving
+/// @syntax (:wat::core::and <exprs>+)
 /// @arg exprs… :wat::core::bool the operands, evaluated left to right until the first `:false` (or all of them)
 /// @ret :wat::core::bool `:false` at the first `:false` operand, else `:true` (`:true` when there are no operands)
 /// @example (:wat::core::and true true) #=> true
