@@ -76,8 +76,8 @@ sends, and its *placement in the loop* is what decides the fault:
   | **A** | `:wat::time::NonZeroDuration` (`NonZeroU64`). Zero-as-a-wait has no form | ✅ **STRUCK 2026-09-03** |
   | **B-pre** | time types cross a service boundary (`edn_to_typed_value_inner` + `decode_declared_field`) | ✅ **STRUCK 2026-09-03** |
   | **B** | queue `wait-ns i64` → `wait <- Queue::Wait`, `:Immediate` / `:UpTo [NonZeroDuration]` | ✅ **STRUCK 2026-09-03** |
-  | **D** | the helper vocabulary that hung the floor — `take-one`, `wait-pending`/`wait-inflight`, `q-depth`'s `(Tuple 1 1)`, `accept!`, the lying comment at `sns-fanout.wat:145`, the `1`-vs-`-1` sentinels, **and `pending`/`in-flight` → `visible`/`unacked`** | **NEXT.** Owns the live race |
-  | **C** | the naming sweep — `Alarm :after`→`:delay` (64 sites/25 files, **stdlib, BOOTSTRAP**), `Millisecond`→`Milliseconds` (56 sites) | LAST. Closes no defect |
+  | **D** | ✅ **STRUCK** — the helper vocabulary that hung the floor — `take-one`, `wait-pending`/`wait-inflight`, `q-depth`'s `(Tuple 1 1)`, `accept!`, the lying comment at `sns-fanout.wat:145`, the `1`-vs-`-1` sentinels, **and `pending`/`in-flight` → `visible`/`unacked`** | **NEXT.** Owns the live race |
+  | **C** | ✅ **STRUCK 2026-09-04** — the naming sweep — `Alarm :after`→`:delay` (64 sites/25 files, **stdlib, BOOTSTRAP**), `Millisecond`→`Milliseconds` (56 sites) | LAST. Closes no defect |
 
   ### ⛔ THE ORDER, RULED BY THE BUILDER 2026-09-03 — D → chaos (3c/3d) → C
 
@@ -97,6 +97,51 @@ sends, and its *placement in the loop* is what decides the fault:
   4. **D's shape is already proven in a committed probe** — `probe-refused-retry-self-consumes.wat`,
      `gap=300 → delivered; raced=yes-and-VISIBLE`, and its presence-wait already uses
      `:wait (Wait::UpTo …)` since Stone B. Same position B was in before its strike.
+
+### ⛔ WHERE CHAOS ACTUALLY STANDS — 2026-09-04
+
+**The order (D → chaos → C) is COMPLETE.** What follows is the honest ledger, because "is this done"
+was asked and the answer was not obvious from the stone list.
+
+#### ✅ DONE AND ON THE FLOOR — random failure with graceful recovery, CLIENT side
+
+| what | evidence |
+|---|---|
+| seeded, self-arming, rate-gated severs | `-disrupt`; **24 severs/run, identical across five runs** — the seed replaying at 8000 msgs / 12 workers |
+| the client redials and continues | 17 fatal `Closed` arms converted; the dead-peer wall still fires when redial truly fails |
+| the invariant survives | `total=8000; distinct=8000; dup=0` ×5, all twelve workers finish |
+| off by default | rate 0 arms **no alarm at all**; floor runs `disrupts=0` |
+| a duplicate produced AND absorbed | `redelivery_is_absorbed_by_the_consumer`, `seen-dups > 0` — **but from visibility expiry, not from chaos** |
+
+#### ⛔ NOT DONE — three things, ONE cause
+
+1. **Server-side handle killing** (the server's selectable vec).
+2. **The server discarding a lost client** — the substrate does it (`service.wat:64`, *"a vanished
+   waiter … is not an error — keep serving"*), but **we have never asserted it.** Inherited, not
+   demonstrated.
+3. **A duplicate arising FROM chaos** — `seen-dups=0` under 24 severs. Predicted with its mechanism
+   and confirmed: *arms run to completion, so an alarm fires between them* and a client-side sever
+   can never land mid-claim.
+
+**All three live at the reply-send inside the serve loop.** That is the seam.
+
+#### THE TWO STONES THAT REMAIN
+
+- **R1 — the seam.** ⛔ **DRAWN AND STRUCK DOWN, STOP-1.** Extract the send into one helper.
+  My draft was wrong twice and both corrections are in `SCORE-the-reactor-grows-a-seam.md`:
+  **`Peer :- [R O]`, not `[Never R]`** (I used the *timer* orientation; `send` projects `I`), and
+  **five sites, not ten** — `1659 1697 1784 1811 1854`; `1828` disposes `Stopped → true`;
+  `1939 1950` return recursive tail calls; `2006 2012` are status sends, leave.
+  ⛔ **Re-draw from a COLD READ.** I misread that file three times in two messages.
+- **R2 — the drop, gated in the seam.** One change gives all three: a drop *after the arm, before the
+  reply-send* is this tracker's own row two — the only placement producing work-done-and-caller-
+  unaware, therefore **the duplicate from chaos**; `selectables` is in scope there, therefore
+  **server-side killing**; the vanished-waiter path is right there, therefore **assertable**.
+
+Possibly a third, small, to assert server-discards-a-lost-client explicitly rather than inheriting it.
+
+★ **It is not impossible and it is not done.** It is one ordinary extraction plus one feature, and the
+extraction has the strongest guard in the tree: **all 5214 tests expand through that macro.**
 
   ★ **RE-SCOPE: `pending`/`in-flight` → `visible`/`unacked` moved from C to D.** `intueri` found
   that `wait-pending`'s ambiguity is a **downstream cost** of `pending` not saying `visible`, and D
