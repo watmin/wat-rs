@@ -5815,7 +5815,7 @@ pub(crate) fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality      Total
+/// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     args :wat::core::Value the left operand (position 0) then the right operand
@@ -5853,7 +5853,7 @@ fn eval_lt_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality      Total
+/// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     args :wat::core::Value the left operand (position 0) then the right operand
@@ -5885,7 +5885,7 @@ fn eval_gt_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality      Total
+/// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     args :wat::core::Value the left operand (position 0) then the right operand
@@ -5917,7 +5917,7 @@ fn eval_lte_intrinsic(
 /// @added         1.0.0
 /// @Purity        Pure
 /// @Determinism   Deterministic
-/// @Totality      Total
+/// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     args :wat::core::Value the left operand (position 0) then the right operand
