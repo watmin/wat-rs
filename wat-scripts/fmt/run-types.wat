@@ -14,14 +14,16 @@
     (:wat::core::match (:wat::core::read-string-with-comments src)
       ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
         (:wat::core::let
-          [n (:wat::fmt::count-type-apps forms)
+          [decls (:wat::fmt::count-type-apps forms)
+           colon (:wat::fmt::count-colon-args forms)
            rules (:wat::rete::collect-rules :fmt)
            out (:wat::fmt::format-source path src rules)]
           (:wat::core::do
             (:wat::kernel::println
-              (:wat::string::interpolate "TYPE_APPS={n} COMMENTS={c}"
-                :n (:wat::i64::to-string n)
-                :c (:wat::i64::to-string (:wat::core::length comments))))
+              (:wat::string::interpolate "TYPE_DECLS={d} COLON_ARGS={c} COMMENTS={k}"
+                :d (:wat::i64::to-string decls)
+                :c (:wat::i64::to-string colon)
+                :k (:wat::i64::to-string (:wat::core::length comments))))
             (:wat::kernel::println out))))
       ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
         (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)))))

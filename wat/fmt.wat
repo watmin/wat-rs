@@ -209,16 +209,15 @@
       :wat::core::None
       :wat::core::None)))
 
-;; A type application is atomic: list of exactly 3 children, child 1 is the
-;; symbol/keyword `:-`, child 2 is a vector. Not "child 1 is `:-`" — that
-;; matches generic `fn` and string literals.
-(:wat::core::defn :wat::fmt::type-application?
+;; Child 1 is the symbol/keyword `:-` and child 2 is a vector. Shared by
+;; type DECLARATIONS (arity 3, atomic) and CONSTRUCTORS (arity > 3, glue then explode).
+(:wat::core::defn :wat::fmt::colon-args?
   [node <- :wat::WatAST]
   -> :wat::core::bool
   (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind node) "list"))
     false
     (:wat::core::let [kids (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::not (:wat::i64::= (:wat::core::length kids) 3))
+      (:wat::core::if (:wat::i64::< (:wat::core::length kids) 3)
         false
         (:wat::core::let [c1 (:wat::core::nth kids 1)
                           c2 (:wat::core::nth kids 2)
@@ -230,6 +229,20 @@
               false
               (:wat::core::= (:wat::core::ast-kind c2) "vector"))))))))
 
+(:wat::core::defn :wat::fmt::type-application?
+  [node <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::not (:wat::fmt::colon-args? node))
+    false
+    (:wat::i64::= (:wat::core::length (:wat::core::ast->children node)) 3)))
+
+(:wat::core::defn :wat::fmt::type-constructor?
+  [node <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::not (:wat::fmt::colon-args? node))
+    false
+    (:wat::i64::> (:wat::core::length (:wat::core::ast->children node)) 3)))
+
 (:wat::core::defn :wat::fmt::subtree-size
   [node <- :wat::WatAST]
   -> :wat::core::i64
@@ -240,6 +253,18 @@
         (:wat::i64::+ n (:wat::fmt::subtree-size child)))
       1
       (:wat::core::ast->children node))))
+
+(:wat::core::defn :wat::fmt::count-colon-args
+  [node <- :wat::WatAST]
+  -> :wat::core::i64
+  (:wat::core::let [here (:wat::core::if (:wat::fmt::colon-args? node) 1 0)]
+    (:wat::core::if (:wat::core::not (:wat::grep::structural? node))
+      here
+      (:wat::core::foldl
+        (:wat::core::fn [n <- :wat::core::i64  child <- :wat::WatAST] -> :wat::core::i64
+          (:wat::i64::+ n (:wat::fmt::count-colon-args child)))
+        here
+        (:wat::core::ast->children node)))))
 
 (:wat::core::defn :wat::fmt::count-type-apps
   [node <- :wat::WatAST]
@@ -253,16 +278,45 @@
         here
         (:wat::core::ast->children node)))))
 
-(:wat::core::defn :wat::fmt::emit-node
+(:wat::core::defn :wat::fmt::emit-kids
   [acc       <- :wat::fmt::Acc
-   node      <- :wat::WatAST
+   kids      <- (:wat::core::Vector :- [:wat::WatAST])
+   i         <- :wat::core::i64
+   ctor?     <- :wat::core::bool
    breaks    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
    claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    indent    <- :wat::core::i64
    open-col  <- :wat::core::i64
-   first?    <- :wat::core::bool
    parent-id <- :wat::core::i64]
+  -> :wat::fmt::Acc
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
+    acc
+    (:wat::core::let
+      [child (:wat::core::nth kids i)
+       o     (:wat::fmt::Acc/out acc)
+       first-kid? (:wat::core::or
+                    (:wat::string::ends-with? o "(")
+                    (:wat::core::or
+                      (:wat::string::ends-with? o "[")
+                      (:wat::core::or
+                        (:wat::string::ends-with? o "{")
+                        (:wat::string::ends-with? o "\n"))))
+       acc2 (:wat::fmt::emit-node acc child breaks claims blanks indent open-col first-kid? parent-id
+               (:wat::core::if ctor? (:wat::i64::= i 2) false))]
+      (:wat::fmt::emit-kids acc2 kids (:wat::i64::+ i 1) ctor? breaks claims blanks indent open-col parent-id))))
+
+(:wat::core::defn :wat::fmt::emit-node
+  [acc        <- :wat::fmt::Acc
+   node       <- :wat::WatAST
+   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   indent     <- :wat::core::i64
+   open-col   <- :wat::core::i64
+   first?     <- :wat::core::bool
+   parent-id  <- :wat::core::i64
+   force-leaf <- :wat::core::bool]
   -> :wat::fmt::Acc
   (:wat::core::let
     [id        (:wat::fmt::Acc/next-id acc)
@@ -288,7 +342,7 @@
                        (:wat::fmt::write acc-bl " ")))))
      this-indent (:wat::fmt::Acc/col acc-pad)
      acc1        (:wat::fmt::flush-comments acc-pad src-line src-col this-indent)]
-    (:wat::core::if (:wat::fmt::type-application? node)
+    (:wat::core::if (:wat::core::or (:wat::fmt::type-application? node) force-leaf)
       (:wat::core::let
         [acc2 (:wat::fmt::write acc1 (:wat::core::ast->source node))
          acc3 (:wat::fmt::Acc
@@ -305,19 +359,9 @@
         [this-open (:wat::fmt::Acc/col acc1)
          acc2      (:wat::fmt::write acc1 (:wat::fmt::open-of node-kind))
          kids      (:wat::core::ast->children node)
-         acc3      (:wat::core::foldl
-                     (:wat::core::fn [ca <- :wat::fmt::Acc  child <- :wat::WatAST] -> :wat::fmt::Acc
-                       (:wat::core::let [o (:wat::fmt::Acc/out ca)
-                                         first-kid? (:wat::core::or
-                                                      (:wat::string::ends-with? o "(")
-                                                      (:wat::core::or
-                                                        (:wat::string::ends-with? o "[")
-                                                        (:wat::core::or
-                                                          (:wat::string::ends-with? o "{")
-                                                          (:wat::string::ends-with? o "\n"))))]
-                         (:wat::fmt::emit-node ca child breaks claims blanks this-indent this-open first-kid? id)))
-                     acc2
-                     kids)
+         acc3      (:wat::fmt::emit-kids acc2 kids 0
+                     (:wat::fmt::type-constructor? node)
+                     breaks claims blanks this-indent this-open id)
          acc4 (:wat::fmt::write acc3 (:wat::fmt::close-of node-kind))]
         (:wat::fmt::flush-comments acc4
           (:wat::grep::Extent/end-line x)
@@ -343,7 +387,7 @@
      acc1 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
               (:wat::core::let [acc-nl (:wat::fmt::write-nl acc)]
-                (:wat::fmt::emit-node acc-nl form breaks claims blanks 0 0 true 0)))
+                (:wat::fmt::emit-node acc-nl form breaks claims blanks 0 0 true 0 false)))
             acc0
             top)
      acc2 (:wat::core::foldl
