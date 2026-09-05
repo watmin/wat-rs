@@ -125,84 +125,26 @@ was asked and the answer was not obvious from the stone list.
 
 **All three live at the reply-send inside the serve loop.** That is the seam.
 
-#### THE TWO STONES THAT REMAIN
+#### THE REMAINING STONES — updated 2026-09-05
 
-- **R1 — the seam.** ⛔ **DRAWN AND STRUCK DOWN, STOP-1.** Extract the send into one helper.
-  My draft was wrong twice and both corrections are in `SCORE-the-reactor-grows-a-seam.md`:
-  **`Peer :- [R O]`, not `[Never R]`** (I used the *timer* orientation; `send` projects `I`), and
-  **five sites, not ten** — `1659 1697 1784 1811 1854`; `1828` disposes `Stopped → true`;
-  `1939 1950` return recursive tail calls; `2006 2012` are status sends, leave.
-  ⛔ **Re-draw from a COLD READ.** I misread that file three times in two messages.
-- **R2 — the drop, gated in the seam.** One change gives all three: a drop *after the arm, before the
-  reply-send* is this tracker's own row two — the only placement producing work-done-and-caller-
-  unaware, therefore **the duplicate from chaos**; `selectables` is in scope there, therefore
-  **server-side killing**; the vanished-waiter path is right there, therefore **assertable**.
+| stone | what | state |
+|---|---|---|
+| **R1** | the seam — `send-keep-serving?` at `service.wat:3108`, five callers | ✅ **STRUCK** (3 drafts; v1 a wrong type, v2 a wrong proof) |
+| **T1** | a client has a deadline — races reply vs timer, discards, redials, retries | ✅ **STRUCK.** `seen-dups=0` ×5 — the deadline does not fire in health, which is the row passing |
+| **S40** | ⛔ **the goldens pin ABSOLUTE LINE NUMBERS to assert a span** | **NEXT — it blocks R2** |
+| **S41** | the drop rate that produces a duplicate may not overlap the rate the system survives at T1's 5000 ms | **before R2** |
+| **R2** | the drop in the seam | ⛔ **NOT STRUCK.** Blocked by S40 |
+| **3d** | the reply-drop | ⛔ **REFUTED** — no userland form. A reply is sent, or deferred; there is no "caller told nothing and carries on" |
 
-Possibly a third, small, to assert server-discards-a-lost-client explicitly rather than inheriting it.
+★ **R2's blocker, precisely.** `state` **is** in scope at all five send sites, so a drop is feedable
+from `:durable`. But durable fields are **per-service**, so a generic `drop?` hits `stats` as well as
+`claim` — and adding a field to every Record sits **before line 896**, tripping the bijection
+goldens. **The goldens went from instrument (R1 v3's proof that nothing shifted) to obstacle.**
 
-★ **It is not impossible and it is not done.** It is one ordinary extraction plus one feature, and the
-extraction has the strongest guard in the tree: **all 5214 tests expand through that macro.**
-
-  ★ **RE-SCOPE: `pending`/`in-flight` → `visible`/`unacked` moved from C to D.** `intueri` found
-  that `wait-pending`'s ambiguity is a **downstream cost** of `pending` not saying `visible`, and D
-  already rewrites every caller of `q-depth`. Renaming them apart means touching the same call sites
-  twice and leaving the confusing pair in place through the very stone that fixes its consequences.
-
-  ★ **The wall was built three times and aimed at the sign every time** — `time.rs:351`,
-  `time.rs:772`, `runtime.rs:26462`, all `< 0`, all admitting `0`.
-
-  ⛔ **`Interval` is REJECTED as a name, on evidence** — `value.rs:284` already calls `Duration` "a
-  non-negative time **interval**", and `process.rs:1370`'s `it_interval: {0,0}` means "no repeat",
-  where zero is the CORRECT value. Do not re-propose it. Names ruled by the builder 2026-09-03 after
-  three `intueri` casts.
-- **3c. Reactor drop, rate per component from `:durable`, seeded** — NOT DRAWN. Client-side drops
-  exercise reconnect; they cannot produce a duplicate, because arms run to completion and an alarm
-  fires *between* them.
-- **3d. Reply-drop after the arm** — NOT DRAWN. The only fault that produces the unknowable state,
-  and therefore the only one that validates S13. `wat/service.wat` is stdlib: `fix.wat`'s BOOTSTRAP
-  note applies, and the drop **must default to zero** or the whole corpus becomes lossy at once.
-
-### ✅ B-pre — STRUCK. Kept because the probe is the record of WHY it existed
-
-`wat-scripts/scratch-pad/probe-nonzeroduration-crosses-the-wire.wat`, 3/3:
-
-```
-immediate=[ok:0]
-upto=[MALFORMED:expected=:wat::time::NonZeroDuration;got=Integer]
-measured-CONTROL=[MALFORMED:expected=:wat::time::Duration;got=Integer]
-```
-
-`ReceiveRequest` lives inside `(defsurface :queue::Queue :nature :wat::kernel::Peer)` — a **wire
-protocol** record — so `:UpTo [NonZeroDuration]` requires the type to cross a service boundary.
-It does not. **The nullary arm round-trips; the payload arm is rejected as `RequestMalformed`**:
-the value serializes to an EDN Integer and the decoder never rebuilds the time type.
-
-★ **THE CONTROL IS THE FINDING. `Duration` fails identically.** This is NOT something Stone A left
-half-done — **no time type has ever crossed a service boundary in this tree.**
-
-And `sqs.wat:11-12` has said so all along, on a different axis:
-
-> *"Instant/Duration on the request record is avoided — journal's wire-proven i64 time-ns is the
-> precedent."*
-
-The header argues **testability** (a fixture drives the visibility window as a value). The probe
-shows there was never a choice to make. A stated reason concealed an unstated impossibility.
-
-**B-pre:** give `Duration` and `NonZeroDuration` a wire round-trip. The exemplar is in the tree —
-**arc 300 stone B did exactly this for `rational`**, `src/edn/bridge.rs:447` (encode) and `:661`
-(decode). `Edn::Uuid` by contrast is explicitly `UnsupportedEdnForm` at `:829`, so the bridge
-distinguishes *supported custom variant* from *unsupported* and rational is the shape to copy.
-
-⛔ **CORRECTION TO THE STONE-B DESIGN LINE: do NOT delete `sqs.wat:737`'s clamp.** I called it scar
-tissue. It is not:
-
-- `arm-tick` (`sqs.wat:211-223`) builds `(:wat::service::Alarm :after (:wat::time::Nanosecond delay0))`
-  **from a computed i64** — so after Stone A the clamp is a **panic boundary**, not a workaround.
-- It is a **tick-rate floor**, not a zero guard: the tick's fold (`sqs.wat:678`) keeps only waiters
-  with `deadline-ns > now`, so `delay >= 1` always. The clamp stops a 1 µs deadline from arming a
-  1 µs alarm and ticking the queue a thousand times a millisecond.
-
-It needs the WHY comment it never had, not deletion.
+★ **And the table still has an unmeasured half.** Drop-before at 8000 hung publish —
+`never-accepted; depth=744; cap=64; elapsed=60000`. Each dropped claim costs a 5000 ms deadline plus
+a retry; 10 % of 8000 is saturation, not chaos. A tiny `n=12` run gave `seen-dups=0` for **both**
+placements and was correctly **not** read as a result — too small to force hits.
 
 ### ⛔ THE LIVE RACE — the floor is GREEN and that is the dangerous part
 

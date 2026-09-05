@@ -417,7 +417,10 @@
                                              [tmr (:wat::core::first
                                                     (:wat::core::conj
                                                       (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])])
-                                                      (:wat::kernel::after kind (:wat::time::Milliseconds 5000)
+                                                      ;; 200 ms: well above a healthy hashmap claim; short
+                                                      ;; enough that a drop run does not stall publish
+                                                      ;; (5000 ms * ~2% of 8000 backed the inbox to never-accepted).
+                                                      (:wat::kernel::after kind (:wat::time::Milliseconds 200)
                                                         (:fanout::Seen::Reply::Claim (:fanout::Seen::ClaimResponse::First)))))]
                                              (:wat::core::match (:wat::kernel::select [peer tmr])
                                                ((:wat::spawn::ServiceEvent::Message idx m)
@@ -1172,9 +1175,9 @@
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
-     ;; Drop runs use 200ms vis so a lost claim-reply can expire and retry —
-     ;; the comment at the Lost arm ("vis + Dup absorb") is otherwise unreachable
-     ;; inside the drain bound (the default vis is 1000s).
+     ;; Drop runs: 200 ms vis so an unacked envelope (no claim-reply) becomes
+     ;; visible again. T1's 200 ms claim deadline retries the same worker;
+     ;; vis expiry is the other worker. Both are retries of a dropped reply.
      vis (:wat::core::if (:wat::i64::> drop-rate 0) 200000000 1000000000000)
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::sqlite-store::Handle])
@@ -1382,6 +1385,18 @@
    drop-rate <- :wat::core::i64  drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:fanout::run-with n m j 0 0 drop-rate drop-seed drop-after?))
+
+(:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
+  (:wat::core::first (:user::run-drop* 2000 4 3 200 42 false)))
+
+(:wat::core::defn :user::drop-after-summary [] -> :wat::core::String
+  (:wat::core::first (:user::run-drop* 2000 4 3 200 42 true)))
+
+(:wat::core::defn :user::drop-before-tiny [] -> :wat::core::String
+  (:wat::core::first (:user::run-drop* 50 2 2 1000 42 false)))
+
+(:wat::core::defn :user::drop-after-tiny [] -> :wat::core::String
+  (:wat::core::first (:user::run-drop* 50 2 2 1000 42 true)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]

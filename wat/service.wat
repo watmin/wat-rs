@@ -1656,7 +1656,7 @@
                                                    ~rt-sel-sym)
                                                  (:wat::core::None true)
                                                  ((:wat::core::Some peer)
-                                                   (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
+                                                   (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym) false)))
                                                false))
                                            true
                                            sends)]
@@ -1690,7 +1690,7 @@
                                                    ~rt-sel-sym)
                                                  (:wat::core::None true)
                                                  ((:wat::core::Some peer)
-                                                   (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
+                                                   (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym) false)))
                                                false))
                                            true
                                            sends)]
@@ -1773,7 +1773,7 @@
                                                           (:wat::core::match reply
                                                             (:wat::core::None true)
                                                             ((:wat::core::Some resp)
-                                                              (:wat::service::send-keep-serving? (:wat::core::second (:wat::core::nth selectables idx)) resp)))]
+                                                              (:wat::service::send-keep-serving? (:wat::core::second (:wat::core::nth selectables idx)) resp false)))]
                                                         (:wat::core::if ~reply-keep-sym
                                                           (:wat::core::foldl
                                                             (:wat::core::fn [~rt-acc-sym <- :wat::core::bool
@@ -1796,7 +1796,7 @@
                                                                     selectables)
                                                                   (:wat::core::None true)
                                                                   ((:wat::core::Some peer)
-                                                                    (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
+                                                                    (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym) false)))
                                                                 false))
                                                             true
                                                             sends)
@@ -1835,7 +1835,7 @@
                                                                 selectables)
                                                               (:wat::core::None true)
                                                               ((:wat::core::Some peer)
-                                                                (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym))))
+                                                                (:wat::service::send-keep-serving? peer (:wat::service::Directed/reply ~rt-d-sym) false)))
                                                             false))
                                                         true
                                                         sends)
@@ -3106,9 +3106,13 @@
 ;; the serve loop's selectable is (Peer :- [Reply Op]). After defservice so
 ;; nothing above line 896 moves (the bijection goldens snapshot that span).
 (:wat::core::defn :wat::service::send-keep-serving? :- [R O]
-  [peer <- (:wat::kernel::Peer :- [:R :O])  payload <- :R] -> :wat::core::bool
-  (:wat::core::match (:wat::kernel::send peer payload)
-    (:wat::kernel::SendOutcome::Sent   true)
-    (:wat::kernel::SendOutcome::Closed true)
-    (:wat::kernel::SendOutcome::Stopped false)
-    ((:wat::kernel::SendOutcome::Lost _c) true)))
+  [peer <- (:wat::kernel::Peer :- [:R :O])  payload <- :R  drop? <- :wat::core::bool] -> :wat::core::bool
+  ;; A drop is not Stopped: do not send, still return true. The caller waits;
+  ;; T1's deadline turns that into timeout → discard → redial → retry.
+  (:wat::core::if drop?
+    true
+    (:wat::core::match (:wat::kernel::send peer payload)
+      (:wat::kernel::SendOutcome::Sent   true)
+      (:wat::kernel::SendOutcome::Closed true)
+      (:wat::kernel::SendOutcome::Stopped false)
+      ((:wat::kernel::SendOutcome::Lost _c) true))))

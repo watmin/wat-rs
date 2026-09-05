@@ -145,3 +145,36 @@ fn receive_calls_are_not_triple_the_messages() {
         "receive-calls must approach the message count (24), not ~3× it (72); got {stored}"
     );
 }
+
+/// R2 placement cells. `#[ignore]` — not the floor (rate 0). Same rate, same seed.
+#[ignore]
+#[test]
+fn r2_drop_before_tiny() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::drop-before-tiny");
+    eprintln!("R2 BEFORE-TINY {stored}");
+}
+
+#[ignore]
+#[test]
+fn r2_drop_after_tiny() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::drop-after-tiny");
+    eprintln!("R2 AFTER-TINY {stored}");
+}
+
+#[ignore]
+#[test]
+fn r2_drop_before_write() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::drop-before-summary");
+    eprintln!("R2 BEFORE-WRITE {stored}");
+}
+
+#[ignore]
+#[test]
+fn r2_drop_after_write() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::drop-after-summary");
+    eprintln!("R2 AFTER-WRITE {stored}");
+}
