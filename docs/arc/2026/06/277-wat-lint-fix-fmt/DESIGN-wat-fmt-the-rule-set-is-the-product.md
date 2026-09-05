@@ -106,6 +106,25 @@ Step 3 is what makes step 1 cheap: **you never have to find the instances.** Tha
 SELF-FIXING-TOOLCHAIN's whole claim, and here it is the difference between a style rule and a
 style *opinion*.
 
+## ★ THE SECOND CONSUMER, and it is the one that closes the loop
+
+> **Builder, 2026-09-05:** *"we build the tooling such that we can render example exprs in
+> metadata-maps beautifully..... it also means we can observe when they violate desired form."*
+
+A canonical renderer is not only an emitter. **It is a predicate.** `fmt(x) == x` is the whole
+lint: an example that does not equal its own canonical rendering IS a finding, with the fix already
+in hand — the canonical text.
+
+That closes this campaign's own loop on its last unguarded surface. Doc examples have been prose
+nobody could check: 609 of them, unrun until the doctest gate armed this week, and unformatted
+because the `@example` grammar could not break a line. Once they live in `#wat.doc/Row`'s
+`:examples` and a canonical renderer exists, **an ugly example is a red floor, not a matter of
+taste.**
+
+⛔ And note the ordering this forces, because it is the opposite of the intuitive one: the lint is
+FREE once the formatter exists (it is `fmt(x) == x`), but it is IMPOSSIBLE before — there is no
+canonical form to compare against. So no example-lint is written in this arc; it falls out.
+
 ## SEQUENCING
 
 ```
