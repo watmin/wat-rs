@@ -311,6 +311,31 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     }
     set_argv(ambient_argv);
 
+    // ⛔ HOISTED ABOVE EVERY MODE RETURN (mode-parity gate, vigilia 2026-09-05).
+    // This sat BELOW the `--mcp` and `--check` returns, so those two modes ran on the
+    // default 8 MB stack while the run path got 1 GiB. `wat --check` then SIGABRTed on a
+    // deep non-tail freeze recursion that `wat` completes — a verifier crashing on a
+    // program that runs. Every mode that evaluates wat needs this, and `--check` evaluates
+    // top-level forms at freeze time. A mode that returns above this is the defect.
+    // Gate: tests/cli/mode_parity.rs::mode_parity_deep_freeze_recursion.
+    // rune:exigere(attested-arc) — TEMPORARY STOPGAP, tracked in arc 261
+    // (docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md). The eval loop recurses on
+    // the NATIVE stack; deep non-tail recursion (e.g. a fix-wat codemod over a large
+    // source file) overflows the default 8MB RLIMIT_STACK and SIGSEGVs the process.
+    // Raising the soft limit lets the main stack grow on demand, so the self-hosted
+    // migration runner works on the whole corpus today. This only RAISES the ceiling;
+    // it does NOT remove the class. The structural cure is CEK (arc 261), which has no
+    // native eval recursion. WHEN ARC 261 LANDS, DELETE THIS BLOCK. Until then this
+    // rune is the standing reminder: we have a recursion-depth ceiling, papered over,
+    // on purpose, visibly.
+    unsafe {
+        let mut rl = std::mem::zeroed::<libc::rlimit>();
+        if libc::getrlimit(libc::RLIMIT_STACK, &mut rl) == 0 {
+            rl.rlim_cur = (1024u64 * 1024 * 1024).min(rl.rlim_max); // 1 GiB or hard cap
+            let _ = libc::setrlimit(libc::RLIMIT_STACK, &rl);
+        }
+    }
+
     // MCP short-circuits here: it reads JSON-RPC frames and drives the turn itself, so it
     // never wants the entry-file read, the `:user::main` invocation, or the signal wiring
     // below. argv is set first so a form evaluated in a session still sees the ambient.
@@ -351,7 +376,19 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     if check_only {
         let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(FsLoader);
         match startup_from_source(&source, canonical.as_deref(), loader) {
-            Ok(_world) => {
+            Ok(world) => {
+                // ⛔ A file named on the command line IS A PROGRAM, and a program needs an
+                // entry point. `startup_from_source` applies the `:user::main` wall only when
+                // main is DECLARED (freeze.rs:947) — deliberately, so `startup_bare()` and
+                // macro-expanded worlds pass. The CLI must not inherit that leniency: without
+                // this, `wat --check empty.wat` exits 0 while `wat empty.wat` exits 4, and a
+                // save hook or sweep loop believes the empty file is fine.
+                // Gate: tests/cli/mode_parity.rs::mode_parity_empty.
+                if let Err(m) = crate::freeze::validate_user_main_signature(&world) {
+                    let e = crate::freeze::StartupError::MainSignature(m);
+                    check_output::emit_check_failure(entry_path, &e, check_output_format);
+                    return ExitCode::from(1);
+                }
                 // Successful freeze. The world is dropped without invocation.
                 return ExitCode::from(0);
             }
@@ -389,23 +426,6 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     crate::runtime::init_shutdown_signal();
     crate::process::install_substrate_signal_handlers();
 
-    // rune:exigere(attested-arc) — TEMPORARY STOPGAP, tracked in arc 261
-    // (docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md). The eval loop recurses on
-    // the NATIVE stack; deep non-tail recursion (e.g. a fix-wat codemod over a large
-    // source file) overflows the default 8MB RLIMIT_STACK and SIGSEGVs the process.
-    // Raising the soft limit lets the main stack grow on demand, so the self-hosted
-    // migration runner works on the whole corpus today. This only RAISES the ceiling;
-    // it does NOT remove the class. The structural cure is CEK (arc 261), which has no
-    // native eval recursion. WHEN ARC 261 LANDS, DELETE THIS BLOCK. Until then this
-    // rune is the standing reminder: we have a recursion-depth ceiling, papered over,
-    // on purpose, visibly.
-    unsafe {
-        let mut rl = std::mem::zeroed::<libc::rlimit>();
-        if libc::getrlimit(libc::RLIMIT_STACK, &mut rl) == 0 {
-            rl.rlim_cur = (1024u64 * 1024 * 1024).min(rl.rlim_max); // 1 GiB or hard cap
-            let _ = libc::setrlimit(libc::RLIMIT_STACK, &rl);
-        }
-    }
 
     // Freeze. `startup_from_source` also imposes the `:user::main` wall
     // (freeze.rs — validate_user_main_signature + _not_useless), so a bad main
