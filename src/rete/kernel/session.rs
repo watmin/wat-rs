@@ -1,6 +1,6 @@
 //! Transient Session: Token, Element, FireSession, freeze boundary.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
 use rustc_hash::FxHashMap;
@@ -423,6 +423,93 @@ impl JoinRightIndex {
     }
 }
 
+/// Durable beta memory whose only mutating doors pair the census with the write
+/// (arc 278 D3). Same shape as [`JoinRightIndex`]: the map is private, so
+/// `error[E0616]: field 'map' of struct 'session::BetaStore' is private`.
+///
+/// The field on [`FireSession`] stays public so callers can split-borrow `wm.beta`
+/// from `wm.alpha` / `wm.bind_pool`. What they cannot do is push without counting.
+pub(crate) struct BetaStore {
+    map: BetaMemory,
+}
+
+impl BetaStore {
+    pub(crate) fn from_map(map: BetaMemory) -> Self {
+        Self { map }
+    }
+
+    pub(crate) fn into_map(self) -> BetaMemory {
+        self.map
+    }
+
+    #[inline]
+    pub(crate) fn get(&self, node_id: &i64) -> Option<&Vec<Token>> {
+        self.map.get(node_id)
+    }
+
+    /// Round start, drop-memories, test scratch. Not a token write.
+    #[inline]
+    pub(crate) fn clear(&mut self) {
+        self.map.clear();
+    }
+
+    #[cfg(test)]
+    #[inline]
+    pub(crate) fn values(&self) -> impl Iterator<Item = &Vec<Token>> {
+        self.map.values()
+    }
+
+    #[inline]
+    pub(crate) fn record_token(
+        &mut self,
+        d_beta: &mut BetaMemory,
+        beta_readers: &HashSet<i64>,
+        node_id: i64,
+        tok: Token,
+    ) {
+        if beta_readers.contains(&node_id) {
+            super::beta_written(node_id, 1);
+            self.map.entry(node_id).or_default().push(tok);
+        }
+        d_beta.entry(node_id).or_default().push(tok);
+    }
+
+    #[inline]
+    pub(crate) fn record_tokens(
+        &mut self,
+        d_beta: &mut BetaMemory,
+        beta_readers: &HashSet<i64>,
+        node_id: i64,
+        toks: &[Token],
+    ) {
+        if beta_readers.contains(&node_id) {
+            super::beta_written(node_id, toks.len() as u64);
+            let b = self.map.entry(node_id).or_default();
+            b.reserve(toks.len());
+            b.extend_from_slice(toks);
+        }
+        let d = d_beta.entry(node_id).or_default();
+        d.reserve(toks.len());
+        d.extend_from_slice(toks);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&i64, &Vec<Token>)> {
+        self.map.iter()
+    }
+
+    /// Test-only full-recompute twin (`root_join_pass` / `hash_join_pass`).
+    #[cfg(test)]
+    pub(crate) fn push_ref(&mut self, node_id: i64, tok: Token) {
+        self.map.entry(node_id).or_default().push(tok);
+    }
+}
+
 /// The mutable fire-scoped mirror of a `:wat::rete::Session`.
 ///
 /// Freeze rebuilds the 8-field Session. The memory maps (`alpha`, `beta`,
@@ -437,7 +524,8 @@ pub(crate) struct FireSession {
     /// Mutable mirror of `alpha-memory`  (node-id → [native Element]).
     pub(crate) alpha: AlphaMemory,
     /// Mutable mirror of `beta-memory`   (node-id → [native Token]).
-    pub(crate) beta: BetaMemory,
+    /// Inner map is private ([`BetaStore`]); a bypass `entry().push` cannot be written.
+    pub(crate) beta: BetaStore,
     /// Mutable mirror of `production-memory` (node-id → [Record]).
     pub(crate) production: ProductionMemory,
     /// Passthrough — the asserted fact PersistentVector.
@@ -1148,7 +1236,7 @@ fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSess
         network,
         rules,
         alpha,
-        beta,
+        beta: BetaStore::from_map(beta),
         production,
         facts,
         next_id,
@@ -1286,7 +1374,7 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
     let alpha_pm = alpha_to_pm(wm.alpha, &view);
     phase_end("  ├ out:alpha", __oa);
     let __ob = phase_start();
-    let beta_pm = beta_to_pm(wm.beta, &view);
+    let beta_pm = beta_to_pm(wm.beta.into_map(), &view);
     phase_end("  ├ out:beta", __ob);
     let __op = phase_start();
     let prod_pm = production_to_pm(wm.production);

@@ -225,7 +225,7 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
                     matches: push_match(&mut wm.match_pool, el.fact, *node_id),
                     binds: seed_token_binds(el),
                 };
-                wm.beta.entry(*child_id).or_default().push(tok);
+                wm.beta.push_ref(*child_id, tok);
             }
         }
     }
@@ -952,7 +952,7 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
             };
             let new_tokens = keyed_join(&tokens, elements, alpha_id, &mut ctx)?;
             for new_tok in new_tokens {
-                wm.beta.entry(*child_id).or_default().push(new_tok);
+                wm.beta.push_ref(*child_id, new_tok);
             }
         }
     }
@@ -2086,21 +2086,13 @@ fn dispatch_where_tests(
                 if proven.contains(&tid) && sink.where_tree.is_pure_cmp(tid) {
                     census_count("filter:test-reuse");
                     census_count("filter:test-pass");
-                    if sink.beta_readers.contains(&tid) {
-                        beta_written(tid, 1);
-                        sink.wm.beta.entry(tid).or_default().push(*tok);
-                    }
-                    sink.d_beta.entry(tid).or_default().push(*tok);
+                    record_token(&mut sink.wm.beta, sink.d_beta, sink.beta_readers, tid, *tok);
                     continue;
                 }
                 census_count("filter:test-evals");
                 if exec_stashed_where(sink.compiled_wheres, tid, &binds, sink.sym)? {
                     census_count("filter:test-pass");
-                    if sink.beta_readers.contains(&tid) {
-                        beta_written(tid, 1);
-                        sink.wm.beta.entry(tid).or_default().push(*tok);
-                    }
-                    sink.d_beta.entry(tid).or_default().push(*tok);
+                    record_token(&mut sink.wm.beta, sink.d_beta, sink.beta_readers, tid, *tok);
                 }
             }
         }
@@ -2120,11 +2112,7 @@ fn dispatch_where_tests(
                     sink.sym,
                 )? {
                     census_count("filter:test-pass");
-                    if sink.beta_readers.contains(&tid) {
-                        beta_written(tid, 1);
-                        sink.wm.beta.entry(tid).or_default().push(*tok);
-                    }
-                    sink.d_beta.entry(tid).or_default().push(*tok);
+                    record_token(&mut sink.wm.beta, sink.d_beta, sink.beta_readers, tid, *tok);
                 }
             }
         }
@@ -2135,6 +2123,7 @@ fn dispatch_where_tests(
 mod acc;
 use acc::*;
 pub(crate) mod pass;
+use pass::record_token;
 mod delta;
 pub(crate) use delta::*;
 mod rules;

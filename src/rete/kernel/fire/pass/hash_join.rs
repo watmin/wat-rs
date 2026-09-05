@@ -164,8 +164,7 @@ for node_id in &kind_ids.join_parent {
             // `wm.match_pool`, and those are DISJOINT FIELDS from `wm.beta`, so
             // a shared borrow of the parent coexists with them.
             let all_left: &[Token] = wm
-                .beta
-                .get(node_id)
+                .beta.get(node_id)
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
             // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.

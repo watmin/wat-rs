@@ -27,26 +27,20 @@ use super::*;
 /// seven files. Here they are one act, so a future site cannot push without counting or count
 /// without pushing.
 ///
-/// ── WHY IT TAKES `&mut BetaMemory` AND NOT `&mut FireSession` ────────────────────────────────
+/// ── WHY IT TAKES `&mut BetaStore` AND NOT `&mut FireSession` ─────────────────────────────────
 ///
-/// Deliberate, and it is the lesson this arc already paid for on `FireCtx`: a helper that took
-/// `wm` whole would borrow the session mutably and lock every caller out of `wm.alpha`, which the
-/// join passes read in the same scope. Taking the ONE field it writes keeps the field-level
-/// disjointness the callers depend on. *"Verbosity that encodes field-level disjointness is data
-/// flow, not repetition."*
+/// Field-level disjointness: a helper that took `wm` whole would lock `wm.alpha`. `BetaStore`
+/// is the public field; its inner map is private, so a future site cannot `entry().push`
+/// without counting (arc 278 D3).
 #[inline]
 pub(crate) fn record_token(
-    beta: &mut BetaMemory,
+    beta: &mut BetaStore,
     d_beta: &mut BetaMemory,
     beta_readers: &HashSet<i64>,
     node_id: i64,
     tok: Token,
 ) {
-    if beta_readers.contains(&node_id) {
-        beta_written(node_id, 1);
-        beta.entry(node_id).or_default().push(tok);
-    }
-    d_beta.entry(node_id).or_default().push(tok);
+    beta.record_token(d_beta, beta_readers, node_id, tok);
 }
 
 /// Record that `toks` reached `node_id` — the batch form of [`record_token`].
@@ -57,21 +51,13 @@ pub(crate) fn record_token(
 /// `Copy`, so this is an `extend_from_slice` and not a per-element clone.
 #[inline]
 pub(crate) fn record_tokens(
-    beta: &mut BetaMemory,
+    beta: &mut BetaStore,
     d_beta: &mut BetaMemory,
     beta_readers: &HashSet<i64>,
     node_id: i64,
     toks: &[Token],
 ) {
-    if beta_readers.contains(&node_id) {
-        beta_written(node_id, toks.len() as u64);
-        let b = beta.entry(node_id).or_default();
-        b.reserve(toks.len());
-        b.extend_from_slice(toks);
-    }
-    let d = d_beta.entry(node_id).or_default();
-    d.reserve(toks.len());
-    d.extend_from_slice(toks);
+    beta.record_tokens(d_beta, beta_readers, node_id, toks);
 }
 
 /// The join-index borrows a left-activation needs, grouped so the helper below
@@ -148,14 +134,7 @@ pub(crate) fn left_activate_join(
     if joined.is_empty() {
         return Ok(false);
     }
-    if arm.beta_readers.contains(&join_id) {
-        beta_written(join_id, joined.len() as u64);
-        wm.beta
-            .entry(join_id)
-            .or_default()
-            .extend(joined.iter().cloned());
-    }
-    d_beta.entry(join_id).or_default().extend(joined);
+    record_tokens(&mut wm.beta, d_beta, &arm.beta_readers, join_id, &joined);
     Ok(true)
 }
 
