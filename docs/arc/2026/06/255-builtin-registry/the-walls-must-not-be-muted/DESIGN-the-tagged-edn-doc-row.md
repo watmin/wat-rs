@@ -14,22 +14,31 @@ So the home is **`wat.doc`**, and the type name follows this substrate's own nou
 things **rows**, everywhere and without exception — *"registry rows 571"*, *"alias rows 52"*,
 `:wat::intrinsic::Row`. **`Row` it is.**
 
+## ⛔ CORRECTED 2026-09-04 BY PROBE — `::` IS ILLEGAL AS AN EDN VALUE
+
+This document first spelled every value as a wat FQDN keyword (`:wat::runtime::Purity::Pure`).
+**`wat_edn::parse` refuses it** — `InvalidKeyword("keyword begins with :: ")` — so not one row
+would have parsed. EDN keywords are `:name` or `:ns/name`. Every value below is now the ns/name
+form the substrate ALREADY emits (`:wat.core/defn`, `:wat.config/set-capacity-mode`), built by the
+same `::` → `.` transformation that builds every tag in the tree. Measured in
+`[[SCORE-the-two-probes-and-a-third-muted-wall]]`.
+
 ## TWO TAGS, BECAUSE THERE ARE TWO KINDS OF ROW
 
 ```edn
 ;; a row that DECLARES its own properties
 #wat.doc/Row {
   :added       "1.0.0"
-  :purity      :wat::runtime::Purity::Preserving
-  :determinism :wat::runtime::Determinism::Preserving
-  :totality    :wat::runtime::Totality::Preserving
-  :expand-time :wat::runtime::ExpandTime::Legal
-  :category    :wat::runtime::Category::ControlFlow
-  :args   [{:name a :type :wat::core::i64 :doc "the left operand"}]
-  :ret    {:type :wat::core::bool :doc "whether a is strictly greater than b"}
+  :purity      :wat.runtime.Purity/Preserving
+  :determinism :wat.runtime.Determinism/Preserving
+  :totality    :wat.runtime.Totality/Preserving
+  :expand-time :wat.runtime.ExpandTime/Legal
+  :category    :wat.runtime.Category/ControlFlow
+  :args   [{:name a :type :wat.core/i64 :doc "the left operand"}]
+  :ret    {:type :wat.core/bool :doc "whether a is strictly greater than b"}
   :syntax "(:wat::core::defclause :name [-> :T] ([args] body) ...)"
   :examples [{:src "(:wat::rete::i64::> 2 1)" :yields "true"}]
-  :see [:wat::core::foldl]
+  :see [:wat.core/foldl]
 }
 
 ;; a row that DELEGATES — it has NOWHERE to put an axis
@@ -41,7 +50,7 @@ things **rows**, everywhere and without exception — *"registry rows 571"*, *"a
 ;; :examples STAY: an example at the alias name demonstrates that name.
 #wat.doc/Alias {
   :added "1.0.0"
-  :alias :wat::core::foldl
+  :alias :wat.core/foldl
   :examples [{:src "(:wat::core::reduce + 0 [1 2 3])" :yields "6"}]
 }
 ```
@@ -58,7 +67,7 @@ key to fill. That is one rung up, and it generalises to every future mutual excl
 
 ## WHAT THE MAP BUYS THAT `@name value` CANNOT
 
-- **Typed values, not bare tokens.** `:category :wat::runtime::Category::ControlFlow` names a real
+- **Typed values, not bare tokens.** `:category :wat.runtime.Category/ControlFlow` names a real
   enum variant the reader can resolve. `@Category ControlFlow` is a token compared as a string —
   and *"a string comparison with one side normalized and the other not"* is this campaign's single
   most recurrent defect class.
