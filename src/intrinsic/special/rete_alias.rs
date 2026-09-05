@@ -606,3 +606,267 @@ pub(crate) struct ReteCoreList;
 /// @example (:wat::rete::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::rete::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_special_form(":wat::rete::holon::coincident?")]
 pub(crate) struct ReteHolonCoincident;
+
+// ─── arc 255 Stone the-rete-vocabulary-enters-the-registry, Part 3 — 15 more ───────────────────
+//
+// The derived worklist was 37 unregistered `RETE_OPS` rows, not 35: this stone's DESIGN measured
+// "core_name not registered" as the only reason a row could not be a plain alias today (2 rows:
+// `cond`, `reduce`) and called the remaining 35 CLEAR. Measured against this file's OWN header
+// warning above (`OpClass::Fallback` rows "may never be aliased" — the alias check in
+// `dispatch_keyword_head` fires before `dispatch_keyword_head_value`'s `RETE_PREFIX` gate, so a
+// plain alias at a `Fallback` name makes its 4-arg `:undefined`-marker form unreachable), 20 of
+// those 35 ARE `OpClass::Fallback` (every `Fallback` row in the whole table, in fact — `i64::{+
+// - * / mod rem quot}`, `f64::{+ - * /}`, `holon::{cosine dot}`, `linkedlist::get`,
+// `string::subs`, `vec::get`, `vector::get`, `{List,PersistentVector,Vector}/first`). Proven by
+// re-adding one (`:wat::rete::i64::+`) as a throwaway probe: it reproduced the exact historical
+// regression this file's header already names (`fallback_returns_the_arithmetic_result_when_it_
+// does_not_overflow` / `fallback_fires_on_overflow_instead_of_raising`, both FAIL with
+// `ArityMismatch { op: ":wat::i64::+", expected: 2, got: 4 }`), then was removed. Those 20 are
+// NOT registered here — the design's "35 clear" undercounted this hazard by 20.
+//
+// `reduce` is ALSO not registered here: this stone's Part 2 (moving `:wat::core::reduce`'s own
+// alias from a wat-side `defalias` to a registry row) was found to regress a documented
+// check-time guarantee — `probe_arc255_1c_f_reduce_2arity_retired`'s negative witness, which
+// proves a malformed 2-arg `reduce` call is refused AT CHECK TIME — passed type-checking
+// entirely once `reduce` became a registry alias, only failing later at runtime, renamed to
+// `:wat::core::foldl`. Part 2 was reverted; `:wat::core::reduce` remains unregistered, so
+// `:wat::rete::core::reduce`'s core_name precondition is still unmet and its row is not minted.
+//
+// `cond` is ALSO not registered here (nor is Part 1's own `:wat::core::cond` declaration row
+// shipped): the brief's prescribed axes for `:wat::core::cond` (`@Purity Preserving`, copied
+// verbatim from `:wat::core::if`) make the row FAIL `every_special_form_carries_check_and_eval_
+// impls` — a handler-less, non-alias row whose `@Purity` is not `Unevaluated` is required by
+// that gate to carry BOTH `role = check` and `role = eval` `#[wat_special_form_impl]`
+// annotations, and `cond` (a plain `defmacro`, `wat/core.wat:1455`) has neither: its own FQDN
+// never reaches `check_program`'s per-callsite inference nor `dispatch_keyword_head`'s runtime
+// dispatch — `expand_all` rewrites it to `if` before either would see it. The only mechanically
+// compatible pole is `@Purity Unevaluated` + a `role = declare` impl (the shape every OTHER
+// handler-less non-alias row in the registry actually uses — `defclause`/`defsurface`/etc.),
+// which contradicts the brief's explicit instruction ("axes, from `if`, unchanged"). Confirmed
+// on a clean baseline (this gate passes without `cond`) and reproduced with it added (fails
+// naming exactly `:wat::core::cond — missing role: check` / `— missing role: eval`). Reverted;
+// reported, not reconciled.
+//
+// The 15 below are the rows actually clear: targets ALREADY registered, `OpClass` (`Alias`/
+// `Form`/`Redispatch`, never `Fallback`) carrying no aliasing hazard.
+
+/// Alias for `:wat::core::=` — "this name means that name." Calling `(:wat::rete::core::bool::=
+/// a b)` dispatches through the registry's `alias_of` field straight to `:wat::core::=`; no
+/// separate implementation exists at this name.
+///
+/// @added 1.0.0
+/// @alias :wat::core::=
+/// @arg a :wat::core::bool the left operand
+/// @arg b :wat::core::bool the right operand
+/// @ret :wat::core::bool true iff `a` structurally equals `b` — the target's answer, unchanged
+/// @example (:wat::rete::core::bool::= true true) #=> true
+#[wat_special_form(":wat::rete::core::bool::=")]
+pub(crate) struct ReteCoreBoolEq;
+
+/// Alias for `:wat::core::not=` — "this name means that name." Calling
+/// `(:wat::rete::core::bool::not= a b)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::core::not=`; no separate implementation exists at this name.
+///
+/// @added 1.0.0
+/// @alias :wat::core::not=
+/// @arg a :wat::core::bool the left operand
+/// @arg b :wat::core::bool the right operand
+/// @ret :wat::core::bool true iff `a` does not structurally equal `b` — the target's answer,
+///   unchanged
+/// @example (:wat::rete::core::bool::not= true false) #=> true
+#[wat_special_form(":wat::rete::core::bool::not=")]
+pub(crate) struct ReteCoreBoolNotEq;
+
+/// Alias for `:wat::core::=` — "this name means that name." Calling
+/// `(:wat::rete::core::keyword::= a b)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::core::=`; no separate implementation exists at this name.
+///
+/// @added 1.0.0
+/// @alias :wat::core::=
+/// @arg a :wat::core::keyword the left operand
+/// @arg b :wat::core::keyword the right operand
+/// @ret :wat::core::bool true iff `a` structurally equals `b` — the target's answer, unchanged
+/// @example (:wat::rete::core::keyword::= :a :a) #=> true
+#[wat_special_form(":wat::rete::core::keyword::=")]
+pub(crate) struct ReteCoreKeywordEq;
+
+/// Alias for `:wat::core::not=` — "this name means that name." Calling
+/// `(:wat::rete::core::keyword::not= a b)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::core::not=`; no separate implementation exists at this name.
+///
+/// @added 1.0.0
+/// @alias :wat::core::not=
+/// @arg a :wat::core::keyword the left operand
+/// @arg b :wat::core::keyword the right operand
+/// @ret :wat::core::bool true iff `a` does not structurally equal `b` — the target's answer,
+///   unchanged
+/// @example (:wat::rete::core::keyword::not= :a :b) #=> true
+#[wat_special_form(":wat::rete::core::keyword::not=")]
+pub(crate) struct ReteCoreKeywordNotEq;
+
+/// Alias for `:wat::core::=` — "this name means that name." Calling `(:wat::rete::string::= a
+/// b)` dispatches through the registry's `alias_of` field straight to `:wat::core::=`; no
+/// separate implementation exists at this name.
+///
+/// @added 1.0.0
+/// @alias :wat::core::=
+/// @arg a :wat::core::String the left operand
+/// @arg b :wat::core::String the right operand
+/// @ret :wat::core::bool true iff `a` structurally equals `b` — the target's answer, unchanged
+/// @example (:wat::rete::string::= "a" "a") #=> true
+#[wat_special_form(":wat::rete::string::=")]
+pub(crate) struct ReteStringEq;
+
+/// Alias for `:wat::core::not=` — "this name means that name." Calling
+/// `(:wat::rete::string::not= a b)` dispatches through the registry's `alias_of` field straight
+/// to `:wat::core::not=`; no separate implementation exists at this name.
+///
+/// @added 1.0.0
+/// @alias :wat::core::not=
+/// @arg a :wat::core::String the left operand
+/// @arg b :wat::core::String the right operand
+/// @ret :wat::core::bool true iff `a` does not structurally equal `b` — the target's answer,
+///   unchanged
+/// @example (:wat::rete::string::not= "a" "b") #=> true
+#[wat_special_form(":wat::rete::string::not=")]
+pub(crate) struct ReteStringNotEq;
+
+/// Alias for `:wat::core::=` — "this name means that name." Calling `(:wat::rete::core::enum::=
+/// a b)` dispatches through the registry's `alias_of` field straight to `:wat::core::=`; no
+/// separate implementation exists at this name. `RETE_OPS` classes this row `Form` (its checker
+/// re-dispatches to `infer_equality` rather than a fixed `TypeScheme`), so `@arg`/`@ret` are
+/// copied from the target's own row (`src/runtime.rs`) rather than a `RETE_OPS` `params`/`ret`
+/// pair — the same rule this file's header states for the `Form`/`Redispatch` rows above.
+///
+/// @added 1.0.0
+/// @alias :wat::core::=
+/// @arg args :wat::core::Value the left operand (position 0) then the right operand (position
+///   1); the two must be compatible — their types `unify`, one is a subtype of the other, both
+///   are subtypes of `:wat::core::Record`, or both are numeric
+/// @ret :wat::core::bool true iff position 0 structurally equals position 1 — the target's
+///   answer, unchanged
+/// @example (:wat::rete::core::enum::= 1 1) #=> true
+#[wat_special_form(":wat::rete::core::enum::=")]
+pub(crate) struct ReteCoreEnumEq;
+
+/// Alias for `:wat::core::not=` — "this name means that name." Calling
+/// `(:wat::rete::core::enum::not= a b)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::core::not=`; no separate implementation exists at this name. `RETE_OPS`
+/// classes this row `Form` — same reasoning as `enum::=` above for the `@arg`/`@ret` source.
+///
+/// @added 1.0.0
+/// @alias :wat::core::not=
+/// @arg args :wat::core::Value the left operand (position 0) then the right operand (position
+///   1); same compatibility rule as `enum::=` above
+/// @ret :wat::core::bool true iff position 0 does not structurally equal position 1 — the
+///   target's answer, unchanged
+/// @example (:wat::rete::core::enum::not= 1 2) #=> true
+#[wat_special_form(":wat::rete::core::enum::not=")]
+pub(crate) struct ReteCoreEnumNotEq;
+
+/// Alias for `:wat::core::PersistentMap` — "this name means that name." Calling
+/// `(:wat::rete::core::PersistentMap :a 1 :b 2)` dispatches through the registry's `alias_of`
+/// field straight to `:wat::core::PersistentMap`; no separate implementation exists at this
+/// name. `RETE_OPS` classes this row `Redispatch` — `@arg`/`@ret` are copied from the target's
+/// own row (`src/runtime.rs`), per this file's header rule for `Form`/`Redispatch` rows.
+///
+/// @added 1.0.0
+/// @alias :wat::core::PersistentMap
+/// @arg args… :wat::core::Value alternating key/value pairs, in order — the target's own
+///   argument shape, unchanged
+/// @ret (:wat::core::PersistentMap :- [K V]) a new persistent map holding each pair — the
+///   target's answer, unchanged
+/// @example (:wat::rete::core::PersistentMap :a 1 :b 2) #=> (:wat::core::PersistentMap :a 1 :b 2)
+#[wat_special_form(":wat::rete::core::PersistentMap")]
+pub(crate) struct ReteCorePersistentMap;
+
+/// Alias for `:wat::core::PersistentVector` — "this name means that name." Calling
+/// `(:wat::rete::core::PersistentVector 1 2 3)` dispatches through the registry's `alias_of`
+/// field straight to `:wat::core::PersistentVector`; no separate implementation exists at this
+/// name. `RETE_OPS` classes this row `Redispatch` — same reasoning as `PersistentMap` above.
+///
+/// @added 1.0.0
+/// @alias :wat::core::PersistentVector
+/// @arg args… :wat::core::Value the elements, in order (0 or more) — the target's own argument
+///   shape, unchanged
+/// @ret (:wat::core::PersistentVector :- [T]) a new persistent vector holding each argument, in
+///   order — the target's answer, unchanged
+/// @example (:wat::rete::core::PersistentVector 1 2 3) #=> (:wat::core::PersistentVector 1 2 3)
+#[wat_special_form(":wat::rete::core::PersistentVector")]
+pub(crate) struct ReteCorePersistentVector;
+
+/// Alias for `:wat::core::Tuple` — "this name means that name." Calling
+/// `(:wat::rete::core::Tuple 1 2)` dispatches through the registry's `alias_of` field straight
+/// to `:wat::core::Tuple`; no separate implementation exists at this name. `RETE_OPS` classes
+/// this row `Redispatch` — same reasoning as `PersistentMap` above.
+///
+/// @added 1.0.0
+/// @alias :wat::core::Tuple
+/// @arg args :T one or more heterogeneous element values, or a `:-`-marked leading type-param
+///   bracket — the target's own argument shape, unchanged
+/// @ret (:wat::core::Tuple :- [T]) the newly constructed heterogeneous tuple — the target's
+///   answer, unchanged
+/// @example (:wat::rete::core::Tuple 1 2) #=> (:wat::core::Tuple 1 2)
+#[wat_special_form(":wat::rete::core::Tuple")]
+pub(crate) struct ReteCoreTuple;
+
+/// Alias for `:wat::core::Vector` — "this name means that name." Calling
+/// `(:wat::rete::core::Vector :- [:wat::core::i64] 1 2 3)` dispatches through the registry's
+/// `alias_of` field straight to `:wat::core::Vector`; no separate implementation exists at this
+/// name. `RETE_OPS` classes this row `Redispatch` — same reasoning as `PersistentMap` above.
+///
+/// @added 1.0.0
+/// @alias :wat::core::Vector
+/// @arg args :T a mandatory leading element-type declaration followed by zero or more elements,
+///   in order — the target's own argument shape, unchanged
+/// @ret (:wat::core::Vector :- [T]) a new vector holding each argument after the leading type
+///   declaration, in order — the target's answer, unchanged
+/// @example (:wat::rete::core::Vector :- [:wat::core::i64] 1 2 3) #=> [1 2 3]
+#[wat_special_form(":wat::rete::core::Vector")]
+pub(crate) struct ReteCoreVector;
+
+/// Alias for `:wat::core::filter` — "this name means that name." Calling
+/// `(:wat::rete::core::filter pred coll)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::core::filter`; no separate implementation exists at this name. `RETE_OPS`
+/// classes this row `Redispatch` — same reasoning as `PersistentMap` above.
+///
+/// @added 1.0.0
+/// @alias :wat::core::filter
+/// @arg args [:T :-> :wat::core::bool] `pred` (position 0, applied lazily per pulled element)
+///   then `coll` (position 1, the receiver) — the target's own argument shape, unchanged
+/// @ret (:wat::core::Vector :- [T]) the target's answer, unchanged — NOTE: as with the target,
+///   the real runtime return is a lazy `(:wat::stream::Stream :- [T])`
+/// @example (:wat::core::stream->vec [] (:wat::rete::core::filter (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3)
+#[wat_special_form(":wat::rete::core::filter")]
+pub(crate) struct ReteCoreFilter;
+
+/// Alias for `:wat::core::foldl` — "this name means that name." Calling
+/// `(:wat::rete::core::foldl f init coll)` dispatches through the registry's `alias_of` field
+/// straight to `:wat::core::foldl`; no separate implementation exists at this name. `RETE_OPS`
+/// classes this row `Redispatch` — same reasoning as `PersistentMap` above.
+///
+/// @added 1.0.0
+/// @alias :wat::core::foldl
+/// @arg args [:Acc :T :-> :Acc] `f` (position 0) then `init` (position 1, `:Acc`, the seed
+///   accumulator) then `coll` (position 2, the receiver) — the target's own argument shape,
+///   unchanged
+/// @ret :Acc the final accumulator after folding `f` over every element of `coll` — the
+///   target's answer, unchanged
+/// @example (:wat::rete::core::foldl (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x)) 0 (:wat::core::Vector 1 2 3)) #=> 6
+#[wat_special_form(":wat::rete::core::foldl")]
+pub(crate) struct ReteCoreFoldl;
+
+/// Alias for `:wat::core::map` — "this name means that name." Calling `(:wat::rete::core::map f
+/// coll)` dispatches through the registry's `alias_of` field straight to `:wat::core::map`; no
+/// separate implementation exists at this name. `RETE_OPS` classes this row `Redispatch` — same
+/// reasoning as `PersistentMap` above.
+///
+/// @added 1.0.0
+/// @alias :wat::core::map
+/// @arg args [:T :-> :U] `f` (position 0, applied lazily per pulled element) then `coll`
+///   (position 1, the receiver) — the target's own argument shape, unchanged
+/// @ret (:wat::core::Vector :- [U]) the target's answer, unchanged — NOTE: as with the target,
+///   the real runtime return is a lazy `(:wat::stream::Stream :- [U])`
+/// @example (:wat::core::stream->vec [] (:wat::rete::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3 4)
+#[wat_special_form(":wat::rete::core::map")]
+pub(crate) struct ReteCoreMap;

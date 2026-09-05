@@ -1300,6 +1300,27 @@ mod tests {
         // 119 → 121.
         ":wat::core::=",
         ":wat::core::not=",
+        // Arc 255 Stone the-rete-vocabulary-enters-the-registry, Part 3 — 9 rete alias rows
+        // join: `RETE_OPS` classes each `Form` or `Redispatch`, and `ReteOp`'s own field docs
+        // say plainly its `params`/`ret` are "Empty for `Form`/`Redispatch`" — no `TypeScheme`
+        // is ever registered for those two classes (`register_builtins`'s `RETE_OPS` loop only
+        // mints one for `Alias`/`Fallback` rows), so `check_env.get` returns `None` for all
+        // nine. Each IS checked for real, generically, by the SAME re-dispatch its class
+        // already uses (`dispatch_rete_op`'s `core_name` re-invoke for evaluation;
+        // `infer_persistentmap_constructor`/`infer_persistentvector_constructor`/
+        // `infer_tuple_ctor`/`infer_list_constructor`/`infer_equality`/`infer_filter`/
+        // `infer_foldl`/`infer_map`, resolved through `resolve_core_name`, for the type check)
+        // — no second authority is minted, the same reasoning `=`/`not=` just above already
+        // uses. `check.rs` stays untouched (STOP-4); the ledger grows by exactly nine.
+        ":wat::rete::core::PersistentMap",
+        ":wat::rete::core::PersistentVector",
+        ":wat::rete::core::Tuple",
+        ":wat::rete::core::Vector",
+        ":wat::rete::core::enum::=",
+        ":wat::rete::core::enum::not=",
+        ":wat::rete::core::filter",
+        ":wat::rete::core::foldl",
+        ":wat::rete::core::map",
     ];
 
     #[test]
@@ -1542,10 +1563,13 @@ mod tests {
         ":wat::rete::core::List/first",
         ":wat::rete::core::PersistentVector/first",
         ":wat::rete::core::Vector/first",
-        ":wat::rete::core::bool::=",
-        ":wat::rete::core::bool::not=",
-        ":wat::rete::core::keyword::=",
-        ":wat::rete::core::keyword::not=",
+        // ":wat::rete::core::bool::=" / ":wat::rete::core::bool::not=" /
+        // ":wat::rete::core::keyword::=" / ":wat::rete::core::keyword::not=" /
+        // ":wat::rete::string::=" / ":wat::rete::string::not=" REMOVED — arc 255 Stone
+        // the-rete-vocabulary-enters-the-registry, Part 3: all six now carry a plain `@alias`
+        // row (`src/intrinsic/special/rete_alias.rs`), so `registry().lookup_entry` returns
+        // `Some` for each and the gap this list named is closed — the STALE case
+        // `registry_membership_gap_a_is_named_and_frozen`'s own failure message names.
         ":wat::rete::f64::*",
         ":wat::rete::f64::+",
         ":wat::rete::f64::-",
@@ -1572,8 +1596,8 @@ mod tests {
         ":wat::rete::insert$native",
         ":wat::rete::insert-all$native",
         ":wat::rete::linkedlist::get",
-        ":wat::rete::string::=",
-        ":wat::rete::string::not=",
+        // ":wat::rete::string::=" / ":wat::rete::string::not=" REMOVED — see the six-name note
+        // beside ":wat::rete::core::bool::=" above; same stone, same mechanism.
         ":wat::rete::string::subs",
         ":wat::rete::vec::get",
         ":wat::rete::vector::get",
@@ -1848,7 +1872,9 @@ mod tests {
         // `src/runtime.rs`'s `eval_str`), so `registry().lookup_entry` returns `Some` and this
         // name is resolved, not gapped. Traded onto `FROZEN_CHECKER_DEBT_LEDGER` below (no
         // `env.register()` TypeScheme exists for it — same reasoning as `extend-type` above).
-        ":wat::rete::string::=",
+        // ":wat::rete::string::=" REMOVED -- arc 255 Stone the-rete-vocabulary-enters-the-
+        // registry, Part 3: now a plain `@alias` row (`src/intrinsic/special/rete_alias.rs`),
+        // so `registry().lookup_entry` returns `Some` and this name is resolved, not gapped.
         // ":wat::core::derive" REMOVED -- arc 255 Stone 1c-d: now registered
         // (`intrinsic/special/derive_form.rs`), same reasoning as `extend-type` just above.
         // ":wat::rete::i64::>" REMOVED -- arc 255 Stone 2a, same reason as its removal
@@ -1862,7 +1888,8 @@ mod tests {
         ":wat::rete::i64::mod",
         ":wat::type::Tuple",
         ":wat::rete::holon::cosine",
-        ":wat::rete::core::foldl",
+        // ":wat::rete::core::foldl" REMOVED -- arc 255 Stone the-rete-vocabulary-enters-the-
+        // registry, Part 3: same reason as ":wat::rete::string::=" above.
         // ":wat::core::defclause" REMOVED -- arc 255 Stone 1c-d: now registered
         // (`intrinsic/special/defclause.rs`), same reasoning as `extend-type`/`derive` above.
         ":wat::type::i64",
@@ -1871,8 +1898,9 @@ mod tests {
         ":wat::rete::string::subs",
         ":wat::rete::f64::/",
         ":wat::rete::f64::*",
-        ":wat::rete::core::keyword::=",
-        ":wat::rete::core::enum::=",
+        // ":wat::rete::core::keyword::=" / ":wat::rete::core::enum::=" REMOVED -- arc 255
+        // Stone the-rete-vocabulary-enters-the-registry, Part 3: same reason as
+        // ":wat::rete::string::=" above.
         ":wat::eval-with-defs!",
         ":wat::core::None",
         ":wat::type::Vector",
@@ -1880,20 +1908,30 @@ mod tests {
         ":wat::rete::linkedlist::get",
         ":wat::rete::i64::rem",
         ":wat::rete::holon::dot",
-        ":wat::rete::core::enum::not=",
+        // ":wat::rete::core::enum::not=" REMOVED -- arc 255 Stone the-rete-vocabulary-enters-
+        // the-registry, Part 3: same reason as ":wat::rete::string::=" above.
         ":wat::rete::core::Vector/first",
-        ":wat::rete::core::PersistentVector",
+        // ":wat::rete::core::PersistentVector" REMOVED -- arc 255 Stone the-rete-vocabulary-
+        // enters-the-registry, Part 3: same reason as ":wat::rete::string::=" above.
         ":wat::rete::core::List/first",
         ":wat::core::println",
         ":wat::core::edn::write",
         ":wat::spawn::process/grants",
-        ":wat::rete::string::not=",
+        // ":wat::rete::string::not=" REMOVED -- arc 255 Stone the-rete-vocabulary-enters-the-
+        // registry, Part 3: same reason as ":wat::rete::string::=" above.
         ":wat::rete::i64::quot",
         ":wat::rete::f64::>X",
         ":wat::rete::f64::+",
+        // ":wat::rete::core::reduce" STAYS -- Part 2 (moving its wat-side `defalias` into the
+        // registry) was REVERTED this stone: it regressed a documented check-time guarantee
+        // (`probe_arc255_1c_f_reduce_2arity_retired`'s negative witness — a malformed 2-arg
+        // call, previously refused at check time, type-checked cleanly and only failed later
+        // at runtime, renamed to `:wat::core::foldl`). `:wat::core::reduce`'s core_name is
+        // still unregistered, so this rete row's precondition is unmet; still genuinely gapped.
         ":wat::rete::core::reduce",
-        ":wat::rete::core::map",
-        ":wat::rete::core::filter",
+        // ":wat::rete::core::map" / ":wat::rete::core::filter" REMOVED -- arc 255 Stone
+        // the-rete-vocabulary-enters-the-registry, Part 3: same reason as
+        // ":wat::rete::string::=" above.
         ":wat::core::tuple-get",
         ":wat::core::reduce-walk",
         // Arc 255 Stone 1b-ii — 7 rete Form/Redispatch names LEAVE: `:wat::rete::core::
