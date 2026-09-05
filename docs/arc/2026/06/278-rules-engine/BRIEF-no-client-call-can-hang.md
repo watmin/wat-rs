@@ -19,6 +19,37 @@ a recorded codemod.
 | `wat-scripts/fixes/declare-queue-drop-knobs.wat` | **the codemod exemplar you wrote last strike** — idempotent, comment-faithful, census-first |
 | `wat-scripts/fixes/phantom-none-call-census.wat` | the exemplar for a **form-context** predicate (head + arm set), with both controls |
 
+## ⛔⛔ BOOTSTRAP — THIS STRIKE NEEDS THE STASH-DANCE. READ IT BEFORE YOU BUILD.
+
+**You are in the exact case `wat/fix.wat:23-54` was written for**, and it will deadlock you if you
+do not plan for it:
+
+- The stdlib (`wat/*.wat`) is **frozen into the binary at build time.**
+- Adding `TimedOut` to `RecvOutcome` in `src/` makes every non-exhaustive match **illegal** —
+  including the stdlib's own.
+- So rebuilding with the Rust change **rejects the still-old stdlib at freeze**, and you cannot
+  build the binary you need to run the codemod that fixes it. Chicken and egg.
+
+⚠ `fix.wat:25` records that **a prior self hand-edited instead, because this was not written
+down.** Do not repeat it. The dance is the supported path:
+
+```
+1.  git stash push -m "rust change" src/…          # old checker restored
+2.  cargo build --release                          # old checker + any NEW :wat::fix:: verb
+3.  printf '["pathA" "pathB" …]\n' | cargo wat ./wat-scripts/fixes/add-timedout-arm.wat
+                                                   # rewrite the WHOLE corpus — EVERY path;
+                                                   #   a missed file breaks the build
+4.  git stash pop                                  # restore the rust change
+5.  cargo build --release && cargo test            # new checker; corpus now new-form
+```
+
+★ **Dry-run step 3 on a `/tmp` copy first and `diff` it**, per the header — verify the rewrite is
+exactly the structural change intended before it touches the tree.
+
+★★ **Step 3 must list every path, `wat/*.wat` included.** The corpus is left in a form that is
+illegal under the old checker and legal under the new one — that is expected and is why steps 4
+and 5 follow immediately. The rewrite does not type-check anything; it only edits.
+
 ## THE CODEMOD RULE
 
 For every `match` whose scrutinee is a `RecvOutcome` and which has **no catch-all `_` arm**,
