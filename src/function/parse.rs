@@ -931,7 +931,7 @@ pub(crate) fn parse_defclause_form(
 /// Arc 232 Stone 232.1 — parse an `(:wat::core::extend-type :T :P (m1 [self ...] body) ...)` form.
 ///
 /// Shape:
-/// ```
+/// ```wat
 /// (:wat::core::extend-type :t::Robot :t::Greeter
 ///   (greet [self loudness] "beep"))
 /// ```

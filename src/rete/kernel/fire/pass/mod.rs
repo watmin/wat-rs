@@ -31,7 +31,9 @@ pub(crate) struct JoinIdx<'a> {
 /// the frontier. That case was simply missing, and it was a SILENT WRONG ANSWER:
 /// pass 3.7 descends only through FILTER children, so in
 ///
-///     Node → :where → HashJoin(a) → HashJoin(b) → production
+/// ```text
+/// Node → :where → HashJoin(a) → HashJoin(b) → production
+/// ```
 ///
 /// 3.6 put `HashJoin(a)` on the frontier, 3.7 saw `HashJoin(b)` was not a filter and
 /// skipped it, nothing left-activated it, production read an empty `d_beta`,

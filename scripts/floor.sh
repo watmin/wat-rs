@@ -26,6 +26,7 @@
 #   .floor/<utc-stamp>/raw.log       nextest's output, byte-for-byte, untruncated
 #   .floor/<utc-stamp>/clean.log     the same, ANSI-stripped — quote from THIS one
 #   .floor/<utc-stamp>/ARM.txt       on failure: each failing test's WHOLE block
+#   .floor/<utc-stamp>/doctest.log   the doctest run, byte-for-byte
 #   .floor/latest -> <utc-stamp>     symlink to the most recent run
 #
 # EXIT CODE is nextest's own. Never pipe this script into head/tail to decide
@@ -49,7 +50,7 @@ ARM="$OUT/ARM.txt"
 strip_ansi() { sed 's/\x1b\[[0-9;]*m//g'; }
 
 echo "[floor] capturing to .floor/$STAMP/ (symlinked as .floor/latest)"
-echo "[floor] nice -n 19 cargo nextest run --release $*"
+echo "[floor] cargo test --doc --release  THEN  nice -n 19 cargo nextest run --release $*"
 echo
 
 # Capture EVERYTHING. The tee is the point: the disk gets the whole run even if
@@ -85,6 +86,54 @@ echo
 #      flattering 9x that was pure artifact. **There is no measured benefit claim
 #      here, and there should not be one until an instrument earns it.**
 #
+# ── THE DOCTEST GATE ──────────────────────────────────────────────────────────
+# ARMED 2026-09-04 AT ZERO, and it had never run before that day.
+#
+# nextest cannot run doctests — it is a documented limitation of the runner, not a
+# choice anyone here made. So for as long as the floor has been `cargo nextest`, every
+# ``` block in a Rust doc comment has been unexecuted. That was not an EXCLUSION (the
+# floor's 17 skipped are 5 `default-filter` names + 12 `#[ignore]`s, every one carrying
+# a written reason); it was an ABSENCE nobody had decided on. See
+# `docs/arc/2026/06/255-builtin-registry/the-walls-must-not-be-muted/`.
+#
+# What it caught the moment it was first run, on a tree whose floor was 5139/5139 green:
+#   src/edn/contract.rs         a PUBLIC example constructing `RuntimeError` by struct
+#                               literal — a shape no external caller can use, because
+#                               both fields are private. Stale through two API changes.
+#   src/function/parse.rs       wat source in a BARE fence (rustdoc reads bare as Rust)
+#   src/rete/kernel/fire/…      an ASCII diagram in an INDENTED block — also doctested
+#
+# ⛔ IT RUNS FIRST, and unconditionally. First because it is seconds against the floor's
+# two minutes, so a stale doc fails fast. Unconditionally — even under a scoped `-E` —
+# because a conditional is a door, and this gate exists precisely because a door nobody
+# chose stayed open for months.
+#
+# `cargo test` de-prioritises its own threads (the parity argument below), so no `nice`.
+echo "[floor] cargo test --doc --release"
+DOC="$OUT/doctest.log"
+cargo test --doc --release 2>&1 | tee "$DOC"
+doc_status=${PIPESTATUS[0]}
+
+if [ "$doc_status" -ne 0 ]; then
+  cat <<EOF
+
+[floor] ⛔ DOCTEST RED — exit=$doc_status
+[floor]
+[floor]   FULL LOG:  .floor/$STAMP/doctest.log
+[floor]
+[floor]   A doc example that does not compile is a lie the repository tells its
+[floor]   readers, and it is shipped. The failing block names its own file and
+[floor]   line; fix the example, or TAG the fence honestly (\`\`\`text / \`\`\`wat
+[floor]   / \`\`\`edn) if it was never Rust. Do not delete the block to get green.
+[floor]
+[floor]   DO NOT RE-RUN to see if it passes. It will not.
+[floor]
+EOF
+  exit "$doc_status"
+fi
+echo "[floor] doctests exit=0"
+echo
+
 # ⚠ `nice` must stay INSIDE the pipeline's first stage — `${PIPESTATUS[0]}` below is
 # nextest's own exit code, and it stays correct because `nice` exec's and returns the
 # child's status. Verified both ways: green propagates 0, red propagates 100 with

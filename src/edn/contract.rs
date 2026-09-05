@@ -330,10 +330,10 @@ pub(crate) fn error_edn_of_boxed<T: WatError>(cause: &Box<T>) -> OwnedValue {
 ///
 /// ```
 /// use wat::value::{RuntimeError, RuntimeErrorKind};
-/// let err = RuntimeError {
-///     span: wat::rust_caller_span!(),
-///     kind: RuntimeErrorKind::UserMainMissing,
-/// };
+/// let err = RuntimeError::new(
+///     wat::rust_caller_span!(),
+///     RuntimeErrorKind::UserMainMissing,
+/// );
 /// let _text: String = wat::edn::contract::to_wire_edn(&err);
 /// ```
 pub fn to_wire_edn(e: &impl WatError) -> String {
