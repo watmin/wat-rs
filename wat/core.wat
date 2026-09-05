@@ -1406,8 +1406,8 @@
   [acc <- :wat::WatAST & steps <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
-       -> :wat::holon::HolonAST
+    (:wat::core::fn [a <- :wat::WatAST step <- :wat::WatAST]
+       -> :wat::WatAST
        (:wat::core::if (:wat::core::List? step) 
           `(~(:wat::core::first step) ~a ~@(:wat::core::rest step))
           `(~step ~a)))
@@ -1423,8 +1423,8 @@
   [acc <- :wat::WatAST & steps <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
-       -> :wat::holon::HolonAST
+    (:wat::core::fn [a <- :wat::WatAST step <- :wat::WatAST]
+       -> :wat::WatAST
        (:wat::core::if (:wat::core::List? step) 
           `(~@step ~a)
           `(~step ~a)))
