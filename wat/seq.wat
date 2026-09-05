@@ -160,9 +160,9 @@
 ;; ⚠ THE ORACLE STAYS WAT — `[[feedback_an_oracle_must_be_written_in_the_other_language]]`.
 ;; This is `stream->vec-spec`'s own drain (see its ⚠ note above): if this body ever called the
 ;; native `stream->pvec` instead of recursing on itself, the differential against that same
-;; native would become a tautology. `wat/rete.wat:1508`'s `insert-all-spec` is the recorded
-;; shape — a composed oracle calls its OWN sibling `-spec`, never the subject it is honesty-
-;; checking.
+;; native would become a tautology. `:wat::rete::insert-all$oracle`
+;; (`wat/rete/oracle/insert.wat`) is the recorded shape — a composed oracle calls its OWN
+;; sibling `-spec`, never the subject it is honesty-checking.
 (:wat::core::defn :wat::core::stream->pvec-spec :- [T]
   [acc <- (:wat::core::PersistentVector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::core::PersistentVector :- [T])
   (:wat::core::match (:wat::stream::next s)
@@ -259,8 +259,8 @@
 ;; striving to build correct-but-slow wat-oracles that are references for wat-native to satisfy
 ;; fast-and-correct.... we build wat-oracles that guide the rust code... the wat-native using rust
 ;; provided intrinsics must be faster than wat-oracle."* This is the same shape as
-;; `:wat::rete::insert-all-spec` (wat/rete.wat:1508), whose sibling comment states it exactly:
-;; *"the native kernel is the fast impl, the spec keeps it honest."*
+;; `:wat::rete::insert-all$oracle` (`wat/rete/oracle/insert.wat`) — the recorded exemplar of
+;; it: *"the native kernel is the fast impl, the spec keeps it honest."*
 ;;
 ;; ⚠ SO ITS SLOWNESS IS THE DESIGN, NOT A DEFECT. Measured ~5x the native on 200k i64
 ;; (`wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat`). A first cut of B6 read that

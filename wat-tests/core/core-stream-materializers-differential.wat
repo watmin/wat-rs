@@ -4,7 +4,8 @@
 ;; `:wat::core::stream->vec-spec` / `:wat::core::stream->pvec-spec` (`wat/seq.wat`) on every input.
 ;;
 ;; ★ THE SHAPE, same as `wat-tests/core/core-nth-differential.wat` (stone 118.B4-0) and the
-;; recorded exemplar `:wat::rete::insert-all-spec` / `insert-all` (`wat/rete.wat:1508`):
+;; recorded exemplar `:wat::rete::insert-all$oracle` / `insert-all`
+;; (`wat/rete/oracle/insert.wat`):
 ;; `stream->vec`/`stream->pvec` are Rust intrinsics; `-spec` is the SAME thing written in wat as
 ;; obviously as possible — correct and slow on purpose. "the native kernel is the fast impl, the
 ;; spec keeps it honest."

@@ -3,9 +3,10 @@
 ;; `:wat::core::nth-spec` (`wat/core.wat`) on every input.
 ;;
 ;; ★ THE SHAPE, same as `wat-tests/core/core-foldl-spec.wat` (stone 118.B6) and the recorded
-;; exemplar `:wat::rete::insert-all-spec` / `insert-all` (`wat/rete.wat:1508`): `nth` is a Rust
-;; intrinsic; `nth-spec` is the SAME thing written in wat as obviously as possible — correct and
-;; slow on purpose. "the native kernel is the fast impl, the spec keeps it honest."
+;; exemplar `:wat::rete::insert-all$oracle` / `insert-all` (`wat/rete/oracle/insert.wat`):
+;; `nth` is a Rust intrinsic; `nth-spec` is the SAME thing written in wat as obviously as
+;; possible — correct and slow on purpose. "the native kernel is the fast impl, the spec keeps
+;; it honest."
 ;;
 ;; ⚠ `nth-spec` MUST NEVER delegate to `nth`. A spec that calls its subject proves nothing.
 ;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`

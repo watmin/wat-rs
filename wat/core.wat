@@ -1582,8 +1582,8 @@
 ;;
 ;; What moved is only its NAME and its role: `:wat::core::nth` (`src/runtime.rs`, `eval_nth`) is
 ;; the fast native kernel; this clause is the ORACLE that keeps it honest via a differential test
-;; (`wat-tests/core/core-nth-differential.wat`). Same shape as `:wat::rete::insert-all-spec`
-;; (`wat/rete.wat:1508`): "the native kernel is the fast impl, the spec keeps it honest."
+;; (`wat-tests/core/core-nth-differential.wat`). Same shape as `:wat::rete::insert-all$oracle`
+;; (`wat/rete/oracle/insert.wat`): "the native kernel is the fast impl, the spec keeps it honest."
 ;; ⚠ `nth-spec` MUST NEVER delegate to `nth` — a spec that calls its subject proves nothing
 ;; (`[[feedback_an_oracle_must_be_written_in_the_other_language]]`).
 ;; The native `nth` is NOT promoted from calling this clause: `nth`'s existing callers
