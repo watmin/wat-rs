@@ -118,7 +118,7 @@
                :drop-rate-bp rate :drop-seed seed1 :drop-after? after?)
         s' (:fanout::seen::State :durable rec' :claimed claimed')
         reply (:wat::core::if hit?
-                (:wat::core::None :fanout::Seen::Reply)
+                :wat::core::None
                 (:wat::core::Some
                   (:fanout::Seen::Reply::Claim
                     (:wat::core::if already?

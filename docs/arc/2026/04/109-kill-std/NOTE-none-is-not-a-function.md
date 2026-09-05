@@ -34,7 +34,7 @@ The gap is between *"this looks like a call"* and *"there is nothing here to cal
 class exactly: **a phantom form** — one that looks valid, traces to no definition, and is caught by
 neither the grammar nor the type checker.
 
-## ONE LIVE CORPUS SITE
+## THE CORPUS SITES (a second one landed — see the 2026-09-05 section below)
 
 **`wat-scripts/fixes/positional-to-kwargs.wat:27`**
 
@@ -49,6 +49,37 @@ neither the grammar nor the type checker.
 A **recorded, re-runnable migration** with a latent detonation in its `i >= length` arm. It has not
 fired, which means that arm has not been taken on any run so far. **Left alone deliberately** — see
 below.
+
+## ⛔ THE RULING FAILED WITHIN ONE DAY — 2026-09-05
+
+**A SECOND live site appeared, on this branch, in the same campaign, after this note was written.**
+
+`wat-scripts/fanout/circuit.wat:121` held `(:wat::core::None :fanout::Seen::Reply)` in the drop arm of
+`:fanout::seen`'s `claim` — the one arm arc 278's R2 stone exists to reach. It sat at HEAD, committed,
+through a **green floor**, because rate 0 makes the arm unreachable: the same latency that keeps
+`positional-to-kwargs.wat:27` quiet.
+
+Measured A/B, one token, same fixture and seed:
+
+| `circuit.wat:121` | `r2_drop_before_tiny` |
+|---|---|
+| `(:wat::core::None :fanout::Seen::Reply)` | ⛔ **TIMEOUT 30 s, empty arm** |
+| `:wat::core::None` | ✅ **PASS 8 s**, `seen-dups=5` |
+
+Its 30 s timeout was then written up as a **backpressure finding** and minted as a side quest (arc
+278's S41, *"each dropped claim costs a 5000 ms deadline; 10 % of 8000 is saturation"*) — against a
+deadline that had been 200 ms for two stones. The phantom form borrowed the meaning of its
+surroundings a *second* time, in the *same* campaign, from the *same* author, and cost a spurious
+stone in the order.
+
+★ **This is the rung-1 argument, paid for twice.** *"On this branch, just avoid it"* is a convention,
+and a convention is a failure class waiting for a tired afternoon. The gap that admits it is named
+below: **Doctrine 1 catches type keywords in value position only for the primitives.** Extending that
+rejection to every type keyword is rung 3 and would have made both sites unwritable.
+
+⚠ **And the detection asymmetry is what makes it expensive:** the form is only reachable in an arm
+the default configuration never takes, so a **green floor is not evidence of its absence.** Both live
+sites were found by running the arm, never by a check.
 
 ## WHAT IT COST
 

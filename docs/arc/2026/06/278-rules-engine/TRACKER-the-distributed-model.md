@@ -132,9 +132,50 @@ was asked and the answer was not obvious from the stone list.
 | **R1** | the seam — `send-keep-serving?` at `service.wat:3108`, five callers | ✅ **STRUCK** (3 drafts; v1 a wrong type, v2 a wrong proof) |
 | **T1** | a client has a deadline — races reply vs timer, discards, redials, retries | ✅ **STRUCK.** `seen-dups=0` ×5 — the deadline does not fire in health, which is the row passing |
 | **S40** | the goldens pin ABSOLUTE LINE NUMBERS to assert a span — **MEASURED 2026-09-05, and it does NOT block R2** | **open, but demoted** |
-| **S41** | the drop rate that produces a duplicate may not overlap the rate the system survives at T1's 5000 ms | **before R2** |
+| **S41** | ⛔ **STALE AND WRONG — the deadline is 200 ms, not 5000 ms** (`circuit.wat:423` records the change). Its evidence was a dead service, not saturation | **struck from the order** |
 | **R2** | the drop in the seam | ⛔ **NOT STRUCK.** Blocked by S40 |
 | **3d** | the reply-drop | ⛔ **REFUTED** — no userland form. A reply is sent, or deferred; there is no "caller told nothing and carries on" |
+
+★★ ⛔ **R2 WAS NEVER BLOCKED. IT WAS BROKEN BY ONE TOKEN — measured 2026-09-05.**
+
+`circuit.wat:121` held `(:wat::core::None :fanout::Seen::Reply)` — **the exact phantom form arc 109's
+`NOTE-none-is-not-a-function.md` documents**, in the one arm the drop reaches. The A/B, one token,
+same fixture, same seed:
+
+| `circuit.wat:121` | `r2_drop_before_tiny` |
+|---|---|
+| `(:wat::core::None :fanout::Seen::Reply)` | ⛔ **TIMEOUT 30 s, empty arm** |
+| `:wat::core::None` (the NOTE's ruling) | ✅ **PASS 8 s** — `total=100;distinct=100;dup=0;seen-firsts=100;`**`seen-dups=5`** |
+
+★★ **`seen-dups` MOVED UNDER CHAOS.** First time outside a deterministic gate — the number this whole
+arc has been chasing. Careful about the path: drop-before never writes, so its own retry is a `First`;
+the 5 dups arrive via **visibility expiry made reachable by the drop's delay**. Chaos-caused, not
+chaos-retried. Rate-0 is byte-identical (`distinct=8000; dup=0; seen-dups=0`).
+
+★ **And the phantom form borrowed its surroundings' meaning, exactly as the NOTE predicted.** Its
+symptom — a 30 s timeout with an empty arm — was written up as *"each dropped claim costs a 5000 ms
+deadline; 10 % of 8000 is saturation"* and minted as S41. The deadline has been **200 ms** since D2
+(`circuit.wat:423`, whose comment records the 5000 ms → 200 ms change *and why*), and the retry is
+bounded to **3 attempts**. Neither number can produce a 30 s hang. **S41 was a measurement of a dead
+service written up as a claim about backpressure.**
+
+#### ⛔ WHAT IS STILL OPEN — and it is the predicted defect, not a blocker
+
+`r2_drop_after_tiny` **still times out with the token fixed.** The mechanism is on the disk:
+
+- `circuit.wat:491` — `outs1 (if first? (conj outs0 Outcome) outs0)`. **A `Dup` emits no outcome**, and
+  the message is acked either way.
+- drop-**after** writes the ledger, then drops the reply → the retry sees `already?` → `Dup` → **no
+  outcome for that message, ever.**
+
+That is `DESIGN-the-unknowable-state`'s prediction verbatim: *"Nobody emits an outcome for that
+message… a stranding. The consumer claims before it emits."* The 2×2 now **discriminates on one
+variable** — before completes, after hangs.
+
+⚠ **What is NOT established: the number.** `distinct < total` has never been *observed*, because the
+drain waits unbounded and the stranding presents as a hang. **The instrument fails exactly where the
+defect appears** — the same class as the original red and as Stone D. **The stone in front of R2 is
+therefore: bound the drain so a stranding reports a number instead of a timeout.** Not S40, not S41.
 
 ★ ⛔ **S40 WAS MEASURED AND THE RULING ABOVE IS WRONG — 2026-09-05.** I inserted one comment
 line at `wat/service.wat:2` (above the guard at 896), rebuilt, and ran the cluster. Four tests red,
