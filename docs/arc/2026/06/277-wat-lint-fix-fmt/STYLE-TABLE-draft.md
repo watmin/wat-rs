@@ -247,3 +247,79 @@ already supports (`Node.parent`) and no rule has used yet.
 - **`wat/core.wat:1405` vs `:673`** — `defn`'s own defining macro splits `name` and `& rest` onto
   separate lines; `->`'s puts `acc` and `& steps` together. Same file, same era, two answers for the
   fixed-arg-plus-variadic shape.
+
+---
+
+# ⛔ R15 · THE LINE BUDGET — **RULED 120-200. Recommending 120.**
+
+> **Builder, 2026-09-05:** *"i'd say chars per line should be limited to like... 120 - 200 .... the
+> thing we're optimizing for is two fold - good code is readable code - this is for setting the tone
+> for future code as we build only exemplars and cognition of what's written for both llm and human
+> -- all minds find beautiful code more readable..... this is not an optional thing.... the code
+> must look good for us to be successful."*
+
+★ **The stated objective changes what the formatter IS.** Not tidiness — the corpus is the training
+set for every mind that will read it, ours included. A malformed exemplar teaches malformation to
+the next reader, and most of this project's readers are models reading the corpus to learn the
+house style. **Beauty is a correctness property here, not a preference.**
+
+## Measured, to choose WITHIN the ruled range
+
+```
+102,828 lines    mean 60.8    median 59    p90 98    p95 109    p99 172    max 17,462
+
+>100  7,894  (7.7%)      >150  1,514  (1.5%)      >300  466  (0.5%)
+>120  3,436  (3.3%)      >200    794  (0.8%)
+```
+
+**120 sits just above p95 (109).** The corpus already writes to roughly that width — 95% of lines
+comply today — so 120 ratchets a discipline that mostly exists and surfaces **3,436 real offenders**.
+200 would bless the 2,642 lines between 120 and 200, which is where a lot of the genuinely
+unreadable material lives.
+
+⚠ **This is a COST measurement, not a norm derivation.** The builder ruled the range; the
+distribution only says where inside it the blast radius sits. (I made the other mistake earlier
+today and it is recorded above — frequency has no authority over what the rule *should* be.)
+
+# ⛔⛔ R16 · THE ONE-LINERS ARE MANUFACTURED, NOT AUTHORED — FIX THE MANUFACTURER
+
+> **Builder:** *"the giant oneliners are a result of various code mods that get used as references
+> to be repeated - i have had very minimal tolerance for this stuff."*
+
+**Confirmed, and it is bigger than the riders found.** One expansion, verbatim, one line:
+
+```
+(:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) …
+```
+
+```
+135 FILES carry it.   median 414 columns.   max 615.
+  85 of them are wat-scripts/fixes/ — THE CODEMODS THEMSELVES
+```
+
+And it is not alone. The `__`-prefix is **macro-hygiene naming** — these are *expansions* sitting in
+hand-maintained source:
+
+```
+__cause 530   ·   __recv 290   ·   __datum 278   ·   __forms 243      ≈1,341 occurrences
+```
+
+★ **This is extirpare's exact shape: the stem is 135 ugly files; the root is that they are
+REPLICATING.** Each new codemod is copied from the last, so the ugliness is manufactured faster than
+any sweep can clean it. Reformatting the 135 without fixing the manufacturer buys one commit of
+relief and then regenerates.
+
+**The rule: a codemod's OUTPUT is corpus, and must be canonical.** `wat fmt` runs as the closing
+step of any tool that writes `.wat` — `wat/fix.wat`'s appliers included. A tool that emits
+un-canonical text is a tool that manufactures findings for its own linter.
+
+⭐ **AND THIS RELOCATES wat-fmt's FIRST CONSUMER.** The DESIGN names doc examples as the payoff
+(*"an ugly example is a red floor, not a matter of taste"*). Doc examples are 609 rows in one
+generated fence. **The codemod corpus is 135 hand-maintained files that actively breed.** The
+formatter earns more, sooner, pointed there.
+
+⚠ **NOT YET ANSWERED, and I am not guessing:** why is macro-EXPANDED text in source at all? Either
+a codemod once rewrote `readln` call sites into their desugared form (and the corpus lost an
+abstraction, which is a defect of a different and possibly worse kind), or the expansion is the
+required no-hidden-failures handling and `__datum` is incidental. **That is a measurement, and it
+belongs to whoever takes R16.**
