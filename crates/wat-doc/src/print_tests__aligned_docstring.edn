@@ -1,8 +1,8 @@
 #wat.doc/Row {
   :doc "line one
-still going
+        still going
 
-paragraph two"
+        paragraph two"
   :added "1.0.0"
   :purity :wat.runtime.Purity/Pure
   :determinism :wat.runtime.Determinism/Deterministic

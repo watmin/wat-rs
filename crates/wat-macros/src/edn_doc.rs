@@ -37,10 +37,10 @@
 use wat_reader::{Identifier, Span, WatAST};
 
 /// Find a fenced ```edn ... ``` block inside the joined `///` text and return its inner text
-/// (the lines between the two fence markers, `dedent`ed and joined with `\n`). `None` when no
-/// such fence is present anywhere in the block — the caller falls back to the `@`-directive
-/// text grammar, completely unchanged (STOP-2: both forms, or neither; this function makes no
-/// changes at all to how a fenceless doc block is read). Also `None` for an unterminated fence
+/// (the lines between the two fence markers, fence-wide `dedent`ed and joined with `\n`).
+/// String-local continuation margins are stripped later, in [`parse_edn_doc_row`]. `None`
+/// when no such fence is present anywhere in the block — the caller falls back to the
+/// `@`-directive text grammar, completely unchanged. Also `None` for an unterminated fence
 /// (no closing ` ``` ` line) — treated as "no fence found" rather than guessed at.
 pub(crate) fn extract_edn_fence(raw_doc: &str) -> Option<String> {
     let mut lines = raw_doc.lines();
@@ -83,6 +83,84 @@ fn dedent(lines: &[&str]) -> String {
         .join("\n")
 }
 
+/// After fence-wide `dedent`, strip from each continuation line of a multi-line
+/// EDN string exactly the number of columns at which that string's content
+/// begins on its opening line (one past the opening `"`). A FIXED count — never
+/// all leading whitespace, never a per-line minimum — so an indented code
+/// sample inside the prose survives. Tracks quote boundaries and `\"` / `\\`
+/// so a string end is not confused with an escaped quote.
+fn strip_string_continuation_margins(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let mut in_string = false;
+    let mut content_col = 0usize;
+    for (i, line) in src.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        let work = if in_string {
+            strip_prefix_cols(line, content_col)
+        } else {
+            line
+        };
+        let (now_in, opened_col) = advance_string_state(work, in_string);
+        if now_in {
+            if let Some(col) = opened_col {
+                content_col = col;
+            }
+        }
+        in_string = now_in;
+        out.push_str(work);
+    }
+    out
+}
+
+/// Strip up to `n` leading spaces/tabs. Stops at the first non-margin character
+/// so a short/empty continuation (a blank prose line) is not eaten as data.
+fn strip_prefix_cols(line: &str, n: usize) -> &str {
+    if line.is_empty() || n == 0 {
+        return line;
+    }
+    let mut cols = 0;
+    for (i, c) in line.char_indices() {
+        if cols == n {
+            return &line[i..];
+        }
+        if c == ' ' || c == '\t' {
+            cols += 1;
+        } else {
+            return &line[i..];
+        }
+    }
+    ""
+}
+
+/// Walk `line` updating in-string state. Returns the state after the line and,
+/// if a string OPENED on this line and did not close, the content column
+/// (byte index one past the opening `"`).
+fn advance_string_state(line: &str, mut in_string: bool) -> (bool, Option<usize>) {
+    let mut escaped = false;
+    let mut opened_col = None;
+    for (i, c) in line.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if in_string {
+            if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else if c == '"' {
+            in_string = true;
+            opened_col = Some(i + '"'.len_utf8());
+        } else if c == ';' {
+            break;
+        }
+    }
+    (in_string, opened_col)
+}
+
 /// Parse `edn_src`, validate it is a single `#wat.doc/Row {...}` or `#wat.doc/Alias {...}`
 /// tagged map, and convert the body into the `WatAST::Map` shape `wat_doc::from_metadata`
 /// accepts. Returns the tag's bare name (`"Row"` / `"Alias"`) and the body as BOTH a `WatAST`
@@ -91,9 +169,16 @@ fn dedent(lines: &[&str]) -> String {
 /// parse, not a second one).
 pub(crate) fn parse_edn_doc_row(
     edn_src: &str,
-) -> Result<(&'static str, WatAST, wat_edn::Value<'_>), wat_doc::DocError> {
-    let value = wat_edn::parse(edn_src)
-        .map_err(|e| wat_doc::DocError::EdnMalformed { why: e.to_string() })?;
+) -> Result<(&'static str, WatAST, wat_edn::Value<'static>), wat_doc::DocError> {
+    // String-local margin: after the fence-wide `dedent`, continuation lines of a
+    // multi-line string still carry the printer's content-column indent. Strip
+    // that FIXED count (the column one past the opening `"`) so `wat_edn::parse`
+    // sees the prose bytes, including any leading whitespace the prose itself
+    // owns. `into_owned` lifts off the stripped buffer's lifetime.
+    let stripped = strip_string_continuation_margins(edn_src);
+    let value = wat_edn::parse(&stripped)
+        .map_err(|e| wat_doc::DocError::EdnMalformed { why: e.to_string() })?
+        .into_owned();
     let (tag_name, body) = match value {
         wat_edn::Value::Tagged(tag, body) => {
             let tag_name: &'static str = match (tag.namespace(), tag.name()) {
@@ -354,18 +439,30 @@ mod tests {
         assert_eq!(extract_edn_fence(raw), None);
     }
 
-    /// The indentation-vs-byte-identity tension the builder flagged mid-stone: a
-    /// Clojure-docstring-style indented fence (every line, including a multi-line string's
-    /// continuation lines, aligned under `#wat.doc/Row {`) must dedent down to the SAME text a
-    /// flush-left fence would parse to — the common margin is stripped, never a per-line guess.
+    /// Fence-wide `dedent` still strips the common source margin. String-local
+    /// strip (inside `parse_edn_doc_row`) then removes the content-column indent
+    /// from continuations so the parsed `:doc` is the prose, not the margin.
     #[test]
-    fn indented_fence_dedents_to_the_flush_left_reading() {
-        let raw = "```edn\n  #wat.doc/Row {\n    :doc \"line one\n  line two\"\n    :added \"1.0.0\"\n  }\n```\n";
+    fn indented_fence_string_local_margin_does_not_enter_the_prose() {
+        let raw = "```edn\n  #wat.doc/Row {\n    :doc \"line one\n          line two\"\n    :added \"1.0.0\"\n  }\n```\n";
         let got = extract_edn_fence(raw).expect("fence found");
         assert_eq!(
             got,
-            "#wat.doc/Row {\n  :doc \"line one\nline two\"\n  :added \"1.0.0\"\n}"
+            "#wat.doc/Row {\n  :doc \"line one\n        line two\"\n  :added \"1.0.0\"\n}"
         );
+        let (_, ast, _) = parse_edn_doc_row(&got).expect("parses");
+        match ast {
+            WatAST::Map(pairs, _) => {
+                let doc = pairs.iter().find_map(|(k, v)| match (k, v) {
+                    (WatAST::Keyword(key, _), WatAST::StringLit(s, _)) if key == ":doc" => {
+                        Some(s.as_str())
+                    }
+                    _ => None,
+                });
+                assert_eq!(doc, Some("line one\nline two"));
+            }
+            other => panic!("expected a Map, got {other:?}"),
+        }
     }
 
     #[test]
@@ -592,6 +689,56 @@ mod tests {
         assert_eq!(back.args[0].name, "xs");
     }
 
+    /// The trap inside the trap: prose with a blank line, its own leading
+    /// whitespace (an indented code sample), and an embedded `"` must survive
+    /// print → string-local strip → from_metadata byte for byte.
+    #[test]
+    fn round_trip_holds_on_prose_with_blank_indent_and_escaped_quote() {
+        let raw = concat!(
+            "intro paragraph\n",
+            "\n",
+            "    (indented sample)\n",
+            "he said \"hello\"\n",
+            "\n",
+            "@added 1.0.0\n",
+            "@Purity Pure\n",
+            "@Determinism Deterministic\n",
+            "@Totality Unreviewed\n",
+            "@ExpandTime Unreviewed\n",
+            "@Category Transform\n",
+            "@ret :wat::core::nil n\n",
+            "@example (f) #=> nil",
+        );
+        let doc = wat_doc::parse(raw).expect("parses");
+        assert_eq!(
+            doc.prose.as_str(),
+            "intro paragraph\n\n    (indented sample)\nhe said \"hello\""
+        );
+        let printed = wat_doc::print(&doc);
+        let back = round_trip(&doc);
+        assert_eq!(back, doc);
+        assert_eq!(back.prose, doc.prose);
+        assert_eq!(
+            printed.as_str(),
+            concat!(
+                "#wat.doc/Row {\n",
+                "  :doc \"intro paragraph\n",
+                "\n",
+                "            (indented sample)\n",
+                "        he said \\\"hello\\\"\"\n",
+                "  :added \"1.0.0\"\n",
+                "  :purity :wat.runtime.Purity/Pure\n",
+                "  :determinism :wat.runtime.Determinism/Deterministic\n",
+                "  :totality :wat.runtime.Totality/Unreviewed\n",
+                "  :expand-time :wat.runtime.ExpandTime/Unreviewed\n",
+                "  :category :wat.runtime.Category/Transform\n",
+                "  :ret [:wat.core/nil \"n\"]\n",
+                "  :examples [[(f) nil]]\n",
+                "}",
+            )
+        );
+    }
+
     /// A gate never seen failing is a claim. Drop `:added` from a printed row
     /// and the read must go RED naming that field — `MissingAdded`.
     #[test]
@@ -630,8 +777,8 @@ mod tests {
         );
         let doc = wat_doc::parse(raw).expect("parses");
         let printed = wat_doc::print(&doc);
-        // Inject two spaces at the start of the continuation line `line two`.
-        let sabotaged = printed.replace("\nline two", "\n  line two");
+        // Inject two extra spaces beyond the content-column margin on the continuation.
+        let sabotaged = printed.replace("\n        line two", "\n          line two");
         assert_ne!(sabotaged, printed, "sabotage must change the text");
         let (tag, map_ast, _) = parse_edn_doc_row(&sabotaged).expect("still parses");
         assert_eq!(tag, "Row");

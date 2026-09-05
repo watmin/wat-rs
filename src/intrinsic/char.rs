@@ -17,22 +17,21 @@ use wat_macros::wat_intrinsic;
 /// `:doc`'s value is a LITERAL multi-line EDN string (Clojure's own docstring convention —
 /// `wat_edn`'s string lexer admits a raw, unescaped newline inside `"..."` same as it admits
 /// any other byte), never `\n`-escaped — an escaped multi-paragraph prose string is exactly
-/// the encoded-newline ugliness the builder rejected outright. The whole fence is indented
-/// uniformly for readability; `edn_doc::extract_edn_fence` dedents it back to flush-left
-/// before parsing, so the indentation below is never part of the parsed `:doc` value (a
-/// column-aligned indent that gave the string's continuation lines MORE margin than their
-/// sibling keys would instead inject that extra whitespace into the prose — measured, not
-/// assumed, in `edn_doc`'s own `indented_fence_dedents_to_the_flush_left_reading` test).
+/// the encoded-newline ugliness the builder rejected outright. Continuation lines of `:doc`
+/// indent to the column where the string's CONTENT begins (one past the opening `"`); the
+/// fence as a whole is then indented uniformly for source readability. `extract_edn_fence`
+/// strips the common fence margin, then `parse_edn_doc_row` strips the string-local content
+/// column, so neither indent becomes part of the parsed `:doc` value.
 /// ```edn
 ///   #wat.doc/Row {
 ///     :doc "`(:wat::core::char s)` → the single `:wat::core::char` in the length-1
-///   String `s`.
+///           String `s`.
 ///
-///   BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
-///   with a clear diagnostic, inheriting the Stone 218.6b discipline from
-///   wat-edn's BMP-only strictness. Errors: `s` is not length-1 (empty or
-///   multi-char), or its single char is a supplementary-plane codepoint. Arc
-///   220 slice 2."
+///           BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
+///           with a clear diagnostic, inheriting the Stone 218.6b discipline from
+///           wat-edn's BMP-only strictness. Errors: `s` is not length-1 (empty or
+///           multi-char), or its single char is a supplementary-plane codepoint. Arc
+///           220 slice 2."
 ///     :added "1.0.0"
 ///     :purity :wat.runtime.Purity/Pure
 ///     :determinism :wat.runtime.Determinism/Deterministic

@@ -1,12 +1,15 @@
 //! `#wat.doc/Row` emitter — the inverse of [`crate::from_metadata`], and of
-//! `wat-macros`' `edn_doc::dedent`.
+//! `wat-macros`' `edn_doc` string-local margin strip.
 //!
 //! A named emitter, not `wat-edn`'s `write-pretty`. `write-pretty` escapes
 //! newlines inside strings (measured); the docstring here is a LITERAL
-//! multi-line EDN string whose continuation lines sit at column 0 — the
-//! map's own margin — so `dedent` of an indented fence restores the same
-//! bytes. Values are EDN ns/name keywords (`:wat.core/foldl`), never wat
-//! FQDNs (`:wat::core::foldl`); `::` is a lexer error in EDN.
+//! multi-line EDN string whose continuation lines indent to the column
+//! where the string's CONTENT begins (one past the opening `"`). The
+//! reader strips that same fixed count after the fence-wide dedent, so
+//! print → strip → parse is the identity — including on prose that
+//! carries its own leading whitespace. Values are EDN ns/name keywords
+//! (`:wat.core/foldl`), never wat FQDNs (`:wat::core::foldl`); `::` is a
+//! lexer error in EDN.
 
 use std::fmt::Write;
 
@@ -16,9 +19,9 @@ use crate::{Deprecation, DocArg, DocComment, DocExample, DocYields};
 
 /// Print `doc` as a `#wat.doc/Row { … }` block.
 ///
-/// Continuation lines of `:doc` carry the map's margin (column 0 of this
-/// unfenced emission). Wrapping the result in a ```edn fence and indenting
-/// every line by the same amount is then the exact inverse of `dedent`.
+/// Continuation lines of a multi-line string indent to the column where
+/// that string's content begins. `edn_doc::parse_edn_doc_row` strips the
+/// same count after the fence-wide dedent, so the round trip is exact.
 pub fn print(doc: &DocComment) -> String {
     let mut out = String::new();
     out.push_str("#wat.doc/Row {\n");
@@ -76,10 +79,8 @@ fn emit_kv(out: &mut String, key: &str, value: &str) {
     out.push('\n');
 }
 
-/// `:doc` as a literal multi-line string. Continuation lines are flush-left
-/// (column 0) so `wat_edn::parse` of this unfenced block does not inject the
-/// map's inner indent into the prose — and so indenting the whole block for
-/// a ```edn fence is `dedent`'s inverse.
+/// `:doc` as a literal multi-line string. Continuation lines indent to the
+/// column one past the opening `"` — the string's content column.
 fn emit_docstring(out: &mut String, prose: &str) {
     out.push_str("  :doc ");
     push_edn_string(out, prose);
@@ -92,12 +93,25 @@ fn edn_quoted(s: &str) -> String {
     out
 }
 
+fn current_col(out: &str) -> usize {
+    out.rsplit('\n').next().map(str::len).unwrap_or(0)
+}
+
 /// EDN string with `"` and `\` escaped, newlines left LITERAL (not `\n`).
+/// Continuation lines of a multi-line value indent to the content column
+/// (one past the opening `"`). A blank prose line stays a blank line —
+/// no margin spaces — so fence-wide dedent does not treat it as content.
 fn push_edn_string(out: &mut String, s: &str) {
+    let content_col = current_col(out) + 1;
     out.push('"');
     for (i, line) in s.split('\n').enumerate() {
         if i > 0 {
             out.push('\n');
+            if !line.is_empty() {
+                for _ in 0..content_col {
+                    out.push(' ');
+                }
+            }
         }
         for c in line.chars() {
             match c {
@@ -402,10 +416,10 @@ mod print_tests {
     }
 
     #[test]
-    fn docstring_continuation_lines_are_flush_left() {
+    fn docstring_continuation_lines_align_to_content() {
         let raw = "line one\nstill going\n\nparagraph two\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Totality Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@ret :wat::core::nil n\n@example (f) #=> nil";
         let doc = parse(raw).expect("parses");
-        assert_printed(include_str!("print_tests__flush_left_docstring.edn"), &print(&doc));
+        assert_printed(include_str!("print_tests__aligned_docstring.edn"), &print(&doc));
     }
 
     #[test]
