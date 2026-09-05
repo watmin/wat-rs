@@ -209,6 +209,50 @@
       :wat::core::None
       :wat::core::None)))
 
+;; A type application is atomic: list of exactly 3 children, child 1 is the
+;; symbol/keyword `:-`, child 2 is a vector. Not "child 1 is `:-`" — that
+;; matches generic `fn` and string literals.
+(:wat::core::defn :wat::fmt::type-application?
+  [node <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind node) "list"))
+    false
+    (:wat::core::let [kids (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::not (:wat::i64::= (:wat::core::length kids) 3))
+        false
+        (:wat::core::let [c1 (:wat::core::nth kids 1)
+                          c2 (:wat::core::nth kids 2)
+                          k1 (:wat::core::ast-kind c1)]
+          (:wat::core::if (:wat::core::not (:wat::core::or (:wat::core::= k1 "symbol")
+                                                          (:wat::core::= k1 "keyword")))
+            false
+            (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-name c1) ":-"))
+              false
+              (:wat::core::= (:wat::core::ast-kind c2) "vector"))))))))
+
+(:wat::core::defn :wat::fmt::subtree-size
+  [node <- :wat::WatAST]
+  -> :wat::core::i64
+  (:wat::core::if (:wat::core::not (:wat::grep::structural? node))
+    1
+    (:wat::core::foldl
+      (:wat::core::fn [n <- :wat::core::i64  child <- :wat::WatAST] -> :wat::core::i64
+        (:wat::i64::+ n (:wat::fmt::subtree-size child)))
+      1
+      (:wat::core::ast->children node))))
+
+(:wat::core::defn :wat::fmt::count-type-apps
+  [node <- :wat::WatAST]
+  -> :wat::core::i64
+  (:wat::core::let [here (:wat::core::if (:wat::fmt::type-application? node) 1 0)]
+    (:wat::core::if (:wat::core::not (:wat::grep::structural? node))
+      here
+      (:wat::core::foldl
+        (:wat::core::fn [n <- :wat::core::i64  child <- :wat::WatAST] -> :wat::core::i64
+          (:wat::i64::+ n (:wat::fmt::count-type-apps child)))
+        here
+        (:wat::core::ast->children node)))))
+
 (:wat::core::defn :wat::fmt::emit-node
   [acc       <- :wat::fmt::Acc
    node      <- :wat::WatAST
@@ -244,6 +288,18 @@
                        (:wat::fmt::write acc-bl " ")))))
      this-indent (:wat::fmt::Acc/col acc-pad)
      acc1        (:wat::fmt::flush-comments acc-pad src-line src-col this-indent)]
+    (:wat::core::if (:wat::fmt::type-application? node)
+      (:wat::core::let
+        [acc2 (:wat::fmt::write acc1 (:wat::core::ast->source node))
+         acc3 (:wat::fmt::Acc
+                :out      (:wat::fmt::Acc/out acc2)
+                :next-id  (:wat::i64::+ id (:wat::fmt::subtree-size node))
+                :comments (:wat::fmt::Acc/comments acc2)
+                :col      (:wat::fmt::Acc/col acc2))]
+        (:wat::fmt::flush-comments acc3
+          (:wat::grep::Extent/end-line x)
+          (:wat::grep::Extent/end-col x)
+          this-indent))
     (:wat::core::if (:wat::grep::structural? node)
       (:wat::core::let
         [this-open (:wat::fmt::Acc/col acc1)
@@ -272,7 +328,7 @@
         (:wat::fmt::flush-comments acc2
           (:wat::grep::Extent/end-line x)
           (:wat::grep::Extent/end-col x)
-          this-indent)))))
+          this-indent))))))
 
 (:wat::core::defn :wat::fmt::emit
   [forms    <- :wat::WatAST
