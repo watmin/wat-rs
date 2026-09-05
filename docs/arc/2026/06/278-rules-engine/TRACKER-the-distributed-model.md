@@ -131,10 +131,35 @@ was asked and the answer was not obvious from the stone list.
 |---|---|---|
 | **R1** | the seam — `send-keep-serving?` at `service.wat:3108`, five callers | ✅ **STRUCK** (3 drafts; v1 a wrong type, v2 a wrong proof) |
 | **T1** | a client has a deadline — races reply vs timer, discards, redials, retries | ✅ **STRUCK.** `seen-dups=0` ×5 — the deadline does not fire in health, which is the row passing |
-| **S40** | ⛔ **the goldens pin ABSOLUTE LINE NUMBERS to assert a span** | **NEXT — it blocks R2** |
+| **S40** | the goldens pin ABSOLUTE LINE NUMBERS to assert a span — **MEASURED 2026-09-05, and it does NOT block R2** | **open, but demoted** |
 | **S41** | the drop rate that produces a duplicate may not overlap the rate the system survives at T1's 5000 ms | **before R2** |
 | **R2** | the drop in the seam | ⛔ **NOT STRUCK.** Blocked by S40 |
 | **3d** | the reply-drop | ⛔ **REFUTED** — no userland form. A reply is sent, or deferred; there is no "caller told nothing and carries on" |
+
+★ ⛔ **S40 WAS MEASURED AND THE RULING ABOVE IS WRONG — 2026-09-05.** I inserted one comment
+line at `wat/service.wat:2` (above the guard at 896), rebuilt, and ran the cluster. Four tests red,
+and **the entire diff was eight integers**: `896→897`, `903→904`, `913→914`, `921→922`, twice each.
+Every other field — `reason`, `message`, the fixture spans — byte-identical. `UPDATE_EDN=1 cargo
+nextest run --release -E 'test(peers_bijection)'` restored all five to green in **one command**, and
+`git diff` on the goldens showed **only `:line` fields moved**. Reverted; binary rebuilt; 5/5 green.
+
+**So the goldens are not an obstacle. They are an 8-integer re-capture.** "Blocked by S40" was
+reasoned, never run — the third time this campaign that a stone was drawn from an unprobed premise.
+
+★ **The real defect the probe found is wider than S40 was written.** The census: **10 golden files**
+pin an absolute line inside a *stdlib* `wat/*.wat` — `service.wat` (896, 913), `core.wat` (1412,
+1464, 1919, 1947), `Record.wat` (145). An edit near the top of any of them reds goldens in proportion
+to how early you edit, and **the redness carries no information** — the `reason` string is already
+asserted literally in the `.rs`, so the pinned line discriminates nothing the test does not already
+check.
+
+★ **And the danger is the cure, not the disease.** `UPDATE_EDN=1` writes the emission VERBATIM. A
+blind bless after a change that *also* moved the diagnostic text would swallow the regression and go
+green while asserting something new. The safety property is **read the diff and confirm only
+`:line`/`:col` moved** — which is rung 1, a convention, exactly where `probe_arc278_peers_bijection.rs`
+already keeps one hand-written `contains("probe::Echo")` assertion because a capture cannot be
+trusted alone. Rung 3 — normalize spans for `wat/*.wat` at capture — would delete the class AND
+remove every occasion to invoke the blind bless.
 
 ★ **R2's blocker, precisely.** `state` **is** in scope at all five send sites, so a drop is feedable
 from `:durable`. But durable fields are **per-service**, so a generic `drop?` hits `stats` as well as
