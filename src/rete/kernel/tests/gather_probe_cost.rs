@@ -921,7 +921,7 @@ fn probe_extend_cost_split() {
 /// 40k marks (`DESIGN-STONE-probe-gap-split`).
 #[test]
 fn probe_gap_cost_split() {
-    use crate::rete::compiled_cond::{CompiledCond, Op};
+    use crate::rete::compiled_cond::{CompiledCond, Op, SlotZip};
     use std::hint::black_box;
     use std::time::Instant;
 
@@ -984,8 +984,7 @@ fn probe_gap_cost_split() {
                 slot: 1,
             },
         ],
-        Arc::from([]),
-        Arc::from([]),
+        SlotZip::from_pairs(vec![]),
         2,
         Arc::from([]),
         None,

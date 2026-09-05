@@ -146,6 +146,45 @@ pub(crate) enum Op {
 
 pub(crate) type OrBranches = Vec<Vec<Op>>;
 
+/// The (binding-key, scratch-slot) zip. Two sequences of different lengths have no form
+/// (arc 278 A3). Private `pairs`; the only constructor is [`SlotZip::from_pairs`].
+///
+/// The wire still carries two sequences (`pack_compiled_cond` indices 3 and 4). The zip is
+/// in-memory. A length mismatch fails as a parse into pairs, with the malformed error the
+/// importer already emitted.
+#[derive(Clone)]
+pub(crate) struct SlotZip {
+    pairs: Arc<[(Value, usize)]>,
+}
+
+impl SlotZip {
+    pub(crate) fn from_pairs(pairs: Vec<(Value, usize)>) -> Self {
+        Self {
+            pairs: pairs.into(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        self.pairs.len()
+    }
+
+    #[inline]
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, (Value, usize)> {
+        self.pairs.iter()
+    }
+
+    #[inline]
+    pub(crate) fn key(&self, i: usize) -> &Value {
+        &self.pairs[i].0
+    }
+
+    #[inline]
+    pub(crate) fn slot(&self, i: usize) -> usize {
+        self.pairs[i].1
+    }
+}
+
 /// A condition compiled once, at setup, from the immutable network — the pre-resolved dual of
 /// `alpha_match_inner`. Built by [`compile_condition_local`]; fire runs
 /// [`exec_compiled_with_key_ids`]. [`exec_compiled`] is the `#[cfg(test)]` door.
@@ -153,21 +192,16 @@ pub(crate) type OrBranches = Vec<Vec<Op>>;
 pub(crate) struct CompiledCond {
     /// The top-level clause sequence (nested `and` flattened in), in source order.
     ops: Vec<Op>,
-    /// The binding keys, in FIRST-BIND order — built once, `Value::String(Arc<str>)`, cloned
-    /// (a refcount bump, never a fresh allocation) into the output array on success. Parallel to
-    /// `output_slots`.
-    slot_keys: Arc<[Value]>,
-    /// `output_slots[i]` is the scratch-slot index whose value pairs with `slot_keys[i]` — the
-    /// two arrays together are the zip the design doc describes. Only slots reachable through
+    /// The binding key and scratch-slot zip, in FIRST-BIND order. Only slots reachable through
     /// the top-level/`and`-flattened path appear here; a slot a `Or`/`Not` branch privately
     /// bound never does, matching `eval_clause`'s discard of branch-local binds.
-    output_slots: Arc<[usize]>,
-    /// Total scratch slots this program needs (>= `output_slots.len()`; larger when an
+    zip: SlotZip,
+    /// Total scratch slots this program needs (>= the zip length; larger when an
     /// `or`/`not` branch binds its own scratch-only vars, or a leftover `?var` occupies a
     /// seed slot). The caller's reusable scratch buffer must be at least this long.
     n_slots: usize,
     /// Leftover `?var` keys this rematch reads from the token seed, in first-seen order.
-    /// Not in `output_slots` — a leftover is the left token's bind, not this cond's.
+    /// Not in the zip — a leftover is the left token's bind, not this cond's.
     seed_reads: Arc<[(Value, usize)]>,
     /// `(?p <- :Type …)` — the fact itself, not a field. Set at compile from
     /// `alpha_pattern`; fire attaches without walking the cond AST.
@@ -192,11 +226,13 @@ impl CompiledCond {
     pub(crate) fn ops(&self) -> &[Op] {
         &self.ops
     }
-    pub(crate) fn slot_keys(&self) -> &[Value] {
-        &self.slot_keys
+    /// Derived view of the zip's keys, in zip order. Not a stored array.
+    pub(crate) fn slot_keys(&self) -> impl ExactSizeIterator<Item = &Value> + '_ {
+        self.zip.iter().map(|(k, _)| k)
     }
-    pub(crate) fn output_slots(&self) -> &[usize] {
-        &self.output_slots
+    /// Derived view of the zip's scratch slots, in zip order. Not a stored array.
+    pub(crate) fn output_slots(&self) -> impl ExactSizeIterator<Item = usize> + '_ {
+        self.zip.iter().map(|(_, s)| *s)
     }
     pub(crate) fn seed_reads(&self) -> &[(Value, usize)] {
         &self.seed_reads
@@ -204,22 +240,23 @@ impl CompiledCond {
     pub(crate) fn fact_bind(&self) -> Option<&Value> {
         self.fact_bind.as_ref()
     }
-    // 8 args since fix-list F: `span` and `slot_names` joined so an `Op::Eval` raise can point at
+    // 7 args since A3 (was 8: two arrays became the zip). `span` and `slot_names` joined so an `Op::Eval` raise can point at
     // the USER's rule instead of at `rust_caller_span!()` — the `conformare` class this arc spent a
     // day removing. A builder would be ceremony for a constructor with two call sites.
     #[allow(clippy::too_many_arguments)]
     /// The only constructor — every field is supplied, and `has_seed_cmp` is DERIVED here rather
-    /// than passed in.
+    /// than passed in. The slot zip is one value: two sequences of different lengths have no
+    /// form (arc 278 A3).
     ///
     /// That derivation is the reason this exists instead of a struct literal: `has_seed_cmp`
     /// must agree with the ops it summarises, and a caller computing it by hand could get it
     /// wrong in the direction that is invisible — claiming no seed-cmp when one is present makes
     /// populate skip a compare it should have run. Deriving it from the ops makes the two
-    /// unable to disagree.
+    /// unable to disagree. The zip is the same discipline applied to the pair the constructor
+    /// used to take as two independent `Arc`s and check nothing.
     pub(crate) fn from_parts(
         ops: Vec<Op>,
-        slot_keys: Arc<[Value]>,
-        output_slots: Arc<[usize]>,
+        zip: SlotZip,
         n_slots: usize,
         seed_reads: Arc<[(Value, usize)]>,
         fact_bind: Option<Value>,
@@ -229,8 +266,7 @@ impl CompiledCond {
         let has_seed_cmp = !seed_reads.is_empty() || ops_have_seed_cmp(&ops);
         CompiledCond {
             ops,
-            slot_keys,
-            output_slots,
+            zip,
             n_slots,
             seed_reads,
             fact_bind,
@@ -259,11 +295,11 @@ impl CompiledCond {
 
     /// `?var`s this cond binds, including `(?p <- :Type …)`.
     pub(crate) fn bind_keys(&self) -> Vec<Value> {
-        let mut ks = Vec::with_capacity(self.slot_keys.len() + 1);
+        let mut ks = Vec::with_capacity(self.zip.len() + 1);
         if let Some(k) = &self.fact_bind {
             ks.push(k.clone());
         }
-        ks.extend(self.slot_keys.iter().cloned());
+        ks.extend(self.zip.iter().map(|(k, _)| k.clone()));
         ks
     }
 }
@@ -371,23 +407,18 @@ fn compile_condition_opts(
         return None;
     }
 
-    let slot_keys: Arc<[Value]> = order
-        .iter()
-        .map(|(name, _)| Value::String(Arc::new(name.clone())))
-        .collect::<Vec<_>>()
-        .into();
-    let output_slots: Arc<[usize]> = order
-        .iter()
-        .map(|(_, slot)| *slot)
-        .collect::<Vec<_>>()
-        .into();
+    let zip = SlotZip::from_pairs(
+        order
+            .iter()
+            .map(|(name, slot)| (Value::String(Arc::new(name.clone())), *slot))
+            .collect(),
+    );
     let seed_reads: Arc<[(Value, usize)]> = ctx.seed_reads.into();
     let fact_bind = pat.fact_var.map(|v| Value::String(Arc::new(v.to_string())));
 
     Some(CompiledCond::from_parts(
         ops,
-        slot_keys,
-        output_slots,
+        zip,
         ctx.next_slot,
         seed_reads,
         fact_bind,
@@ -953,8 +984,9 @@ pub(crate) fn bind_only_fields(compiled: &CompiledCond) -> Option<Vec<u8>> {
     if !compiled.ops.iter().all(|op| matches!(op, Op::Bind { .. })) {
         return None;
     }
-    let mut out = Vec::with_capacity(compiled.output_slots.len());
-    for &slot in compiled.output_slots.iter() {
+    let mut out = Vec::with_capacity(compiled.zip.len());
+    for pair in compiled.zip.iter() {
+        let slot = pair.1;
         let fi = compiled.ops.iter().find_map(|op| match op {
             Op::Bind { field_idx, slot: s } if *s == slot => Some(*field_idx),
             _ => None,
@@ -971,11 +1003,11 @@ pub(crate) fn bind_only_fields(compiled: &CompiledCond) -> Option<Vec<u8>> {
 /// (`DESIGN-STONE-cond-key-ids`). Fire SETUP, not per fact.
 pub(crate) fn intern_cond_keys(compiled: &CompiledCond, keys: &mut Vec<Value>) -> Vec<u32> {
     let extra = usize::from(compiled.fact_bind.is_some());
-    let mut ids = Vec::with_capacity(extra + compiled.slot_keys.len());
+    let mut ids = Vec::with_capacity(extra + compiled.zip.len());
     if let Some(k) = &compiled.fact_bind {
         ids.push(intern_key(keys, k));
     }
-    for k in compiled.slot_keys.iter() {
+    for (k, _) in compiled.zip.iter() {
         ids.push(intern_key(keys, k));
     }
     ids
@@ -1060,7 +1092,8 @@ pub(crate) fn intern_val(vals: &mut Vec<Value>, ids: &mut ValIntern, v: Value) -
 /// The `next_key` closure is the whole point of `key_ids`: with it, each key is a pre-interned
 /// id read positionally; without it, every key is interned by value on every successful match.
 /// The positional read is why the caller's id list must be in the SAME ORDER as
-/// `compiled.output_slots` — they are two views of one sequence, and nothing here can check that.
+/// the zip — they are two views of one sequence. The zip is one value, so a
+/// key/slot length split cannot be written.
 pub(crate) fn materialize_into(
     compiled: &CompiledCond,
     scratch: &[Option<Value>],
@@ -1091,7 +1124,8 @@ pub(crate) fn materialize_into(
             intern_val(vals, val_ids, fact.clone()),
         ));
     }
-    for (i, &slot) in compiled.output_slots.iter().enumerate() {
+    for i in 0..compiled.zip.len() {
+        let slot = compiled.zip.slot(i);
         let v = match scratch.get(slot).and_then(|o| o.clone()) {
             Some(v) => v,
             None => {
@@ -1103,12 +1137,15 @@ pub(crate) fn materialize_into(
                 return None;
             }
         };
-        if i >= compiled.slot_keys.len() {
-            pool.truncate(off);
-            return None;
-        }
+        // Converted, not deleted (arc 278 A3). The zip makes `i >= keys.len()`
+        // unrepresentable; this records what the silent return prevented. Sibling
+        // of the unbound-slot arm above.
+        debug_assert!(
+            i < compiled.zip.len(),
+            "compiled program guarantee violated: output slot {slot} has no slot_key"
+        );
         pool.push((
-            next_key(keys, &mut kid, &compiled.slot_keys[i]),
+            next_key(keys, &mut kid, compiled.zip.key(i)),
             intern_val(vals, val_ids, v),
         ));
     }
@@ -1158,8 +1195,9 @@ pub(crate) fn exec_compiled_under_holds(
 /// CLOSED anyway — `debug_assert!` in debug, `None` in release — because handing back a
 /// half-filled binding array would be a wrong answer, and a wrong answer is worse than no answer.
 fn materialize(compiled: &CompiledCond, scratch: &[Option<Value>]) -> BindPairs {
-    let mut out: Vec<(Value, Value)> = Vec::with_capacity(compiled.output_slots.len());
-    for (i, &slot) in compiled.output_slots.iter().enumerate() {
+    let mut out: Vec<(Value, Value)> = Vec::with_capacity(compiled.zip.len());
+    for pair in compiled.zip.iter() {
+        let slot = pair.1;
         let v = match scratch.get(slot).and_then(|o| o.clone()) {
             Some(v) => v,
             None => {
@@ -1174,8 +1212,7 @@ fn materialize(compiled: &CompiledCond, scratch: &[Option<Value>]) -> BindPairs 
                 return None;
             }
         };
-        let sk = compiled.slot_keys.get(i)?;
-        out.push((sk.clone(), v));
+        out.push((pair.0.clone(), v));
     }
     Some(out.into())
 }
@@ -1391,7 +1428,7 @@ mod tests {
             "leftover ?c must be a seed slot, not omitted and not an output bind"
         );
         assert!(
-            !compiled.slot_keys.iter().any(|k| *k == qvar("?c")),
+            !compiled.zip.iter().any(|(k, _)| *k == qvar("?c")),
             "leftover ?c must not leak into this cond's binds"
         );
 

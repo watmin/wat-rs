@@ -1136,7 +1136,7 @@ fn accum_materialize_split() {
                     if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
-                    for &slot in compiled.output_slots() {
+                    for slot in compiled.output_slots() {
                         black_box(scratch.get(slot).and_then(|x| x.clone()));
                     }
                 }
@@ -1161,7 +1161,7 @@ fn accum_materialize_split() {
                     if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
-                    for &slot in compiled.output_slots() {
+                    for slot in compiled.output_slots() {
                         black_box(scratch.get(slot).and_then(|x| x.clone()));
                     }
                     for key in compiled.slot_keys() {
@@ -1189,11 +1189,11 @@ fn accum_materialize_split() {
                     if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
-                    for (i, &slot) in compiled.output_slots().iter().enumerate() {
+                    for (key, slot) in compiled.slot_keys().zip(compiled.output_slots()) {
                         let Some(val) = scratch.get(slot).and_then(|x| x.clone()) else {
                             continue;
                         };
-                        black_box(intern_key(&mut wm.bind_keys, &compiled.slot_keys()[i]));
+                        black_box(intern_key(&mut wm.bind_keys, key));
                         black_box(intern_val(&mut wm.bind_vals, &mut wm.bind_val_ids, val));
                     }
                 }
@@ -1218,11 +1218,11 @@ fn accum_materialize_split() {
                     if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
-                    for (i, &slot) in compiled.output_slots().iter().enumerate() {
+                    for (key, slot) in compiled.slot_keys().zip(compiled.output_slots()) {
                         let Some(val) = scratch.get(slot).and_then(|x| x.clone()) else {
                             continue;
                         };
-                        let kid = intern_key(&mut wm.bind_keys, &compiled.slot_keys()[i]);
+                        let kid = intern_key(&mut wm.bind_keys, key);
                         let vid = intern_val(&mut wm.bind_vals, &mut wm.bind_val_ids, val);
                         wm.bind_pool.push((kid, vid));
                     }
@@ -1344,7 +1344,7 @@ fn accum_intern_val_i64_split() {
                 if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                     continue;
                 }
-                for &slot in compiled.output_slots() {
+                for slot in compiled.output_slots() {
                     if let Some(v) = scratch.get(slot).and_then(|x| x.clone()) {
                         payloads.push(v);
                     }

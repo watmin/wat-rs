@@ -118,7 +118,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
 use crate::rete::alpha_tree::AlphaTree;
-use crate::rete::compiled_cond::{CompiledCond, Op};
+use crate::rete::compiled_cond::{CompiledCond, Op, SlotZip};
 use crate::rete::compiled_rhs::{CompiledRhs, CompiledRhsByRule, RhsOp};
 use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
@@ -1320,8 +1320,8 @@ fn unpack_cond_op(v: &Value, span: &Span, depth: u32) -> Result<Op, EvalBreak> {
 /// is a homogeneous sequence, which is why they can be read back without per-item tags.
 fn pack_compiled_cond(c: &CompiledCond) -> Value {
     let ops = c.ops().iter().map(pack_cond_op);
-    let keys = c.slot_keys().iter().cloned();
-    let slots = c.output_slots().iter().map(|s| Value::i64(*s as i64));
+    let keys = c.slot_keys().cloned();
+    let slots = c.output_slots().map(|s| Value::i64(s as i64));
     let seeds = c
         .seed_reads()
         .iter()
@@ -1355,13 +1355,23 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
         _ => None,
     };
     let keys_pv = expect_seq(expect_at(&items, 3, span, "slot_keys")?, IMPORT_OP, span)?;
-    let slot_keys: Arc<[Value]> = keys_pv.into();
     let slots_pv = expect_seq(expect_at(&items, 4, span, "output_slots")?, IMPORT_OP, span)?;
-    let output_slots: Arc<[usize]> = slots_pv
-        .iter()
-        .map(|x| expect_idx(x, span, "output slot"))
-        .collect::<Result<Vec<_>, _>>()?
-        .into();
+    if keys_pv.len() != slots_pv.len() {
+        return Err(malformed(
+            span,
+            IMPORT_OP,
+            format!(
+                "slot_keys length {} != output_slots length {}",
+                keys_pv.len(),
+                slots_pv.len()
+            ),
+        ));
+    }
+    let mut pairs = Vec::with_capacity(keys_pv.len());
+    for (k, s) in keys_pv.iter().zip(slots_pv.iter()) {
+        pairs.push((k.clone(), expect_idx(s, span, "output slot")?));
+    }
+    let zip = SlotZip::from_pairs(pairs);
     let seeds_pv = expect_seq(expect_at(&items, 5, span, "seed_reads")?, IMPORT_OP, span)?;
     let mut seed_reads = Vec::new();
     for x in seeds_pv.iter() {
@@ -1378,8 +1388,9 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
         // opens a fresh budget rather than continuing one.
         ops.push(unpack_cond_op(x, span, 0)?);
     }
-    for s in output_slots.iter() {
-        if *s >= n_slots {
+    for i in 0..zip.len() {
+        let s = zip.slot(i);
+        if s >= n_slots {
             return Err(malformed(
                 span,
                 IMPORT_OP,
@@ -1396,17 +1407,6 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
             ));
         }
     }
-    if slot_keys.len() != output_slots.len() {
-        return Err(malformed(
-            span,
-            IMPORT_OP,
-            format!(
-                "slot_keys length {} != output_slots length {}",
-                slot_keys.len(),
-                output_slots.len()
-            ),
-        ));
-    }
     check_cond_ops(&ops, n_slots, span)?;
     // An imported program carries no source. The span is the IMPORT's — honest, and the same
     // answer `rules_lack_ast` already gives elsewhere — and slot NAMES are diagnostics that were
@@ -1414,8 +1414,7 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
     // than a name. Deliberate: putting names on the wire would grow the ABI for a message.
     Ok(CompiledCond::from_parts(
         ops,
-        slot_keys,
-        output_slots,
+        zip,
         n_slots,
         seed_reads.into(),
         fact_bind,
@@ -2533,4 +2532,34 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
             empty_pm(),
         ]),
     ))))
+}
+
+#[cfg(test)]
+mod slot_zip_import {
+    use super::*;
+
+    /// ★ A3: a wire cond whose two sequences disagree must fail at the zip parse,
+    /// with the same malformed error the hand-check used to emit.
+    #[test]
+    fn unpack_refuses_mismatched_slot_key_and_output_slot_lengths() {
+        let span = crate::rust_caller_span!();
+        let cond = pv([
+            kw(":cond"),
+            Value::i64(1),
+            Value::Unit,
+            pv([Value::String(Arc::new("?x".into()))]),
+            pv([]),
+            pv([]),
+            pv([]),
+        ]);
+        let err = match unpack_compiled_cond(&cond, &span) {
+            Err(e) => e,
+            Ok(_) => panic!("length mismatch must refuse at the zip parse"),
+        };
+        let msg = format!("{err:?}");
+        assert!(
+            msg.contains("slot_keys length"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span; zip parse is the contract
+            "import must name slot_keys/output_slots length mismatch, got {msg}"
+        );
+    }
 }
