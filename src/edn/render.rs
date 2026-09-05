@@ -671,12 +671,11 @@ pub fn eval_read_string(
     ))
 }
 
-/// `(:wat::core::read-string-with-comments s)` → `(:wat::core::Result :- [:wat::fmt::Parsed :wat::core::Error])`.
+/// `(:wat::core::read-string-with-comments s)` → `:wat::core::ReadWithCommentsOutcome`.
 ///
 /// Arc 277 — the wat-level surface of [`crate::parser::parse_all_with_comments`].
-/// Additive: [`eval_read_string`] is unchanged. Success is `Ok` of a
-/// `:wat::fmt::Parsed` record (forms + comments); failure is `Err` of the
-/// same structured cause `read-string` wraps as `ReadOutcome::Malformed`.
+/// Additive: [`eval_read_string`] is unchanged. Mirrors `read-string`: a core
+/// enum (`Forms [forms comments]` / `Malformed [cause]`), not a wat-side record.
 pub fn eval_read_string_with_comments(
     args: &[WatAST],
     list_span: &crate::span::Span,
@@ -695,21 +694,22 @@ pub fn eval_read_string_with_comments(
             }));
         }
     };
+    const OUTCOME: &str = ":wat::core::ReadWithCommentsOutcome";
     let value = match crate::parser::parse_all_with_comments(&s, "<read-string-with-comments>") {
         Ok((forms, comments)) => {
             let ast = WatAST::List(forms, crate::rust_caller_span!());
             let comment_vals: Vec<Value> = comments.iter().map(comment_record).collect();
-            let parsed = Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::fmt::Parsed".into(),
-                Arc::new(vec!["forms".into(), "comments".into()]),
-                Arc::new(vec![
+            Value::Enum(Arc::new(crate::runtime::EnumValue {
+                type_path: OUTCOME.into(),
+                variant_name: "Forms".into(),
+                names: crate::runtime::builtin_enum_variant_names(OUTCOME, "Forms"),
+                fields: vec![
                     Value::wat__WatAST(Arc::new(ast)),
                     Value::wat__core__PersistentVector(
                         crate::value::pvec::PVec::from_vec(comment_vals),
                     ),
-                ]),
-            )));
-            Value::Result(Arc::new(Ok(parsed)))
+                ],
+            }))
         }
         Err(e) => {
             let malformed = read_outcome_malformed(&e, sym);
@@ -717,7 +717,12 @@ pub fn eval_read_string_with_comments(
                 Value::Enum(ev) => ev.fields.first().cloned().unwrap_or(Value::Unit),
                 other => other,
             };
-            Value::Result(Arc::new(Err(cause)))
+            Value::Enum(Arc::new(crate::runtime::EnumValue {
+                type_path: OUTCOME.into(),
+                variant_name: "Malformed".into(),
+                names: crate::runtime::builtin_enum_variant_names(OUTCOME, "Malformed"),
+                fields: vec![cause],
+            }))
         }
     };
     Ok(crate::value::TrackedValue::new(

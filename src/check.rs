@@ -19497,6 +19497,18 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 277 — comment-preserving sibling of `read-string`. Return type is the
+    // core enum registered in `types.rs` beside `ReadOutcome`, so a fresh
+    // `TypeEnv::new()` (no stdlib) can scheme-check the verb.
+    env.register(
+        ":wat::core::read-string-with-comments".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            ret: TypeExpr::Path(":wat::core::ReadWithCommentsOutcome".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 251.5a-ii — `(:wat::core::write-forms ast)` → `:wat::core::String`. The
     // write side of the homoiconic round-trip: forms-as-data → clean EDN text.
     env.register(

@@ -2,6 +2,15 @@
 ;; Head + name + param-spec (`:- [P…]`) if present stay on line 1 (no Break).
 ;; Arg-spec on its own line (empty `[]` included); one argument per line after the first;
 ;; `->` (ret-type) on its own line; body on its own line.
+;;
+;; Claim marks this form as owned so the default rule (R11) does not compete.
+
+(:wat::rete::defrule :fmt::defn-claim
+  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h <- :id) (?n <- :name))
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defn"))]
+  :then [(:wat::fmt::Claim :form ?p)])
 
 (:wat::rete::defrule :fmt::defn-argspec-break
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))

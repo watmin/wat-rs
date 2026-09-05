@@ -15,9 +15,11 @@
    end-line <- :wat::core::i64
    end-col  <- :wat::core::i64])
 
-(:wat::core::defrecord :wat::fmt::Parsed
-  [forms    <- :wat::WatAST
-   comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])])
+;; A specific layout rule asserts Claim on the form it owns. R11 (the default)
+;; fires only where no Claim exists — never a competing rule with a head-name
+;; exclusion list. New rules add a Claim; R11 steps aside without being edited.
+(:wat::core::defrecord :wat::fmt::Claim
+  [form <- :wat::core::i64])
 
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
@@ -196,11 +198,9 @@
    rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
   -> :wat::core::String
   (:wat::core::match (:wat::core::read-string-with-comments src)
-    ((:wat::core::Ok parsed)
+    ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
       (:wat::core::let
-        [forms    (:wat::fmt::Parsed/forms parsed)
-         comments (:wat::fmt::Parsed/comments parsed)
-         facts    (:wat::grep::facts-of path src)
+        [facts    (:wat::grep::facts-of path src)
          records  (:wat::grep::facts-as-records facts)
          queries  (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::fmt::q-break))
          breaks   (:wat::rete::with-overlay rules queries
@@ -208,5 +208,5 @@
                       -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
                       (:wat::fmt::breaks-map (overlay records))))]
         (:wat::fmt::emit forms comments breaks)))
-    ((:wat::core::Err cause)
+    ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
       (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None))))

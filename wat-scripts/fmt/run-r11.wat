@@ -7,21 +7,19 @@
     [argv (:wat::runtime::argv)
      path (:wat::core::Option/expect (:wat::core::get argv 2) "usage: wat wat-scripts/fmt/run-r11.wat <file.wat>")
      src  (:wat::io::read-file path)
-     parsed (:wat::core::match (:wat::core::read-string-with-comments src)
-              ((:wat::core::Ok p) p)
-              ((:wat::core::Err c)
-                (:wat::kernel::assertion-failed! (:wat::core::Error/message c) :wat::core::None :wat::core::None)))
-     n-comments (:wat::core::length (:wat::fmt::Parsed/comments parsed))
-     n-forms    (:wat::core::length (:wat::core::ast->children (:wat::fmt::Parsed/forms parsed)))
-     rules      (:wat::rete::collect-rules :fmt)
-     out        (:wat::fmt::format-source path src rules)
-     again      (:wat::fmt::format-source path out rules)
-     same?      (:wat::core::= out again)]
-    (:wat::core::do
-      (:wat::kernel::println
-        (:wat::string::interpolate
-          "FORMS={f} COMMENTS={c} IDEMPOTENT={i}"
-          :f (:wat::i64::to-string n-forms)
-          :c (:wat::i64::to-string n-comments)
-          :i (:wat::core::if same? "true" "false")))
-      (:wat::kernel::println out))))
+     rules (:wat::rete::collect-rules :fmt)
+     out   (:wat::fmt::format-source path src rules)
+     again (:wat::fmt::format-source path out rules)
+     same? (:wat::core::= out again)]
+    (:wat::core::match (:wat::core::read-string-with-comments src)
+      ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
+        (:wat::core::do
+          (:wat::kernel::println
+            (:wat::string::interpolate
+              "FORMS={f} COMMENTS={c} IDEMPOTENT={i}"
+              :f (:wat::i64::to-string (:wat::core::length (:wat::core::ast->children forms)))
+              :c (:wat::i64::to-string (:wat::core::length comments))
+              :i (:wat::core::if same? "true" "false")))
+          (:wat::kernel::println out)))
+      ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
+        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)))))

@@ -1280,6 +1280,37 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // Arc 277 — `:wat::core::ReadWithCommentsOutcome` — what
+    // `:wat::core::read-string-with-comments` returns. Mirror of `ReadOutcome`
+    // with a comments vector on `:Forms`. A core verb's surface belongs to
+    // core (registered here, in a fresh TypeEnv), not to a late-loading
+    // stdlib defrecord. Comment *elements* stay `:wat::fmt::Comment` (wat-side);
+    // only the outcome type the verb hands back is core.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::core::ReadWithCommentsOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Forms".into(),
+                fields: vec![
+                    ("forms".into(), TypeExpr::Path(":wat::WatAST".into())),
+                    (
+                        "comments".into(),
+                        TypeExpr::Parametric {
+                            head: "wat::core::PersistentVector".into(),
+                            args: vec![TypeExpr::Path(":wat::fmt::Comment".into())],
+                        },
+                    ),
+                ],
+            },
+            EnumVariant::Tagged {
+                name: "Malformed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
+            },
+        ],
+    }));
+
     // Arc 278 Stone 1 (`wat --mcp`) — (:wat::edn::ReadJsonOutcome :- [T]) — what
     // `:wat::edn::read-json` returns.
     //
