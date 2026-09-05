@@ -38,7 +38,7 @@
 ```
 floor ............ 5129/5129, 0 FAIL, 17 skipped, ~117s   (scripts/floor.sh, exit read UNPIPED)
 clippy ........... 0 under `-D warnings --all-targets`
-registry rows .... 553    ⛔ COUNT IT ANCHORED TO THE ATTRIBUTE SITE, never a substring:
+registry rows .... 556    ⛔ COUNT IT ANCHORED TO THE ATTRIBUTE SITE, never a substring:
                           grep -rhoP '^\s*#\[wat_(special_form|intrinsic)\("\K[^"]+' src/ \
                             --include=*.rs | sort -u | wc -l
                           A loose search counts PROSE PLACEHOLDERS — `<fqdn>`, `…`, and
@@ -66,6 +66,8 @@ failing corpus files: 130 of 615        total exposure: 638 sites   (was 1343 �
 ⭐ THE REGISTRY CAN NOW BE ASKED. `(:wat::intrinsic::rows)` returns one typed Row per entry.
    ./target/release/wat wat-scripts/scratch-pad/255-registry-census.wat
    553 rows · 70 SpecialForm · 37 alias · 87 Variadic · 517 no @syntax
+   ⚠ THIS CENSUS SNAPSHOT PREDATES the Vector/HashMap/HashSet constructors stone. The anchored
+     grep above derives 556 as of 2026-09-04; the sub-counts here have NOT been re-derived. RUN IT.
    totality: Partial 50 (THE WORK LIST) · Unreviewed 378 · expand Unreviewed 295 · BOTH 270
    ⚠ Only Totality and ExpandTime HAVE an Unreviewed pole. Purity/Determinism/Category do NOT —
    they are complete BY CONSTRUCTION. The grading endgame is TWO axes, not five.
