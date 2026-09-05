@@ -21,7 +21,6 @@ pub(crate) fn filter_after_join(
     scratch: &mut RoundScratch<'_>,
     d_beta: &mut BetaMemory,
     right_idx: &mut JoinRightIndex,
-    right_idx_n: &mut HashMap<i64, usize>,
     join_keys_cache: &mut JoinKeysCache,
     gather_cache: &mut GatherCache,
     after_join_frontier: Vec<i64>,
@@ -80,7 +79,6 @@ while !frontier.is_empty() {
                     d_beta,
                     &mut super::JoinIdx {
                         right_idx,
-                        right_idx_n,
                         join_keys_cache,
                         match_scratch,
                     },
@@ -198,7 +196,6 @@ while !frontier.is_empty() {
                             &mut FilterJoinIdx {
                                 right_idx,
                                 join_keys_cache,
-                                indexed_n: right_idx_n,
                             },
                             &mut FireCtx {
                             sym,

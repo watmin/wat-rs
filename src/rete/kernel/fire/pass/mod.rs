@@ -77,8 +77,9 @@ pub(crate) fn record_tokens(
 /// The join-index borrows a left-activation needs, grouped so the helper below
 /// takes one parameter for them.
 pub(crate) struct JoinIdx<'a> {
+    /// ⛔ ONE field, not two. The high-water mark used to ride beside this as
+    /// `right_idx_n: &'a mut HashMap<i64, usize>`; `JoinRightIndex` owns it now (arc 278 D2).
     pub(crate) right_idx: &'a mut JoinRightIndex,
-    pub(crate) right_idx_n: &'a mut HashMap<i64, usize>,
     pub(crate) join_keys_cache: &'a mut JoinKeysCache,
     pub(crate) match_scratch: &'a mut SlotFrame,
 }
@@ -125,7 +126,6 @@ pub(crate) fn left_activate_join(
         &mut FilterJoinIdx {
             right_idx: idx.right_idx,
             join_keys_cache: idx.join_keys_cache,
-            indexed_n: idx.right_idx_n,
         },
         &mut FireCtx {
             sym,

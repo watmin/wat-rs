@@ -35,7 +35,6 @@ pub(crate) fn join_after_filter(
     arm: &InternedNetwork,
     d_beta: &mut BetaMemory,
     right_idx: &mut JoinRightIndex,
-    right_idx_n: &mut HashMap<i64, usize>,
     join_keys_cache: &mut JoinKeysCache,
     match_scratch: &mut SlotFrame,
 ) -> Result<Vec<i64>, EvalBreak> {
@@ -90,7 +89,6 @@ pub(crate) fn join_after_filter(
                 &mut FilterJoinIdx {
                     right_idx,
                     join_keys_cache,
-                    indexed_n: right_idx_n,
                 },
                 &mut FireCtx {
                             sym,

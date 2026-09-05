@@ -405,7 +405,43 @@ and I read it as a live work list. Its §2 happened to still be live (that becam
 days dead. **The tell was available and free: run the repro.** The README now carries a banner saying
 so.
 
-### ⛔⛔ D2 — **LIVE.** DRIVEN 2026-09-05 with the probe this row itself asked for and nobody built.
+### ~~D2~~ ✅ **CURED 2026-09-05 — and it was a SHIPPED WRONG ANSWER, not an internal invariant.**
+
+> **Driven on both binaries** (stash the cure → rebuild at HEAD → run → pop → 11 files byte-identical):
+> a user query returned **18 rows where the spec says 12** — a 50% over-count at the public surface.
+> `Hit`/`Hit2` are identical either way, which is exactly why `:derived` never saw it.
+>
+> ✅ **CURE: the bypass is UNREPRESENTABLE, proven by a compiler error.** `JoinRightIndex`
+> (`session.rs:242`) owns `buckets` and `indexed_n` as **private** fields; the one door is
+> `writer(join_id).push(key, el)`, which appends and increments in a single statement. Re-introducing
+> the pre-cure bypass verbatim **does not compile** — `E0616: field 'buckets' is private`. The rider
+> had to ADD an escape hatch to run the mutation at all. Patching the two known call sites would have
+> been the convention rung, and this defect already survived `partire` because nothing structural
+> forbade a third writer.
+>
+> ✅ **The banked test is un-`#[ignore]`d and GREEN** — floor **5420 run / 21 skipped**, was 5419 / 22.
+>
+> ⛔⛔ **THE PRIOR ROW'S "the differential could not see this" WAS FALSE — and it was the
+> orchestrator's framing.** `:derived` is blind (confirmed), but **a chain-mirroring query is not**,
+> and the 2026-08-31 drive USED that observable. It returned `[1 1 1]` == `[1 1 1]` because its shape
+> produced the **vacuous partition** — the stagger the row flagged as load-bearing two paragraphs
+> above its own conclusion, and then did not apply to it. **Consequence: the rowed grid follow-up is
+> scoped wrong. The port check needs THE STAGGER, not a multiplicity column — much cheaper than
+> rowed.**
+>
+> ⚠ **A GUARD WAS CHANGED and the rider flagged it.** The acceptance test's non-vacuity check read
+> "the maintainer visited J" off `indexed_n[J].is_some()` — sound only while the maintainer was the
+> mark's SOLE writer. The cure makes every writer advance it, so that guard could no longer fail.
+> Re-based on the maintainer's own census row, excluded from `bypass_appends`. Strictly stronger.
+>
+> ⚠ **A real RED, captured not re-run:** `fire_mod_cfg_test_sites_are_exactly_the_documented_set`
+> (9→10). Fixed as the gate instructs and **strengthened** with a named site so the set cannot swap
+> shape while keeping the count.
+>
+> Facts did not move: `check-spec-native.sh` 38 families / 315 rows, rc=0. Floor **5420/5420**, lints
+> **265**, clippy rc=0. See `strike-d2-the-cure/SCORE.md`.
+
+**The finding, kept:**
 
 > **The bounded negative was WRONG.** `right_idx[J]` accumulates duplicate elements — **J6 carries 18
 > against a mark of 12; J11 carries 12 against 6** — persisting to fixpoint. Two joins, two different

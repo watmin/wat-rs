@@ -63,10 +63,14 @@ fn fire_mod_cfg_test_sites_are_exactly_the_documented_set() {
     // The header says the reliable discriminator is the ATTRIBUTE, not the `_pass` suffix and not
     // the file's location — because both of those rules were tried and both were false. This is
     // the count that sentence rests on.
+    // 9 → 10 on 2026-09-05, arc 278 D2: `keyed_join_persistent` gained a `#[cfg(test)]` census
+    // STATEMENT (`RIGHT_IDX_SITE_MAINTAINER`) inside a production function. That is a third shape
+    // for this attribute in this file — not a test-only pass, not a test-only item, but a
+    // test-only line inside shipping code — and the header names it.
     assert_eq!(
         sites.len(),
-        9,
-        "`fire/mod.rs` has {} `#[cfg(test)]` sites, expected 9 (found at lines {sites:?}). Either \
+        10,
+        "`fire/mod.rs` has {} `#[cfg(test)]` sites, expected 10 (found at lines {sites:?}). Either \
          a test-only item was added/removed — update this number and the module header together \
          — or a production item just became test-only, which is a defect.",
         sites.len()
@@ -81,6 +85,9 @@ fn fire_mod_cfg_test_sites_are_exactly_the_documented_set() {
         "pub(crate) fn hash_join_pass",
         "pub(crate) fn production_pass",
         "fn keyed_join",
+        // arc 278 D2: the test-only STATEMENT inside a production function. Named so the set
+        // cannot swap this shape for another while keeping the count at 10.
+        "RIGHT_IDX_SITE_MAINTAINER",
     ] {
         assert!(
             src.contains(want),

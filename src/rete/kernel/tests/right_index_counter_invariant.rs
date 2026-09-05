@@ -1,21 +1,28 @@
 //! ★ D2 — READ THE COUNTER. `indexed_n[J]` against the bucket population it describes.
 //!
-//! ## What has three writers and one maintainer
+//! ## What had three writers and one maintainer
 //!
 //! `right_idx[J]` (key → `Vec<Element>`, the P6 persistent right index of HashJoinNode `J`) is
-//! appended to from THREE places. Exactly one of them maintains `indexed_n[J]`, the high-water
-//! mark that same place reads back as `already`:
+//! appended to from THREE places. Until the cure, exactly ONE of them maintained `indexed_n[J]`,
+//! the high-water mark that same place reads back as `already`:
 //!
-//! | writer | appends `right_idx[J]` | maintains `indexed_n[J]` |
-//! |---|---|---|
-//! | `keyed_join_persistent` (`fire/mod.rs`) | yes | **yes** — reads `already`, appends the tail, writes back |
-//! | `hash_join_delta` first-keying catch-up (`fire/pass/hash_join.rs`) | yes | **no** |
-//! | `hash_join_delta` step-2 Δright (`fire/pass/hash_join.rs`) | yes | **no** |
+//! | writer | appends `right_idx[J]` | maintained `indexed_n[J]` | since the cure |
+//! |---|---|---|---|
+//! | `keyed_join_persistent` (`fire/mod.rs`) | yes | **yes** — reads `already`, appends the tail, writes back | yes |
+//! | `hash_join_delta` first-keying catch-up (`fire/pass/hash_join.rs`) | yes | **no** | yes |
+//! | `hash_join_delta` step-2 Δright (`fire/pass/hash_join.rs`) | yes | **no** | yes |
 //!
 //! `keyed_join_persistent`'s guard is `right_elements[already..]` — `already` is the ONLY thing
 //! stopping a second visit from re-pushing every element the bucket already holds. So a join
-//! written by the maintainer AND by a bypass is the hazard: the mark is stale-low against the
-//! population, and the next visit doubles the bucket.
+//! written by the maintainer AND by a bypass was the hazard: the mark went stale-low against the
+//! population, and the next visit doubled the bucket.
+//!
+//! ⛔ THE THIRD COLUMN IS NOT WHY THIS IS GREEN NOW. All three sites advancing the mark is the
+//! *consequence*; the cure is that `right_idx` and its mark are ONE type
+//! (`session.rs`, `JoinRightIndex`) whose only insertion verb does both, so a FOURTH writer that
+//! appends without advancing cannot be written. Bumping a counter at two call sites would have
+//! produced the same third column and left the hole open — this defect already survived the
+//! `partire` extraction on exactly that footing.
 //!
 //! ## ⛔ WHY AN END-TO-END DIFFERENTIAL CANNOT SEE THIS
 //!
@@ -34,15 +41,18 @@
 //!
 //! 1. both bypass sites executed and appended (`census::RIGHT_IDX_SITE_*` rows, elements > 0);
 //! 2. the shape compiled a HashJoin chain — a join whose PARENT is a HashJoin;
-//! 3. ★ at least one join id carries a maintainer mark AND bypass appends — the two writers
+//! 3. ★ at least one join id was indexed by the MAINTAINER and by a bypass — the two writers
 //!    actually met on one index, which is the only configuration in which the asymmetry can bite.
+//!    ⚠ Read off `RIGHT_IDX_SITE_MAINTAINER`, not off mark presence: the cure makes every writer
+//!    advance the mark, so `indexed_n[J].is_some()` no longer names the maintainer.
 //!
 //! Without (3) a green here would be the green-over-nothing this arc has found five times.
 
 use super::*;
 
 use crate::rete::kernel::census::{
-    with_fire_census, with_right_idx_appends, RIGHT_IDX_SITE_CATCHUP, RIGHT_IDX_SITE_STEP2,
+    with_fire_census, with_right_idx_appends, RIGHT_IDX_SITE_CATCHUP, RIGHT_IDX_SITE_MAINTAINER,
+    RIGHT_IDX_SITE_STEP2,
 };
 
 /// ★ THE SHAPE: `filter → HashJoin(a) → HashJoin(b)`, driven in TWO WAVES.
@@ -234,11 +244,16 @@ fn fire_d2(world_src: &str, n: i64, what: &str) -> D2Reading {
 }
 
 impl D2Reading {
-    /// Elements a bypass site appended, per join.
+    /// Elements a BYPASS site appended, per join.
+    ///
+    /// ⛔ The maintainer's own row is excluded by name. It became a census site with the D2 cure
+    /// (`RIGHT_IDX_SITE_MAINTAINER`), and summing every row would count the maintainer as its own
+    /// bypass — which would make the "the two writers met" guard true on any join the maintainer
+    /// alone wrote, i.e. exactly the vacuous pass it exists to refuse.
     fn bypass_appends(&self, join: i64) -> usize {
         self.appends
             .iter()
-            .filter(|(j, _, _)| *j == join)
+            .filter(|(j, site, _)| *j == join && *site != RIGHT_IDX_SITE_MAINTAINER)
             .map(|(_, _, n)| *n)
             .sum()
     }
@@ -257,17 +272,23 @@ impl D2Reading {
         self.appends.iter().any(|(_, s, _)| *s == site)
     }
 
-    /// Join ids carrying a maintainer mark in the LAST round that has one.
+    /// Join ids `keyed_join_persistent` actually indexed elements into.
+    ///
+    /// ⛔ READ OFF THE MAINTAINER'S OWN CENSUS ROW, NOT OFF MARK PRESENCE. Before the D2 cure the
+    /// maintainer was the mark's only writer, so `indexed_n[J].is_some()` meant "the maintainer
+    /// visited J" and this walked the per-round rows. The cure makes EVERY writer advance the
+    /// mark — the signal that inference rested on is gone, and mark presence now says only "some
+    /// writer touched J". Keeping the old body would have left the ★ non-vacuity guard below
+    /// passing on a workload where the maintainer never ran at all: a guard that cannot fail.
     fn maintained_joins(&self) -> Vec<i64> {
-        let mut out: Vec<i64> = Vec::new();
-        for (_, rows) in &self.rounds {
-            for (j, mark, _) in rows {
-                if mark.is_some() && !out.contains(j) {
-                    out.push(*j);
-                }
-            }
-        }
+        let mut out: Vec<i64> = self
+            .appends
+            .iter()
+            .filter(|(_, site, n)| *site == RIGHT_IDX_SITE_MAINTAINER && *n > 0)
+            .map(|(j, _, _)| *j)
+            .collect();
         out.sort_unstable();
+        out.dedup();
         out
     }
 
@@ -362,8 +383,8 @@ fn assert_applicable(r: &D2Reading) {
     let maintained = r.maintained_joins();
     assert!(
         !maintained.is_empty(),
-        "INAPPLICABLE SHAPE: no join carries a maintainer mark — `keyed_join_persistent` never \
-         ran, so `indexed_n` describes nothing and the invariant is empty\n{}",
+        "INAPPLICABLE SHAPE: no join was indexed by `keyed_join_persistent` — the maintainer \
+         never appended, so `indexed_n` describes only bypass writes and the invariant is empty\n{}",
         r.render()
     );
     let overlap: Vec<i64> = maintained
@@ -387,25 +408,28 @@ fn assert_applicable(r: &D2Reading) {
 /// ★ THE STRIKE. Read `indexed_n[J]` against `Σ|right_idx[J]|` after every round, on a shape where
 /// the maintainer and the bypass sites provably write the SAME index.
 ///
-/// ⛔ THIS TEST IS RED AT `72b894ccb`, AND THAT IS THE FINDING. D2 stood as a bounded negative —
-/// "the code asymmetry is REAL; no constructed input reaches it. LATENT, not live." It is live.
-/// Do not silence this by weakening the assertion; the cure is a separate strike on the engine.
+/// ⛔ THIS TEST WAS RED AT `72b894ccb` AND `f4a271cb3`, AND IT IS THE CURE'S ACCEPTANCE TEST.
+/// D2 stood as a bounded negative — "the code asymmetry is REAL; no constructed input reaches it.
+/// LATENT, not live." It was live. The reading it produced, verbatim:
 ///
-/// ⛔ BANKED `#[ignore]`, NOT WEAKENED — the repo's RED-at-HEAD idiom
-/// (`probe_undefined_builtin_resolves.rs:17`, `probe_arc255_reflection_parity.rs:70`). The
-/// assertion is INTACT and the reading below is what it produces today. Un-ignore this the
-/// moment the cure lands: it is the cure's acceptance test, and it is self-clearing — a green
-/// run under `--ignored` means D2 is dead.
+///     round 0: [J4 n=6  els=6 ] [J6 n=6  els=6 ] [J9 n=6  els=6 ]
+///     round 1: [J4 n=12 els=12] [J6 n=12 els=18] [J9 n=12 els=12] [J11 n=6 els=12]
+///     round 2: [J4 n=12 els=12] [J6 n=12 els=18] [J9 n=12 els=12] [J11 n=6 els=12]
 ///
-///     cargo nextest run --release -E 'test(right_index_counter_tracks_its_bucket_population)' --run-ignored all
+/// J6 `indexed_n=12` vs 18 elements (step-2 Δright appended 6 without advancing the mark, then
+/// the maintainer re-pushed `[6..12]`); J11 `indexed_n=6` vs 12 (first-keying catch-up indexed
+/// all 6, then the maintainer re-pushed all 6 from mark 0). J4 and J9 are the maintainer-only
+/// controls and held.
 ///
-/// The reading at `72b894ccb`: J6 `indexed_n=12` vs 18 elements (step-2 Δright appended 6
-/// without advancing the mark, then the maintainer re-pushed `[6..12]`); J11 `indexed_n=6` vs
-/// 12 (first-keying catch-up indexed all 6, then the maintainer re-pushed all 6 from mark 0).
-/// J4 and J9 are the maintainer-only controls and hold.
+/// ⛔ IT WAS BANKED `#[ignore]` AND THAT WAS AN ERROR — the RED-at-HEAD idiom
+/// (`probe_undefined_builtin_resolves.rs:17`, `probe_arc255_reflection_parity.rs:70`) banks
+/// features NOT YET BUILT. This was a defect in SHIPPED behaviour, and an `#[ignore]` over a live
+/// defect leaves the floor green across the hole. The cure is `JoinRightIndex` (`session.rs`):
+/// one type owning the index and its mark, one insertion verb, no path that appends without
+/// advancing. The `#[ignore]` is gone — this runs on the floor, and a red here is D2 returning.
+///
+/// Do not silence this by weakening the assertion.
 #[test]
-#[ignore = "RED-at-HEAD: D2 is LIVE — right_idx bypass appends do not advance indexed_n (arc 278). \
-Un-ignore when the newtype cure lands; this is its acceptance test."]
 fn right_index_counter_tracks_its_bucket_population() {
     let r = fire_d2(D2_WORLD, 6, "d2-two-hashjoin");
     assert_applicable(&r);
