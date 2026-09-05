@@ -47,7 +47,11 @@
          (:wat::rete::where (:wat::rete::string::= ?k "list"))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
-         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
+         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::grep::Named (?h <- :id) (?hn <- :name))
+         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
 
 (:wat::rete::defrule :fmt::siblings-explode-vector
@@ -56,7 +60,11 @@
          (:wat::rete::where (:wat::rete::string::= ?k "vector"))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
-         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
+         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::grep::Named (?h <- :id) (?hn <- :name))
+         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
 
 (:wat::rete::defrule :fmt::siblings-explode-map
@@ -65,7 +73,11 @@
          (:wat::rete::where (:wat::rete::string::= ?k "map"))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
-         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
+         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::grep::Named (?h <- :id) (?hn <- :name))
+         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
 
 (:wat::rete::defrule :fmt::siblings-explode-set
@@ -74,5 +86,9 @@
          (:wat::rete::where (:wat::rete::string::= ?k "set"))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
-         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
+         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::grep::Named (?h <- :id) (?hn <- :name))
+         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
