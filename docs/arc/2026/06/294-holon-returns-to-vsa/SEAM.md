@@ -8,6 +8,23 @@
 
 > `251/SEAM.md` · `278/SEAM.md` PARKED. ⛔ **PARKED IS NOT DEAD.**
 
+> ## ⚠⚠ A STONE IS IN FLIGHT WITH GROK — CHECK BEFORE YOU TOUCH ANYTHING
+>
+> **Stone:** `[[DESIGN-STONE-span-equality-becomes-honest]]` (277/). Briefed at HEAD `7f1c91fd3`;
+> the tree was CLEAN and 0-unpushed when this was written.
+>
+> ```bash
+> git status --short                      # its edits: crates/wat-reader/src/{span,ast}.rs
+> cat /home/john/work/holon/.pulsare/to-claude   # a SCORE may be waiting
+> pgrep -af 'cargo|nextest'
+> ```
+>
+> ⛔ **Do NOT re-run cargo to check on it** — a second build against the same `target/` lock is
+> FM 18, and any number taken while its job is live is an instrument artifact. If work is present
+> and no SCORE arrived, read `.pulsare/to-claude`; the channel is files, not chat. **The census is
+> already done and lives in the DESIGN: the blast radius is TWO named tests. STOP-1 says a third
+> failure means the census was wrong.**
+
 ## GROUND FIRST
 
 > **THE FRESHNESS PROBE — DERIVE IT, NEVER TYPE IT.**
@@ -20,7 +37,7 @@
 > **Re-run the commands. Do not read the numbers.**
 
 ```
-floor ........ 5169/5169, 0 FAIL, 17 skipped   scripts/floor.sh — AND IT RUNS DOCTESTS NOW,
+floor ........ 5170/5170, 0 FAIL, 17 skipped   scripts/floor.sh — AND IT RUNS DOCTESTS NOW,
                                                first and unconditionally (armed 2026-09-04;
                                                it had NEVER run before that day)
 clippy ....... 0 under `-D warnings --all-targets`
@@ -44,7 +61,19 @@ we do."* So the acceptance is **not** "the rules are right" — it is **A NEW ST
 AND NOTHING ELSE**, proven by adding one the engine did not know about.
 
 ```
-⛔ FIRST STONE — THE READER, and it is not in the formatter.
+✅ FIRST STONE LANDED — THE READER CAN SEE COMMENTS (9a16b68e6). lex_with_comments() beside an
+   UNCHANGED lex(); no Token variant; parser untouched. Four hazards measured, incl. `\;` (a char
+   literal, NOT a comment) and CRLF (ZERO files in the tree contain `\r`).
+   ⛔ ATTACHMENT IS DELIBERATELY NOT DONE — which node owns a comment is POLICY, and spans make it
+     computable after the parse. It belongs beside the style rules, not in the parser.
+
+⚠ IN FLIGHT — SPAN EQUALITY BECOMES HONEST. `Span::eq` returns `true` UNCONDITIONALLY today, so
+   every span assertion in the tree is vacuous — and wat-fmt is entirely about positions. Census
+   run and reverted: blast radius TWO tests, both bugs the vacuity hid (each called
+   `rust_caller_span!()` TWICE at different lines and compared them). `Pos` has no `PartialEq` at
+   all. See `[[NOTE-span-eq-is-vacuous-and-its-safety-claim-is-false]]`.
+
+⛔ THE ORIGINAL FIRST STONE, for the record — THE READER, and it was not in the formatter.
    lex_tokens("; a comment\n()") == [LParen, RParen]     (the lexer's OWN test)
    Comments die at lex time. No Comment token, no AST node. A canonical reprinter emits from
    the AST, so every comment in the corpus would vanish. NOTHING about "handle comments
@@ -79,41 +108,43 @@ dispatch on HEAD SYMBOL — exclusivity by shape, not by engine feature.
 ## ✅ WHAT SHIPPED — 2026-09-04/05
 
 ```
-⭐ THE DOCTEST GATE, armed at zero — it had NEVER run. First run on a green tree: 3 RED,
-   one a PUBLIC API example constructing RuntimeError by struct literal, both fields private,
-   stale through TWO API changes.
-⭐ tests/lint/holon_is_vsa_only.rs, armed at zero, sabotage-proven TWICE, and it STATES its
-   own three blind spots in its module doc.
-   the CEK stepper stops speaking holon · the special-form sketch is a WatAST::List
-#wat.doc/Row is REAL — char.rs declares itself in an ```edn fence; the round-trip gate holds
-   over char · hologram · map · rest-arg · a constructed @deprecated
-the docstring is a real heredoc — a string-local margin, and an INDENTED CODE SAMPLE survives
-edn::write stops emitting keywords edn::read refuses — and the WALL was the fix, not the fold
-15 rete rows into the registry
+⭐ THE DOCTEST GATE, armed at zero — it had NEVER run. First run on a green tree: 3 RED, one a
+   PUBLIC API example constructing RuntimeError by struct literal, both fields private, stale
+   through TWO API changes.
+⭐ tests/lint/holon_is_vsa_only.rs, armed at zero, sabotage-proven TWICE, STATING its own three
+   blind spots. The CEK stepper stops speaking holon. The special-form sketch is a WatAST::List.
+#wat.doc/Row is REAL — char.rs declares itself in an ```edn fence, with a HEREDOC docstring whose
+   string-local margin preserves an INDENTED CODE SAMPLE. Round-trip gate over 5 rows.
+edn::write stops emitting keywords edn::read refuses — and THE WALL WAS THE FIX, NOT THE FOLD.
+15 rete rows into the registry.  the reader can SEE comments (277's first stone).
 ```
 
 ## ⛔ WHAT COST THE MOST — and NOT ONE was caught by re-reading my own claim
 
-**1. I REPEATED STONE 2a's EXACT ERROR** against a ★★★ warning in the first 36 lines of the file I
-had just cited. My census asked "is the core_name registered?" and never "is this row ALIASABLE?"
-— 35 clear was 15. `[[feedback_a_census_predicate_can_name_the_wrong_act]]`
+**1. MY DESIGN WAS BACKWARDS ON THE EDN KEYWORD BUG.** I wrote the fold as the fix and the wall as
+hardening. **The fold ACTIVATED a silent corruption** (`HashMap/length` decoding to
+`HashMap::length`); the wall ALONE was the cure, because it routed the value back through
+verbatim-carriage machinery that was already correct and that the fold bypassed. **Arc 213's own
+STOP trigger caught it in one run** — someone had written *"if you ever make the encode valid,
+prove the decode is correct too."* `[[feedback_the_wall_was_the_fix_not_the_fold]]`
 
-**2. I ASSERTED TWO ABSENCES I NEVER PROBED** — that `@alias`+axis "does not compile" did not exist
+**2. I REPEATED STONE 2a's EXACT ERROR** against a ★★★ warning in the first 36 lines of a file I
+had just cited. My census asked *"is the core_name registered?"* and never *"is this row
+ALIASABLE?"* — 35 clear was 15. `[[feedback_a_census_predicate_can_name_the_wrong_act]]`
+
+**3. I ASSERTED TWO ABSENCES I NEVER PROBED** — that `@alias`+axis "does not compile" did not exist
 (it does: `DocError::AliasDeclaresAxis`), and that rete could not carry ordered layout (order is
-data you assert; the builder said so in one line).
+data you assert; the builder answered it in one line). Both were one command away.
 
-**3. MY DESIGN WAS BACKWARDS ON THE EDN KEYWORD BUG.** I wrote the fold as the fix and the wall as
-hardening. The fold ACTIVATED a silent corruption; the wall alone was the cure. **A prior arc's
-STOP trigger (arc 213) caught it in one run** — someone had written "if you ever make the encode
-valid, prove the decode is correct too."
+**4. FIVE PAGER-SHAPED SLIPS IN ONE DAY**, one PUBLISHED: a `tail -3` reported as "three failures"
+when it was **seven**. Also a `| head` read as a gate's exit, and a `sed` range that truncated an
+ARM *in the document reporting a truncation rule*.
+`[[feedback_a_truncating_pager_makes_absence_unfalsifiable]]`
 
-**4. FIVE PAGER-SHAPED SLIPS IN ONE DAY.** A `tail -3` published as "three failures" when it was
-seven. A `| head` reading `head`'s exit as a gate's. A `sed` range that truncated an ARM in the
-very document reporting a truncation rule. `[[feedback_a_truncating_pager_makes_absence_unfalsifiable]]`
-
-**5. NINE COMMENT-CAUSED ERRORS.** Newest: `fqdn_of`'s "a method name does not start uppercase, a
-type does" — **not a rule this language has.** `:wat::core::i64` is a type. Right answers, false
-reason, and no test can catch that.
+**5. TEN COMMENT-CAUSED ERRORS.** Newest two: `fqdn_of`'s *"a method name does not start uppercase,
+a type does"* — **not a rule this language has** (`:wat::core::i64` is a type); and
+*"`Span` doesn't derive `PartialEq`"* — it does, **vacuously**, in a workaround for that very
+hazard. Right answers, false reasons, and no test can catch either.
 
 ## ★ WHAT ACTUALLY WORKS
 
