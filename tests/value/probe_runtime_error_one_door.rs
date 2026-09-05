@@ -33,8 +33,8 @@ fn runtime_error_has_exactly_one_construction_door() {
 
 #[test]
 fn runtime_error_span_is_readable_through_its_own_door() {
-    // `Span` doesn't derive `PartialEq`; compare via `Debug` instead of
-    // asserting on the type's shape.
+    // Span does impl PartialEq (honestly: file/line/col/end). This Debug
+    // comparison is a pre-existing workaround; left as-is.
     let span = wat::rust_caller_span!();
     let e = RuntimeError::new(span.clone(), RuntimeErrorKind::UserMainMissing);
     assert_eq!(format!("{:?}", e.span()), format!("{:?}", span));

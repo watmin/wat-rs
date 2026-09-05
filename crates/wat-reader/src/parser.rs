@@ -637,9 +637,9 @@ mod tests {
 
     #[test]
     fn atom_literals() {
-        // Tests rely on WatAST's structural PartialEq, which uses
-        // Span::eq (always-true). Constructing expected with
-        // crate::rust_caller_span!() still matches the parser's real spans.
+        // Tests rely on WatAST's structural PartialEq, which skips spans.
+        // A parsed node and a synthetic `WatAST::int(42)` compare equal
+        // regardless of where they came from.
         assert_eq!(crate::parse_one!("42").unwrap(), WatAST::int(42));
         assert_eq!(crate::parse_one!("-1").unwrap(), WatAST::int(-1));
         assert_eq!(crate::parse_one!("2.5").unwrap(), WatAST::float(2.5));

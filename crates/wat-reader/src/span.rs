@@ -11,22 +11,19 @@
 //!
 //! # Equality and hashing
 //!
-//! `Span` equality is structural-transparent: two `Span` values ALWAYS
-//! compare equal, and hashing is a no-op. This is intentional.
+//! `Span::eq` compares `file` / `line` / `col` / `end`. A span assertion
+//! means what it says. (Arc 277 — the previous always-true impl made
+//! every `assert_eq!(span, …)` vacuous, including two probes that
+//! constructed a different `rust_caller_span!()` on each side.)
 //!
-//! Every `WatAST` variant carries a `Span`. The hash layer
-//! ([`crate::hash::canonical_edn_wat`]) computes AST identity from
-//! structural content — two ASTs with the same shape but different
-//! source locations MUST hash to the same bytes. Same for derived
-//! `PartialEq`: a parsed-at-runtime AST and a synthetic AST with the
-//! same structure should compare equal regardless of where they came
-//! from.
+//! Position-independence of **AST identity** is a `WatAST` requirement,
+//! not a `Span` one. [`crate::ast::WatAST`]'s `PartialEq` compares
+//! structure and skips the span; a parsed node and a synthetic one with
+//! the same shape compare equal regardless of where they came from.
 //!
-//! The consequence: `Span::eq` returns `true` unconditionally;
-//! `Span::hash` writes nothing. Downstream code that wants to reason
-//! about source locations reads the Span's fields directly
-//! (`file`, `line`, `col`); it never compares Span values for
-//! equality.
+//! `Span::hash` is a no-op. Rust's contract is `a == b ⟹ hash(a) == hash(b)`;
+//! the converse is not required, so unequal spans may collide. The no-op
+//! keeps `WatAST` hashes position-independent for `canonical_edn_wat`.
 //!
 //! # File labels
 //!
@@ -51,7 +48,7 @@ use std::sync::Arc;
 /// This emits `#wat.core/Pos {:line N :col N}` on the write side AND
 /// submits an `EdnSchema` entry so `edn::read "#wat.core/Pos {…}"` can
 /// reconstruct it without any hand-written registration.
-#[derive(Clone, Debug, wat_edn::Edn)]
+#[derive(Clone, Debug, PartialEq, Eq, wat_edn::Edn)]
 #[to_edn(namespace = wat_edn::CORE)]
 pub struct Pos {
     /// 1-indexed line number (one past the last char's line for end positions).
@@ -132,17 +129,21 @@ macro_rules! rust_caller_span {
     };
 }
 
-// Equality: always true. Span contributes nothing to structural
-// equality; see module docs.
+// Honest field equality. Position-blind AST identity lives on `WatAST`,
+// not here — see module docs.
 impl PartialEq for Span {
-    fn eq(&self, _: &Self) -> bool {
-        true
+    fn eq(&self, other: &Self) -> bool {
+        self.file == other.file
+            && self.line == other.line
+            && self.col == other.col
+            && self.end == other.end
     }
 }
 impl Eq for Span {}
 
 // Hash: no-op. Span contributes nothing to canonical hashes; see
-// module docs.
+// module docs. Unequal spans may collide; that satisfies the Rust
+// contract (`a == b ⟹ hash(a) == hash(b)`).
 impl std::hash::Hash for Span {
     fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
 }
@@ -155,4 +156,23 @@ impl std::hash::Hash for Span {
 /// Arc 298.2: every span is now a real location; no sentinel elision.
 pub fn span_prefix(span: &Span) -> String {
     format!("{}: ", span)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn span_eq_compares_file_line_col_end() {
+        let file = Arc::new("a.wat".to_string());
+        let a = Span::new(file.clone(), 1, 2);
+        let same_content = Span::new(Arc::new("a.wat".to_string()), 1, 2);
+        let other_line = Span::new(file.clone(), 2, 2);
+        let other_col = Span::new(file.clone(), 1, 3);
+        let with_end = Span::with_end(file, 1, 2, 1, 5);
+        assert_eq!(a, same_content);
+        assert_ne!(a, other_line);
+        assert_ne!(a, other_col);
+        assert_ne!(a, with_end);
+    }
 }

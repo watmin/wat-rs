@@ -53,10 +53,11 @@ pub struct MapDestructure {
 /// variant for any parenthesized form.
 ///
 /// Every variant carries a trailing [`Span`] with the source location
-/// the node was parsed from. Span comparison is structural-transparent
-/// (see [`crate::span`] module docs) — two nodes with the same
-/// structure but different spans compare equal and hash identically.
-#[derive(Debug, Clone, PartialEq)]
+/// the node was parsed from. `PartialEq` compares structure and skips
+/// the span — a parsed node and a synthetic one with the same shape
+/// compare equal regardless of where they came from. `Span` itself
+/// compares `file`/`line`/`col`/`end` honestly (see [`crate::span`]).
+#[derive(Debug, Clone)]
 pub enum WatAST {
     /// Integer literal, as in `42`, `-1`, `0`. Fits in `i64`.
     IntLit(i64, Span),
@@ -168,6 +169,47 @@ pub enum WatAST {
     /// `Value::wat__std__HashSet` (same as the explicit
     /// `(:wat::core::HashSet :- [T] x y z)` constructor form).
     Set(Vec<WatAST>, Span),
+}
+
+/// Structural equality, spans skipped.
+///
+/// This is the requirement the old always-true `Span::eq` was serving:
+/// a parsed-at-runtime AST and a synthetic AST with the same structure
+/// compare equal regardless of source location. That requirement lives
+/// on `WatAST`, not on `Span`.
+///
+/// The match scrutinizes `self` ALONE and tests `other` inside each arm,
+/// so it is **exhaustive over the variant set** — exactly like the `Hash`
+/// impl below. A `match (self, other)` needs a `_ => false` catch-all, and
+/// that catch-all silently absorbs a variant added later: the new node is
+/// UNEQUAL TO ITSELF, a lying `PartialEq` of exactly the class this stone
+/// closed on `Span::eq`.
+///
+/// MEASURED (2026-09-05), because the obvious framing is wrong: a 15th
+/// variant is ALREADY four `E0004`s in this file under either shape — the
+/// other exhaustive matches catch it. The difference is what happens next.
+/// Answer those four and the wildcard version compiles, shipping the silent
+/// inequality; this version is a FIFTH error the author cannot answer
+/// without deciding what equality means for the new variant.
+impl PartialEq for WatAST {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            WatAST::IntLit(a, _) => matches!(other, WatAST::IntLit(b, _) if a == b),
+            WatAST::FloatLit(a, _) => matches!(other, WatAST::FloatLit(b, _) if a == b),
+            WatAST::RationalLit(a, _) => matches!(other, WatAST::RationalLit(b, _) if a == b),
+            WatAST::BigIntLit(a, _) => matches!(other, WatAST::BigIntLit(b, _) if a == b),
+            WatAST::CharLit(a, _) => matches!(other, WatAST::CharLit(b, _) if a == b),
+            WatAST::BoolLit(a, _) => matches!(other, WatAST::BoolLit(b, _) if a == b),
+            WatAST::StringLit(a, _) => matches!(other, WatAST::StringLit(b, _) if a == b),
+            WatAST::NilLit(_) => matches!(other, WatAST::NilLit(_)),
+            WatAST::Keyword(a, _) => matches!(other, WatAST::Keyword(b, _) if a == b),
+            WatAST::Symbol(a, _) => matches!(other, WatAST::Symbol(b, _) if a == b),
+            WatAST::List(a, _) => matches!(other, WatAST::List(b, _) if a == b),
+            WatAST::Vector(a, _) => matches!(other, WatAST::Vector(b, _) if a == b),
+            WatAST::Map(a, _) => matches!(other, WatAST::Map(b, _) if a == b),
+            WatAST::Set(a, _) => matches!(other, WatAST::Set(b, _) if a == b),
+        }
+    }
 }
 
 impl WatAST {
@@ -492,11 +534,10 @@ impl WatAST {
 /// Arc 216 Stone 216.5a — `impl Hash for WatAST`.
 ///
 /// Decision D1: direct structural impl mirroring `HolonAST`'s pattern in
-/// holon-rs (`src/kernel/holon_ast.rs:196-232`). WatAST derives `PartialEq`
-/// which is span-agnostic (Span's PartialEq is a no-op that always returns
-/// true — see `span.rs`). The Hash impl mirrors that: `Span` contributes
-/// nothing (its Hash is a no-op, `span.rs:128`). Discriminant tagging via
-/// `std::mem::discriminant` prevents cross-variant collisions.
+/// holon-rs (`src/kernel/holon_ast.rs:196-232`). `WatAST`'s `PartialEq`
+/// is span-agnostic (manual impl skips the span). The Hash impl mirrors
+/// that: `Span` contributes nothing (its Hash is a no-op). Discriminant
+/// tagging via `std::mem::discriminant` prevents cross-variant collisions.
 ///
 /// `FloatLit(f64, Span)` uses `f64::to_bits()` (NaN-safe; mirrors
 /// `HolonAST::F64` arm). All other variants compose cleanly via std

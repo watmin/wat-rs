@@ -83,24 +83,26 @@ fn checkerrorkind_variants_have_no_span_field() {
 /// Post-stone: `err.span` — single field access; the N-arm match collapses.
 #[test]
 fn checkerror_span_access_is_single_path() {
+    let arity_span = wat::rust_caller_span!();
+    let unknown_span = wat::rust_caller_span!();
     let variants_under_test: Vec<(CheckError, Span)> = vec![
         (
             CheckError {
-                span: wat::rust_caller_span!(),
+                span: arity_span.clone(),
                 kind: CheckErrorKind::ArityMismatch {
                     callee: "a".into(),
                     expected: 1,
                     got: 0,
                 },
             },
-            wat::rust_caller_span!(),
+            arity_span,
         ),
         (
             CheckError {
-                span: wat::rust_caller_span!(),
+                span: unknown_span.clone(),
                 kind: CheckErrorKind::UnknownCallee { callee: "b".into() },
             },
-            wat::rust_caller_span!(),
+            unknown_span,
         ),
     ];
 

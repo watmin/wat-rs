@@ -1735,8 +1735,8 @@ mod tests {
         );
     }
 
-    /// `Span::eq` is unconditionally true, so token-stream identity has to
-    /// read fields. `end` is one past the last character.
+    /// Token-stream identity including spans. `end` is one past the last
+    /// character. Helper names which field drifted.
     fn assert_span(span: &Span, line: i64, col: i64, end_line: i64, end_col: i64) {
         assert_eq!(span.line, line);
         assert_eq!(span.col, col);

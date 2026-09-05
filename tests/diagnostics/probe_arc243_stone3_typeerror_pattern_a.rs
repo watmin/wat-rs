@@ -77,25 +77,27 @@ fn typeerrorkind_variants_have_no_span_field() {
 /// Post-stone: `err.span` — single field access; the 16-arm match collapses.
 #[test]
 fn typeerror_span_access_is_single_path() {
+    let cyclic_span = wat::rust_caller_span!();
+    let reserved_span = wat::rust_caller_span!();
     let variants_under_test: Vec<(TypeError, Span)> = vec![
         (
             TypeError::new(
-                wat::rust_caller_span!(),
+                cyclic_span.clone(),
                 TypeErrorKind::CyclicSubtype {
                     child: "a".into(),
                     parent: "b".into(),
                 },
             ),
-            wat::rust_caller_span!(),
+            cyclic_span,
         ),
         (
             TypeError::new(
-                wat::rust_caller_span!(),
+                reserved_span.clone(),
                 TypeErrorKind::ReservedPrefix {
                     name: "wat::x".into(),
                 },
             ),
-            wat::rust_caller_span!(),
+            reserved_span,
         ),
     ];
 
