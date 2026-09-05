@@ -19,25 +19,16 @@
    end-line <- :wat::core::i64
    end-col  <- :wat::core::i64])
 
-;; A specific layout rule asserts Claim on the form it owns. ClaimedUnder is the
-;; transitive closure: the claimed node AND every descendant. R11 (the default)
-;; fires only where no ancestor is claimed — a rule owns a form's whole extent.
+;; A rule claims exactly the node it dispatched on and positions that node's
+;; immediate children. The fallback (R11) fires where the parent is unclaimed.
+;; The wall: applying a Break for X requires X's parent to be owned — Claim
+;; (a specific rule) or Fallback (R11). R11 cannot assert Claim: that is
+;; `not Claim -> Claim` and it races the per-child Breaks.
 (:wat::core::defrecord :wat::fmt::Claim
   [form <- :wat::core::i64])
 
-(:wat::core::defrecord :wat::fmt::ClaimedUnder
+(:wat::core::defrecord :wat::fmt::Fallback
   [node <- :wat::core::i64])
-
-;; Derived. Always collected (namespace :fmt, stdlib). Recursive over Node.parent,
-;; not over an aggregate of its own output — stratifiable.
-(:wat::rete::defrule :fmt::claimed-under-root
-  :when [(:wat::fmt::Claim (?f <- :form))]
-  :then [(:wat::fmt::ClaimedUnder :node ?f)])
-
-(:wat::rete::defrule :fmt::claimed-under-child
-  :when [(:wat::fmt::ClaimedUnder (?p <- :node))
-         (:wat::grep::Node (?n <- :id) (?p <- :parent))]
-  :then [(:wat::fmt::ClaimedUnder :node ?n)])
 
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
@@ -48,6 +39,14 @@
 (:wat::rete::defquery :wat::fmt::q-break
   :params []
   :when [(?b <- :wat::fmt::Break)])
+
+(:wat::rete::defquery :wat::fmt::q-claim
+  :params []
+  :when [(?c <- :wat::fmt::Claim)])
+
+(:wat::rete::defquery :wat::fmt::q-fallback
+  :params []
+  :when [(?f <- :wat::fmt::Fallback)])
 
 (:wat::core::defn :wat::fmt::spaces [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::if (:wat::i64::<= n 0)
@@ -154,13 +153,43 @@
       :wat::core::None
       :wat::core::None)))
 
+(:wat::core::defn :wat::fmt::claimed?
+  [claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   parent-id <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::i64::= parent-id 0)
+    true
+    (:wat::core::match (:wat::core::get claims parent-id)
+      ((:wat::core::Some _) true)
+      (:wat::core::None false))))
+
+(:wat::core::defn :wat::fmt::apply-break
+  [acc       <- :wat::fmt::Acc
+   bk        <- :wat::core::String
+   indent    <- :wat::core::i64
+   open-col  <- :wat::core::i64
+   id        <- :wat::core::i64
+   parent-id <- :wat::core::i64
+   claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
+  -> :wat::fmt::Acc
+  (:wat::core::if (:wat::fmt::claimed? claims parent-id)
+    (:wat::fmt::pad-break acc bk indent open-col)
+    (:wat::kernel::assertion-failed!
+      (:wat::string::interpolate
+        "fmt: rule positioned a grandchild — node {n}'s parent is unclaimed"
+        :n (:wat::i64::to-string id))
+      :wat::core::None
+      :wat::core::None)))
+
 (:wat::core::defn :wat::fmt::emit-node
-  [acc      <- :wat::fmt::Acc
-   node     <- :wat::WatAST
-   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
-   indent   <- :wat::core::i64
-   open-col <- :wat::core::i64
-   first?   <- :wat::core::bool]
+  [acc       <- :wat::fmt::Acc
+   node      <- :wat::WatAST
+   breaks    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   indent    <- :wat::core::i64
+   open-col  <- :wat::core::i64
+   first?    <- :wat::core::bool
+   parent-id <- :wat::core::i64]
   -> :wat::fmt::Acc
   (:wat::core::let
     [id        (:wat::fmt::Acc/next-id acc)
@@ -176,7 +205,7 @@
                  :col      (:wat::fmt::Acc/col acc))
      acc-pad   (:wat::core::match br
                  ((:wat::core::Some bk)
-                   (:wat::fmt::pad-break acc-b bk indent open-col))
+                   (:wat::fmt::apply-break acc-b bk indent open-col id parent-id claims))
                  (:wat::core::None
                    (:wat::core::if first?
                      acc-b
@@ -200,7 +229,7 @@
                                                         (:wat::core::or
                                                           (:wat::string::ends-with? o "{")
                                                           (:wat::string::ends-with? o "\n"))))]
-                         (:wat::fmt::emit-node ca child breaks this-indent this-open first-kid?)))
+                         (:wat::fmt::emit-node ca child breaks claims this-indent this-open first-kid? id)))
                      acc2
                      kids)
          acc4 (:wat::fmt::write acc3 (:wat::fmt::close-of node-kind))]
@@ -218,7 +247,8 @@
 (:wat::core::defn :wat::fmt::emit
   [forms    <- :wat::WatAST
    comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
-   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])]
+   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   claims   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
   -> :wat::core::String
   (:wat::core::let
     [top  (:wat::core::ast->children forms)
@@ -226,7 +256,7 @@
      acc1 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
               (:wat::core::let [acc-nl (:wat::fmt::write-nl acc)]
-                (:wat::fmt::emit-node acc-nl form breaks 0 0 true)))
+                (:wat::fmt::emit-node acc-nl form breaks claims 0 0 true 0)))
             acc0
             top)
      acc2 (:wat::core::foldl
@@ -252,6 +282,34 @@
     (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
     (:wat::rete::query session (:wat::fmt::q-break))))
 
+(:wat::core::defn :wat::fmt::claims-set
+  [session <- :wat::rete::Session]
+  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  (:wat::core::foldl
+    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+                     binding <- :wat::core::PersistentMap]
+      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      (:wat::core::let [c (:wat::core::Option/expect
+                            (:wat::map::get binding "?c")
+                            "fmt::claims-set: no ?c")]
+        (:wat::hashmap::assoc m (:wat::fmt::Claim/form c) true)))
+    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::rete::query session (:wat::fmt::q-claim))))
+
+(:wat::core::defn :wat::fmt::owned-set
+  [session <- :wat::rete::Session]
+  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  (:wat::core::foldl
+    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+                     binding <- :wat::core::PersistentMap]
+      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      (:wat::core::let [f (:wat::core::Option/expect
+                            (:wat::map::get binding "?f")
+                            "fmt::owned-set: no ?f")]
+        (:wat::hashmap::assoc m (:wat::fmt::Fallback/node f) true)))
+    (:wat::fmt::claims-set session)
+    (:wat::rete::query session (:wat::fmt::q-fallback))))
+
 (:wat::core::defn :wat::fmt::format-source
   [path  <- :wat::core::String
    src   <- :wat::core::String
@@ -260,13 +318,18 @@
   (:wat::core::match (:wat::core::read-string-with-comments src)
     ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
       (:wat::core::let
-        [facts    (:wat::grep::facts-of path src)
-         records  (:wat::grep::facts-as-records facts)
-         queries  (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::fmt::q-break))
-         breaks   (:wat::rete::with-overlay rules queries
-                    (:wat::core::fn [overlay <- :wat::rete::Overlay]
-                      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
-                      (:wat::fmt::breaks-map (overlay records))))]
-        (:wat::fmt::emit forms comments breaks)))
+        [facts   (:wat::grep::facts-of path src)
+         records (:wat::grep::facts-as-records facts)
+         queries (:wat::core::PersistentVector :- [:wat::rete::Query]
+                   (:wat::fmt::q-break)
+                   (:wat::fmt::q-claim)
+                   (:wat::fmt::q-fallback))]
+        (:wat::rete::with-overlay rules queries
+          (:wat::core::fn [overlay <- :wat::rete::Overlay]
+            -> :wat::core::String
+            (:wat::core::let [fired (overlay records)]
+              (:wat::fmt::emit forms comments
+                (:wat::fmt::breaks-map fired)
+                (:wat::fmt::owned-set fired)))))))
     ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
       (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None))))
