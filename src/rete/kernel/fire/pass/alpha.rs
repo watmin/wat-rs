@@ -26,6 +26,93 @@ use super::RoundScratch;
 use crate::rete::alpha_tree::AlphaTree;
 use crate::rete::compiled_cond::CompiledCond;
 
+/// Per-class seed plan: which facts of a leaf class go to the occupancy batch,
+/// and whether the class stayed uniform. Private map, one door, `has_mixed`
+/// derived — never stored (arc 278 A8).
+///
+/// Nested so `alpha_seed` cannot reach `map`. Same warrant as
+/// [`crate::rete::kernel::session::JoinRightIndex`]: a demote that does not
+/// gate the deferred activate cannot be written —
+/// `error[E0616]: field 'map' of struct 'ClassPlan' is private`.
+mod class_plan {
+    use std::collections::HashMap;
+
+    struct ClassEntry {
+        ids: Vec<u32>,
+        uniform: bool,
+    }
+
+    pub(crate) struct ClassPlan {
+        map: HashMap<String, ClassEntry>,
+    }
+
+    impl ClassPlan {
+        /// One empty uniform entry per leaf class. Reservation size is unchanged
+        /// (`temperare` L2-e is a different row, cut from this strike).
+        pub(crate) fn seeded(
+            classes: impl IntoIterator<Item = impl AsRef<str>>,
+            n_facts: usize,
+        ) -> Self {
+            let mut map = HashMap::new();
+            for class in classes {
+                map.insert(
+                    class.as_ref().to_owned(),
+                    ClassEntry {
+                        ids: Vec::with_capacity(n_facts),
+                        uniform: true,
+                    },
+                );
+            }
+            Self { map }
+        }
+
+        /// Push-or-demote, one act. `true` = this fact is deferred (do not activate
+        /// in the seed loop). `false` = not a leaf class, fall through.
+        ///
+        /// ⚠ **THE PACKED ARM IS FIRST ON PURPOSE.** Branch on `packed` before the
+        /// lookup, reproducing today's instruction sequence for a packing fact.
+        /// A single lookup with the `packed` test inside taxes the batch fast path.
+        #[inline]
+        pub(crate) fn observe(&mut self, class: &str, i: u32, packed: bool) -> bool {
+            if packed {
+                if let Some(e) = self.map.get_mut(class) {
+                    e.ids.push(i);
+                    return true;
+                }
+                false
+            } else if let Some(e) = self.map.get_mut(class) {
+                e.uniform = false;
+                true
+            } else {
+                false
+            }
+        }
+
+        /// Derived. There is no `any_mixed` field to set without gating.
+        ///
+        /// rune:lint(cited-name-absent) any_mixed — the stored summary bool this strike deleted;
+        /// `has_mixed` reads the map, so a demote that does not gate cannot be written.
+        #[inline]
+        pub(crate) fn has_mixed(&self) -> bool {
+            self.map.values().any(|e| !e.uniform)
+        }
+
+        /// `(ids, uniform)` for the batch loop. Shared — a reader cannot demote.
+        #[inline]
+        pub(crate) fn get(&self, class: &str) -> Option<(&[u32], bool)> {
+            self.map.get(class).map(|e| (e.ids.as_slice(), e.uniform))
+        }
+
+        /// This class forfeited the batch. Absent or uniform → false.
+        #[inline]
+        pub(crate) fn is_mixed(&self, class: &str) -> bool {
+            self.map.get(class).is_some_and(|e| !e.uniform)
+        }
+    }
+}
+
+use class_plan::ClassPlan;
+
 /// First round: seed alpha memories from the input facts.
 pub(crate) fn alpha_seed(
     sym: &SymbolTable,
@@ -69,11 +156,19 @@ pub(crate) fn alpha_seed(
     // discarded them. Worse than short: `d_alpha[aid]` still held the pushed SLOT INDICES, which
     // after the replace index DIFFERENT elements.
     //
-    // THE CURE IS THE `bool` BELOW — "every fact of this class packed". A class batches only if
+    // THE CURE WAS THE `bool` BELOW — "every fact of this class packed". A class batches only if
     // it is uniform; a mixed class takes the activate path for ALL of its facts (the deferred
     // loop after the batch), so exactly one writer ever touches an aid. The decision cannot be
     // made until every fact has been seen, which is why the mixed class's facts are DEFERRED
     // here rather than activated in place.
+    //
+    // ⛔ AND THE BOOL WAS MAINTAINED BY CONVENTION. `uniform` lived in a tuple beside a separate
+    // `any_mixed` flag, written by two disjoint `&mut` arms. A writer that set `uniform = false`
+    // without `any_mixed = true` did not double-count — it dropped every fact of that class
+    // (the deferred loop never ran). Same class as D2 / A1 / D3: the cure is now [`ClassPlan`],
+    // private map, one door (`observe`), `has_mixed` DERIVED. There is no field to set.
+    // rune:lint(cited-name-absent) any_mixed — the stored summary bool this strike deleted;
+    // `has_mixed` reads the map, so a demote that does not gate cannot be written.
     //
     // Why not decide from the DECLARED schema (which is what `session.rs`'s `i64_by_fact` doc
     // says)? Two reasons, and the second is the stronger: `FireSession` holds no `TypeEnv`, so it
@@ -82,13 +177,7 @@ pub(crate) fn alpha_seed(
     // i64 would lose the fast path that this keeps. Why not merge instead of replace? Because
     // `d_alpha` holds INDICES into this vector and the batch shares one `Arc` across every aid of
     // the class; appending re-orders elements away from fact order and forfeits the share.
-    let mut class_ids: HashMap<String, (Vec<u32>, bool)> = HashMap::new();
-    for class in leaf_aids.keys() {
-        class_ids.insert(class.clone(), (Vec::with_capacity(input_facts.len()), true));
-    }
-    // Set when some leaf class turned out mixed. Gates the deferred-activate loop entirely, so a
-    // corpus with no mixed class pays one bool test for the whole seed pass.
-    let mut any_mixed = false;
+    let mut plan = ClassPlan::seeded(leaf_aids.keys(), input_facts.len());
     for (i, fact) in input_facts.iter().enumerate() {
         seen_insert(seen_ids, seen_rest, fact);
         let (class, fields) = match fact {
@@ -128,21 +217,10 @@ pub(crate) fn alpha_seed(
         // A leaf class's facts are DEFERRED — none of them may activate here, because a later
         // fact of the same class can still take the batch away from all of them.
         //
-        // ⚠ THE PACKED ARM IS FIRST ON PURPOSE, and the duplicated `get_mut` is the price. Written
-        // as one lookup with the `packed` test inside, this taxes the batch fast path — the very
-        // path the cure exists to preserve — with a probe on every fact that does NOT pack,
-        // including facts of classes that were never batchable. Written this way, a PACKING fact
-        // executes exactly the instruction sequence it did before the cure, and the extra probe
-        // falls only on facts already committed to a full alpha-tree walk and a compiled exec,
-        // where it is noise.
-        if packed {
-            if let Some((ids, _)) = class_ids.get_mut(class) {
-                ids.push(i as u32);
-                continue;
-            }
-        } else if let Some((_, uniform)) = class_ids.get_mut(class) {
-            *uniform = false;
-            any_mixed = true;
+        // ⚠ THE PACKED ARM IS FIRST ON PURPOSE — `ClassPlan::observe` branches on `packed`
+        // before the lookup, the same instruction sequence a packing fact ran before the type.
+        // Written as one lookup with the `packed` test inside, this taxes the batch fast path.
+        if plan.observe(class, i as u32, packed) {
             continue;
         }
         alpha_activate_fact(
@@ -162,7 +240,7 @@ pub(crate) fn alpha_seed(
         )?;
     }
     for (class, aids) in leaf_aids.iter() {
-        let Some((ids, uniform)) = class_ids.get(class) else {
+        let Some((ids, uniform)) = plan.get(class) else {
             continue;
         };
         // THE D7 GUARD. A mixed class forfeits the batch — its facts are activated below
@@ -184,7 +262,7 @@ pub(crate) fn alpha_seed(
         // measured at `523152b31`, defect live: `predicted=2 actual=2 extra=[] missing=[]`. With
         // the filter gone and the same defect live it reports `predicted=3 actual=2 extra=1`.
         // Gated by `seed_leaf_occupancy_differential_predicts_a_mixed_class`.
-        if !*uniform {
+        if !uniform {
             census_count("seed:batch-class-mixed");
             continue;
         }
@@ -214,7 +292,7 @@ pub(crate) fn alpha_seed(
         }
     }
     // The mixed leaf classes, deferred out of the fact loop above.
-    if any_mixed {
+    if plan.has_mixed() {
         activate_deferred_mixed_classes(
             sym,
             wm,
@@ -226,7 +304,7 @@ pub(crate) fn alpha_seed(
             cond_key_ids,
             bind_only,
             input_facts,
-            &class_ids,
+            &plan,
         )?;
     }
     phase_end("  ├ alpha:seed", __seed);
@@ -268,7 +346,7 @@ fn activate_deferred_mixed_classes(
     cond_key_ids: &CondKeyIds,
     bind_only: &BindOnlyFields,
     input_facts: &crate::value::pvec::PVec,
-    class_ids: &HashMap<String, (Vec<u32>, bool)>,
+    plan: &ClassPlan,
 ) -> Result<(), EvalBreak> {
     for (i, fact) in input_facts.iter().enumerate() {
         let Value::Aggregate(a) = fact else {
@@ -277,10 +355,7 @@ fn activate_deferred_mixed_classes(
         if a.nature == Nature::Struct {
             continue;
         }
-        if !class_ids
-            .get(a.class.as_ref())
-            .is_some_and(|(_, uniform)| !*uniform)
-        {
+        if !plan.is_mixed(a.class.as_ref()) {
             continue;
         }
         census_count("seed:mixed-class-activate");
