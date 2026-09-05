@@ -19,8 +19,23 @@ A layout rule must never build a string. It asserts **where a line begins and at
 ```
 (:wat::core::defrecord :wat::fmt::Break
   [id     <- :wat::core::i64      ;; the node that STARTS a new line
-   indent <- :wat::core::i64])    ;; its column, in spaces
+   indent <- :wat::core::i64])    ;; ABSOLUTE column, in spaces
 ```
+
+`indent` is an **absolute column**, derived from the parent's span in the current source
+(`parent.col + 1` for a child line; `parent.col + 2` for a continuation inside `[`). Not a
+hardcoded `2`. Nested forms inherit the parent's column; a top-level form at col 1 still
+lands children at 2.
+
+A specific rule asserts `Claim {form}` on the form it owns. `ClaimedUnder` is the transitive
+closure over `Node.parent` — the claimed node and every descendant. The default rule (R11)
+fires only where **no ancestor is claimed**. A rule that lays out a form owns that form's
+whole extent.
+
+⚠ **Unanswered, the builder's:** should a rule assert only WHERE a line begins, and the
+emitter compute the column from its own descent (`emitted-indent + 2`)? Absolute columns
+are computed from the *current* source, which formatting moves. Recorded in
+`[[REFUTE-a-claim-must-cover-a-subtree-not-a-form]]`. Not patched here.
 
 Everything follows from this:
 - **Rules stay declarative and composable.** Two rules cannot fight over bytes, only over one node's

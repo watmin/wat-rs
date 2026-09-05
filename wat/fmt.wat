@@ -15,11 +15,25 @@
    end-line <- :wat::core::i64
    end-col  <- :wat::core::i64])
 
-;; A specific layout rule asserts Claim on the form it owns. R11 (the default)
-;; fires only where no Claim exists — never a competing rule with a head-name
-;; exclusion list. New rules add a Claim; R11 steps aside without being edited.
+;; A specific layout rule asserts Claim on the form it owns. ClaimedUnder is the
+;; transitive closure: the claimed node AND every descendant. R11 (the default)
+;; fires only where no ancestor is claimed — a rule owns a form's whole extent.
 (:wat::core::defrecord :wat::fmt::Claim
   [form <- :wat::core::i64])
+
+(:wat::core::defrecord :wat::fmt::ClaimedUnder
+  [node <- :wat::core::i64])
+
+;; Derived. Always collected (namespace :fmt, stdlib). Recursive over Node.parent,
+;; not over an aggregate of its own output — stratifiable.
+(:wat::rete::defrule :fmt::claimed-under-root
+  :when [(:wat::fmt::Claim (?f <- :form))]
+  :then [(:wat::fmt::ClaimedUnder :node ?f)])
+
+(:wat::rete::defrule :fmt::claimed-under-child
+  :when [(:wat::fmt::ClaimedUnder (?p <- :node))
+         (:wat::grep::Node (?n <- :id) (?p <- :parent))]
+  :then [(:wat::fmt::ClaimedUnder :node ?n)])
 
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
