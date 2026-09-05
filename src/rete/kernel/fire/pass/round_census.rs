@@ -29,6 +29,7 @@ pub(crate) fn record_round_census(
     d_beta: &BetaMemory,
     left_idx: &JoinLeftIndex,
     right_idx: &JoinRightIndex,
+    right_idx_n: &HashMap<i64, usize>,
     seen_ids: &rustc_hash::FxHashSet<u64>,
     seen_rest: &rustc_hash::FxHashSet<Value>,
     round_no: usize,
@@ -104,6 +105,27 @@ pub(crate) fn record_round_census(
                 .flat_map(|m| m.values())
                 .map(Vec::len)
                 .sum(),
+            // ★ D2: the counter beside the population, per join. Union of both key sets — a join
+            // present in ONE map only is exactly the case worth seeing, so neither map may be
+            // used as the driving iteration on its own.
+            right_idx_by_join: {
+                let mut ids: Vec<i64> = right_idx.keys().copied().collect();
+                for id in right_idx_n.keys() {
+                    if !right_idx.contains_key(id) {
+                        ids.push(*id);
+                    }
+                }
+                ids.sort_unstable();
+                ids.into_iter()
+                    .map(|id| {
+                        let elements = right_idx
+                            .get(&id)
+                            .map(|m| m.values().map(Vec::len).sum())
+                            .unwrap_or(0);
+                        (id, right_idx_n.get(&id).copied(), elements)
+                    })
+                    .collect()
+            },
             production_facts: wm.production.values().map(Vec::len).sum(),
             seen_facts: seen_ids.len() + seen_rest.len(),
             network_edges: node_ids

@@ -58,6 +58,17 @@ pub(crate) struct RoundCensus {
     /// The P6 persistent join indexes, summed across every HashJoinNode.
     pub(crate) left_idx_tokens: usize,
     pub(crate) right_idx_elements: usize,
+    /// ★ D2: per HashJoinNode, `(join id, indexed_n[J], Σ|right_idx[J]|)` — the high-water mark
+    /// the maintainer keeps beside the bucket population it is supposed to describe.
+    ///
+    /// `None` in the middle column means `indexed_n` has NO entry for that join: the maintainer
+    /// has never run on it, so the mark is absent rather than zero. That distinction is the whole
+    /// reading — an absent mark next to a non-empty bucket names a join only the bypass sites
+    /// wrote, and a mark that disagrees with the population names a join BOTH wrote.
+    ///
+    /// Summed over every join this equals `right_idx_elements`; kept per-join because the
+    /// aggregate cannot see one join doubling while another is short.
+    pub(crate) right_idx_by_join: Vec<(i64, Option<usize>, usize)>,
     /// Derived facts retained in production-memory, and the size of the `seen` dedup set.
     pub(crate) production_facts: usize,
     pub(crate) seen_facts: usize,
@@ -449,6 +460,81 @@ pub(crate) fn with_beta_traffic<R>(f: impl FnOnce() -> R) -> (R, Vec<(i64, u64, 
         .map(|(id, (w, r))| (id, w, r))
         .collect();
     rows.sort_by_key(|&(id, _, _)| id);
+    (out, rows)
+}
+
+// ── D2 instrument: who appends to `right_idx[J]`, and does the counter follow? ───────────────
+//
+// `right_idx[J]` has THREE writers and exactly ONE of them maintains the high-water mark
+// `indexed_n[J]` that the maintainer itself reads back as `already`:
+//
+//   | writer                                                    | maintains `indexed_n`? |
+//   | `keyed_join_persistent` (`fire/mod.rs`)                   | YES — reads, appends the tail, writes back |
+//   | `hash_join_delta` first-keying catch-up (`fire/pass/hash_join.rs`) | NO — the counter is not even in scope |
+//   | `hash_join_delta` step-2 Δright (`fire/pass/hash_join.rs`)     | NO — likewise |
+//
+// A join written by the maintainer AND by either bypass is the hazard: the maintainer's `already`
+// is then stale-low against what `right_idx[J]` already holds, and its next visit re-pushes
+// elements the bucket already carries.
+//
+// ⛔ THE COUNTER HAS NEVER BEEN READ DIRECTLY. Both prior drives of this question were
+// END-TO-END (native-vs-oracle fact counts, and a query whose rows mirror the join chain), and
+// `seen_insert` dedups the fact set — so a doubled bucket is invisible to them BY CONSTRUCTION.
+// This is the direct reading: per round, per join, the counter beside the bucket census, plus
+// which site did the appending.
+//
+// ⛔ NO RELEASE CODE, NOT EVEN AN EMPTY CALL. `beta_read`/`phase_end` are called unconditionally
+// with a `#[cfg(not(test))]` no-op twin, which leaves the ARGUMENT expression in a release build
+// and trusts LLVM to fold it. The two call sites this instrument needs sit inside the P6 join's
+// per-element loop, and C10 forbids a hot-path edit made for an instrument's benefit — so the
+// call sites carry `#[cfg(test)]` on the STATEMENT instead. Release does not compile the count,
+// the call, or this module's half of it: the functions below exist only under `cfg(test)`.
+
+/// The site label a `right_idx` append reports itself under. `&'static str` rather than an enum
+/// so the `not(test)` no-op can name the parameter type without the enum existing in release.
+#[cfg(test)]
+pub(crate) const RIGHT_IDX_SITE_CATCHUP: &str = "hash_join_delta:first-keying-catchup";
+#[cfg(test)]
+pub(crate) const RIGHT_IDX_SITE_STEP2: &str = "hash_join_delta:step2-delta-right";
+
+#[cfg(test)]
+// rune:sequi(performance-counter) — test-only right-index append census; off unless armed.
+thread_local! {
+    /// `(join id, site) -> elements appended`. `None` = not recording.
+    // rune:perspicere(read-once) — test-only append census; alias would be a mumble.
+    pub(crate) static RIGHT_IDX_APPENDS: std::cell::RefCell<Option<HashMap<(i64, &'static str), usize>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Record that `site` pushed `n` elements into `right_idx[join_id]`.
+///
+/// Called with `n == 0` too: "the block ran and appended nothing" and "the block never ran" are
+/// different facts, and a census that cannot tell them apart is the blind spot the first D2 probe
+/// shipped (three of four branches covered, the fourth silently indistinguishable from silence).
+#[cfg(test)]
+#[inline]
+pub(crate) fn right_idx_appended(join_id: i64, site: &'static str, n: usize) {
+    RIGHT_IDX_APPENDS.with(|c| {
+        if let Some(m) = c.borrow_mut().as_mut() {
+            *m.entry((join_id, site)).or_insert(0) += n;
+        }
+    });
+}
+
+
+/// Run `f` with the `right_idx` append census armed, returning `(join id, site, elements)` rows
+/// sorted by join then site. A row with `elements == 0` means the site RAN and appended nothing.
+#[cfg(test)]
+pub(crate) fn with_right_idx_appends<R>(f: impl FnOnce() -> R) -> (R, Vec<(i64, &'static str, usize)>) {
+    let prior = RIGHT_IDX_APPENDS.with(|c| c.borrow_mut().replace(HashMap::new()));
+    let out = f();
+    let recorded = RIGHT_IDX_APPENDS.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    let mut rows: Vec<(i64, &'static str, usize)> = recorded
+        .unwrap_or_default()
+        .into_iter()
+        .map(|((id, site), n)| (id, site, n))
+        .collect();
+    rows.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
     (out, rows)
 }
 

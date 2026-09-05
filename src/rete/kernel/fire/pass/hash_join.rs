@@ -199,6 +199,16 @@ for node_id in &kind_ids.join_parent {
                 }
             }
             phase_end("  ├ hj:catchup:right-idx", __cri);
+            // ★ D2 census (test-only statement — no release code, see `census.rs`): this block
+            // appended `n_right` elements to `right_idx[J]` and touched NO high-water mark.
+            // `n_right` is the loop's exact trip count: the walk above is over `all_right` in
+            // full, one `push` per element.
+            #[cfg(test)]
+            crate::rete::kernel::census::right_idx_appended(
+                *child_id,
+                crate::rete::kernel::census::RIGHT_IDX_SITE_CATCHUP,
+                n_right,
+            );
             // Reserve the 40k appends. Isolated unreserved extend paid
             // G−E = 4.13 ms (`DESIGN-STONE-probe-gap-split`).
             let n_join = match right_idx.get(child_id) {
@@ -312,6 +322,16 @@ for node_id in &kind_ids.join_parent {
             }
         }
         phase_end("  ├ hj:step2-right-idx", __s2);
+        // ★ D2 census (test-only statement — no release code, see `census.rs`): step 2 appended
+        // one element per `dr` slot to `right_idx[J]` and touched NO high-water mark. Recorded
+        // even when `dr` is empty, so "step 2 ran and had nothing to add" stays distinguishable
+        // from "step 2 never ran" — the blind spot the first D2 probe shipped.
+        #[cfg(test)]
+        crate::rete::kernel::census::right_idx_appended(
+            *child_id,
+            crate::rete::kernel::census::RIGHT_IDX_SITE_STEP2,
+            dr.iter().count(),
+        );
 
         let mut new_tokens = hj_step3_term1(
             sym,
