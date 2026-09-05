@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-09-04. **Two campaigns: holon is WALLED; docs are NOT.**
+# SEAM — the ONE live breadcrumb. As of 2026-09-05. **ARC 277 IS LIVE. 255 IS PARKED, WITH REASONS.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -6,7 +6,7 @@
 > never a disk copy), ground HEAD against the disk, and read this whole file before you touch
 > anything.
 
-> `251/SEAM.md`, `278/SEAM.md` are PARKED. ⛔ **PARKED IS NOT DEAD.**
+> `251/SEAM.md` · `278/SEAM.md` PARKED. ⛔ **PARKED IS NOT DEAD.**
 
 ## GROUND FIRST
 
@@ -15,159 +15,146 @@
 > S=docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md
 > git log --oneline "$(git log -1 --format=%H -- $S)..HEAD"
 > ```
-> **Empty → nothing moved.** Non-empty → every commit listed outranks every line below.
-> ⚠ A PASSING PROBE PROVES NOTHING ABOUT TRUTH. On 2026-09-04 it came back empty while the
-> GROUND block below carried a registry count its own printed command refuted. **Re-run the
-> commands, do not read the numbers.**
-
-⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
+> **Empty → nothing moved.** ⚠ **A PASSING PROBE PROVES NOTHING ABOUT TRUTH.** On 2026-09-04 it
+> came back empty while the block below carried a count its own printed command refuted.
+> **Re-run the commands. Do not read the numbers.**
 
 ```
-floor ............ 5139/5139, 0 FAIL, 17 skipped, ~120s   (scripts/floor.sh, exit read UNPIPED)
-                   ⭐ AND doctests — armed 2026-09-04, runs FIRST, was NEVER running before
-clippy ........... 0 under `-D warnings --all-targets`
-registry rows .... 571 · 85 SpecialForm · 52 alias    ⛔ ASK, never grep:
-                   ./target/release/wat wat-scripts/scratch-pad/255-registry-census.wat
-host ............. JohnDesktop · john · ~/work/holon/wat-rs
+floor ........ 5169/5169, 0 FAIL, 17 skipped   scripts/floor.sh — AND IT RUNS DOCTESTS NOW,
+                                               first and unconditionally (armed 2026-09-04;
+                                               it had NEVER run before that day)
+clippy ....... 0 under `-D warnings --all-targets`
+registry ..... 571 rows · 85 SpecialForm · 52 alias   ⛔ ASK, never grep:
+               ./target/release/wat wat-scripts/scratch-pad/255-registry-census.wat
+host ......... JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
-## ⬜ TWO LIVE EFFORTS — read the right entry point, not this summary
+## ⬜ THE LIVE ARC — 277, wat-fmt
 
 ```
-⛔ BLOCKED, and blocked on DECISIONS not labour
-   [[RESUME-the-registry-is-blocked-on-three-named-decisions]]   (255/)
-   ★ THIS IS THE REGISTRY'S ENTRY POINT. Three decisions, each measured, each with its
-     evidence and its re-derivation command on disk. Nothing needs re-deriving.
-
-⬜ ACTIVE — expected to span several compactions
-   255-builtin-registry/the-walls-must-not-be-muted/
-     RULING-a-wall-that-cannot-run-is-not-a-wall.md     the doctrine + the 5-step order
-     DESIGN-the-tagged-edn-doc-row.md                   #wat.doc/Row · #wat.doc/Alias
+docs/arc/2026/06/277-wat-lint-fix-fmt/
+  DESIGN-wat-fmt-the-rule-set-is-the-product.md   ★ THE ENTRY POINT
+  NOTE-wat-fmt-structural-autoformat.md           2026-06-21, rule #1 (defn) in LIVE syntax
+  SELF-FIXING-TOOLCHAIN.md                        the doctrine the design rests on
 ```
 
-## ★★★ THE TWO SENTENCES THIS SESSION TURNED ON — the builder's own
-
-> *"the registry is forcing the discovery of bad practices."*
->
-> *"our mitigations and walls must not be muted."*
-
-Both name the same mechanism from two sides. **A crutch survives indefinitely while nothing asks
-it a question.** `HolonAST` carried syntax for six months; a public doc example taught an
-impossible construction through two API changes; `@alias`+axis was a rule no shape enforced. Each
-one was found the moment an instrument was pointed at it, and not before.
-
-## ✅ WHAT SHIPPED — 2026-09-04
+★★★ **THE REQUIREMENT THAT DOMINATES**, builder's own: *"i will never have all the rules that
+matter.. but i will absolutely spot stuff i don't like... we fix them and the code fixes itself as
+we do."* So the acceptance is **not** "the rules are right" — it is **A NEW STYLE RULE IS A NEW FILE
+AND NOTHING ELSE**, proven by adding one the engine did not know about.
 
 ```
-HOLON — the assault is FINISHED and the ground is WALLED
-  the CEK stepper stops speaking holon. eval-step! returned values it never received:
-    (quote 1/2) -> "1/2" StringLit · (+ 1/2 1/3) -> StepNext FOREVER · (fn [x] x) -> (Atom (fn (x) x))
-  the special-form signature sketch is a WatAST::List — syntax stopped being a hypervector
-  value_to_holon DELETED — a second HolonAST-from-Value builder its own file forbade
-  ⭐ tests/lint/holon_is_vsa_only.rs — ARMED AT ZERO, sabotage-proven TWICE, and it STATES
-     its own three blind spots in its module doc
+⛔ FIRST STONE — THE READER, and it is not in the formatter.
+   lex_tokens("; a comment\n()") == [LParen, RParen]     (the lexer's OWN test)
+   Comments die at lex time. No Comment token, no AST node. A canonical reprinter emits from
+   the AST, so every comment in the corpus would vanish. NOTHING about "handle comments
+   gracefully" is designable before the reader can see them.
+   ★ It is also why wat/fix.wat is span-based: it never re-emits, so comments survive by not
+     being touched. Choosing canonical means choosing to fix the reader instead.
 
-DOCS — the gate that never ran
-  ⭐ scripts/floor.sh runs `cargo test --doc` FIRST and UNCONDITIONALLY. It had NEVER run.
-     First run, on a 5139/5139 green tree: 3 RED. One was a public example constructing
-     RuntimeError by struct literal — a shape no external caller can use, both fields private,
-     stale through TWO API changes.
+THEN a rete-shape PROBE (one rule: defn) BEFORE the style table. A table written against a
+     shape nobody has driven is unfalsifiable.
+```
 
-REGISTRY — 15 rows in, and three STOPs that were all defects in MY design
-  571 rows · 52 alias. The alias-vs-RESTRICTION fork CLOSED: rete's totality demand is
-  CONTEXTUAL (compile-condition, for a `where`), so an alias inherits and the fence stays a
-  separate, correct authority.
+**The engine exists** — `fire_fixpoint_delta` (forward chaining to a fixpoint: a node's width
+depends on its children's), `wat/rete/acc.wat` (sum/count/group-by: "does this fit the budget"),
+`defrule :when/:then` (homoiconic), `wat/fix.wat` (1291 lines of span-faithful applier).
+**One structural constraint:** this rete has no salience/priority/agenda, so layout rules must
+dispatch on HEAD SYMBOL — exclusivity by shape, not by engine feature.
+
+## ⛔ PARKED — 255, and BOTH halves have a reason file. READ THEM, DO NOT INFER.
+
+```
+255-builtin-registry/RESUME-the-registry-is-blocked-on-three-named-decisions.md
+   The onslaught. NOT blocked on labour — on THREE DECISIONS, each measured, each with its
+   re-derivation command: 20 OpClass::Fallback rows (an alias is the wrong mechanism,
+   permanently) · cond's KIND · reduce's check-time witness.
+
+255-builtin-registry/the-walls-must-not-be-muted/PARKED-the-migration-waits-on-wat-fmt.md
+   ⚠ THE CORPUS IS MID-MIGRATION — ONE row converted (src/intrinsic/char.rs), 575 not.
+   That is DELIBERATE, not unfinished. The sweep would bake 609 one-line examples
+   (median 67 cols, p90 188, MAX 1515) into the new form and force a re-sweep.
+```
+
+## ✅ WHAT SHIPPED — 2026-09-04/05
+
+```
+⭐ THE DOCTEST GATE, armed at zero — it had NEVER run. First run on a green tree: 3 RED,
+   one a PUBLIC API example constructing RuntimeError by struct literal, both fields private,
+   stale through TWO API changes.
+⭐ tests/lint/holon_is_vsa_only.rs, armed at zero, sabotage-proven TWICE, and it STATES its
+   own three blind spots in its module doc.
+   the CEK stepper stops speaking holon · the special-form sketch is a WatAST::List
+#wat.doc/Row is REAL — char.rs declares itself in an ```edn fence; the round-trip gate holds
+   over char · hologram · map · rest-arg · a constructed @deprecated
+the docstring is a real heredoc — a string-local margin, and an INDENTED CODE SAMPLE survives
+edn::write stops emitting keywords edn::read refuses — and the WALL was the fix, not the fold
+15 rete rows into the registry
 ```
 
 ## ⛔ WHAT COST THE MOST — and NOT ONE was caught by re-reading my own claim
 
-**1. I REPEATED STONE 2a's EXACT ERROR, against a ★★★ warning naming it.**
-`rete_alias.rs`'s first 36 lines say `OpClass::Fallback` rows may **never** be aliased, and record
-that it *"broke eight live rete tests when Stone 2a's DESIGN named `:wat::rete::i64::+`"*. My design
-named `:wat::rete::i64::+`. **My census asked "is the core_name registered?" and never asked "is
-this row ALIASABLE?"** — 35 clear was 15. `[[feedback_a_census_predicate_can_name_the_wrong_act]]`
+**1. I REPEATED STONE 2a's EXACT ERROR** against a ★★★ warning in the first 36 lines of the file I
+had just cited. My census asked "is the core_name registered?" and never "is this row ALIASABLE?"
+— 35 clear was 15. `[[feedback_a_census_predicate_can_name_the_wrong_act]]`
 
-**2. I ASSERTED AN ABSENCE I NEVER PROBED.** I told the builder that *"`@alias` + an axis does not
-compile"* was rung 3 and did not exist. It exists — `DocError::AliasDeclaresAxis`, a real
-`compile_error!`. The rider settled it by writing the illegal row and watching cargo refuse.
+**2. I ASSERTED TWO ABSENCES I NEVER PROBED** — that `@alias`+axis "does not compile" did not exist
+(it does: `DocError::AliasDeclaresAxis`), and that rete could not carry ordered layout (order is
+data you assert; the builder said so in one line).
 
-**3. MY OWN CENSUS PATTERN INVENTED 33 PHANTOM OFFENDERS.** `: *HolonAST` matched the `::HolonAST`
-inside the *string* `":wat::holon::HolonAST"`. Validated line-by-line, the real count was 26 lines
-of which 10 were misuse. `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
+**3. MY DESIGN WAS BACKWARDS ON THE EDN KEYWORD BUG.** I wrote the fold as the fix and the wall as
+hardening. The fold ACTIVATED a silent corruption; the wall alone was the cure. **A prior arc's
+STOP trigger (arc 213) caught it in one run** — someone had written "if you ever make the encode
+valid, prove the decode is correct too."
 
-**4. I READ A COMMENT AS A RATIONALE.** The stepper's `HolonAST::Atom` wrap was justified as *"so
-cosine / hash / cache keys see it as a single coordinate"* and I filed it as a VSA question for the
-builder. `Atom` is `HolonAST -> HolonAST` — the algebra's quote. One grep away.
+**4. FIVE PAGER-SHAPED SLIPS IN ONE DAY.** A `tail -3` published as "three failures" when it was
+seven. A `| head` reading `head`'s exit as a gate's. A `sed` range that truncated an ARM in the
+very document reporting a truncation rule. `[[feedback_a_truncating_pager_makes_absence_unfalsifiable]]`
 
-**5. I BRIEFED A GATE BY THE WRONG NAME** (`alias_axes_follow_their_target`; it is
-`..._are_resolved_from_their_target`) **and prescribed axes that a real gate makes impossible**
-(`cond` with `@Purity Preserving` demands `role=check`/`role=eval` impls a `defmacro` has not).
+**5. NINE COMMENT-CAUSED ERRORS.** Newest: `fqdn_of`'s "a method name does not start uppercase, a
+type does" — **not a rule this language has.** `:wat::core::i64` is a type. Right answers, false
+reason, and no test can catch that.
 
 ## ★ WHAT ACTUALLY WORKS
 
-- **ASK THE SUBSTRATE, DO NOT GREP IT.** Every census this session that was wrong was a grep;
-  every correction came from the compiler, a gate, a probe, or `(:wat::intrinsic::rows)`.
-- **HAND A RIDER THE INSTRUMENT, NEVER THE RESULT.** STOP-2 ("the wall's census is the wall's own —
-  if it finds an offender outside my four, STOP") held under real pressure: the lint found SIX, and
-  the rider fixed its own detector rather than widening the allowlist.
-- **SHOW A GATE FIRING BEFORE TRUSTING IT.** Both walls armed this session were sabotaged first —
-  the holon wall twice, independently. `NISI FRANGAS, NIHIL PROBAS`.
-- **A WALL MUST STATE WHAT IT CANNOT SEE.** `holon_is_vsa_only` names three blind spots in its own
-  doc, before anything made it fail.
-- **DERIVE EVERY ACCEPTANCE ROW FROM THE RULE.** Floor 5129 → 5139 landed exactly: the wall plus
-  its 9 detector tests, predicted before the run.
+- **ASK THE SUBSTRATE, DO NOT GREP IT.** Every wrong census was a grep; every correction came from
+  a compiler, a gate, a probe, or `(:wat::intrinsic::rows)`.
+- **HAND A RIDER THE INSTRUMENT, NEVER THE RESULT.** "If the lint finds an offender outside my
+  four, STOP" held: it found SIX, and the rider fixed its own detector rather than the allowlist.
+- **SHOW A GATE FIRING BEFORE TRUSTING IT.** Every wall armed this week was sabotaged first.
+- **THE CENTRAL FLOOR IS NOT OPTIONAL.** A rider's `-p wat-doc` 58/58 was TRUE and BLIND — `-p`
+  runs do not build `tests/lint/`. 20 loose assertions reached my floor that way, once.
+- **REFUTE, DON'T PATCH.** Two refutations this session; both found real defects the SCORE had
+  reasoned past.
 
 ## ⛔ RULES THAT STILL COST TIME
 
-- ⛔ **THE ORCHESTRATOR RUNS THE FULL FLOOR. A RIDER'S TARGETED GREEN IS NOT A VERDICT.**
-- ⛔ **THE LSP LIES.** It reported two E0308s on a tree `cargo build --release` compiled clean.
-- ⛔ **`./scripts/floor.sh > /dev/null 2>&1; echo $?`** then read the Summary from `.floor/latest/`.
-- ⛔ **`git commit -F`, NEVER `-m`** — backticks are shell-interpreted. **`git commit <paths>`.**
-- ⛔ **REVERTING IS A LOSS.** Narrow the stone; preserve held work in a NOTE.
-- ⛔ **DELETIONS MUST CLEAR A HIGH BAR** — *"we augment as they need."* A test of a retired
-  behaviour is a NEGATIVE WITNESS of the retirement; it is not deleted.
-- ⛔ **Riders: no worktrees, no stash, no sub-agents, everything FOREGROUND, `model: "sonnet"`,
-  and they do NOT run the floor.**
-
-## ⬜ NEXT
-
-```
-THE DOC-COMMENT CAMPAIGN — active, expect several compactions
-  4  the #[ignore] census: 12 attributes, most naming a follow-up stone. WHICH HAVE LANDED?
-     An exemption must earn its standing AS IT AGES. Plus: only 8 doctests are COLLECTED of 64
-     bare fences — the rest sit on private items and can NEVER run. Both are muted walls.
-  5  the migration to #wat.doc/Row · #wat.doc/Alias.
-     ⛔ TWO PROBES GATE EVERYTHING, and neither is measured:
-        (a) can `wat-edn` be a proc-macro dependency? (parse EDN at expand time)
-        (b) does an ```edn fence survive the now-armed doctest gate?
-     Then: the ratchet freezing @-form names DAY ONE (not a drop at the end), and a migration
-     tool that reuses the proc-macro's OWN @-parser so the transform is faithful by construction.
-     Design cold first: @example x459 + @example-norun x139 hold wat source with quotes and #=>.
-
-THE REGISTRY — read [[RESUME-the-registry-is-blocked-on-three-named-decisions]]. Do not re-derive.
-
-UNBLOCKED, pick by value: Phase 3b (432/432) · the DEBT split · the 270 grading batch ·
-  the :None codemod (94 sites, dry-run PROVEN, no design left) · the SIX non-verb artifacts.
-```
+- ⛔ **THE ORCHESTRATOR RUNS THE FULL FLOOR.** A rider's targeted green is not a verdict.
+- ⛔ **THE LSP LIES.** It reported E0308s on a tree `cargo build --release` compiled clean.
+- ⛔ **`./scripts/floor.sh > /dev/null 2>&1; echo $?`** then read `.floor/latest/`. NEVER a pipe.
+- ⛔ **`git commit -F`, NEVER `-m`.** **`git commit <paths>`.**
+- ⛔ **REVERTING IS A LOSS** — narrow the stone. **DELETIONS CLEAR A HIGH BAR.**
+- ⛔ **pulsare is the peer channel** (`.pulsare/to-grok`), not Task/subagent. Files are the
+  payload; never paste a brief. A lost knock once left the ledger stuck —
+  `~/work/NOTE-pulsare-knock-cannot-retry-a-lost-knock.md`.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today the freshness probe came back EMPTY and the file
-> was still wrong — the GROUND block stated a registry count that the command printed directly
-> beneath it refuted. A probe asks *"did a commit land after this file?"*, never *"is this file
-> true?"* **Re-run the commands. Do not read the numbers.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** The freshness probe came back EMPTY while this file
+> stated a registry count the command printed beneath it refuted. A probe asks *"did a commit land
+> after this file?"* — never *"is this file true?"* **Re-run the commands.**
 >
-> ⚠ **AND THE SHARPER ONE: I WAS WRONG FIVE TIMES TODAY AND EVERY CORRECTION CAME FROM OUTSIDE.**
-> A ★★★ warning in the first 36 lines of a file I had just cited. An absence I asserted without
-> probing. A regex that invented 33 offenders. A comment I read as a rationale. A gate I briefed by
-> the wrong name. The builder caught two, riders caught two, the compiler caught one. **Zero were
-> caught by re-reading my own claim** — which is the whole argument for asking an instrument.
+> ⚠ **AND THE HARDER ONE: I WAS WRONG SIX TIMES YESTERDAY AND EVERY CORRECTION CAME FROM OUTSIDE.**
+> A ★★★ warning in a file I had just cited. Two absences I asserted without probing. A design that
+> was backwards, caught by a prior arc's STOP trigger. A tail that cut four failures off a report.
+> A comment whose stated rule the language does not have. **Zero were caught by re-reading my own
+> claim** — which is the entire argument for asking an instrument instead.
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** holon is walled at zero and the wall has been
-> broken on purpose twice. The doctest gate is armed and caught a lying public doc on its first
-> run. The registry can be asked about itself. Corpus 1343 sites → 638. `:wat::core::` is DONE.
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** three gates armed at zero this week, each
+> sabotage-proven. A public doc that had lied through two API changes, found. holon walled. The
+> registry answerable. And a forcing function arrived for wat-fmt that nobody had to invent.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`
