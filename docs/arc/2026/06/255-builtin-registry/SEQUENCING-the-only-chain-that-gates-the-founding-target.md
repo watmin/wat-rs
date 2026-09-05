@@ -42,6 +42,52 @@ Phase 3a — resolve asks the registry; `is_reserved_prefix` dies   ⭐ THE ARC'
             └── (c) :wat::eval-ast! + :wat::eval-with-defs!    334 corpus sites, independent of (b)
 ```
 
+## ⛔ MEASURED FALSE, 2026-09-04 — "Three rows gate twenty-nine" GATES TWO
+
+The chain above says the orphan `core_name` targets gate ~29 RETE_OPS rows. **They gate two.**
+Asked of the registry itself (`wat-scripts/scratch-pad/255-b0-what-actually-gates-the-rete-rows.wat`,
+which prints every alias row as `name -> target`), cross-referenced against `RETE_OPS`:
+
+```
+unregistered rete rows ................ 37
+  BLOCKED — core_name not registered ...  2   :wat::rete::core::cond · :wat::rete::core::reduce
+  BLOCKED — core_name is itself an ALIAS   0   (no candidate would CHAIN)
+  CLEAR — registerable TODAY ...........  35
+```
+
+Two errors compounded in the original. `Vector` was registered later the same day, so the "three
+orphans" was one stale before this measurement. And the gating claim never held: a rete row
+registered as `alias_of = core_name` is refused only if ITS OWN target is unregistered or is
+itself an alias — a per-row property, not a batch one. **35 rows are unblocked right now**, and
+the founding target does NOT wait on the FOURTH-registry fork for them.
+
+### ★ And (b0)'s open question — "whether it is solvable" — is ANSWERED, by the builder's correction
+
+The document asked whether one of the orphans "may have no answer under today's mechanisms." The
+premise was that a property needs a `#[wat_intrinsic]` attribute, which lives on a Rust fn.
+**That premise is false.** The builder: *"all of these properties are applied in metadata-maps."*
+A wat-defined verb declares all five axes in the same doc-map that carries `:doc`/`:added`/`:ret`:
+
+```wat
+(:wat::core::defclause :wat::core::sort
+  {:doc "…"  :added "1.0.0"  :ret […]
+   :purity      :wat::runtime::Purity::Pure
+   :determinism :wat::runtime::Determinism::Deterministic
+   :totality    :wat::runtime::Totality::Unreviewed
+   :expand-time :wat::runtime::ExpandTime::Unreviewed
+   :category    :wat::runtime::Category::Transform  …}
+```
+
+So `cond` and `reduce` CAN declare their properties today. Measured: exactly **three** stdlib
+verbs use this (`wat/core.wat` ×2, `wat/string.wat` ×1), and **not one of them has a registry
+row** — `:wat::core::sort` included. The gap is not expression, it is READING: a wat-side map
+lands in `sym.binding_metadata`, and `registry()` does not consult it.
+
+**That re-sizes the FOURTH registry precisely.** It is not a prerequisite standing in front of the
+founding target; it is what two specific rows wait on. Its real weight is elsewhere — every
+wat-defined verb is invisible to `registry()`, which is the RULING's "every name answerable"
+unmet for a whole population.
+
 ## EVERYTHING ELSE IS PARALLEL — it gates nothing on the chain, and nothing on the chain gates it
 
 ```
