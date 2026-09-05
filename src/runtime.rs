@@ -53,6 +53,11 @@ use crate::declare::register::register_defines;
 use crate::declare::typevar::{angle_minted_name_reason, angle_type_head_in_name};
 use crate::holon::*;
 use crate::span::Span;
+// Arc 255/294 Stone "holon is for VSA only" — test-only after `require_bundle` moved to
+// `src/intrinsic/holon/atom.rs`: the lib target has no non-test caller left in this file for
+// the bare `HolonAST` name, so an ungated import is `unused_imports` under -D warnings (same
+// shape as `register_defines`, just above).
+#[cfg(test)]
 use holon::HolonAST;
 use num_bigint::BigInt;
 use num_rational::BigRational;
@@ -7381,28 +7386,12 @@ fn eval_metadata_of(
     }
 }
 
-// ─── Arc 143 slice 3 — HolonAST manipulation primitives ─────────────────────
-
-/// Destructure a `HolonAST` into its `Bundle` children. Returns a
-/// `RuntimeError` if the AST is not a `Bundle` variant.
-pub(crate) fn require_bundle<'a>(
-    op: &'static str,
-    holon: &'a HolonAST,
-    arg_span: &Span,
-) -> Result<&'a Vec<HolonAST>, EvalBreak> {
-    match holon {
-        HolonAST::Bundle(children) => Ok(children),
-        _ => Err(RuntimeError::new(
-            arg_span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "Bundle (signature head HolonAST)",
-                got: Box::new(ValueSnapshot::unavailable("non-Bundle HolonAST variant")),
-            },
-        )
-        .into()),
-    }
-}
+// Arc 255/294 Stone "holon is for VSA only" — `require_bundle` moved to
+// `src/intrinsic/holon/atom.rs`, beside its only two callers (`eval_bundle_children`,
+// `eval_bundle_first`). Behaviour unchanged; its error string was corrected in the same
+// motion (it read "Bundle (signature head HolonAST)", stale prose from when
+// `special_forms.rs`'s signature sketch shared this helper — it never did after this
+// stone's Part 1).
 
 // Arc 109 Stone — the reflect home — `require_ast_children` moved to `src/reflect/verbs.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -20138,6 +20127,7 @@ mod tests {
     #[test]
     fn arc143_slice5b_value_to_watast_accepts_holon_ast() {
         use std::sync::Arc;
+        // rune:lint(holon-not-vsa, test-fixture) — the coercion arm under test needs a REAL HolonAST to exercise it, not a stand-in.
         let h = HolonAST::symbol(":foo");
         let v = Value::holon__HolonAST(Arc::new(h));
         let result = value_to_watast("test_op", v, crate::rust_caller_span!());

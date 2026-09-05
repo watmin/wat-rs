@@ -94,7 +94,7 @@ use crate::ast::WatAST;
 use crate::holon::*;
 use crate::record::project::{parse_projection_args, project_surface_attrs};
 use crate::runtime::{
-    eval_inner, eval_quote, expect_string_value, parse_and_run, program_dim, require_bundle,
+    eval_inner, eval_quote, expect_string_value, parse_and_run, program_dim,
     require_encoding_ctx, require_i64, wrap_as_eval_result,
 };
 use crate::span::Span;
@@ -1417,6 +1417,36 @@ pub(crate) fn eval_bind_right(
     Ok(Value::Option(Arc::new(result)))
 }
 
+
+// Arc 255/294 Stone "holon is for VSA only" — moved from `src/runtime.rs` (arc 143 slice 3),
+// beside its only two callers, `eval_bundle_children` and `eval_bundle_first` immediately
+// below. Behaviour unchanged; only the location moved (Arc 109's own precedent, three lines
+// below `require_bundle`'s old site in `runtime.rs`: "`require_ast_children` moved to
+// `src/reflect/verbs.rs` … Behaviour unchanged."). The error string is corrected here — it
+// read "Bundle (signature head HolonAST)", stale prose naming the special-form signature
+// sketch this helper never served; it names what it actually guards instead (the error KIND,
+// `RuntimeErrorKind::TypeMismatch`, is unchanged).
+
+/// Destructure a `HolonAST` into its `Bundle` children. Returns a
+/// `RuntimeError` if the AST is not a `Bundle` variant.
+pub(crate) fn require_bundle<'a>(
+    op: &'static str,
+    holon: &'a HolonAST,
+    arg_span: &Span,
+) -> Result<&'a Vec<HolonAST>, EvalBreak> {
+    match holon {
+        HolonAST::Bundle(children) => Ok(children),
+        _ => Err(RuntimeError::new(
+            arg_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "a :wat::holon::HolonAST Bundle composition",
+                got: Box::new(ValueSnapshot::unavailable("non-Bundle HolonAST variant")),
+            },
+        )
+        .into()),
+    }
+}
 
 /// `(:wat::holon::Bundle/children h)` -> `(:Vector :- [wat::holon::HolonAST])`,
 /// the children of `h`, which must be a `Bundle` composition. Raises on

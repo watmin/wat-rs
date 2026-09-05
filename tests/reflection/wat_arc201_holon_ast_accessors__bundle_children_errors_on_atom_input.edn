@@ -1,5 +1,5 @@
 #wat.runtime/TypeMismatch {
-  :message ":wat::holon::Bundle/children: expected Bundle (signature head HolonAST), got non-Bundle HolonAST variant `<unavailable>`"
+  :message ":wat::holon::Bundle/children: expected a :wat::holon::HolonAST Bundle composition, got non-Bundle HolonAST variant `<unavailable>`"
   :location #wat.core/Span {
     :file "tests/reflection/wat_arc201_holon_ast_accessors_children_err_atom.wat"
     :line 7
@@ -13,7 +13,7 @@
   }
   :causes []
   :op ":wat::holon::Bundle/children"
-  :expected "Bundle (signature head HolonAST)"
+  :expected "a :wat::holon::HolonAST Bundle composition"
   :got {
     :type "non-Bundle HolonAST variant"
     :rendered "<unavailable>"

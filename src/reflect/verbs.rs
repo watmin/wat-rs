@@ -42,8 +42,6 @@ use wat_macros::wat_intrinsic;
 // `crate::value` type — see STOP-2); it is the evaluator's own entry point.
 use crate::runtime::eval_inner;
 
-use crate::holon::holon_to_watast;
-
 use crate::reflect::lookup::{lookup_form, Binding};
 use crate::reflect::render::{
     function_to_signature_ast, macrodef_to_signature_ast, name_from_keyword_or_fn,
@@ -55,7 +53,8 @@ use crate::reflect::render::{
 /// :Ret)`. Dispatches on the same uniform `Binding` enum as `lookup-define`: `UserFunction`
 /// reconstructs from the `Function`; `Primitive` synthesises from the `TypeScheme`; `Macro`
 /// reconstructs from the `MacroDef`; `Type` reconstructs the type's declaration head;
-/// `SpecialForm` lowers its pre-built (arc 144 slice 2) signature sketch to `:wat::WatAST`;
+/// `SpecialForm` returns its pre-built (arc 144 slice 2) signature sketch, already a
+/// `:wat::WatAST` (arc 255/294 Stone "holon is for VSA only" retired its HolonAST detour);
 /// `Registered` (arc 255 Stone 3a-i) emits the same marker sentinel `lookup-define` does — a
 /// registry row carries no synthesized signature shape to lower. An unregistered name returns
 /// `:None`.
@@ -144,13 +143,12 @@ pub(crate) fn eval_signature_of_defn(
             ))))))
         }
         Some(Binding::SpecialForm { signature, .. }) => {
-            // Slice 2 populates SpecialForm.signature with a synthetic
-            // HolonAST at registration time; lower it to WatAST so the
-            // reflection surface emits plain EDN (arc 294.f) — unlike the
-            // other arms whose `*_to_signature_ast` builders already return
-            // WatAST, this arm carries a stored HolonAST field.
+            // Arc 255/294 Stone "holon is for VSA only" — `SpecialForm.signature` is now
+            // a `WatAST` built directly at registration time (`special_forms.rs::sketch`),
+            // never a `HolonAST` detoured through `holon_to_watast`. This arm just hands it
+            // back.
             Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
-                holon_to_watast(&signature),
+                signature,
             ))))))
         }
         // ⛔ Arc 255 Stone 3a-i FIX — with a scheme, render EXACTLY what the displaced
@@ -228,21 +226,21 @@ pub(crate) fn eval_signature_of_defn(
         Some(Binding::Registered {
             name: n, entry, ..
         }) if !entry.args.is_empty() => {
-            // Built through the SAME HolonAST helpers `special_forms.rs`'s `sketch()` used
-            // to, then `holon_to_watast` — one shape, not a second hand-rolled one.
+            // Built as a bare WatAST::List directly — the SAME shape
+            // `special_forms.rs`'s `sketch()` builds, arc 255/294 Stone "holon is for VSA
+            // only" having retired the HolonAST detour both of them used to share.
             let mut children = Vec::with_capacity(1 + entry.args.len());
-            children.push(holon::HolonAST::keyword(&n));
+            children.push(WatAST::keyword(n));
             for (arg_name, _, _, is_rest) in entry.args {
                 let slot = if *is_rest {
                     format!("<{arg_name}>+")
                 } else {
                     format!("<{arg_name}>")
                 };
-                children.push(holon::HolonAST::symbol(slot.as_str()));
+                children.push(WatAST::symbol(crate::scope::Identifier::bare(slot)));
             }
-            let sketch = holon::HolonAST::bundle(children);
             Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
-                holon_to_watast(&sketch),
+                WatAST::List(children, crate::rust_caller_span!()),
             ))))))
         }
         // Arc 255 Stone "the three special-form tables" — the `special_forms.rs` deferral

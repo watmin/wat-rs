@@ -21,13 +21,18 @@
 //!
 //! # Sketch format
 //!
-//! Each `signature` is a `HolonAST::Bundle` whose first child is the
-//! form's head as a Keyword (`HolonAST::keyword(":wat::core::if")`);
+//! Each `signature` is a bare `WatAST::List` whose first child is the
+//! form's head as a Keyword (`WatAST::keyword(":wat::core::if")`);
 //! remaining children are bare-symbol placeholders for the syntactic
-//! slots (`HolonAST::symbol("<cond>")`). Repeating slots use `<name>+`
-//! (one or more) or `<name>*` (zero or more). The format is honest
+//! slots (`WatAST::symbol(Identifier::bare("<cond>"))`). Repeating slots use
+//! `<name>+` (one or more) or `<name>*` (zero or more). The format is honest
 //! about structure-not-types: each slot is a symbol naming the slot's
 //! role, not a type. Consumers render this to a help string or AST.
+//!
+//! Arc 255/294 Stone "holon is for VSA only" — this signature is SYNTAX, not a
+//! hypervector: it used to round-trip through `HolonAST::Bundle`/`holon_to_watast`
+//! only to be converted straight back to the same `WatAST::List` it is now built as
+//! directly (`[[DESIGN-STONE-the-special-form-sketch-is-syntax-not-a-hypervector]]`).
 //!
 //! Forms registered as TypeScheme primitives (e.g., `:wat::core::Vector`,
 //! `:wat::kernel::spawn-thread`, `:wat::kernel::send`) do NOT appear
@@ -36,14 +41,14 @@
 //! `:wat::kernel::run-sandboxed-ast` (defined in `wat/kernel/sandbox.wat`)
 //! reach through the UserFunction branch.
 
-use holon::HolonAST;
+use crate::ast::WatAST;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// One special-form entry. Owned data — cloned out at lookup time.
 pub struct SpecialFormDef {
     pub name: String,
-    pub signature: HolonAST,
+    pub signature: WatAST,
     pub doc_string: Option<String>,
 }
 
@@ -60,17 +65,17 @@ pub fn lookup_special_form(name: &str) -> Option<&'static SpecialFormDef> {
     REGISTRY.get_or_init(build_registry).get(name)
 }
 
-/// Build a `HolonAST::Bundle` whose first child is `head` as a
+/// Build a bare `WatAST::List` whose first child is `head` as a
 /// Keyword leaf and remaining children are `slots` as bare Symbol
 /// leaves (each slot's name is a literal placeholder string like
 /// `"<cond>"` or `"<body>+"`).
-fn sketch(head: &str, slots: &[&str]) -> HolonAST {
+fn sketch(head: &str, slots: &[&str]) -> WatAST {
     let mut children = Vec::with_capacity(1 + slots.len());
-    children.push(HolonAST::keyword(head));
+    children.push(WatAST::keyword(head));
     for s in slots {
-        children.push(HolonAST::symbol(*s));
+        children.push(WatAST::symbol(crate::scope::Identifier::bare(*s)));
     }
-    HolonAST::bundle(children)
+    WatAST::List(children, crate::rust_caller_span!())
 }
 
 /// Insert one form into the registry. The signature head MUST equal
@@ -150,22 +155,28 @@ mod tests {
         assert_eq!(def.name, ":wat::core::defstruct");
         assert!(def.doc_string.is_none());
         match &def.signature {
-            HolonAST::Bundle(children) => {
+            WatAST::List(children, _) => {
                 // head + 2 slots (name, fields)
                 assert_eq!(children.len(), 3);
-                // Arc 221 Stone 221.3 (holon-rs fa48b39): HolonAST::keyword() now returns
-                // HolonAST::Keyword (stripped of leading colon). as_keyword() returns
-                // content WITHOUT colon; as_symbol() → None.
-                assert_eq!(
-                    children[0].as_keyword(),
-                    Some("wat::core::defstruct"),
-                    "first child should be the keyword head (HolonAST::Keyword after arc 221 Stone 221.3)"
-                );
-                // Slot children are still Symbol (HolonAST::symbol(...) unchanged).
-                assert_eq!(children[1].as_symbol(), Some("<name>"));
-                assert_eq!(children[2].as_symbol(), Some("[<field> <- <type>]+"));
+                // Arc 255/294 Stone "holon is for VSA only" — the signature is now a bare
+                // WatAST::List built directly, never round-tripped through HolonAST. The
+                // head keyword carries its leading colon (WatAST::Keyword stores it
+                // verbatim; unlike HolonAST::keyword(), nothing strips it).
+                match &children[0] {
+                    WatAST::Keyword(k, _) => assert_eq!(k, ":wat::core::defstruct"),
+                    other => panic!("expected Keyword head, got {:?}", other),
+                }
+                // Slot children are Symbol (WatAST::symbol(...)).
+                match &children[1] {
+                    WatAST::Symbol(ident, _) => assert_eq!(ident.as_str(), "<name>"),
+                    other => panic!("expected Symbol slot, got {:?}", other),
+                }
+                match &children[2] {
+                    WatAST::Symbol(ident, _) => assert_eq!(ident.as_str(), "[<field> <- <type>]+"),
+                    other => panic!("expected Symbol slot, got {:?}", other),
+                }
             }
-            other => panic!("expected Bundle, got {:?}", other),
+            other => panic!("expected List, got {:?}", other),
         }
     }
 

@@ -28,7 +28,6 @@ use crate::value::{
     Environment, EvalBreak, Function, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
     ValueSnapshot,
 };
-use holon::HolonAST;
 use std::sync::Arc;
 use wat_macros::wat_intrinsic;
 
@@ -118,7 +117,7 @@ pub enum Binding<'a> {
         /// dispatch arm is structurally present; until slice 2 ships,
         /// the SpecialForm path of `lookup_form` returns `None` and
         /// this variant is unreachable in practice.
-        signature: HolonAST,
+        signature: WatAST,
         doc_string: Option<String>,
     },
     Type {
@@ -131,7 +130,7 @@ pub enum Binding<'a> {
     /// (the registry is a process-wide `OnceLock`), which is why this variant needs no
     /// lifetime narrower than `'a` at all. Chosen over mapping onto `Primitive`/`SpecialForm`
     /// because 89 `REGISTRY_MEMBERSHIP_GAP_A` rows carry no `TypeScheme` — `Primitive` cannot
-    /// represent them, and `SpecialForm`'s `signature` is a hand-synthesized `HolonAST` this
+    /// represent them, and `SpecialForm`'s `signature` is a hand-synthesized `WatAST` this
     /// stone has no way to build from an `IntrinsicEntry`'s raw doc strings.
     Registered {
         name: String,
@@ -257,10 +256,10 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
         }
     }
     // 6. SpecialForm registry — arc 144 slice 2 populated. Cloning
-    //    the HolonAST per lookup is acceptable on the reflection-only
-    //    path (clone is O(1) — Arc-wrapped recursive payloads). Reachable today only for a
-    //    special form step 3's registry does not carry (arc 255 Stone 3a-i) — see this
-    //    file's `lookup_form` doc comment.
+    //    the WatAST signature per lookup is acceptable on the reflection-only
+    //    path (every signature is a handful of leaf children — head + slots, no recursion).
+    //    Reachable today only for a special form step 3's registry does not carry
+    //    (arc 255 Stone 3a-i) — see this file's `lookup_form` doc comment.
     if let Some(def) = crate::special_forms::lookup_special_form(name) {
         return Some(Binding::SpecialForm {
             name: def.name.clone(),
