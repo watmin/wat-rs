@@ -25716,7 +25716,7 @@ pub(crate) fn eval_require_wire_address(
 ///   blocks; on EOF reads the crash channel → `Lost`/`Closed`; on value → `Message`.
 /// - Process tier: same with `comms::process::Select`; decodes EDN String → Value;
 ///   on EOF reads the err channel → `Lost`/`Closed`.
-/// - Shutdown fires → MalformedForm "select' interrupted by shutdown".
+/// - Shutdown fires → ServiceEvent::Shutdown (matchable; never a raise).
 pub(crate) fn eval_peer_select_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -25916,14 +25916,12 @@ pub(crate) fn eval_peer_select_prime(
                     }
                 }
             }
-            crate::comms::SelectOutcome::Shutdown => Err(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: "select interrupted by shutdown".into(),
-                },
-            )
-            .into()),
+            crate::comms::SelectOutcome::Shutdown => Ok(Value::Enum(Arc::new(EnumValue {
+                type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                variant_name: "Shutdown".into(),
+                names: no_field_names(),
+                fields: vec![],
+            }))),
             crate::comms::SelectOutcome::Listener => {
                 unreachable!("thread-tier Select has no listener arm")
             }
@@ -26022,15 +26020,21 @@ pub(crate) fn eval_peer_select_prime(
         }
 
         // Block until ready; demux EOF via the err channel (mirrors ProcessPeerBundle::recv).
-        match sel.select().map_err(|io_err| {
-            EvalBreak::from(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("select io_uring error: {}", io_err),
-                },
-            ))
-        })? {
+        match sel.select() {
+            Err(_io_err) => {
+                // Ring-level failure: no peer index. Lost requires idx; 0 is the
+                // select itself. Cause is reason-free (arc 294 — do not leak io_err).
+                return Ok(Value::Enum(Arc::new(EnumValue {
+                    type_path: SELECT_EVENT_TYPE.into(),
+                    variant_name: "Lost".into(),
+                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Lost"),
+                    fields: vec![
+                        Value::i64(0),
+                        message_only_failure("select io_uring error".into()),
+                    ],
+                })));
+            }
+            Ok(outcome) => match outcome {
             crate::comms::SelectOutcome::Recv { index, result } => {
                 match result {
                     // The ONE door (annihilation of the two-door deadlock):
@@ -26082,40 +26086,43 @@ pub(crate) fn eval_peer_select_prime(
                     Ok(edn_str) => {
                         // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
                         // decode through the capability door with the full type registry.
-                        let value = crate::edn::render::decode_trusted_wire(
+                        // Copy poll:27194: decode Err → Malformed, never a raise.
+                        // Cause is reason-free (arc 294): do not interpolate the decode
+                        // error, which can carry a ProcessPanics envelope.
+                        let peer_idx = index.0 as i64;
+                        match crate::edn::render::decode_trusted_wire(
                             &edn_str,
                             sym.types().map(|a| a.as_ref()),
                             sym.encoding_ctx().map(|a| a.as_ref()),
-                        )
-                        .map_err(|e| {
-                            EvalBreak::from(RuntimeError::new(
-                                list_span.clone(),
-                                RuntimeErrorKind::MalformedForm {
-                                    head: OP.into(),
-                                    reason: format!("select EDN decode failed: {}", e),
-                                },
-                            ))
-                        })?;
-                        let peer_idx = index.0 as i64;
-                        Ok(Value::Enum(Arc::new(EnumValue {
-                            type_path: SELECT_EVENT_TYPE.into(),
-                            variant_name: "Message".into(),
-                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                            fields: vec![Value::i64(peer_idx), value],
-                        })))
+                        ) {
+                            Ok(value) => Ok(Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Message".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
+                                fields: vec![Value::i64(peer_idx), value],
+                            }))),
+                            Err(_e) => Ok(Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Malformed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
+                                fields: vec![
+                                    Value::i64(peer_idx),
+                                    message_only_failure("select EDN decode failed".into()),
+                                ],
+                            }))),
+                        }
                     }
                 }
             }
-            crate::comms::SelectOutcome::Shutdown => Err(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: "select interrupted by shutdown".into(),
-                },
-            )
-            .into()),
+            crate::comms::SelectOutcome::Shutdown => Ok(Value::Enum(Arc::new(EnumValue {
+                type_path: SELECT_EVENT_TYPE.into(),
+                variant_name: "Shutdown".into(),
+                names: no_field_names(),
+                fields: vec![],
+            }))),
             crate::comms::SelectOutcome::Listener => {
                 unreachable!("process-tier 1-arg select has no listener arm")
+            }
             }
         }
     } else if first_type_path == crate::kernel::spawn::PEER_TYPE_PATH {
@@ -26248,14 +26255,12 @@ pub(crate) fn eval_peer_select_prime(
                             }))),
                         }
                     }
-                    crate::comms::SelectOutcome::Shutdown => Err(RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "select interrupted by shutdown".into(),
-                        },
-                    )
-                    .into()),
+                    crate::comms::SelectOutcome::Shutdown => Ok(Value::Enum(Arc::new(EnumValue {
+                        type_path: SELECT_EVENT_TYPE_PEER.into(),
+                        variant_name: "Shutdown".into(),
+                        names: no_field_names(),
+                        fields: vec![],
+                    }))),
                     crate::comms::SelectOutcome::Listener => {
                         unreachable!("thread-tier Peer Select has no listener arm")
                     }
@@ -26312,51 +26317,68 @@ pub(crate) fn eval_peer_select_prime(
                 // select_raw() → raw wire bytes (select() would call Value::from_wire with
                 // NO type registry and fail on user enum/record payloads); decode with the
                 // full registry via decode_trusted_wire — same as the poll' client arm.
-                match sel.select_raw().map_err(|io_err| {
-                    EvalBreak::from(RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: format!("select (process tier) io_uring error: {}", io_err),
-                        },
-                    ))
-                })? {
-                    crate::comms::SelectOutcome::Recv { index, result } => {
+                match sel.select_raw() {
+                    Err(_io_err) => Ok(Value::Enum(Arc::new(EnumValue {
+                        type_path: SELECT_EVENT_TYPE_PEER.into(),
+                        variant_name: "Lost".into(),
+                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Lost"),
+                        fields: vec![
+                            Value::i64(0),
+                            message_only_failure("select io_uring error".into()),
+                        ],
+                    }))),
+                    Ok(crate::comms::SelectOutcome::Recv { index, result }) => {
                         let peer_idx = index.0 as i64;
                         match result {
                             Ok(raw_bytes) => {
-                                let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
-                                    EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                                            head: OP.into(),
-                                            reason: "select (process tier): peer message is not valid UTF-8".into(),
-                                        }))
-                                })?;
-                                let msg = crate::edn::render::decode_trusted_wire(
+                                let wire_str = match std::str::from_utf8(&raw_bytes) {
+                                    Ok(s) => s,
+                                    Err(_) => {
+                                        return Ok(Value::Enum(Arc::new(EnumValue {
+                                            type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                            variant_name: "Malformed".into(),
+                                            names: builtin_enum_variant_names(
+                                                SELECT_EVENT_TYPE_PEER,
+                                                "Malformed",
+                                            ),
+                                            fields: vec![
+                                                Value::i64(peer_idx),
+                                                message_only_failure(
+                                                    "select (process tier): peer message is not valid UTF-8".into(),
+                                                ),
+                                            ],
+                                        })));
+                                    }
+                                };
+                                match crate::edn::render::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
                                     sym.encoding_ctx().map(|a| a.as_ref()),
-                                )
-                                .map_err(|e| {
-                                    EvalBreak::from(RuntimeError::new(
-                                        list_span.clone(),
-                                        RuntimeErrorKind::MalformedForm {
-                                            head: OP.into(),
-                                            reason: format!(
-                                                "select (process tier) EDN decode failed: {}",
-                                                e
+                                ) {
+                                    Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
+                                        type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                        variant_name: "Message".into(),
+                                        names: builtin_enum_variant_names(
+                                            SELECT_EVENT_TYPE_PEER,
+                                            "Message",
+                                        ),
+                                        fields: vec![Value::i64(peer_idx), msg],
+                                    }))),
+                                    Err(_e) => Ok(Value::Enum(Arc::new(EnumValue {
+                                        type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                        variant_name: "Malformed".into(),
+                                        names: builtin_enum_variant_names(
+                                            SELECT_EVENT_TYPE_PEER,
+                                            "Malformed",
+                                        ),
+                                        fields: vec![
+                                            Value::i64(peer_idx),
+                                            message_only_failure(
+                                                "select EDN decode failed".into(),
                                             ),
-                                        },
-                                    ))
-                                })?;
-                                Ok(Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE_PEER.into(),
-                                    variant_name: "Message".into(),
-                                    names: builtin_enum_variant_names(
-                                        SELECT_EVENT_TYPE_PEER,
-                                        "Message",
-                                    ),
-                                    fields: vec![Value::i64(peer_idx), msg],
-                                })))
+                                        ],
+                                    }))),
+                                }
                             }
                             // EOF — bare connection peer left gracefully (no crash channel).
                             Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
@@ -26367,15 +26389,15 @@ pub(crate) fn eval_peer_select_prime(
                             }))),
                         }
                     }
-                    crate::comms::SelectOutcome::Shutdown => Err(RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "select interrupted by shutdown".into(),
-                        },
-                    )
-                    .into()),
-                    crate::comms::SelectOutcome::Listener => {
+                    Ok(crate::comms::SelectOutcome::Shutdown) => {
+                        Ok(Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE_PEER.into(),
+                            variant_name: "Shutdown".into(),
+                            names: no_field_names(),
+                            fields: vec![],
+                        })))
+                    }
+                    Ok(crate::comms::SelectOutcome::Listener) => {
                         unreachable!("process-tier peers-only select has no listener arm")
                     }
                 }
