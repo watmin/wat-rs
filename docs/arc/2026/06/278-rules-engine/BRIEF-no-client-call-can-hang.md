@@ -1,76 +1,61 @@
 # BRIEF — no client call can hang
 
-Bound the one unbounded receive in the `defservice` macro, so no generated client method can wait
-forever. `wat/service.wat`.
+⛔ **THIS SUPERSEDES THE EARLIER BRIEF OF THE SAME NAME.** That one had the deadline raise inside
+the macro so no call site would change. It is retracted — see the DESIGN's first section. **Do
+not build it.**
 
-Read `DESIGN-no-client-call-can-hang.md` first — especially *why the migration dissolved*.
+Add `TimedOut` to `RecvOutcome`, bound the macro's receive, and add the arm across the corpus with
+a recorded codemod.
 
 ## READ IN ORDER
 
 | room | why you are there |
 |---|---|
-| `wat/service.wat:2226-2237` | **the target.** `send-recv-form` — the quasiquoted body every generated method expands to. `:2237` is the bare `(:wat::kernel::recv c)` |
-| `wat/service.wat:2238-2258` | the arms below it. **They do not change.** `RecvOutcome` keeps four arms |
-| `wat/service.wat:3119-3170` | `:wat::service::call-by-deadline` — the bounded receive, already written, already parametric, already used from process-locus impls. **This is the mechanism; do not re-invent it** |
-| `wat/service.wat:963` | the precedent: a generated method already raises an unignorable failure |
-| `wat/service.wat:572-578` | `:max-frame-bytes` — the optional-with-default clause shape `:deadline-ms` follows |
-| `wat/service.wat:372-377` | why it is **not** optional-off |
+| `src/` — the `RecvOutcome` definition | the fifth variant, `TimedOut`, nullary |
+| `wat/service.wat:2226-2237` | **the target.** `send-recv-form`; `:2237` is the bare `(:wat::kernel::recv c)` |
+| `wat/service.wat:2238-2258` | the arms below — they gain a `TimedOut` arm here too |
+| `wat/service.wat:3119-3170` | `call-by-deadline` — the bounded receive, already written and parametric. **Use it; do not re-invent it** |
+| `wat/service.wat:572-578` | `:max-frame-bytes` — the optional-with-default clause `:deadline-ms` copies |
+| `wat-scripts/fixes/declare-queue-drop-knobs.wat` | **the codemod exemplar you wrote last strike** — idempotent, comment-faithful, census-first |
+| `wat-scripts/fixes/phantom-none-call-census.wat` | the exemplar for a **form-context** predicate (head + arm set), with both controls |
 
-## SKETCH
+## THE CODEMOD RULE
 
-In `send-recv-form`, the bare receive becomes bounded, and expiry raises:
+For every `match` whose scrutinee is a `RecvOutcome` and which has **no catch-all `_` arm**,
+insert:
 
 ```wat
-;; A client with no deadline policy gets "die loudly", never "hang forever".
-;; A caller that wants to HANDLE a timeout uses :wat::service::call-by-deadline.
-~r-sym (:wat::core::match (… call-by-deadline c (~op-variant-kw req) ~deadline-ms ~inert …)
-         ((:wat::service::CallOutcome::Answered reply) reply)
-         ((:wat::service::CallOutcome::DeadlineFired)
-           (:wat::kernel::assertion-failed!
-             "<surface>/<verb>: no reply within <N> ms — the peer is alive and silent"
-             :wat::core::None :wat::core::None))
-         …)
+((:wat::kernel::RecvOutcome::TimedOut) <the Lost arm's body, with a timeout-specific message>)
 ```
 
-⚠ The surrounding `match ~r-sym` on `RecvOutcome` **stays exactly as it is.** Whatever shape you
-choose must hand it a `RecvOutcome`, so the four arms below and all 643 call-site matches are
-untouched.
+- **Mirror the `Lost` arm.** 245 of them are `assertion-failed!`; ~22 are `nil`/`Tuple`/`connect`.
+  Mirroring gives the same behaviour as a vanished peer, which is defensible everywhere and loud
+  where it matters.
+- **A match with a catch-all needs nothing.**
+- **Idempotent:** a match already carrying a `TimedOut` arm is left byte-untouched.
+- **Census first**, diff it, then apply. Count **occurrences, not lines**.
 
 ## BLAST RADIUS
 
-`wat/service.wat` only. **No `.rs`, no `sqs.wat`, no `circuit.wat`, no codemod — unless row 5
-demands one, and then it is recorded under `wat-scripts/fixes/`.**
+`src/` (one variant), `wat/service.wat`, `wat-scripts/fixes/add-timedout-arm.wat`, and the `.wat`
+corpus **via the codemod only**. ⛔ **No hand-edited `.wat`.**
 
-⚠ **The stdlib is frozen at build time — rebuild before every run.**
+⚠ The stdlib is frozen at build time — rebuild before every run.
 
 ## STOP TRIGGERS
 
-- **STOP-1** — ⛔ **the one genuinely unproven thing.** `call-by-deadline` needs
-  `(:wat::program::Env/peer-kind (:wat::program::env))` for the timer's locus. It is proven from
-  a *worker impl*; it is **not** proven from inside a generated client method, which runs
-  wherever the caller runs — including `:user::main` at top level. If the peer-kind lookup is
-  unavailable or wrong there, **STOP and report the exact error.** Do not special-case a locus.
-- **STOP-2** — if bounding the receive forces the surrounding `RecvOutcome` match to change
-  shape, STOP. That is the 643-site season the DESIGN rejected; the whole stone is that it does
-  not happen.
-- **STOP-3** — if the floor reds with deadline raises, **do not raise the default to make them
-  green.** Report which surfaces fired and at what elapsed time. Those are the `:deadline-ms`
-  declarations, and they are row 5's answer.
-- **STOP-4** — do not add an arm to `RecvOutcome`, do not route a timeout into `Lost`, do not
-  touch `call-by-deadline`'s four existing call sites.
-
-## THE CENSUS — wat-grep + rete, not grep
-
-Row 6 wants the true population of generated-method call sites. **Grep provably cannot produce
-it**: `(:ns::Surface/verb …)` and `(:ns::Record/field …)` are the same name shape, and a raw
-`(:wat::kernel::recv …)` match has the same arms.
-
-The structural discriminator: **a `match` whose scrutinee is a `/`-headed call form and whose
-arms are `:wat::kernel::RecvOutcome::` variants.** Copy `wat-scripts/fixes/phantom-none-call-census.wat`
-— it is this tree's worked example of exactly this kind of head-plus-context predicate, with its
-negative and positive controls.
+- **STOP-1** — `call-by-deadline` needs `(:wat::program::Env/peer-kind (:wat::program::env))`.
+  Proven from a worker impl; **not** proven from inside a generated client method, which runs
+  wherever the caller runs, including `:user::main`. If it is unavailable there, **STOP and report
+  the exact error.** Do not special-case a locus.
+- **STOP-2** — if the codemod cannot be made idempotent, STOP. A migration that is unsafe to
+  re-run is not a recorded migration.
+- **STOP-3** — if the floor reds with deadline raises, **do not raise the default.** Report which
+  surfaces fired and at what elapsed time; those are the `:deadline-ms` declarations.
+- **STOP-4** — do not fold `TimedOut` into `Lost`, and do not hand-edit a `.wat` file to finish
+  the migration.
 
 ## PRIOR RESULT TO COPY FOR SHAPE
 
-`SCORE-every-client-call-has-a-deadline.md` — the stone that built `call-by-deadline`, and whose
-grading found the gap this one closes.
+`SCORE-the-queue-can-drop-too.md` — your own 41-hit, 11-file recorded migration from this run,
+including the idempotency proof.

@@ -1,84 +1,86 @@
 # DESIGN — no client call can hang
 
-**Rung 3.** `wat/service.wat` — the one line every generated client method expands to.
-Correctness. No perf work.
+**Rung 3.** `RecvOutcome` gains `TimedOut`; the generated client method can no longer wait
+forever; a recorded codemod adds the arm across the corpus. Correctness. No perf work.
+
+## ⛔ THIS SUPERSEDES A WRONG DRAFT OF MINE — 2026-09-05
+
+The first draft had the deadline **raise inside the macro**, so no call site would change. I
+chose that because the migration looked expensive. **It was the same collapse this arc has spent
+the day removing** — a distinct condition hidden from the caller so the author would not have to
+touch 643 sites. `service.wat` names the principle it broke: **no-hidden-failures**.
+
+★ The builder's correction: *"our verbosity is our shield… if we are adding 'timed out' to our
+exception list, then so be it — that's the point."* It is. A timeout is a real outcome and every
+caller should face it.
 
 ## WHY — one line, 220 surfaces
 
-`wat/service.wat:2237`, inside the quasiquoted body of every generated client method:
+`wat/service.wat:2237`, in the body every generated client method expands to:
 
 ```wat
 ~r-sym (:wat::kernel::recv c)          ;; a bare, unbounded receive
 ```
 
-**That is the whole exposure.** Every Peer surface in the tree — 220 of them across 162 files —
-gets a method whose body is `send`, then *that*. It is why `Seen/mark` hung a worker ~160 s, and
-why `check` needed forty hand-rolled lines to avoid the same fate.
+220 Peer surfaces across 162 files all get it. It is why `Seen/mark` hung a worker ~160 s and why
+`check` needed forty hand-rolled lines to avoid it.
 
-## ⛔ THE SHAPE CHANGED WHEN I READ THE MACRO — the migration is NOT needed
+## ⛔ WHAT I CLAIMED WAS UNKNOWABLE, AND IS NOT
 
-My scoping said this cost 164 files re-matching a new outcome arm. **Measured, it is worse than
-that: 643 `RecvOutcome::Message` arms across 282 files.** A fifth arm is not a stone, it is a
-season.
+I said each of 643 timeout arms was "a judgement per site, not a rewrite." **Measured, that is
+false.** The bodies of the existing `RecvOutcome::Lost` arms across the corpus:
 
-★ **So the deadline does not return — it RAISES.** On expiry the generated method calls
-`assertion-failed!` naming surface, verb and deadline.
+| Lost arm body | count |
+|---|---|
+| `assertion-failed!` | **245** (plus its 470 `:wat::core::None` arguments) |
+| `nil` / `Tuple` / `connect` (swallow or redial) | ~22 |
 
-- **No type change.** `RecvOutcome` keeps its four arms.
-- **Zero call sites change.** All 643 matches are untouched.
-- An infinite silent hang becomes an immediate, named, diagnosable death.
+★ **The neighbouring arm tells the codemod what to write.** The rule is *mirror the `Lost` arm*,
+with a timeout-specific message where it is an assertion. Where mirroring is imperfect it
+produces *the same behaviour as a vanished peer* — defensible, and loud wherever it matters.
 
-★★ **This is already the method's contract, not a new behaviour.** `service.wat:963`: *"the
-generated client method surfaces it as an unignorable raise carrying the cause's reason."* A
-protocol-tier failure already raises through this exact path. A deadline joins it.
-
-★★★ And it is honestly rung 3: **the generated method can no longer hang. The wrong thing has no
-form.** A caller that genuinely wants to *handle* a timeout uses
-`:wat::service::call-by-deadline` — which is what the circuit's four hot calls already do.
+**Nothing here is unknowable at codemod time. This is one-shottable.**
 
 ## ⛔ THE ONE CONTRACT DECISION
 
-**The deadline must fire before the harness kills the process, or the diagnostic is destroyed.**
+**`TimedOut` is a fifth arm on `:wat::kernel::RecvOutcome`, and every caller faces it.**
 
-That is not a taste; it is this arc's most expensive lesson, paid twice — a `TIMEOUT [30.015s]`
-with an empty ARM, and a `drained-never` that needed 64 s to print inside a 30 s cap.
+Not a raise, not folded into `Lost`. `service.wat:2253-2258` records someone un-collapsing
+`Stopped` from `Lost` **in this very arc**; re-collapsing a different condition into it one arc
+later is that mistake made deliberately.
 
-**Default: 10 000 ms.** Enormously generous for any single round trip in this tree (store scans
-and stats calls are milliseconds), and comfortably inside nextest's 30 s kill, so the raise
-*prints* instead of being truncated into silence.
+Deadline default **10 000 ms**, tunable per feature by an optional `:deadline-ms` following
+`:max-frame-bytes`'s optional-with-default shape — **never optional-off**
+(`service.wat:372-377`).
 
-Tunable per feature by an optional `:deadline-ms`, following `:max-frame-bytes`'s existing
-optional-with-default clause shape (`service.wat:572-578`).
+★ 10 000 ms because **the deadline must fire before the harness kills the process, or the
+diagnostic is destroyed.** This arc paid for that twice: a `TIMEOUT [30.015s]` with an empty ARM,
+and a `drained-never` needing 64 s inside a 30 s cap.
 
-⚠ **Optional-with-a-default, never optional-off.** Your ruling at `service.wat:372-377`: *"A knob
-whose off-position is 'die on a malformed frame, for every client at once' is a non-option
-surfaced as a choice."* A deadline whose off-position is *hang forever* is the same non-option.
+## SCALE, MEASURED
 
-## THE TOOLKIT — where wat-grep, rete and wat-fix actually earn their place
+- **643** `RecvOutcome::Message` arms across **282** `.wat` files
+- a match that already has a catch-all `_` needs **nothing**
+- raw `(:wat::kernel::recv …)` sites gain an arm that can never fire — **that is correct**: the
+  type says it is possible, and an unreachable arm is cheaper than a lying type
 
-The corpus migration dissolved, but the **census did not**, and it cannot be a grep:
+## THE TOOLKIT
 
-1. **wat-grep + rete — the census.** A generated-method call site is structurally
-   *a `match` whose scrutinee is a `/`-headed call and whose arms are `RecvOutcome::` variants* —
-   distinguishable from a raw `(:wat::kernel::recv …)` match by the scrutinee's head, and from a
-   record accessor (`:ns::Rec/field`, the identical name shape) by the arms. **Grep cannot tell
-   any of these apart.** The finder produces the true population.
-2. **The floor is the second census.** 5215 tests exercise these methods; a default that is too
-   short reds them, naming the surface. That is a stronger census than any static count.
-3. **wat-fix — the migration, if the floor asks for one.** Any surface whose legitimate round
-   trip exceeds the default needs `:deadline-ms` declared. **Do not guess which.** Let the floor
-   name them, then record the insertions as a migration.
+1. **wat-grep + rete — the finder.** A `match` on `RecvOutcome` **without** a catch-all arm.
+   Grep cannot do this: it must see the arm *set* of a form, not a token.
+2. **wat-fix — the migration.** Insert `((:wat::kernel::RecvOutcome::TimedOut) <mirror of Lost>)`.
+   Idempotent; a match that already has the arm is left byte-untouched.
+3. **The floor is the census that matters.** 5215 tests exercise these paths; a missed site fails
+   to type-check, and a too-short default reds while naming the surface.
 
 ## FILES
 
-`wat/service.wat`. Plus, only if the floor demands it, `:deadline-ms` declarations via a recorded
-codemod.
+`src/` (the `RecvOutcome` variant), `wat/service.wat` (the bounded receive), and the corpus via
+`wat-scripts/fixes/add-timedout-arm.wat`.
 
 ## OUT OF SCOPE = REJECTED
 
-- **A fifth `RecvOutcome` arm.** 643 sites, and each arm's body is a judgement, not a rewrite.
-- **Routing a timeout into `Lost`.** `service.wat:2253-2258` records someone un-collapsing
-  `Stopped` from `Lost` in this very arc. Re-collapsing a different condition into it, one arc
-  later, is that mistake made deliberately.
-- **Touching `call-by-deadline` or its four call sites.** They are the escape hatch and they work.
+- **Raising inside the macro.** My first draft; retracted above with the reason.
+- **Folding a timeout into `Lost`.**
+- **Hand-editing `.wat`.** 282 files is a codemod, full stop.
 - All perf work.
