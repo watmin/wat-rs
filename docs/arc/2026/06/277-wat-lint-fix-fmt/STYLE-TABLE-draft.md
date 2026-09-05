@@ -144,3 +144,106 @@ every other rule's output STABLE under renaming.
   Three ruled-or-proposed rules rest on a fact nothing emits yet.
 - **Comments** — see R8.
 - **Whether a width budget exists at all** — R2 decides it.
+
+---
+
+# RIDER FINDINGS — 4 riders, 4 form families, 2026-09-05. Verified against the disk.
+
+## ⭐⭐⭐ R11 · SIBLING BREAKING IS ALL-OR-NOTHING — **MINE, and it is the most valuable rule here**
+
+**The corpus's monster lines are not caused by width. They are caused by half-broken sibling sets.**
+
+`tests/services/probe_arc170_m1_teeth_revoked.wat:95` — **1,096 columns, verified**. It is a `match`
+whose INNER arms were each given their own line and whose OUTER arms were then appended to the tail
+of the last inner one, closing parens and all:
+
+```
+…(:wat::kernel::assertion-failed! "unexpected RequestMalformed" …)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::…
+                                                                   ↑ four closes, then the NEXT ARM, same line
+```
+
+Whoever formatted it broke the inner `match` and never came back to the outer one. The rider found
+the same shape at `:78` (800 cols), `probe_arc170_m1_teeth_admitted.wat:67` (778), and in ~6 more
+arc-170 probes — copy-pasted, so it is ONE authoring mistake replicated, not six judgements.
+
+**The rule:** if ANY sibling in a form's child list is on its own line, EVERY sibling is. Arms of one
+`match`, branches of one `if`, pairs of one `let`, fields of one record. No form is half-broken.
+
+⛔ **THIS IS THE ANSWER TO R2's WIDTH QUESTION, AND IT ARGUES AGAINST A BUDGET.** A width budget
+would not have caught line 95 — the author was already breaking lines; they just stopped partway.
+R11 catches it structurally, with no number to argue about. **A width rule is neither necessary nor
+sufficient for the corpus's worst damage.**
+
+## R12 · CROSS-CALL TABLE ALIGNMENT — **OPEN. Real, deliberate, and nobody wrote it down.**
+
+`wat-scripts/scratch-pad/rules-corpus-02-gates-and-unknowns.wat:176-180`, verbatim:
+
+```
+(:m::Member :id 1 :prefix "String" :base "concat"    :style "slash")
+(:m::Member :id 2 :prefix "string" :base "length"    :style "colons")
+(:m::Member :id 3 :prefix "i64"    :base "to-string" :style "colons")
+```
+
+Values padded into columns **across sibling calls** — a fact table, not a value list. Also at
+`rules-corpus-01-node-facts.wat:121-125`, and the same instinct in a data literal at
+`wat-scripts/fixes/reclaim-service-fixture-names.wat:40-58`.
+
+⚠ **Every rule in this table so far reasons about ONE form's own children. This one reasons about a
+form's NEIGHBOURS** — it needs a fact no rule has ("my sibling is a call to the same head with the
+same keyword sequence"). If wat-fmt does not learn it, canonical formatting **destroys** these three
+hand-built tables. That is a real cost of "canonical", and it should be paid knowingly or not at all.
+
+## R13 · NO BLANK LINE BETWEEN A HEAD AND ITS FIRST ARM — **MINE**
+59 occurrences of a `match` head followed by a blank line before arm 1 (`wat/query/sqlite-store.wat`
+×5, `wat/rete/acc.wat:151`), and the same tic on `if` (`wat/core.wat:1687,1694,1706,1793`). Consistent
+within a file, absent everywhere else — a local habit, not a convention.
+
+## R9 · trailing whitespace — **MEASURED: 941 lines across the corpus.**
+Includes a distinct flavour the riders named: a space left *before* a deliberate wrap
+(`(:wat::core::Option/expect  ⏎`) at `wat/rete/acc.wat:63,82,115,147`. Free to fix, invisible in most
+diff viewers, and it will touch many files on the first run.
+
+## ★ R14 · `defservice` — clause keyword per line, values aligned. **20/20 UNIFORM in the corpus.**
+```
+(:wat::service::defservice :wat-tests::recorder
+  :satisfies :wat-tests::Recorder
+  :durable   [total <- :wat::core::i64]
+  :ephemeral []
+  :impls     [...])
+```
+The most uniform named-slot form found. It already IS R1's principle (one conceptual slot per line,
+values in a column) applied to keyword clauses — so R7 should be stated as *generalising* R14, not
+inventing something.
+
+## ⛔ THE CENSUS THAT TESTS THE DESIGN'S CENTRAL CLAIM — head-symbol dispatch
+
+`wat-scripts/scratch-pad/277-head-kind-census.wat`. The DESIGN rests extensibility on *"a layout
+rule dispatches on HEAD SYMBOL"*, which presumes every form HAS one.
+
+```
+OF 89,968 FORMS WHOSE PARENT IS A LIST:
+  literal keyword head    81,722   90%   ← head-dispatch works
+  LIST head                4,840    5%   ← cannot dispatch on a name
+  bare symbol head         3,185    3%   ← nameable, but no registry row
+```
+
+⚠ **The 5% is still confounded and I am not publishing it as the answer.** A `match` ARM
+`((:wat::core::Ok v) body)` is a list whose child-0 is a list, and arms are counted here. The v1 rule
+was worse — it fired on child-0 of *every* node, counting the first element of every vector and map,
+and reported **9,115**. That number is retracted; the amended rule joins the parent's kind.
+
+What survives: **90% of forms dispatch cleanly on a literal head, and the remainder is real but
+small.** Match arms need dispatch on their PARENT's head, not their own — which the fact base
+already supports (`Node.parent`) and no rule has used yet.
+
+## THE SMALL FINDINGS WORTH KEEPING
+
+- **`:wat::core::when` is DEAD** — zero call sites corpus-wide; its only mention is a probe naming it
+  an orphan (`255-probe-are-the-orphans-live.wat`). Not a formatter matter; a registry one.
+- **`wat/sqlite.wat:52-55` is the best comment-alignment exemplar in the corpus** — better than
+  `bracket.wat`'s. Variant names padded so every `[` lines up AND every `;;` lines up.
+- **The stdlib already violates R1** — `wat/fix.wat:1028` and `:1083` disagree with each other about
+  crowding two args, 55 lines apart in one file.
+- **`wat/core.wat:1405` vs `:673`** — `defn`'s own defining macro splits `name` and `& rest` onto
+  separate lines; `->`'s puts `acc` and `& steps` together. Same file, same era, two answers for the
+  fixed-arg-plus-variadic shape.
