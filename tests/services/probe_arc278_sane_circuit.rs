@@ -130,6 +130,21 @@ fn redelivery_is_absorbed_by_the_consumer() {
     );
 }
 
+/// s3 window: a redelivery that arrives mid-processing must not LOSE the
+/// message. distinct=1 is the invariant. total/dup are observations
+/// (total=2 today; 1 would be an improvement, not a regression).
+#[test]
+fn redelivery_mid_processing_never_loses() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::redelivery-mid-processing");
+    assert_eq!(
+        field(&stored, "distinct"),
+        "1",
+        "a redelivery mid-processing must not LOSE the message; got {stored}"
+    );
+    eprintln!("MID-PROCESSING {stored}");
+}
+
 /// Row 7: receive-calls approach the message count, not ~3× it. Floor weight
 /// is 12×2 = 24 messages; the old worker did 4×12 = 48 polls by construction.
 #[test]

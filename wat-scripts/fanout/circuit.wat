@@ -236,7 +236,8 @@
   :durable   [id         <- :wat::core::String
               queue-name <- :wat::core::String
               vis-ns     <- :wat::core::i64
-              delay-ms   <- :wat::core::i64
+              ack-delay-ms  <- :wat::core::i64
+              work-delay-ms <- :wat::core::i64
               queue-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
               seen-addr  <- (:wat::kernel::Address :- [:fanout::Seen::Op :fanout::Seen::Reply])
               disrupt-rate-bp   <- :wat::core::i64
@@ -295,7 +296,8 @@
                     :id (:fanout::worker::Record/id rec)
                     :queue-name (:fanout::worker::Record/queue-name rec)
                     :vis-ns (:fanout::worker::Record/vis-ns rec)
-                    :delay-ms (:fanout::worker::Record/delay-ms rec)
+                    :ack-delay-ms (:fanout::worker::Record/ack-delay-ms rec)
+                    :work-delay-ms (:fanout::worker::Record/work-delay-ms rec)
                     :queue-addr (:fanout::worker::Record/queue-addr rec)
                     :seen-addr (:fanout::worker::Record/seen-addr rec)
                     :disrupt-rate-bp rate
@@ -380,7 +382,8 @@
                 :id (:fanout::worker::Record/id rec)
                 :queue-name (:fanout::worker::Record/queue-name rec)
                 :vis-ns (:fanout::worker::Record/vis-ns rec)
-                :delay-ms (:fanout::worker::Record/delay-ms rec)
+                :ack-delay-ms (:fanout::worker::Record/ack-delay-ms rec)
+                :work-delay-ms (:fanout::worker::Record/work-delay-ms rec)
                 :queue-addr (:fanout::worker::Record/queue-addr rec)
                 :seen-addr (:fanout::worker::Record/seen-addr rec)
                 :disrupt-rate-bp rate
@@ -412,7 +415,8 @@
         name (:fanout::worker::Record/queue-name rec)
         wid  (:fanout::worker::Record/id rec)
         vis  (:fanout::worker::Record/vis-ns rec)
-        delay (:fanout::worker::Record/delay-ms rec)
+        ack-delay (:fanout::worker::Record/ack-delay-ms rec)
+        work-delay (:fanout::worker::Record/work-delay-ms rec)
         outs (:fanout::worker::State/outcomes s)
         now  (:wat::time::epoch-nanos (:wat::time::now))
         empty-envs (:wat::core::Vector :- [:queue::Envelope])
@@ -494,6 +498,13 @@
                                                ((:fanout::Seen::CheckResponse::Recorded) false)
                                                (_ (:wat::kernel::assertion-failed! "fanout worker: check not Absent/Recorded" :wat::core::None :wat::core::None)))
                                      ebody (:wat::core::format "{b}|{t}" :b raw :t t4)
+                                     _work-nap (:wat::core::if (:wat::core::and (:wat::i64::> work-delay 0) absent?)
+                                                 (:wat::core::match
+                                                   (:wat::kernel::recv
+                                                     (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds work-delay) :done))
+                                                   ((:wat::kernel::RecvOutcome::Message _m) nil)
+                                                   (_ nil))
+                                                 nil)
                                      outs1 (:wat::core::if absent?
                                              (:wat::vector::conj outs0
                                                (:fanout::Outcome :worker wid :queue name :id eid :body ebody))
@@ -517,10 +528,10 @@
                                      mm2 (:wat::core::if (:wat::core::second mm1) (once-m (:wat::core::first mm1)) mm1)
                                      mm3 (:wat::core::if (:wat::core::second mm2) (once-m (:wat::core::first mm2)) mm2)
                                      seen2 (:wat::core::first mm3)
-                                     _nap (:wat::core::if (:wat::i64::> delay 0)
+                                     _nap (:wat::core::if (:wat::i64::> ack-delay 0)
                                              (:wat::core::match
                                                (:wat::kernel::recv
-                                                 (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds delay) :done))
+                                                 (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ack-delay) :done))
                                                ((:wat::kernel::RecvOutcome::Message _m) nil)
                                                (_ nil))
                                              nil)
@@ -562,7 +573,8 @@
                            :id (:fanout::worker::Record/id rec)
                            :queue-name (:fanout::worker::Record/queue-name rec)
                            :vis-ns (:fanout::worker::Record/vis-ns rec)
-                           :delay-ms (:fanout::worker::Record/delay-ms rec)
+                           :ack-delay-ms (:fanout::worker::Record/ack-delay-ms rec)
+                           :work-delay-ms (:fanout::worker::Record/work-delay-ms rec)
                            :queue-addr (:fanout::worker::Record/queue-addr rec)
                            :seen-addr (:fanout::worker::Record/seen-addr rec)
                            :disrupt-rate-bp (:fanout::worker::Record/disrupt-rate-bp rec)
@@ -813,14 +825,16 @@
   [id         <- :wat::core::String
    queue-name <- :wat::core::String
    vis-ns     <- :wat::core::i64
-   delay-ms   <- :wat::core::i64
+   ack-delay-ms  <- :wat::core::i64
+   work-delay-ms <- :wat::core::i64
    queue-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
    seen-addr  <- (:wat::kernel::Address :- [:fanout::Seen::Op :fanout::Seen::Reply])
    rate-bp    <- :wat::core::i64
    seed       <- :wat::core::i64]
   -> :fanout::worker::Record
   (:fanout::worker::Record
-    :id id :queue-name queue-name :vis-ns vis-ns :delay-ms delay-ms
+    :id id :queue-name queue-name :vis-ns vis-ns
+    :ack-delay-ms ack-delay-ms :work-delay-ms work-delay-ms
     :queue-addr queue-addr :seen-addr seen-addr
     :disrupt-rate-bp rate-bp :disrupt-seed seed
     :disrupt-lo-ms 50 :disrupt-hi-ms 150 :disrupt-max-draws 0
@@ -1343,7 +1357,7 @@
                                      :record (:fanout::mk-worker
                                                (:fanout::wid qi wi)
                                                (:fanout::qname qi)
-                                               vis 0
+                                               vis 0 0
                                                (:queue::queue::Handle/addr qh)
                                                (:fanout::seen::Handle/addr seenh)
                                                rate seed))]
@@ -1640,7 +1654,7 @@
                         [pids (:fanout::pids pl)
                          _ (:queue::queue/grant qh pids)]
                         (:fanout::seen/grant seenh pids))))
-           :record (:fanout::mk-worker "idle-0" "q0" 1000000000000 0
+           :record (:fanout::mk-worker "idle-0" "q0" 1000000000000 0 0
                      (:queue::queue::Handle/addr qh)
                      (:fanout::seen::Handle/addr seenh) 0 0))
      w   (:fanout::dial-worker (:fanout::worker::Handle/addr wh))
@@ -1685,7 +1699,7 @@
                         [pids (:fanout::pids pl)
                          _ (:queue::queue/grant qh pids)]
                         (:fanout::seen/grant seenh pids))))
-           :record (:fanout::mk-worker "ob-0" "q0" 1000000000000 0
+           :record (:fanout::mk-worker "ob-0" "q0" 1000000000000 0 0
                      (:queue::queue::Handle/addr qh)
                      (:fanout::seen::Handle/addr seenh) 0 0))
      topic (:fanout::dial-topic (:demo::topic::Handle/addr th))
@@ -1764,7 +1778,7 @@
       :s (:wat::core::if (:wat::core::= seq1 seq2) "yes" "no")
       :e (:wat::core::if (:wat::core::= id1 id2) "no" "yes"))))
 
-;; ★ Row 2: the same redelivery, consumed. Two workers, vis 200ms, delay 350ms,
+;; ★ Row 2: the same redelivery, consumed. Two workers, vis 200ms, ack-delay 350ms,
 ;; shared seen. First claims; second sees Dup and drops. One outcome.
 (:wat::core::defn :user::redelivery-is-absorbed [] -> :wat::core::String
   (:wat::core::let
@@ -1775,11 +1789,68 @@
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
-          :record (:fanout::mk-worker "a" "q0" 200000000 350
+          :record (:fanout::mk-worker "a" "q0" 200000000 350 0
                     (:queue::queue::Handle/addr qh)
                     (:fanout::seen::Handle/addr seenh) 0 0))
      w2 (:fanout::worker/start :locus (:wat::spawn::thread)
-          :record (:fanout::mk-worker "b" "q0" 200000000 350
+          :record (:fanout::mk-worker "b" "q0" 200000000 350 0
+                    (:queue::queue::Handle/addr qh)
+                    (:fanout::seen::Handle/addr seenh) 0 0))
+     q  (:fanout::dial-queue (:queue::queue::Handle/addr qh))
+     _  (:fanout::start-worker! (:fanout::dial-worker (:fanout::worker::Handle/addr w1)))
+     _  (:fanout::start-worker! (:fanout::dial-worker (:fanout::worker::Handle/addr w2)))
+     _  (:wat::core::match
+          (:queue::Queue/send q
+            (:queue::Queue::SendRequest :queue "q0"
+              :bodies (:wat::core::Vector :- [:wat::core::String] "7|hello")
+              :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
+          ((:wat::kernel::RecvOutcome::Message _r) nil)
+          (_ nil))
+     _  (:fanout::await-timer-ms 800)
+     o1 (:fanout::worker/stop w1)
+     o2 (:fanout::worker/stop w2)
+     outs (:wat::core::foldl
+            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:fanout::Outcome])
+                             o   <- :fanout::Outcome]
+              -> (:wat::core::PersistentVector :- [:fanout::Outcome])
+              (:wat::vector::conj acc o))
+            o1
+            o2)
+     total (:wat::core::count outs)
+     distinct (:wat::core::count
+                (:wat::hashmap::keys
+                  (:wat::core::foldl
+                    (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                                     o   <- :fanout::Outcome]
+                      -> (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                      (:wat::hashmap::assoc acc (:fanout::key-of o) true))
+                    (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                    outs)))
+     spair (:fanout::seen-stats seenh)
+     sfirsts (:wat::core::first spair)
+     sdups (:wat::core::second spair)]
+    (:wat::core::format
+      "total={t};distinct={d};dup={dup};seen-recorded={f};seen-skipped={sd}"
+      :t total :d distinct :dup (:wat::core::- total distinct)
+      :f sfirsts :sd sdups)))
+
+;; s3 window: redelivery arrives mid-processing. vis 200ms, work-delay 350ms,
+;; ack-delay 0. A checks Absent and naps; vis expires; B checks Absent too.
+;; Both emit. distinct=1 is the invariant (not a loss). total=2 today.
+(:wat::core::defn :user::redelivery-mid-processing [] -> :wat::core::String
+  (:wat::core::let
+    [msh (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::sqlite-store::Record :path ":memory:" :index-names (:wat::core::Vector :- [:wat::core::String] "by-visible-at")))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     seenh (:fanout::seen/start :locus (:wat::spawn::thread)
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+     w1 (:fanout::worker/start :locus (:wat::spawn::thread)
+          :record (:fanout::mk-worker "a" "q0" 200000000 0 350
+                    (:queue::queue::Handle/addr qh)
+                    (:fanout::seen::Handle/addr seenh) 0 0))
+     w2 (:fanout::worker/start :locus (:wat::spawn::thread)
+          :record (:fanout::mk-worker "b" "q0" 200000000 0 350
                     (:queue::queue::Handle/addr qh)
                     (:fanout::seen::Handle/addr seenh) 0 0))
      q  (:fanout::dial-queue (:queue::queue::Handle/addr qh))
