@@ -329,8 +329,10 @@ impl JoinLeftIndex {
 /// `fire::pass::record_token` and its beta census.
 ///
 /// The mark counts ELEMENTS PUSHED. Every writer pushes exactly one element per element of the
-/// feeding alpha memory it indexes, and all three walk that memory in order, so the mark is also
-/// the length of the alpha prefix already indexed — which is the reading `already` needs.
+/// feeding alpha memory it indexes, and all three walk that memory as `right[already..]`, so the
+/// mark is also the length of the alpha prefix already indexed — which is the reading `already`
+/// needs. (arc 278 D1: the catch-up used to walk the whole memory; that coincided with a prefix
+/// walk only while first_keying implied `already == 0`.)
 #[derive(Default)]
 pub(crate) struct JoinRightIndex {
     /// join id → key → the elements indexed under it.
@@ -358,10 +360,11 @@ impl RightIndexWriter<'_> {
 }
 
 impl JoinRightIndex {
-    /// How many elements this join's index already holds — `keyed_join_persistent`'s `already`.
+    /// How many elements this join's index already holds — every writer's `already`.
     ///
     /// A join never written is `0`: nothing is indexed, so the whole of the feeding alpha memory
-    /// is the tail still to index.
+    /// is the tail still to index. Because every writer (catch-up, step-2, maintainer) indexes
+    /// `right[already..]`, this is also the length of the feeding-alpha prefix already indexed.
     #[inline]
     pub(crate) fn already(&self, join_id: i64) -> usize {
         self.indexed_n.get(&join_id).copied().unwrap_or(0)
@@ -420,6 +423,23 @@ impl JoinRightIndex {
                 (id, self.indexed_n.get(&id).copied(), elements)
             })
             .collect()
+    }
+
+    /// Facts currently sitting in this join's buckets, as a sorted bag.
+    ///
+    /// ⛔ `#[cfg(test)]` only. Reads through the private map; does not hand out `&mut` to
+    /// `buckets`, so a prober still cannot append. Shipping code cannot reach this (same
+    /// warrant as [`BetaStore::push_ref`]). Used by the D1 prefix assertion: the bag must
+    /// equal `feeding_alpha[0..mark]`'s facts, not merely match it in count.
+    #[cfg(test)]
+    pub(crate) fn indexed_facts(&self, join_id: i64) -> Vec<u32> {
+        let mut facts: Vec<u32> = self
+            .buckets
+            .get(&join_id)
+            .map(|m| m.values().flat_map(|b| b.iter().map(|el| el.fact)).collect())
+            .unwrap_or_default();
+        facts.sort_unstable();
+        facts
     }
 }
 
