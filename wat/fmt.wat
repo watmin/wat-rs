@@ -277,8 +277,23 @@
       -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
       (:wat::core::let [b (:wat::core::Option/expect
                             (:wat::map::get binding "?b")
-                            "fmt::breaks-map: no ?b")]
-        (:wat::hashmap::assoc m (:wat::fmt::Break/id b) (:wat::fmt::Break/kind b))))
+                            "fmt::breaks-map: no ?b")
+                        id (:wat::fmt::Break/id b)
+                        k  (:wat::fmt::Break/kind b)]
+        (:wat::core::match (:wat::core::get m id)
+          (:wat::core::None
+            (:wat::hashmap::assoc m id k))
+          ((:wat::core::Some prev)
+            (:wat::core::if (:wat::core::= prev k)
+              (:wat::hashmap::assoc m id k)
+              (:wat::kernel::assertion-failed!
+                (:wat::string::interpolate
+                  "fmt: conflicting Breaks for node {n} — {a} vs {b}"
+                  :n (:wat::i64::to-string id)
+                  :a prev
+                  :b k)
+                :wat::core::None
+                :wat::core::None))))))
     (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
     (:wat::rete::query session (:wat::fmt::q-break))))
 
