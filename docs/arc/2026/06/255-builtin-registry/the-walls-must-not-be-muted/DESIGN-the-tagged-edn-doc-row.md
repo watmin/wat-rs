@@ -33,10 +33,16 @@ things **rows**, everywhere and without exception — *"registry rows 571"*, *"a
 }
 
 ;; a row that DELEGATES — it has NOWHERE to put an axis
+;; ⚠ CORRECTED 2026-09-04 — this used to carry :args/:ret. It should not, and the reason is
+;; measured: the resolution pass copies FIVE fields and NOT the signature, nothing compares an
+;; alias's arity to its target's, and 16 of 52 alias rows already disagree — including two
+;; aliasing the SAME target with arities 1 and 2, because one author wrote one @arg line and the
+;; other wrote two. See [[NOTE-an-alias-restates-its-signature-and-nothing-checks-it]].
+;; :examples STAY: an example at the alias name demonstrates that name.
 #wat.doc/Alias {
   :added "1.0.0"
   :alias :wat::core::foldl
-  :args  [...]  :ret {...}  :examples [...]
+  :examples [{:src "(:wat::core::reduce + 0 [1 2 3])" :yields "6"}]
 }
 ```
 
