@@ -220,7 +220,8 @@
                         expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :fanout::Worker::DisruptsRequest [])
    (:wat::core::defenum :fanout::Worker::DisruptsResponse :wat::enum::Pure
-     :Ok [hits <- :wat::core::i64  draws <- :wat::core::i64  points <- :wat::core::String]
+     :Ok [hits <- :wat::core::i64  draws <- :wat::core::i64  points <- :wat::core::String
+          gave-back <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
@@ -245,7 +246,8 @@
               disrupt-max-draws <- :wat::core::i64
               disrupt-hits      <- :wat::core::i64
               disrupt-draws     <- :wat::core::i64
-              disrupt-points    <- :wat::core::String]
+              disrupt-points    <- :wat::core::String
+              gave-back         <- :wat::core::i64]
   :ephemeral [q        <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
               seen     <- (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
               outcomes <- (:wat::core::PersistentVector :- [:fanout::Outcome])]
@@ -303,7 +305,8 @@
                     :disrupt-max-draws (:fanout::worker::Record/disrupt-max-draws rec)
                     :disrupt-hits (:fanout::worker::Record/disrupt-hits rec)
                     :disrupt-draws (:fanout::worker::Record/disrupt-draws rec)
-                    :disrupt-points (:fanout::worker::Record/disrupt-points rec))
+                    :disrupt-points (:fanout::worker::Record/disrupt-points rec)
+                    :gave-back (:fanout::worker::Record/gave-back rec))
             s' (:fanout::worker::State :durable rec'
                  :q (:fanout::worker::State/q s)
                  :seen (:fanout::worker::State/seen s)
@@ -326,7 +329,8 @@
            (:fanout::Worker::DisruptsResponse::Ok
              (:fanout::worker::Record/disrupt-hits rec)
              (:fanout::worker::Record/disrupt-draws rec)
-             (:fanout::worker::Record/disrupt-points rec))))
+             (:fanout::worker::Record/disrupt-points rec)
+             (:fanout::worker::Record/gave-back rec))))
          none-sends none-arms)))
    (-disrupt [s ctx]
      (:wat::core::let
@@ -386,7 +390,8 @@
                 :disrupt-max-draws maxd
                 :disrupt-hits hits'
                 :disrupt-draws draws
-                :disrupt-points points')
+                :disrupt-points points'
+                :gave-back (:fanout::worker::Record/gave-back rec))
         s' (:fanout::worker::State :durable rec'
              :q (:fanout::worker::State/q s) :seen seen'
              :outcomes (:fanout::worker::State/outcomes s))
@@ -424,17 +429,21 @@
                (:wat::core::let
                  [t4 (:wat::time::epoch-nanos (:wat::time::now))
                   triple (:wat::core::foldl
-                          (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                                         (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
-                                                                         (:wat::core::PersistentVector :- [:fanout::Outcome])])
+                          (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
+                                                                                               (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
+                                                                                               (:wat::core::PersistentVector :- [:fanout::Outcome])])
+                                                                        :wat::core::i64])
                                            e   <- :queue::Envelope]
-                            -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                      (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
-                                                      (:wat::core::PersistentVector :- [:fanout::Outcome])])
+                            -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
+                                                                            (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
+                                                                            (:wat::core::PersistentVector :- [:fanout::Outcome])])
+                                                      :wat::core::i64])
                             (:wat::core::let
-                              [q0    (:wat::core::first acc)
-                               seen0 (:wat::core::second acc)
-                               outs0 (:wat::core::third acc)
+                              [inner (:wat::core::first acc)
+                               gb0   (:wat::core::second acc)
+                               q0    (:wat::core::first inner)
+                               seen0 (:wat::core::second inner)
+                               outs0 (:wat::core::third inner)
                                eid   (:queue::Envelope/id e)
                                raw   (:queue::Envelope/body e)
                                parts (:wat::string::split raw "|")
@@ -474,7 +483,9 @@
                               (:wat::core::if (:wat::core::third a3)
                                 ;; The budget is spent. Nothing was emitted and no receipt was written, so this
                                 ;; envelope is untouched work: leave it unacked, let visibility redeliver it.
-                                (:wat::core::Tuple q0 seen1 outs0)
+                                ;; Counted: this is the only place a give-back happens, and an uncounted
+                                ;; give-back is indistinguishable from an exhaustion that never occurred.
+                                (:wat::core::Tuple (:wat::core::Tuple q0 seen1 outs0) (:wat::i64::+ gb0 1))
                                 (:wat::core::match (:wat::core::second a3)
                                 ((:wat::core::Some cresp)
                                   (:wat::core::let
@@ -537,17 +548,37 @@
                                      aa1 (once-a q0)
                                      aa2 (:wat::core::if (:wat::core::second aa1) (once-a (:wat::core::first aa1)) aa1)
                                      aa3 (:wat::core::if (:wat::core::second aa2) (once-a (:wat::core::first aa2)) aa2)]
-                                    (:wat::core::Tuple (:wat::core::first aa3) seen2 outs1)))
+                                    (:wat::core::Tuple (:wat::core::Tuple (:wat::core::first aa3) seen2 outs1) gb0)))
                                 (:wat::core::None
                                   ;; Lost/Closed (and send-fail) already redialed. Do not ack.
                                   ;; If the claim landed, vis + Dup absorb.
-                                  (:wat::core::Tuple q0 seen1 outs0))))))
-                          (:wat::core::Tuple q seen outs)
+                                  (:wat::core::Tuple (:wat::core::Tuple q0 seen1 outs0) gb0))))))
+                          (:wat::core::Tuple (:wat::core::Tuple q seen outs) 0)
                           envs)
-                  s' (:fanout::worker::State :durable rec
-                       :q (:wat::core::first triple)
-                       :seen (:wat::core::second triple)
-                       :outcomes (:wat::core::third triple))]
+                  folded (:wat::core::first triple)
+                  gb-tick (:wat::core::second triple)
+                  rec' (:wat::core::if (:wat::i64::> gb-tick 0)
+                         (:fanout::worker::Record
+                           :id (:fanout::worker::Record/id rec)
+                           :queue-name (:fanout::worker::Record/queue-name rec)
+                           :vis-ns (:fanout::worker::Record/vis-ns rec)
+                           :delay-ms (:fanout::worker::Record/delay-ms rec)
+                           :queue-addr (:fanout::worker::Record/queue-addr rec)
+                           :seen-addr (:fanout::worker::Record/seen-addr rec)
+                           :disrupt-rate-bp (:fanout::worker::Record/disrupt-rate-bp rec)
+                           :disrupt-seed (:fanout::worker::Record/disrupt-seed rec)
+                           :disrupt-lo-ms (:fanout::worker::Record/disrupt-lo-ms rec)
+                           :disrupt-hi-ms (:fanout::worker::Record/disrupt-hi-ms rec)
+                           :disrupt-max-draws (:fanout::worker::Record/disrupt-max-draws rec)
+                           :disrupt-hits (:fanout::worker::Record/disrupt-hits rec)
+                           :disrupt-draws (:fanout::worker::Record/disrupt-draws rec)
+                           :disrupt-points (:fanout::worker::Record/disrupt-points rec)
+                           :gave-back (:wat::i64::+ (:fanout::worker::Record/gave-back rec) gb-tick))
+                         rec)
+                  s' (:fanout::worker::State :durable rec'
+                       :q (:wat::core::first folded)
+                       :seen (:wat::core::second folded)
+                       :outcomes (:wat::core::third folded))]
                  (:wat::service::SelfOutcome::Continue s'
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
              (_ (:wat::kernel::assertion-failed! "fanout worker: receive not Ok" :wat::core::None :wat::core::None))))
@@ -604,7 +635,7 @@
    (disrupts [s ctx req]
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:fanout::Worker::Reply::Disrupts
-         (:fanout::Worker::DisruptsResponse::Ok 0 0 "")))
+         (:fanout::Worker::DisruptsResponse::Ok 0 0 "" 0)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
        (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::held-worker::Op])])))
    (-tick [s ctx]
@@ -793,7 +824,7 @@
     :queue-addr queue-addr :seen-addr seen-addr
     :disrupt-rate-bp rate-bp :disrupt-seed seed
     :disrupt-lo-ms 50 :disrupt-hi-ms 150 :disrupt-max-draws 0
-    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points ""))
+    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points "" :gave-back 0))
 
 ;; Sentinel: -1 means unread. Matches ticks-of / q-depth. (1,1) satisfied both waits.
 (:wat::core::defn :fanout::depth-of
@@ -1009,21 +1040,23 @@
 
 (:wat::core::defn :fanout::sum-disrupts
   [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
-  -> :wat::core::i64
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64
+    (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
                      w   <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
-      -> :wat::core::i64
+      -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
       (:wat::core::match (:fanout::Worker/disrupts w (:fanout::Worker::DisruptsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points) (:wat::i64::+ acc hits))
+            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points gb)
+              (:wat::core::Tuple (:wat::i64::+ (:wat::core::first acc) hits)
+                                 (:wat::i64::+ (:wat::core::second acc) gb)))
             ((:fanout::Worker::DisruptsResponse::RequestTooLarge _b _c) acc)
             ((:fanout::Worker::DisruptsResponse::RequestMalformed _p _e _g) acc)))
         ((:wat::kernel::RecvOutcome::Lost _c) acc)
         (:wat::kernel::RecvOutcome::Stopped acc)
         (:wat::kernel::RecvOutcome::Closed acc)))
-    0
+    (:wat::core::Tuple 0 0)
     wpeers))
 
 (:wat::core::defn :fanout::collect-stop
@@ -1343,7 +1376,9 @@
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
      tticks (:fanout::topic-ticks topic)
-     dhits (:fanout::sum-disrupts wpeers)
+     dpair (:fanout::sum-disrupts wpeers)
+     dhits (:wat::core::first dpair)
+     gb    (:wat::core::second dpair)
      spair (:fanout::seen-stats seenh)
      sfirsts (:wat::core::first spair)
      sdups (:wat::core::second spair)
@@ -1372,13 +1407,13 @@
                    1
                    (:wat::core::range 0 m))
      summary0 (:fanout::summarize n m j outs empty-flags)
-     summary (:wat::core::format "{s};seen-recorded={f};seen-skipped={d}"
-               :s summary0 :f sfirsts :d sdups)
+     summary (:wat::core::format "{s};seen-recorded={f};seen-skipped={d};gave-back={gb}"
+               :s summary0 :f sfirsts :d sdups :gb gb)
      t-end (:wat::time::epoch-nanos (:wat::time::now))
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};seen-recorded={sf};seen-skipped={sd}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};gave-back={gb};seen-recorded={sf};seen-skipped={sd}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
@@ -1386,6 +1421,7 @@
               :ticks ticks
               :tt tticks
               :dh dhits
+              :gb gb
               :sf sfirsts
               :sd sdups)
      traces (:fanout::traces-report (:fanout::traces-of outs))]
