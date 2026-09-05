@@ -30,6 +30,10 @@
 (:wat::core::defrecord :wat::fmt::Fallback
   [node <- :wat::core::i64])
 
+;; Vertical separation, a different axis from Break.kind. A node may carry both.
+(:wat::core::defrecord :wat::fmt::BlankBefore
+  [id <- :wat::core::i64])
+
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
    next-id  <- :wat::core::i64
@@ -47,6 +51,10 @@
 (:wat::rete::defquery :wat::fmt::q-fallback
   :params []
   :when [(?f <- :wat::fmt::Fallback)])
+
+(:wat::rete::defquery :wat::fmt::q-blank
+  :params []
+  :when [(?bl <- :wat::fmt::BlankBefore)])
 
 (:wat::core::defn :wat::fmt::spaces [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::if (:wat::i64::<= n 0)
@@ -163,6 +171,16 @@
       ((:wat::core::Some _) true)
       (:wat::core::None false))))
 
+(:wat::core::defn :wat::fmt::apply-blank
+  [acc    <- :wat::fmt::Acc
+   id     <- :wat::core::i64
+   blanks <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
+  -> :wat::fmt::Acc
+  (:wat::core::match (:wat::core::get blanks id)
+    ((:wat::core::Some _)
+      (:wat::fmt::write (:wat::fmt::write-nl acc) "\n"))
+    (:wat::core::None acc)))
+
 (:wat::core::defn :wat::fmt::apply-break
   [acc       <- :wat::fmt::Acc
    bk        <- :wat::core::String
@@ -186,6 +204,7 @@
    node      <- :wat::WatAST
    breaks    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
    claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   blanks    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    indent    <- :wat::core::i64
    open-col  <- :wat::core::i64
    first?    <- :wat::core::bool
@@ -203,15 +222,16 @@
                  :next-id  (:wat::i64::+ id 1)
                  :comments (:wat::fmt::Acc/comments acc)
                  :col      (:wat::fmt::Acc/col acc))
+     acc-bl    (:wat::fmt::apply-blank acc-b id blanks)
      acc-pad   (:wat::core::match br
                  ((:wat::core::Some bk)
-                   (:wat::fmt::apply-break acc-b bk indent open-col id parent-id claims))
+                   (:wat::fmt::apply-break acc-bl bk indent open-col id parent-id claims))
                  (:wat::core::None
                    (:wat::core::if first?
-                     acc-b
-                     (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc-b))
-                       acc-b
-                       (:wat::fmt::write acc-b " ")))))
+                     acc-bl
+                     (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc-bl))
+                       acc-bl
+                       (:wat::fmt::write acc-bl " ")))))
      this-indent (:wat::fmt::Acc/col acc-pad)
      acc1        (:wat::fmt::flush-comments acc-pad src-line src-col this-indent)]
     (:wat::core::if (:wat::grep::structural? node)
@@ -229,7 +249,7 @@
                                                         (:wat::core::or
                                                           (:wat::string::ends-with? o "{")
                                                           (:wat::string::ends-with? o "\n"))))]
-                         (:wat::fmt::emit-node ca child breaks claims this-indent this-open first-kid? id)))
+                         (:wat::fmt::emit-node ca child breaks claims blanks this-indent this-open first-kid? id)))
                      acc2
                      kids)
          acc4 (:wat::fmt::write acc3 (:wat::fmt::close-of node-kind))]
@@ -248,7 +268,8 @@
   [forms    <- :wat::WatAST
    comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
    breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
-   claims   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
+   claims   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   blanks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
   -> :wat::core::String
   (:wat::core::let
     [top  (:wat::core::ast->children forms)
@@ -256,7 +277,7 @@
      acc1 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
               (:wat::core::let [acc-nl (:wat::fmt::write-nl acc)]
-                (:wat::fmt::emit-node acc-nl form breaks claims 0 0 true 0)))
+                (:wat::fmt::emit-node acc-nl form breaks claims blanks 0 0 true 0)))
             acc0
             top)
      acc2 (:wat::core::foldl
@@ -325,6 +346,20 @@
     (:wat::fmt::claims-set session)
     (:wat::rete::query session (:wat::fmt::q-fallback))))
 
+(:wat::core::defn :wat::fmt::blanks-set
+  [session <- :wat::rete::Session]
+  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  (:wat::core::foldl
+    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+                     binding <- :wat::core::PersistentMap]
+      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      (:wat::core::let [bl (:wat::core::Option/expect
+                             (:wat::map::get binding "?bl")
+                             "fmt::blanks-set: no ?bl")]
+        (:wat::hashmap::assoc m (:wat::fmt::BlankBefore/id bl) true)))
+    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::rete::query session (:wat::fmt::q-blank))))
+
 (:wat::core::defn :wat::fmt::format-source
   [path  <- :wat::core::String
    src   <- :wat::core::String
@@ -338,13 +373,15 @@
          queries (:wat::core::PersistentVector :- [:wat::rete::Query]
                    (:wat::fmt::q-break)
                    (:wat::fmt::q-claim)
-                   (:wat::fmt::q-fallback))]
+                   (:wat::fmt::q-fallback)
+                   (:wat::fmt::q-blank))]
         (:wat::rete::with-overlay rules queries
           (:wat::core::fn [overlay <- :wat::rete::Overlay]
             -> :wat::core::String
             (:wat::core::let [fired (overlay records)]
               (:wat::fmt::emit forms comments
                 (:wat::fmt::breaks-map fired)
-                (:wat::fmt::owned-set fired)))))))
+                (:wat::fmt::owned-set fired)
+                (:wat::fmt::blanks-set fired)))))))
     ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
       (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None))))

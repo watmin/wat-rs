@@ -1,29 +1,78 @@
-;; R11 — sibling breaking is all-or-nothing. A NEW FILE and nothing else.
-;; If any child of a form is on a different line from a sibling, every child
-;; (except the head at index 0) starts a line.
+;; R11 — exploded default. A leading run of ATOM children rides the head line.
+;; The first COMPOUND child (list/vector/map/set), and every child after it,
+;; starts its own line. The head (index 0) never breaks.
+;;
+;; ⛔ NOT "break every child" — that would put a leading atom like `m` in
+;; `(assoc m (f b) (g b))` on its own line and contradict the ruling.
 ;;
 ;; Default rule: fires only where the parent is unclaimed (`Claim`).
-;; A specific rule claims exactly the node it dispatched on; the fallback
-;; reaches unruled forms at any depth.
-;; Break names a kind ("block" / "align"); the emitter computes the rest.
-;;
 ;; Fallback marks the unruled parent so the Break-application wall accepts
-;; these Breaks. R11 cannot assert Claim — that is `not Claim -> Claim` and
-;; it races the per-child Breaks.
+;; these Breaks. Four kind-rules because rete `or` is not legal inside `:where`.
 
-(:wat::rete::defrule :fmt::siblings-fallback
+(:wat::rete::defrule :fmt::siblings-fallback-list
   :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
-         (:wat::grep::Node  (?a <- :id) (?p <- :parent) (?ia <- :index))
-         (:wat::grep::Node  (?b <- :id) (?p <- :parent) (?ib <- :index))
-         (:wat::grep::Span  (?a <- :id) (?la <- :line))
-         (:wat::grep::Span  (?b <- :id) (?lb <- :line))
-         (:wat::rete::where (:wat::rete::i64::not= ?la ?lb))]
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "list"))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
-(:wat::rete::defrule :fmt::siblings-all-or-nothing
+(:wat::rete::defrule :fmt::siblings-fallback-vector
+  :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "vector"))]
+  :then [(:wat::fmt::Fallback :node ?p)])
+
+(:wat::rete::defrule :fmt::siblings-fallback-map
+  :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "map"))]
+  :then [(:wat::fmt::Fallback :node ?p)])
+
+(:wat::rete::defrule :fmt::siblings-fallback-set
+  :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "set"))]
+  :then [(:wat::fmt::Fallback :node ?p)])
+
+(:wat::rete::defrule :fmt::siblings-explode-list
   :when [(:wat::fmt::Fallback (?p <- :node))
-         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ic <- :index))
-         (:wat::rete::where (:wat::rete::i64::> ?ic 0))]
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "list"))
+         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::rete::where (:wat::rete::i64::> ?ci 0))
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
+  :then [(:wat::fmt::Break :id ?c :kind "block")])
+
+(:wat::rete::defrule :fmt::siblings-explode-vector
+  :when [(:wat::fmt::Fallback (?p <- :node))
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "vector"))
+         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::rete::where (:wat::rete::i64::> ?ci 0))
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
+  :then [(:wat::fmt::Break :id ?c :kind "block")])
+
+(:wat::rete::defrule :fmt::siblings-explode-map
+  :when [(:wat::fmt::Fallback (?p <- :node))
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "map"))
+         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::rete::where (:wat::rete::i64::> ?ci 0))
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
+  :then [(:wat::fmt::Break :id ?c :kind "block")])
+
+(:wat::rete::defrule :fmt::siblings-explode-set
+  :when [(:wat::fmt::Fallback (?p <- :node))
+         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?k "set"))
+         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::rete::where (:wat::rete::i64::> ?ci 0))
+         (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])

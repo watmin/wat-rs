@@ -1,6 +1,7 @@
 ;; Driver — R1 + R11. Adding this file (and siblings.wat) must not edit fmt.wat or defn.wat.
 (:wat::load-file! "rules/defn.wat")
 (:wat::load-file! "rules/siblings.wat")
+(:wat::load-file! "rules/let-blank.wat")
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
