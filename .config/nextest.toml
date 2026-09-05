@@ -83,6 +83,29 @@ fail-fast = false
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
 
+# ⏱ r2_drop_* — LETTING AN EXISTING DIAGNOSTIC PRINT, not tolerating slowness.
+#
+# These four cells are `#[ignore]`d (chaos rate > 0; the floor runs rate 0), so this
+# override costs the floor nothing. It exists because the healthy path is FAST — a drop
+# run drains in ~8 s — while the FAILING path needs ~64 s to reach its own arm:
+#
+#   drained-never: last=[0/5] outbox=0 attempts=4000 elapsed=63565   circuit.wat:1318
+#
+# At the default 30 s kill the process dies 34 s before that line is emitted, and the
+# failure presents as `TIMEOUT` with an EMPTY ARM — the exact evidence-destroying shape
+# arc 278 has been fighting since its first red. The bound and the message already exist
+# and are good; the runner was killing them mid-sentence.
+#
+# ⛔ EXPIRY — REMOVE THIS BLOCK when `unacked` stops leaking.
+# The 64 s is not inherent: `fanout::queue-drained?` waits for `unacked == 0`, which is
+# UNSATISFIABLE after any redelivery. See
+# docs/arc/2026/06/278-rules-engine/FINDING-unacked-is-receives-minus-acks.md.
+# Once that is repaired these cells drain in seconds and this override is dead weight —
+# delete it rather than let it stand as an unexplained widened timeout.
+[[profile.default.overrides]]
+filter = 'test(r2_drop_)'
+slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+
 [[profile.default.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s

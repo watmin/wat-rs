@@ -34,6 +34,53 @@ The gap is between *"this looks like a call"* and *"there is nothing here to cal
 class exactly: **a phantom form** — one that looks valid, traces to no definition, and is caught by
 neither the grammar nor the type checker.
 
+## THE CENSUS — 2026-09-05, with the right instrument
+
+**`wat-scripts/fixes/phantom-none-call-census.wat`** — a form-tree finder, because **a grep
+provably cannot do this**. A match arm
+
+```wat
+(:wat::core::None false)
+```
+
+is *syntactically identical* to a call
+
+```wat
+(:wat::core::None :fanout::Seen::Reply)
+```
+
+— a list whose head is the `None` keyword and whose index-1 child is anything. Only the
+**enclosing form** separates them. The miscount that produced this note's "two spellings of one
+value" claim was exactly this confusion, made by hand.
+
+The finder's discriminator: head at index 0 is `:wat::core::None` (or bare `:None`), a child
+exists at index 1, and the list is **not** at index ≥ 2 of a `match` — where `match` means both
+`:wat::core::match` (2499 sites) and `:wat::rete::core::match` (5). `:fx::match` is a userland
+`defn`, not a match form.
+
+**Both controls hold:**
+
+| control | result |
+|---|---|
+| **negative** — the pre-fix `circuit.wat`, 76 `core::None` occurrences | reports **exactly 1** (line 121, the real call) |
+| **positive** — that same line is still found after the rule was widened | ✅ still fires |
+
+⚠ **The widening was forced by the census's own first run**, which reported
+`wat-scripts/perf/grid/where-control.wat:221` and `where-record.wat:163`. Reading both showed
+they were `:wat::rete::core::match` **arms** — false positives. **A finder that knows one
+spelling of the enclosing form reports the other spelling's arms as calls.** They were caught by
+reading every hit against the disk, not by trusting the count.
+
+### THE RESULT — 1,765 `.wat` files, every directory including `wat-tests/`
+
+**Exactly one live site: `wat-scripts/fixes/positional-to-kwargs.wat:27`** — the site ruled
+"leave as-is" below. `circuit.wat:121` is repaired. Nothing else in the tree carries the form.
+
+⛔ **This instrument does not fire on its own.** Run by hand it is rung 1.5 — a proven
+instrument, not a check. A floor gate costs **24.5 s** over `wat/` + `wat-scripts/` (640 files)
+or **39.6 s** over all 1,765, against a ~360 s floor; and it would need an allowlist, since the
+one live site is deliberately unrepaired. **Not built — the cost is a ruling, not a detail.**
+
 ## THE CORPUS SITES (a second one landed — see the 2026-09-05 section below)
 
 **`wat-scripts/fixes/positional-to-kwargs.wat:27`**
