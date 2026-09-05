@@ -43,7 +43,9 @@
 //!
 //! - **Bare symbols** — any non-keyword, non-numeric, non-bool, non-paren,
 //!   non-string token.
-//! - **Line comments** — `;` to end-of-line — skipped.
+//! - **Line comments** — `;` to end-of-line. [`lex`] skips them;
+//!   [`lex_with_comments`] captures each as a [`Comment`] beside the
+//!   token stream (arc 277, first stone of wat-fmt).
 //!
 //! - **Reader macros** — `` ` `` (quasiquote), `~` (unquote), `~@`
 //!   (unquote-splicing). The parser rewrites each to a list-form with
@@ -72,6 +74,19 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpannedToken {
     pub token: Token,
+    pub span: Span,
+}
+
+/// A line comment captured beside the token stream.
+///
+/// `text` is verbatim source from the opening `;` through (not including)
+/// the newline, or through EOF when the file has no trailing newline.
+/// `span` uses the same start..end shape as [`SpannedToken`]: `end` is one
+/// past the last comment character. Arc 277 — first stone of wat-fmt.
+/// Attachment to AST nodes is a later span computation, not this type.
+#[derive(Debug, Clone)]
+pub struct Comment {
+    pub text: String,
     pub span: Span,
 }
 
@@ -308,9 +323,32 @@ impl std::error::Error for LexError {}
 /// first lex error encountered. `file` labels every emitted span — use
 /// the source path when known, `<test>` / `<eval>` / `<synthetic>` for
 /// ad-hoc parses.
+///
+/// Line comments are dropped. Call [`lex_with_comments`] to capture them
+/// as a side channel; this function is that one with the comments discarded,
+/// so every existing caller is byte-identical.
 pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> {
+    let (tokens, _comments) = lex_with_comments(src, file)?;
+    Ok(tokens)
+}
+
+/// Tokenize a wat source string, capturing line comments beside the token stream.
+///
+/// Returns `(tokens, comments)` or the first lex error. [`lex`] is this
+/// function with the comments dropped.
+///
+/// Each [`Comment`] carries the source bytes from the `;` through (not
+/// including) the newline, or through EOF if the file has no trailing
+/// newline. Spans use the same start..end shape as tokens (`end` is one
+/// past the last comment char). A `;` inside a string never reaches the
+/// capture site — the string branch consumes a literal atomically.
+pub fn lex_with_comments(
+    src: &str,
+    file: Arc<String>,
+) -> Result<(Vec<SpannedToken>, Vec<Comment>), LexError> {
     let bytes = src.as_bytes();
     let mut tokens = Vec::new();
+    let mut comments = Vec::new();
     let mut i = 0;
     let line_starts = compute_line_starts(src);
 
@@ -347,11 +385,18 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             });
         }
 
-        // Line comment — `;` to end of line
+        // Line comment — `;` to end of line. Captured as a side channel;
+        // the token stream is unchanged. A `;` inside a string never
+        // reaches this site (the string branch consumes a literal atomically).
         if c == ';' {
+            let start = i;
             while i < bytes.len() && bytes[i] as char != '\n' {
                 i += 1;
             }
+            comments.push(Comment {
+                text: src[start..i].to_string(),
+                span: span_with_end(start, i),
+            });
             continue;
         }
 
@@ -525,7 +570,7 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         i = next;
     }
 
-    Ok(tokens)
+    Ok((tokens, comments))
 }
 
 /// Precompute byte offsets of every line start (offset 0 + every byte
@@ -1688,5 +1733,110 @@ mod tests {
                 Token::LParen, Token::RParen,
             ]
         );
+    }
+
+    /// `Span::eq` is unconditionally true, so token-stream identity has to
+    /// read fields. `end` is one past the last character.
+    fn assert_span(span: &Span, line: i64, col: i64, end_line: i64, end_col: i64) {
+        assert_eq!(span.line, line);
+        assert_eq!(span.col, col);
+        let end = span.end.as_ref().expect("lexer spans carry an end");
+        assert_eq!(end.line, end_line);
+        assert_eq!(end.col, end_col);
+    }
+
+    fn assert_comment(c: &Comment, text: &str, line: i64, col: i64, end_line: i64, end_col: i64) {
+        assert_eq!(c.text, text, "missing comment: {text:?}");
+        assert_span(&c.span, line, col, end_line, end_col);
+    }
+
+    fn assert_spanned_tokens_identical(a: &[SpannedToken], b: &[SpannedToken]) {
+        assert_eq!(a.len(), b.len(), "lex vs lex_with_comments token count drifted");
+        for (i, (left, right)) in a.iter().zip(b.iter()).enumerate() {
+            assert_eq!(left.token, right.token, "token {i} drifted");
+            assert_eq!(left.span.line, right.span.line, "token {i} span.line drifted");
+            assert_eq!(left.span.col, right.span.col, "token {i} span.col drifted");
+            assert_eq!(
+                left.span.end.as_ref().map(|p| (p.line, p.col)),
+                right.span.end.as_ref().map(|p| (p.line, p.col)),
+                "token {i} span.end drifted",
+            );
+        }
+    }
+
+    #[test]
+    fn reader_can_see_comments_four_hazards() {
+        let file = Arc::new("<test>".to_string());
+
+        // Hazard 1: `;` inside a string is NOT a comment.
+        // Hazard 2: `;;` trailing after code; span starts at the first `;`.
+        // Trap-door 4 (measured): `\;` is Token::Char(';'), not a comment —
+        // the char branch consumes the literal before the skip site.
+        // Hazard 3: comment at EOF, no trailing newline.
+        const HAZARDS_123: &str = concat!(
+            "\"has;semi\"\n",
+            "() ;; trail\n",
+            "\\;\n",
+            ";eof",
+        );
+
+        let via_lex = lex(HAZARDS_123, file.clone()).unwrap();
+        let (via_side, comments) = lex_with_comments(HAZARDS_123, file.clone()).unwrap();
+        assert_spanned_tokens_identical(&via_lex, &via_side);
+
+        assert_eq!(
+            via_lex.iter().map(|s| s.token.clone()).collect::<Vec<_>>(),
+            vec![
+                Token::Str("has;semi".into()),
+                Token::LParen,
+                Token::RParen,
+                Token::Char(';'),
+            ],
+        );
+        assert_span(&via_lex[0].span, 1, 1, 1, 11);
+        assert_span(&via_lex[1].span, 2, 1, 2, 2);
+        assert_span(&via_lex[2].span, 2, 2, 2, 3);
+        assert_span(&via_lex[3].span, 3, 1, 3, 3);
+
+        assert_eq!(
+            comments.len(),
+            2,
+            "missing comment: expected `;; trail` and `;eof`; got {} comments",
+            comments.len()
+        );
+        assert_comment(&comments[0], ";; trail", 2, 4, 2, 12);
+        assert_comment(&comments[1], ";eof", 4, 1, 4, 5);
+
+        // Hazard 4: a file that is ONLY comments — all captured, zero tokens.
+        const HAZARD_4: &str = "; only\n;; still\n";
+        let via_lex_only = lex(HAZARD_4, file.clone()).unwrap();
+        let (via_side_only, only_comments) = lex_with_comments(HAZARD_4, file.clone()).unwrap();
+        assert_spanned_tokens_identical(&via_lex_only, &via_side_only);
+        assert_eq!(via_lex_only.len(), 0, "comment-only file must yield zero tokens");
+        assert_eq!(
+            only_comments.len(),
+            2,
+            "missing comment: expected `; only` and `;; still`; got {} comments",
+            only_comments.len()
+        );
+        assert_comment(&only_comments[0], "; only", 1, 1, 1, 7);
+        assert_comment(&only_comments[1], ";; still", 2, 1, 2, 9);
+
+        // Trap-door 2 (measured): `\r` before `\n` sits in the comment text.
+        // Capture is `\n`-exclusive; it does not invent a CRLF strip.
+        const CRLF: &str = "; crlf\r\n()";
+        let (crlf_tokens, crlf_comments) = lex_with_comments(CRLF, file).unwrap();
+        assert_eq!(
+            crlf_tokens.iter().map(|s| s.token.clone()).collect::<Vec<_>>(),
+            vec![Token::LParen, Token::RParen],
+        );
+        assert_eq!(
+            crlf_comments.len(),
+            1,
+            "missing comment: expected `; crlf\\r`; got {} comments",
+            crlf_comments.len()
+        );
+        assert_eq!(crlf_comments[0].text, "; crlf\r");
+        assert_span(&crlf_comments[0].span, 1, 1, 1, 8);
     }
 }
