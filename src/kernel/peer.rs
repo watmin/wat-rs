@@ -429,7 +429,11 @@ impl Peer {
 
     /// Recognize the reserved `PeerCrashed` sentinel keyword value
     /// (thread-tier wire form — see [`PEER_CRASHED_SENTINEL`]'s doc).
-    fn is_peer_crashed_sentinel(value: &crate::value::Value) -> bool {
+    ///
+    /// `pub(crate)` so `select'` can intercept the same Value `recv` does,
+    /// before treating it as a `ServiceEvent::Message` (arc 278 the death
+    /// notice is not a malformed frame).
+    pub(crate) fn is_peer_crashed_sentinel(value: &crate::value::Value) -> bool {
         matches!(
             value,
             crate::value::Value::wat__core__keyword(k) if k.as_str() == PEER_CRASHED_SENTINEL
@@ -440,7 +444,7 @@ impl Peer {
     /// form — see [`PEER_SEVERED_SENTINEL`]'s doc). The twin of
     /// [`Self::is_peer_crashed_sentinel`], kept separate because the two mean
     /// different things and must not collapse into one outcome.
-    fn is_peer_severed_sentinel(value: &crate::value::Value) -> bool {
+    pub(crate) fn is_peer_severed_sentinel(value: &crate::value::Value) -> bool {
         matches!(
             value,
             crate::value::Value::wat__core__keyword(k) if k.as_str() == PEER_SEVERED_SENTINEL

@@ -476,7 +476,9 @@
                                              ((:fanout::Seen::Reply::Check r)
                                                (:wat::core::Tuple peer (:wat::core::Some r) false))
                                              (_ (:wat::kernel::assertion-failed! "fanout worker: check reply misrouted" :wat::core::None :wat::core::None))))
-                                         ((:wat::service::CallOutcome::PeerGone)
+                                         ((:wat::service::CallOutcome::Lost _c)
+                                           (:wat::core::Tuple (redial) :wat::core::None false))
+                                         ((:wat::service::CallOutcome::Closed)
                                            (:wat::core::Tuple (redial) :wat::core::None false))
                                          ((:wat::service::CallOutcome::DeadlineFired)
                                            (:wat::core::Tuple (redial) :wat::core::None true))))
@@ -520,7 +522,9 @@
                                                 (:wat::service::call-by-deadline peer mark-op 200 inert-mark)
                                                 ((:wat::service::CallOutcome::Answered _r)
                                                   (:wat::core::Tuple peer false))
-                                                ((:wat::service::CallOutcome::PeerGone)
+                                                ((:wat::service::CallOutcome::Lost _c)
+                                                  (:wat::core::Tuple (redial) false))
+                                                ((:wat::service::CallOutcome::Closed)
                                                   (:wat::core::Tuple (redial) false))
                                                 ((:wat::service::CallOutcome::DeadlineFired)
                                                   (:wat::core::Tuple (redial) true))))
@@ -552,7 +556,9 @@
                                                 (:wat::service::call-by-deadline peer ack-op 200 inert-ack)
                                                 ((:wat::service::CallOutcome::Answered _r)
                                                   (:wat::core::Tuple peer false))
-                                                ((:wat::service::CallOutcome::PeerGone)
+                                                ((:wat::service::CallOutcome::Lost _c)
+                                                  (:wat::core::Tuple (redial-q) false))
+                                                ((:wat::service::CallOutcome::Closed)
                                                   (:wat::core::Tuple (redial-q) false))
                                                 ((:wat::service::CallOutcome::DeadlineFired)
                                                   (:wat::core::Tuple (redial-q) true))))
@@ -594,7 +600,16 @@
                  (:wat::service::SelfOutcome::Continue s'
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
              (_ (:wat::kernel::assertion-failed! "fanout worker: receive not Ok" :wat::core::None :wat::core::None))))
-         ((:wat::service::CallOutcome::PeerGone)
+         ((:wat::service::CallOutcome::Lost _c)
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
+             (:wat::service::SelfOutcome::Continue s'
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
+         ((:wat::service::CallOutcome::Closed)
            (:wat::core::let
              [fresh (:wat::core::match
                       (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))

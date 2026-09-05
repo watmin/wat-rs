@@ -2240,7 +2240,9 @@
                                                          (:wat::kernel::RecvOutcome::Message recvd))
                                                        ((:wat::service::CallOutcome::DeadlineFired)
                                                          :wat::kernel::RecvOutcome::TimedOut)
-                                                       ((:wat::service::CallOutcome::PeerGone)
+                                                       ((:wat::service::CallOutcome::Lost cause)
+                                                         (:wat::kernel::RecvOutcome::Lost cause))
+                                                       ((:wat::service::CallOutcome::Closed)
                                                          :wat::kernel::RecvOutcome::Closed))]
                                              (:wat::core::match ~r-sym
                                                ((:wat::kernel::RecvOutcome::Message recvd)
@@ -3130,16 +3132,30 @@
       ((:wat::kernel::SendOutcome::Lost _c) true))))
 
 ;; CallOutcome — the reply cannot be obtained without learning why it arrived.
-;; PeerGone is Lost OR Closed (already merged; callers redial both). After the
+;; Lost keeps its cause (LociDiedError); Closed is the clean EOF. After the
 ;; defservice macro so nothing above line 896 moves.
 (:wat::core::defenum :wat::service::CallOutcome :- [O] :wat::enum::Pure
   :Answered      [reply <- :O]
-  :PeerGone      []
+  :Lost          [cause <- :wat::kernel::LociDiedError]
+  :Closed        []
   :DeadlineFired [])
 
+;; ServiceEvent::Lost carries Failure. RecvOutcome::Lost wants LociDiedError.
+;; The one Failure class string that must survive as a variant is Severed
+;; (redial fails identically) — it is LociDiedError/message of Severed, the
+;; same string eval_died_error_to_failure mints. Everything else is
+;; reason-free Disconnected. Process-tier generic decode-fail is Disconnected,
+;; not a fabricated Severed.
+(:wat::core::defn :wat::service::lost-cause-from-select
+  [c <- :wat::kernel::Failure] -> :wat::kernel::LociDiedError
+  (:wat::core::if (:wat::core::= (:wat::kernel::Failure/message c)
+                                 (:wat::kernel::LociDiedError/message :wat::kernel::LociDiedError::Severed))
+    :wat::kernel::LociDiedError::Severed
+    :wat::kernel::LociDiedError::Disconnected))
+
 ;; call-by-deadline — one client round-trip with a timer. idx 0 is Answered;
-;; idx 1 is DeadlineFired. Lost/Closed is PeerGone. `inert` is the timer's
-;; payload: the type demands a value, and it is never read.
+;; idx 1 is DeadlineFired. Lost keeps its cause; Closed is the clean EOF.
+;; `inert` is the timer's payload: the type demands a value, and it is never read.
 ;;
 ;; ⛔ TIER IS THE RACED PEER'S, not the caller's. DESIGN-a-client-has-a-deadline:
 ;; select refuses a mixed-tier set. Env/peer-kind matches by construction inside
@@ -3151,8 +3167,13 @@
   [peer <- (:wat::kernel::Peer :- [:I :O])  op <- :I
    ms <- :wat::core::i64  inert <- :O]
   -> (:wat::service::CallOutcome :- [:O])
+  ;; Send Closed/Lost still SELECT. The death notice (crash/sever sentinel) rides
+  ;; the recv channel; aborting here would flatten a Severed peer into
+  ;; Disconnected (the send-side EPIPE) without ever reading it.
   (:wat::core::match (:wat::kernel::send peer op)
-    (:wat::kernel::SendOutcome::Sent
+    (:wat::kernel::SendOutcome::Stopped
+      (:wat::kernel::assertion-failed! "call-by-deadline: send stopped" :wat::core::None :wat::core::None))
+    (_
       (:wat::core::let
         [kind (:wat::core::if (:wat::kernel::peer-wire? peer)
                  :wat::program::PeerKind::process
@@ -3168,11 +3189,11 @@
               (:wat::service::CallOutcome::DeadlineFired)))
           ((:wat::spawn::ServiceEvent::Closed idx)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::PeerGone)
+              (:wat::service::CallOutcome::Closed)
               (:wat::service::CallOutcome::DeadlineFired)))
-          ((:wat::spawn::ServiceEvent::Lost idx _c)
+          ((:wat::spawn::ServiceEvent::Lost idx c)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::PeerGone)
+              (:wat::service::CallOutcome::Lost (:wat::service::lost-cause-from-select c))
               (:wat::service::CallOutcome::DeadlineFired)))
           (:wat::spawn::ServiceEvent::Shutdown
             (:wat::kernel::assertion-failed! "call-by-deadline: select shutdown" :wat::core::None :wat::core::None))
@@ -3182,15 +3203,9 @@
             (:wat::kernel::assertion-failed! "call-by-deadline: select connection" :wat::core::None :wat::core::None))
           ((:wat::spawn::ServiceEvent::Malformed idx _c)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::PeerGone)
+              (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected)
               (:wat::kernel::assertion-failed! "call-by-deadline: timer malformed" :wat::core::None :wat::core::None)))
           ((:wat::spawn::ServiceEvent::Rejected idx _c)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::PeerGone)
-              (:wat::kernel::assertion-failed! "call-by-deadline: timer rejected" :wat::core::None :wat::core::None))))))
-    (:wat::kernel::SendOutcome::Closed
-      (:wat::service::CallOutcome::PeerGone))
-    (:wat::kernel::SendOutcome::Stopped
-      (:wat::kernel::assertion-failed! "call-by-deadline: send stopped" :wat::core::None :wat::core::None))
-    ((:wat::kernel::SendOutcome::Lost _c)
-      (:wat::service::CallOutcome::PeerGone))))
+              (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected)
+              (:wat::kernel::assertion-failed! "call-by-deadline: timer rejected" :wat::core::None :wat::core::None))))))))

@@ -6461,8 +6461,9 @@ fn dispatch_keyword_head_value(
                                             // mechanism `:S/method` calls actually run through.
                                             // Bound via call-by-deadline (default 10000 ms);
                                             // DeadlineFired → RecvOutcome::TimedOut.
-                                            // PeerGone collapses Lost|Closed (CallOutcome has no
-                                            // cause); that is a named finding on severed/rst.
+                                            // Lost keeps its cause; Closed is the clean EOF.
+                                            // The inner match below still scrubs Lost
+                                            // (Stopped/Severed pass; else Disconnected).
                                             WatAST::List(vec![
                                                 WatAST::Keyword(":wat::core::match".into(), span.clone()),
                                                 WatAST::List(vec![
@@ -6497,7 +6498,17 @@ fn dispatch_keyword_head_value(
                                                 ], span.clone()),
                                                 WatAST::List(vec![
                                                     WatAST::List(vec![
-                                                        WatAST::Keyword(":wat::service::CallOutcome::PeerGone".into(), span.clone()),
+                                                        WatAST::Keyword(":wat::service::CallOutcome::Lost".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("cause"), span.clone()),
+                                                    ], span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("cause"), span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::service::CallOutcome::Closed".into(), span.clone()),
                                                     ], span.clone()),
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
                                                 ], span.clone()),
@@ -21573,6 +21584,57 @@ fn message_only_failure(message: String) -> Value {
     )))
 }
 
+/// Canonical `Failure/message` of `LociDiedError::Severed`. Must match
+/// [`eval_died_error_message`] / [`eval_died_error_to_failure`]. `call-by-deadline`
+/// maps this class string back to the payload-free variant; every other
+/// select-Lost Failure becomes `Disconnected`.
+const SELECT_SEVERED_CLASS: &str = "service severed: its owner released the service handle";
+
+/// `ServiceEvent::Lost [idx, message_only_failure(class)]`. Class string only
+/// — never interpolate decode / `io_err` / panic text (arc 294).
+fn select_event_lost(type_path: &str, peer_idx: i64, class: impl Into<String>) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: type_path.into(),
+        variant_name: "Lost".into(),
+        names: builtin_enum_variant_names(type_path, "Lost"),
+        fields: vec![Value::i64(peer_idx), message_only_failure(class.into())],
+    }))
+}
+
+/// Thread-tier: a reserved death-notice keyword on the data channel is
+/// `Lost`, never a `Message`. Severed is the one cause that must survive
+/// as itself (redial fails identically); crashed is a class string that
+/// `call-by-deadline` collapses to `Disconnected`.
+fn select_lost_if_death_notice(type_path: &str, peer_idx: i64, msg: &Value) -> Option<Value> {
+    use crate::kernel::peer::Peer;
+    if Peer::is_peer_severed_sentinel(msg) {
+        Some(select_event_lost(type_path, peer_idx, SELECT_SEVERED_CLASS))
+    } else if Peer::is_peer_crashed_sentinel(msg) {
+        Some(select_event_lost(type_path, peer_idx, "select peer crashed"))
+    } else {
+        None
+    }
+}
+
+/// Process / socket tier: the sentinel rides as a raw wire *string*
+/// (`notify_peer_*` `try_send`s the keyword text). Exact compare, same
+/// door as [`crate::kernel::peer::Peer::recv_wire`] — not a decode, so a
+/// generic undecodable frame cannot be mistaken for a sever.
+fn select_lost_if_death_notice_wire(
+    type_path: &str,
+    peer_idx: i64,
+    wire: &str,
+) -> Option<Value> {
+    use crate::kernel::peer::{PEER_CRASHED_SENTINEL, PEER_SEVERED_SENTINEL};
+    if wire == PEER_SEVERED_SENTINEL {
+        Some(select_event_lost(type_path, peer_idx, SELECT_SEVERED_CLASS))
+    } else if wire == PEER_CRASHED_SENTINEL {
+        Some(select_event_lost(type_path, peer_idx, "select peer crashed"))
+    } else {
+        None
+    }
+}
+
 /// Arc 278 the recv'-outcome wall — the type path of the matchable `recv'` outcome
 /// enum (`(:wat::kernel::RecvOutcome :- [O])`, registered in `types.rs`).
 const RECV_OUTCOME_TYPE: &str = ":wat::kernel::RecvOutcome";
@@ -25874,12 +25936,21 @@ pub(crate) fn eval_peer_select_prime(
             crate::comms::SelectOutcome::Recv { index, result } => {
                 let peer_idx = index.0 as i64;
                 match result {
-                    Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
-                        type_path: SELECT_EVENT_TYPE_THREAD.into(),
-                        variant_name: "Message".into(),
-                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE_THREAD, "Message"),
-                        fields: vec![Value::i64(peer_idx), msg],
-                    }))),
+                    Ok(msg) => {
+                        if let Some(lost) = select_lost_if_death_notice(
+                            SELECT_EVENT_TYPE_THREAD,
+                            peer_idx,
+                            &msg,
+                        ) {
+                            return Ok(lost);
+                        }
+                        Ok(Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                            variant_name: "Message".into(),
+                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE_THREAD, "Message"),
+                            fields: vec![Value::i64(peer_idx), msg],
+                        })))
+                    }
                     Err(_) => {
                         // Output EOF — classify death via the shared helper.
                         use crate::kernel::spawn::{classify_peer_death, PeerDeath};
@@ -26086,10 +26157,17 @@ pub(crate) fn eval_peer_select_prime(
                     Ok(edn_str) => {
                         // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
                         // decode through the capability door with the full type registry.
-                        // Copy poll:27194: decode Err → Malformed, never a raise.
-                        // Cause is reason-free (arc 294): do not interpolate the decode
-                        // error, which can carry a ProcessPanics envelope.
+                        // A peer whose frame will not decode is dead (recv:25047), not a live
+                        // client with a junk message (poll:27194 Malformed). Cause is
+                        // reason-free (arc 294): do not interpolate the decode error.
                         let peer_idx = index.0 as i64;
+                        if let Some(lost) = select_lost_if_death_notice_wire(
+                            SELECT_EVENT_TYPE,
+                            peer_idx,
+                            &edn_str,
+                        ) {
+                            return Ok(lost);
+                        }
                         match crate::edn::render::decode_trusted_wire(
                             &edn_str,
                             sym.types().map(|a| a.as_ref()),
@@ -26101,15 +26179,11 @@ pub(crate) fn eval_peer_select_prime(
                                 names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
                                 fields: vec![Value::i64(peer_idx), value],
                             }))),
-                            Err(_e) => Ok(Value::Enum(Arc::new(EnumValue {
-                                type_path: SELECT_EVENT_TYPE.into(),
-                                variant_name: "Malformed".into(),
-                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
-                                fields: vec![
-                                    Value::i64(peer_idx),
-                                    message_only_failure("select EDN decode failed".into()),
-                                ],
-                            }))),
+                            Err(_e) => Ok(select_event_lost(
+                                SELECT_EVENT_TYPE,
+                                peer_idx,
+                                "select EDN decode failed",
+                            )),
                         }
                     }
                 }
@@ -26237,15 +26311,24 @@ pub(crate) fn eval_peer_select_prime(
                     crate::comms::SelectOutcome::Recv { index, result } => {
                         let peer_idx = index.0 as i64;
                         match result {
-                            Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
-                                type_path: SELECT_EVENT_TYPE_PEER.into(),
-                                variant_name: "Message".into(),
-                                names: builtin_enum_variant_names(
+                            Ok(msg) => {
+                                if let Some(lost) = select_lost_if_death_notice(
                                     SELECT_EVENT_TYPE_PEER,
-                                    "Message",
-                                ),
-                                fields: vec![Value::i64(peer_idx), msg],
-                            }))),
+                                    peer_idx,
+                                    &msg,
+                                ) {
+                                    return Ok(lost);
+                                }
+                                Ok(Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                    variant_name: "Message".into(),
+                                    names: builtin_enum_variant_names(
+                                        SELECT_EVENT_TYPE_PEER,
+                                        "Message",
+                                    ),
+                                    fields: vec![Value::i64(peer_idx), msg],
+                                })))
+                            }
                             // EOF — bare connection peer left gracefully (no crash channel).
                             Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_PEER.into(),
@@ -26334,22 +26417,22 @@ pub(crate) fn eval_peer_select_prime(
                                 let wire_str = match std::str::from_utf8(&raw_bytes) {
                                     Ok(s) => s,
                                     Err(_) => {
-                                        return Ok(Value::Enum(Arc::new(EnumValue {
-                                            type_path: SELECT_EVENT_TYPE_PEER.into(),
-                                            variant_name: "Malformed".into(),
-                                            names: builtin_enum_variant_names(
-                                                SELECT_EVENT_TYPE_PEER,
-                                                "Malformed",
-                                            ),
-                                            fields: vec![
-                                                Value::i64(peer_idx),
-                                                message_only_failure(
-                                                    "select (process tier): peer message is not valid UTF-8".into(),
-                                                ),
-                                            ],
-                                        })));
+                                        // Not valid UTF-8: a peer whose frame will not
+                                        // decode is dead (recv:25047), not Malformed.
+                                        return Ok(select_event_lost(
+                                            SELECT_EVENT_TYPE_PEER,
+                                            peer_idx,
+                                            "select (process tier): peer message is not valid UTF-8",
+                                        ));
                                     }
                                 };
+                                if let Some(lost) = select_lost_if_death_notice_wire(
+                                    SELECT_EVENT_TYPE_PEER,
+                                    peer_idx,
+                                    wire_str,
+                                ) {
+                                    return Ok(lost);
+                                }
                                 match crate::edn::render::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
@@ -26364,20 +26447,11 @@ pub(crate) fn eval_peer_select_prime(
                                         ),
                                         fields: vec![Value::i64(peer_idx), msg],
                                     }))),
-                                    Err(_e) => Ok(Value::Enum(Arc::new(EnumValue {
-                                        type_path: SELECT_EVENT_TYPE_PEER.into(),
-                                        variant_name: "Malformed".into(),
-                                        names: builtin_enum_variant_names(
-                                            SELECT_EVENT_TYPE_PEER,
-                                            "Malformed",
-                                        ),
-                                        fields: vec![
-                                            Value::i64(peer_idx),
-                                            message_only_failure(
-                                                "select EDN decode failed".into(),
-                                            ),
-                                        ],
-                                    }))),
+                                    Err(_e) => Ok(select_event_lost(
+                                        SELECT_EVENT_TYPE_PEER,
+                                        peer_idx,
+                                        "select EDN decode failed",
+                                    )),
                                 }
                             }
                             // EOF — bare connection peer left gracefully (no crash channel).
