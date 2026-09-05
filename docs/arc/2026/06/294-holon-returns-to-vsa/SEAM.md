@@ -8,22 +8,17 @@
 
 > `251/SEAM.md` · `278/SEAM.md` PARKED. ⛔ **PARKED IS NOT DEAD.**
 
-> ## ⚠⚠ A STONE IS IN FLIGHT WITH GROK — CHECK BEFORE YOU TOUCH ANYTHING
+> ## ✅ NOTHING IS IN FLIGHT. The span-equality stone LANDED and was pushed.
 >
-> **Stone:** `[[DESIGN-STONE-span-equality-becomes-honest]]` (277/). Briefed at HEAD `7f1c91fd3`;
-> the tree was CLEAN and 0-unpushed when this was written.
+> `[[SCORE-STONE-span-equality-becomes-honest]]` carries the ORCHESTRATOR VERDICT at its foot —
+> read that section, not just the rider's half. The census held (two tests, no third red), and
+> **the two things I added are the two the rider's own commands could not have found**: clippy
+> `--all-targets` was RED (`items_after_test_module`), and `WatAST::eq` shipped with a
+> `_ => false` wildcard beside an `impl Hash` that is exhaustive.
 >
-> ```bash
-> git status --short                      # its edits: crates/wat-reader/src/{span,ast}.rs
-> cat /home/john/work/holon/.pulsare/to-claude   # a SCORE may be waiting
-> pgrep -af 'cargo|nextest'
-> ```
->
-> ⛔ **Do NOT re-run cargo to check on it** — a second build against the same `target/` lock is
-> FM 18, and any number taken while its job is live is an instrument artifact. If work is present
-> and no SCORE arrived, read `.pulsare/to-claude`; the channel is files, not chat. **The census is
-> already done and lives in the DESIGN: the blast radius is TWO named tests. STOP-1 says a third
-> failure means the census was wrong.**
+> ⚠ **AND THE SABOTAGE REFUTED MY OWN FRAMING** — a 15th variant is ALREADY four `E0004`s under
+> BOTH shapes. The difference only appears after those four are answered. I wrote the flattering
+> version first; the control corrected it, and the comment in `ast.rs` now says the measured thing.
 
 ## GROUND FIRST
 
@@ -37,7 +32,7 @@
 > **Re-run the commands. Do not read the numbers.**
 
 ```
-floor ........ 5170/5170, 0 FAIL, 17 skipped   scripts/floor.sh — AND IT RUNS DOCTESTS NOW,
+floor ........ 5171/5171, 0 FAIL, 17 skipped   scripts/floor.sh — AND IT RUNS DOCTESTS NOW,
                                                first and unconditionally (armed 2026-09-04;
                                                it had NEVER run before that day)
 clippy ....... 0 under `-D warnings --all-targets`
@@ -67,11 +62,14 @@ AND NOTHING ELSE**, proven by adding one the engine did not know about.
    ⛔ ATTACHMENT IS DELIBERATELY NOT DONE — which node owns a comment is POLICY, and spans make it
      computable after the parse. It belongs beside the style rules, not in the parser.
 
-⚠ IN FLIGHT — SPAN EQUALITY BECOMES HONEST. `Span::eq` returns `true` UNCONDITIONALLY today, so
-   every span assertion in the tree is vacuous — and wat-fmt is entirely about positions. Census
-   run and reverted: blast radius TWO tests, both bugs the vacuity hid (each called
-   `rust_caller_span!()` TWICE at different lines and compared them). `Pos` has no `PartialEq` at
-   all. See `[[NOTE-span-eq-is-vacuous-and-its-safety-claim-is-false]]`.
+✅ SECOND STONE LANDED — SPAN EQUALITY IS HONEST. `Span::eq` compared NOTHING; every span
+   assertion in the tree was vacuous, and wat-fmt is entirely about positions. Now compares
+   file/line/col/end. The two tests it broke were both bugs it had been hiding — each called
+   `rust_caller_span!()` TWICE at different lines and compared them. `Pos` gained `PartialEq`
+   (it had NONE — positions were never comparable at all). Position-independent AST identity
+   moved to `WatAST`'s own manual `PartialEq`, where it always belonged.
+   ⛔ SPAN ASSERTIONS NOW MEAN WHAT THEY SAY. Every one written before 2026-09-05 proved only
+     that the call did not panic; treat an old one as unproven until you re-read it.
 
 ⛔ THE ORIGINAL FIRST STONE, for the record — THE READER, and it was not in the formatter.
    lex_tokens("; a comment\n()") == [LParen, RParen]     (the lexer's OWN test)
@@ -81,8 +79,11 @@ AND NOTHING ELSE**, proven by adding one the engine did not know about.
    ★ It is also why wat/fix.wat is span-based: it never re-emits, so comments survive by not
      being touched. Choosing canonical means choosing to fix the reader instead.
 
-THEN a rete-shape PROBE (one rule: defn) BEFORE the style table. A table written against a
-     shape nobody has driven is unfalsifiable.
+⬜ NEXT, AND IT IS THE ORCHESTRATOR'S OWN HAND — a rete-shape PROBE, one rule (`defn`), in the
+   LIVE syntax of `NOTE-wat-fmt-structural-autoformat.md`. examinare: a disconfirming probe is
+   written and run BEFORE the brief that rests on it. A style table written against a shape
+   nobody has driven is unfalsifiable, and the shape question is real — this rete has no
+   salience, so layout rules must dispatch on HEAD SYMBOL.
 ```
 
 **The engine exists** — `fire_fixpoint_delta` (forward chaining to a fixpoint: a node's width
@@ -117,6 +118,8 @@ dispatch on HEAD SYMBOL — exclusivity by shape, not by engine feature.
    string-local margin preserves an INDENTED CODE SAMPLE. Round-trip gate over 5 rows.
 edn::write stops emitting keywords edn::read refuses — and THE WALL WAS THE FIX, NOT THE FOLD.
 15 rete rows into the registry.  the reader can SEE comments (277's first stone).
+⭐ SPAN EQUALITY IS HONEST — and clippy `--all-targets` caught what the rider's targeted run
+   could not. THE ORCHESTRATOR'S HALF OF A SCORE IS NOT CEREMONIAL.
 ```
 
 ## ⛔ WHAT COST THE MOST — and NOT ONE was caught by re-reading my own claim
