@@ -94,19 +94,6 @@
   :Stop     [state <- :S
              sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])])
 
-;; send-keep-serving? — the four-arm reply send. Closed/Lost is a vanished waiter
-;; (this file's vanished-waiter contract): keep serving. Stopped is the world
-;; stopping: do not recur. Extraction of the five identical sites in the serve
-;; template; no behaviour change. Peer I is the payload type (send projects I);
-;; the serve loop's selectable is (Peer :- [Reply Op]).
-(:wat::core::defn :wat::service::send-keep-serving? :- [R O]
-  [peer <- (:wat::kernel::Peer :- [:R :O])  payload <- :R] -> :wat::core::bool
-  (:wat::core::match (:wat::kernel::send peer payload)
-    (:wat::kernel::SendOutcome::Sent   true)
-    (:wat::kernel::SendOutcome::Closed true)
-    (:wat::kernel::SendOutcome::Stopped false)
-    ((:wat::kernel::SendOutcome::Lost _c) true)))
-
 ;; ── Invocation — the MANDATORY third arm param, `[s ctx req]` (arc 278 the call context) ──
 ;;
 ;; ★ SUPERSEDED 2026-08-09 by DESIGN-STONE-mandatory-ctx-and-lifecycle-ops.md: ctx is no longer
@@ -3111,3 +3098,17 @@
        ~grantable-extend
        ~dialable-extend
        ~typedcap-extend)))
+
+;; send-keep-serving? — the four-arm reply send. Closed/Lost is a vanished waiter
+;; (this file's vanished-waiter contract): keep serving. Stopped is the world
+;; stopping: do not recur. Extraction of the five identical sites in the serve
+;; template; no behaviour change. Peer I is the payload type (send projects I);
+;; the serve loop's selectable is (Peer :- [Reply Op]). After defservice so
+;; nothing above line 896 moves (the bijection goldens snapshot that span).
+(:wat::core::defn :wat::service::send-keep-serving? :- [R O]
+  [peer <- (:wat::kernel::Peer :- [:R :O])  payload <- :R] -> :wat::core::bool
+  (:wat::core::match (:wat::kernel::send peer payload)
+    (:wat::kernel::SendOutcome::Sent   true)
+    (:wat::kernel::SendOutcome::Closed true)
+    (:wat::kernel::SendOutcome::Stopped false)
+    ((:wat::kernel::SendOutcome::Lost _c) true)))
