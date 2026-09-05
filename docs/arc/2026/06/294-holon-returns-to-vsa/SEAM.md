@@ -8,6 +8,22 @@
 
 > `251/SEAM.md`, `278/SEAM.md` are PARKED. ⛔ **PARKED IS NOT DEAD.**
 
+> ## ⚠⚠ A RIDER WAS IN FLIGHT WHEN THIS WAS WRITTEN — CHECK BEFORE YOU TOUCH ANYTHING
+>
+> **Stone:** `[[DESIGN-STONE-stepvalue-is-watast-and-the-round-trip-is-lossy]]` (255/).
+> Released at HEAD `f2d1f0b1e`. **The working tree may hold its uncommitted work.**
+>
+> ```bash
+> git status --short          # its edits land in src/holon/ast.rs + src/runtime.rs
+> pgrep -af 'cargo|nextest'   # it may still be building
+> ```
+>
+> If work is present and no report reached you, the agent ended without reporting — **do NOT
+> re-run cargo to check on it** (a second build against the same `target/` lock is FM 18, and any
+> number taken while its job is live is an instrument artifact). Confirm via `git status`, then
+> resume it by name; a resumed rider keeps its full context. If the tree is clean, it never
+> started or its work is already in a commit above `f2d1f0b1e`.
+
 ## GROUND FIRST
 
 > **THE FRESHNESS PROBE — DERIVE IT, NEVER TYPE IT.**
@@ -71,30 +87,32 @@ vs `Kind::Intrinsic, no scheme` (genuinely owed). The finish line is **unreachab
 means both**, and the `Kind` split MISFILES every alias because `Kind` is stamped by the
 registration VEHICLE, not the verb.
 
-## ✅ WHAT THIS SESSION SHIPPED
+## ✅ WHAT THIS SESSION SHIPPED — 27 commits
 
 ```
-PHASE 1a  COMPLETE      PHASE 1b  ⛔ HALF DONE — 37 of RETE_OPS' 74 rows registered, 37 REMAIN
-                                  (29 of those 37 are CALLED in the corpus). MEASURED 2026-09-04;
-                                  the previous SEAM said "COMPLETE" and I transcribed it forward
-                                  without measuring. comm -23 <rete_names> <registry_names>.
-PHASE 1c-0 · a · b · c · d · e · f · g   COMPLETE
+REGISTRY (arc 255)
+  = and not= REGISTERED @Totality Partial — five compactions of a hold ENDED. The by-name
+    totality placeholder is DELETED: `Some(Unreviewed) | None => false`, zero names.
+  reduce is a defalias for foldl · Vector · HashMap · HashSet registered (all MEASURED Partial)
+  TWO special-form tables die — 314 lines; a third was a `const` inside eval_apply
+  holon::literal reclassified SpecialForm — a hand-list came back because a ROW LIED
+  the round trip CLOSES 432/432 and FROZEN_SPELLING_MISMATCHES is EMPTY — zero tolerance
+  ⭐ THE REGISTRY CAN BE ASKED — `(:wat::intrinsic::rows)` returns one typed Row per entry
 
-⭐ :wat::core:: IS DONE. NOTHING IS HELD. The by-name totality placeholder is DELETED —
-   `Some(Unreviewed) | None => false`, a flat default-deny with zero names.
+HOLON-AST (arc 109/294's ruling, finally TRUE)
+  eval::walk · WalkStep::Skip · StepResult::StepTerminal/AlreadyTerminal · core.wat's ->/->>
+  all face :wat::WatAST now. Re-measured: EVERY remaining HolonAST site is VSA.
+  ⭐ 294's ruling — "HolonAST only for VSA/HDC" — is MEASURED TRUE, not asserted.
 ```
 
-**1c-f — `reduce` is a `defalias` for `foldl`.** Its 3-arity body *was* `foldl`'s, verbatim.
-★ And the alias was the first consumer to read `foldl`'s **stale retained `TypeScheme`** (still
-`Vector`, pre-118.B6) — which `signature-of` also reads, so **reflection had been reporting a
-signature `foldl` does not have**, with three tests frozen on it. RULING item 7 failing in the
-field. It also refuted `check.rs`'s *"a static TypeScheme cannot express 'any Seqable'"* note —
-arc 255's **own Stone D** had already done exactly that to `:wat::string::join`, in the same file.
+★★★ **THE SESSION'S THESIS, the builder's own words:** *"the registry is forcing the discovery of
+bad practices."* Not a metaphor. A crutch survives while nothing asks it a question; the registry's
+demand — every name answerable, every property declared and gated — is what made each surface state
+what it is. Reflection storing sketches as `HolonAST` survived six months because no gate asked.
 
-**1c-g — `=` and `not=` are registered `@Totality Partial`**, five compactions late. Every prior
-hold rested on a prerequisite (`properties_of`, bounded generics, alias-vs-restriction); **measured:
-none of them changes the grade**, because `Value` and an unconstrained type param both admit `Fn`.
-`:wat::core::=` carried **695 corpus sites — the largest entry this worklist ever held.**
+★ And the category error under all of it: *"holon-ast is hypervector of data … edn is a wire format
+of data."* **Neither is a syntax tree.** `HolonAST` was a crutch taken while `WatAST` was immature,
+and it has been lowering literals into whatever the hypervector could hold ever since.
 
 ## ⛔ THE SURFACES ARE NOT ONE FENCE
 
@@ -190,25 +208,33 @@ re-reading the number.**
 ## ⬜ NEXT — read `[[SEQUENCING-the-only-chain-that-gates-the-founding-target]]` FIRST
 
 ```
-ONE CHAIN gates Phase 3a (resolve asks; is_reserved_prefix dies — THE FOUNDING TARGET).
-Everything else is PARALLEL and gates nothing.
+0  ⚠ FINISH THE IN-FLIGHT STONE (banner at the top). StepValue::Terminal/AlreadyTerminal still
+     carry HolonAST internally, and eval-step! CORRUPTS rationals and bigints because of it:
+       (quote 1/2) -> 1/2        (eval-step! (quote 1/2)) terminal -> "1/2"   a StringLit
+     MEASURED this session. i64 is the control and survives.
 
-  1  ★ THE 3 ORPHAN core_name TARGETS — Vector · cond · reduce. Three rows gate TWENTY-NINE:
-       `no_dangling_or_chained_aliases` PANICS on an alias whose target is unregistered
-       (intrinsic/mod.rs:2119). Each needs a DIFFERENT answer and ONE MAY HAVE NONE —
-       `reduce` is a wat-side defalias, which is the FOURTH-registry fork wearing a new face.
-       Smallest thing on the board, most behind it, and it tests the chain's viability.
-  2  THE SIX NON-VERB ARTIFACTS need a RULING, not a registration. ⛔ The corpus can NEVER
-       reach 0 by registering. Nothing else in the campaign produces this work.
-  3  the ~29 RETE_OPS corpus rows (blocked by 1) · eval-ast! + eval-with-defs! (334 sites)
-  4  → then Phase 3a is decidable.
+REGISTRY — the chain to Phase 3a (resolve asks; is_reserved_prefix dies — THE FOUNDING TARGET)
+  1  the 2 remaining orphan core_name targets: cond · reduce. Both the FOURTH REGISTRY —
+       a stdlib defmacro and a wat-side defalias, neither holdable by registry() today.
+       They gate ~29 RETE_OPS rows (no_dangling_or_chained_aliases PANICS on an unregistered
+       target, intrinsic/mod.rs:2119).
+  2  the SIX NON-VERB ARTIFACTS need a RULING, not a registration. ⛔ The corpus can NEVER reach
+       0 by registering. Nothing else in the campaign produces this work.
+  3  eval-ast! + eval-with-defs! (334 sites) · then Phase 3a is decidable.
 
-PARALLEL, pick by value:
-  Phase 3b — check asks the registry. UNBLOCKED: 432/432 round-trip, freeze list EMPTY.
-             Kills register_builtins' 302 duplicates of 325.
-  the DEBT split (121 → 41+60+20) — makes the finish line reachable; gates nothing.
+READY TO RELEASE, no design left
+  ⭐ wat-scripts/fixes/bare-none-keyword-to-fqdn.wat — :None -> :wat::core::None, 94 sites/20 files.
+     Dry-run PROVEN with two negative controls (:app::Result's :Err untouched; wat/cache.wat's
+     FQDN sites untouched), idempotent, migrated file --checks and RUNS identically.
+     ⛔ :Ok and :Err are NOT in scope — 194 :Ok sites are OTHER enums' variant declarations, and
+     :app::Result declares :Err. Renaming either would CORRUPT unrelated enums.
+
+PARALLEL, pick by value
+  Phase 3b — check asks the registry. UNBLOCKED (432/432). Kills register_builtins' 302 of 325.
+  the DEBT split 121 = 41 wrong-shape + 60 stronger-authority + 20 GENUINELY OWED.
   the 270 both-axes grading batch — holon 91 · kernel 49 · time 41 · io 29.
-  34 special forms with no @syntax · 19 rows lying about arity · the FOURTH registry.
+  reflect/verbs.rs's 2 holon conversions — REGISTRY WORK, deferred for SIZE only (builder's ruling).
+  109/NOTE-eval-walk…: 9 golden <HolonAST> literals · a follow-up :wat::core:: WatAST leaf ctor.
 ```
 
 ---
@@ -216,13 +242,23 @@ PARALLEL, pick by value:
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I wrote a STOP trigger from the same wrong census
-> it was meant to catch, and the opposite error four hours later. I took seven false greens off a
-> stale binary. I published three instrument-derived counts that were wrong. **Not one was caught
-> by re-reading my own claim — every single one came from a gate, the floor, or the builder.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Today I got ONE census wrong FOUR TIMES — counting verb
+> SCHEMES when the question was the DECLARED SURFACE; grepping `--include=*.wat` when wat also lives
+> inside Rust string literals; missing `wat/core.wat` entirely; and mis-filing the SIMILARITY cache
+> as a lapse **by reading a file's header and never reaching Stone 4 two hundred lines down**.
+> A HEADER IS NOT THE FILE. I wrote a STOP trigger from the same wrong census it was meant to catch,
+> and four hours later one so tight the honest path was non-compliant. **SEVEN comment-caused errors
+> in one session** — "poisoned at type-check time", "cannot express any Seqable", "stays unhomed",
+> "no NativeHandler" — every one FALSE, every one read as authority. **Not one was caught by
+> re-reading my own claim.** The builder caught three; riders caught three; a gate caught one.
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** the corpus went **1343 sites → 638 in one
-> session**, `:wat::core::` is DONE with nothing held, the placeholder that lied about three verbs
-> is deleted, and reflection stopped reporting a signature `foldl` never had.
+> ⚠ **AND THE INSTRUMENT THAT FINALLY WORKED WAS THE COMPILER**, on the builder's instruction —
+> *"strike the heresy where they stand; the compiler identifies the heretics immediately."* Retyping
+> three fields produced ZERO rustc errors (wat types are DATA in `types.rs`) and 17 located wat-checker
+> failures. **Reach for the compiler before the fourth grep.**
+>
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** `:wat::core::` is DONE with nothing held. The
+> placeholder that lied about three verbs is deleted. The registry can now be ASKED about itself.
+> 294's holon ruling is measured TRUE. Corpus 1343 sites → 638.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `SCRIBIMVS VT EXVLET.` · `DERIVAMVS NE MENTIAMVR.`
