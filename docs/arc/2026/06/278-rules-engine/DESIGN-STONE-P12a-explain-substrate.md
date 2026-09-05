@@ -47,7 +47,7 @@ The public `fire-rules'` runs `fire_fixpoint_delta` (the P4b delta engine), NOT 
 `production_pass`. So the index-recording seam is **inside `fire_fixpoint_delta`'s production-delta loop**, where
 the public path actually derives facts.
 
-1. **`fire_fixpoint_delta` production-delta `if !seen` branch (`src/rete/kernel.rs` ~:1556)** — the recording
+1. **`fire_fixpoint_delta` production-delta `if !seen` branch (`src/rete/kernel/fire/delta.rs`)** — the recording
    point. The loop fires production nodes on NEW tokens (`d_beta[parent]`); for each `(tok, form)` it builds
    `derived = build_insert_fact(form, &tok.bindings)` and, **`if !seen.contains(&derived)`**, pushes it. That
    `if !seen` branch is exactly where to also record `derived → Support{rule_name, tok.clone()}` — and
@@ -72,7 +72,7 @@ the public path actually derives facts.
    `rete.wat` as Records like the other rete records — prefer the wat Record def, sibling of `Session`).
 
 ## Blast radius (bounded)
-- `src/rete/kernel.rs` — an explain-mode fixpoint (reuse `fire_fixpoint_delta`'s body; parameterize the
+- `src/rete/kernel/fire/` — an explain-mode fixpoint (reuse `fire_fixpoint_delta`'s body; parameterize the
   final-clear + index-recording, or a sibling fn) + `production_pass` index recording (explain path only) +
   the `Explained` build. The fast path's functions stay behavior-identical.
 - `wat/rete.wat` — the `:wat::rete::Explained` Record def + the `fire-rules-explain` public verb wrapper (one

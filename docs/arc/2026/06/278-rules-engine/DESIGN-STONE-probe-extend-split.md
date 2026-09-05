@@ -67,7 +67,7 @@ catch-up loop around extend — say so.
 
 ## Blast radius
 
-`src/rete/kernel.rs` tests only. No `.wat`. No engine change.
+`src/rete/kernel/tests/` only. No `.wat`. No engine change.
 
 ## Out of scope = REJECTED
 

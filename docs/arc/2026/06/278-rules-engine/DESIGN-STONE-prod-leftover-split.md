@@ -66,7 +66,7 @@ If remainder_raw leads, say so — that is a different stone.
 
 ## Blast radius
 
-`src/rete/kernel.rs` tests only. No `.wat`. No engine change.
+`src/rete/kernel/tests/` only. No `.wat`. No engine change.
 
 ## Out of scope = REJECTED
 

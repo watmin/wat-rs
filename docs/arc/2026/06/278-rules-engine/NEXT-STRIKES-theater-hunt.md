@@ -1458,7 +1458,22 @@ owner, and crucially **no re-read**, so its premise can rot without anyone learn
 below were that shape until this stamp. Each names its owner, what it would cost, and the
 question that has to be answered before it can move.
 
-### ① The cache primitive's two panics — DECISION: builder
+### ~~① The cache primitive's two panics — DECISION: builder~~ ⛔ **MOVED — this copy is the second place**
+
+> **⛔ STRUCK 2026-09-05. THIS SECTION IS A SECOND LIVE COPY OF A ROW THAT LIVES ELSEWHERE — the
+> two-places-per-row defect this file's own L1 header bans, committed by the section that bans it.**
+> The CLOSING TALLY above already records the move (*"① moved to arc 109 as a NOTE with a sharpened
+> merits ruling"*), and it is true: the row lives at
+> `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`,
+> whose home clause is *"arc 109, because `src/rust_deps/` is its territory and the cache is not
+> rete."* **The open question below has been ANSWERED there on the merits** — split per site, not
+> posed over all three at once: convert `Lru::new` (its capacity crosses a serialization boundary
+> and arrives as data, so no caller is in the frame), LEAVE `put`/`get` (a caller-supplied key,
+> a genuine programming error). Status there: awaiting **mandate**. `src/rust_deps/cache.rs`'s
+> module doc now points at that NOTE — it used to cite a heading in THIS file
+> (*"exigere — the cache panic conversion"*) that has never existed anywhere.
+>
+> **Left standing as the record of the deferral, not as an open row. Do not work from it.**
 
 **Where:** `src/rust_deps/cache.rs` (module doc + `Lru::new` / `put` / `get`), `wat/cache.wat`.
 
@@ -1498,7 +1513,19 @@ and not a cleanup.
 match a Result — and `wat/cache.wat`'s `lru-svc` (including the durable-record rebuild path)
 moves in the same breath. Not a one-file strike.
 
-### ② `match` map-destructure field index — DECISION: builder, LOW
+### ~~② `match` map-destructure field index — DECISION: builder, LOW~~ ✅ **CLOSED 2026-08-29**
+
+> **✅ STRUCK 2026-09-05 — the premise below expired ten days before this was read, and the CLOSING
+> TALLY above already said so** (*"② CLOSED — `match` map-destructure lowers"*). Driven at HEAD:
+> `src/rete/expr_ir/mod.rs`'s hash-destructure arm carries the closure verbatim — *"Refused until
+> 2026-08-28 as 'match map-destructure is not lowered in v1'. That was a STATUS, not a reason"* —
+> and `RETE-OPEN-WORK.md` § ② records `:md::Point{40,2}` → 42 firing in a rete rule **in both
+> positions**. **The design question below answered itself once measured**: the arm is NOT different
+> from its settled sibling, and rete has MORE static information than core here, not less. The
+> index is nonetheless resolved at match time today — see `Pat::Fields` for why, and for exactly
+> what compiling it would take.
+>
+> **Left standing as the record. Not an open row.**
 
 **Where:** the superseded history block of `CURRENT-STATE-annihilate-interpretation.md`, in the
 "Open / settled" table.

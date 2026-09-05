@@ -129,7 +129,7 @@ the validator; a third private parser would re-open it.
 
 ## Blast radius
 
-`src/rete/kernel.rs` (the setup-time index construction, and step 1's inner loop) plus one new
+`src/rete/kernel/` (the setup-time index construction in `kernel/arm.rs`, and step 1's inner loop in `kernel/fire/`) plus one new
 module for the tree. **No `wat/` change — the oracle does not move** (R22 `OCVLI NOVI, ORACVLVM
 IMMOTVM`). **No change to `matcher.rs` semantics**; it is consumed, not edited.
 

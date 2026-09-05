@@ -13,7 +13,7 @@ P3/P4-stable contract is **observable equivalence**: for every input session,
 `query(native-fire-once(s), T) ≡ query(wat-fire-once(s), T)` as a multiset of derived facts (same count, same
 records) for each derived type T. The internal `WorkingMemory` layout is implementation.
 
-## What P2 delivers (Rust — `src/rete/kernel.rs` grows)
+## What P2 delivers (Rust — `src/rete/kernel/` grows)
 
 A new primitive **`(:wat::rete::fire-once' <session>) -> :wat::rete::Session`** (bring-up name — the native
 single-pass; P5 promotes the *looped* version to the public `:wat::rete::fire`). It:
@@ -58,7 +58,7 @@ input. Registered like `eval-insert` (dispatch arm + TypeScheme `[:wat::rete::Se
 Internal mutation stays sealed (the `WorkingMemory` never escapes; only a frozen `Session` returns).
 
 ## Files touched
-- `src/rete/kernel.rs` — the four-pass Rust fire-once + Element/Token builders + node-kind helpers; remove the
+- `src/rete/kernel/` — the four-pass Rust fire-once + Element/Token builders + node-kind helpers; remove the
   `#[allow(dead_code)]` on the P1 seam (now used).
 - `src/rete/matcher.rs` — `pub(crate)` on `alpha_match_inner`/`resolve_operand`/`read_fact_field`/
   `fact_from_value`; extract `build_insert_fact` inner from `eval_insert`.

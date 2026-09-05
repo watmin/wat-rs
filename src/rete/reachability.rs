@@ -433,7 +433,7 @@ fn expect(cell: &Cell, site: CallSite, want: &Verdict) {
     );
 }
 
-/// ★★ THE CALIBRATION — four cells, two verdicts, every answer already known from the disk.
+/// ★★ THE CALIBRATION — the cells below, both verdicts, every answer already known from the disk.
 ///
 /// | cell | expected | why it is known |
 /// |---|---|---|
@@ -460,7 +460,7 @@ fn expect(cell: &Cell, site: CallSite, want: &Verdict) {
 /// one-directional without a single assertion changing. The refusal is re-sourced from Law A,
 /// which cannot become reachable without the rete surface ceasing to be one.
 #[test]
-fn the_ledger_reproduces_four_known_cells_before_it_reports_an_unknown_one() {
+fn the_ledger_reproduces_every_known_cell_before_it_reports_an_unknown_one() {
     expect(&i64_gt(), CallSite::InlineConstraint, &Verdict::Fires);
     expect(&i64_gt(), CallSite::WhereFence, &Verdict::Fires);
     expect(&keyword_eq(), CallSite::WhereFence, &Verdict::Fires);
@@ -536,8 +536,9 @@ fn the_two_positions_render_differently_and_now_agree() {
 /// ★★ THE ATTRIBUTION'S OWN GATE — a refusal that does not name the op is NOT a finding.
 ///
 /// Without this, `attribute` could return `Refused` unconditionally and every calibration above
-/// would still pass: three of the four cells are fires, and the fourth only checks that SOMETHING
-/// refused. This is the row that makes the distinction load-bearing rather than decorative.
+/// would still pass: `attribute` is reached only on the error path, so the calibration's FIRES
+/// cells never consult it at all, and its REFUSED cells only check that SOMETHING refused. This is
+/// the row that makes the distinction load-bearing rather than decorative.
 ///
 /// The break is chosen to have nothing whatever to do with the op: a binding reads a field the
 /// record does not declare. The op in that program is `i64::>`, which is perfectly reachable —
@@ -582,17 +583,6 @@ fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_f
 
 // ─── The generator ─────────────────────────────────────────────────────────────────────────────
 
-/// The operand table — one entry per Bool-returning `Alias` row.
-///
-/// This is the ONLY hand-written data in the sweep; everything else (arity, the op's name, which
-/// rows must appear here at all) comes from `RETE_OPS` itself, so the table cannot silently fall
-/// behind the vocabulary: a row minted without an entry is a RED BUILD, not a row nobody notices.
-/// That is the same shape as `every_rete_row_is_total` and for the same reason — a count cannot
-/// tell "+1 new, -1 fixed" from "nothing happened", so this names the offender instead.
-///
-/// `None` means "no entry", which the sweep treats as a failure. There is deliberately no
-/// "skip this row" value: an unclassifiable row must be argued in prose at the exclusion list
-/// below, where a reader can disagree with it.
 /// Build the ordinary `(op {f} operands…)` expression, optionally wrapped in a comparator.
 ///
 /// The shorthand every row that IS a plain call uses. Unary rows render `(op {f})`; everything
@@ -675,6 +665,16 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
 /// operands from the op's shape would get that pair backwards and the probe would still pass —
 /// it would just be proving the wrong direction. `special_for` handles the ops whose expression
 /// cannot be generated at all and is checked first.
+///
+/// This is the ONLY hand-written data in the sweep; everything else (arity, the op's name, which
+/// rows must appear here at all) comes from `RETE_OPS` itself, so the table cannot silently fall
+/// behind the vocabulary: a row minted without an entry is a RED BUILD, not a row nobody notices.
+/// That is the same shape as `every_rete_row_is_total` and for the same reason — a count cannot
+/// tell "+1 new, -1 fixed" from "nothing happened", so this names the offender instead.
+///
+/// `None` means "no entry", which the sweep treats as a failure. There is deliberately no
+/// "skip this row" value: an unclassifiable row must be argued in prose at the exclusion list
+/// below, where a reader can disagree with it.
 fn operands_for(rete_name: &'static str) -> Option<Cell> {
     if let Some((field_ty, hit, miss, expr, extra)) = special_for(rete_name) {
         return Some(Cell {
@@ -805,6 +805,13 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 /// Rows that ARE generable and are nonetheless excluded, because the compiled `where` EXECUTOR
 /// cannot run them — a DEFECT, deliberately not filed under `NOT_YET_GENERABLE`.
 ///
+/// ✅ **EMPTY as of 2026-09-05: every row this list ever held was FIXED, never re-labelled** — see
+/// `db17511f6` (reduce IS foldl; the map ctor had no arm) and `2c4c6a163` (the `#holon` exclusion
+/// was false). Everything below is the RECORD of what it held and why that kind of row belongs
+/// here rather than under `NOT_YET_GENERABLE`; the constant stays because the distinction is what
+/// the next such row will need. `every_rete_ops_row_is_classified` (below) already refuses a name
+/// here that `RETE_OPS` does not carry, so the list cannot rot into stale entries.
+///
 /// ⛔ **Calling this a tooling gap would be the mislabel this ledger exists to prevent.** These
 /// cells synthesize fine; they raise
 /// `#wat.runtime/MalformedForm "compiled apply cannot dispatch kind Unknown arity N"` at RUNTIME,
@@ -815,7 +822,7 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 /// `PvNew`/`VecNew`/`ListNew` for the three sibling constructors and has NO arm for either of
 /// these. Note that a missing arm is not on its own proof of a hole — `foldl` and the other HOFs
 /// map to `Unknown` too and reach the compiled path by their own dedicated route
-/// (`expr_ir/mod.rs` line ~371). What makes these two a defect is the CONJUNCTION: no arm, no other route, and a
+/// (`lower_hof_callee`, `expr_ir/mod.rs`). What makes these two a defect is the CONJUNCTION: no arm, no other route, and a
 /// runtime raise when driven.
 ///
 /// **The extirpation is a gate, not two arms.** `RETE_OPS` and the `OpExec` mapping are two
@@ -826,6 +833,9 @@ const COMPILED_EXECUTOR_CANNOT_RUN: &[(&str, &str)] = &[
 ];
 
 /// The rows deliberately NOT in the operand table, each with the reason a reader can argue with.
+///
+/// ✅ **EMPTY as of 2026-09-05** — no row was excluded on that date; the sweep generated every
+/// `RETE_OPS` row it was given. What follows is the standard any future entry must meet.
 ///
 /// An exclusion is a claim that a cell cannot be written, which is exactly the kind of claim this
 /// arc has been wrong about twice (see the breadcrumb: "do not trust a grep that found nothing").

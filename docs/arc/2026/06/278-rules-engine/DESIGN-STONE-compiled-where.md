@@ -393,8 +393,8 @@ does not model. Whether it survives having no direct production caller is a sepa
 
 ## Blast radius
 
-`src/rete/matcher.rs` (the compiler + executor, beside `eval_test_core`) and `src/rete/kernel.rs`
-(compile at the setup site alongside the alpha compiles; call the executor at `:2727`). **Nothing
+`src/rete/matcher.rs` (the compiler + executor, beside `eval_test_core`) and `src/rete/kernel/`
+(compile at the setup site alongside the alpha compiles; call the executor from the filter pass). **Nothing
 under `wat/`** — the oracle does not move, and stays naive by ruling (`OCVLI NOVI, ORACVLVM
 IMMOTVM`, R22).
 

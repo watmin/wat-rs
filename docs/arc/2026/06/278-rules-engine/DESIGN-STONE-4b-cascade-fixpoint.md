@@ -68,6 +68,14 @@ unbounded stream of *distinct* facts (e.g. arithmetic in a fact-arg producing `X
 terminate — a standard datalog property. v1 has no such rule; if one is ever needed, a depth/round safety cap
 is its own future stone (let need reveal).
 
+> **✅ THE NEED REVEALED — the back edge this paragraph never had (annotated 2026-09-05).** The cap
+> shipped: `fire_fixpoint_delta`'s TERMINATION CAP (`src/rete/kernel/fire/delta.rs`), per-program via
+> `(:wat::config::rete::set-max-fire-rounds! n)`. It quotes the sentence above verbatim and answers
+> its objection point by point — the measured failure without a cap was
+> `memory allocation of 545259536 bytes failed`, naming no rule and no span. The forward edge has
+> pointed here since it landed; only the edge back was missing. **Nothing above is retracted**: the
+> boundary this stone named is exactly the one that was hit.
+
 ## The one contract decision (pinned)
 
 `fire-rules` is a fixpoint over `fire-once`: re-run the full match over a dedup-growing fact set until a round

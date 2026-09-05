@@ -55,6 +55,11 @@ Do **not** let the cache outlive the round. That is still
 clause, and this stone does not lift it. Persist-across-rounds
 is #3.
 
+> **⛔ SUPERSEDED 2026-08-19 by `DESIGN-STONE-persist-gather-across-rounds.md`** — that is #3,
+> and it landed. `gather_cache` outlives the round today and is fed `d_alpha`
+> (`src/rete/kernel/fire/delta.rs`). The clause above was right for THIS stone and is no longer
+> the live contract; it is left standing as the record, annotated rather than rewritten.
+
 ## The gate
 
 1. `accum_fire_phase_census` `[200 200]`: `accum:snapshot`
@@ -73,7 +78,7 @@ remain. Do not bundle #3.
 
 ## Blast radius
 
-`src/rete/kernel.rs` only: `GatherCache` type, `ensure_gather`,
+`src/rete/kernel/fire/mod.rs` only: `GatherCache` type, `ensure_gather`,
 the accumulate miss path, `any_seeded_keyed` /
 `seeded_bindings_keyed`. No `.wat`.
 

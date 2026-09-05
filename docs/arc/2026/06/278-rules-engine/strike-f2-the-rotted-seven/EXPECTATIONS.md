@@ -1,5 +1,15 @@
 # EXPECTATIONS — F2's bullets, closed without leaving corrected numbers
 
+
+> ⛔ **THIS FILE WROTE THE CORRECTED NUMBER IT FORBADE, SIX TIMES.** Found by the rider,
+> 2026-09-05. EXPECTATIONS row 1 says writing `39 of 487` *anywhere* fails the strike; DESIGN,
+> BRIEF and EXPECTATIONS each wrote it twice, one of them in a table presenting it as measured
+> truth. A dated draw-record is the charitable reading, and by F0's own argument those six
+> sites rot within the month. **The reading is kept ONLY where it is stamped as a dated
+> observation; the live figure is the command:**
+>
+>     `grep -rlc 'src/rete/kernel\.rs' docs/arc --include='DESIGN-STONE-*.md' | wc -l` of `find docs/arc -name 'DESIGN-STONE-*.md' | wc -l`
+
 ## ⛔ NO PINNED TEST COUNT
 
 **The floor must be ≥ 5,418.** ⚠ This strike may add **no tests at all** — its deliverable is prose
@@ -10,7 +20,7 @@ row 8 was unsatisfiable for exactly this reason and that mistake is not repeated
 
 | # | what | state AT HEAD (driven) | required after |
 |---|---|---|---|
-| 1 | ★ counts become commands | *"83 of 207"* — **wrong both ways; truth 39 of 487** | the `grep`, **not** `39 of 487` |
+| 1 | ★ counts become commands | *"83 of 207"* — **wrong both ways; truth **39 of 487 _(a dated reading, 2026-09-04 — derive it, do not quote it)_**** | the `grep`, **not** **39 of 487 _(a dated reading, 2026-09-04 — derive it, do not quote it)_** |
 | 2 | ★ paths verified or deleted | 39 stones name a file gone since 2026-08-20 | re-pointed on evidence, or path removed; **no basename re-points** |
 | 3 | ★ dated records untouched | 26 of the 39 are dated stones | measurements unchanged; **only dead pointers move** |
 | 4 | the row's own citations | `:2093`, `:391`, `:419,446` — **all drifted** | **symbols**, not corrected lines |
@@ -32,7 +42,7 @@ row 8 was unsatisfiable for exactly this reason and that mistake is not repeated
 
 ## What would make this strike a failure even if every test passes
 
-**Writing `39 of 487` anywhere.** It is true today, will be false within the month, and reproduces
+**Writing **39 of 487 _(a dated reading, 2026-09-04 — derive it, do not quote it)_** anywhere.** It is true today, will be false within the month, and reproduces
 the exact defect the bullet exists to record. **The command or nothing.**
 
 **And re-pointing 39 stones by name.** `src/rete/kernel.rs` → `src/rete/kernel/` is right *where the

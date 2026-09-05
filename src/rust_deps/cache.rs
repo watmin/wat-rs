@@ -65,10 +65,12 @@
 //! SHIPPED public surface (`:wat::cache::Lru::new` would return a Result every
 //! caller must match) and must move `wat/cache.wat` in the same breath.
 //!
-//! Tracked as a decision row in
-//! `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md`
-//! ("exigere — the cache panic conversion"). Do not re-defer it in prose here;
-//! the row is the only honest home for it.
+//! Tracked as a NOTE in arc 109, which owns `src/rust_deps/`:
+//! `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`
+//! — RULED ON THE MERITS (convert `Lru::new`, whose capacity crosses a
+//! serialization boundary; LEAVE `put`/`get`, whose key is a caller bug),
+//! awaiting mandate. Do not re-defer it in prose here; that note is the only
+//! honest home for it.
 
 use lru::LruCache;
 use std::num::NonZeroUsize;

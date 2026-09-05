@@ -64,10 +64,10 @@ stratified drive. No new public verb, no flag anywhere in wat. `negation cycle` 
 
 ## Files
 
-- `src/rete/kernel.rs` — `native_stratify` + helpers (port of `rule-produces`/`rule-negates`/`stratify-sweep`/
+- `src/rete/kernel/` — `native_stratify` (`kernel/stratify.rs`) + helpers (port of `rule-produces`/`rule-negates`/`stratify-sweep`/
   `stratify-fix`/`rule-stratum`/`stratify`, reading `Rule.lhs`/`Rule.rhs` AST Values) + `fire_rules_stratified`
-  (port of `fire-stratified-loop`, per-stratum compile via the kernel.rs:1345 native-call pattern) + the
-  `max_stratum` dispatch in `eval_fire_rules_native`. `collect_derived` (1047) reused.
+  (port of `fire-stratified-loop`, per-stratum compile via the native-call pattern) + the
+  `max_stratum` dispatch in `eval_fire_rules_native` (both `kernel/fire/rules.rs`). `collect_derived` reused.
 - `tests/rete/probe_arc278_7strat_native_differential.rs` — the RED differential (already committed).
 
 ## The acceptance chain

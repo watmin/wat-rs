@@ -72,7 +72,7 @@ cloned `Vec`, which was also PV order. Unchanged.
 
 ## Blast radius
 
-`src/rete/kernel.rs` only. No `.wat`. No new crate.
+`src/rete/kernel/fire/delta.rs` only (`fire_fixpoint_delta`'s SETUP). No `.wat`. No new crate.
 
 ## Out of scope = REJECTED
 

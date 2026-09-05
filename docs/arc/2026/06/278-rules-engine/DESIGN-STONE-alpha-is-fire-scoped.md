@@ -106,7 +106,7 @@ that is the difference between a measurement and a claim (R59 `NISI FRANGAS, NIH
 
 ## Blast radius
 
-`src/rete/kernel.rs` (**one** clear + the stale `round_trip_fired_session` comment), `wat/rete.wat` (the
+`src/rete/kernel/` (**one** clear + the stale `round_trip_fired_session` comment, now `kernel/tests/pass_semantics.rs`), `wat/rete.wat` (the
 `Session` doc comment only — mark alpha/beta fire-scoped, mirroring `Support`'s *"EPHEMERAL — carried
 only in Explained"*), `tests/rete/probe_arc278_2b_insert_alpha.{wat,rs}`, and the new gate pair.
 **No corpus migration. No codemod. No oracle logic touched.**

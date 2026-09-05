@@ -42,7 +42,7 @@ Next strike is drawn from that table, not from accum leftovers.
 
 ## Blast radius
 
-`src/rete/kernel.rs` tests only. No fire-path change. No `.wat`.
+`src/rete/kernel/tests/` only. No fire-path change. No `.wat`.
 
 ## Out of scope = REJECTED
 

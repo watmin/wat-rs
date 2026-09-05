@@ -65,7 +65,7 @@ second hasher.
 
 ## Blast radius
 
-`wat-rs/Cargo.toml` (`rustc-hash = "2"`). `src/rete/kernel.rs`:
+`wat-rs/Cargo.toml` (`rustc-hash = "2"`). `src/rete/kernel/fire/`:
 `seen`, `GatherIndex`, `GatherCache`, `build_gather_index`.
 No `.wat`. No `impl Hash for Value` change.
 

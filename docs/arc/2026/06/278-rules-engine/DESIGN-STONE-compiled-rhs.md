@@ -67,8 +67,9 @@ bumps, the fields `Vec`, and the `AggregateValue`.
 ## Blast radius
 
 `src/rete/matcher.rs` (the compiler + the executor beside `build_insert_fact`) and
-`src/rete/kernel.rs` (build the compiled forms alongside `compiled_conds` at setup; call the
-executor from the production pass, where `rule_rhs_cache` is looked up today). **Nothing under
+`src/rete/kernel/` (build the compiled forms alongside `compiled_conds` at setup — `kernel/arm.rs`; call the
+executor from the production pass — `kernel/fire/pass/production.rs`, where `rule_rhs_cache` is looked up today; that
+name is gone, the arm field is `compiled_rhs`). **Nothing under
 `wat/`** — the oracle stays naive by ruling.
 
 `build_insert_fact` is **NOT deleted**: it stays as the reference implementation and the other half

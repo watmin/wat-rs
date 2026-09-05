@@ -4,7 +4,7 @@
 > N=20/M=500 the wat side needed >4 GiB to join 500 facts against 20 rules — it took a workstation
 > down. The compile-time census (`wat-scripts/scratch-pad/probe-node-share-dedup.wat`) counted the
 > network at `4 + 2N` nodes and cleared the compiler. **That census was blind to edges.** The fire
-> census built this session (`a8_node_share_fire_census`, `src/rete/kernel.rs`) counts both, and the
+> census built this session (`a8_node_share_fire_census`, `src/rete/kernel/tests/node_share_cost.rs`) counts both, and the
 > defect is exact: **nodes are shared perfectly; edges are duplicated once per rule.**
 
 ## The measurement (the RED gate, on the disk, currently failing)

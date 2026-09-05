@@ -85,7 +85,7 @@ not stack a second copy-killer.
 
 ## Blast radius
 
-`src/rete/kernel.rs`: `d_alpha` type, the push, root-join
+`src/rete/kernel/fire/`: `d_alpha` type, the push, root-join
 reader, hash-join `dr`. No `.wat`.
 
 ## Out of scope = REJECTED

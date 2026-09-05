@@ -51,7 +51,7 @@ Re-run-from-scratch each round (this stone; P4b makes it delta):
    is the fact-model that makes 4c TM-via-replay correct.
 
 ### Reuse (what already exists)
-- `eval_fire_once_native` / `fire_once` internals (`src/rete/kernel.rs`) — the single pass. P4a calls the pass
+- `eval_fire_once_native` / `fire_once` internals (`src/rete/kernel/fire/mod.rs`) — the single pass. P4a calls the pass
   logic in a loop. **Factor the pure pass out of `eval_fire_once_native`** so both the dispatch entry (which
   evals its arg) and the new fixpoint loop call it on an in-hand `Session` value, WITHOUT re-evaluating an AST
   arg each round. I.e. extract `fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Value,
@@ -74,7 +74,7 @@ for every type T. NOT bit-identical Session (P4b will restructure memories by de
 from day one, same as P2). The wat oracle is the reference; `fire-rules'` conforms to it.
 
 ### Files touched
-- `src/rete/kernel.rs` — extract `fire_once_session`; add `collect_derived`, `merge_facts`, the fixpoint, and
+- `src/rete/kernel/fire/` — extract `fire_once_session`; add `collect_derived`, `merge_facts`, the fixpoint, and
   `eval_fire_rules_native`. NO change to the four passes themselves, the keyed join, or `WorkingMemory`'s shape.
 - `src/runtime.rs` — one dispatch arm: `:wat::rete::fire-rules'`.
 - `src/check.rs` — one TypeScheme: `fire-rules'` (Session → Session, mirror `fire-once'`).

@@ -213,7 +213,10 @@ pub(crate) struct OpMeta {
 /// `String/` family. **The wall is purity declared where the verb is DEFINED**, so a verb cannot
 /// exist unclassified — arc 255's builtin registry, already named as this recognizer's successor in
 /// `constructor_meta`'s doc below. Until then, adding a verb to the dispatch table means adding it
-/// here, and nothing enforces that.
+/// here — and `completeness_gate` in this file is what enforces it: a dispatch verb with neither an
+/// `intrinsic_meta` classification nor a `RULES` / `KNOWN_UNREVIEWED` disposition REDs the build,
+/// naming the verb. (Cited by SYMBOL, not by line: this file's own history is that the line moved
+/// and the claim did not.)
 ///
 /// **Deliberately left UNCLASSIFIED by the 2026-08-01 sweep** (named so the omission is visible
 /// rather than silent — each wants a ruling, not an assumption):
