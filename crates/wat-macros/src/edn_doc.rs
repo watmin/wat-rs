@@ -244,9 +244,14 @@ fn synthetic_span() -> Span {
 /// `Type/method` leaves are the one extra case: the forward transform
 /// (`wat_keyword_to_clojure_symbol`) folds the type into the namespace
 /// (`:wat::holon::Hologram/make` → `:wat.holon.Hologram/make`). Reconstructing
-/// that `/` rather than a `::` is possible because a method name does not
-/// start uppercase and a type (and an enum variant) does: `Pure` stays
-/// `:wat::runtime::Purity::Pure`; `make` becomes `:wat::holon::Hologram/make`.
+/// that `/` rather than a `::` keys on the **last namespace segment being
+/// uppercase** (it correlates with record types — `Hologram`, `Bytes`,
+/// `HandlePool`) plus the name *not* being uppercase (`make` vs `Pure`).
+/// Types in the NAME position (`i64`, `String`) are never touched. A record
+/// type spelled lowercase, or a method spelled uppercase, defeats it — and
+/// that limit is acceptable only because arc 251's cutover (`wat.type/T` as
+/// the wat surface) retires the reverse direction entirely.
+/// See `docs/arc/2026/06/251-types-as-forms/DESIGN-STONE-251.2.md`.
 fn fqdn_of(ns: Option<&str>, name: &str) -> String {
     match ns {
         Some(ns) => {

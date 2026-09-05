@@ -4151,6 +4151,11 @@ pub fn value_to_edn_with(
 /// rest joined with `.` is the namespace, per common Clojure
 /// convention). Single-segment wat keywords (`:foo`) become
 /// non-namespaced EDN keywords.
+///
+/// A leaf that still contains `/` (`:wat::holon::Hologram/make`) is
+/// refused by `Keyword::try_ns` and carried verbatim via
+/// [`crate::edn::bridge::verbatim_keyword`] — never folded into a
+/// different, readable-looking keyword whose decode would guess.
 pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
     let stripped = k.strip_prefix(':').unwrap_or(k);
     if stripped.contains("::") {
@@ -4163,11 +4168,11 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
             // ("better to render than to panic on a logger call"), which is a
             // SILENT TYPE CHANGE: a Keyword goes in, a String comes out, and
             // anything that reads the value back gets the wrong type with no
-            // diagnostic. Measured over the corpus, this arm fires for 10
-            // distinct keywords out of 72,510 — all of them trailing-`::`
-            // namespace-prefix markers (`:restricted-to` whitelists), whose
-            // EDN name is empty. Still total, still non-panicking, no longer
-            // a lie.
+            // diagnostic. `try_ns` now also refuses a `/` in the name, so
+            // `Type/method` leaves take this arm and round-trip through
+            // `#wat.ast/Keyword {:path "…"}` instead of a two-slash keyword
+            // the reader cannot parse, and instead of a folded keyword the
+            // decoder would reconstruct wrongly.
             Err(_) => crate::edn::bridge::verbatim_keyword(k),
         }
     } else {
@@ -4434,6 +4439,24 @@ mod tests {
     use crate::types::TypeExpr;
 
     // ─── Arc 138 canary ─────────────────────────────────────────────────
+
+    #[test]
+    fn type_method_keyword_is_carried_verbatim_and_reads_back() {
+        let v = keyword_from_wat_path(":wat::holon::Hologram/make");
+        assert!(
+            matches!(v, OwnedValue::Tagged(..)),
+            "a slash-bearing leaf must not mint an EDN keyword; got {v:?}"
+        );
+        let s = wat_edn::write(&v);
+        let back = wat_edn::parse_owned(&s).expect("verbatim carriage must parse as EDN");
+        assert_eq!(back, v);
+        match crate::edn::bridge::edn_to_watast(&back).expect("decode") {
+            crate::ast::WatAST::Keyword(k, _) => {
+                assert_eq!(k, ":wat::holon::Hologram/make");
+            }
+            other => panic!("expected Keyword, got {other:?}"),
+        }
+    }
 
     #[test]
     fn arc138_edn_read_error_message_carries_span() {

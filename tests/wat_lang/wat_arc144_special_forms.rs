@@ -60,7 +60,7 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
     let body_is_none = body_none(probe);
     // rune:lint(loose-assert) — property-over-variable-set: called from multiple test fns with different `probe` values; `define_line` differs per form but every valid special form must carry this sentinel
     assert!(
-        define_line.contains(":wat.core/__internal/special-form"),
+        define_line.contains(":wat::core::__internal/special-form"),
         "lookup-define for {} should emit the special-form sentinel; got: {}",
         name_keyword, define_line
     );

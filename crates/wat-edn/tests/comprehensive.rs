@@ -1426,6 +1426,14 @@ fn keyword_try_new_validates() {
 }
 
 #[test]
+fn keyword_try_ns_refuses_a_slash_in_the_name() {
+    let err = Kw::try_ns("wat.holon", "Hologram/make").expect_err("slash-bearing name must be refused");
+    assert_eq!(err, "name must not contain /");
+    assert!(Kw::try_ns("wat.holon.Hologram", "make").is_ok());
+    assert!(Kw::try_ns("wat.core", "/").is_ok(), "the name `/` itself (division) is legal");
+}
+
+#[test]
 fn tag_try_ns_validates() {
     assert!(Tag::try_ns("myapp", "Person").is_ok());
     assert!(Tag::try_ns("", "Person").is_err());

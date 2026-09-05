@@ -1,1 +1,1 @@
-#wat.core.Option/Some [(:wat.core/defn (:wat.vec/length :- [T] (_a0 (wat.type/Vector :- [T])) -> wat.type/i64) (:wat.core/__internal/primitive :wat.vec/length))]
+#wat.core.Option/Some [(:wat.core/defn (:wat.vec/length :- [T] (_a0 (wat.type/Vector :- [T])) -> wat.type/i64) (#wat.ast/Keyword {:path ":wat::core::__internal/primitive"} :wat.vec/length))]

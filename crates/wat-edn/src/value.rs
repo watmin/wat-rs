@@ -306,6 +306,18 @@ impl Symbol {
 
 // ─── Keyword ────────────────────────────────────────────────────
 
+/// First-character rule, plus: a namespaced keyword's NAME must not contain
+/// `/`. EDN spells keywords as `:name` or `:ns/name` — a `/` inside the name
+/// is unspellable (`:wat.holon/Hologram/make`). The name `/` itself (division,
+/// Clojure `clojure.core//`) is the one exception.
+fn validate_keyword_name(name: &str) -> std::result::Result<(), &'static str> {
+    crate::vocab::validate_first_char(name)?;
+    if name.contains('/') && name != "/" {
+        return Err("name must not contain /");
+    }
+    Ok(())
+}
+
 impl Keyword {
     /// Build a non-namespaced keyword. Panics on invalid name.
     /// See [`Symbol::new`] for guidance on panic-vs-Result.
@@ -325,7 +337,7 @@ impl Keyword {
         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
             .unwrap_or_else(|m| panic!("invalid keyword namespace {:?}: {}", namespace.as_ref(), m));
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)
+        validate_keyword_name(name)
             .unwrap_or_else(|m| panic!("invalid keyword name {:?}: {}", name, m));
         Self {
             namespace: Some(CompactString::from(ns_translated)),
@@ -350,7 +362,7 @@ impl Keyword {
     ) -> std::result::Result<Self, &'static str> {
         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)?;
+        validate_keyword_name(name)?;
         Ok(Self {
             namespace: Some(CompactString::from(ns_translated)),
             name: CompactString::from(name),

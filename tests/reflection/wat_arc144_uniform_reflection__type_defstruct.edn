@@ -1,1 +1,1 @@
-#wat.core.Option/Some [(:wat.core/defstruct :my/Pair (:wat.core/__internal/type-decl :my/Pair))]
+#wat.core.Option/Some [(:wat.core/defstruct :my/Pair (#wat.ast/Keyword {:path ":wat::core::__internal/type-decl"} :my/Pair))]

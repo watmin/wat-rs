@@ -1,1 +1,1 @@
-#wat.core.Option/Some [(:wat.core/__internal/special-form :wat.core/if)]
+#wat.core.Option/Some [(#wat.ast/Keyword {:path ":wat::core::__internal/special-form"} :wat.core/if)]
