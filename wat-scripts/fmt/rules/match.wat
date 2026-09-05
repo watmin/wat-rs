@@ -12,6 +12,8 @@
 ;;
 ;; The scrutinee rides the head line — like a `defn`'s NAME and unlike a `let`, whose head line
 ;; carries nothing. Three forms, three answers: a rule is never copied between them.
+;;
+;; Break names a kind ("block" / "align"); the emitter computes the rest.
 
 (:wat::rete::defrule :fmt::match-claim
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
@@ -28,6 +30,5 @@
          (:wat::grep::Named (?h <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::match"))
          (:wat::grep::Node  (?arm <- :id) (?p <- :parent) (?ai <- :index))
-         (:wat::rete::where (:wat::rete::i64::> ?ai 1))
-         (:wat::grep::Span  (?p <- :id) (?pc <- :col))]
-  :then [(:wat::fmt::Break :id ?arm :indent (:wat::rete::i64::+ ?pc 1 :undefined 2))])
+         (:wat::rete::where (:wat::rete::i64::> ?ai 1))]
+  :then [(:wat::fmt::Break :id ?arm :kind "block")])

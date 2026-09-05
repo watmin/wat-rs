@@ -1,12 +1,16 @@
 ;; wat/fmt.wat — layout engine: Break + a DUMB emitter. Rules assert Breaks; this file
-;; holds no style opinion. Arc 277 STONE the-first-layout-rules.
+;; holds no style opinion. Arc 277 STONE indent-is-structural.
 ;;
-;; A node with a Break starts a new line at that indent; otherwise it follows a single space.
-;; A line comment PINS A NEWLINE after itself.
+;; A node with a Break starts a new line. `:block` indents one level (2) from its
+;; form's indent; `:align` sits one past the container's emitted opening delimiter.
+;; A line comment PINS A NEWLINE after itself. Spans locate comments; they never
+;; decide an indent.
 
+;; kind is a String, not a keyword: rete RHS may insert a string literal but
+;; refuses a keyword literal (`RhsUnresolvableOperand`). `"block"` | `"align"`.
 (:wat::core::defrecord :wat::fmt::Break
-  [id     <- :wat::core::i64
-   indent <- :wat::core::i64])
+  [id   <- :wat::core::i64
+   kind <- :wat::core::String])
 
 (:wat::core::defrecord :wat::fmt::Comment
   [text     <- :wat::core::String
@@ -38,7 +42,8 @@
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
    next-id  <- :wat::core::i64
-   comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])])
+   comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
+   col      <- :wat::core::i64])
 
 (:wat::rete::defquery :wat::fmt::q-break
   :params []
@@ -55,6 +60,41 @@
     (:wat::core::if (:wat::string::ends-with? s "\n")
       s
       (:wat::string::concat s "\n"))))
+
+;; Column of the next write, given the previous column and a suffix just appended.
+;; Derived from EMITTED text, never from a source span.
+(:wat::core::defn :wat::fmt::col-after
+  [col <- :wat::core::i64  s <- :wat::core::String]
+  -> :wat::core::i64
+  (:wat::core::if (:wat::string::empty? s)
+    col
+    (:wat::core::if (:wat::string::ends-with? s "\n")
+      0
+      (:wat::core::if (:wat::string::contains? s "\n")
+        (:wat::core::let [lines (:wat::string::split s "\n")
+                          n     (:wat::core::length lines)]
+          (:wat::string::length (:wat::core::nth lines (:wat::i64::- n 1))))
+        (:wat::i64::+ col (:wat::string::length s))))))
+
+(:wat::core::defn :wat::fmt::write
+  [acc <- :wat::fmt::Acc  s <- :wat::core::String]
+  -> :wat::fmt::Acc
+  (:wat::fmt::Acc
+    :out      (:wat::string::concat (:wat::fmt::Acc/out acc) s)
+    :next-id  (:wat::fmt::Acc/next-id acc)
+    :comments (:wat::fmt::Acc/comments acc)
+    :col      (:wat::fmt::col-after (:wat::fmt::Acc/col acc) s)))
+
+(:wat::core::defn :wat::fmt::write-nl [acc <- :wat::fmt::Acc] -> :wat::fmt::Acc
+  (:wat::core::let [s  (:wat::fmt::Acc/out acc)
+                    s2 (:wat::fmt::ensure-nl s)]
+    (:wat::core::if (:wat::core::= s s2)
+      acc
+      (:wat::fmt::Acc
+        :out      s2
+        :next-id  (:wat::fmt::Acc/next-id acc)
+        :comments (:wat::fmt::Acc/comments acc)
+        :col      0))))
 
 (:wat::core::defn :wat::fmt::comment-before?
   [c <- :wat::fmt::Comment  line <- :wat::core::i64  col <- :wat::core::i64]
@@ -73,14 +113,16 @@
     (:wat::core::let [c (:wat::core::first (:wat::fmt::Acc/comments acc))]
       (:wat::core::if (:wat::fmt::comment-before? c line col)
         (:wat::fmt::flush-comments
-          (:wat::fmt::Acc
-            :out (:wat::string::concat
-                   (:wat::fmt::ensure-nl (:wat::fmt::Acc/out acc))
-                   (:wat::fmt::spaces indent)
-                   (:wat::fmt::Comment/text c)
-                   "\n")
-            :next-id (:wat::fmt::Acc/next-id acc)
-            :comments (:wat::core::rest (:wat::fmt::Acc/comments acc)))
+          (:wat::core::let [written (:wat::fmt::write
+                                      (:wat::fmt::write
+                                        (:wat::fmt::write-nl acc)
+                                        (:wat::fmt::spaces indent))
+                                      (:wat::string::concat (:wat::fmt::Comment/text c) "\n"))]
+            (:wat::fmt::Acc
+              :out      (:wat::fmt::Acc/out written)
+              :next-id  (:wat::fmt::Acc/next-id written)
+              :comments (:wat::core::rest (:wat::fmt::Acc/comments acc))
+              :col      (:wat::fmt::Acc/col written)))
           line col indent)
         acc))))
 
@@ -95,115 +137,119 @@
     (:wat::core::if (:wat::core::= kind "vector") "]"
       "}")))
 
+(:wat::core::defn :wat::fmt::pad-break
+  [acc      <- :wat::fmt::Acc
+   bk       <- :wat::core::String
+   indent   <- :wat::core::i64
+   open-col <- :wat::core::i64]
+  -> :wat::fmt::Acc
+  (:wat::core::if (:wat::core::or (:wat::core::= bk "block")
+                                 (:wat::core::= bk "align"))
+    (:wat::core::let [n (:wat::core::if (:wat::core::= bk "block")
+                        (:wat::i64::+ indent 2)
+                        (:wat::i64::+ open-col 1))]
+      (:wat::fmt::write (:wat::fmt::write-nl acc) (:wat::fmt::spaces n)))
+    (:wat::kernel::assertion-failed!
+      "fmt: Break.kind must be block or align"
+      :wat::core::None
+      :wat::core::None)))
+
 (:wat::core::defn :wat::fmt::emit-node
-  [acc     <- :wat::fmt::Acc
-   node    <- :wat::WatAST
-   breaks  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   indent  <- :wat::core::i64
-   first?  <- :wat::core::bool]
+  [acc      <- :wat::fmt::Acc
+   node     <- :wat::WatAST
+   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   indent   <- :wat::core::i64
+   open-col <- :wat::core::i64
+   first?   <- :wat::core::bool]
   -> :wat::fmt::Acc
   (:wat::core::let
-    [id     (:wat::fmt::Acc/next-id acc)
-     kind   (:wat::core::ast-kind node)
-     x      (:wat::grep::extent-of node)
-     line   (:wat::grep::Extent/line x)
-     col    (:wat::grep::Extent/col x)
-     br     (:wat::core::get breaks id)
-     out0   (:wat::fmt::Acc/out acc)
-     out1   (:wat::core::match br
-              ((:wat::core::Some ind)
-                (:wat::string::concat (:wat::fmt::ensure-nl out0) (:wat::fmt::spaces ind)))
-              (:wat::core::None
-                (:wat::core::if first?
-                  out0
-                  (:wat::core::if (:wat::string::empty? out0)
-                    out0
-                    (:wat::string::concat out0 " ")))))
-     acc1   (:wat::fmt::flush-comments
-              (:wat::fmt::Acc :out out1 :next-id (:wat::i64::+ id 1) :comments (:wat::fmt::Acc/comments acc))
-              line col indent)]
+    [id        (:wat::fmt::Acc/next-id acc)
+     node-kind (:wat::core::ast-kind node)
+     x         (:wat::grep::extent-of node)
+     src-line  (:wat::grep::Extent/line x)
+     src-col   (:wat::grep::Extent/col x)
+     br        (:wat::core::get breaks id)
+     acc-b     (:wat::fmt::Acc
+                 :out      (:wat::fmt::Acc/out acc)
+                 :next-id  (:wat::i64::+ id 1)
+                 :comments (:wat::fmt::Acc/comments acc)
+                 :col      (:wat::fmt::Acc/col acc))
+     acc-pad   (:wat::core::match br
+                 ((:wat::core::Some bk)
+                   (:wat::fmt::pad-break acc-b bk indent open-col))
+                 (:wat::core::None
+                   (:wat::core::if first?
+                     acc-b
+                     (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc-b))
+                       acc-b
+                       (:wat::fmt::write acc-b " ")))))
+     this-indent (:wat::fmt::Acc/col acc-pad)
+     acc1        (:wat::fmt::flush-comments acc-pad src-line src-col this-indent)]
     (:wat::core::if (:wat::grep::structural? node)
       (:wat::core::let
-        [acc2 (:wat::fmt::Acc
-                :out (:wat::string::concat (:wat::fmt::Acc/out acc1) (:wat::fmt::open-of kind))
-                :next-id (:wat::fmt::Acc/next-id acc1)
-                :comments (:wat::fmt::Acc/comments acc1))
-         kids (:wat::core::ast->children node)
-         acc3 (:wat::core::foldl
-                (:wat::core::fn [ca <- :wat::fmt::Acc  child <- :wat::WatAST] -> :wat::fmt::Acc
-                  ;; is-first is "output currently ends with opener or newline" — first kid
-                  ;; of this container. Detect by whether out ends with ( [ { or #{ or \n.
-                  (:wat::core::let [o (:wat::fmt::Acc/out ca)
-                                    first-kid? (:wat::core::or
-                                                 (:wat::string::ends-with? o "(")
-                                                 (:wat::core::or
-                                                   (:wat::string::ends-with? o "[")
-                                                   (:wat::core::or
-                                                     (:wat::string::ends-with? o "{")
-                                                     (:wat::string::ends-with? o "\n"))))]
-                    (:wat::fmt::emit-node ca child breaks indent first-kid?)))
-                acc2
-                kids)
-         end-line (:wat::grep::Extent/end-line x)
-         end-col  (:wat::grep::Extent/end-col x)
-         acc4 (:wat::fmt::Acc
-                :out (:wat::string::concat (:wat::fmt::Acc/out acc3) (:wat::fmt::close-of kind))
-                :next-id (:wat::fmt::Acc/next-id acc3)
-                :comments (:wat::fmt::Acc/comments acc3))]
-        (:wat::fmt::flush-comments acc4 end-line end-col indent))
+        [this-open (:wat::fmt::Acc/col acc1)
+         acc2      (:wat::fmt::write acc1 (:wat::fmt::open-of node-kind))
+         kids      (:wat::core::ast->children node)
+         acc3      (:wat::core::foldl
+                     (:wat::core::fn [ca <- :wat::fmt::Acc  child <- :wat::WatAST] -> :wat::fmt::Acc
+                       (:wat::core::let [o (:wat::fmt::Acc/out ca)
+                                         first-kid? (:wat::core::or
+                                                      (:wat::string::ends-with? o "(")
+                                                      (:wat::core::or
+                                                        (:wat::string::ends-with? o "[")
+                                                        (:wat::core::or
+                                                          (:wat::string::ends-with? o "{")
+                                                          (:wat::string::ends-with? o "\n"))))]
+                         (:wat::fmt::emit-node ca child breaks this-indent this-open first-kid?)))
+                     acc2
+                     kids)
+         acc4 (:wat::fmt::write acc3 (:wat::fmt::close-of node-kind))]
+        (:wat::fmt::flush-comments acc4
+          (:wat::grep::Extent/end-line x)
+          (:wat::grep::Extent/end-col x)
+          this-indent))
       (:wat::core::let
-        [acc2 (:wat::fmt::Acc
-                :out (:wat::string::concat (:wat::fmt::Acc/out acc1) (:wat::core::ast->source node))
-                :next-id (:wat::fmt::Acc/next-id acc1)
-                :comments (:wat::fmt::Acc/comments acc1))
-         end-line (:wat::grep::Extent/end-line x)
-         end-col  (:wat::grep::Extent/end-col x)]
-        (:wat::fmt::flush-comments acc2 end-line end-col indent)))))
+        [acc2 (:wat::fmt::write acc1 (:wat::core::ast->source node))]
+        (:wat::fmt::flush-comments acc2
+          (:wat::grep::Extent/end-line x)
+          (:wat::grep::Extent/end-col x)
+          this-indent)))))
 
 (:wat::core::defn :wat::fmt::emit
   [forms    <- :wat::WatAST
    comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
-   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])]
+   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])]
   -> :wat::core::String
   (:wat::core::let
-    [top (:wat::core::ast->children forms)
-     acc0 (:wat::fmt::Acc :out "" :next-id 1 :comments comments)
+    [top  (:wat::core::ast->children forms)
+     acc0 (:wat::fmt::Acc :out "" :next-id 1 :comments comments :col 0)
      acc1 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
-              (:wat::core::let [acc-nl (:wat::fmt::Acc
-                                         :out (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc))
-                                                (:wat::fmt::Acc/out acc)
-                                                (:wat::fmt::ensure-nl (:wat::fmt::Acc/out acc)))
-                                         :next-id (:wat::fmt::Acc/next-id acc)
-                                         :comments (:wat::fmt::Acc/comments acc))]
-                (:wat::fmt::emit-node acc-nl form breaks 0 true)))
+              (:wat::core::let [acc-nl (:wat::fmt::write-nl acc)]
+                (:wat::fmt::emit-node acc-nl form breaks 0 0 true)))
             acc0
             top)
      acc2 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  c <- :wat::fmt::Comment] -> :wat::fmt::Acc
-              (:wat::fmt::Acc
-                :out (:wat::string::concat
-                       (:wat::fmt::ensure-nl (:wat::fmt::Acc/out acc))
-                       (:wat::fmt::Comment/text c)
-                       "\n")
-                :next-id (:wat::fmt::Acc/next-id acc)
-                :comments (:wat::core::PersistentVector :- [:wat::fmt::Comment])))
+              (:wat::fmt::write
+                (:wat::fmt::write-nl acc)
+                (:wat::string::concat (:wat::fmt::Comment/text c) "\n")))
             acc1
             (:wat::fmt::Acc/comments acc1))]
     (:wat::fmt::Acc/out acc2)))
 
 (:wat::core::defn :wat::fmt::breaks-map
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
                      binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
       (:wat::core::let [b (:wat::core::Option/expect
                             (:wat::map::get binding "?b")
                             "fmt::breaks-map: no ?b")]
-        (:wat::hashmap::assoc m (:wat::fmt::Break/id b) (:wat::fmt::Break/indent b))))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+        (:wat::hashmap::assoc m (:wat::fmt::Break/id b) (:wat::fmt::Break/kind b))))
+    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
     (:wat::rete::query session (:wat::fmt::q-break))))
 
 (:wat::core::defn :wat::fmt::format-source
@@ -219,7 +265,7 @@
          queries  (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::fmt::q-break))
          breaks   (:wat::rete::with-overlay rules queries
                     (:wat::core::fn [overlay <- :wat::rete::Overlay]
-                      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+                      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
                       (:wat::fmt::breaks-map (overlay records))))]
         (:wat::fmt::emit forms comments breaks)))
     ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
