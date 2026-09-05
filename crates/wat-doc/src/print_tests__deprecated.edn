@@ -1,0 +1,12 @@
+#wat.doc/Row {
+  :doc "Old."
+  :added "1.0.0"
+  :purity :wat.runtime.Purity/Pure
+  :determinism :wat.runtime.Determinism/Deterministic
+  :totality :wat.runtime.Totality/Unreviewed
+  :expand-time :wat.runtime.ExpandTime/Unreviewed
+  :category :wat.runtime.Category/Transform
+  :ret [:wat.core/nil "n"]
+  :examples [[(f) nil]]
+  :deprecated ["1.2.0" "use :wat::core::other"]
+}

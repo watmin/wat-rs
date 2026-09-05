@@ -1,0 +1,14 @@
+#wat.doc/Row {
+  :doc "line one
+still going
+
+paragraph two"
+  :added "1.0.0"
+  :purity :wat.runtime.Purity/Pure
+  :determinism :wat.runtime.Determinism/Deterministic
+  :totality :wat.runtime.Totality/Unreviewed
+  :expand-time :wat.runtime.ExpandTime/Unreviewed
+  :category :wat.runtime.Category/Transform
+  :ret [:wat.core/nil "n"]
+  :examples [[(f) nil]]
+}

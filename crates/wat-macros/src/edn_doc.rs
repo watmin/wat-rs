@@ -155,10 +155,27 @@ fn synthetic_span() -> Span {
 /// (`:wat::core::foldl` -> `:wat.core/foldl`, measured lossless in the SCORE): every `.` in
 /// the namespace becomes `::`, then `::` + the bare name, with the leading `:` every
 /// `WatAST::Keyword` carries. `ns: None` is a bare (unqualified) keyword, e.g. `:doc`.
+///
+/// `Type/method` leaves are the one extra case: the forward transform
+/// (`wat_keyword_to_clojure_symbol`) folds the type into the namespace
+/// (`:wat::holon::Hologram/make` → `:wat.holon.Hologram/make`). Reconstructing
+/// that `/` rather than a `::` is possible because a method name does not
+/// start uppercase and a type (and an enum variant) does: `Pure` stays
+/// `:wat::runtime::Purity::Pure`; `make` becomes `:wat::holon::Hologram/make`.
 fn fqdn_of(ns: Option<&str>, name: &str) -> String {
     match ns {
-        Some(ns) => format!(":{}::{}", ns.replace('.', "::"), name),
-        None => format!(":{}", name),
+        Some(ns) => {
+            let wat_ns = ns.replace('.', "::");
+            if let Some((head, type_seg)) = wat_ns.rsplit_once("::") {
+                let type_is_type = type_seg.starts_with(|c: char| c.is_uppercase());
+                let name_is_method = !name.is_empty() && !name.starts_with(|c: char| c.is_uppercase());
+                if type_is_type && name_is_method {
+                    return format!(":{head}::{type_seg}/{name}");
+                }
+            }
+            format!(":{wat_ns}::{name}")
+        }
+        None => format!(":{name}"),
     }
 }
 
@@ -281,9 +298,8 @@ fn escape_wat_string(s: &str) -> String {
 /// parsed and fed to `edn_value_to_watast`; this walks it a second time only to PRINT it, not
 /// to re-derive or re-validate its shape (that already happened inside `from_metadata` by the
 /// time a caller trusts this function's output — see the call site in `wat_intrinsic.rs`).
-/// Every metadata-map example is `run: true` (mirrors `from_metadata`'s own `:examples` rule:
-/// there is no metadata-map spelling yet for `@example-norun`'s optional-expected shape), so
-/// `expected_text` is always `Some`.
+/// `[<expr> <expected>]` is `run: true` (`expected_text` is `Some`); `[<expr>]` is
+/// `@example-norun` (`expected_text` is `None`). Mirrors `from_metadata`.
 pub(crate) fn example_texts_from_edn_body(body: &wat_edn::Value<'_>) -> Vec<(String, Option<String>)> {
     let pairs = match body {
         wat_edn::Value::Map(pairs) => pairs,
@@ -306,6 +322,9 @@ pub(crate) fn example_texts_from_edn_body(body: &wat_edn::Value<'_>) -> Vec<(Str
                 print_edn_as_wat_source(&fields[0]),
                 Some(print_edn_as_wat_source(&fields[1])),
             )),
+            wat_edn::Value::Vector(fields) if fields.len() == 1 => {
+                Some((print_edn_as_wat_source(&fields[0]), None))
+            }
             _ => None,
         })
         .collect()
@@ -428,5 +447,204 @@ mod tests {
         let err =
             parse_edn_doc_row(r#"#wat.doc/Row {:doc #some.other/Tag {:x 1}}"#).unwrap_err();
         assert!(matches!(err, wat_doc::DocError::EdnValueNotRepresentable { .. }));
+    }
+
+    #[test]
+    fn type_method_keyword_reconstructs_the_slash() {
+        let (_, ast, _) = parse_edn_doc_row(
+            r#"#wat.doc/Row {:head :wat.holon.Hologram/make}"#,
+        )
+        .expect("parses");
+        match ast {
+            WatAST::Map(pairs, _) => match &pairs[0].1 {
+                WatAST::Keyword(k, _) => assert_eq!(k, ":wat::holon::Hologram/make"),
+                other => panic!("unexpected: {other:?}"),
+            },
+            other => panic!("expected a Map, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn norun_example_text_is_recovered_without_expected() {
+        let (_, _, body) = parse_edn_doc_row(r#"#wat.doc/Row {:examples [[(f x)]]}"#)
+            .expect("parses");
+        let texts = example_texts_from_edn_body(&body);
+        assert_eq!(texts, vec![("(f x)".to_string(), None)]);
+    }
+
+    /// The round trip the DESIGN names: print → parse_edn_doc_row → from_metadata == doc.
+    /// Tag unwrap lives in `parse_edn_doc_row` (the real path); `edn_value_to_watast`
+    /// of a Tagged value is not total, and is not what the macro does.
+    fn round_trip(doc: &wat_doc::DocComment) -> wat_doc::DocComment {
+        let printed = wat_doc::print(doc);
+        let (tag, map_ast, _) = parse_edn_doc_row(&printed).unwrap_or_else(|e| {
+            panic!("printed row failed to parse:\n{printed}\n{e:?}")
+        });
+        assert_eq!(tag, "Row", "printer must emit #wat.doc/Row, got {tag}");
+        wat_doc::from_metadata(&map_ast).unwrap_or_else(|e| {
+            panic!("from_metadata refused the printed row:\n{printed}\n{e:?}")
+        })
+    }
+
+    fn rust_doc_for_attr(src: &str, attr_needle: &str) -> String {
+        let pos = src.find(attr_needle).unwrap_or_else(|| {
+            panic!("attribute `{attr_needle}` not found in source")
+        });
+        let mut docs = Vec::new();
+        for line in src[..pos].lines().rev() {
+            let trimmed = line.trim_start();
+            if let Some(rest) = trimmed.strip_prefix("///") {
+                docs.push(rest.strip_prefix(' ').unwrap_or(rest).to_string());
+            } else if trimmed.starts_with("#[")
+                || trimmed.starts_with("#!")
+                || trimmed.starts_with("//")
+            {
+                continue;
+            } else {
+                break;
+            }
+        }
+        docs.reverse();
+        docs.join("\n")
+    }
+
+    #[test]
+    fn round_trip_holds_on_the_hand_written_char_row() {
+        let src = include_str!("../../../src/intrinsic/char.rs");
+        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::core::char\")]");
+        let fence = extract_edn_fence(&raw).expect("char.rs carries an ```edn fence");
+        let (tag, map_ast, _) = parse_edn_doc_row(&fence).expect("char fence parses");
+        assert_eq!(tag, "Row");
+        let doc = wat_doc::from_metadata(&map_ast).expect("char fence is a valid row");
+        let printed = wat_doc::print(&doc);
+        assert_eq!(
+            printed.as_str(),
+            include_str!("edn_doc__char_printed.edn").trim_end()
+        );
+        let back = round_trip(&doc);
+        assert_eq!(back, doc, "char row must survive print → read");
+    }
+
+    #[test]
+    fn round_trip_holds_on_hologram_make_yields_and_example_norun() {
+        let src = include_str!("../../../src/intrinsic/holon/hologram.rs");
+        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::holon::Hologram/make\")]");
+        let doc = wat_doc::parse(&raw).expect("hologram @-form parses");
+        assert!(!doc.yields.is_empty(), "hologram must exercise @yields");
+        assert!(
+            doc.examples.iter().any(|e| !e.run),
+            "hologram must exercise @example-norun"
+        );
+        let back = round_trip(&doc);
+        assert_eq!(back, doc, "hologram row must survive print → read");
+        assert_eq!(back.yields, doc.yields);
+        assert!(!back.examples[0].run);
+        assert_eq!(back.examples[0].expected, None);
+    }
+
+    #[test]
+    fn round_trip_holds_on_map_see() {
+        let src = include_str!("../../../src/collection/transform.rs");
+        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::core::map\")]");
+        let doc = wat_doc::parse(&raw).expect("map @-form parses");
+        assert!(!doc.see.is_empty(), "map must exercise @see");
+        let back = round_trip(&doc);
+        assert_eq!(back, doc, "map row must survive print → read");
+        assert_eq!(back.see, vec![":wat::core::filter".to_string()]);
+    }
+
+    #[test]
+    fn round_trip_holds_on_a_constructed_deprecated_row() {
+        let raw = concat!(
+            "Old verb.\n\n",
+            "@added 1.0.0\n",
+            "@Purity Pure\n",
+            "@Determinism Deterministic\n",
+            "@Totality Unreviewed\n",
+            "@ExpandTime Unreviewed\n",
+            "@Category Transform\n",
+            "@ret :wat::core::nil nothing\n",
+            "@example (f) #=> nil\n",
+            "@deprecated 1.2.0 use :wat::core::other",
+        );
+        let doc = wat_doc::parse(raw).expect("constructed deprecated row parses");
+        assert!(doc.deprecated.is_some(), "@deprecated must be present");
+        let back = round_trip(&doc);
+        assert_eq!(back, doc);
+        assert_eq!(
+            back.deprecated.as_ref().map(|d| (d.since.as_str(), d.use_instead.as_str())),
+            Some(("1.2.0", "use :wat::core::other"))
+        );
+    }
+
+    #[test]
+    fn round_trip_holds_on_a_rest_arg() {
+        let src = include_str!("../../../src/intrinsic/witness.rs");
+        let raw = rust_doc_for_attr(
+            src,
+            "#[wat_intrinsic(\":wat::intrinsic::variadic-args-measurement\")]",
+        );
+        let doc = wat_doc::parse(&raw).expect("variadic witness parses");
+        assert!(doc.args.iter().any(|a| a.is_rest), "witness must exercise rest");
+        let back = round_trip(&doc);
+        assert_eq!(back, doc);
+        assert!(back.args[0].is_rest);
+        assert_eq!(back.args[0].name, "xs");
+    }
+
+    /// A gate never seen failing is a claim. Drop `:added` from a printed row
+    /// and the read must go RED naming that field — `MissingAdded`.
+    #[test]
+    fn the_gate_is_not_vacuous_dropped_added() {
+        let src = include_str!("../../../src/intrinsic/char.rs");
+        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::core::char\")]");
+        let fence = extract_edn_fence(&raw).expect("fence");
+        let (_, map_ast, _) = parse_edn_doc_row(&fence).expect("parses");
+        let doc = wat_doc::from_metadata(&map_ast).expect("valid");
+        let printed = wat_doc::print(&doc);
+        let sabotaged: String = printed
+            .lines()
+            .filter(|l| !l.contains(":added"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let (tag, map_ast, _) = parse_edn_doc_row(&sabotaged).expect("still parses as a Row");
+        assert_eq!(tag, "Row");
+        let err = wat_doc::from_metadata(&map_ast).expect_err("dropping :added must fail the gate");
+        assert_eq!(err, wat_doc::DocError::MissingAdded, "gate must name the field: {err:?}");
+    }
+
+    /// Mangle the docstring margin — indent a continuation line — and the
+    /// round-trip must disagree on `prose`, naming the docstring.
+    #[test]
+    fn the_gate_is_not_vacuous_mangled_docstring_margin() {
+        let raw = concat!(
+            "line one\nline two\n\n",
+            "@added 1.0.0\n",
+            "@Purity Pure\n",
+            "@Determinism Deterministic\n",
+            "@Totality Unreviewed\n",
+            "@ExpandTime Unreviewed\n",
+            "@Category Transform\n",
+            "@ret :wat::core::nil n\n",
+            "@example (f) #=> nil",
+        );
+        let doc = wat_doc::parse(raw).expect("parses");
+        let printed = wat_doc::print(&doc);
+        // Inject two spaces at the start of the continuation line `line two`.
+        let sabotaged = printed.replace("\nline two", "\n  line two");
+        assert_ne!(sabotaged, printed, "sabotage must change the text");
+        let (tag, map_ast, _) = parse_edn_doc_row(&sabotaged).expect("still parses");
+        assert_eq!(tag, "Row");
+        let back = wat_doc::from_metadata(&map_ast).expect("mangled margin still reads");
+        assert_ne!(
+            back.prose, doc.prose,
+            "mangled margin must fail the round trip on prose; got {:?}",
+            back.prose
+        );
+        assert_eq!(
+            back.prose.as_str(),
+            "line one\n  line two",
+            "the injected margin must land in prose so the gate can name it"
+        );
     }
 }

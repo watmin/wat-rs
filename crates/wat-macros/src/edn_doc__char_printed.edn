@@ -1,0 +1,19 @@
+#wat.doc/Row {
+  :doc "`(:wat::core::char s)` → the single `:wat::core::char` in the length-1
+String `s`.
+
+BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
+with a clear diagnostic, inheriting the Stone 218.6b discipline from
+wat-edn's BMP-only strictness. Errors: `s` is not length-1 (empty or
+multi-char), or its single char is a supplementary-plane codepoint. Arc
+220 slice 2."
+  :added "1.0.0"
+  :purity :wat.runtime.Purity/Pure
+  :determinism :wat.runtime.Determinism/Deterministic
+  :totality :wat.runtime.Totality/Unreviewed
+  :expand-time :wat.runtime.ExpandTime/Unreviewed
+  :category :wat.runtime.Category/Transform
+  :args [[s :wat.core/String "a length-1 BMP string"]]
+  :ret [:wat.core/char "the single character in `s`"]
+  :examples [[(:wat.core/char "x") (:wat.core/char "x")]]
+}

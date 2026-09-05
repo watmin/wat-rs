@@ -1,0 +1,12 @@
+#wat.doc/Row {
+  :doc "Count them."
+  :added "1.0.0"
+  :purity :wat.runtime.Purity/Pure
+  :determinism :wat.runtime.Determinism/Deterministic
+  :totality :wat.runtime.Totality/Unreviewed
+  :expand-time :wat.runtime.ExpandTime/Unreviewed
+  :category :wat.runtime.Category/Reflection
+  :args [[xs... :wat.core/Value "the args to count"]]
+  :ret [:wat.core/i64 "n"]
+  :examples [[(f) 0]]
+}

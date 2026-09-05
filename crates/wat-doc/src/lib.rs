@@ -49,6 +49,9 @@
 // (Cargo.toml), used above via the fully-qualified `wat_reader::parse_one_with_file`.
 use wat_reader::WatAST;
 
+mod print;
+pub use print::print;
+
 // ⛔ `Purity` and `Determinism` are GENERATED FROM wat, exactly as `Category` is
 // below. They were the last two Rust enums still mirroring a `defenum` by hand, and
 // after `every_rust_enum_matches_its_wat_defenum` was deleted as scaffolding
@@ -958,6 +961,41 @@ fn metadata_bare_name(v: &WatAST) -> Option<String> {
     }
 }
 
+/// An `:args` name plus the rest-flag. `xs...` / `xs…` (the printer's rest
+/// spelling, matching `parse`'s `@arg xs…` strip) become `(xs, true)`.
+fn metadata_arg_name(v: &WatAST) -> Option<(String, bool)> {
+    let raw = metadata_bare_name(v)?;
+    if let Some(stem) = raw.strip_suffix('…') {
+        Some((stem.to_string(), true))
+    } else if let Some(stem) = raw.strip_suffix("...") {
+        Some((stem.to_string(), true))
+    } else {
+        Some((raw, false))
+    }
+}
+
+/// A type token: a bare keyword, or a compound form stringified back to wat
+/// source so `print` ↔ `from_metadata` holds on fn-types and `:-` references.
+fn metadata_type_token(v: &WatAST, tag: &str) -> Result<String, DocError> {
+    let ty = match v {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => crate::print::watast_to_wat_source(other),
+    };
+    if ty.is_empty() {
+        return Err(DocError::MalformedDirective {
+            tag: tag.into(),
+            why: "type is missing",
+        });
+    }
+    if !type_token_is_expressible(&ty) {
+        return Err(DocError::MalformedDirective {
+            tag: tag.into(),
+            why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
+        });
+    }
+    Ok(ty)
+}
+
 /// Render `v` for an error payload that must show what was actually written,
 /// without assuming it is a `Keyword` (an axis value that fails
 /// [`enum_symbol_variant`] may be any node shape at all).
@@ -1015,7 +1053,7 @@ fn enum_symbol_variant<'a>(v: &'a WatAST, wat_type_path: &str) -> Option<&'a str
 /// | `:ret` | `@ret` | `[<:type-keyword> <desc StringLit>]` |
 /// | `:purity` / `:determinism` / `:totality` / `:expand-time` / `:category` | `@Purity` etc. | enum-symbol `Keyword`, e.g. `:wat::runtime::Purity::Pure` |
 /// | `:args` | `@arg` (per-entry) | `Vector` of `[<name Symbol/Keyword> <:type-keyword> <desc StringLit>]` |
-/// | `:examples` | `@example` | `Vector` of `[<expr form> <expected form>]` — LITERAL wat forms, not quoted strings (arc 255 STONE "an example is a FORM, not a string"); each entry is `run: true`, mirroring `@example`; there is no metadata-map spelling yet for `@example-norun`'s optional-`expected` shape — out of scope for this stone's one-verb walk |
+/// | `:examples` | `@example` / `@example-norun` | `Vector` of `[<expr form> <expected form>]` (`run: true`, mirroring `@example`) or `[<expr form>]` (`run: false`, mirroring `@example-norun`; the `@`-form's unverified `#=>` is not recovered — `DocExample::expected` is always `None` for norun) |
 /// | `:see` | `@see` | `Vector` of keyword FQDNs |
 /// | `:yields` | `@yields` (per-subject) | `Vector` of `[<arg-name Symbol/Keyword> <desc StringLit>]` |
 /// | `:deprecated` | `@deprecated` | `[<since StringLit> <use-instead StringLit>]` |
@@ -1030,16 +1068,13 @@ fn enum_symbol_variant<'a>(v: &'a WatAST, wat_type_path: &str) -> Option<&'a str
 /// straight into the same `MissingProse`/`MissingAdded`/… cascade an empty
 /// `{}` would, so no new `DocError` vocabulary is needed for "not a map".
 ///
-/// Type tokens (`:ret`'s and each `:args` entry's) are required to be a bare
-/// `Keyword` in THIS stone — the common case, and the one the walked verb
-/// (`:wat::string::capitalize`) uses. The two surviving STRUCTURAL type
-/// spellings the text grammar also accepts (`(Head :- [args])` parametric
-/// references, `[arg… :-> ret]` fn types) are themselves compound `WatAST`
-/// forms, not text, and stringifying one back to `DocComment::ret_type`'s
-/// `String` field would need an AST→source printer this leaf crate does not
-/// have (and per STOP-1, reaching for one would be a signal the work belongs
-/// in the consumer). Not exercised by the one verb this stone walks; left
-/// for whichever stone migrates a verb that needs one.
+/// Type tokens (`:ret`'s and each `:args` entry's) are a bare `Keyword` OR a
+/// compound `WatAST` form — the two surviving STRUCTURAL type spellings the
+/// text grammar also accepts (`(Head :- [args])` parametric references,
+/// `[arg… :-> ret]` fn types). A compound form is stringified back to wat
+/// source by the printer's own inverse (`print::watast_to_wat_source`) so
+/// `print` ↔ `from_metadata` is the identity on `DocComment::ret_type` /
+/// `DocArg::ty`.
 pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
     let pairs = map.metadata_map_pairs().unwrap_or_default();
 
@@ -1058,21 +1093,7 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
     let (ret_type, ret) = match metadata_lookup(&pairs, ":ret") {
         None => return Err(DocError::MissingRet),
         Some(WatAST::Vector(items, _)) if items.len() == 2 => {
-            let ty = match &items[0] {
-                WatAST::Keyword(k, _) => k.clone(),
-                _ => {
-                    return Err(DocError::MalformedDirective {
-                        tag: ":ret".into(),
-                        why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
-                    })
-                }
-            };
-            if !type_token_is_expressible(&ty) {
-                return Err(DocError::MalformedDirective {
-                    tag: ":ret".into(),
-                    why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
-                });
-            }
+            let ty = metadata_type_token(&items[0], ":ret")?;
             let desc = metadata_string(&items[1]).ok_or(DocError::MalformedDirective {
                 tag: ":ret".into(),
                 why: "description is empty; grammar is `@ret <type> <desc>`",
@@ -1171,30 +1192,16 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
                     })
                 }
             };
-            let name = metadata_bare_name(&fields[0]).ok_or(DocError::MalformedDirective {
+            let (name, is_rest) = metadata_arg_name(&fields[0]).ok_or(DocError::MalformedDirective {
                 tag: ":args".into(),
                 why: "name is missing",
             })?;
-            let ty = match &fields[1] {
-                WatAST::Keyword(k, _) => k.clone(),
-                _ => {
-                    return Err(DocError::MalformedDirective {
-                        tag: ":args".into(),
-                        why: "type token must start with `:` (e.g. `:wat::core::Bytes`); grammar is `@arg <name> <type> <desc>`",
-                    })
-                }
-            };
-            if !type_token_is_expressible(&ty) {
-                return Err(DocError::MalformedDirective {
-                    tag: ":args".into(),
-                    why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
-                });
-            }
+            let ty = metadata_type_token(&fields[1], ":args")?;
             let desc = metadata_string(&fields[2]).ok_or(DocError::MalformedDirective {
                 tag: ":args".into(),
                 why: "description is empty; grammar is `@arg <name> <type> <desc>`",
             })?;
-            args.push(DocArg { name, ty, desc, is_rest: false });
+            args.push(DocArg { name, ty, desc, is_rest });
         }
     }
 
@@ -1205,30 +1212,39 @@ pub fn from_metadata(map: &WatAST) -> Result<DocComment, DocError> {
             _ => {
                 return Err(DocError::MalformedDirective {
                     tag: ":examples".into(),
-                    why: "grammar is `[<expr form> <expected form>]` entries",
+                    why: "grammar is `[<expr form> <expected form>]` (`@example`) or `[<expr form>]` (`@example-norun`) entries",
                 })
             }
         };
         for item in items {
-            let fields = match item {
-                WatAST::Vector(fields, _) if fields.len() == 2 => fields,
+            match item {
+                WatAST::Vector(fields, _) if fields.len() == 2 => {
+                    // `[<expr> <expected>]` — `@example` (`run: true`). Forms are
+                    // already parsed `WatAST` nodes; a malformed example is
+                    // unrepresentable by construction on this path.
+                    examples.push(DocExample {
+                        expr: fields[0].clone(),
+                        expected: Some(fields[1].clone()),
+                        run: true,
+                    });
+                }
+                WatAST::Vector(fields, _) if fields.len() == 1 => {
+                    // `[<expr>]` — `@example-norun` (`run: false`). The `@`-form
+                    // may carry an unverified `#=>` marker; `DocExample::expected`
+                    // is always `None` for norun, so that marker is not recovered.
+                    examples.push(DocExample {
+                        expr: fields[0].clone(),
+                        expected: None,
+                        run: false,
+                    });
+                }
                 _ => {
                     return Err(DocError::MalformedDirective {
                         tag: ":examples".into(),
-                        why: "grammar is `[<expr form> <expected form>]` entries",
+                        why: "grammar is `[<expr form> <expected form>]` (`@example`) or `[<expr form>]` (`@example-norun`) entries",
                     })
                 }
-            };
-            // Arc 255 STONE "an example is a FORM, not a string" — `fields[0]`/
-            // `fields[1]` are ALREADY parsed `WatAST` nodes (the wat reader
-            // parsed the surrounding `.wat` source that produced this metadata
-            // map), so there is nothing left to stringify or validate here: a
-            // malformed example is unrepresentable by construction on this
-            // path — the reader that loaded the declaration already refused
-            // it. Every metadata-map example is `run: true` (mirrors `@example`;
-            // there is no metadata-map spelling yet for `@example-norun`'s
-            // optional-`expected` shape — out of scope for this stone).
-            examples.push(DocExample { expr: fields[0].clone(), expected: Some(fields[1].clone()), run: true });
+            }
         }
     }
     if examples.is_empty() {

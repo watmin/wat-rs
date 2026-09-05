@@ -1,0 +1,11 @@
+#wat.doc/Row {
+  :doc "Effect."
+  :added "1.0.0"
+  :purity :wat.runtime.Purity/Effectful
+  :determinism :wat.runtime.Determinism/Nondeterministic
+  :totality :wat.runtime.Totality/Unreviewed
+  :expand-time :wat.runtime.ExpandTime/Unreviewed
+  :category :wat.runtime.Category/Io
+  :ret [:wat.core/nil "n"]
+  :examples [[(f x)]]
+}
