@@ -121,7 +121,7 @@
             (:wat::core::PersistentMap/assoc acc qname maps))
           acc)))
     (:wat::core::PersistentMap)
-    (:wat::core::PersistentMap/keys network)))
+    (:wat::rete::topological-node-ids network)))
 
 ;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
@@ -155,10 +155,9 @@
                     ;; its parent HashJoin sees an empty beta and stays empty. node-share
                     ;; (N TestNodes fanning off one shared join) made that flicker:
                     ;; oracle-derived changed every run, sometimes []. Native sorts
-                    ;; (sorted_node_ids); the spec must too.
-                    node-ids (:wat::core::sort
-                                (:wat::core::into (:wat::core::Vector :wat::core::i64)
-                                  (:wat::core::PersistentMap/keys network)))
+                    ;; (sorted_node_ids); the spec must too. The sort lives in
+                    ;; `:wat::rete::topological-node-ids` — one definition.
+                    node-ids (:wat::rete::topological-node-ids network)
                     new-amem (:wat::rete::walk-alpha-ids facts network node-ids 0
                                  (:wat::core::PersistentMap))
                     new-bmem (:wat::rete::walk-beta-ids network new-amem node-ids 0
@@ -542,7 +541,7 @@
                                   "network-has-production?: node")]
           (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode"))))
     false
-    (:wat::core::PersistentMap/keys net)))
+    (:wat::rete::topological-node-ids net)))
 
 ;; ⛔ RETURNS `(FireOutcome :- [Session])` — the dual-impl contract is that the oracle and the
 ;; native answer the same TYPE; a differential harness unwrapping one side only would be comparing

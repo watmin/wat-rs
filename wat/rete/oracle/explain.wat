@@ -46,11 +46,12 @@
               toks))
           sup)))
     (:wat::core::PersistentMap)
-    (:wat::core::PersistentMap/keys network)))
+    (:wat::rete::topological-node-ids network)))
 
 ;; fire-rules-explain$oracle — wat reference for explain. Same session as
 ;; fire-rules$oracle; support harvested from a fire-once$oracle replay of the
-;; closure so beta is live. First-producer-wins, matching the native index.
+;; closure so beta is live. First-producer-wins over topological-node-ids,
+;; matching the native index (`sorted_node_ids`).
 (:wat::core::defn :wat::rete::fire-rules-explain$oracle
   [session <- :wat::rete::Session]
   ;; ⛔ SAME TYPE AS THE NATIVE, by the dual-impl contract — `(FireOutcome :- [Explained])`. The
