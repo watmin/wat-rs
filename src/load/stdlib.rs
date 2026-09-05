@@ -425,6 +425,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/grep.wat",
         source: include_str!("../../wat/grep.wat"),
     },
+    // Arc 277 — :wat::fmt:: — Break + comment-aware emitter. Loads after grep.wat
+    // (emit uses extent-of; format-source uses facts-of). Rules live in
+    // wat-scripts/fmt/rules/ and are NOT baked; a new rule is a new file.
+    WatSource {
+        path: "wat/fmt.wat",
+        source: include_str!("../../wat/fmt.wat"),
+    },
     // Arc 278 stone S4 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
     // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings), on the
     // services-as-surfaces OPERATION MODEL (arc 293 Path B): `Store` is a `:nature

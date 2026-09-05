@@ -101,6 +101,35 @@ pub(crate) fn eval_read_string_home(
     crate::edn::render::eval_read_string(std::slice::from_ref(s), span, env, sym).map_err(Into::into)
 }
 
+/// `(:wat::core::read-string-with-comments s)` → `(:wat::core::Result :- [:wat::fmt::Parsed :wat::core::Error])`.
+/// The comment-preserving sibling of [`eval_read_string_home`]. Additive — `read-string` is
+/// unchanged. `Ok` carries `:wat::fmt::Parsed` (forms + comments); `Err` carries the same
+/// structured cause `read-string` wraps as `ReadOutcome::Malformed`.
+///
+/// **Expand-time ground —** same as `read-string`: parse, no IO, errors-as-values.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     s :wat::core::String the wat source text parsed
+/// @ret     (:wat::core::Result :- [:wat::fmt::Parsed :wat::core::Error]) `Ok[parsed]` on success, `Err[cause]` otherwise
+/// @example (:wat::core::match (:wat::core::read-string-with-comments ";; c\n(a b)") ((:wat::core::Ok p) (:wat::core::length (:wat::fmt::Parsed/comments p))) ((:wat::core::Err _) 0)) #=> 1
+/// @see     :wat::core::read-string
+/// @see     :wat::fmt::emit
+#[wat_intrinsic(":wat::core::read-string-with-comments")]
+pub(crate) fn eval_read_string_with_comments_home(
+    s: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_read_string_with_comments(std::slice::from_ref(s), span, env, sym)
+        .map_err(Into::into)
+}
+
 // ─── the AST↔walkable bridge + the write side (2 producers) ────────────────
 
 /// `(:wat::core::ast->source ast)` → `:wat::core::String`. The sift Predicate's enabling

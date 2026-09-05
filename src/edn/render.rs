@@ -671,6 +671,88 @@ pub fn eval_read_string(
     ))
 }
 
+/// `(:wat::core::read-string-with-comments s)` → `(:wat::core::Result :- [:wat::fmt::Parsed :wat::core::Error])`.
+///
+/// Arc 277 — the wat-level surface of [`crate::parser::parse_all_with_comments`].
+/// Additive: [`eval_read_string`] is unchanged. Success is `Ok` of a
+/// `:wat::fmt::Parsed` record (forms + comments); failure is `Err` of the
+/// same structured cause `read-string` wraps as `ReadOutcome::Malformed`.
+pub fn eval_read_string_with_comments(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::read-string-with-comments";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => {
+            return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            }));
+        }
+    };
+    let value = match crate::parser::parse_all_with_comments(&s, "<read-string-with-comments>") {
+        Ok((forms, comments)) => {
+            let ast = WatAST::List(forms, crate::rust_caller_span!());
+            let comment_vals: Vec<Value> = comments.iter().map(comment_record).collect();
+            let parsed = Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::fmt::Parsed".into(),
+                Arc::new(vec!["forms".into(), "comments".into()]),
+                Arc::new(vec![
+                    Value::wat__WatAST(Arc::new(ast)),
+                    Value::wat__core__PersistentVector(
+                        crate::value::pvec::PVec::from_vec(comment_vals),
+                    ),
+                ]),
+            )));
+            Value::Result(Arc::new(Ok(parsed)))
+        }
+        Err(e) => {
+            let malformed = read_outcome_malformed(&e, sym);
+            let cause = match malformed {
+                Value::Enum(ev) => ev.fields.first().cloned().unwrap_or(Value::Unit),
+                other => other,
+            };
+            Value::Result(Arc::new(Err(cause)))
+        }
+    };
+    Ok(crate::value::TrackedValue::new(
+        value,
+        crate::value::Provenance::RuntimeBuilt {
+            producer: OP,
+            call_span: list_span.clone(),
+        },
+    ))
+}
+
+fn comment_record(c: &Comment) -> Value {
+    let (end_line, end_col) = match &c.span.end {
+        Some(p) => (p.line, p.col),
+        None => (c.span.line, c.span.col),
+    };
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::fmt::Comment".into(),
+        Arc::new(vec![
+            "text".into(),
+            "line".into(),
+            "col".into(),
+            "end-line".into(),
+            "end-col".into(),
+        ]),
+        Arc::new(vec![
+            Value::String(Arc::new(c.text.clone())),
+            Value::i64(c.span.line),
+            Value::i64(c.span.col),
+            Value::i64(end_line),
+            Value::i64(end_col),
+        ]),
+    )))
+}
+
 /// `(:wat::core::write-forms <forms>)` — arc 251 Stone 251.5a-ii.
 ///
 /// The write side of the homoiconic round-trip: serialize a forms-value
@@ -745,7 +827,7 @@ pub fn eval_ast_to_source(
         }
     };
     let mut out = String::new();
-    write_wat_source(ast, &mut out);
+    write_wat_source_with_comments(std::slice::from_ref(ast), &[], &mut out);
     Ok(crate::value::TrackedValue::new(
         Value::String(std::sync::Arc::new(out)),
         crate::value::Provenance::RuntimeBuilt {
@@ -874,20 +956,6 @@ pub(crate) fn write_wat_source(ast: &WatAST, out: &mut String) {
 /// form prints identically to [`write_wat_source`] (non-comment tokens
 /// unchanged).
 ///
-/// The production caller is the next 277 stone (wat-level `read-string`
-/// yielding comments). This stone is the substrate; allow until that wires.
-// ⛔ WHY `cfg_attr(not(test), expect(...))` AND NOT `allow(dead_code)`, on all 13 sites below.
-//
-// `allow` rots: it stays silent forever, including long after the code is live. `expect` self-
-// retires — it goes RED the moment a caller appears, so wiring the next stone FORCES the
-// exemption's removal instead of leaving it to be inherited.
-//
-// And the `not(test)` is not decoration. The first attempt used a bare `expect(dead_code)` and
-// `cargo clippy --all-targets -D warnings` reported **13 unfulfilled expectations** — because the
-// round-trip tests DO call these. The exemption's own claim was too broad: this code is dead only
-// OUTSIDE a test build. `allow` would have accepted the false claim without a word; `expect`
-// refused it. The narrowing is what the tool taught, not what I intended.
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 pub(crate) fn write_wat_source_with_comments(
     forms: &[WatAST],
     comments: &[Comment],
@@ -896,12 +964,10 @@ pub(crate) fn write_wat_source_with_comments(
     write_sequence(forms, comments, 0, out);
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn span_start(span: &Span) -> (i64, i64) {
     (span.line, span.col)
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn span_end_pos(span: &Span) -> (i64, i64) {
     match &span.end {
         Some(p) => (p.line, p.col),
@@ -909,18 +975,15 @@ fn span_end_pos(span: &Span) -> (i64, i64) {
     }
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn span_contains(outer: &Span, inner: &Span) -> bool {
     span_start(outer) <= span_start(inner) && span_end_pos(inner) <= span_end_pos(outer)
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn is_trailing_after(form: &Span, comment: &Comment) -> bool {
     let (end_line, end_col) = span_end_pos(form);
     comment.span.line == end_line && comment.span.col >= end_col
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn comments_contained_in<'a>(span: &Span, comments: &'a [Comment]) -> Vec<&'a Comment> {
     comments
         .iter()
@@ -928,33 +991,28 @@ fn comments_contained_in<'a>(span: &Span, comments: &'a [Comment]) -> Vec<&'a Co
         .collect()
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn subtree_has_comment(form: &WatAST, comments: &[Comment]) -> bool {
     comments.iter().any(|c| span_contains(form.span(), &c.span))
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn write_indent(indent: usize, out: &mut String) {
     for _ in 0..indent {
         out.push(' ');
     }
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn ensure_newline(out: &mut String) {
     if !out.is_empty() && !out.ends_with('\n') {
         out.push('\n');
     }
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 #[derive(Clone, Copy)]
 enum SeqItem<'a> {
     Form(&'a WatAST),
     Comment(&'a Comment),
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn write_sequence(forms: &[WatAST], comments: &[Comment], indent: usize, out: &mut String) {
     if comments.is_empty() {
         for (i, form) in forms.iter().enumerate() {
@@ -1011,7 +1069,6 @@ fn write_sequence(forms: &[WatAST], comments: &[Comment], indent: usize, out: &m
     }
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn write_form_with_comments(
     form: &WatAST,
     comments: &[Comment],
@@ -1040,7 +1097,6 @@ fn write_form_with_comments(
     }
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
 fn write_container(
     open: &str,
     close: &str,
