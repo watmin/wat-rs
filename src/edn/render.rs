@@ -51,6 +51,7 @@
 //! value.
 
 use crate::ast::WatAST;
+use crate::lexer::Comment;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::value::value::{AggregateValue, ForeignRecordValue, ForeignVariantValue};
 use crate::scope::Identifier;
@@ -860,6 +861,221 @@ pub(crate) fn write_wat_source(ast: &WatAST, out: &mut String) {
             out.push('}');
         }
     }
+}
+
+/// Comment-aware peer of [`write_wat_source`]. Placement is arithmetic on
+/// honest spans (arc 277); comments are never stored on the tree.
+///
+/// - comment BEFORE the next form, on its own line → above that form, at its indent
+/// - comment on the SAME LINE as and after a form → trailing that form
+/// - comment CONTAINED in a form's extent → emitted with that form's contents
+///
+/// A line comment pins a newline after itself. With no comments, a single
+/// form prints identically to [`write_wat_source`] (non-comment tokens
+/// unchanged).
+///
+/// The production caller is the next 277 stone (wat-level `read-string`
+/// yielding comments). This stone is the substrate; allow until that wires.
+// ⛔ WHY `cfg_attr(not(test), expect(...))` AND NOT `allow(dead_code)`, on all 13 sites below.
+//
+// `allow` rots: it stays silent forever, including long after the code is live. `expect` self-
+// retires — it goes RED the moment a caller appears, so wiring the next stone FORCES the
+// exemption's removal instead of leaving it to be inherited.
+//
+// And the `not(test)` is not decoration. The first attempt used a bare `expect(dead_code)` and
+// `cargo clippy --all-targets -D warnings` reported **13 unfulfilled expectations** — because the
+// round-trip tests DO call these. The exemption's own claim was too broad: this code is dead only
+// OUTSIDE a test build. `allow` would have accepted the false claim without a word; `expect`
+// refused it. The narrowing is what the tool taught, not what I intended.
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+pub(crate) fn write_wat_source_with_comments(
+    forms: &[WatAST],
+    comments: &[Comment],
+    out: &mut String,
+) {
+    write_sequence(forms, comments, 0, out);
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn span_start(span: &Span) -> (i64, i64) {
+    (span.line, span.col)
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn span_end_pos(span: &Span) -> (i64, i64) {
+    match &span.end {
+        Some(p) => (p.line, p.col),
+        None => (span.line, span.col),
+    }
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn span_contains(outer: &Span, inner: &Span) -> bool {
+    span_start(outer) <= span_start(inner) && span_end_pos(inner) <= span_end_pos(outer)
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn is_trailing_after(form: &Span, comment: &Comment) -> bool {
+    let (end_line, end_col) = span_end_pos(form);
+    comment.span.line == end_line && comment.span.col >= end_col
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn comments_contained_in<'a>(span: &Span, comments: &'a [Comment]) -> Vec<&'a Comment> {
+    comments
+        .iter()
+        .filter(|c| span_contains(span, &c.span))
+        .collect()
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn subtree_has_comment(form: &WatAST, comments: &[Comment]) -> bool {
+    comments.iter().any(|c| span_contains(form.span(), &c.span))
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn write_indent(indent: usize, out: &mut String) {
+    for _ in 0..indent {
+        out.push(' ');
+    }
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn ensure_newline(out: &mut String) {
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+#[derive(Clone, Copy)]
+enum SeqItem<'a> {
+    Form(&'a WatAST),
+    Comment(&'a Comment),
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn write_sequence(forms: &[WatAST], comments: &[Comment], indent: usize, out: &mut String) {
+    if comments.is_empty() {
+        for (i, form) in forms.iter().enumerate() {
+            if i > 0 {
+                out.push('\n');
+            }
+            write_wat_source(form, out);
+        }
+        return;
+    }
+
+    let free: Vec<&Comment> = comments
+        .iter()
+        .filter(|c| !forms.iter().any(|f| span_contains(f.span(), &c.span)))
+        .collect();
+
+    let mut items: Vec<SeqItem<'_>> = forms.iter().map(SeqItem::Form).collect();
+    items.extend(free.iter().copied().map(SeqItem::Comment));
+    items.sort_by_key(|item| match item {
+        SeqItem::Form(f) => span_start(f.span()),
+        SeqItem::Comment(c) => span_start(&c.span),
+    });
+
+    let mut i = 0;
+    while i < items.len() {
+        match items[i] {
+            SeqItem::Comment(c) => {
+                ensure_newline(out);
+                write_indent(indent, out);
+                out.push_str(&c.text);
+                out.push('\n');
+                i += 1;
+            }
+            SeqItem::Form(f) => {
+                if !out.is_empty() && !out.ends_with('\n') {
+                    out.push('\n');
+                }
+                write_indent(indent, out);
+                write_form_with_comments(f, comments, indent, out);
+                i += 1;
+                while i < items.len() {
+                    match items[i] {
+                        SeqItem::Comment(c) if is_trailing_after(f.span(), c) => {
+                            out.push(' ');
+                            out.push_str(&c.text);
+                            out.push('\n');
+                            i += 1;
+                        }
+                        _ => break,
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn write_form_with_comments(
+    form: &WatAST,
+    comments: &[Comment],
+    indent: usize,
+    out: &mut String,
+) {
+    if !subtree_has_comment(form, comments) {
+        write_wat_source(form, out);
+        return;
+    }
+    match form {
+        WatAST::List(items, span) => {
+            write_container("(", ")", items, span, comments, indent, out);
+        }
+        WatAST::Vector(items, span) => {
+            write_container("[", "]", items, span, comments, indent, out);
+        }
+        WatAST::Set(items, span) => {
+            write_container("#{", "}", items, span, comments, indent, out);
+        }
+        WatAST::Map(pairs, span) => {
+            let flat: Vec<WatAST> = pairs.iter().flat_map(|(k, v)| [k.clone(), v.clone()]).collect();
+            write_container("{", "}", &flat, span, comments, indent, out);
+        }
+        _ => write_wat_source(form, out),
+    }
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "arc 277 — caller lands next stone"))]
+fn write_container(
+    open: &str,
+    close: &str,
+    children: &[WatAST],
+    span: &Span,
+    comments: &[Comment],
+    indent: usize,
+    out: &mut String,
+) {
+    let in_form = comments_contained_in(span, comments);
+    let body: Vec<&Comment> = in_form
+        .iter()
+        .copied()
+        .filter(|c| !children.iter().any(|ch| span_contains(ch.span(), &c.span)))
+        .collect();
+
+    if body.is_empty() {
+        out.push_str(open);
+        for (i, child) in children.iter().enumerate() {
+            if i > 0 {
+                out.push(' ');
+            }
+            write_form_with_comments(child, comments, indent, out);
+        }
+        out.push_str(close);
+        return;
+    }
+
+    let in_form_owned: Vec<Comment> = in_form.into_iter().cloned().collect();
+    out.push_str(open);
+    out.push('\n');
+    write_sequence(children, &in_form_owned, indent + 2, out);
+    ensure_newline(out);
+    write_indent(indent, out);
+    out.push_str(close);
 }
 
 /// `(:wat::core::ast->children <ast>)` — arc 251 Stone 251.5a-iii (the bridge).
@@ -5038,4 +5254,148 @@ mod next_complete_frame_negatives {
             ),
         }
     }
+}
+
+#[cfg(test)]
+mod comments_survive_the_round_trip {
+    use super::{write_wat_source, write_wat_source_with_comments};
+    use crate::parser::parse_all_with_comments;
+
+    fn round_trip(src: &str) -> (String, Vec<crate::ast::WatAST>, Vec<String>) {
+        let (forms, comments) = parse_all_with_comments(src, "<test>").unwrap();
+        assert!(
+            !comments.is_empty(),
+            "non-vacuity: expected comments in {src:?}, got 0"
+        );
+        let mut printed = String::new();
+        write_wat_source_with_comments(&forms, &comments, &mut printed);
+        let texts: Vec<String> = comments.iter().map(|c| c.text.clone()).collect();
+        (printed, forms, texts)
+    }
+
+    fn assert_fixpoint(src: &str) {
+        let (printed, forms1, texts1) = round_trip(src);
+        let (forms2, comments2) = parse_all_with_comments(&printed, "<test>").unwrap();
+        assert_eq!(
+            forms1, forms2,
+            "forms drifted after print; printed={printed:?}"
+        );
+        let texts2: Vec<String> = comments2.iter().map(|c| c.text.clone()).collect();
+        assert_eq!(
+            texts1, texts2,
+            "comment texts/order drifted; printed={printed:?}"
+        );
+    }
+
+    #[test]
+    fn comment_above_a_form_survives() {
+        let src = ";; c\n(a b)";
+        let (printed, _, texts) = round_trip(src);
+        assert_eq!(texts, vec![";; c".to_string()]);
+        assert_eq!(printed, ";; c\n(a b)");
+        assert_fixpoint(src);
+    }
+
+    #[test]
+    fn trailing_comment_survives_on_the_same_line() {
+        let src = "(a b) ;; t";
+        let (printed, _, texts) = round_trip(src);
+        assert_eq!(texts, vec![";; t".to_string()]);
+        assert_eq!(printed, "(a b) ;; t\n");
+        assert_fixpoint(src);
+    }
+
+    #[test]
+    fn comment_inside_a_form_survives_between_children() {
+        let src = "(a\n  ;; why\n  b)";
+        let (printed, _, texts) = round_trip(src);
+        assert_eq!(texts, vec![";; why".to_string()]);
+        assert_eq!(printed, "(\n  a\n  ;; why\n  b\n)");
+        assert_fixpoint(src);
+    }
+
+    #[test]
+    fn eof_comment_with_no_following_form_is_emitted() {
+        let src = "(a b)\n;; eof";
+        let (printed, _, texts) = round_trip(src);
+        assert_eq!(texts, vec![";; eof".to_string()]);
+        assert_eq!(printed, "(a b)\n;; eof\n");
+        assert_fixpoint(src);
+    }
+
+    #[test]
+    fn two_comments_above_one_form_stay_in_order() {
+        let src = ";; one\n;; two\n(a b)";
+        let (printed, _, texts) = round_trip(src);
+        assert_eq!(texts, vec![";; one".to_string(), ";; two".to_string()]);
+        assert_eq!(printed, ";; one\n;; two\n(a b)");
+        assert_fixpoint(src);
+    }
+
+    #[test]
+    fn no_comments_matches_write_wat_source() {
+        let src = "(a b)";
+        let (forms, comments) = parse_all_with_comments(src, "<test>").unwrap();
+        assert_eq!(comments.len(), 0);
+        let mut with = String::new();
+        write_wat_source_with_comments(&forms, &comments, &mut with);
+        let mut without = String::new();
+        write_wat_source(&forms[0], &mut without);
+        assert_eq!(with, without);
+        assert_eq!(with, "(a b)");
+    }
+    /// ⛔ THE ORCHESTRATOR'S ROW, and the one the stone's own fixtures could not cover.
+    ///
+    /// Every fixture in `comments_survive_the_round_trip` is SYNTHETIC — hand-written inputs a
+    /// few tokens long. STOP-3 in the BRIEF said "if a real corpus file produces a comment whose
+    /// placement is ambiguous, STOP and surface it", and a STOP that is never pointed at a corpus
+    /// file cannot fire. That gap is the EXPECTATIONS' fault, not the rider's: I wrote the rows
+    /// synthetic. This is the row I owed.
+    ///
+    /// `wat/io.wat` is real stdlib: 45 lines, 28 lines carrying `;;`, header prose, section
+    /// banners, and trailing comments on live code.
+    #[test]
+    fn a_real_corpus_file_keeps_every_comment() {
+        const SRC: &str = include_str!("../../wat/io.wat");
+        let (forms, comments) =
+            crate::parser::parse_all_with_comments(SRC, "wat/io.wat").expect("io.wat parses");
+
+        // NON-VACUITY: a preservation claim over zero comments proves nothing.
+        assert!(
+            comments.len() >= 10,
+            "control failed — only {} comments found in a file with 28 `;;` lines",
+            comments.len()
+        );
+
+        let mut out = String::new();
+        write_wat_source_with_comments(&forms, &comments, &mut out);
+
+        let (forms2, comments2) =
+            crate::parser::parse_all_with_comments(&out, "<reprint>").expect("reprint parses");
+
+        assert_eq!(forms2, forms, "forms drifted across the round trip");
+        assert_eq!(
+            comments2.len(),
+            comments.len(),
+            "comment COUNT drifted: {} -> {}",
+            comments.len(),
+            comments2.len()
+        );
+        let before: Vec<&str> = comments.iter().map(|c| c.text.as_str()).collect();
+        let after: Vec<&str> = comments2.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(after, before, "comment TEXT or ORDER drifted");
+    }
+
+    /// ⚠ NOT AN ASSERTION — an EYE. Prints the round-tripped file so a human can see whether the
+    /// output is readable, which no round-trip property can answer. `--ignored --nocapture`.
+    #[test]
+    #[ignore = "orchestrator eyeball: cargo test --release --lib eyeball -- --ignored --nocapture"]
+    fn eyeball_the_real_output() {
+        const SRC: &str = include_str!("../../wat/io.wat");
+        let (forms, comments) = crate::parser::parse_all_with_comments(SRC, "io").unwrap();
+        let mut out = String::new();
+        write_wat_source_with_comments(&forms, &comments, &mut out);
+        eprintln!("---------- PRINTED ----------\n{}\n---------- END ----------", out);
+    }
+
 }

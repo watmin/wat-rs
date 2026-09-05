@@ -17,7 +17,7 @@
 
 use crate::ast::WatAST;
 use crate::identifier::{Identifier, BOUND_NAMESPACE};
-use crate::lexer::{lex, LexError, SpannedToken, Token};
+use crate::lexer::{lex, lex_with_comments, Comment, LexError, SpannedToken, Token};
 use crate::span::Span;
 use std::fmt;
 use std::sync::Arc;
@@ -259,6 +259,26 @@ pub fn parse_all_with_file(src: &str, file: &str) -> Result<Vec<WatAST>, ParseEr
         out.push(node);
     }
     Ok(out)
+}
+
+/// Parse every top-level form, keeping line comments as a side channel.
+///
+/// Arc 277 — comments travel *beside* the tree, never in it. [`parse_all_with_file`]
+/// is unchanged and still calls [`lex`]; this function is that one with
+/// [`lex_with_comments`]. No `WatAST` variant; attachment is computed later
+/// from spans at print time.
+pub fn parse_all_with_comments(
+    src: &str,
+    file: &str,
+) -> Result<(Vec<WatAST>, Vec<Comment>), ParseError> {
+    let file_arc = Arc::new(file.to_string());
+    let (tokens, comments) = lex_with_comments(src, file_arc)?;
+    let mut cursor = Cursor::new(&tokens);
+    let mut out = Vec::new();
+    while let Some(node) = cursor.parse_form()? {
+        out.push(node);
+    }
+    Ok((out, comments))
 }
 
 /// Internal token cursor.
@@ -1081,5 +1101,20 @@ mod tests {
         // namespace segment (no `/` right after `$bound`) — must parse clean.
         assert_eq!(crate::parse_one!("$boundary").unwrap(), sym("$boundary"));
         assert_eq!(crate::parse_one!("$bound2/x").unwrap(), sym("$bound2/x"));
+    }
+
+    #[test]
+    fn parse_all_with_comments_returns_the_comment_side_channel() {
+        let (forms, comments) =
+            parse_all_with_comments(";; c\n(a b)", "<test>").unwrap();
+        assert_eq!(
+            comments.len(),
+            1,
+            "missing comment: expected `;; c`; got {} comments",
+            comments.len()
+        );
+        assert_eq!(comments[0].text, ";; c");
+        assert_eq!(forms.len(), 1);
+        assert_eq!(forms[0], list(vec![sym("a"), sym("b")]));
     }
 }
