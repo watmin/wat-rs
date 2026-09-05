@@ -340,3 +340,89 @@ the only things blocking a rule set that can be written down and driven.
 ⭐ **R11 (sibling breaking is all-or-nothing) is the one I will argue for hardest**, and it is not in
 this table because I do not think it is contentious: it is the rule that fixes the corpus's actual
 worst damage (the 1,096-column half-broken `match`), and it does so structurally, with no number.
+
+---
+
+# ✅ THE THREE DECISIONS, RULED 2026-09-05
+
+## 1 · R15 — **120. RULED.** *"120 chars is fine for now"*
+
+## 2 · R2 — `fn` is BUDGET-TIERED. **RULED in substance:**
+
+> *"can you fit param-spec, arg-spec and ret-spec on the same line?... the body may be placed on the
+> second or more lines then?"* · *"if it can be expressed as a oneliner within char budget its
+> allowable?.. other wise it needs full breakout?"*
+
+⛔ **ONE THING HAD TO BE RESOLVED TO MAKE THIS BUILDABLE, and it is the design's ruled model.**
+*"Allowable"* is a **lint** word — several forms pass. *"Canonical"* is a **formatter** word — one
+input, one output. If a one-liner AND a two-line form both merely *pass*, `wat fmt` has nothing to
+PRODUCE, and it silently becomes cljfmt's normalise-only model that
+`[[DESIGN-wat-fmt-the-rule-set-is-the-product]]` explicitly overruled.
+
+**Resolution — GREEDY: put the most on the head line that the budget allows.** Deterministic, total,
+and it is what the builder's own three sentences describe:
+
+```
+tier 1   whole form fits 120                    →  one line
+tier 2   else signature (head .. ret-type) fits →  signature on the head line, body below
+tier 3   else                                   →  full R1 breakout
+```
+
+### Measured at 120 — `fn`, 1,104 forms
+```
+tier 1  whole form fits          209  18%
+tier 2  signature fits           449  40%
+tier 3  signature exceeds 120     38   3%   ← the ONLY lambdas needing full breakout
+        signature currently split 408  36%   ← greedy RE-JOINS most of these
+
+signature width (open-paren .. ret-type):  median 68 · p90 112 · p95 126 · max 190
+```
+**97% of lambdas stay compact.** And 120 genuinely bites — it sits between p90 and p95 of signature
+width, so the budget is a real constraint on this form rather than a no-op.
+
+### ★ WHY `defn` IS UNCONDITIONAL AND `fn` IS TIERED — my reading, offered for confirmation
+
+R1 breaks a `defn` ALWAYS, empty `[]` included. R2 breaks an `fn` only when the budget forces it.
+That is not an inconsistency if the distinction is:
+
+> **A `defn` is a LANDMARK** — a top-level definition, found by scanning, read far more often than
+> written. A predictable shape is worth vertical space.
+> **An `fn` is INLINE** — an argument inside an expression, read in the flow of the form containing
+> it. Ceremony there costs the reader more than it buys.
+
+⚠ **If that principle is right it is worth more than either rule**, because it classifies FUTURE
+forms without another ruling: `defrecord`/`defstruct`/`defenum`/`defservice` are landmarks
+(unconditional); an inline `let` binding's lambda is not. **Stated as MY inference from two
+rulings, not as something the builder said.**
+
+## 3 · R12 — cross-call tables **PASS** when within 120 and column-aligned. **RULED.**
+
+> *"i think if you can express them in 120 chars and they are all space aligned... they pass?"*
+
+⛔ **Same canonical/allowable split, and it needs the same answer.** "They pass" makes an aligned
+table a **fixpoint** — `fmt(x) == x`, so the formatter leaves it alone. But a formatter that only
+*tolerates* alignment cannot be canonical, because an UNALIGNED sibling group would also pass, and
+then two renderings of the same input are both correct.
+
+**Resolution: canonical means the formatter PRODUCES the alignment.** An aligned group is already a
+fixpoint (so the three hand-built tables survive untouched, which is what the ruling protects); an
+unaligned one gets aligned (so `wat-scripts/perf/grid/where-boolean.wat:259` heals instead of
+staying blessed). One rule, one output, and the ruling's intent preserved exactly.
+
+⚠ **The engine cost is real and unchanged:** this is the only rule that reasons past one form's own
+children — it needs a NEIGHBOUR fact ("my adjacent sibling calls the same head with the same keyword
+sequence"). Everything else in this table is local.
+
+---
+
+# ⭐ THE BUDGET ACTIVATES THE MACHINERY THE DESIGN ALREADY PREDICTED
+
+R15 and R2's tiering are **width-dependent**, so a rule must know a form's RENDERED WIDTH before it
+can choose a tier — and a parent's width depends on its children's. That is exactly what the DESIGN
+called for before any of this was ruled:
+
+> *"a node's rendered WIDTH depends on its children's widths → bottom-up derivation to a FIXPOINT"*
+> *"does this form fit the budget? → acc::sum over the matched child set"*
+
+`fire_fixpoint_delta` and `wat/rete/acc.wat` exist. The budget ruling is what gives them a job.
+Before today the layout rules were purely structural and needed neither.
