@@ -323,3 +323,20 @@ a codemod once rewrote `readln` call sites into their desugared form (and the co
 abstraction, which is a defect of a different and possibly worse kind), or the expansion is the
 required no-hidden-failures handling and `__datum` is incidental. **That is a measurement, and it
 belongs to whoever takes R16.**
+
+---
+
+# ⬜ THE THREE OPEN DECISIONS — everything else is ruled or is mine to defend
+
+Nothing in this table waits on the `__` sweep, on the registry, or on the reader. These three are
+the only things blocking a rule set that can be written down and driven.
+
+| # | decision | my recommendation | why it is not mine to settle |
+|---|---|---|---|
+| **1** | **R15 — 120 or 200?** | **120** | p95 is 109, so 95% of the corpus already complies; 120 surfaces 3,436 offenders while 200 blesses the 2,642 lines between, where much of the unreadable material lives. But the range was ruled, not the number. |
+| **2** | **R2 — does `fn` follow R1?** | **(c), its own rule** — arg-spec stays on the head line, only the body breaks | 1,106 lambdas, most of them one-expression reducers inside a `foldl` arg list. R1 verbatim makes every one of them 4 lines. But an exception is a thing to remember forever, and (a) keeps the system dumb. |
+| **3** | **R12 — cross-call table alignment: preserve or destroy?** | **preserve** | Three sites hand-align values into columns across sibling calls. Canonical formatting flattens them unless the engine learns a NEIGHBOUR fact — the only rule here that reasons past one form's own children. It is a real cost of "canonical" and should be paid knowingly. |
+
+⭐ **R11 (sibling breaking is all-or-nothing) is the one I will argue for hardest**, and it is not in
+this table because I do not think it is contentious: it is the rule that fixes the corpus's actual
+worst damage (the 1,096-column half-broken `match`), and it does so structurally, with no number.

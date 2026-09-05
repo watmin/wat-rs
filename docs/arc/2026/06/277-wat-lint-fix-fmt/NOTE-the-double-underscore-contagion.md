@@ -5,6 +5,24 @@
 > like a contagion.... i think its best to attack that in our linter.... the formatter.... should
 > just format....."*
 
+## ⛔ THIS BLOCKS NOTHING. IT IS PARKED, NOT PENDING.
+
+> **Builder, immediately after:** *"do we need to deal with the `__` names now?.... aren't we working
+> on rules for how good wat should look as code forms?... the names we use in the binders can just be
+> processed using whatever names they are given?...... we don't need to rename anything now... right?"*
+
+**Right. No rename is needed for any layout work, now or later.** To the formatter a binder name is
+an OPAQUE TOKEN — it enters layout only through its *length* (the 120-column budget, and alignment
+columns). `wat fmt` reads whatever is written and organises around it.
+
+The one interaction, named so it is not rediscovered: renaming `__datum` → `datum` later shifts the
+alignment columns on those lines. **That is a non-issue by construction** — a canonical formatter
+RE-DERIVES alignment from content on every run, so the answer is to run it again. The two sweeps
+touch the same lines and do not conflict, in either order.
+
+★ This NOTE exists because the `__` finding fell out of the R16 *manufacturing* investigation, not
+because it gates anything. It is a lint work item waiting for a taker.
+
 ## ★ THE SCOPE RULING, and it is the important half
 
 **`wat fmt` formats LAYOUT. It never touches a NAME.** A rename is a semantic transform — it can
