@@ -1,5 +1,9 @@
 # NOTE — `:wat::eval::walk` is the last LANGUAGE verb that declares a `HolonAST`
 
+> ⛔ **CORRECTED 2026-09-04, SAME DAY, TWICE. The title is FALSE as written and the census below
+> that produced it was blind in two separate ways.** Both corrections are recorded at the foot of
+> this file under *THE CENSUS WAS WRONG TWICE*. Read that section before trusting anything here.
+
 > **Found 2026-09-04 by the builder, from raw probe output**, mid-way through an arc 255 stone:
 > a CEK-stepper probe printed `[#wat/holon 5 2]` and he asked *"wtf is a holonic data value doing
 > here?... i thought we killed those for everything but vsa/hdc things..... we bootstrapped wat on
@@ -85,3 +89,80 @@ as `#wat/holon [5 2]` and spent a step claiming the tag was in the wrong positio
 not on its chain. Recorded so the next reader of `:wat::eval::walk` does not have to rediscover it,
 and so that whoever finally sweeps the last of the bootstrap AST has the census above rather than a
 grep.
+
+
+---
+
+## ⛔ THE CENSUS WAS WRONG TWICE — corrected 2026-09-04, same day
+
+The census above asked **"which verb SCHEMES mention `:wat::holon::HolonAST`"** and answered 2. The
+question that mattered was **"where does HolonAST appear in the DECLARED SURFACE"**, and the answer
+is larger. Two blind spots, found by two different people, neither by re-reading the census.
+
+### Blind spot 1 — TYPE DECLARATIONS were never censused
+
+Found by **the builder**, reading a rider's scoping comment in a live diff: *"it looks like there
+are some holon internals still lingering where they shouldn't be."* Re-measured, anchored to
+`register_builtin(TypeDef::…)` in `src/types.rs`:
+
+```
+:wat::holon::BundleResult   VSA — legitimate
+:wat::holon::Holons         VSA — legitimate
+:wat::eval::WalkStep        ⛔ Skip { terminal: :wat::holon::HolonAST , acc: A }
+:wat::eval::StepResult      ⛔ AND IT VIOLATES ITSELF:
+       StepNext        { form: :wat::WatAST }          ← ALREADY MIGRATED
+       StepTerminal    { … : :wat::holon::HolonAST }
+       AlreadyTerminal { … : :wat::holon::HolonAST }
+```
+
+★★★ **`StepResult` carries the intent inside the enum that breaks it** — one variant faces
+`:wat::WatAST`, two do not. The unfinished anneal of 294 R9, in miniature, in a builtin type.
+
+### Blind spot 2 — `--include=*.wat` CANNOT SEE WAT EMBEDDED IN RUST
+
+Found by **a rider, from a red**. The stone's DESIGN claimed *"nothing in the corpus consumes the
+holon"* on a corpus grep restricted to `*.wat`. Two consumers live as wat source inside Rust string
+literals in `src/runtime.rs`'s own test module — `walk_w1_chain_to_terminal` and
+`walk_w3_skip_short_circuits` — and both called `(:wat::holon::from-holon terminal)` on element 0.
+**A file-extension filter is a claim about where a language lives, and in this repo wat lives inside
+Rust too.**
+
+## What SHIPPED, and the seam it leaves
+
+`STONE-eval-walk-faces-watast` (arc 255) landed **narrowed**: `walk`'s declared return is
+`:wat::WatAST`, converted at both construction sites, proven lossless by a composition probe
+(`wat-scripts/scratch-pad/255-eval-walk-composition-roundtrip.wat`). The two red tests were repaired
+with `:wat::eval-ast!` — the WatAST-native equivalent of `from-holon` — with neither assertion
+weakened.
+
+⚠ **The seam, recorded in the code at the site:** a `Skip` visitor still constructs a `HolonAST`
+that `eval_walk` immediately converts back. A round-trip through two representations for no gain —
+not lossy, not a behaviour regression, but real.
+
+## What REMAINS — sized, so the next stone is briefable
+
+A rider measured this under a STOP trigger rather than carrying it silently: **~34 edit sites across
+4 files**, and it splits in two:
+
+```
+(a) WalkStep::Skip.terminal → :wat::WatAST
+    SMALL — 2 corpus files + eval_walk's Skip-arm, which SIMPLIFIES (the conversion disappears).
+(b) StepResult::StepTerminal / ::AlreadyTerminal → :wat::WatAST
+    THE REAL BODY — touches eval-step!'s foundational regression harness (13 call sites through one
+    shared driver), and several tests pattern-match HolonAST::Bind / Bundle / Thermometer directly
+    in RUST, which becomes a semantic rewrite of what each asserts, not a renamed accessor.
+    ⛔ AND IT CARRIES A DESIGN QUESTION, not a retype: the shared driver's Err-arm packs its error as
+    `(:wat::holon::leaf (:wat::core::struct-field e 1))` so success and failure share ONE
+    HolonAST-typed return. There is no wat-level primitive to wrap an arbitrary runtime string as a
+    WatAST leaf. That fork must be answered before (b) can be briefed.
+```
+
+Also outstanding: 8 golden `<HolonAST>` string literals in `src/runtime.rs` and 1 in
+`tests/value/wat_arc221b_keyword_dispatcher_completeness.rs`. They describe types that have not
+moved and are correct today; they become stale the moment (a) or (b) lands.
+
+## Disposition
+
+**(a) is briefable now. (b) is blocked on the Err-arm fork.** Neither is on arc 255's chain; the
+registry campaign remains the active work. Recorded so that whoever takes them starts from a
+measured population rather than a grep — and so that nobody repeats either blind spot.

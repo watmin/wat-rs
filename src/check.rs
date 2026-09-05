@@ -18444,8 +18444,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // (:wat::eval::walk :- [A]) (arc 070) — fold over the eval-step! chain.
     // Visitor sees every coordinate exactly once, in order, with the
     // step-result the substrate produced at that coordinate. Returns
-    // (terminal-HolonAST, final-acc) on Ok; the chain's terminal +
-    // the visitor's accumulated state.
+    // (terminal-WatAST, final-acc) on Ok; the chain's terminal +
+    // the visitor's accumulated state. Arc 255 STONE-eval-walk-faces-
+    // watast: the terminal used to declare as `:wat::holon::HolonAST`
+    // — the one language verb still leaking a holon at its surface,
+    // while taking `:wat::WatAST` in and at every visitor step. Now
+    // faces `:wat::WatAST` like the reflection four (`holon_to_watast`
+    // at the construction site, `src/runtime.rs`).
     env.register(
         ":wat::eval::walk".into(),
         TypeScheme {
@@ -18468,10 +18473,7 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Parametric {
                 head: "wat::core::Result".into(),
                 args: vec![
-                    TypeExpr::Tuple(vec![
-                        TypeExpr::Path(":wat::holon::HolonAST".into()),
-                        TypeExpr::Path("A".into()),
-                    ]),
+                    TypeExpr::Tuple(vec![wat_ast_ty(), TypeExpr::Path("A".into())]),
                     TypeExpr::Path(":wat::core::EvalError".into()),
                 ],
             },

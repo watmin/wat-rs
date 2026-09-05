@@ -12045,8 +12045,13 @@ fn eval_form_step(
 
 /// Arc 070 — `:wat::eval::walk` fold over the eval-step! chain.
 ///
-/// `(:wat::eval::walk form init visit) -> Result<(HolonAST, A),
-/// EvalError>`. Lifts the walker pattern that proofs 015/016/017/018
+/// `(:wat::eval::walk form init visit) -> Result<(WatAST, A),
+/// EvalError>`. Arc 255 STONE-eval-walk-faces-watast: the terminal used
+/// to declare `HolonAST` — the one language verb still leaking a holon
+/// at its surface. Converted at the construction site (`holon_to_watast`)
+/// to match `:wat::WatAST` in and at every visitor step, like the
+/// reflection four (`src/reflect/verbs.rs`). Lifts the walker pattern
+/// that proofs 015/016/017/018
 /// each reimplemented into a single substrate primitive. The
 /// visitor is called once per coordinate with `(acc, current-form,
 /// step-result)` and returns a `(WalkStep :- [A])`:
@@ -12187,10 +12192,15 @@ fn eval_walk(
                         current_form = Arc::new(next_form);
                         continue;
                     }
-                    // Terminal reached — return (terminal, acc).
+                    // Terminal reached — return (terminal, acc). Arc 255
+                    // STONE-eval-walk-faces-watast: the declared return
+                    // faces `:wat::WatAST` now, matching the `:wat::WatAST`
+                    // `walk` takes in and hands its callback at every step —
+                    // convert at this boundary, same shape as the reflection
+                    // four (`src/reflect/verbs.rs`).
                     let terminal = terminal_opt.expect("terminal_opt set when next_form_opt None");
                     return Ok(Value::Tuple(Arc::new(vec![
-                        Value::holon__HolonAST(Arc::new(terminal)),
+                        Value::wat__WatAST(Arc::new(holon_to_watast(&terminal))),
                         acc,
                     ])));
                 }
@@ -12227,8 +12237,29 @@ fn eval_walk(
                             .into());
                         }
                     };
+                    // Arc 255 STONE-eval-walk-faces-watast: same boundary
+                    // conversion as the Continue/terminal arm above — `walk`'s
+                    // OWN declared return is `:wat::WatAST` regardless of which
+                    // arm produced the terminal. `WalkStep::Skip`'s own
+                    // "terminal" field stays `:wat::holon::HolonAST` (out of
+                    // scope; a different registered type) — only the value
+                    // this OP hands back is converted.
+                    //
+                    // ⚠ KNOWN SEAM, not a puzzle: a Skip visitor builds a
+                    // HolonAST (via `:wat::holon::leaf`/`to-holon`/etc.) only
+                    // for this line to immediately convert it back to
+                    // WatAST — a round-trip through two representations for
+                    // no gain. Not lossy, not a behavior regression (this
+                    // stone's own composition probe proved the conversion
+                    // faithful), but it is the seam left by splitting
+                    // STONE-eval-walk-faces-watast from the wider
+                    // `WalkStep::Skip.terminal` retype that STOP-5 deferred.
+                    // Closes when a future stone moves `WalkStep::Skip`'s
+                    // "terminal" field (`src/types.rs`'s `WalkStep` EnumDef)
+                    // to `:wat::WatAST` too — then the visitor hands back a
+                    // WatAST directly and this call disappears.
                     return Ok(Value::Tuple(Arc::new(vec![
-                        Value::holon__HolonAST(terminal_h),
+                        Value::wat__WatAST(Arc::new(holon_to_watast(&terminal_h))),
                         new_acc,
                     ])));
                 }
@@ -18941,9 +18972,14 @@ mod tests {
     #[test]
     fn walk_w1_chain_to_terminal() {
         // Fully-reducible chain `(+ (+ 1 2) 3)`. Walker visits every
-        // coordinate; final terminal is HolonAST::I64(6); the
-        // accumulator (visit count) is positive (chain has length
-        // ≥ 1 — at least one StepNext + one StepTerminal).
+        // coordinate; final terminal is WatAST::IntLit(6) (arc 255
+        // STONE-eval-walk-faces-watast: element 0 used to be a
+        // HolonAST, decoded via `from-holon` — that door is gone now
+        // that `walk` declares `:wat::WatAST`; `eval-ast!` is the
+        // WatAST-native equivalent, evaluating the literal straight
+        // back to the same `:wat::core::i64`); the accumulator (visit
+        // count) is positive (chain has length ≥ 1 — at least one
+        // StepNext + one StepTerminal).
         let src = format!(
             r#"
             {}
@@ -18955,15 +18991,15 @@ mod tests {
               ((:wat::core::Ok pair)
                 (:wat::core::let
                   [terminal (:wat::core::first pair)
-                   count (:wat::core::second pair)
-                   value (:wat::holon::from-holon terminal)
-                   ;; encode (value, count) as one i64: value * 1000 + count.
-                   ;; sufficient for a chain of length < 1000.
-                   packed
-                    (:wat::i64::+
-                      (:wat::i64::* value 1000)
-                      count)]
-                  packed))
+                   count (:wat::core::second pair)]
+                  (:wat::core::match (:wat::eval-ast! terminal)
+                    ((:wat::core::Ok value)
+                      ;; encode (value, count) as one i64: value * 1000 + count.
+                      ;; sufficient for a chain of length < 1000.
+                      (:wat::i64::+
+                        (:wat::i64::* value 1000)
+                        count))
+                    ((:wat::core::Err _) -1))))
               ((:wat::core::Err _) -1))
             "#,
             walk_count_prelude()
@@ -19017,6 +19053,18 @@ mod tests {
         // sentinel terminal HolonAST::I64(999). Walker stops; final
         // return is (sentinel, acc'). Even on a chain that would
         // naturally terminate at I64(6), Skip wins.
+        //
+        // `WalkStep::Skip`'s own "terminal" field is still declared
+        // `:wat::holon::HolonAST` (arc 255 STONE-eval-walk-faces-
+        // watast left it that way — only `walk`'s OWN return moved),
+        // so the visitor below still hands back `(:wat::holon::leaf
+        // 999)` unchanged. `eval_walk`'s Skip arm converts it via
+        // `holon_to_watast` before it reaches the outer pair, same as
+        // the Continue/terminal arm — so `terminal` here is already
+        // `:wat::WatAST`, and `from-holon` (element 0's old door) is
+        // now the wrong accessor; `eval-ast!` is the WatAST-native
+        // equivalent, evaluating the literal straight back to
+        // `:wat::core::i64`.
         let src = r#"
         (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64])
           (:wat::eval::WalkStep::Skip
@@ -19029,9 +19077,10 @@ mod tests {
             :my::test::skip-on-first)
           ((:wat::core::Ok pair)
             (:wat::core::let
-              [terminal (:wat::core::first pair)
-               value (:wat::holon::from-holon terminal)]
-              value))
+              [terminal (:wat::core::first pair)]
+              (:wat::core::match (:wat::eval-ast! terminal)
+                ((:wat::core::Ok value) value)
+                ((:wat::core::Err _) -1))))
           ((:wat::core::Err _) -1))
         "#;
         match run(src).unwrap() {
