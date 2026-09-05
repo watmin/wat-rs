@@ -14,14 +14,50 @@ So the home is **`wat.doc`**, and the type name follows this substrate's own nou
 things **rows**, everywhere and without exception — *"registry rows 571"*, *"alias rows 52"*,
 `:wat::intrinsic::Row`. **`Row` it is.**
 
-## ⛔ CORRECTED 2026-09-04 BY PROBE — `::` IS ILLEGAL AS AN EDN VALUE
+## ⭐ RULED BY THE BUILDER, 2026-09-04 — AND THE SPELLING OBJECTION WAS MINE AND WRONG
 
-This document first spelled every value as a wat FQDN keyword (`:wat::runtime::Purity::Pure`).
-**`wat_edn::parse` refuses it** — `InvalidKeyword("keyword begins with :: ")` — so not one row
-would have parsed. EDN keywords are `:name` or `:ns/name`. Every value below is now the ns/name
-form the substrate ALREADY emits (`:wat.core/defn`, `:wat.config/set-capacity-mode`), built by the
-same `::` → `.` transformation that builds every tag in the tree. Measured in
-`[[SCORE-the-two-probes-and-a-third-muted-wall]]`.
+> *"the metadata-maps in rust comments must be an triple back ticked edn code block using a wat
+> tagged record.. i think you named them `#wat.doc/Row {...}` and `#wat.doc/Alias {...}` … row is
+> a shit name we'll deal with later.. but we need them imposed first.. before we do a rename"*
+
+I argued against `wat-edn` on the grounds that it refuses `::` keywords and would therefore force a
+SECOND spelling. **That objection is void, and the substrate refuted it in one command:**
+
+```
+(:wat::edn::write :my::doc::some-name)                        ->  ":my.doc/some-name"
+(:wat::core::= (:wat::edn::read (:wat::edn::write k)) k)      ->  true      LOSSLESS
+```
+
+**`:wat.core/foldl` is not a second spelling — it is the wire format's own canonical rendering of
+`:wat::core::foldl`, and `edn::write` already performs that exact conversion, reversibly.** It is
+the same `::` → `.` transformation that builds every tag in the tree (`#wat.core.Option/Some`). A
+doc-comment EDN block written in ns/name form is *correct EDN of the same name*, not a divergence —
+so the migration's spelling conversion is mechanical and provably lossless, which is what 558 rows
+require. (`wat-scripts/scratch-pad/255-does-edn-round-trip-a-wat-keyword.wat`)
+
+## ⭐⭐ AND THE SUBSTRATE HANDED OVER THE IMPLEMENTATION PATH
+
+```
+(:wat::edn::read "#wat.doc/Row {:added \"1.0.0\"}")
+  -> MalformedForm: unknown tag #wat.doc/Row (body shape: map);
+     no matching struct or enum in THE TYPE REGISTRY        (src/edn/render.rs:3310)
+```
+
+**A tag resolves to a REGISTERED RECORD.** `#wat.doc/Row` begins working the moment `:wat::doc::Row`
+exists as a type, and the reader then validates the map against it — an unknown key, a missing
+field, or a wrong type becomes a READ ERROR. That is why the two-tag split is rung 3 rather than a
+convention: **`#wat.doc/Alias` has no axis field, so an axis on an alias cannot be read**, never
+mind linted.
+
+⚠ **Two consumers, one shape, and they validate at different times.** The runtime type registry
+gives the round-trip validation above. The proc-macro runs at COMPILE time and cannot consult a
+runtime registry — it parses with `wat_edn::parse`, receives `Value::Tagged(tag, body)` UNRESOLVED,
+and must validate the tag name and the map's keys itself. Both must agree, and a gate asserting they
+do is the natural companion (the `432/432` doc-type round trip is exactly this shape already).
+
+⚠ **`Row` is a placeholder.** The builder: *"row is a shit name we'll deal with later... but we need
+them imposed first.. before we do a rename."* Impose, then rename — a rename across a form that
+already parses is a codemod; a rename argued before the form exists is a bikeshed.
 
 ## TWO TAGS, BECAUSE THERE ARE TWO KINDS OF ROW
 
