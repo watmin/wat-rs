@@ -101,37 +101,7 @@ rule. `do` at 5 styles / 89% is nearly settled. `fn` at 32 styles / **37%** is t
 form in the language — no shape holds a majority. `defn` and `match` carry long tails (108, 88)
 that are worth a rule precisely because the dominant shape is already strong enough to be a default.
 
-## ⛔⛔ THE CLAIM I HAD WRITTEN HERE WAS FALSE, AND A CONTROL CAUGHT IT
-
-This section said: *"the arc's own specified rule #1 is the corpus's 12% MINORITY"* — that the
-dominant 66% `defn` shape puts head + name + argspec + `->` + return type all on the head line, so
-the corpus had outgrown `[[NOTE-wat-fmt-structural-autoformat]]`'s rule.
-
-**It is an artifact. 60% of every `defn` in the corpus is ZERO-ARG**, and 99% of those keep `[]` on
-the head line — as anyone would; nobody breaks an empty vector onto its own line. Those 3,247
-functions were being counted as **votes against breaking out an argspec they do not have.**
-
-```
-defn forms measured                            5406
-  EMPTY argspec  []                            3277   (60%)   ← 99% keep [] on the head line
-  has actual parameters                        2129   (39%)
-
-OF THE 2129 THAT ACTUALLY HAVE PARAMETERS:
-  argspec BROKEN OUT, one per line             1174   (55%)   ← THE RULE
-  argspec riding the head line                  955   (44%)
-```
-
-**Once the zero-arg noise is removed the corpus's majority practice already IS the rule.** The
-survey did not force a decision; it manufactured one out of a mis-posed predicate.
-
-⚠ **How it was caught, because the method is the transferable part.** The first run of this
-measurement reported **`0% empty argspecs`** — and I had read `(:wat::core::defn :user::main [] ->
-…)` with my own eyes in the exemplar dump ten minutes earlier. An impossible zero is a broken
-instrument, not a finding. The bug: the emptiness predicate compared an ABSOLUTE end-line against a
-RELATIVE line-delta. The re-run carries a **named control** — *the predicate must find the instance
-I read by eye* — and prints whether it found it. `[[feedback_a_green_test_can_prove_nothing]]`
-
-## ★ THE RULE — the builder's, 2026-09-05, and it is NUANCED
+## ★ THE RULE — the builder's, 2026-09-05. UNIFORM, and it is not a majority vote.
 
 > *"i think the rule needs to be nuanced...."*
 
@@ -143,14 +113,32 @@ I read by eye* — and prints whether it found it. `[[feedback_a_green_test_can_
   (wat.core/+ x y))                    ;; body....
 ```
 
-**The nuance my fingerprint could not see: `defn` has TWO bracketed slots and they take OPPOSITE
-rules.** The **param-spec** (`:- [I O]`, the generic type parameters) rides the head line. The
-**arg-spec** (`[x <- T …]`) always breaks out, one argument per line, continuations aligned under
-the first. My fingerprint keyed children by INDEX, so it saw two vectors and treated them as
-interchangeable — which is why a generic `defn` and a plain one landed in different "styles" for a
-reason that has nothing to do with style.
+**and the empty arg-spec is NOT an exception** — builder, same session:
 
-⭐ **AND IT IS ALREADY PRACTICED** — `wat/bracket.wat:32`, live corpus, live syntax:
+```
+(wat.core/defn user/some-fn
+  []
+  :- wat.type/i64
+  42)
+```
+
+One rule, no special case:
+
+```
+line 1     head + fn-name + param-spec (`:- [P…]`) IF PRESENT
+next       ARG-SPEC on its own line(s) — one argument per line, continuations aligned
+           under the first. EMPTY `[]` INCLUDED: it gets its own line like any other.
+next       RET-TYPE on its own line
+then       BODY on its own line
+```
+
+**The nuance the fingerprint could not see: `defn` has TWO bracketed slots taking OPPOSITE rules.**
+The **param-spec** (`:- [I O]`, generic type parameters) rides the head line. The **arg-spec**
+always breaks out. The fingerprint keys children by INDEX, so it saw two vectors and treated them
+as interchangeable — which is why a generic `defn` and a plain one landed in different "styles" for
+a reason that has nothing to do with style.
+
+⭐ **Already practiced** — `wat/bracket.wat:32`, live corpus, live syntax:
 
 ```
 (:wat::core::defn :wat::bracket::runner-loop :- [I O]
@@ -160,25 +148,61 @@ reason that has nothing to do with style.
   (:wat::core::match (:wat::kernel::recv self) …))
 ```
 
-Head + name + param-spec on line 1. Arg-spec one-per-line — and the `<-` binders **column-aligned**
-(`self    <-` / `work-fn <-`), which is the same discipline as *"comments are aligned"* applied to a
-different column. Alignment is a rule of its own and it is NOT captured by the dline/indent
-fingerprint this survey used.
+The `<-` binders are **column-aligned** (`self    <-` / `work-fn <-`) — the same discipline as
+*"comments are aligned"* on a different column. **Alignment is a rule of its own and this survey's
+fingerprint cannot see it at all** (it records indent columns, never intra-line column agreement).
 
-### What this implies for the rule set
+## ⛔⛔ I ARGUED FROM FREQUENCY, AND FREQUENCY HAS NO AUTHORITY HERE
 
-- **A layout rule dispatches on the head symbol AND on NAMED SLOTS, not child indices.** `defn`'s
-  slots are `name` · `param-spec?` · `arg-spec` · `ret-type` · `body…`, and the optional param-spec
+Two claims stood here before the builder cut them. The second is the real error.
+
+**1 — The artifact.** I had written that *"the arc's own rule #1 is the corpus's 12% minority"* —
+that the dominant `defn` shape had outgrown `[[NOTE-wat-fmt-structural-autoformat]]`. **60% of
+every `defn` is ZERO-ARG**, and those 3,247 functions were being counted as votes against breaking
+out an argspec they do not have:
+
+```
+defn forms measured                            5406
+  EMPTY argspec  []                            3277   (60%)
+  has actual parameters                        2129   (39%)
+      of those: argspec ALREADY broken out     1174   (55%)
+                argspec riding the head line    955   (44%)
+```
+
+⚠ Caught by a control: the first run reported **`0% empty argspecs`** while I had read
+`(:wat::core::defn :user::main [] -> …)` by eye ten minutes earlier. An impossible zero is a broken
+instrument, not a finding (the predicate compared an ABSOLUTE end-line to a RELATIVE line-delta).
+The re-run names the control — *must find the instance I read by eye* — and prints whether it did.
+`[[feedback_a_green_test_can_prove_nothing]]`
+
+**2 — ⛔ AND THEN I USED THE FIXED NUMBER THE SAME WRONG WAY.** I proposed *"an empty arg-spec stays
+on the head line"* as a flagged assumption, and my stated evidence was **that 99% of the corpus does
+it**. That is a majority vote wearing a measurement's clothes, and this arc's first line forbids it:
+*"i will never have all the rules that matter.. but i will absolutely spot stuff i don't like."*
+**The rule is the builder's; the corpus heals to match.** A corpus records what happened to get
+written before the tool existed — it cannot be evidence about what should be.
+`[[feedback_optimize_for_the_expressivity_surface_not_the_corpus]]`
+
+The honest reading of the same numbers: **~4,202 `defn` sites reformat** (3,247 zero-arg keeping
+`[]` on the head line, plus 955 with parameters riding it). That is not a cost to weigh against the
+rule — **it is the tool doing its job.** Step 3 of the SELF-FIXING-TOOLCHAIN loop is *"the floor
+goes RED everywhere the old form lives"*, and *"we do not fear the cost of refactors."* 4,202 reds
+is what a real rule looks like on its first run.
+
+### What the rule implies for the rule set
+
+- **A layout rule dispatches on the head symbol AND on NAMED SLOTS, never child indices.** `defn`'s
+  slots are `name` · `param-spec?` · `arg-spec` · `ret-type` · `body…`, and the OPTIONAL param-spec
   shifts every later index by two. Index-keyed rules would need one variant per optionality
-  combination — which is how a rule set stops being "a new file and nothing else."
-- ⭐ **The registry already carries the grammar.** `Row.syntax` is the `@syntax (...)` string, and
-  `src/intrinsic/mod.rs:3002` parses it *through the substrate's own reader*. Slot names can come
-  from the registry rather than be re-declared per rule. **Not yet verified for `defn`
-  specifically** — that is the next thing to measure, not a claim.
-- **The zero-arg case must be stated in the rule.** 3,247 functions carry `[]` and 99% keep it on
-  the head line. Reading the rule as "the arg-spec ALWAYS breaks" reformats every one of them for
-  nothing. Assumption taken here, flagged for the builder: **an empty arg-spec stays on the head
-  line.**
+  combination — exactly how a rule set stops being "a new file and nothing else."
+- ⭐ **The registry may already carry the grammar.** `Row.syntax` holds the `@syntax (...)` string
+  and `src/intrinsic/mod.rs:3002` parses it *through the substrate's own reader*. If `defn`'s row
+  names its slots, a rule can bind them by name instead of re-declaring the grammar.
+  **NOT VERIFIED for `defn` — that is the next measurement, not a claim.**
+- **Alignment needs facts this probe does not emit.** One-argument-per-line is a dline rule; the
+  `<-` binders agreeing on a column is a rule about siblings' columns *within* the arg-spec; and
+  aligned trailing comments needs the comment token the reader only learned to see this week.
+
 
 ## THE EXEMPLARS — real source, shortest instance of each style
 
@@ -356,10 +380,16 @@ fingerprint this survey used.
 
 ## WHAT THE SURVEY DOES NOT SAY
 
-- **It grades nothing.** Frequency is not correctness — 66% is what we *wrote*, not what we *want*.
-  The 12% minority may be the better shape; that is the builder's call and the whole point.
-- **It did not measure width against style.** The "short rides, long breaks" hypothesis above is
-  unproven; proving it needs the signature's rendered width beside the style, one more capture.
+- **It grades nothing, and it CANNOT.** Frequency is what we wrote before a formatter existed. The
+  rule is the builder's; the corpus heals to match. Every sentence in this file that reads as
+  "the corpus prefers X" is a description, never an argument.
+- **It cannot see ALIGNMENT.** The fingerprint records a child's indent column, not whether
+  siblings AGREE on a column. `self    <-` / `work-fn <-` and aligned trailing comments are both
+  invisible to it. Two of the builder's four stated rules are therefore unmeasured here.
+- **It cannot see COMMENTS at all** — they are facts the reader learned to emit this week
+  (`lex_with_comments`, 9a16b68e6) and `wat/grep.wat` does not yet assert them.
+- **The "short rides, long breaks" width hypothesis is DEAD.** I raised it; the builder's rule is
+  uniform, so width does not select the shape. Nothing measured it and nothing needs to.
 - **A form is keyed by `(file, head, head-line)`.** Two forms with the same head starting on the
   same line collapse into one — rare, and it undercounts one-liners rather than inventing shapes.
 - **Trailing whitespace is visible in the exemplars** (`match msg ` at probe_arc209_bound_listener
