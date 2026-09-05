@@ -426,3 +426,74 @@ called for before any of this was ruled:
 
 `fire_fixpoint_delta` and `wat/rete/acc.wat` exist. The budget ruling is what gives them a job.
 Before today the layout rules were purely structural and needed neither.
+
+---
+
+# ★★ THE EXPLODED FORM IS THE RULE — 2026-09-05, and it retires R2's tiers
+
+> **Builder:** *"i do not think i'll fight this one.... we add compression rules later... get a
+> proper 'verbose' or 'exploded' form first... maybe we only support the exploded form..."*
+
+```
+(wat.core/foldl
+  (wat.core/fn
+    [acc :- wat.type/i64
+     x   :- wat.type/i64]
+    :- wat.type/i64
+    (wat.core/+ acc x))
+  0
+  xs)
+```
+
+**One argument per line. No packing. `0` and `xs` each get their own line.**
+
+## ⛔ THIS RETIRES R2 AND TAKES THE WIDTH FACT OFF THE CRITICAL PATH
+
+R2 was ruled budget-tiered — *whole form fits 120 → one line; else signature fits → signature on the
+head line; else full breakout*. **`fn` was the ONLY form whose layout depended on how wide it was.**
+
+Under the exploded form it does not. `fn` breaks like everything else, unconditionally.
+
+```
+BEFORE   layout needs a form's rendered WIDTH -> a 5th fact from the walk -> a whole stone
+AFTER    no layout rule needs a width at all
+         R15 (120) demotes from a DRIVER of layout to a CHECK on it — a lint, not an input
+```
+
+⭐ `[[NOTE-width-is-a-fact-not-a-rule]]` stays true and stays worth keeping — rete still cannot
+derive width, and R15-as-a-lint will still want the fact. **It is simply no longer a prerequisite for
+any layout rule.** One stone leaves the critical path.
+
+## ⚠ "EXPLODE EVERYTHING" IS NOT LITERALLY THE RULE — the unit is a SLOT, not a child
+
+Two things pack in shapes the builder has already ruled, and they are not exceptions to be
+remembered — they fall out of the existing mechanism:
+
+```
+-> :wat::core::i64      the arrow and its type share a line   (2 AST children)
+[y (:wat::core::+ x 1)  a binder's name and value share a line (2 AST children)
+```
+
+★ **The mechanism already expresses this and needs no new idea.** A `Break` is asserted for the node
+that STARTS a line; a child with no `Break` simply follows after a space. So:
+
+> **"exploded" = assert a Break for every child. "packed" = do not assert one.**
+
+The whole rule set is therefore *"which children get a Break"* — and the exploded default is
+*"all of them"*. A specific rule exists only to withhold a Break where a slot spans more than one
+child (`defn`'s name riding the head line, `->` and its type, a binder's name and value).
+
+## WHAT THIS MAKES OF EACH RULE
+
+| rule | what it actually says now |
+|---|---|
+| **R11 default** | assert a Break for EVERY child. This is the rule; the rest are refinements. |
+| **R1 `defn`** | withhold from `:name` and the param-spec (they ride the head line) and from the ret TYPE (it follows `->`) |
+| **R3 `let`** | withhold from each binder's VALUE (it follows its name) |
+| **R4 `match`** | withhold from the scrutinee (it rides the head line) |
+| **R2 `fn`** | **nothing to withhold — plain explode.** The tiers are dead. |
+
+⛔ **AND THE CLAIM-GRANULARITY DEFECT SURVIVES THIS UNCHANGED.** It is about R11 racing a specific
+rule inside a container the specific rule laid out; the exploded ruling changes what the rules SAY,
+not who owns which node. `[[REFUTE-claim-the-forms-you-position-not-the-subtree]]` still stands and
+is still the next stone.
