@@ -81,7 +81,7 @@
             (:wat::kernel::println "the process is stopping"))
           (:wat::kernel::LociDiedError::Disconnected
             (:wat::kernel::println "the peer is gone"))
-          (_ (:wat::kernel::println "some other death")))))))
+          (_ (:wat::kernel::println "some other death")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println "red-send-cause probe: if you see this, the send arm compiled"))

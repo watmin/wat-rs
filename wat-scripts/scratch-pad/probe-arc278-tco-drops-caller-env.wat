@@ -60,7 +60,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
+      (:wat::kernel::println (:wat::string::concat label " => CLOSED"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println (:wat::string::concat label " => LOST")))))
 
 (:wat::core::defn :tco::dial [a <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])
                              label <- :wat::core::String] -> :wat::core::nil

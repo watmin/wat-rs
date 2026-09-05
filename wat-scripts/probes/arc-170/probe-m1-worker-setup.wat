@@ -77,7 +77,7 @@
                        (:wat::kernel::RecvOutcome::Stopped
                          (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                        (:wat::kernel::RecvOutcome::Closed
-                         (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))
+                         (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "b")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  rr2 (:wat::kernel::recv worker)
                  r2  (:wat::core::match rr2
@@ -87,7 +87,7 @@
                        (:wat::kernel::RecvOutcome::Stopped
                          (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                        (:wat::kernel::RecvOutcome::Closed
-                         (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))]
+                         (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
                 (:wat::string::concat r1 (:wat::string::concat " " r2))))
             (:wat::core::None
               (:wat::kernel::assertion-failed! "peer-pid None on process worker"

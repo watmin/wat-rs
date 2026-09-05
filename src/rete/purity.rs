@@ -2271,6 +2271,7 @@ mod completeness_gate {
     const RULES: &[(&str, Disp, &str)] = &[
         (":wat::io::", Disp::Impure, "IO is the namespace's entire purpose"),
         (":wat::kernel::", Disp::Impure, "the effect surface — println/eprintln/readln/assertion-failed!"),
+        (":wat::service::", Disp::Impure, "generated client methods / call-by-deadline — send, select, timer; IO is the namespace"),
         (":wat::config::", Disp::Impure, "mutates per-runtime config (set-*! family)"),
         (":wat::runtime::", Disp::Impure, "runtime introspection + mutation"),
         (":wat::program::", Disp::Impure, "reads process env"),

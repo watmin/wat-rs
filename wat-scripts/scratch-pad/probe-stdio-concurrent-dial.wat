@@ -67,7 +67,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "do-increments: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "do-increments: peer closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "do-increments: peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── A worker body: connect' our OWN client Peer' to the shared Address', do 4 increments,
 ;;    send the Ok-count back up the self-peer. Factored to a defn so the 3 spawns are identical. ─
@@ -96,7 +96,7 @@
     ((:wat::kernel::RecvOutcome::Message m) m)
     ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "join-count: stopped — the substrate was asked to stop; worker was ALIVE and the channel open" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "join-count: worker closed before signalling" :wat::core::None :wat::core::None))))
+    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "join-count: worker closed before signalling" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -132,7 +132,7 @@
                    (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
              ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
              (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "get: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "get: peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "get: peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      ;; ASSERT: every worker landed its 4 typed replies (no cross-talk / no lost reply).
      _  (:wat::core::if (:wat::core::= total-ops 12) nil
           (:wat::kernel::assertion-failed! "CROSS-TALK / LOST REPLY: total Ok replies != 12" :wat::core::None :wat::core::None))

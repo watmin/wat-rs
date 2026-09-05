@@ -52,7 +52,7 @@
               (:wat::kernel::assertion-failed!
                 "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
                 :wat::core::None :wat::core::None))
-            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::core::match fail
 
       (:wat::core::None nil)
@@ -93,7 +93,7 @@
               (:wat::kernel::assertion-failed!
                 "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
                 :wat::core::None :wat::core::None))
-            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::core::match fail
 
       ((:wat::core::Some _f) nil)

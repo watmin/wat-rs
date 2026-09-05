@@ -80,7 +80,7 @@
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
 
 (:wat::core::defn :vb::dial-parker
   [a <- (:wat::kernel::Address :- [:vb::Parker::Op :vb::Parker::Reply])] -> :vb::Parker

@@ -149,7 +149,7 @@
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
                       (:wat::kernel::RecvOutcome::Stopped
-                        (:wat::kernel::assertion-failed! "cr: poison stopped" :wat::core::None :wat::core::None)))
+                        (:wat::kernel::assertion-failed! "cr: poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost"))
                     "miss")
         tore? (:wat::core::or (:wat::core::= poisoned "lost") (:wat::core::= poisoned "closed"))
         sink' (:wat::core::if tore?
@@ -196,7 +196,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "cr: nap stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "cr: nap closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "cr: nap closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :cr::dial-front
   [a <- (:wat::kernel::Address :- [:cr::Front::Op :cr::Front::Reply])]
@@ -239,7 +239,7 @@
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "cr: start stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
-           (:wat::kernel::assertion-failed! "cr: start closed" :wat::core::None :wat::core::None)))]
+           (:wat::kernel::assertion-failed! "cr: start closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::core::Tuple sh fh f)))
 
 (:wat::core::defn :cr::report [f <- :cr::Front] -> :wat::core::String
@@ -257,7 +257,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "cr: report stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "cr: report closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "cr: report closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

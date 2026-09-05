@@ -26,7 +26,7 @@
                 (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
           ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "write: stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))
+          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      r2 (:wat::core::match (:wat::kernel::StdOut/write c (:wat::kernel::StdOut::WriteRequest :bytes "primed-line-2\n"))
           ((:wat::kernel::RecvOutcome::Message resp)
             (:wat::core::match resp
@@ -36,7 +36,7 @@
                 (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
           ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "write: stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))]
+          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::i64::+ r1 r2)))
 
 ;; ── run-stdout-batched: start stdout-svc on `fd`, connect', then drive the BATCHED helper
@@ -89,4 +89,4 @@
       ;; arc 278 #73 — a LOCAL recv() interruption while parked reading, distinct from the
       ;; wire-level ::ReadFrameResponse::Stopped above; same "STOP" surface either way.
       (:wat::kernel::RecvOutcome::Stopped "STOP")
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None)))))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

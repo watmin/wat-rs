@@ -19,7 +19,7 @@
             ((:wat::kernel::RecvOutcome::Message _resp) nil)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "put: stopped" :wat::core::None :wat::core::None))
-            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "put: closed" :wat::core::None :wat::core::None)))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "put: closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      r (:wat::cache::lru-svc/get c (:wat::cache::Cache::GetRequest :probes ["k1"]))]
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message resp)
@@ -32,4 +32,4 @@
           ((:wat::cache::Cache::GetResponse::RequestMalformed p e g) (:wat::kernel::assertion-failed! "ROW3: RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "get: stopped" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "get: closed" :wat::core::None :wat::core::None)))))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "get: closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

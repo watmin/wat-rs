@@ -79,7 +79,7 @@
     ((:wat::kernel::RecvOutcome::Lost c)
       (:wat::core::format "LOST:{m}" :m (:wat::kernel::LociDiedError/message c)))
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-    (:wat::kernel::RecvOutcome::Closed "CLOSED")))
+    (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

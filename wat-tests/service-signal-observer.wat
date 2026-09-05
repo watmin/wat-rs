@@ -73,7 +73,7 @@
     ((:wat::kernel::RecvOutcome::Message m) m)
     ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "observe!: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "observe!: peer closed" :wat::core::None :wat::core::None))))
+    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "observe!: peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; ── the sequence: one process, all four handlers, three user signals discriminated ──────────
 ;; Every step is faced individually (RequestTooLarge/RequestMalformed each get their own

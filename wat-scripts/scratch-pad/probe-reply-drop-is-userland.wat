@@ -84,7 +84,7 @@
         ((:cd::Drop::HitResponse::RequestMalformed _p _e _g) "MALFORMED")))
     ((:wat::kernel::RecvOutcome::Lost _c) "LOST")
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-    (:wat::kernel::RecvOutcome::Closed "CLOSED")))
+    (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut "LOST")))
 
 (:wat::core::defn :cd::served-count [p <- :cd::Drop] -> :wat::core::i64
   (:wat::core::match (:cd::Drop/served p (:cd::Drop::ServedRequest))

@@ -64,7 +64,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::println (:wat::string::concat label " => CLOSED"))))
+        (:wat::kernel::println (:wat::string::concat label " => CLOSED"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println (:wat::string::concat label " => LOST"))))
     nil))
 
 (:wat::core::defn :se::row-tail [] -> :wat::core::nil

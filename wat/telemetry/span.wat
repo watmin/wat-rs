@@ -419,7 +419,7 @@
         (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: stop requested mid-call — the journal sink peer was ALIVE"))))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::telemetry::Span::CloseResponse::Fatal
-        (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed"))))))
+        (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat::telemetry::span::map-write-logs-recv
   [resp <- (:wat::kernel::RecvOutcome :- [:wat::telemetry::Journal::WriteLogsResponse])]
@@ -447,7 +447,7 @@
         (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: stop requested mid-call — the journal sink peer was ALIVE"))))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::telemetry::Span::CloseResponse::Fatal
-        (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed"))))))
+        (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat::telemetry::span::close-response->flush-response
   [c <- :wat::telemetry::Span::CloseResponse] -> :wat::telemetry::Span::FlushResponse

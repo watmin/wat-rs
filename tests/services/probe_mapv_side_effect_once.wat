@@ -61,7 +61,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "inc: stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "inc: closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "inc: closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::read
   [h <- :probe::counter::Handle] -> :wat::core::i64
@@ -85,7 +85,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "read: stopped" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "read: closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "read: closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :probe::run-mapv [] -> :wat::core::i64
   (:wat::core::let
@@ -101,7 +101,7 @@
               ((:wat::kernel::RecvOutcome::Message r) i)
               ((:wat::kernel::RecvOutcome::Lost e) i)
               (:wat::kernel::RecvOutcome::Stopped i)
-              (:wat::kernel::RecvOutcome::Closed i)))
+              (:wat::kernel::RecvOutcome::Closed i) (:wat::kernel::RecvOutcome::TimedOut i)))
           (:wat::core::Vector :- [:wat::core::i64] 0))]
     (:probe::read h)))
 

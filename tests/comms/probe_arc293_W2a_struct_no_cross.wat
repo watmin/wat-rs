@@ -39,7 +39,7 @@
         (:wat::kernel::RecvOutcome::Stopped
           (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
         (:wat::kernel::RecvOutcome::Closed
-          (:wat::kernel::assertion-failed! "recv': p closed unexpectedly" :wat::core::None :wat::core::None))))))
+          (:wat::kernel::assertion-failed! "recv': p closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))))
 
 ;; Record control probe — sends a base record over the wire.
 (:wat::core::defn :w2a::probe-record [] -> :wat::core::i64
@@ -57,7 +57,7 @@
         (:wat::kernel::RecvOutcome::Stopped
           (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
         (:wat::kernel::RecvOutcome::Closed
-          (:wat::kernel::assertion-failed! "recv': p closed unexpectedly" :wat::core::None :wat::core::None))))))
+          (:wat::kernel::assertion-failed! "recv': p closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))))
 
 ;; ── OUTBOUND: send' guard ─────────────────────────────────────────
 ;;
@@ -99,7 +99,7 @@
                     (:wat::kernel::RecvOutcome::Stopped
                       (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                     (:wat::kernel::RecvOutcome::Closed
-                      (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None))))
+                      (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
                 (:wat::kernel::SendOutcome::Sent nil)
                 (:wat::kernel::SendOutcome::Closed nil)
                 ((:wat::kernel::SendOutcome::Lost _c) nil)
@@ -116,5 +116,5 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:w2a::S/val got)))

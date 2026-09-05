@@ -56,7 +56,7 @@
          ((:wat::kernel::RecvOutcome::Message _) "MESSAGE")
          ((:wat::kernel::RecvOutcome::Lost _c) "LOST")
          (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-         (:wat::kernel::RecvOutcome::Closed "CLOSED"))
+         (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut "LOST"))
      live (:wat::core::match (:wat::kernel::connect (:pd::s::Handle/addr h))
              ((:wat::kernel::ConnectOutcome::Connected _) "ALIVE")
              (_ "DEAD"))]

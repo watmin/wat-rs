@@ -37,7 +37,7 @@
                      ((:wat::kernel::LociDiedError::Panic message _failure) message)
                      (_ "LOST-NON-PANIC")))
                  (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-                 (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))]
+                 (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::core::do
       ;; Verify the error message round-trips through accept-error.
       (:wat::test::assert-eq msg "boom")

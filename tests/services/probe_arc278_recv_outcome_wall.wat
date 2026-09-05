@@ -71,7 +71,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
-      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
+      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :probe::client-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
@@ -82,7 +82,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
-      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
+      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── ADMIN helpers: raw send' the crashing op FIRE-AND-FORGET, then MATCH the Handle lineage peer. ────
 ;; On ::Lost → (Outcome::Lost true) — `(Failure/message cause)` CARRIES the sentinel (the owner gets
@@ -96,7 +96,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
-      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
+      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :probe::admin-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
@@ -107,7 +107,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
-      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
+      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── the 8 entrypoints: {boom,boomrt} × {thread,process} × {client,admin} ─────────────────────────────
 (:wat::core::defn :user::boom-client-thread [] -> :probe::Outcome

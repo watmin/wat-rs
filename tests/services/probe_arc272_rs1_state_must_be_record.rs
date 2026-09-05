@@ -84,7 +84,7 @@ fn unknown_trailing_option_is_rejected() {
                 MacroErrorKind::MalformedTemplate { reason }
                     if reason == "defservice: unknown clause :bogus-option — recognized \
                         clauses: :durable :ephemeral :ops :init :hibernate :stop \
-                        :durable-parent :satisfies :impls :peers :max-frame-bytes"
+                        :durable-parent :satisfies :impls :peers :max-frame-bytes :deadline-ms"
             )
     );
 }

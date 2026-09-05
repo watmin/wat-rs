@@ -144,7 +144,7 @@
         (_ "BAD")))
     ((:wat::kernel::RecvOutcome::Lost _c) "LOST")
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-    (:wat::kernel::RecvOutcome::Closed "CLOSED")))
+    (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut "LOST")))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -94,7 +94,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; `put` answers nothing meaningful (file-header departure note in `wat/cache.wat`) — the ONLY
 ;; honest token is whether the batch was accepted at all.
@@ -114,7 +114,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; ── the gate: ONE service, TWO clients, ALL SIX behaviours in one round trip ──────────────────
 (:wat::core::defn :wat-tests::cache-svc/run [locus <- :wat::spawn::Locus] -> :wat::core::String

@@ -224,7 +224,7 @@
                  (:wat::kernel::RecvOutcome::Stopped
                    (:wat::kernel::assertion-failed! "println: stop requested — the stdout service was ALIVE and the channel open" :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
-                   (:wat::kernel::assertion-failed! "println: stdout service peer closed" :wat::core::None :wat::core::None)))]
+                   (:wat::kernel::assertion-failed! "println: stdout service peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
         (:wat::kernel::stdio-write-out peer rest)))))
 
 ;; stdio-write-err — the StdErr twin of stdio-write-out (same chunking; fd 2).
@@ -253,7 +253,7 @@
                  (:wat::kernel::RecvOutcome::Stopped
                    (:wat::kernel::assertion-failed! "eprintln: stop requested — the stderr service was ALIVE and the channel open" :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
-                   (:wat::kernel::assertion-failed! "eprintln: stderr service peer closed" :wat::core::None :wat::core::None)))]
+                   (:wat::kernel::assertion-failed! "eprintln: stderr service peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
         (:wat::kernel::stdio-write-err peer rest)))))
 
 ;; read one line via the primed StdIn peer, returning the RAW line String (Rust decodes it via the
@@ -287,7 +287,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "readln: stop requested — the stdin service was ALIVE and the channel open" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "readln: stdin service peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "readln: stdin service peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; read one frame via the primed StdIn peer, returning the MATCHABLE outcome rather than the raw
 ;; String — the honest sibling of `stdio-read` above. Where `stdio-read` collapses every non-happy
@@ -341,7 +341,7 @@
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; ─── write-fd-raw (arc 170) — the RAW, un-terminated write-side sibling of `from-fd`: emit `payload`
 ;;     verbatim to a whitelisted fd (no framing, no newline, no op budget), returning the byte count. ─

@@ -23,4 +23,4 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Stopped, expected ::Lost"))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")))))
+        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

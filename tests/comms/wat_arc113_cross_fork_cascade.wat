@@ -49,4 +49,4 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-STOPPED"))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-CLOSED")))))
+        (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-CLOSED")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

@@ -17,7 +17,7 @@
                   (:wat::kernel::RecvOutcome::Stopped
                     (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
-                    (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
+                    (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
                sum (:wat::i64::+ value 1)]
               (:wat::core::match (:wat::kernel::send self sum)
                 (:wat::kernel::SendOutcome::Sent nil)
@@ -49,7 +49,7 @@
                   (:wat::kernel::RecvOutcome::Stopped
                     (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
-                    (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
+                    (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
               result))
 
 ;; T2: inline fn literal body.
@@ -69,7 +69,7 @@
                           (:wat::kernel::RecvOutcome::Stopped
                             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                           (:wat::kernel::RecvOutcome::Closed
-                            (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
+                            (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
                        doubled (:wat::i64::* value 2)]
                       (:wat::core::match (:wat::kernel::send self doubled)
                         (:wat::kernel::SendOutcome::Sent nil)
@@ -97,7 +97,7 @@
                   (:wat::kernel::RecvOutcome::Stopped
                     (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
-                    (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
+                    (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
               result))
 
 ;; T3: closure capture — body captures `delta` from enclosing let.
@@ -117,7 +117,7 @@
                         (:wat::kernel::RecvOutcome::Stopped
                           (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                         (:wat::kernel::RecvOutcome::Closed
-                          (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
+                          (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
                      sum (:wat::i64::+ n delta)]
                     (:wat::core::match (:wat::kernel::send self sum)
                       (:wat::kernel::SendOutcome::Sent nil)
@@ -147,5 +147,5 @@
                   (:wat::kernel::RecvOutcome::Stopped
                     (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
-                    (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
+                    (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
               result))

@@ -84,7 +84,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        (:wat::kernel::SendOutcome::Stopped
@@ -108,7 +108,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        (:wat::kernel::SendOutcome::Stopped
@@ -131,7 +131,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        (:wat::kernel::SendOutcome::Stopped
@@ -154,7 +154,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
        (:wat::kernel::SendOutcome::Closed
          (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
        (:wat::kernel::SendOutcome::Stopped

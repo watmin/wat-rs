@@ -81,4 +81,4 @@
           ((:wat::kernel::LociDiedError::MainSignature _m) "WRONG:MainSignature")
           ((:wat::kernel::LociDiedError::BadReturn _m) "WRONG:BadReturn")))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

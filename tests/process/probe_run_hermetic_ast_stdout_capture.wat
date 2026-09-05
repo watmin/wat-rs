@@ -24,4 +24,4 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "capture-stdout: stop requested before child sent its value — child was ALIVE, channel open" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "capture-stdout: child closed before sending its value" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "capture-stdout: child closed before sending its value" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

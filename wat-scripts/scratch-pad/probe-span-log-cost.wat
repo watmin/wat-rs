@@ -38,7 +38,7 @@
             ((:wat::kernel::RecvOutcome::Message _resp) nil)
             ((:wat::kernel::RecvOutcome::Lost _c) nil)
             (:wat::kernel::RecvOutcome::Stopped nil)
-            (:wat::kernel::RecvOutcome::Closed nil))]
+            (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))]
       (:cost::log-n sp (:wat::i64::- n 1)))))
 
 ;; time `n` logs into a FRESH span (so each run starts from an empty buffer). Returns elapsed nanos.

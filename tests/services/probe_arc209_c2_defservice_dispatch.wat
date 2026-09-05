@@ -93,7 +93,7 @@
             (:wat::kernel::RecvOutcome::Stopped
               (:wat::kernel::assertion-failed! "recv': stopped before the Increment reply — the peer was ALIVE" :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed
-              (:wat::kernel::assertion-failed! "recv': c closed before the Increment reply" :wat::core::None :wat::core::None)))
+              (:wat::kernel::assertion-failed! "recv': c closed before the Increment reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Get (:my::Counter::GetRequest))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))  ;; arc 278 #73 — the recv' below already faces the stop
      r2   (:wat::core::match (:wat::kernel::recv c)
             ((:wat::kernel::RecvOutcome::Message m) m)
@@ -102,7 +102,7 @@
             (:wat::kernel::RecvOutcome::Stopped
               (:wat::kernel::assertion-failed! "recv': stopped before the Get reply — the peer was ALIVE" :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed
-              (:wat::kernel::assertion-failed! "recv': c closed before the Get reply" :wat::core::None :wat::core::None)))]
+              (:wat::kernel::assertion-failed! "recv': c closed before the Get reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     ;; Increment 5 → state 0→5, reply IncrementResponse{5}; Get → reply GetResponse{5}.
     ;; Assert the Get reply's value is 5.
     ;; Scope-exit drops `svc` → RAII drain → :Shutdown → serve exits → join completes.

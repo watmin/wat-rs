@@ -82,7 +82,7 @@
         ((:sched::Ticker::PollResponse::RequestMalformed _p _e _g) -2)))
     ((:wat::kernel::RecvOutcome::Lost __cause) -11)
     (:wat::kernel::RecvOutcome::Stopped -12)
-    (:wat::kernel::RecvOutcome::Closed -10)))
+    (:wat::kernel::RecvOutcome::Closed -10) (:wat::kernel::RecvOutcome::TimedOut -11)))
 
 (:wat::core::defn :sched::safe-start
   [c <- (:wat::kernel::Peer :- [:sched::Ticker::Op :sched::Ticker::Reply])] -> :wat::core::i64
@@ -94,7 +94,7 @@
         ((:sched::Ticker::StartResponse::RequestMalformed _p _e _g) -2)))
     ((:wat::kernel::RecvOutcome::Lost __cause) -11)
     (:wat::kernel::RecvOutcome::Stopped -12)
-    (:wat::kernel::RecvOutcome::Closed -10)))
+    (:wat::kernel::RecvOutcome::Closed -10) (:wat::kernel::RecvOutcome::TimedOut -11)))
 
 ;; the FIXTURE's drive shape: poll in a tight loop with a 5ms backoff — client traffic arriving
 ;; DURING the tick cadence. A negative return is the transport sentinel, propagated immediately.
@@ -276,7 +276,7 @@
     ((:wat::kernel::RecvOutcome::Message __recv) "(a reply arrived — not severed)")
     ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
     (:wat::kernel::RecvOutcome::Stopped "Stopped")
-    (:wat::kernel::RecvOutcome::Closed "Closed (MUTE — the reason was dropped)")))
+    (:wat::kernel::RecvOutcome::Closed "Closed (MUTE — the reason was dropped)") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: same tail-escape shape as
 ;; plain-service-tail; this function prints the Lost cause a caller would see.

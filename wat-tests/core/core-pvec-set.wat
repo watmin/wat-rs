@@ -32,7 +32,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "expected Lost, got Stopped" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "expected Lost, got Closed" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "expected Lost, got Closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true (:wat::regex::matches? "index 9 out of range \\(length 3\\)" msg))))
 
 (:wat::test::deftest-hermetic :wat-tests::core::core-pvec-set::drop-last-empty-is-located
@@ -50,5 +50,5 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "expected Lost, got Stopped" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "expected Lost, got Closed" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "expected Lost, got Closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true (:wat::regex::matches? "drop-last on empty vector \\(length 0\\)" msg))))

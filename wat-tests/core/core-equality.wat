@@ -134,4 +134,4 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected check-time type error for (= 1 1.5)"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))

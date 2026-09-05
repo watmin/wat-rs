@@ -300,7 +300,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true
       (:wat::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))
 
@@ -326,6 +326,6 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true
       (:wat::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))

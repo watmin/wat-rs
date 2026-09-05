@@ -43,7 +43,7 @@
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed!
               "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed"
-              :wat::core::None :wat::core::None)))
+              :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))
      ;; the worker is now guaranteed dead. Pre-strike this send' RAISED "send failed:
      ;; channel disconnected"; post-strike it returns a matchable SendOutcome value.
      outcome (:wat::kernel::send p 42)]

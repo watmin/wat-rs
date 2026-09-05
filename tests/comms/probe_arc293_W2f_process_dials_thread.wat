@@ -46,7 +46,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::illegal [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let

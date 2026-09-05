@@ -28,7 +28,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     got))
 
 ;; compute-error-init: spawn a thread peer with an init-fn that divides by zero —
@@ -58,7 +58,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) "SMUGGLED-VALUE")
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::LociDiedError/message cause))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "PEER-DIED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "PEER-DIED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; compute-default: spawn a plain (thread) peer — user-data defaults to EmptyEnv;
 ;; peer sends 1 if conforms?, else 0.
@@ -86,6 +86,6 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     got))
 

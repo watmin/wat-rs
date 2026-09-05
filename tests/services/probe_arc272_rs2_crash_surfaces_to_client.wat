@@ -37,4 +37,4 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::string::concat "LOST:" (:wat::kernel::LociDiedError/message cause)))
       (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

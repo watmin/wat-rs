@@ -51,7 +51,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "println-string: stop requested before the child sent its value — child was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "println-string: child closed before sending its value" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "println-string: child closed before sending its value" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ─── Layer 1 — println an i64 ───────────────────────────────────────────
 ;; Non-string Ts cross the wire through the same peer pipeline — the i64 42
@@ -74,7 +74,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "println-i64: stop requested before the child sent its value — child was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "println-i64: child closed before sending its value" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "println-i64: child closed before sending its value" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ─── Layer 2 — eprintln a String ────────────────────────────────────────
 ;; eprintln is a TERMINATING form — it emits the value's EDN then CRASHES the
@@ -108,7 +108,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "eprintln-string: stop requested before the child sent its value — child was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "eprintln-string: child closed before crashing" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "eprintln-string: child closed before crashing" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ─── Layer 3 — two println calls, order-preserving ──────────────────────
 ;; Two round trips through the same peer pipeline land in send order. recv-all'

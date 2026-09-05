@@ -27,7 +27,7 @@
             ((:wat::kernel::RecvOutcome::Message _resp) nil)
             ((:wat::kernel::RecvOutcome::Lost _c) nil)
             (:wat::kernel::RecvOutcome::Stopped nil)
-            (:wat::kernel::RecvOutcome::Closed nil))]
+            (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))]
       (:sc::put-n c (:wat::i64::- n 1)))))
 
 ;; k scans, each with limit 1 — the RESULT size is constant regardless of table size.
@@ -44,7 +44,7 @@
             ((:wat::kernel::RecvOutcome::Message _resp) nil)
             ((:wat::kernel::RecvOutcome::Lost _c) nil)
             (:wat::kernel::RecvOutcome::Stopped nil)
-            (:wat::kernel::RecvOutcome::Closed nil))]
+            (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))]
       (:sc::scan-k c (:wat::i64::- k 1)))))
 
 (:wat::core::defn :sc::scan-index-k
@@ -60,7 +60,7 @@
             ((:wat::kernel::RecvOutcome::Message _resp) nil)
             ((:wat::kernel::RecvOutcome::Lost _c) nil)
             (:wat::kernel::RecvOutcome::Stopped nil)
-            (:wat::kernel::RecvOutcome::Closed nil))]
+            (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))]
       (:sc::scan-index-k c (:wat::i64::- k 1)))))
 
 ;; time `scans` reads against a table of `rows`. Returns elapsed ms for the SCANS only.

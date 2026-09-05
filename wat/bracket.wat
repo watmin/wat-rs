@@ -51,7 +51,7 @@
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; (PoolMsg :- [D I]) (the universal pool wire message) is defined in wat/spawn.wat — it
 ;; must precede the :wat::spawn::Locus surface's `spawn-runner` return type, which
@@ -97,7 +97,7 @@
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; ── process-dial-runner — the BAKED dialing process-pool runner (arc 170 M1) ──
 ;;
@@ -151,7 +151,7 @@
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; ── spawn-runner — the per-tier runner spawn, lifted onto the :Locus surface ──
 ;;
@@ -219,7 +219,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped nil)
-      (:wat::kernel::RecvOutcome::Closed nil))))
+      (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defclause :wat::bracket::thread-enter
   ([self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
@@ -505,7 +505,7 @@
             ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not
             ;; drop, the substrate is stopping. Same body, stated cause.
             (:wat::kernel::RecvOutcome::Stopped nil)
-            (:wat::kernel::RecvOutcome::Closed nil)))
+            (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
        main-def
        `(:wat::core::defn :user::main [] -> :wat::core::nil
           (:user::bracket::dial-runner

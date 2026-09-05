@@ -170,7 +170,7 @@
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteMetricsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteMetrics wresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    (write-logs [s ctx req]
@@ -214,7 +214,7 @@
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteLogsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::WriteLogs wresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    ;; query-metrics — scan the namespace's Metric partition over [time-lo, time-hi], hydrate each
@@ -266,7 +266,7 @@
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryMetricsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryMetrics qresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    ;; query-logs — the same for the Log partition.
@@ -317,7 +317,7 @@
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryLogsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::telemetry::Journal::Reply::QueryLogs qresp)) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::telemetry::Journal::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::telemetry::journal::Op])]))))
 
    ;; sift-logs — arc 278 Stone 2: query-logs + server-side filtering. The predicate (a `Sieve`'s
@@ -385,7 +385,7 @@
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::telemetry::Journal::SiftLogsResponse::Fatal
-                           (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))
+                           (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
                    (:wat::telemetry::Journal::SiftLogsResponse::Fatal
                      (:wat::query::Fatal :reason
                        (:wat::query::Fault :message "sift-logs: predicate must be pure, deterministic, and total"))))]
@@ -451,7 +451,7 @@
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
-                           (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))
+                           (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
                    (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
                      (:wat::query::Fatal :reason
                        (:wat::query::Fault :message "sift-metrics: predicate must be pure, deterministic, and total"))))]

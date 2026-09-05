@@ -37,7 +37,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) "message")
       ((:wat::kernel::RecvOutcome::Lost _cause) "lost")
       (:wat::kernel::RecvOutcome::Stopped "stopped")
-      (:wat::kernel::RecvOutcome::Closed "closed"))))
+      (:wat::kernel::RecvOutcome::Closed "closed") (:wat::kernel::RecvOutcome::TimedOut "lost"))))
 
 ;; ── single stdout write — the value crosses the wire DECODED ────────────────
 ;; `(println "hello")` → recv' → Message[m], m the native String "hello".
@@ -51,7 +51,7 @@
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST")
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut "UNEXPECTED-LOST"))))
 
 ;; ── stdout + terminal stderr — partial Messages then Lost ───────────────────
 ;; The child prints "one"/"two" (two Messages on the wire) then `(eprintln "oops")`
@@ -73,12 +73,12 @@
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
           (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-1")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
+          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1") (:wat::kernel::RecvOutcome::TimedOut "UNEXPECTED-LOST-1"))
      r2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-2")
           (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-2")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2"))
+          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2") (:wat::kernel::RecvOutcome::TimedOut "UNEXPECTED-LOST-2"))
      r3 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-3")
           ((:wat::kernel::RecvOutcome::Lost cause)
@@ -86,7 +86,7 @@
               ((:wat::kernel::LociDiedError::Panic message _failure) message)
               (_ "LOST-NON-PANIC-3")))
           (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-3")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-3"))]
+          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-3") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     [r1 r2 r3]))
 
 ;; ── body-raise failure ("parse-error" case) — Lost[Panic] ──────────────────
@@ -113,7 +113,7 @@
           ((:wat::kernel::LociDiedError::Panic message _failure) message)
           (_ "LOST-NON-PANIC")))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── missing :user::main — Lost[RuntimeError] (UserMainMissing) ─────────────
 ;; The entry forms define NO :user::main. Startup + main-signature validation both
@@ -142,7 +142,7 @@
           ((:wat::kernel::LociDiedError::BadReturn _bm) "bad-return")
           (_ "other-lost")))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── partial output then panic — partial Message then Lost[Panic] ───────────
 ;; The child prints "before panic" (one Message on the wire) then
@@ -161,7 +161,7 @@
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
           (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-1")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
+          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1") (:wat::kernel::RecvOutcome::TimedOut "UNEXPECTED-LOST-1"))
      r2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-2")
           ((:wat::kernel::RecvOutcome::Lost cause)
@@ -169,7 +169,7 @@
               ((:wat::kernel::LociDiedError::Panic message _failure) message)
               (_ "LOST-NON-PANIC-2")))
           (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-2")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2"))]
+          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     [r1 r2]))
 
 ;; ── scope inside — empty child loader → Err arm → terminal eprintln → Lost ──
@@ -193,7 +193,7 @@
           ((:wat::kernel::LociDiedError::Panic message _failure) message)
           (_ "LOST-NON-PANIC")))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── scope outside — same empty-loader Err arm; the Ok "leaked" never runs ───
 ;; recv' → Lost[Panic] whose message is the eprintln value's EDN "\"blocked\"".
@@ -213,4 +213,4 @@
           ((:wat::kernel::LociDiedError::Panic message _failure) message)
           (_ "LOST-NON-PANIC")))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

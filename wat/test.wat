@@ -340,7 +340,7 @@
           (:wat::kernel::message-only-failure "run-thread': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))))))
+          (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── The peer-returning holders ──────────────────────────────────────────────
 ;;
@@ -450,7 +450,7 @@
           (:wat::kernel::message-only-failure "run-hermetic': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))))))
+          (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defmacro :wat::test::run-hermetic
   [body <- :wat::WatAST]

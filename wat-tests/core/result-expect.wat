@@ -75,4 +75,4 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected panic on Err expect, got clean close"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

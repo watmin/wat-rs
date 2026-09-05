@@ -68,7 +68,7 @@
         (_ "other")))
     ((:wat::kernel::RecvOutcome::Lost _c) "lost")
     (:wat::kernel::RecvOutcome::Stopped "stopped")
-    (:wat::kernel::RecvOutcome::Closed "closed")))
+    (:wat::kernel::RecvOutcome::Closed "closed") (:wat::kernel::RecvOutcome::TimedOut "lost")))
 
 (:wat::core::defn :fc::run [] -> :wat::core::String
   (:wat::core::let

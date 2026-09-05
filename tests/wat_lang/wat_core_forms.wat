@@ -40,7 +40,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "test4: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "test4: child closed before sending its value" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "test4: child closed before sending its value" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; test5: :wat::test::program macro expands to forms (length 3)
 (:wat::core::defn :t::test5-program-macro [] -> :wat::core::bool
@@ -65,4 +65,4 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "test6: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "test6: child closed before sending its value" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "test6: child closed before sending its value" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

@@ -40,7 +40,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
+      (:wat::kernel::println (:wat::string::concat label " => CLOSED"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println (:wat::string::concat label " => LOST")))))
 
 ;; The discriminator: the Handle rides in as an argument, so it outlives the caller's env.
 (:wat::core::defn :rw::try-with-handle [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])

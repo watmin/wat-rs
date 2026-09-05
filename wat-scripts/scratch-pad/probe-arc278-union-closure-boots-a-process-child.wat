@@ -231,7 +231,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::core::do (:wat::kernel::println (:wat::string::concat label " STOPPED")) false))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER")) false)))))
+        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER")) false)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -19,7 +19,7 @@
              ;; the substrate stopping while parked on its own recv — same discard as
              ;; its siblings, this child's body never inspects the outcome either way.
              (:wat::kernel::RecvOutcome::Stopped nil)
-             (:wat::kernel::RecvOutcome::Closed nil))))]
+             (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))))]
     (:wat::core::do
       (:wat::kernel::println "READY")
       (:diag::poll 0))))

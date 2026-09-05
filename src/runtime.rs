@@ -6456,16 +6456,51 @@ fn dispatch_keyword_head_value(
                                                 WatAST::Keyword(op_ctor, span.clone()),
                                                 WatAST::Symbol(Identifier::bare("__req"), span.clone()),
                                             ], span.clone()),
-                                            WatAST::Symbol(Identifier::bare("__send"), span.clone()),
-                                            WatAST::List(vec![
-                                                WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
-                                                WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
-                                                WatAST::Symbol(Identifier::bare("__op"), span.clone()),
-                                            ], span.clone()),
                                             WatAST::Symbol(Identifier::bare("__r"), span.clone()),
+                                            // Arc 278 no-client-call-can-hang — Path B is the
+                                            // mechanism `:S/method` calls actually run through.
+                                            // Bound via call-by-deadline (default 10000 ms);
+                                            // DeadlineFired → RecvOutcome::TimedOut.
+                                            // PeerGone collapses Lost|Closed (CallOutcome has no
+                                            // cause); that is a named finding on severed/rst.
                                             WatAST::List(vec![
-                                                WatAST::Keyword(":wat::kernel::recv".into(), span.clone()),
-                                                WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
+                                                WatAST::Keyword(":wat::core::match".into(), span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::service::call-by-deadline".into(), span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("__op"), span.clone()),
+                                                    WatAST::IntLit(10000, span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(reply_ctor.clone(), span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::Keyword(rtl_ctor_kw.clone(), span.clone()),
+                                                            WatAST::IntLit(0, span.clone()),
+                                                            WatAST::IntLit(0, span.clone()),
+                                                        ], span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::service::CallOutcome::Answered".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("recvd"), span.clone()),
+                                                    ], span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("recvd"), span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::service::CallOutcome::DeadlineFired".into(), span.clone()),
+                                                    ], span.clone()),
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::TimedOut".into(), span.clone()),
+                                                ], span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::service::CallOutcome::PeerGone".into(), span.clone()),
+                                                    ], span.clone()),
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
+                                                ], span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
                                         WatAST::List(vec![
@@ -6591,6 +6626,13 @@ fn dispatch_keyword_head_value(
                                             WatAST::List(vec![
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
+                                            ], span.clone()),
+                                            // ::TimedOut arm — arc 278 no-client-call-can-hang.
+                                            // Pass through as itself. A timeout is a real
+                                            // outcome; the caller faces it.
+                                            WatAST::List(vec![
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::TimedOut".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::TimedOut".into(), span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
                                     ], span.clone());

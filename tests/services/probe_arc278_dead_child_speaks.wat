@@ -77,4 +77,4 @@
       ;; unreachable today; naming it honestly is what keeps it unreachable-and-legible rather
       ;; than unreachable-and-mislabelled.
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
-      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
+      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

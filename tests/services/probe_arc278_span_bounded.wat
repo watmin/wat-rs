@@ -89,7 +89,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv': stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::classify-timed
   [r <- (:wat::kernel::RecvOutcome :- [:wat::telemetry::Span::TimedResponse])] -> :wat::core::i64
@@ -108,7 +108,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv': stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::log-msg
   [span <- (:wat::kernel::Peer :- [:wat::telemetry::Span::Op :wat::telemetry::Span::Reply])

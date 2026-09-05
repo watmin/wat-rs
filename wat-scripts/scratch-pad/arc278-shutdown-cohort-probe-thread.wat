@@ -18,7 +18,7 @@
              ;; same discard as its siblings — this child's body never inspects the
              ;; outcome of its own parked recv either way.
              (:wat::kernel::RecvOutcome::Stopped nil)
-             (:wat::kernel::RecvOutcome::Closed nil))))]
+             (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))))]
     (:wat::core::do
       (:wat::kernel::println "READY")
       (:wat::core::match (:wat::kernel::recv w)
@@ -34,4 +34,4 @@
         ;; that dig in place (not collapsed) so this diagnostic can still tell the two
         ;; shapes apart if the mechanism ever regresses — reported, not decided.
         (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "OUTCOME:Stopped"))
-        (:wat::kernel::RecvOutcome::Closed (:wat::kernel::println "OUTCOME:Closed"))))))
+        (:wat::kernel::RecvOutcome::Closed (:wat::kernel::println "OUTCOME:Closed")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))))

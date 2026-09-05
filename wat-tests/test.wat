@@ -95,7 +95,7 @@
               (:wat::kernel::assertion-failed!
                 "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
                 :wat::core::None :wat::core::None))
-            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::core::match fail  
       ((:wat::core::Some f)
         (:wat::core::let
@@ -159,7 +159,7 @@
               (:wat::kernel::assertion-failed!
                 "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
                 :wat::core::None :wat::core::None))
-            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::core::match fail  
       ((:wat::core::Some f)
         (:wat::core::let
@@ -204,7 +204,7 @@
           (:wat::kernel::RecvOutcome::Stopped
             (:wat::kernel::assertion-failed! "assert-stdout-is-matches: stopped before first line — the child was ALIVE" :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
-            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before first line" :wat::core::None :wat::core::None)))
+            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before first line" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      m2 (:wat::core::match (:wat::kernel::recv p)
           ((:wat::kernel::RecvOutcome::Message m) m)
           ((:wat::kernel::RecvOutcome::Lost cause)
@@ -212,7 +212,7 @@
           (:wat::kernel::RecvOutcome::Stopped
             (:wat::kernel::assertion-failed! "assert-stdout-is-matches: stopped before second line — the child was ALIVE" :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
-            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before second line" :wat::core::None :wat::core::None)))]
+            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before second line" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::core::do
       (:wat::test::assert-eq m1 "alpha")
       (:wat::test::assert-eq m2 "beta"))))
@@ -261,7 +261,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true (:wat::regex::matches? "code [0-9]+" msg))))
 
 ;; :wat-tests::test::test-assert-stderr-matches-fail-reports-pattern
@@ -312,7 +312,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "run-string-entry-path: stopped before the child sent its value — the child was ALIVE" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "run-string-entry-path: child closed before sending its value" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "run-string-entry-path: child closed before sending its value" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-eq msg "from-string")))
 
 ;; Duplicate of :wat-tests::test::test-assert-stdout-is-matches at line 132 —
@@ -339,7 +339,7 @@
            (:wat::kernel::RecvOutcome::Stopped
              (:wat::kernel::assertion-failed! "run-ast-via-program: stopped before the child sent its value — the child was ALIVE" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "run-ast-via-program: child closed before sending its value" :wat::core::None :wat::core::None)))]
+             (:wat::kernel::assertion-failed! "run-ast-via-program: child closed before sending its value" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-eq msg "from-ast")))
 
 ;; deftest's self-test is redundant here — every other passing deftest

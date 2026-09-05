@@ -53,7 +53,7 @@
     ((:wat::kernel::RecvOutcome::Message __r) 1)
     ((:wat::kernel::RecvOutcome::Lost __c) -1)
     (:wat::kernel::RecvOutcome::Stopped -2)
-    (:wat::kernel::RecvOutcome::Closed -3)))
+    (:wat::kernel::RecvOutcome::Closed -3) (:wat::kernel::RecvOutcome::TimedOut -1)))
 
 ;; ✅ MUST KEEP COMPILING — drive sits in a BINDING. The let is in tail position of the function,
 ;; but its tail expression is the symbol `n`, not a user-function call. If the wall names this,

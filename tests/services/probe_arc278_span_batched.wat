@@ -156,7 +156,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv': stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::classify-flush
   [r <- (:wat::kernel::RecvOutcome :- [:wat::telemetry::Span::FlushResponse])] -> :wat::core::i64
@@ -174,7 +174,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv': stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::failure? [code <- :wat::core::i64] -> :wat::core::bool
   (:wat::core::and (:wat::i64::>= code 1) (:wat::i64::<= code 3)))
@@ -217,7 +217,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv': stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::do-flush
   [span <- (:wat::kernel::Peer :- [:wat::telemetry::Span::Op :wat::telemetry::Span::Reply])]
@@ -359,7 +359,7 @@
                        ((:wat::telemetry::Journal::WriteLogsResponse::RequestMalformed _p _x _g) 0)))
                    ((:wat::kernel::RecvOutcome::Lost _c) 0)
                    (:wat::kernel::RecvOutcome::Stopped 0)
-                   (:wat::kernel::RecvOutcome::Closed 0))
+                   (:wat::kernel::RecvOutcome::Closed 0) (:wat::kernel::RecvOutcome::TimedOut 0))
          got (:probe::stored-count journal)]
         (:wat::core::if (:wat::core::and (:wat::core::= ok? 1)
                          (:wat::core::and (:wat::core::= written 1) (:wat::core::= got 1)))

@@ -23,7 +23,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST")
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "closed"))))
+      (:wat::kernel::RecvOutcome::Closed "closed") (:wat::kernel::RecvOutcome::TimedOut "UNEXPECTED-LOST"))))
 
 ;; Probe 2 — child calls assertion-failed! → the peer CRASHES before any send →
 ;; recv' → Lost[cause] (a LociDiedError carrying the diagnostic). Returns the
@@ -43,4 +43,4 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::LociDiedError/message cause))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

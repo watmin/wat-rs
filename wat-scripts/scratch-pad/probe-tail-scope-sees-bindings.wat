@@ -88,7 +88,7 @@
     ((:wat::kernel::RecvOutcome::Message __r) 1)
     ((:wat::kernel::RecvOutcome::Lost __c) -1)
     (:wat::kernel::RecvOutcome::Stopped -2)
-    (:wat::kernel::RecvOutcome::Closed -3)))
+    (:wat::kernel::RecvOutcome::Closed -3) (:wat::kernel::RecvOutcome::TimedOut -1)))
 
 ;; ── THE PROBE OF SCOPE-VISIBILITY ────────────────────────────────────────────────────────────
 ;; `h` is bound HERE and used ONLY inside the tail expression. If the checker did not still hold

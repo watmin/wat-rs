@@ -93,7 +93,7 @@
                (:wat::kernel::RecvOutcome::Closed
                  (:wat::kernel::assertion-failed!
                    "DISCRIMINATOR: the poison request reached the wire and the connection was closed"
-                   :wat::core::None :wat::core::None)))
+                   :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      ;; THE DISCRIMINATOR: the SAME connection completes a normal in-budget request. An
      ;; actually-sent poison frame would have tripped FOO and evicted `c` — this succeeding
      ;; is the "the peer's receiver has nothing pending" proof.
@@ -114,4 +114,4 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "DISCRIMINATOR: stopped before the follow-up replied — the peer was ALIVE" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "DISCRIMINATOR: the connection did not survive (closed)" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "DISCRIMINATOR: the connection did not survive (closed)" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

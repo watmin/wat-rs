@@ -39,7 +39,7 @@
             ((:wat::kernel::RecvOutcome::Message _resp) nil)
             ((:wat::kernel::RecvOutcome::Lost _c) nil)
             (:wat::kernel::RecvOutcome::Stopped nil)
-            (:wat::kernel::RecvOutcome::Closed nil))]
+            (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))]
       (:rt::ping-n c (:wat::i64::- n 1)))))
 
 ;; a pure interpreter loop of the same shape and count — no service, no channel, no wire.

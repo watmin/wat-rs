@@ -61,7 +61,7 @@
         ((:wat::kernel::LociDiedError::MainSignature _m) "LOST:MainSignature")
         ((:wat::kernel::LociDiedError::BadReturn _m) "LOST:BadReturn")))
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-    (:wat::kernel::RecvOutcome::Closed "CLOSED:MUTE")))
+    (:wat::kernel::RecvOutcome::Closed "CLOSED:MUTE") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; the owner: starts the service, hands back a connected peer, and lets its `Handle` go at return.
 ;; The caller below holds a live, authorized channel to a service that now has no owner.

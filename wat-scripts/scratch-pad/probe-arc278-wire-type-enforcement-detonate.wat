@@ -72,7 +72,7 @@
         (:wat::string::concat label " => RecvOutcome::Stopped")))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Closed")))))
+        (:wat::string::concat label " => RecvOutcome::Closed"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println (:wat::string::concat label " => RecvOutcome::Lost — THE SERVICE DIED serving this request")))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

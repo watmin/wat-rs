@@ -61,7 +61,7 @@
                  (:wat::kernel::RecvOutcome::Stopped
                    (:wat::kernel::assertion-failed! "labeled child: stop requested before sending its pid — child was ALIVE, channel open" :wat::core::None :wat::core::None))
                  (:wat::kernel::RecvOutcome::Closed
-                   (:wat::kernel::assertion-failed! "labeled child closed before sending its pid" :wat::core::None :wat::core::None)))
+                   (:wat::kernel::assertion-failed! "labeled child closed before sending its pid" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      _ (:wat::kernel::println child-pid)
      release-outcome (:wat::kernel::readln)]
     (:wat::core::match release-outcome

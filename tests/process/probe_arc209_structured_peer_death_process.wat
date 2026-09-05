@@ -28,4 +28,4 @@
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::edn::write (:wat::kernel::LociDiedError/to-failure cause)))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

@@ -54,7 +54,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
+      (:wat::kernel::println (:wat::string::concat label " => CLOSED"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println (:wat::string::concat label " => LOST")))))
 
 ;; rune:check(handle-lifetime-creation-escape) — INSTRUMENT: user::main IS the
 ;; measurement (binding served vs tail closed). It must construct the escape.

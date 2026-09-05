@@ -536,7 +536,7 @@
             ;; crash (Lost) and no premature exit (Closed). The launch simply cannot
             ;; complete, and the message says so instead of blaming the child.
             (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "spawn (thread): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None))
-            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (thread): child exited before readiness" :wat::core::None :wat::core::None)))]
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (thread): child exited before readiness" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
       (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
@@ -593,7 +593,7 @@
               ;; folded the stop into Closed, so a stopped process launch blamed the child
               ;; for exiting. `spawn.rs` now carries `PeerDeath::Shutdown` and it arrives here.
               (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "spawn (process): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None))
-              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)))
+              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
        addr (:wat::core::apply  lu-addr-kw lu [])]
       (:wat::spawn::Launched :handle svc :address addr))))
 
@@ -635,7 +635,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::core::Err :wat::kernel::LociDiedError::Stopped))
     ;; the drain's SUCCESS path: a genuine clean EOF, everything collected.
-    (:wat::kernel::RecvOutcome::Closed (:wat::core::Ok acc))))
+    (:wat::kernel::RecvOutcome::Closed (:wat::core::Ok acc)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat::kernel::recv-all :- [I O]
   [p <- (:wat::kernel::Peer :- [I O])]

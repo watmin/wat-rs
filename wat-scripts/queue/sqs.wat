@@ -212,14 +212,14 @@
                                     (:wat::kernel::RecvOutcome::Stopped
                                       (:wat::kernel::assertion-failed! "queue.take: stop requested mid re-put" :wat::core::None :wat::core::None))
                                     (:wat::kernel::RecvOutcome::Closed
-                                      (:wat::core::Tuple (dial-store) empty-envs))))))
+                                      (:wat::core::Tuple (dial-store) empty-envs)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple (dial-store) empty-envs))))))
                             (_ (:wat::kernel::assertion-failed! "queue.take: scan-index failed" :wat::core::None :wat::core::None))))
                         ((:wat::kernel::RecvOutcome::Lost _cause)
                           (:wat::core::Tuple (dial-store) empty-envs))
                         (:wat::kernel::RecvOutcome::Stopped
                           (:wat::kernel::assertion-failed! "queue.take: stop requested" :wat::core::None :wat::core::None))
                         (:wat::kernel::RecvOutcome::Closed
-                          (:wat::core::Tuple (dial-store) empty-envs)))))
+                          (:wat::core::Tuple (dial-store) empty-envs)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple (dial-store) empty-envs)))))
              ;; Closed over nothing extra. Process children do not see sibling
              ;; defns, so the body lives here, called via State/depth.
              ;; (visible unacked): |isk in [0, now]| and |isk in [0, +inf)| minus vis.
@@ -252,7 +252,7 @@
                                     (:wat::kernel::RecvOutcome::Stopped
                                       (:wat::kernel::assertion-failed! "queue.depth: stop requested" :wat::core::None :wat::core::None))
                                     (:wat::kernel::RecvOutcome::Closed
-                                      (:wat::kernel::assertion-failed! "queue.depth: store closed" :wat::core::None :wat::core::None))))
+                                      (:wat::kernel::assertion-failed! "queue.depth: store closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
                        vis (:wat::core::apply count-hi st [now-ns])
                        all (:wat::core::apply count-hi st [inf-ns])]
                       (:wat::core::Tuple vis (:wat::i64::- all vis))))
@@ -505,7 +505,7 @@
                    (:wat::i64::+ (:wat::core::first vu2) (:wat::core::second vu2))
                    cap)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               none-alarms))))))))
+               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) vu2 (:wat::core::apply (:queue::queue::State/depth s) fresh q [now-ns lim]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Full (:wat::i64::+ (:wat::core::first vu2) (:wat::core::second vu2)) cap))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
 
    (receive [s ctx req]
      (:wat::core::let
@@ -746,7 +746,7 @@
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))))))
+               (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))))))
 
    (stats [s ctx req]
      (:wat::core::let
@@ -1031,7 +1031,7 @@
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
 
 ;; lifecycle against ONE store. Handle lives in this let (same-ns lesson).
 (:wat::core::defn :user::lifecycle

@@ -49,7 +49,7 @@
             (:wat::kernel::RecvOutcome::Stopped
               (:wat::kernel::assertion-failed! "recv': stopped before sending the capability — the peer was ALIVE" :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed
-              (:wat::kernel::assertion-failed! "recv': svc closed before sending the capability" :wat::core::None :wat::core::None)))
+              (:wat::kernel::assertion-failed! "recv': svc closed before sending the capability" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      ;; dial the capability — the child is guaranteed listening (it sent AFTER listen()).
      c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _    (:wat::core::match (:wat::kernel::send c 5) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))  ;; arc 278 #73 — the recv' below already faces the stop
@@ -60,7 +60,7 @@
             (:wat::kernel::RecvOutcome::Stopped
               (:wat::kernel::assertion-failed! "recv': stopped before replying — the peer was ALIVE" :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed
-              (:wat::kernel::assertion-failed! "recv': c closed before replying" :wat::core::None :wat::core::None)))]
+              (:wat::kernel::assertion-failed! "recv': c closed before replying" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
     ;; No Stop op. Scope-exit drops `svc` → the child's input pipe EOFs → the self-peer's
     ;; Recv{0} fires → serve's poll' returns :Shutdown → the child exits → join completes.
     ;; (If this hangs, poll' isn't watching the self-peer over the socket tier — STOP-1.)

@@ -75,7 +75,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::println (:wat::string::concat label " => Stopped")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::string::concat label " => Closed")))))
+      (:wat::kernel::println (:wat::string::concat label " => Closed"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println (:wat::string::concat label " => LOST (peer gone)")))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

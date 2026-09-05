@@ -8179,7 +8179,7 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
     // Verb-aware remedy: recv' faces Message/Closed/Lost; poll'/select' face the ServiceEvent
     // variants; send'/try-send' face Sent/(WouldBlock/)Closed/Lost.
     let (verb, arms) = if ty_name.contains("RecvOutcome") {
-        ("recv", "Message/Closed/Lost")
+        ("recv", "Message/Closed/Lost/Stopped/TimedOut")
     } else if ty_name.contains("ServiceEvent") {
         ("poll/select", "Message/Closed/Lost/Malformed/Rejected")
     } else if ty_name.contains("AcceptOutcome") {

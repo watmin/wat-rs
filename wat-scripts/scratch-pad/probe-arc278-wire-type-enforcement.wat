@@ -84,7 +84,7 @@
         (:wat::string::concat label " => RecvOutcome::Stopped")))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Closed")))))
+        (:wat::string::concat label " => RecvOutcome::Closed"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; ── one tier: stand up, connect, send a GOOD payload then a MISTYPED one ─────
 (:wat::core::defn :probe-wire::measure-tier

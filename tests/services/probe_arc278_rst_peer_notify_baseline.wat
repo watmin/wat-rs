@@ -36,4 +36,4 @@
       ((:wat::kernel::RecvOutcome::Message _m) "MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost _cause) "LOST")
       (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut "LOST"))))

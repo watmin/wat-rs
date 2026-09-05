@@ -155,7 +155,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::println (:wat::string::concat "CONTROL echo(i64)        => LOST " (:wat::kernel::LociDiedError/message cause))))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "CONTROL echo(i64)        => STOPPED"))
-      (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "CONTROL echo(i64)        => CLOSED")))))
+      (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "CONTROL echo(i64)        => CLOSED")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :probe::run-count [] -> :wat::core::nil
   (:wat::core::let
@@ -171,7 +171,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::println (:wat::string::concat "SUBJECT count(Vec<WatAST>) => LOST " (:wat::kernel::LociDiedError/message cause))))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => STOPPED"))
-      (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => CLOSED")))))
+      (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => CLOSED")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── THE ENCODE ISOLATOR — same op, same value, THREAD locus ───────────────────────────────
 ;; A thread peer hands values across in-process; a process peer EDN-encodes them through a pipe.
@@ -194,7 +194,7 @@
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => LOST " (:wat::kernel::LociDiedError/message cause))))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "ISOLATOR count THREAD      => STOPPED"))
-      (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "ISOLATOR count THREAD      => CLOSED")))))
+      (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "ISOLATOR count THREAD      => CLOSED")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

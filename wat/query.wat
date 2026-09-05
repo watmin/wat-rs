@@ -483,7 +483,7 @@
                 (:wat::kernel::RecvOutcome::Stopped
                   (~resp-fat-kw (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE")))
                 (:wat::kernel::RecvOutcome::Closed
-                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))))))
+                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
               (:wat::core::Vector :- [(:wat::service::Directed :- [~surface-reply-kw])])
               (:wat::core::Vector :- [(:wat::service::Alarm :- [~svc-op-kw])])))]))))
 

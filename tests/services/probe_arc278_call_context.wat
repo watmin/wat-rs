@@ -117,7 +117,7 @@
         ((:probe::CallCtx3::WhoamiResponse::RequestMalformed _p _e _g) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "whoami: stop before reply" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None))))
+    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; A bounded, event-driven wait (NOT a sleep-guess — arc 278's own precedent, DESIGN-STONE-the-
 ;; call-context.md's reproduction: "wait 60ms via a select'-on-after nap"): arm a one-shot timer
@@ -130,7 +130,7 @@
       ((:wat::kernel::RecvOutcome::Message _tick) nil)
       ((:wat::kernel::RecvOutcome::Lost _cause) nil)
       (:wat::kernel::RecvOutcome::Stopped nil)
-      (:wat::kernel::RecvOutcome::Closed nil))))
+      (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))))
 
 ;; ── (1) a 3-param arm receives a POPULATED ctx ────────────────────────────────────────────
 ;; Returns a Tuple(caller-id, operation) — the harness checks caller-id >= 0 (present) and
@@ -150,7 +150,7 @@
           ((:probe::CallCtx3::WhoamiResponse::RequestMalformed _p _e _g) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "whoami: stop before reply" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)))))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; namespace equals the service's own fqdn — a keyword equality check, kept as its own bool-
 ;; returning driver (the harness above already proves caller-id/operation).
@@ -167,7 +167,7 @@
           ((:probe::CallCtx3::WhoamiResponse::RequestMalformed _p _e _g) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "whoami: stop before reply" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)))))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── a SECOND public op in the SAME service, also `[s ctx req]` — unremarkable on its own, but
 ;; it keeps the service honest that ctx isn't special-cased to whichever op happens to be first
@@ -185,7 +185,7 @@
           ((:probe::CallCtx3::PingResponse::RequestMalformed _p _e _g) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "ping: stop before reply" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "ping: closed before reply" :wat::core::None :wat::core::None)))))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "ping: closed before reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; ── (2) ★ THE test — an INTERNAL arm receives a populated `SelfInvocation` ────────────────────
 ;; `arm-mark` (a public op) arms the one-shot internal `-mark`; `-mark` stamps its OWN ctx into
@@ -203,7 +203,7 @@
         ((:probe::CallCtx3::PeekMarkResponse::RequestMalformed _p _e _g) (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "peek-mark: stop before reply" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "peek-mark: closed before reply" :wat::core::None :wat::core::None))))
+    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "peek-mark: closed before reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; peek-until — bounded retry, event-driven backoff (`:probe::nap!`), terminates on the OBSERVED
 ;; seen-op becoming non-empty (i.e. `-mark` has genuinely fired and its ctx landed in state).
@@ -227,7 +227,7 @@
          ((:wat::kernel::RecvOutcome::Message __r) __r)
          ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "arm-mark: stop before reply" :wat::core::None :wat::core::None))
-         (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "arm-mark: closed before reply" :wat::core::None :wat::core::None)))
+         (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "arm-mark: closed before reply" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
      seen (:probe::peek-until c 40)
      seen-op (:wat::core::first seen)
      seen-ns (:wat::core::second seen)]

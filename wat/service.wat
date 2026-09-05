@@ -343,7 +343,7 @@
      ;; known-clauses: durable, ephemeral, ops (REQUIRED), init, hibernate, stop, durable-parent.
      ;; Arc 293 S2: :satisfies (name a surface — reference its S1-synthesized protocol) and
      ;; :impls (bodies-only op implementations, in place of :ops) join the recognized clauses.
-     known-clauses  (:wat::hashmap::assoc
+     known-clauses  (:wat::hashmap::assoc (:wat::hashmap::assoc
                       (:wat::hashmap::assoc
                        (:wat::hashmap::assoc
                         (:wat::hashmap::assoc
@@ -378,7 +378,7 @@
                       ;; sanitization is not something a service opts into — it is what a service IS.
                       ;; See serve-op-arms below: the request-SHAPE guard is generated for EVERY op
                       ;; of EVERY service, always.
-                      "max-frame-bytes" true)
+                      "max-frame-bytes" true) "deadline-ms" true)
      clauses-len    (:wat::core::length clauses-body)
      n-clause-pairs (:wat::i64::/ clauses-len 2)
      ;; even-length guard
@@ -407,7 +407,7 @@
                             (:wat::core::macro-error
                               (:wat::string::concat "defservice: unknown clause :"
                                 (:wat::string::concat key
-                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers :max-frame-bytes"))))))
+                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers :max-frame-bytes :deadline-ms"))))))
                       (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                       (:wat::core::range 0 n-clause-pairs))
      ;; ── Arc 293 S2: :ops vs :satisfies mode ────────────────────────────────────
@@ -2110,6 +2110,16 @@
                            ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
                          (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))))
 
+     ;; Optional :deadline-ms on the service. Default 10000. Never off — a deadline
+     ;; whose off-position is "hang forever" is the same non-option as a sanitization
+     ;; knob whose off-position is "die on a malformed frame." Bound here (after the
+     ;; bijection goldens at :896/:913) so those snapshots do not move.
+     deadline-ms-node (:wat::core::if (:wat::hashmap::contains-key? clause-map "deadline-ms")
+                         (:wat::core::Option/expect
+                           (:wat::hashmap::get clause-map "deadline-ms")
+                           "defservice: :deadline-ms needs a value")
+                         `10000)
+
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- (Peer :- [S::Op S::Reply])  req <- <S>::<Op>Request] -> <S>::<Op>Response
      ;;    (let [_ (send' c (<S>::Op::<Op> req))  r (recv' c)]
@@ -2223,18 +2233,15 @@
                           ;; proceed regardless (faced, not `_`-swallowed). UNDER budget (or no wire
                           ;; to measure against — STOP-3) reaches this form, and ONLY this form.
                           send-recv-form  `(:wat::core::let
-                                             [~discard-sym (:wat::core::match (:wat::kernel::send c (~op-variant-kw req))
-                                                             (:wat::kernel::SendOutcome::Sent   nil)
-                                                             (:wat::kernel::SendOutcome::Closed nil)
-                                                             ;; arc 278 #73 — uniform, and the precondition is
-                                                             ;; the recv' on the very next line: a stop that
-                                                             ;; interrupted this write is still in force when
-                                                             ;; the read parks, so the read returns Stopped and
-                                                             ;; the caller is told once, by the arm below.
-                                                             ;; Deciding here would decide it twice.
-                                                             (:wat::kernel::SendOutcome::Stopped nil)
-                                                             ((:wat::kernel::SendOutcome::Lost _c) nil))
-                                              ~r-sym (:wat::kernel::recv c)]
+                                             [~r-sym (:wat::core::match
+                                                       (:wat::service::call-by-deadline c (~op-variant-kw req) ~deadline-ms-node
+                                                         (~reply-variant-kw (~rtl-ctor-kw 0 0)))
+                                                       ((:wat::service::CallOutcome::Answered recvd)
+                                                         (:wat::kernel::RecvOutcome::Message recvd))
+                                                       ((:wat::service::CallOutcome::DeadlineFired)
+                                                         :wat::kernel::RecvOutcome::TimedOut)
+                                                       ((:wat::service::CallOutcome::PeerGone)
+                                                         :wat::kernel::RecvOutcome::Closed))]
                                              (:wat::core::match ~r-sym
                                                ((:wat::kernel::RecvOutcome::Message recvd)
                                                  (:wat::kernel::RecvOutcome::Message
@@ -2261,7 +2268,12 @@
                                                (:wat::kernel::RecvOutcome::Stopped
                                                  :wat::kernel::RecvOutcome::Stopped)
                                                (:wat::kernel::RecvOutcome::Closed
-                                                 :wat::kernel::RecvOutcome::Closed)))
+                                                 :wat::kernel::RecvOutcome::Closed)
+                                               ;; arc 278 no client call can hang — TimedOut is a real
+                                               ;; outcome the caller faces. Raised inside the macro was
+                                               ;; the collapse this stone retracts. Pass it through.
+                                               (:wat::kernel::RecvOutcome::TimedOut
+                                                 :wat::kernel::RecvOutcome::TimedOut)))
                           ;; DESIGN-STONE-the-client-validates-locally.md — THE STRIKE. Validation
                           ;; and dispatch are ONE operation (botocore validates before the HTTP call
                           ;; is ever made): over budget → the SAME RequestTooLarge{bytes,cap} a
@@ -2334,7 +2346,7 @@
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice stop: service peer closed during stop"
-                                :wat::core::None :wat::core::None))))
+                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
      methods           (:wat::core::conj op-methods stop-method)
@@ -2375,7 +2387,7 @@
                                  (:wat::kernel::RecvOutcome::Closed
                                    (:wat::kernel::assertion-failed!
                                      "defservice hibernate: service peer closed during hibernate"
-                                     :wat::core::None :wat::core::None))))
+                                     :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
@@ -2427,7 +2439,7 @@
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice grant: service peer closed during grant"
-                                :wat::core::None :wat::core::None)))))
+                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
                           (:wat::core::None nil))
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
@@ -2477,7 +2489,7 @@
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed!
                                  "defservice revoke: service peer closed during revoke"
-                                 :wat::core::None :wat::core::None)))))
+                                 :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
                            (:wat::core::None nil))
      revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
@@ -2597,7 +2609,7 @@
                                             (:wat::kernel::RecvOutcome::Stopped
                                               (:wat::kernel::eprintln "defservice child-main: stop requested before the startup ship — owner link was ALIVE"))
                                             (:wat::kernel::RecvOutcome::Closed
-                                              (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")))
+                                              (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
                            ~cm-st-sym   (:wat::core::apply
                                             (:wat::keyword::from-string ~dispatch-admin-name-str)
                                             ~cm-ship-sym [])
@@ -3128,6 +3140,13 @@
 ;; call-by-deadline — one client round-trip with a timer. idx 0 is Answered;
 ;; idx 1 is DeadlineFired. Lost/Closed is PeerGone. `inert` is the timer's
 ;; payload: the type demands a value, and it is never read.
+;;
+;; ⛔ TIER IS THE RACED PEER'S, not the caller's. DESIGN-a-client-has-a-deadline:
+;; select refuses a mixed-tier set. Env/peer-kind matches by construction inside
+;; a serve loop, and is UNAVAILABLE from a generated client method (no program
+;; env on a rust-test thread; wrong tier when the caller is thread and the
+;; service is process). `peer-wire?` is the peer's own transport: wire →
+;; process timer, otherwise thread. Not a locus special-case.
 (:wat::core::defn :wat::service::call-by-deadline :- [I O]
   [peer <- (:wat::kernel::Peer :- [:I :O])  op <- :I
    ms <- :wat::core::i64  inert <- :O]
@@ -3135,7 +3154,9 @@
   (:wat::core::match (:wat::kernel::send peer op)
     (:wat::kernel::SendOutcome::Sent
       (:wat::core::let
-        [kind (:wat::program::Env/peer-kind (:wat::program::env))
+        [kind (:wat::core::if (:wat::kernel::peer-wire? peer)
+                 :wat::program::PeerKind::process
+                 :wat::program::PeerKind::thread)
          tmr (:wat::core::first
                (:wat::core::conj
                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [:I :O])])

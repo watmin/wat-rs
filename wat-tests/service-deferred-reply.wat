@@ -175,7 +175,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "ping: stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "ping: closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "ping: closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 ;; Raw park send + same-connection ping: the ping reply proves the waiter is stored.
 (:wat::core::defn :wat-tests::parker::park!
@@ -208,7 +208,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "recv-wake: stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv-wake: closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "recv-wake: closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat-tests::parker::drive-await-tick
   [h <- :wat-tests::parker::Handle] -> :wat::core::keyword
@@ -228,7 +228,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "await-tick: stopped" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "await-tick: closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "await-tick: closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; Confine a parked client to this frame so dropping it is RAII, not a sleep-guess.
 ;; Bindings, not tail: a Handle-param frame that tail-calls drops the Handle BEFORE the

@@ -55,7 +55,7 @@
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 ;; PROCESS locus — at HEAD /start SUCCEEDED (Started sent before :init ran) and the owner's
 ;; connect' collapsed to a bare ECONNREFUSED with the reason discarded. GREEN: the reordered
@@ -75,4 +75,4 @@
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
       (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED") (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))

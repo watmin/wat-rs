@@ -1863,6 +1863,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
             // there is nothing to report. The substrate was asked to stop. That is the
             // whole fact — a cause here would be inventing a reason for "you asked me to".
             EnumVariant::Unit("Stopped".into()),
+            // Arc 278 no-client-call-can-hang — a generated client method's deadline
+            // fired. The peer is ALIVE and SILENT: nothing died (not Lost), nothing
+            // closed (not Closed), the substrate was not asked to stop (not Stopped).
+            // UNIT: the fact is the whole report. Folding this into Lost is the
+            // collapse this stone exists to refuse.
+            EnumVariant::Unit("TimedOut".into()),
             EnumVariant::Tagged {
                 name: "Lost".into(),
                 // Arc 278 the LociDiedError stone — the Lost cause is now the

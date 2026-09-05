@@ -64,4 +64,4 @@
     ;; "the world is ending"): either way this loop's one channel is done. Same body as
     ;; Closed, stated by name rather than folded together silently.
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))

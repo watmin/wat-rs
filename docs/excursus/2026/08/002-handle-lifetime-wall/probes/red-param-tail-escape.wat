@@ -56,7 +56,7 @@
     ((:wat::kernel::RecvOutcome::Message __r) 1)
     ((:wat::kernel::RecvOutcome::Lost __c) -1)
     (:wat::kernel::RecvOutcome::Stopped -2)
-    (:wat::kernel::RecvOutcome::Closed -3)))
+    (:wat::kernel::RecvOutcome::Closed -3) (:wat::kernel::RecvOutcome::TimedOut -1)))
 
 ;; ✅ MUST KEEP COMPILING — handle as a param, drive in a BINDING. This frame outlives the call.
 ;; If the wall names this, condition 2 (the let itself in tail with a user-fn tail expr) was

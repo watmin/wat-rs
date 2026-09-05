@@ -79,7 +79,7 @@
                       (:wat::kernel::assertion-failed!
                         "recv: stopped — the substrate was asked to stop; the child was ALIVE (not the SIGTERM-close this test proves)"
                         :wat::core::None :wat::core::None))
-                    (:wat::kernel::RecvOutcome::Closed true)))
+                    (:wat::kernel::RecvOutcome::Closed true) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::kernel::assertion-failed!
                     (:wat::kernel::LociDiedError/message cause)
@@ -91,7 +91,7 @@
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::kernel::assertion-failed!
                     "the child died without announcing a stop — the signal did not run the protocol"
-                    :wat::core::None :wat::core::None))))
+                    :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
             ((:wat::kernel::SignalOutcome::Failed cause)
               (:wat::kernel::assertion-failed!
                 (:wat::kernel::Failure/message cause)
@@ -107,5 +107,5 @@
         (:wat::kernel::RecvOutcome::Closed
           (:wat::kernel::assertion-failed!
             "the child closed before we ever signalled it"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
     true))

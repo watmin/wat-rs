@@ -100,7 +100,7 @@
         (_ "malformed")))
     ((:wat::kernel::RecvOutcome::Lost _c) "LOST")
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-    (:wat::kernel::RecvOutcome::Closed "CLOSED")))
+    (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut "LOST")))
 
 ;; ⚠ The two loci cannot share a code path: a process Handle is (Handle :- [Wire]) and a
 ;; thread Handle is (Handle :- [Shared]). The LOCUS IS IN THE TYPE, so `if` cannot unify them.

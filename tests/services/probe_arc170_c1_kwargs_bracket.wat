@@ -55,7 +55,7 @@
                       (:wat::kernel::assertion-failed! "work: unexpected RequestTooLarge"
                         :wat::core::None :wat::core::None))
                     ((:probe::Echo::EchoResponse::RequestMalformed mpath mexpected mgot)
-                      (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+                      (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
                 ;; ── serve loop: Work arm invokes via the COMPANION :key val call ──
                 (:wat::core::defn :probe::serve
                   [self <- (:wat::kernel::Peer :- [:wat::core::String :probe::Msg])
@@ -78,7 +78,7 @@
                     ;; unexpected close is here; return quietly (end the serve loop) — JUDGEMENT CALL.
                     (:wat::kernel::RecvOutcome::Stopped nil)
                     (:wat::kernel::RecvOutcome::Closed
-                      (:wat::kernel::assertion-failed! "recv': self closed — serve loop terminating" :wat::core::None :wat::core::None))))
+                      (:wat::kernel::assertion-failed! "recv': self closed — serve loop terminating" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String :probe::Msg)]
@@ -96,7 +96,7 @@
                       (:wat::kernel::RecvOutcome::Stopped
                         (:wat::kernel::assertion-failed! "recv': stopped before reply a — the peer was ALIVE" :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
-                        (:wat::kernel::assertion-failed! "recv': worker closed before reply a" :wat::core::None :wat::core::None)))
+                        (:wat::kernel::assertion-failed! "recv': worker closed before reply a" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "b")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))  ;; arc 278 #73 — the recv' below already faces the stop
                  r2 (:wat::core::match (:wat::kernel::recv worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
@@ -105,7 +105,7 @@
                       (:wat::kernel::RecvOutcome::Stopped
                         (:wat::kernel::assertion-failed! "recv': stopped before reply b — the peer was ALIVE" :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
-                        (:wat::kernel::assertion-failed! "recv': worker closed before reply b" :wat::core::None :wat::core::None)))
+                        (:wat::kernel::assertion-failed! "recv': worker closed before reply b" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "c")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))  ;; arc 278 #73 — the recv' below already faces the stop
                  r3 (:wat::core::match (:wat::kernel::recv worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
@@ -114,7 +114,7 @@
                       (:wat::kernel::RecvOutcome::Stopped
                         (:wat::kernel::assertion-failed! "recv': stopped before reply c — the peer was ALIVE" :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
-                        (:wat::kernel::assertion-failed! "recv': worker closed before reply c" :wat::core::None :wat::core::None)))]
+                        (:wat::kernel::assertion-failed! "recv': worker closed before reply c" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))]
                 (:wat::string::concat r1
                   (:wat::string::concat " "
                     (:wat::string::concat r2

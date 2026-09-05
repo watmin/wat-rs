@@ -360,7 +360,7 @@
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
                       (:wat::kernel::RecvOutcome::Stopped
-                        (:wat::kernel::assertion-failed! "fanout worker: disrupt poison stopped" :wat::core::None :wat::core::None)))
+                        (:wat::kernel::assertion-failed! "fanout worker: disrupt poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost"))
                     "miss")
         tore? (:wat::core::or (:wat::core::= poisoned "lost") (:wat::core::= poisoned "closed"))
         seen' (:wat::core::if tore?
@@ -695,7 +695,7 @@
                                 (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))
                                 ((:wat::kernel::ConnectOutcome::Connected p) p)
                                 (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
-                              outs0)))))
+                              outs0)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) outs0)))))
                     (:wat::core::Tuple q outs)
                     held)
             s' (:fanout::held-worker::State :durable rec
@@ -741,7 +741,7 @@
                           (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
                   s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)]
                  (:wat::service::SelfOutcome::Continue s'
-                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))))))])
+                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)] (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))))))])
 
 ;; ── parent-side helpers (owner thread; Handles stay in :user::run's let) ────────
 (:wat::core::defn :fanout::qname [i <- :wat::core::i64] -> :wat::core::String
@@ -808,7 +808,7 @@
     ((:wat::kernel::RecvOutcome::Lost _cause) nil)
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "fanout: start stopped" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
 
 ;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
 (:wat::core::defn :fanout::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
@@ -818,7 +818,7 @@
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
 
 ;; Parent-side constructor. Chaos fields default off (rate 0 arms nothing).
 (:wat::core::defn :fanout::mk-worker
@@ -968,7 +968,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "fanout: publish stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fanout::publish-until-accepted!
   [t <- :demo::Topic  msg <- :wat::core::String] -> :wat::core::nil
@@ -1050,7 +1050,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "fanout: seen stats stopped" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "fanout: seen stats closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "fanout: seen stats closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :fanout::sum-disrupts
   [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
@@ -1069,7 +1069,7 @@
             ((:fanout::Worker::DisruptsResponse::RequestMalformed _p _e _g) acc)))
         ((:wat::kernel::RecvOutcome::Lost _c) acc)
         (:wat::kernel::RecvOutcome::Stopped acc)
-        (:wat::kernel::RecvOutcome::Closed acc)))
+        (:wat::kernel::RecvOutcome::Closed acc) (:wat::kernel::RecvOutcome::TimedOut acc)))
     (:wat::core::Tuple 0 0)
     wpeers))
 
