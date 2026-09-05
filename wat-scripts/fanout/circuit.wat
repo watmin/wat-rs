@@ -1225,14 +1225,17 @@
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
-   drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
+   drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool
+   drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
      ;; Drop runs: 200 ms vis so an unacked envelope (no claim-reply) becomes
      ;; visible again. T1's 200 ms claim deadline retries the same worker;
      ;; vis expiry is the other worker. Both are retries of a dropped reply.
-     vis (:wat::core::if (:wat::core::or (:wat::i64::> drop-check-bp 0) (:wat::i64::> drop-mark-bp 0))
+     vis (:wat::core::if (:wat::core::or
+                           (:wat::core::or (:wat::i64::> drop-check-bp 0) (:wat::i64::> drop-mark-bp 0))
+                           (:wat::core::or (:wat::i64::> drop-recv-bp 0) (:wat::i64::> drop-ack-bp 0)))
             200000000 1000000000000)
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::sqlite-store::Handle])
@@ -1253,7 +1256,7 @@
                         :locus (:wat::spawn::process/post-spawn
                                  (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                                    (:wat::query::sqlite-store/grant sh (:fanout::pids pl))))
-                        :record (:queue::queue::Record :cap 32 :store-addr (:wat::query::sqlite-store::Handle/addr sh)))]
+                        :record (:queue::queue::Record :cap 32 :store-addr (:wat::query::sqlite-store::Handle/addr sh) :drop-recv-bp drop-recv-bp :drop-ack-bp drop-ack-bp :drop-seed drop-seed))]
                   (:wat::core::conj acc h)))
               (:wat::core::Vector :- [:queue::queue::Handle])
               (:wat::core::range 0 m))
@@ -1263,7 +1266,7 @@
                 :locus (:wat::spawn::process/post-spawn
                          (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                            (:wat::query::sqlite-store/grant inbox-store (:fanout::pids pl))))
-                :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr inbox-store)))
+                :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr inbox-store) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      qaddrs (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
                                i   <- :wat::core::i64]
@@ -1431,20 +1434,20 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 0 0 0 0 0 false))
+  (:fanout::run-with n m j 0 0 0 0 0 false 0 0))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j rate seed 0 0 0 false))
+  (:fanout::run-with n m j rate seed 0 0 0 false 0 0))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 0 0 drop-check-bp drop-mark-bp drop-seed drop-after?))
+  (:fanout::run-with n m j 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -1460,6 +1463,12 @@
 
 (:wat::core::defn :user::drop-check-tiny [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
+
+(:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
+  (:wat::core::first (:fanout::run-with 50 2 2 0 0 0 0 42 true 1000 0)))
+
+(:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
+  (:wat::core::first (:fanout::run-with 50 2 2 0 0 0 0 42 true 0 1000)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -1575,7 +1584,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
-           :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
+           :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      hh  (:fanout::held-worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1621,7 +1630,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
-           :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
+           :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
@@ -1654,14 +1663,14 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
-           :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
+           :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      ish (:wat::query::sqlite-store/start :locus (:wat::spawn::process)
            :record (:wat::query::sqlite-store::Record :path ":memory:" :index-names (:wat::core::Vector :- [:wat::core::String] "by-visible-at")))
      iqh (:queue::queue/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::sqlite-store/grant ish (:fanout::pids pl))))
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th  (:demo::topic/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1713,7 +1722,7 @@
     [msh (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::sqlite-store::Record :path ":memory:" :index-names (:wat::core::Vector :- [:wat::core::String] "by-visible-at")))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q   (:fanout::dial-queue (:queue::queue::Handle/addr qh))
      send1 (:wat::core::fn [] -> :wat::core::nil
              (:wat::core::match
@@ -1762,7 +1771,7 @@
     [msh (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::sqlite-store::Record :path ":memory:" :index-names (:wat::core::Vector :- [:wat::core::String] "by-visible-at")))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)

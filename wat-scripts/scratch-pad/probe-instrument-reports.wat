@@ -11,7 +11,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 8 :store-addr (:wat::query::mem-store::Handle/addr msh)))
+           :record (:queue::queue::Record :cap 8 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q   (:demo::dial-queue (:queue::queue::Handle/addr qh))
      expired (:demo::poll-until-unacked q 3)
      live (:demo::q-depth q)

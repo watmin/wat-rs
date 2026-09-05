@@ -796,7 +796,7 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::mem-store::Handle])
                                _i  <- :wat::core::i64]
@@ -812,7 +812,7 @@
                 -> (:wat::core::Vector :- [:queue::queue::Handle])
                 (:wat::core::conj acc
                   (:queue::queue/start :locus (:wat::spawn::thread)
-                    :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr (:wat::core::nth stores i))))))
+                    :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr (:wat::core::nth stores i)) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))))
               (:wat::core::Vector :- [:queue::queue::Handle])
               (:wat::core::range 0 3))
      qaddrs (:wat::core::foldl
@@ -859,7 +859,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::query::mem-store/grant ish (:demo::pids pl))))
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::mem-store::Handle])
                                _i  <- :wat::core::i64]
@@ -879,7 +879,7 @@
                         :locus (:wat::spawn::process/post-spawn
                                  (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                                    (:wat::query::mem-store/grant sh (:demo::pids pl))))
-                        :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh)))]
+                        :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))]
                   (:wat::core::conj acc h)))
               (:wat::core::Vector :- [:queue::queue::Handle])
               (:wat::core::range 0 3))
@@ -947,7 +947,7 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -963,7 +963,7 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 3 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -980,7 +980,7 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -1000,7 +1000,7 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -1025,7 +1025,7 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -1040,7 +1040,7 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -1059,11 +1059,11 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      ssh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      sqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr ssh)))
+           :record (:queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr ssh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
@@ -1097,15 +1097,15 @@
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish)))
+           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      s0 (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      q0h (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 32 :store-addr (:wat::query::mem-store::Handle/addr s0)))
+           :record (:queue::queue::Record :cap 32 :store-addr (:wat::query::mem-store::Handle/addr s0) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      s1 (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      q1h (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr s1)))
+           :record (:queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr s1) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr q0h) (:queue::queue::Handle/addr q1h))
      th (:demo::topic/start :locus (:wat::spawn::thread)

@@ -107,7 +107,7 @@
     [sh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh (:queue::queue/start :locus (:wat::spawn::thread)
-          :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh)))
+          :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q  (:dd::dial-q (:queue::queue::Handle/addr qh))
      st (:dd::dial-store (:wat::query::mem-store::Handle/addr sh))
      _s (:dd::send-n q (:wat::core::Vector :- [:wat::core::String] "m0" "m1" "m2"))

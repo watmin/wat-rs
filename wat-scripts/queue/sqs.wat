@@ -114,7 +114,10 @@
   ;; Contract cap stays 524288. Thread locus does not tear.
   :max-frame-bytes 8192
   :durable   [cap <- :wat::core::i64
-              store-addr <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])]
+              store-addr <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])
+              drop-recv-bp <- :wat::core::i64
+              drop-ack-bp  <- :wat::core::i64
+              drop-seed    <- :wat::core::i64]
   :ephemeral [store         <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
               take          <- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply]) :wat::core::String :wat::core::i64 :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply]) (:wat::core::Vector :- [:queue::Envelope])])]
               waiters       <- (:wat::core::PersistentVector :- [:queue::Waiter])
@@ -512,12 +515,26 @@
         vis-ns (:queue::Queue::ReceiveRequest/visibility-ns req)
         lim    (:queue::Queue::ReceiveRequest/limit req)
         wait   (:queue::Queue::ReceiveRequest/wait req)
+        rec    (:queue::queue::State/durable s)
+        rate   (:queue::queue::Record/drop-recv-bp rec)
+        pair   (:wat::core::if (:wat::i64::> rate 0)
+                 (:wat::rand::int-from (:queue::queue::Record/drop-seed rec) 0 10000)
+                 (:wat::core::Tuple (:queue::queue::Record/drop-seed rec) 0))
+        seed1  (:wat::core::first pair)
+        bp     (:wat::core::second pair)
+        hit?   (:wat::core::and (:wat::i64::> rate 0) (:wat::i64::< bp rate))
+        rec'   (:queue::queue::Record
+                 :cap (:queue::queue::Record/cap rec)
+                 :store-addr (:queue::queue::Record/store-addr rec)
+                 :drop-recv-bp rate
+                 :drop-ack-bp (:queue::queue::Record/drop-ack-bp rec)
+                 :drop-seed seed1)
         calls  (:wat::i64::+ (:queue::queue::State/receive-calls s) 1)
         taken-pair (:wat::core::apply (:queue::queue::State/take s) store0 q [now-ns vis-ns lim])
         store  (:wat::core::first taken-pair)
         envs   (:wat::core::second taken-pair)
         s-n    (:queue::queue::State
-                 :durable (:queue::queue::State/durable s)
+                 :durable rec'
                  :store store
                  :take (:queue::queue::State/take s)
                  :waiters (:queue::queue::State/waiters s)
@@ -546,7 +563,9 @@
                   :tick-armed? (:wat::core::first pair)
                   :arm-tick (:queue::queue::State/arm-tick s-n))]
            (:wat::service::Outcome::Continue s-a
-             (:wat::core::Some (:queue::Queue::Reply::Receive (:queue::Queue::ReceiveResponse::Ok envs)))
+             (:wat::core::if hit?
+               :wat::core::None
+               (:wat::core::Some (:queue::Queue::Reply::Receive (:queue::Queue::ReceiveResponse::Ok envs))))
              (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
              (:wat::core::second pair)))
          (:wat::core::match wait
@@ -568,8 +587,10 @@
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-n))]
              (:wat::service::Outcome::Continue s-a
-               (:wat::core::Some (:queue::Queue::Reply::Receive (:queue::Queue::ReceiveResponse::Ok
-                 (:wat::core::Vector :- [:queue::Envelope]))))
+               (:wat::core::if hit?
+                 :wat::core::None
+                 (:wat::core::Some (:queue::Queue::Reply::Receive (:queue::Queue::ReceiveResponse::Ok
+                   (:wat::core::Vector :- [:queue::Envelope])))))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                (:wat::core::second pair))))
            ((:queue::Queue::Wait::UpTo d)
@@ -619,6 +640,20 @@
        [store (:queue::queue::State/store s)
         q     (:queue::Queue::AckRequest/queue req)
         id    (:queue::Queue::AckRequest/id req)
+        rec   (:queue::queue::State/durable s)
+        rate  (:queue::queue::Record/drop-ack-bp rec)
+        pair  (:wat::core::if (:wat::i64::> rate 0)
+                (:wat::rand::int-from (:queue::queue::Record/drop-seed rec) 0 10000)
+                (:wat::core::Tuple (:queue::queue::Record/drop-seed rec) 0))
+        seed1 (:wat::core::first pair)
+        bp    (:wat::core::second pair)
+        hit?  (:wat::core::and (:wat::i64::> rate 0) (:wat::i64::< bp rate))
+        rec'  (:queue::queue::Record
+                :cap (:queue::queue::Record/cap rec)
+                :store-addr (:queue::queue::Record/store-addr rec)
+                :drop-recv-bp (:queue::queue::Record/drop-recv-bp rec)
+                :drop-ack-bp rate
+                :drop-seed seed1)
         del   (:wat::query::Store/delete store
                 (:wat::query::Store::DeleteRequest
                   (:wat::core::Vector :- [:wat::query::Key]
@@ -629,7 +664,7 @@
              ((:wat::query::Store::DeleteResponse::Success)
                (:wat::core::let
                  [s' (:queue::queue::State
-                       :durable (:queue::queue::State/durable s)
+                       :durable rec'
                        :store store
                        :take (:queue::queue::State/take s)
                        :waiters (:queue::queue::State/waiters s)
@@ -656,7 +691,9 @@
                         :tick-armed? (:wat::core::first pair)
                         :arm-tick (:queue::queue::State/arm-tick s'))]
                  (:wat::service::Outcome::Continue s-a
-                   (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok)))
+                   (:wat::core::if hit?
+                     :wat::core::None
+                     (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok))))
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                    (:wat::core::second pair))))
              (_ (:wat::kernel::assertion-failed! "queue.ack: store delete failed" :wat::core::None :wat::core::None))))
@@ -1002,7 +1039,7 @@
   -> :wat::core::String
   (:wat::core::let
     [qh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 1024 :store-addr store-addr))
+           :record (:queue::queue::Record :cap 1024 :store-addr store-addr :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q  (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
      vis 100
@@ -1042,7 +1079,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
+            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
@@ -1061,7 +1098,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
+            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
@@ -1078,7 +1115,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
+            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      a   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      c   (:user::dial-queue-peer (:queue::queue::Handle/addr qh))
      b   (:user::dial-queue (:queue::queue::Handle/addr qh))
@@ -1099,7 +1136,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
+            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  1000000000
      _   (:user::send q "q" "a" T0)
@@ -1118,7 +1155,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
+            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      _   (:user::await-timer-ms 20)
      st  (:user::read-call-counters q)]
@@ -1131,7 +1168,7 @@
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh)))
+            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q   (:user::dial-queue (:queue::queue::Handle/addr qh))
      T0  (:wat::time::epoch-nanos (:wat::time::now))
      vis 1000000000000

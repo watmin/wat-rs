@@ -70,7 +70,7 @@
     [sh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      qh (:queue::queue/start :locus (:wat::spawn::thread)
-          :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh)))
+          :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      q  (:vr::dial (:queue::queue::Handle/addr qh))
      _s (:vr::send-one q)
      first-id  (:vr::take-one q 200000000)          ;; 200 ms visibility, NOT acked

@@ -175,6 +175,22 @@ fn drop_check_tiny() {
 
 #[ignore]
 #[test]
+fn drop_recv_tiny() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::drop-recv-tiny");
+    eprintln!("DROP-RECV-TINY {stored}");
+}
+
+#[ignore]
+#[test]
+fn drop_ack_tiny() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::drop-ack-tiny");
+    eprintln!("DROP-ACK-TINY {stored}");
+}
+
+#[ignore]
+#[test]
 fn r2_drop_before_write() {
     let world = load_circuit();
     let stored = call_string(&world, ":user::drop-before-summary");
