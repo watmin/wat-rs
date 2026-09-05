@@ -47,7 +47,6 @@ pub(crate) fn hash_join_delta(
     d_beta: &mut BetaMemory,
     left_idx: &mut JoinLeftIndex,
     right_idx: &mut JoinRightIndex,
-    join_keys_cache: &mut JoinKeysCache,
 ) -> Result<(), EvalBreak> {
     let kind_ids = &arm.kind_ids;
     let compiled_conds = &arm.compiled_conds;
@@ -112,12 +111,11 @@ for node_id in &kind_ids.join_parent {
         }
         let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
 
-        // Step 1: Ensure join_keys[J] is cached.
-        // Compute from a sample token at P and a sample element at A (if both exist).
-        // first_keying=true means J was previously skipped while one side was empty;
-        // a one-time catch-up full-join is required to populate right_idx[J] from ALL
-        // cumulative wm.alpha[alpha_id] (not just the current round's dr).
-        let first_keying = if !join_keys_cache.contains_key(child_id) {
+        // Step 1: first_keying iff the left index has not been keyed. Membership
+        // of a sibling key-cache is no longer the latch (`JoinLeftIndex`).
+        // Compute keys from a sample token at P and a sample element at A.
+        let first_keying = !left_idx.is_keyed(*child_id);
+        let jk_owned: Vec<Value> = if first_keying {
             let sample_tok = wm.beta.get(node_id).and_then(|v| v.first());
             // READ #1 of 2: one sample token, to derive this join's keys.
             if sample_tok.is_some() {
@@ -125,27 +123,23 @@ for node_id in &kind_ids.join_parent {
             }
             let sample_el = wm.alpha.get(&alpha_id).and_then(|v| v.first());
             match (sample_tok, sample_el) {
-                (Some(tok), Some(el)) => {
-                    let keys = gather_join_keys(
-                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
-                        std::slice::from_ref(el),
-                        GatherIntern::from_wm(wm, alpha_id),
-                    );
-                    join_keys_cache.insert(*child_id, keys);
-                    true // first keying: catch-up full-join needed
-                }
+                (Some(tok), Some(el)) => gather_join_keys(
+                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                    std::slice::from_ref(el),
+                    GatherIntern::from_wm(wm, alpha_id),
+                ),
                 _ => {
                     // Neither side has data yet — skip this node for this round.
-                    // The join_keys will be computed next round when both sides are populated.
                     continue;
                 }
             }
         } else {
-            false
+            left_idx
+                .keys(*child_id)
+                .expect("keyed join has keys")
+                .to_vec()
         };
-
-        // Group C: borrow join_keys (pointer bump) instead of cloning (Vec alloc + copy).
-        let jk: &[Value] = &join_keys_cache[child_id];
+        let jk: &[Value] = &jk_owned;
 
         // CATCH-UP (first keying only): J was skipped every prior round while one side
         // was empty, so right_idx[J] was never populated from those rounds' facts.
@@ -267,19 +261,16 @@ for node_id in &kind_ids.join_parent {
                 }
             }
             phase_end("  ├ hj:catchup:probe", __cpr);
-            // Build left_idx[J] from ALL cumulative left tokens.
+            // Build left_idx[J] from ALL cumulative left tokens — same act as
+            // recording the keys (`JoinLeftIndex::key_and_index`).
             let __cli = phase_start();
-            {
-                let lidx = left_idx.entry(*child_id).or_default();
-                for &tok in all_left {
-                    let k = key_of(
-                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
-                        jk,
-                        &wm.bind_val_ids,
-                    );
-                    lidx.entry(k).or_default().push(tok);
-                }
-            }
+            left_idx.key_and_index(*child_id, jk_owned.clone(), all_left, |tok| {
+                key_of(
+                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                    jk,
+                    &wm.bind_val_ids,
+                )
+            });
             phase_end("  ├ hj:catchup:left-idx", __cli);
             // Emit catch-up tokens into cumulative and delta memories.
             let __cem = phase_start();
@@ -369,17 +360,16 @@ for node_id in &kind_ids.join_parent {
         )?;
 
         // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
-        // dl is &[Token] — iterate directly.
+        // writer is None until key_and_index — cannot skip the door.
         let __s5 = phase_start();
-        {
-            let lidx = left_idx.entry(*child_id).or_default();
+        if let Some(mut w) = left_idx.writer(*child_id) {
             for tok in dl {
                 let k = key_of(
                     &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                     jk,
                     &wm.bind_val_ids,
                 );
-                lidx.entry(k).or_default().push(*tok);
+                w.push(k, *tok);
             }
         }
         phase_end("  ├ hj:step5-left-idx", __s5);

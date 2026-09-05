@@ -80,7 +80,8 @@ pub(crate) struct JoinIdx<'a> {
     /// ⛔ ONE field, not two. The high-water mark used to ride beside this as
     /// `right_idx_n: &'a mut HashMap<i64, usize>`; `JoinRightIndex` owns it now (arc 278 D2).
     pub(crate) right_idx: &'a mut JoinRightIndex,
-    pub(crate) join_keys_cache: &'a mut JoinKeysCache,
+    /// Left buckets and key list, one owner (arc 278 A1).
+    pub(crate) left_idx: &'a mut JoinLeftIndex,
     pub(crate) match_scratch: &'a mut SlotFrame,
 }
 
@@ -125,7 +126,7 @@ pub(crate) fn left_activate_join(
         join_id,
         &mut FilterJoinIdx {
             right_idx: idx.right_idx,
-            join_keys_cache: idx.join_keys_cache,
+            left_idx: idx.left_idx,
         },
         &mut FireCtx {
             sym,

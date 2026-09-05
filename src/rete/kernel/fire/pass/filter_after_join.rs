@@ -20,8 +20,8 @@ pub(crate) fn filter_after_join(
     arm: &InternedNetwork,
     scratch: &mut RoundScratch<'_>,
     d_beta: &mut BetaMemory,
+    left_idx: &mut JoinLeftIndex,
     right_idx: &mut JoinRightIndex,
-    join_keys_cache: &mut JoinKeysCache,
     gather_cache: &mut GatherCache,
     after_join_frontier: Vec<i64>,
     sym: &SymbolTable,
@@ -79,7 +79,7 @@ while !frontier.is_empty() {
                     d_beta,
                     &mut super::JoinIdx {
                         right_idx,
-                        join_keys_cache,
+                        left_idx,
                         match_scratch,
                     },
                     &new_tokens,
@@ -195,7 +195,7 @@ while !frontier.is_empty() {
                             gc_id,
                             &mut FilterJoinIdx {
                                 right_idx,
-                                join_keys_cache,
+                                left_idx,
                             },
                             &mut FireCtx {
                             sym,

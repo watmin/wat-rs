@@ -164,8 +164,6 @@ pub(crate) type TestSibs = HashMap<i64, Vec<i64>>;
 pub(crate) type TestChildren = HashMap<i64, Vec<i64>>;
 /// Explain index: derived fact → (rule name, token as Value).
 pub(crate) type ExplainSupport = HashMap<Value, (String, Value)>;
-/// HashJoin id → cached join-key names. Not production memory.
-pub(crate) type JoinKeysCache = HashMap<i64, Vec<Value>>;
 pub(crate) type AlphasByType = HashMap<String, Vec<i64>>;
 /// Class name → the ids of that class's LEAF alphas only. Shape-identical to
 /// [`AlphasByType`] and deliberately a separate noun: that one holds EVERY alpha
@@ -204,8 +202,103 @@ pub(crate) enum JoinKey {
 
 /// P6 join index: interned join-key → tokens/elements at one HashJoin.
 pub(crate) type JoinKeyMap<T> = HashMap<JoinKey, Vec<T>>;
-/// HashJoin id → left (token) index, persistent across rounds.
-pub(crate) type JoinLeftIndex = HashMap<i64, JoinKeyMap<Token>>;
+/// HashJoin id → left (token) index **and** that join's key list, one owner.
+///
+/// ── WHY THIS IS A TYPE AND NOT TWO MAPS (arc 278 A1) ─────────────────────────────────────────
+///
+/// It was two: a `HashMap<i64, JoinKeyMap<Token>>` (`left_idx`) and a separate
+/// `join_keys_cache: HashMap<i64, Vec<Value>>`. `hash_join_delta` used cache
+/// membership as the latch for the one-time catch-up that is the ONLY bulk
+/// builder of `left_idx`. `keyed_join_persistent` wrote the cache and never
+/// the buckets. Round 2 then skipped catch-up forever; `left_idx.get` was a
+/// silent `None`; `term2 = old_left ⋈ Δright` never ran; a `:where` query
+/// dropped rows. Same class as D2 on the right side.
+///
+/// ⛔ **THE CURE IS STRUCTURAL, NOT CONVENTIONAL.** Patching `first_keying`
+/// would cure today's two writers and leave a third free to appear. Here the
+/// two maps are private fields of one type and the ONLY way to set the keys
+/// is [`JoinLeftIndex::key_and_index`], which indexes the left tokens **in
+/// the same act**. There is no accessor that hands out `&mut` to `keys` or
+/// `buckets`. A writer that keys a join without indexing the left side
+/// cannot be written: `error[E0616]: field 'keys' of struct 'JoinLeftIndex'
+/// is private`.
+#[derive(Default)]
+pub(crate) struct JoinLeftIndex {
+    buckets: HashMap<i64, JoinKeyMap<Token>>,
+    keys: HashMap<i64, Vec<Value>>,
+}
+
+/// The one door for incremental Δleft after [`JoinLeftIndex::key_and_index`].
+/// Absent until the join is keyed — there is no way to append without the door.
+pub(crate) struct LeftIndexWriter<'a> {
+    buckets: &'a mut JoinKeyMap<Token>,
+}
+
+impl LeftIndexWriter<'_> {
+    #[inline]
+    pub(crate) fn push(&mut self, key: JoinKey, tok: Token) {
+        self.buckets.entry(key).or_default().push(tok);
+    }
+}
+
+impl JoinLeftIndex {
+    /// True once [`key_and_index`] has run for this join. Replaces
+    /// `join_keys_cache.contains_key` as the catch-up latch.
+    #[inline]
+    pub(crate) fn is_keyed(&self, join_id: i64) -> bool {
+        self.keys.contains_key(&join_id)
+    }
+
+    /// The join's shared-variable list. None until [`key_and_index`].
+    #[inline]
+    pub(crate) fn keys(&self, join_id: i64) -> Option<&[Value]> {
+        self.keys.get(&join_id).map(Vec::as_slice)
+    }
+
+    /// The ONE first-keying door. Sets the key list and indexes `toks` in a
+    /// single act. A later call does not replace keys; it still indexes `toks`.
+    pub(crate) fn key_and_index(
+        &mut self,
+        join_id: i64,
+        keys: Vec<Value>,
+        toks: &[Token],
+        mut key_of_tok: impl FnMut(&Token) -> JoinKey,
+    ) {
+        self.keys.entry(join_id).or_insert(keys);
+        let buckets = self.buckets.entry(join_id).or_default();
+        for tok in toks {
+            buckets.entry(key_of_tok(tok)).or_default().push(*tok);
+        }
+    }
+
+    /// Incremental Δleft. `None` if the join has not been keyed — cannot skip
+    /// [`key_and_index`].
+    #[inline]
+    pub(crate) fn writer(&mut self, join_id: i64) -> Option<LeftIndexWriter<'_>> {
+        if !self.keys.contains_key(&join_id) {
+            return None;
+        }
+        Some(LeftIndexWriter {
+            buckets: self.buckets.entry(join_id).or_default(),
+        })
+    }
+
+    /// Read one join's buckets, for probing. Shared — a prober cannot append.
+    #[inline]
+    pub(crate) fn get(&self, join_id: &i64) -> Option<&JoinKeyMap<Token>> {
+        self.buckets.get(join_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn total_tokens(&self) -> usize {
+        self.buckets
+            .values()
+            .flat_map(|m| m.values())
+            .map(Vec::len)
+            .sum()
+    }
+}
+
 /// HashJoin id → right (element) index, persistent across rounds, **owning the high-water mark
 /// that describes it**.
 ///
