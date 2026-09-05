@@ -1117,7 +1117,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 name: "StepTerminal".into(),
                 fields: vec![(
                     "value".into(),
-                    TypeExpr::Path(":wat::holon::HolonAST".into()),
+                    TypeExpr::Path(":wat::WatAST".into()),
                 )],
             },
             // Arc 070 — distinguishes "input was already a value; no
@@ -1130,7 +1130,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 name: "AlreadyTerminal".into(),
                 fields: vec![(
                     "value".into(),
-                    TypeExpr::Path(":wat::holon::HolonAST".into()),
+                    TypeExpr::Path(":wat::WatAST".into()),
                 )],
             },
         ],
@@ -1166,7 +1166,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 fields: vec![
                     (
                         "terminal".into(),
-                        TypeExpr::Path(":wat::holon::HolonAST".into()),
+                        TypeExpr::Path(":wat::WatAST".into()),
                     ),
                     ("acc".into(), TypeExpr::Path("A".into())),
                 ],

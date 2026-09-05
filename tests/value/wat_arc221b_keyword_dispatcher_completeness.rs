@@ -96,9 +96,12 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
 
     // Part A: eval-step! on a keyword produces AlreadyTerminal.
     let s_a = run_string(&world, ":t::probe-3a");
-    // rune:lint(no-inlined-wat) — `<HolonAST>` is a Display-rendering placeholder token, not
+    // rune:lint(no-inlined-wat) — `<WatAST>` is a Display-rendering placeholder token, not
     // wat source; this is the `Debug`/`Display` text of a `StepResult` value, never evaluated.
-    assert_eq!(s_a, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)", "eval-step! keyword must emit exact golden");
+    // Arc 255 STONE-the-eval-surface-faces-watast: `StepResult::AlreadyTerminal`'s field is now
+    // `:wat::WatAST` (was `:wat::holon::HolonAST`), so the runtime `Value` it renders is
+    // `Value::wat__WatAST`, not `Value::holon__HolonAST` — the placeholder token follows.
+    assert_eq!(s_a, "(:wat::eval::StepResult::AlreadyTerminal <WatAST>)", "eval-step! keyword must emit exact golden");
 
     // Part B: from-wat(quote :outcome) and from-wat(quote :outcome) are equal
     // (same Keyword identity — both go through Stone 221.4b watast_to_holon).

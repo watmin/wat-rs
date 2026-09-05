@@ -1,5 +1,13 @@
 # NOTE — `:wat::eval::walk` is the last LANGUAGE verb that declares a `HolonAST`
 
+> ✅ **CLOSED 2026-09-04.** The language surface no longer declares `:wat::holon::HolonAST` anywhere.
+> Re-measured after the sweep: builtin type declarations name only `:wat::holon::BundleResult` and
+> `:wat::holon::Holons`; the one verb scheme is `:wat::holon::Reckoner/new-discrete`; the corpus
+> files are `wat/holon.wat`, `holon/Sequential.wat`, `holon/Ngram.wat`, `wat/test.wat`'s
+> `assert-coincident`, and `wat/cache.wat`'s `hologram-svc`. **Every one is VSA.** Arc 294's ruling —
+> *"the HolonAST and co tooling must only be used for VSA/HDC things"* — is now TRUE, measured
+> rather than asserted. See *THE CLOSURE* at the foot of this file.
+>
 > ⛔ **CORRECTED 2026-09-04, SAME DAY, TWICE. The title is FALSE as written and the census below
 > that produced it was blind in two separate ways.** Both corrections are recorded at the foot of
 > this file under *THE CENSUS WAS WRONG TWICE*. Read that section before trusting anything here.
@@ -166,3 +174,51 @@ moved and are correct today; they become stale the moment (a) or (b) lands.
 **(a) is briefable now. (b) is blocked on the Err-arm fork.** Neither is on arc 255's chain; the
 registry campaign remains the active work. Recorded so that whoever takes them starts from a
 measured population rather than a grep — and so that nobody repeats either blind spot.
+
+
+---
+
+## ✅ THE CLOSURE — 2026-09-04
+
+Four stones, in one session, after four wrong censuses:
+
+```
+STONE-eval-walk-faces-watast          walk's return                 :wat::WatAST   (narrowed)
+FIX(109) threading macros             core.wat's -> and ->> lambdas  :wat::WatAST   (4 lines)
+STONE-the-eval-surface-faces-watast   WalkStep::Skip.terminal
+                                      StepResult::StepTerminal
+                                      StepResult::AlreadyTerminal    :wat::WatAST
+```
+
+**The instrument that finally worked was the compiler**, on the builder's instruction — *"strike the
+heresy where they stand; the compiler identifies the heretics immediately."*
+
+⚠ And note WHICH compiler. Retyping the three fields produced **zero rustc errors**: `src/types.rs`
+declares wat types as DATA (`TypeExpr::Path` strings), so the Rust compiler is structurally blind to
+this entire class. **wat's own checker found them at startup**, one located message per site —
+`:wat::eval::WalkStep::Skip: parameter #1 expects :wat::WatAST; got :wat::holon::HolonAST` — and the
+worklist was 17 failures, sixteen through one shared driver. That is the census four greps could not
+produce.
+
+### Two things the sweep found that no census would have
+
+- **A "design fork" that was not one.** A prior rider reported the shared driver's `Err` arm packs
+  `(:wat::holon::leaf …)` so success and failure share one HolonAST return, and that no wat-level
+  primitive wraps a runtime string as a WatAST leaf. Measured: `(:wat::holon::to-wat
+  (:wat::holon::leaf x))` does, is registered, and satisfies a `:wat::WatAST` parameter. ⚠ It is a
+  WART — building a holon to convert it immediately — and the follow-up is a `:wat::core::`-native
+  WatAST leaf constructor. Named, not minted.
+- **★ A TEST HARNESS THAT SKIPS THE CHECKER.** `step_holon_constructor_bundle` passed only because
+  the pre-sweep `step_value_to_enum` still produced `Value::holon__HolonAST`, matching what the test
+  expected while contradicting `types.rs`'s declaration. It uses `run_with_ctx`, which — unlike
+  `run` — **never calls `check_program`**. Once the producer was corrected, that test would have
+  begun failing with no type-checker able to see why. **A harness that skips the checker is a place
+  where a declared type and a produced value can disagree indefinitely.** That is a general hazard,
+  not a holon one, and it is unruled.
+
+### Still open, and small
+
+Nine golden `<HolonAST>` string literals were found and updated (8 in `src/runtime.rs`, 1 in
+`tests/value/wat_arc221b_keyword_dispatcher_completeness.rs`) — the count the brief predicted,
+exactly. The `Skip`-arm seam noted above is GONE: `WalkStep::Skip.terminal` is now `:wat::WatAST`, so
+`eval_walk` matches `Value::wat__WatAST` directly and the round-trip conversion disappeared.

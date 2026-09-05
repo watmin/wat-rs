@@ -12222,14 +12222,24 @@ fn eval_walk(
                     let mut iter = fields.into_iter();
                     let terminal_v = iter.next().expect("length checked");
                     let new_acc = iter.next().expect("length checked");
-                    let terminal_h = match terminal_v {
-                        Value::holon__HolonAST(h) => h,
+                    // Arc 255 STONE-the-eval-surface-faces-watast: `WalkStep::Skip`'s
+                    // own "terminal" field is now ALSO declared `:wat::WatAST`
+                    // (`src/types.rs`'s `WalkStep` EnumDef) — closing the seam the
+                    // prior STONE-eval-walk-faces-watast left open (its comment here
+                    // used to say Skip's terminal "stays HolonAST" and converted via
+                    // `holon_to_watast` at this boundary). A visitor now hands back a
+                    // WatAST directly (built with `:wat::holon::to-wat` over a
+                    // `HolonAST`, same wart noted at the driver's Err-arm), so no
+                    // conversion happens here — the value already IS what `walk`
+                    // declares it returns.
+                    let terminal_w = match terminal_v {
+                        Value::wat__WatAST(w) => w,
                         other => {
                             return Err(RuntimeError::new(
                                 args[2].span().clone(),
                                 RuntimeErrorKind::TypeMismatch {
                                     op: OP.into(),
-                                    expected: "wat::holon::HolonAST (Skip's terminal field)",
+                                    expected: "wat::WatAST (Skip's terminal field)",
                                     got: Box::new(ValueSnapshot::of(&other)),
                                     // arc 138: no — visitor return value field; no AST
                                 },
@@ -12237,29 +12247,8 @@ fn eval_walk(
                             .into());
                         }
                     };
-                    // Arc 255 STONE-eval-walk-faces-watast: same boundary
-                    // conversion as the Continue/terminal arm above — `walk`'s
-                    // OWN declared return is `:wat::WatAST` regardless of which
-                    // arm produced the terminal. `WalkStep::Skip`'s own
-                    // "terminal" field stays `:wat::holon::HolonAST` (out of
-                    // scope; a different registered type) — only the value
-                    // this OP hands back is converted.
-                    //
-                    // ⚠ KNOWN SEAM, not a puzzle: a Skip visitor builds a
-                    // HolonAST (via `:wat::holon::leaf`/`to-holon`/etc.) only
-                    // for this line to immediately convert it back to
-                    // WatAST — a round-trip through two representations for
-                    // no gain. Not lossy, not a behavior regression (this
-                    // stone's own composition probe proved the conversion
-                    // faithful), but it is the seam left by splitting
-                    // STONE-eval-walk-faces-watast from the wider
-                    // `WalkStep::Skip.terminal` retype that STOP-5 deferred.
-                    // Closes when a future stone moves `WalkStep::Skip`'s
-                    // "terminal" field (`src/types.rs`'s `WalkStep` EnumDef)
-                    // to `:wat::WatAST` too — then the visitor hands back a
-                    // WatAST directly and this call disappears.
                     return Ok(Value::Tuple(Arc::new(vec![
-                        Value::wat__WatAST(Arc::new(holon_to_watast(&terminal_h))),
+                        Value::wat__WatAST(terminal_w),
                         new_acc,
                     ])));
                 }
@@ -12285,6 +12274,14 @@ fn eval_walk(
 /// Construct the `:wat::eval::StepResult` enum value from an
 /// internal `StepValue`. Mirrors arc 060's `thread_died_error_*`
 /// helper shape.
+///
+/// Arc 255 STONE-the-eval-surface-faces-watast: `StepTerminal`/
+/// `AlreadyTerminal` now declare `:wat::WatAST` (`src/types.rs`),
+/// matching `StepNext`'s field (already WatAST since arc 070) —
+/// `StepResult` no longer violates itself. `step_form`'s internal
+/// `StepValue` still carries a `HolonAST` (the algebra-level
+/// reduction result); convert at THIS boundary via `holon_to_watast`,
+/// same shape as `eval_walk`'s Continue/Skip arms.
 fn step_value_to_enum(sv: StepValue) -> Value {
     match sv {
         StepValue::Next(form) => Value::Enum(Arc::new(EnumValue {
@@ -12297,13 +12294,13 @@ fn step_value_to_enum(sv: StepValue) -> Value {
             type_path: ":wat::eval::StepResult".into(),
             variant_name: "StepTerminal".into(),
             names: builtin_enum_variant_names(":wat::eval::StepResult", "StepTerminal"),
-            fields: vec![Value::holon__HolonAST(Arc::new(holon))],
+            fields: vec![Value::wat__WatAST(Arc::new(holon_to_watast(&holon)))],
         })),
         StepValue::AlreadyTerminal(holon) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::eval::StepResult".into(),
             variant_name: "AlreadyTerminal".into(),
             names: builtin_enum_variant_names(":wat::eval::StepResult", "AlreadyTerminal"),
-            fields: vec![Value::holon__HolonAST(Arc::new(holon))],
+            fields: vec![Value::wat__WatAST(Arc::new(holon_to_watast(&holon)))],
         })),
     }
 }
@@ -18933,25 +18930,25 @@ mod tests {
         // AlreadyTerminal (no work happened). Pre-arc-070 returned
         // StepTerminal; arc 070 narrows that variant to "this step
         // reduced a redex" only.
-        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <WatAST>)");
     }
 
     #[test]
     fn step_lit_bool_is_terminal() {
         let s = step_to_show("(:wat::eval-step! (:wat::core::quote true))");
-        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <WatAST>)");
     }
 
     #[test]
     fn step_lit_string_is_terminal() {
         let s = step_to_show(r#"(:wat::eval-step! (:wat::core::quote "hi"))"#);
-        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <WatAST>)");
     }
 
     #[test]
     fn step_lit_keyword_is_terminal() {
         let s = step_to_show("(:wat::eval-step! (:wat::core::quote :outcome))");
-        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <WatAST>)");
     }
 
     // --- :wat::eval::walk — arc 070 phase 2 -------------------------------
@@ -19050,25 +19047,29 @@ mod tests {
     #[test]
     fn walk_w3_skip_short_circuits() {
         // Visitor returns Skip on the FIRST coordinate with a
-        // sentinel terminal HolonAST::I64(999). Walker stops; final
+        // sentinel terminal I64(999). Walker stops; final
         // return is (sentinel, acc'). Even on a chain that would
         // naturally terminate at I64(6), Skip wins.
         //
-        // `WalkStep::Skip`'s own "terminal" field is still declared
-        // `:wat::holon::HolonAST` (arc 255 STONE-eval-walk-faces-
-        // watast left it that way — only `walk`'s OWN return moved),
-        // so the visitor below still hands back `(:wat::holon::leaf
-        // 999)` unchanged. `eval_walk`'s Skip arm converts it via
-        // `holon_to_watast` before it reaches the outer pair, same as
-        // the Continue/terminal arm — so `terminal` here is already
-        // `:wat::WatAST`, and `from-holon` (element 0's old door) is
-        // now the wrong accessor; `eval-ast!` is the WatAST-native
-        // equivalent, evaluating the literal straight back to
-        // `:wat::core::i64`.
+        // Arc 255 STONE-the-eval-surface-faces-watast: `WalkStep::Skip`'s
+        // own "terminal" field is now ALSO declared `:wat::WatAST`
+        // (`src/types.rs`) — closing the seam the prior
+        // STONE-eval-walk-faces-watast left open (its comment here used
+        // to say Skip's terminal "is still declared HolonAST" and that
+        // `eval_walk`'s Skip arm converted it via `holon_to_watast`
+        // before handing it to the outer pair). A bare `(:wat::holon::leaf
+        // 999)` no longer type-checks as `WalkStep::Skip`'s first
+        // argument (it's a HolonAST); `(:wat::holon::to-wat (:wat::holon::leaf
+        // 999))` wraps it as a `:wat::WatAST` leaf — the measured,
+        // no-new-verb fix (STOP-3) — and `eval_walk`'s Skip arm now
+        // passes the value straight through with no conversion.
+        // `terminal` reaching the match below is a genuine
+        // `:wat::WatAST` either way; `eval-ast!` evaluates the literal
+        // straight back to `:wat::core::i64`.
         let src = r#"
         (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64])
           (:wat::eval::WalkStep::Skip
-                      (:wat::holon::leaf 999)
+                      (:wat::holon::to-wat (:wat::holon::leaf 999))
                       (:wat::i64::+ acc 1)))
         (:wat::core::match
           (:wat::eval::walk
@@ -19144,7 +19145,7 @@ mod tests {
                     (:wat::holon::leaf "v"))))"#,
         );
         assert_eq!(
-            s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)",
+            s, "(:wat::eval::StepResult::AlreadyTerminal <WatAST>)",
             "expected AlreadyTerminal for bare-list Bundle lift"
         );
     }
@@ -19168,7 +19169,7 @@ mod tests {
                  (:wat::core::quote (:wat::holon::leaf "k")))"#,
         );
         assert_eq!(
-            s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)",
+            s, "(:wat::eval::StepResult::AlreadyTerminal <WatAST>)",
             "expected AlreadyTerminal for holon-ctor value-shape"
         );
     }
@@ -19180,7 +19181,7 @@ mod tests {
         // distinction matters. `(+ 2 2)` fires a real reduction.
         let s = step_to_show("(:wat::eval-step! (:wat::core::quote (:wat::i64::+ 2 2)))");
         assert_eq!(
-            s, "(:wat::eval::StepResult::StepTerminal <HolonAST>)",
+            s, "(:wat::eval::StepResult::StepTerminal <WatAST>)",
             "arithmetic fire must return StepTerminal, not AlreadyTerminal"
         );
     }
@@ -19225,17 +19226,28 @@ mod tests {
 
     /// Wat program prelude that defines a recursive
     /// `:my::test::step-to-terminal` driver — calls `eval-step!`
-    /// repeatedly until StepTerminal, returning the inner HolonAST.
+    /// repeatedly until StepTerminal, returning the inner `:wat::WatAST`.
     /// Phase 2 multi-step tests call this on a quoted form.
     fn step_to_terminal_prelude() -> &'static str {
         // Tagged-enum variant patterns use the fully-qualified keyword
         // path per arc 048 (see try_match_pattern's `WatAST::Keyword`
         // arm). Three arms now (arc 070): StepNext recurses, both
-        // terminal flavors return the inner HolonAST. The Err arm
-        // packs the EvalError's message string into the result holon
-        // so failing tests can show it instead of a silent sentinel.
+        // terminal flavors return the inner form. Arc 255
+        // STONE-the-eval-surface-faces-watast: `StepTerminal`/
+        // `AlreadyTerminal` now declare `:wat::WatAST` (matching
+        // `StepNext`), so this driver's own return type moves from
+        // `:wat::holon::HolonAST` to `:wat::WatAST` too. The Err arm used
+        // to pack the EvalError's message string as a bare
+        // `(:wat::holon::leaf ...)` HolonAST (sharing one HolonAST-typed
+        // return with the Ok arm's terminal); that no longer type-checks
+        // against the driver's WatAST return. `(:wat::holon::to-wat
+        // (:wat::holon::leaf x))` wraps the runtime string as a
+        // `:wat::WatAST` leaf — measured to `--check` clean, run, and
+        // satisfy a `:wat::WatAST` parameter. It is a wart (building a
+        // holon only to immediately convert it) — the follow-up is a
+        // `:wat::core::`-native WatAST leaf constructor, not minted here.
         r#"
-        (:wat::core::defn :my::test::step-to-terminal [form <- :wat::WatAST] -> :wat::holon::HolonAST
+        (:wat::core::defn :my::test::step-to-terminal [form <- :wat::WatAST] -> :wat::WatAST
           (:wat::core::match (:wat::eval-step! form)
                       ((:wat::core::Ok r)
                         (:wat::core::match r
@@ -19243,21 +19255,33 @@ mod tests {
                             (:my::test::step-to-terminal next))
                           ((:wat::eval::StepResult::StepTerminal h) h)
                           ((:wat::eval::StepResult::AlreadyTerminal h) h)))
-                      ((:wat::core::Err e) (:wat::holon::leaf (:wat::core::struct-field e 1)))))
+                      ((:wat::core::Err e)
+                        (:wat::holon::to-wat (:wat::holon::leaf (:wat::core::struct-field e 1))))))
         "#
     }
 
     /// Run the `step-to-terminal` driver on a quoted form; expect the
-    /// result to be a `Value::holon__HolonAST` and return its inner.
-    fn step_drive_to_terminal(form_src: &str) -> std::sync::Arc<HolonAST> {
+    /// result to be a `Value::wat__WatAST` and return its inner.
+    fn step_drive_to_terminal(form_src: &str) -> std::sync::Arc<WatAST> {
         let src = format!(
             "{}\n(:my::test::step-to-terminal (:wat::core::quote {}))",
             step_to_terminal_prelude(),
             form_src
         );
         match run(&src).unwrap() {
-            Value::holon__HolonAST(h) => h,
-            other => panic!("expected HolonAST, got {:?}", other),
+            Value::wat__WatAST(w) => w,
+            other => panic!("expected WatAST, got {:?}", other),
+        }
+    }
+
+    /// Extract an `i64` from a `WatAST` literal — the WatAST-facing
+    /// equivalent of `HolonAST::as_i64()` for the driver's terminal
+    /// (arc 255 STONE-the-eval-surface-faces-watast: the driver now
+    /// hands back a `:wat::WatAST`, not a `:wat::holon::HolonAST`).
+    fn watast_as_i64(w: &WatAST) -> Option<i64> {
+        match w {
+            WatAST::IntLit(n, _) => Some(*n),
+            _ => None,
         }
     }
 
@@ -19308,24 +19332,24 @@ mod tests {
     fn step_arith_single_redex() {
         // `(+ 2 2)` — args canonical, fire on first step.
         let s = step_to_show("(:wat::eval-step! (:wat::core::quote (:wat::i64::+ 2 2)))");
-        assert_eq!(s, "(:wat::eval::StepResult::StepTerminal <HolonAST>)");
-        // Drive to terminal: same form, full chain → HolonAST::I64(4).
+        assert_eq!(s, "(:wat::eval::StepResult::StepTerminal <WatAST>)");
+        // Drive to terminal: same form, full chain → WatAST::IntLit(4).
         let h = step_drive_to_terminal("(:wat::i64::+ 2 2)");
-        assert_eq!(h.as_i64(), Some(4));
+        assert_eq!(watast_as_i64(&h), Some(4));
     }
 
     #[test]
     fn step_arith_left_descent() {
         // `(+ (+ 1 2) 3)` — first step descends inner; second step fires outer.
         let h = step_drive_to_terminal("(:wat::i64::+ (:wat::i64::+ 1 2) 3)");
-        assert_eq!(h.as_i64(), Some(6));
+        assert_eq!(watast_as_i64(&h), Some(6));
     }
 
     #[test]
     fn step_arith_right_descent() {
         // `(+ 5 (+ 1 2))` — left arg already canonical; descend right.
         let h = step_drive_to_terminal("(:wat::i64::+ 5 (:wat::i64::+ 1 2))");
-        assert_eq!(h.as_i64(), Some(8));
+        assert_eq!(watast_as_i64(&h), Some(8));
     }
 
     #[test]
@@ -19333,7 +19357,7 @@ mod tests {
         // `(let ((x 5)) (* x x))` — RHS canonical, peel,
         // substitute, then arithmetic fire.
         let h = step_drive_to_terminal("(:wat::core::let [x 5] (:wat::i64::* x x))");
-        assert_eq!(h.as_i64(), Some(25));
+        assert_eq!(watast_as_i64(&h), Some(25));
     }
 
     #[test]
@@ -19342,20 +19366,20 @@ mod tests {
         // a's RHS is non-canonical → descend; then peel a; then peel
         // b; body alone reduces to terminal.
         let h = step_drive_to_terminal("(:wat::core::let [a (:wat::i64::+ 1 1) b a] b)");
-        assert_eq!(h.as_i64(), Some(2));
+        assert_eq!(watast_as_i64(&h), Some(2));
     }
 
     #[test]
     fn step_if_branch_true() {
         // `(if true -> :wat::core::i64 1 0)` — cond canonical → project to then-branch.
         let h = step_drive_to_terminal("(:wat::core::if true 1 0)");
-        assert_eq!(h.as_i64(), Some(1));
+        assert_eq!(watast_as_i64(&h), Some(1));
     }
 
     #[test]
     fn step_if_branch_false() {
         let h = step_drive_to_terminal("(:wat::core::if false 1 0)");
-        assert_eq!(h.as_i64(), Some(0));
+        assert_eq!(watast_as_i64(&h), Some(0));
     }
 
     #[test]
@@ -19363,7 +19387,7 @@ mod tests {
         // `(if (= 1 1) -> :wat::core::i64 1 0)` — cond non-canonical, descend until
         // BoolLit, then project.
         let h = step_drive_to_terminal("(:wat::core::if (:wat::core::= 1 1) 1 0)");
-        assert_eq!(h.as_i64(), Some(1));
+        assert_eq!(watast_as_i64(&h), Some(1));
     }
 
     #[test]
@@ -19374,7 +19398,7 @@ mod tests {
         let h = step_drive_to_terminal(
             "(:wat::core::match (:wat::core::Some 5) ((:wat::core::Some n) n) (:wat::core::None 0))",
         );
-        assert_eq!(h.as_i64(), Some(5));
+        assert_eq!(watast_as_i64(&h), Some(5));
     }
 
     #[test]
@@ -19382,7 +19406,7 @@ mod tests {
         // `(match (+ 1 1) -> :wat::core::i64 (n n))` — scrutinee is arithmetic,
         // descend until canonical, then arm selection.
         let h = step_drive_to_terminal("(:wat::core::match (:wat::i64::+ 1 1) (n n))");
-        assert_eq!(h.as_i64(), Some(2));
+        assert_eq!(watast_as_i64(&h), Some(2));
     }
 
     #[test]
@@ -19398,8 +19422,8 @@ mod tests {
             step_to_terminal_prelude()
         );
         match run(&src).unwrap() {
-            Value::holon__HolonAST(h) => assert_eq!(h.as_i64(), Some(9)),
-            other => panic!("expected HolonAST, got {:?}", other),
+            Value::wat__WatAST(h) => assert_eq!(watast_as_i64(&h), Some(9)),
+            other => panic!("expected WatAST, got {:?}", other),
         }
     }
 
@@ -19422,8 +19446,10 @@ mod tests {
     #[test]
     fn step_round_trip_agrees_with_eval_ast() {
         // Five forms: each driven to terminal via step, vs eval-ast!
-        // result. Same HolonAST out either way (arc 066's wrap aligns
-        // step's terminal with eval-ast!'s Ok-arm).
+        // result. Same value out either way (arc 066's wrap aligns
+        // step's terminal with eval-ast!'s Ok-arm); step's terminal is
+        // a `:wat::WatAST` literal since arc 255
+        // STONE-the-eval-surface-faces-watast.
         let forms = [
             ("(:wat::i64::+ 2 2)", 4),
             ("(:wat::i64::* 3 7)", 21),
@@ -19434,7 +19460,7 @@ mod tests {
         for (form, expected) in forms {
             let h = step_drive_to_terminal(form);
             assert_eq!(
-                h.as_i64(),
+                watast_as_i64(&h),
                 Some(expected),
                 "step-driven: form `{}` expected {}, got {:?}",
                 form,
@@ -19500,14 +19526,14 @@ mod tests {
             Value::Tuple(t) => {
                 let elems = (*t).clone();
                 let h = match &elems[0] {
-                    Value::holon__HolonAST(h) => h.clone(),
-                    other => panic!("sum: expected HolonAST, got {:?}", other),
+                    Value::wat__WatAST(h) => h.clone(),
+                    other => panic!("sum: expected WatAST, got {:?}", other),
                 };
                 let steps = match &elems[1] {
                     Value::i64(n) => *n,
                     other => panic!("steps: expected i64, got {:?}", other),
                 };
-                assert_eq!(h.as_i64(), Some(6), "sum-to 3 0 should equal 6");
+                assert_eq!(watast_as_i64(&h), Some(6), "sum-to 3 0 should equal 6");
                 assert!(steps > 0 && steps < 50, "steps out of bound: {}", steps);
             }
             other => panic!("expected tuple, got {:?}", other),
@@ -19517,9 +19543,16 @@ mod tests {
     #[test]
     fn step_holon_constructor_atom() {
         // `(:wat::holon::to-holon "k")` — primitive string input to the
-        // polymorphic UP verb; fires in one step. The result is
-        // `HolonAST::String("k")` — to-holon lifts primitive strings to
-        // typed leaves (the Atom-wrap is reserved for HolonAST inputs).
+        // polymorphic UP verb; fires in one step. The algebra-level
+        // result is `HolonAST::String("k")` — to-holon lifts primitive
+        // strings to typed leaves (the Atom-wrap is reserved for
+        // HolonAST inputs). Arc 255 STONE-the-eval-surface-faces-watast:
+        // the driver's terminal is now a `:wat::WatAST`, converted at
+        // `step_value_to_enum`'s boundary via `holon_to_watast` — a
+        // `HolonAST::String` round-trips to a plain `WatAST::StringLit`
+        // (same shape a user's own `"k"` literal parses to), so the
+        // assertion checks the STRING VALUE ("k") survived, same as
+        // before the retype.
         //
         // Arc 225 Stone 225.1: the original test used
         // `(:wat::holon::Atom "k")` (old polymorphic Atom). After the
@@ -19527,8 +19560,8 @@ mod tests {
         // moved to :wat::holon::to-holon.
         let h = step_drive_to_terminal(r#"(:wat::holon::to-holon "k")"#);
         match &*h {
-            HolonAST::String(s) if &s[..] == "k" => {}
-            other => panic!("expected HolonAST::String(\"k\"), got {:?}", other),
+            WatAST::StringLit(s, _) if &s[..] == "k" => {}
+            other => panic!("expected WatAST::StringLit(\"k\"), got {:?}", other),
         }
     }
 
@@ -19536,24 +19569,35 @@ mod tests {
     fn step_holon_constructor_bind() {
         // `(:wat::holon::Bind (to-holon "k") (to-holon "v"))` — both args
         // are holon-canonical (constructor lists with primitive fields),
-        // so the whole tree fires as one rewrite. The result is the
-        // Bind tree over typed-leaf children. Verifies the Phase 3
-        // type-loss workaround: lifting a typed leaf back to a bare
-        // primitive WatAST would make the parent's require_holon
+        // so the whole tree fires as one rewrite. The algebra-level
+        // result is the Bind tree over typed-leaf children. Verifies the
+        // Phase 3 type-loss workaround: lifting a typed leaf back to a
+        // bare primitive WatAST would make the parent's require_holon
         // check fail, so the macro-step rule keeps the holon tree
         // intact through eval.
         //
-        // Arc 225 Stone 225.1: Atom "k" → to-holon "k" (polymorphic
-        // UP verb absorbs the old Atom primitive-lift arm).
+        // Arc 255 STONE-the-eval-surface-faces-watast: the driver's
+        // terminal is now `:wat::WatAST` — `holon_to_watast` renders
+        // `HolonAST::Bind(a, b)` as `(:wat::holon::Bind <a> <b>)`, the
+        // SAME source-level shape as this test's own input form. The
+        // WatAST shape-match below proves the identical composition
+        // (Bind of "k" and "v") the old `HolonAST::Bind` match proved —
+        // no weakening, just a different representation of the same
+        // terminal.
         let h = step_drive_to_terminal(
             r#"(:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))"#,
         );
         match &*h {
-            HolonAST::Bind(a, b) => {
-                assert!(matches!(&**a, HolonAST::String(s) if &s[..] == "k"));
-                assert!(matches!(&**b, HolonAST::String(s) if &s[..] == "v"));
+            WatAST::List(items, _) if items.len() == 3 => {
+                assert!(
+                    matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::holon::Bind"),
+                    "expected Bind head keyword, got {:?}",
+                    items[0]
+                );
+                assert!(matches!(&items[1], WatAST::StringLit(s, _) if &s[..] == "k"));
+                assert!(matches!(&items[2], WatAST::StringLit(s, _) if &s[..] == "v"));
             }
-            other => panic!("expected HolonAST::Bind, got {:?}", other),
+            other => panic!("expected WatAST::List(Bind, \"k\", \"v\"), got {:?}", other),
         }
     }
 
@@ -19585,6 +19629,22 @@ mod tests {
         // instead of `run`.
         // Arc 225 Stone 225.1: Atom "a"/"b" → to-holon (polymorphic UP
         // verb absorbs old Atom primitive-lift arm).
+        //
+        // ⚠ Arc 255 STONE-the-eval-surface-faces-watast SURPRISE: this
+        // test isn't in the stone's 17-test worklist (it wasn't RED at
+        // the type-checker, because `run_with_ctx` — unlike `run` —
+        // never calls `check_program`), but it exercises the SAME
+        // `step_value_to_enum` boundary and would silently start
+        // returning `Value::wat__WatAST` instead of the
+        // `Value::holon__HolonAST` it used to assert on, the moment that
+        // boundary's fields are made consistent with `src/types.rs`'s
+        // new declaration. Fixed alongside the 17 rather than left to
+        // rot uncaught by a checker that never sees it.
+        // `holon_to_watast(HolonAST::Bundle(items))` renders a BARE
+        // `WatAST::List` (no `:wat::holon::Bundle` head — the "bare-list
+        // Bundle lift" this file's `step_form` doc already names), so
+        // the shape-match below checks a 2-element list of the same two
+        // strings, same strength as the old `HolonAST::Bundle` match.
         let src = format!(
             r#"
             {}
@@ -19599,31 +19659,45 @@ mod tests {
         );
         let v = run_with_ctx(&src, 1024).unwrap();
         let h = match v {
-            Value::holon__HolonAST(h) => h,
-            other => panic!("expected HolonAST, got {:?}", other),
+            Value::wat__WatAST(h) => h,
+            other => panic!("expected WatAST, got {:?}", other),
         };
         match &*h {
-            HolonAST::Bundle(items) => {
+            WatAST::List(items, _) => {
                 assert_eq!(items.len(), 2, "expected 2 elements, got {}", items.len());
-                assert!(matches!(&items[0], HolonAST::String(s) if &s[..] == "a"));
-                assert!(matches!(&items[1], HolonAST::String(s) if &s[..] == "b"));
+                assert!(matches!(&items[0], WatAST::StringLit(s, _) if &s[..] == "a"));
+                assert!(matches!(&items[1], WatAST::StringLit(s, _) if &s[..] == "b"));
             }
-            other => panic!("expected HolonAST::Bundle, got {:?}", other),
+            other => panic!("expected WatAST::List(bare Bundle lift), got {:?}", other),
         }
     }
 
     #[test]
     fn step_holon_thermometer() {
         // `(:wat::holon::Thermometer 0.5 0.0 1.0)` — three primitive
-        // f64 args, all canonical, fires in one step.
+        // f64 args, all canonical, fires in one step. Arc 255
+        // STONE-the-eval-surface-faces-watast: the driver's terminal is
+        // now `:wat::WatAST` — `holon_to_watast` renders
+        // `HolonAST::Thermometer{..}` as `(:wat::holon::Thermometer
+        // <value> <min> <max>)`, the source-level constructor call; the
+        // shape-match proves the identical three numbers, same strength
+        // as the old `HolonAST::Thermometer{..}` match.
         let h = step_drive_to_terminal("(:wat::holon::Thermometer 0.5 0.0 1.0)");
         match &*h {
-            HolonAST::Thermometer { value, min, max } => {
-                assert_eq!(*value, 0.5);
-                assert_eq!(*min, 0.0);
-                assert_eq!(*max, 1.0);
+            WatAST::List(items, _) if items.len() == 4 => {
+                assert!(
+                    matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::holon::Thermometer"),
+                    "expected Thermometer head keyword, got {:?}",
+                    items[0]
+                );
+                assert!(matches!(&items[1], WatAST::FloatLit(v, _) if *v == 0.5));
+                assert!(matches!(&items[2], WatAST::FloatLit(v, _) if *v == 0.0));
+                assert!(matches!(&items[3], WatAST::FloatLit(v, _) if *v == 1.0));
             }
-            other => panic!("expected HolonAST::Thermometer, got {:?}", other),
+            other => panic!(
+                "expected WatAST::List(Thermometer, 0.5, 0.0, 1.0), got {:?}",
+                other
+            ),
         }
     }
 
