@@ -15,7 +15,7 @@
 ;;
 ;; Grounded on:
 ;;   - macro semantics:  wat/core.wat lines 172-202
-;;   - probe contracts:  tests/probe_arc249_threading.rs (5 threading mints)
+;;   - probe contracts:  tests/macros/probe_arc249_threading.rs (5 threading mints)
 ;;   - deftest shape:    wat-tests/core/core-arithmetic.wat
 ;;   - arc / stone:      arc 249 stone 249.3b
 

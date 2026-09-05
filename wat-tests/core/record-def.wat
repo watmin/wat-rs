@@ -3,8 +3,8 @@
 ;;
 ;; Grounded on:
 ;;   - macro spec:     wat/Record.wat (expansion diagrams, accessor naming, class-guard)
-;;   - probe (Rust):   tests/probe_arc237_sC3_macro_split.rs (18/18 green)
-;;   - probe (Rust):   tests/probe_arc234_stone2b_defrecord_macro.rs (6/6 green)
+;;   - probe (Rust):   tests/types/probe_arc237_sC3_macro_split.rs (18/18 green)
+;;   - probe (Rust):   tests/types/probe_arc234_stone2b_defrecord_macro.rs (6/6 green)
 ;;   - failure idiom:  wat-tests/core/option-expect.wat (run-thread + RunResult/failure)
 ;;   - deftest idiom:  wat-tests/core/core-equality.wat (plain deftest, empty prelude)
 ;;

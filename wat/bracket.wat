@@ -110,7 +110,7 @@
 ;;                  already granted (grant-boot, map-worker) so connect' is admitted.
 ;;   :Work(pair)  → run the held peer through the 2-param work-fn, send the indexed out.
 ;; This is the defservice :init/:ephemeral pattern lifted onto the bracket, and the
-;; exact shape scratchpad/probe-m1-worker-setup.wat proved GREEN.
+;; exact shape wat-scripts/probes/arc-170/probe-m1-worker-setup.wat proved GREEN.
 (:wat::core::defn :wat::bracket::process-dial-runner :- [S R I O]
   [self    <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [(:wat::kernel::Address :- [S R]) I])])
    work-fn <- [(:wat::kernel::Peer :- [S R]) I :-> O]
@@ -388,7 +388,7 @@
        ;; KEYWORD naming an ALREADY-REGISTERED fn, ships its own canonical `defn` decl
        ;; verbatim + a trailing `(def work-name <the-name>)` rebind; unlike the Fn-VALUE
        ;; path, which inlines the fn body directly into ONE trailing `(def work-name (fn …))`
-       ;; — measured via scratchpad/probe-c1-kwargs-impl-astname.wat).
+       ;; — measured via wat-scripts/probes/arc-170/probe-c1-kwargs-impl-astname.wat).
        def-node      (:wat::core::Option/expect (:wat::core::get forms (:wat::core::i64::- nforms 2))
                        "process-work-forms(kwargs): fn-forms produced no $impl define")
        dn-ch         (:wat::core::ast->children def-node)

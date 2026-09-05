@@ -2914,7 +2914,7 @@
      ;; Runtime dispatch serves TypedCapability/coord|grant|revoke off THIS SAME Handle's
      ;; Capability+Dialable bodies above via that flat key. Mirrors dialable-ty's Op/Reply
      ;; wiring exactly (proto-str namespace, not fqdn-str — same reasoning as line ~1192).
-     ;; Shape proven scratchpad/probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat.
+     ;; Shape proven probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat (all since deleted).
      typedcap-ty `(:wat::capability::TypedCapability :- [~proto-op-ty-ann ~proto-reply-ty-ann])
      typedcap-extend `(:wat::core::extend-type ~handle-bare-name ~typedcap-ty)]
 

@@ -11,7 +11,7 @@
 ;; one row of one shape's table.
 ;;
 ;; THE LEAVES BIND NOTHING, deliberately. A bind inside a `:not` must be consumed there
-;; (`src/rete/validate.rs`'s wall, added earlier this arc), and a bare `(:Class)` negation is the
+;; (`src/rete/validate/mod.rs`'s wall, added earlier this arc), and a bare `(:Class)` negation is the
 ;; form that says "this class is absent" without dragging a dead variable along. It also makes the
 ;; readout a clean 0/1 per case: a query whose only condition is the combinator either activates or
 ;; does not, so the row count IS the truth value — the one place in these fuzzers where a count is

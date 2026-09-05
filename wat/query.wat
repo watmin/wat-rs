@@ -117,7 +117,7 @@
 ;; Canonical kwargs order assumed (`:wat::rete::defrule` precedent, `wat/rete/syntax.wat`):
 ;; `:name :defs :rules`.
 ;;
-;; ── the two macro-time extraction problems (both probed clean, scratchpad/probe-rule-lits.wat) ──
+;; ── the two macro-time extraction problems (probed clean, wat-scripts/scratch-pad/probe-rule-lits.wat) ──
 ;;   (1) Rule VALUES, not defns: `:rules` are literal `(defrule name :when […] :then …)` forms. A
 ;;       spliced top-level defn would NOT cross a process fork (only the satisfied surface's
 ;;       :messages + :peers surfaces' :messages + this defservice's own internals ship —

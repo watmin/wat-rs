@@ -14,9 +14,9 @@
 ;; `:wat::core::Vector` rather than two separate round trips (two round trips
 ;; would let a fresh, untouched process satisfy the Hangup half for free).
 ;;
-;; Model: tests/process/signal_user1_delivers_child_observes_flag.wat (spawn/
-;; signal/send/recv shape) + wat-tests/spawn/recv-budget-override.wat (the
-;; deftest + spawn-peer + assert idiom).
+;; Model: the P2 evidence fixture `signal_user1_delivers_child_observes_flag.wat`
+;; (spawn/signal/send/recv shape, deleted with this commit) +
+;; wat-tests/spawn/recv-budget-override.wat (the deftest + spawn-peer + assert idiom).
 (:wat::test::deftest :wat-tests::process::signal-user2-and-hangup-independent
   (:wat::test::assert-eq
     (:wat::core::let

@@ -35,7 +35,7 @@
 ;; `(Dialable/coord handle)` resolves per-satisfier to the concrete service address
 ;; ((Address' :- [Echo::Op Echo::Reply]) vs (Address' :- [Kv::Op Kv::Reply])), and a wrong-service dial is
 ;; a compile-time discrimination error. Proven by hand in
-;; scratchpad/probe-c2-typed-coordinate.wat (pre-auto-emit); this bakes the surface so
+;; probe-c2-typed-coordinate.wat (pre-auto-emit, since deleted); this bakes the surface so
 ;; defservice can auto-emit satisfaction without a hand-written extend-type per service.
 ;; Method name `coord` (not `coordinate`) — deliberately distinct from Capability's
 ;; `coordinate` so a handle satisfying BOTH surfaces has no unqualified-call ambiguity; callers
@@ -57,7 +57,7 @@
 ;; dispatch instead serves TypedCapability/coord|grant|revoke off the Handle's EXISTING
 ;; Capability+Dialable method bodies via that same flat key — a surface-method call resolves
 ;; by the RECEIVER's concrete type, regardless of which surface named it. Proven this session:
-;; scratchpad/probe-v-bodiless.wat (freezes clean, no DuplicateDefine), probe-v-swap.wat (a
+;; probe-v-bodiless.wat (freezes clean, no DuplicateDefine), probe-v-swap.wat (a
 ;; wrong-service handle is a located TypeMismatch), probe-v-run.wat (TypedCapability/coord
 ;; dispatches at runtime through the flat key). Method names reused verbatim from Dialable/
 ;; Capability (coord, grant, revoke) — safe because a handle only ever calls THROUGH one

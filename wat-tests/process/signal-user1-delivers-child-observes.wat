@@ -10,10 +10,10 @@
 ;; alone would prove only that the kernel accepted the signal, not that a
 ;; handler ran; the assertion below is on the child's own reply.
 ;;
-;; Model: tests/process/signal_user1_delivers_child_observes_flag.wat (P2's
-;; evidence fixture — spawn/signal/send/recv shape) + wat-tests/spawn/
-;; recv-budget-override.wat (the deftest + spawn-peer + assert idiom in its
-;; proper home).
+;; Model: `signal_user1_delivers_child_observes_flag.wat` (P2's evidence
+;; fixture — spawn/signal/send/recv shape, deleted with this commit) +
+;; wat-tests/spawn/recv-budget-override.wat (the deftest + spawn-peer + assert
+;; idiom in its proper home).
 ;;
 ;; The child blocks in `readln` until the parent's `send` unblocks it —
 ;; proving it is alive, and ordering the child's flag read strictly after the

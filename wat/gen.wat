@@ -73,7 +73,7 @@
 ;;     `docs/arc/2026/06/255-builtin-registry/NOTE-two-registry-adjacent-findings-from-arc-278.md`.
 ;;
 ;;
-;; PROMOTED from `wat-scripts/lib/gen.wat` 2026-08-25, on the `wat/grep.wat`
+;; PROMOTED from `gen.wat` in `wat-scripts/lib/` 2026-08-25, on the `wat/grep.wat`
 ;; precedent: a MOVE of proven code, with the numbers that earned it.
 ;;
 ;;   SHIPPED NUMBERS  27 laws, every one mutation-proven — the library proves its
@@ -81,7 +81,7 @@
 ;;                    `wat-tests/gen.wat` and are discovered by `wat::test! {}`
 ;;                    (`tests/kernel/test.rs`), so there is no hand-maintained
 ;;                    total to drift. (This block used to cite
-;;                    `wat-scripts/fuzz/gen-selftest.wat` + `tests/lint/gen_lib_laws.rs`
+;;                    `gen-selftest.wat` + `gen_lib_laws.rs`
 ;;                    as the gate; BOTH were deleted the same day it was written,
 ;;                    by the commit that moved the laws — so the file's
 ;;                    load-bearing honesty claim pointed at nothing.)

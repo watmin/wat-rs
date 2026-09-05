@@ -7,13 +7,13 @@
 ;; post-arc-237.8b. The inference lives in check.rs `infer_equality`.
 ;;
 ;; Preserves the equality-related passing tests from the retired
-;; tests/wat_polymorphic_arithmetic.rs:
+;; wat_polymorphic_arithmetic.rs:
 ;;   - poly_eq_strings_still_works
 ;;   - typed_strict_i64_eq_homogeneous_works
 ;;   - typed_strict_i64_eq_rejects_f64_arg
 ;;
 ;; Grounded on:
-;;   - deftest idiom:   wat-tests/core/seq-fold-aliases.wat
+;;   - deftest idiom:   wat-tests/core/core-reduce.wat (was seq-fold-aliases.wat)
 ;;   - rejection idiom: run-hermetic (forked subprocess catches check errors)
 ;;   - = intrinsic:     check.rs `infer_equality` + eval-side `eval_eq`
 ;;   - nil value:       bare `nil` (arc 242 Doctrine 1: :wat::core::nil is TYPE only)

@@ -1,13 +1,13 @@
 ;; wat-tests/core/core-arithmetic.wat — arc 245.2b runtime coverage for
 ;; :wat::core::{+,-,*,/,<,>,<=,>=} defclauses.
 ;;
-;; Mirrors the 19 PASSING tests in tests/wat_polymorphic_arithmetic.rs so
+;; Mirrors the 19 PASSING tests in wat_polymorphic_arithmetic.rs (retired) so
 ;; retiring that Rust file loses no valid coverage. Cross-type promotion
 ;; tests (retired 237.8b behaviour) are NOT mirrored; the new behaviour
 ;; for those inputs is rejection (NoMatchingClause), covered below.
 ;;
 ;; Grounded on:
-;;   - deftest idiom:    wat-tests/core/seq-fold-aliases.wat
+;;   - deftest idiom:    wat-tests/core/core-reduce.wat (was seq-fold-aliases.wat)
 ;;   - rejection idiom:  run-hermetic body (forked subprocess catches check errors)
 ;;   - forms under test: wat/core.wat (defclauses + 2-ary typed leaves)
 ;;   - nil value:        bare `nil` (arc 242 Doctrine 1: :wat::core::nil is TYPE only)

@@ -9,9 +9,9 @@
 ;; not merely the false endpoint (which a process that was never signalled
 ;; at all would also report).
 ;;
-;; Model: tests/process/signal_user1_delivers_child_observes_flag.wat (spawn/
-;; signal/send/recv shape) + wat-tests/spawn/recv-budget-override.wat (the
-;; deftest + spawn-peer + assert idiom).
+;; Model: the P2 evidence fixture `signal_user1_delivers_child_observes_flag.wat`
+;; (spawn/signal/send/recv shape, deleted with this commit) +
+;; wat-tests/spawn/recv-budget-override.wat (the deftest + spawn-peer + assert idiom).
 (:wat::test::deftest :wat-tests::process::signal-reset-sigusr1-is-a-transition
   (:wat::test::assert-eq
     (:wat::core::let

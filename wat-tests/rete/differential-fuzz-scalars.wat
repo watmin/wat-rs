@@ -316,7 +316,7 @@
                     fc    (:wat-tests::rete::scalars::fact-cond ty oplit)
                     ;; `shape 1` wraps the SAME condition in `:not`. Its bind `(?v <- :v)` is
                     ;; consumed by the constraint INSIDE the negation, which is the legal form the
-                    ;; `:not`-bind wall admits (`src/rete/validate.rs`) — so this dimension also
+                    ;; `:not`-bind wall admits (`src/rete/validate/mod.rs`) — so this dimension also
                     ;; keeps that wall honest against every per-type comparator.
                     lhs   (:wat::core::cond
                             ((:wat::core::= shape 0) (:wat::core::PersistentVector fc))

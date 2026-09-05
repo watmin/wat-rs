@@ -545,6 +545,19 @@ non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch
 
 **F2 — rotted claims inside `src/` and the arc** (do these WITH F0, not as corrections):
 
+> ⛔ **NEW ROW, opened 2026-09-05 by the deferred-34 strike's STOP-3 — IN-RANGE CITATION DRIFT.**
+> `every_location_named_in_a_doc_comment_exists` cannot see two whole classes, and both were driven:
+> (a) a bare `basename:LINE` with **no slash** is dropped by `citations_in_comments`'
+> `path.contains('/')` filter — `wat/query.wat:176` cites `rete.wat:2150` in a **534-line** file and
+> the gate never looks; (b) **a cited line that EXISTS but says something else** — `wat/rete.wat:165`
+> cites `arm.rs:572` for *"a fact overlay over circuits it does not own"*, but `:572` is
+> `pub(crate) struct NetworkEdges`; the sentence's source is `arm.rs:661`. An anchored sweep of the
+> 18 bare `name.ext:N` citations under `wat/`+`wat-tests/` found only the past-EOF one **precisely
+> because the rest are "valid" and wrong.** The gate's own doc says it cannot detect in-range drift.
+> **This is the third rung: a path that exists, a line in range, and a claim that is false.** Symbol
+> citations do not have this failure mode — which is why C14 and F2-e both landed on *prefer a symbol
+> to a line*.
+
 - `NEXT-STRIKES:1491,1512` — both TRACKED DECISIONS premises expired; the tally at `:1283`
   contradicts them. The section banning two-places-per-row committed it again. *(`exigere`)*
 - `rust_deps/cache.rs:70` — cites heading *"exigere — the cache panic conversion"*; grep finds it

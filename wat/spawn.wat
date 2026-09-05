@@ -207,7 +207,7 @@
 ;; Every bracket pool runner recv's (PoolMsg :- [D I]), never a raw (i64,I) pair, so the
 ;; SAME peer type carries the dial handshake AND the work stream — the one shape
 ;; that lets a tier-agnostic map-worker send both. `:Pure` — proven to cross the
-;; wire by scratchpad/probe-m1-worker-setup.wat (a :Pure enum, Address' payload).
+;; wire by wat-scripts/probes/arc-170/probe-m1-worker-setup.wat (a :Pure enum, Address' payload).
 ;; It lives HERE (not wat/bracket.wat) because the :wat::spawn::Locus surface's
 ;; `spawn-runner` return type names it, and that surface loads before bracket.wat.
 ;;

@@ -1,7 +1,7 @@
 ;; wat-tests/process/signal-terminate-kills-the-child-and-the-read-sees-it.wat
 ;;
 ;; P4 (DESIGN-STONE-process-signal-owner-to-child.md strike order) — replaces
-;; tests/process/shutdown_cascade_memory.rs and shutdown_cascade_pipefd.rs,
+;; shutdown_cascade_memory.rs and shutdown_cascade_pipefd.rs (tests/process/),
 ;; both deleted with this commit.
 ;;
 ;; THE TESTS THIS REPLACES RAISED SIGTERM AT THEMSELVES. In their own process,
