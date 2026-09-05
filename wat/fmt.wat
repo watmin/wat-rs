@@ -34,12 +34,6 @@
 (:wat::core::defrecord :wat::fmt::BlankBefore
   [id <- :wat::core::i64])
 
-;; A glued child of a grammared head. head is SOURCE spelling, taken from the
-;; parsed @syntax form's child 0 — never Row/name (that is the DOT form).
-(:wat::core::defrecord :wat::fmt::Slot
-  [head  <- :wat::core::String
-   glued <- :wat::core::i64])
-
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
    next-id  <- :wat::core::i64
@@ -61,10 +55,6 @@
 (:wat::rete::defquery :wat::fmt::q-blank
   :params []
   :when [(?bl <- :wat::fmt::BlankBefore)])
-
-(:wat::rete::defquery :wat::fmt::q-slot
-  :params []
-  :when [(?s <- :wat::fmt::Slot)])
 
 (:wat::core::defn :wat::fmt::spaces [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::if (:wat::i64::<= n 0)
@@ -470,93 +460,6 @@
     (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
     (:wat::rete::query session (:wat::fmt::q-blank))))
 
-(:wat::core::defn :wat::fmt::variadic?
-  [n <- :wat::WatAST]
-  -> :wat::core::bool
-  (:wat::core::let [s (:wat::core::ast->source n)]
-    (:wat::core::if (:wat::core::= s "...")
-      true
-      (:wat::core::if (:wat::string::ends-with? s "+")
-        true
-        (:wat::string::ends-with? s "*")))))
-
-(:wat::core::defn :wat::fmt::find-arrow
-  [kids <- (:wat::core::Vector :- [:wat::WatAST])
-   i    <- :wat::core::i64]
-  -> (:wat::core::Option :- [:wat::core::i64])
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
-    :wat::core::None
-    (:wat::core::if (:wat::core::= (:wat::core::ast->source (:wat::core::nth kids i)) "->")
-      (:wat::core::Some i)
-      (:wat::fmt::find-arrow kids (:wat::i64::+ i 1)))))
-
-(:wat::core::defn :wat::fmt::any-variadic
-  [kids <- (:wat::core::Vector :- [:wat::WatAST])
-   i    <- :wat::core::i64
-   lim  <- :wat::core::i64]
-  -> :wat::core::bool
-  (:wat::core::if (:wat::i64::>= i lim)
-    false
-    (:wat::core::if (:wat::fmt::variadic? (:wat::core::nth kids i))
-      true
-      (:wat::fmt::any-variadic kids (:wat::i64::+ i 1) lim))))
-
-(:wat::core::defn :wat::fmt::slot-of-form
-  [form <- :wat::WatAST]
-  -> (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-  (:wat::core::let [kids (:wat::core::ast->children form)]
-    (:wat::core::if (:wat::i64::<= (:wat::core::length kids) 0)
-      (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-      (:wat::core::if (:wat::core::not (:wat::grep::nameable? (:wat::core::nth kids 0)))
-        (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-        (:wat::core::let [head  (:wat::core::ast-name (:wat::core::nth kids 0))
-                          arrow (:wat::fmt::find-arrow kids 0)]
-          (:wat::core::match arrow
-            (:wat::core::None
-              (:wat::core::PersistentVector :- [:wat::fmt::Slot]))
-            ((:wat::core::Some i)
-              (:wat::core::if (:wat::fmt::any-variadic kids 0 i)
-                (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-                (:wat::core::PersistentVector :- [:wat::fmt::Slot]
-                  (:wat::fmt::Slot :head head :glued (:wat::i64::+ i 1)))))))))))
-
-(:wat::core::defn :wat::fmt::slot-of-syntax
-  [syntax <- :wat::core::String]
-  -> (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-  (:wat::core::match (:wat::core::read-string syntax)
-    ((:wat::core::ReadOutcome::Forms forms)
-      (:wat::core::let [top (:wat::core::ast->children forms)]
-        (:wat::core::if (:wat::core::empty? top)
-          (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-          (:wat::fmt::slot-of-form (:wat::core::first top)))))
-    ((:wat::core::ReadOutcome::Malformed _)
-      (:wat::core::PersistentVector :- [:wat::fmt::Slot]))))
-
-(:wat::core::defn :wat::fmt::row-has-syntax?
-  [r <- :wat::intrinsic::Row]
-  -> :wat::core::bool
-  (:wat::core::not (:wat::core::= (:wat::intrinsic::Row/syntax r) "")))
-
-(:wat::core::defn :wat::fmt::slots-from-registry
-  []
-  -> (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-  (:wat::core::let
-    [with (:wat::core::into (:wat::core::PersistentVector :- [:wat::intrinsic::Row])
-            (:wat::core::filter :wat::fmt::row-has-syntax? (:wat::intrinsic::rows)))]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-                       r   <- :wat::intrinsic::Row]
-        -> (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-        (:wat::core::foldl
-          (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-                           s <- :wat::fmt::Slot]
-            -> (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-            (:wat::vector::conj a s))
-          acc
-          (:wat::fmt::slot-of-syntax (:wat::intrinsic::Row/syntax r))))
-      (:wat::core::PersistentVector :- [:wat::fmt::Slot])
-      with)))
-
 (:wat::core::defn :wat::fmt::format-source
   [path  <- :wat::core::String
    src   <- :wat::core::String
@@ -566,13 +469,7 @@
     ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
       (:wat::core::let
         [facts   (:wat::grep::facts-of path src)
-         records (:wat::core::foldl
-                   (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
-                                    s   <- :wat::fmt::Slot]
-                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-                     (:wat::vector::conj acc s))
-                   (:wat::grep::facts-as-records facts)
-                   (:wat::fmt::slots-from-registry))
+         records (:wat::grep::facts-as-records facts)
          queries (:wat::core::PersistentVector :- [:wat::rete::Query]
                    (:wat::fmt::q-break)
                    (:wat::fmt::q-claim)

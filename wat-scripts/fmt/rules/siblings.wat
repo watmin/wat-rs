@@ -9,9 +9,9 @@
 ;; Fallback marks the unruled parent so the Break-application wall accepts
 ;; these Breaks. Four kind-rules because rete `or` is not legal inside `:where`.
 ;;
-;; Type-args glue: a form whose child 1 is `:-` (symbol/keyword) and child 2 is
-;; a vector glues child 2 to the head line. Assertions of Slot {head, glued: 2}
-;; reuse the existing withhold. Kind-checked so the string `":-"` does not match.
+;; Type-args glue is lexical: withhold a Break for the child immediately AFTER
+;; a `:-` sibling (same shape as `->`). Kind-checked so the string `":-"` does
+;; not match. The emitter still treats a declaration as a layout leaf.
 
 (:wat::rete::defrule :fmt::siblings-fallback-list
   :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
@@ -45,34 +45,9 @@
          (:wat::rete::where (:wat::rete::string::= ?k "set"))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
-(:wat::rete::defrule :fmt::glue-type-args-symbol
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::grep::Named (?h <- :id) (?hn <- :name))
-         (:wat::grep::Node  (?d <- :id) (?p <- :parent) (?di <- :index) (?dk <- :kind))
-         (:wat::rete::where (:wat::rete::i64::= ?di 1))
-         (:wat::rete::where (:wat::rete::string::= ?dk "symbol"))
-         (:wat::grep::Named (?d <- :id) (?dn <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
-         (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index) (?vk <- :kind))
-         (:wat::rete::where (:wat::rete::i64::= ?vi 2))
-         (:wat::rete::where (:wat::rete::string::= ?vk "vector"))]
-  :then [(:wat::fmt::Slot :head ?hn :glued 2)])
-
-(:wat::rete::defrule :fmt::glue-type-args-keyword
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::grep::Named (?h <- :id) (?hn <- :name))
-         (:wat::grep::Node  (?d <- :id) (?p <- :parent) (?di <- :index) (?dk <- :kind))
-         (:wat::rete::where (:wat::rete::i64::= ?di 1))
-         (:wat::rete::where (:wat::rete::string::= ?dk "keyword"))
-         (:wat::grep::Named (?d <- :id) (?hn2 <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?hn2 ":-"))
-         (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index) (?vk <- :kind))
-         (:wat::rete::where (:wat::rete::i64::= ?vi 2))
-         (:wat::rete::where (:wat::rete::string::= ?vk "vector"))]
-  :then [(:wat::fmt::Slot :head ?hn :glued 2)])
-
+;; Withhold a Break for the child immediately AFTER a `->` sibling — the FORM
+;; is the authority, not a grammar index. Same shape for `:-` so type-args
+;; stay on the head line.
 (:wat::rete::defrule :fmt::siblings-explode-list
   :when [(:wat::fmt::Fallback (?p <- :node))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
@@ -80,10 +55,18 @@
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
-         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::grep::Named (?h <- :id) (?hn <- :name))
-         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
+             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?an "->"))
+             (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
+             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
+             (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
 
 (:wat::rete::defrule :fmt::siblings-explode-vector
@@ -93,10 +76,18 @@
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
-         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::grep::Named (?h <- :id) (?hn <- :name))
-         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
+             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?an "->"))
+             (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
+             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
+             (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
 
 (:wat::rete::defrule :fmt::siblings-explode-map
@@ -106,10 +97,18 @@
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
-         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::grep::Named (?h <- :id) (?hn <- :name))
-         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
+             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?an "->"))
+             (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
+             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
+             (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
 
 (:wat::rete::defrule :fmt::siblings-explode-set
@@ -119,8 +118,16 @@
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
-         (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::grep::Named (?h <- :id) (?hn <- :name))
-         (:wat::rete::not (:wat::fmt::Slot (?hn <- :head) (?ci <- :glued)))]
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
+             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?an "->"))
+             (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
+             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
+             (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
