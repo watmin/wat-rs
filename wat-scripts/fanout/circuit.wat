@@ -398,8 +398,8 @@
                    (:queue::Queue::Op::Receive recv-req) 1000
                    (:queue::Queue::Reply::Receive
                      (:queue::Queue::ReceiveResponse::Ok empty-envs)))]
-       (:wat::core::match (:wat::core::first recv-got)
-         ((:wat::core::Some r)
+       (:wat::core::match recv-got
+         ((:wat::service::CallOutcome::Answered r)
            (:wat::core::match r
              ((:queue::Queue::Reply::Receive (:queue::Queue::ReceiveResponse::Ok envs))
                (:wat::core::let
@@ -434,26 +434,25 @@
                                        [peer <- (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])]
                                        -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
                                                                  (:wat::core::Option :- [:fanout::Seen::CheckResponse])
-                                                                 :wat::core::i64])
-                                       ;; third: 0 replied, 1 noreply (redialed), 2 timeout (redialed, retry)
-                                       (:wat::core::let
-                                         [got (:wat::service::call-by-deadline peer
-                                                 (:fanout::Seen::Op::Check req) 200 inert-check)
-                                          ans (:wat::core::first got)
-                                          code (:wat::core::second got)
-                                          peer' (:wat::core::if (:wat::i64::= code 0) peer (redial))
-                                          cresp (:wat::core::match ans
-                                                   ((:wat::core::Some m)
-                                                     (:wat::core::match m
-                                                       ((:fanout::Seen::Reply::Check r) (:wat::core::Some r))
-                                                       (_ (:wat::kernel::assertion-failed! "fanout worker: check reply misrouted" :wat::core::None :wat::core::None))))
-                                                   (:wat::core::None :wat::core::None))]
-                                         (:wat::core::Tuple peer' cresp code)))
+                                                                 :wat::core::bool])
+                                       ;; third true = DeadlineFired: redial and retry
+                                       (:wat::core::match
+                                         (:wat::service::call-by-deadline peer
+                                           (:fanout::Seen::Op::Check req) 200 inert-check)
+                                         ((:wat::service::CallOutcome::Answered m)
+                                           (:wat::core::match m
+                                             ((:fanout::Seen::Reply::Check r)
+                                               (:wat::core::Tuple peer (:wat::core::Some r) false))
+                                             (_ (:wat::kernel::assertion-failed! "fanout worker: check reply misrouted" :wat::core::None :wat::core::None))))
+                                         ((:wat::service::CallOutcome::PeerGone)
+                                           (:wat::core::Tuple (redial) :wat::core::None false))
+                                         ((:wat::service::CallOutcome::DeadlineFired)
+                                           (:wat::core::Tuple (redial) :wat::core::None true))))
                                started-ns (:wat::time::epoch-nanos (:wat::time::now))
                                a1    (once seen0)
-                               a2    (:wat::core::if (:wat::i64::= (:wat::core::third a1) 2) (once (:wat::core::first a1)) a1)
-                               a3    (:wat::core::if (:wat::i64::= (:wat::core::third a2) 2) (once (:wat::core::first a2)) a2)
-                               pair  (:wat::core::if (:wat::i64::= (:wat::core::third a3) 2)
+                               a2    (:wat::core::if (:wat::core::third a1) (once (:wat::core::first a1)) a1)
+                               a3    (:wat::core::if (:wat::core::third a2) (once (:wat::core::first a2)) a2)
+                               pair  (:wat::core::if (:wat::core::third a3)
                                        (:wat::kernel::assertion-failed!
                                          (:wat::core::format
                                            "fanout worker: claim deadline exhausted;depth=3;attempts=3;elapsed={e}"
@@ -479,15 +478,18 @@
                                      once-m (:wat::core::fn
                                               [peer <- (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])]
                                               -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
-                                                                        :wat::core::i64])
-                                              (:wat::core::let
-                                                [got (:wat::service::call-by-deadline peer mark-op 200 inert-mark)
-                                                 code (:wat::core::second got)
-                                                 peer' (:wat::core::if (:wat::i64::= code 0) peer (redial))]
-                                                (:wat::core::Tuple peer' code)))
+                                                                        :wat::core::bool])
+                                              (:wat::core::match
+                                                (:wat::service::call-by-deadline peer mark-op 200 inert-mark)
+                                                ((:wat::service::CallOutcome::Answered _r)
+                                                  (:wat::core::Tuple peer false))
+                                                ((:wat::service::CallOutcome::PeerGone)
+                                                  (:wat::core::Tuple (redial) false))
+                                                ((:wat::service::CallOutcome::DeadlineFired)
+                                                  (:wat::core::Tuple (redial) true))))
                                      mm1 (once-m seen1)
-                                     mm2 (:wat::core::if (:wat::i64::= (:wat::core::second mm1) 2) (once-m (:wat::core::first mm1)) mm1)
-                                     mm3 (:wat::core::if (:wat::i64::= (:wat::core::second mm2) 2) (once-m (:wat::core::first mm2)) mm2)
+                                     mm2 (:wat::core::if (:wat::core::second mm1) (once-m (:wat::core::first mm1)) mm1)
+                                     mm3 (:wat::core::if (:wat::core::second mm2) (once-m (:wat::core::first mm2)) mm2)
                                      seen2 (:wat::core::first mm3)
                                      _nap (:wat::core::if (:wat::i64::> delay 0)
                                              (:wat::core::match
@@ -508,15 +510,18 @@
                                      once-a (:wat::core::fn
                                               [peer <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]
                                               -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                                        :wat::core::i64])
-                                              (:wat::core::let
-                                                [got (:wat::service::call-by-deadline peer ack-op 200 inert-ack)
-                                                 code (:wat::core::second got)
-                                                 peer' (:wat::core::if (:wat::i64::= code 0) peer (redial-q))]
-                                                (:wat::core::Tuple peer' code)))
+                                                                        :wat::core::bool])
+                                              (:wat::core::match
+                                                (:wat::service::call-by-deadline peer ack-op 200 inert-ack)
+                                                ((:wat::service::CallOutcome::Answered _r)
+                                                  (:wat::core::Tuple peer false))
+                                                ((:wat::service::CallOutcome::PeerGone)
+                                                  (:wat::core::Tuple (redial-q) false))
+                                                ((:wat::service::CallOutcome::DeadlineFired)
+                                                  (:wat::core::Tuple (redial-q) true))))
                                      aa1 (once-a q0)
-                                     aa2 (:wat::core::if (:wat::i64::= (:wat::core::second aa1) 2) (once-a (:wat::core::first aa1)) aa1)
-                                     aa3 (:wat::core::if (:wat::i64::= (:wat::core::second aa2) 2) (once-a (:wat::core::first aa2)) aa2)]
+                                     aa2 (:wat::core::if (:wat::core::second aa1) (once-a (:wat::core::first aa1)) aa1)
+                                     aa3 (:wat::core::if (:wat::core::second aa2) (once-a (:wat::core::first aa2)) aa2)]
                                     (:wat::core::Tuple (:wat::core::first aa3) seen2 outs1)))
                                 (:wat::core::None
                                   ;; Lost/Closed (and send-fail) already redialed. Do not ack.
@@ -531,7 +536,16 @@
                  (:wat::service::SelfOutcome::Continue s'
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
              (_ (:wat::kernel::assertion-failed! "fanout worker: receive not Ok" :wat::core::None :wat::core::None))))
-         (:wat::core::None
+         ((:wat::service::CallOutcome::PeerGone)
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
+             (:wat::service::SelfOutcome::Continue s'
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
+         ((:wat::service::CallOutcome::DeadlineFired)
            (:wat::core::let
              [fresh (:wat::core::match
                       (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))

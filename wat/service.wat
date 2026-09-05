@@ -3117,14 +3117,21 @@
       (:wat::kernel::SendOutcome::Stopped false)
       ((:wat::kernel::SendOutcome::Lost _c) true))))
 
-;; call-by-deadline — one client round-trip with a timer. idx 0 is a real
-;; reply (Some); idx 1 is the deadline (None, code 2). Lost/Closed is code 1.
-;; `inert` is the timer's payload: the type demands a value, and it is never
-;; read. After defservice so nothing above line 896 moves.
+;; CallOutcome — the reply cannot be obtained without learning why it arrived.
+;; PeerGone is Lost OR Closed (already merged; callers redial both). After the
+;; defservice macro so nothing above line 896 moves.
+(:wat::core::defenum :wat::service::CallOutcome :- [O] :wat::enum::Pure
+  :Answered      [reply <- :O]
+  :PeerGone      []
+  :DeadlineFired [])
+
+;; call-by-deadline — one client round-trip with a timer. idx 0 is Answered;
+;; idx 1 is DeadlineFired. Lost/Closed is PeerGone. `inert` is the timer's
+;; payload: the type demands a value, and it is never read.
 (:wat::core::defn :wat::service::call-by-deadline :- [I O]
   [peer <- (:wat::kernel::Peer :- [:I :O])  op <- :I
    ms <- :wat::core::i64  inert <- :O]
-  -> (:wat::core::Tuple :- [(:wat::core::Option :- [:O]) :wat::core::i64])
+  -> (:wat::service::CallOutcome :- [:O])
   (:wat::core::match (:wat::kernel::send peer op)
     (:wat::kernel::SendOutcome::Sent
       (:wat::core::let
@@ -3136,16 +3143,16 @@
         (:wat::core::match (:wat::kernel::select [peer tmr])
           ((:wat::spawn::ServiceEvent::Message idx m)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::core::Tuple (:wat::core::Some m) 0)
-              (:wat::core::Tuple :wat::core::None 2)))
+              (:wat::service::CallOutcome::Answered m)
+              (:wat::service::CallOutcome::DeadlineFired)))
           ((:wat::spawn::ServiceEvent::Closed idx)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::core::Tuple :wat::core::None 1)
-              (:wat::core::Tuple :wat::core::None 2)))
+              (:wat::service::CallOutcome::PeerGone)
+              (:wat::service::CallOutcome::DeadlineFired)))
           ((:wat::spawn::ServiceEvent::Lost idx _c)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::core::Tuple :wat::core::None 1)
-              (:wat::core::Tuple :wat::core::None 2)))
+              (:wat::service::CallOutcome::PeerGone)
+              (:wat::service::CallOutcome::DeadlineFired)))
           (:wat::spawn::ServiceEvent::Shutdown
             (:wat::kernel::assertion-failed! "call-by-deadline: select shutdown" :wat::core::None :wat::core::None))
           ((:wat::spawn::ServiceEvent::Admin _msg)
@@ -3154,15 +3161,15 @@
             (:wat::kernel::assertion-failed! "call-by-deadline: select connection" :wat::core::None :wat::core::None))
           ((:wat::spawn::ServiceEvent::Malformed idx _c)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::core::Tuple :wat::core::None 1)
+              (:wat::service::CallOutcome::PeerGone)
               (:wat::kernel::assertion-failed! "call-by-deadline: timer malformed" :wat::core::None :wat::core::None)))
           ((:wat::spawn::ServiceEvent::Rejected idx _c)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::core::Tuple :wat::core::None 1)
+              (:wat::service::CallOutcome::PeerGone)
               (:wat::kernel::assertion-failed! "call-by-deadline: timer rejected" :wat::core::None :wat::core::None))))))
     (:wat::kernel::SendOutcome::Closed
-      (:wat::core::Tuple :wat::core::None 1))
+      (:wat::service::CallOutcome::PeerGone))
     (:wat::kernel::SendOutcome::Stopped
       (:wat::kernel::assertion-failed! "call-by-deadline: send stopped" :wat::core::None :wat::core::None))
     ((:wat::kernel::SendOutcome::Lost _c)
-      (:wat::core::Tuple :wat::core::None 1))))
+      (:wat::service::CallOutcome::PeerGone))))
