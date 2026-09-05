@@ -121,9 +121,9 @@ fn redelivery_is_absorbed_by_the_consumer() {
     );
     assert_eq!(field(&stored, "distinct"), "1", "got {stored}");
     assert_eq!(field(&stored, "dup"), "0", "got {stored}");
-    let seen_dups: i64 = field(&stored, "seen-dups")
+    let seen_dups: i64 = field(&stored, "seen-skipped")
         .parse()
-        .unwrap_or_else(|_| panic!("seen-dups not an i64 in {stored}"));
+        .unwrap_or_else(|_| panic!("seen-skipped not an i64 in {stored}"));
     assert!(
         seen_dups > 0,
         "the ledger must count the absorbed redelivery; a counter that never counts is a deleted counter; got {stored}"

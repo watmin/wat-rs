@@ -44,24 +44,34 @@
 ;; Claim is First or Dup. At-least-once stays the queue's contract.
 (:wat::core::defsurface :fanout::Seen :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :fanout::Seen::ClaimRequest
+  [(:wat::core::defrecord :fanout::Seen::CheckRequest
      [queue <- :wat::core::String
       seq   <- :wat::core::String])
-   (:wat::core::defenum :fanout::Seen::ClaimResponse :wat::enum::Pure
-     :First []
-     :Dup []
+   (:wat::core::defenum :fanout::Seen::CheckResponse :wat::enum::Pure
+     :Recorded []
+     :Absent []
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :fanout::Seen::MarkRequest
+     [queue <- :wat::core::String
+      seq   <- :wat::core::String])
+   (:wat::core::defenum :fanout::Seen::MarkResponse :wat::enum::Pure
+     :Ok []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :fanout::Seen::StatsRequest [])
    (:wat::core::defenum :fanout::Seen::StatsResponse :wat::enum::Pure
-     :Ok [firsts <- :wat::core::i64  dups <- :wat::core::i64]
+     :Ok [recorded <- :wat::core::i64  skipped <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
-  [(claim [self <- :fanout::Seen  req <- :fanout::Seen::ClaimRequest]
-     -> :fanout::Seen::ClaimResponse :max-request-bytes 524288)
+  [(check [self <- :fanout::Seen  req <- :fanout::Seen::CheckRequest]
+     -> :fanout::Seen::CheckResponse :max-request-bytes 524288)
+   (mark [self <- :fanout::Seen  req <- :fanout::Seen::MarkRequest]
+     -> :fanout::Seen::MarkResponse :max-request-bytes 524288)
    (stats [self <- :fanout::Seen  req <- :fanout::Seen::StatsRequest]
      -> :fanout::Seen::StatsResponse :max-request-bytes 524288)])
 
@@ -72,10 +82,10 @@
   ;; does not tear — that is a property, not a second mechanism.
   :max-frame-bytes 256
   ;; Counters are durable so a stats read is a fact about this run.
-  ;; claimed stays ephemeral: the ledger does not cross the wire and does not
-  ;; survive hibernation (S31). Restart seen and every message looks First again.
-  :durable   [firsts        <- :wat::core::i64
-              dups          <- :wat::core::i64
+  ;; claimed stays ephemeral: the receipt does not cross the wire and does not
+  ;; survive hibernation (S31). Restart seen and every message looks Absent again.
+  :durable   [recorded      <- :wat::core::i64
+              skipped       <- :wat::core::i64
               drop-rate-bp  <- :wat::core::i64
               drop-seed     <- :wat::core::i64
               drop-after?   <- :wat::core::bool]
@@ -84,14 +94,13 @@
           (:fanout::seen::State :durable record
             :claimed (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])))
   :impls
-  [(claim [s ctx req]
+  [(check [s ctx req]
      (:wat::core::let
-       [key (:wat::string::concat (:fanout::Seen::ClaimRequest/queue req)
-               (:wat::string::concat "/" (:fanout::Seen::ClaimRequest/seq req)))
+       [key (:wat::string::concat (:fanout::Seen::CheckRequest/queue req)
+               (:wat::string::concat "/" (:fanout::Seen::CheckRequest/seq req)))
         claimed (:fanout::seen::State/claimed s)
         rec     (:fanout::seen::State/durable s)
         rate   (:fanout::seen::Record/drop-rate-bp rec)
-        after? (:fanout::seen::Record/drop-after? rec)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Seen::Reply])])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])
         pair (:wat::core::if (:wat::i64::> rate 0)
@@ -103,28 +112,48 @@
         already? (:wat::core::match (:wat::hashmap::get claimed key)
                    ((:wat::core::Some _) true)
                    (:wat::core::None false))
-        write? (:wat::core::or (:wat::core::not hit?) after?)
-        firsts' (:wat::core::if (:wat::core::and write? (:wat::core::not already?))
-                  (:wat::i64::+ (:fanout::seen::Record/firsts rec) 1)
-                  (:fanout::seen::Record/firsts rec))
-        dups' (:wat::core::if (:wat::core::and write? already?)
-                (:wat::i64::+ (:fanout::seen::Record/dups rec) 1)
-                (:fanout::seen::Record/dups rec))
-        claimed' (:wat::core::if (:wat::core::and write? (:wat::core::not already?))
-                   (:wat::hashmap::assoc claimed key true)
-                   claimed)
         rec' (:fanout::seen::Record
-               :firsts firsts' :dups dups'
-               :drop-rate-bp rate :drop-seed seed1 :drop-after? after?)
-        s' (:fanout::seen::State :durable rec' :claimed claimed')
+               :recorded (:fanout::seen::Record/recorded rec)
+               :skipped (:fanout::seen::Record/skipped rec)
+               :drop-rate-bp rate :drop-seed seed1
+               :drop-after? (:fanout::seen::Record/drop-after? rec))
+        s' (:fanout::seen::State :durable rec' :claimed claimed)
+        resp (:wat::core::if already?
+               (:fanout::Seen::CheckResponse::Recorded)
+               (:fanout::Seen::CheckResponse::Absent))
         reply (:wat::core::if hit?
                 :wat::core::None
-                (:wat::core::Some
-                  (:fanout::Seen::Reply::Claim
-                    (:wat::core::if already?
-                      (:fanout::Seen::ClaimResponse::Dup)
-                      (:fanout::Seen::ClaimResponse::First)))))]
+                (:wat::core::Some (:fanout::Seen::Reply::Check resp)))]
        (:wat::service::Outcome::Continue s' reply sends none-alarms)))
+   (mark [s ctx req]
+     (:wat::core::let
+       [key (:wat::string::concat (:fanout::Seen::MarkRequest/queue req)
+               (:wat::string::concat "/" (:fanout::Seen::MarkRequest/seq req)))
+        claimed (:fanout::seen::State/claimed s)
+        rec     (:fanout::seen::State/durable s)
+        sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Seen::Reply])])
+        none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])
+        already? (:wat::core::match (:wat::hashmap::get claimed key)
+                   ((:wat::core::Some _) true)
+                   (:wat::core::None false))
+        recorded' (:wat::core::if already?
+                    (:fanout::seen::Record/recorded rec)
+                    (:wat::i64::+ (:fanout::seen::Record/recorded rec) 1))
+        skipped' (:wat::core::if already?
+                   (:wat::i64::+ (:fanout::seen::Record/skipped rec) 1)
+                   (:fanout::seen::Record/skipped rec))
+        claimed' (:wat::core::if already?
+                   claimed
+                   (:wat::hashmap::assoc claimed key true))
+        rec' (:fanout::seen::Record
+               :recorded recorded' :skipped skipped'
+               :drop-rate-bp (:fanout::seen::Record/drop-rate-bp rec)
+               :drop-seed (:fanout::seen::Record/drop-seed rec)
+               :drop-after? (:fanout::seen::Record/drop-after? rec))
+        s' (:fanout::seen::State :durable rec' :claimed claimed')]
+       (:wat::service::Outcome::Continue s'
+         (:wat::core::Some (:fanout::Seen::Reply::Mark (:fanout::Seen::MarkResponse::Ok)))
+         sends none-alarms)))
    (stats [s ctx req]
      (:wat::core::let
        [rec (:fanout::seen::State/durable s)
@@ -133,8 +162,8 @@
        (:wat::service::Outcome::Continue s
          (:wat::core::Some (:fanout::Seen::Reply::Stats
            (:fanout::Seen::StatsResponse::Ok
-             (:fanout::seen::Record/firsts rec)
-             (:fanout::seen::Record/dups rec))))
+             (:fanout::seen::Record/recorded rec)
+             (:fanout::seen::Record/skipped rec))))
          sends none-alarms)))])
 
 ;; Silent server for showing timeout → discard → redial → retry on a FRESH peer.
@@ -308,8 +337,8 @@
                 "" (:wat::core::range 0 200))
         poisoned (:wat::core::if hit?
                     (:wat::core::match
-                      (:fanout::Seen/claim old
-                        (:fanout::Seen::ClaimRequest :queue "disrupt" :seq pad))
+                      (:fanout::Seen/check old
+                        (:fanout::Seen::CheckRequest :queue "disrupt" :seq pad))
                       ((:wat::kernel::RecvOutcome::Message _r) "message")
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
@@ -395,7 +424,7 @@
                                raw   (:queue::Envelope/body e)
                                parts (:wat::string::split raw "|")
                                seq   (:wat::core::if (:wat::core::empty? parts) "" (:wat::core::first parts))
-                               req   (:fanout::Seen::ClaimRequest :queue name :seq seq)
+                               req   (:fanout::Seen::CheckRequest :queue name :seq seq)
                                addr  (:fanout::worker::Record/seen-addr rec)
                                kind  (:wat::program::Env/peer-kind (:wat::program::env))
                                ;; Local so the process impl's checker sees the return type.
@@ -408,10 +437,10 @@
                                once  (:wat::core::fn
                                        [peer <- (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])]
                                        -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
-                                                                 (:wat::core::Option :- [:fanout::Seen::ClaimResponse])
+                                                                 (:wat::core::Option :- [:fanout::Seen::CheckResponse])
                                                                  :wat::core::i64])
                                        ;; third: 0 replied, 1 noreply (redialed), 2 timeout (redialed, retry)
-                                       (:wat::core::match (:wat::kernel::send peer (:fanout::Seen::Op::Claim req))
+                                       (:wat::core::match (:wat::kernel::send peer (:fanout::Seen::Op::Check req))
                                          (:wat::kernel::SendOutcome::Sent
                                            (:wat::core::let
                                              [tmr (:wat::core::first
@@ -421,14 +450,14 @@
                                                       ;; enough that a drop run does not stall publish
                                                       ;; (5000 ms * ~2% of 8000 backed the inbox to never-accepted).
                                                       (:wat::kernel::after kind (:wat::time::Milliseconds 200)
-                                                        (:fanout::Seen::Reply::Claim (:fanout::Seen::ClaimResponse::First)))))]
+                                                        (:fanout::Seen::Reply::Check (:fanout::Seen::CheckResponse::Absent)))))]
                                              (:wat::core::match (:wat::kernel::select [peer tmr])
                                                ((:wat::spawn::ServiceEvent::Message idx m)
                                                  (:wat::core::if (:wat::i64::= idx 0)
                                                    (:wat::core::match m
-                                                     ((:fanout::Seen::Reply::Claim resp)
+                                                     ((:fanout::Seen::Reply::Check resp)
                                                        (:wat::core::Tuple peer (:wat::core::Some resp) 0))
-                                                     (_ (:wat::kernel::assertion-failed! "fanout worker: claim reply misrouted" :wat::core::None :wat::core::None)))
+                                                     (_ (:wat::kernel::assertion-failed! "fanout worker: check reply misrouted" :wat::core::None :wat::core::None)))
                                                    (:wat::core::Tuple (redial) :wat::core::None 2)))
                                                ((:wat::spawn::ServiceEvent::Closed idx)
                                                  (:wat::core::if (:wat::i64::= idx 0)
@@ -473,10 +502,20 @@
                               (:wat::core::match (:wat::core::second pair)
                                 ((:wat::core::Some cresp)
                                   (:wat::core::let
-                                    [first? (:wat::core::match cresp
-                                              ((:fanout::Seen::ClaimResponse::First) true)
-                                              ((:fanout::Seen::ClaimResponse::Dup) false)
-                                              (_ (:wat::kernel::assertion-failed! "fanout worker: claim not First/Dup" :wat::core::None :wat::core::None)))
+                                    [absent? (:wat::core::match cresp
+                                               ((:fanout::Seen::CheckResponse::Absent) true)
+                                               ((:fanout::Seen::CheckResponse::Recorded) false)
+                                               (_ (:wat::kernel::assertion-failed! "fanout worker: check not Absent/Recorded" :wat::core::None :wat::core::None)))
+                                     ebody (:wat::core::format "{b}|{t}" :b raw :t t4)
+                                     outs1 (:wat::core::if absent?
+                                             (:wat::vector::conj outs0
+                                               (:fanout::Outcome :worker wid :queue name :id eid :body ebody))
+                                             outs0)
+                                     _mark (:wat::core::match
+                                             (:fanout::Seen/mark seen1
+                                               (:fanout::Seen::MarkRequest :queue name :seq seq))
+                                             ((:wat::kernel::RecvOutcome::Message _r) nil)
+                                             (_ nil))
                                      _nap (:wat::core::if (:wat::i64::> delay 0)
                                              (:wat::core::match
                                                (:wat::kernel::recv
@@ -484,13 +523,8 @@
                                                ((:wat::kernel::RecvOutcome::Message _m) nil)
                                                (_ nil))
                                              nil)
-                                     ebody (:wat::core::format "{b}|{t}" :b raw :t t4)
                                      ar    (:queue::Queue/ack q0
-                                             (:queue::Queue::AckRequest :queue name :id eid))
-                                     outs1 (:wat::core::if first?
-                                             (:wat::vector::conj outs0
-                                               (:fanout::Outcome :worker wid :queue name :id eid :body ebody))
-                                             outs0)]
+                                             (:queue::Queue::AckRequest :queue name :id eid))]
                                     (:wat::core::match ar
                                       ((:wat::kernel::RecvOutcome::Message _ar)
                                         (:wat::core::Tuple q0 seen1 outs1))
@@ -975,7 +1009,7 @@
     (:wat::core::match (:fanout::Seen/stats p (:fanout::Seen::StatsRequest))
       ((:wat::kernel::RecvOutcome::Message r)
         (:wat::core::match r
-          ((:fanout::Seen::StatsResponse::Ok firsts dups) (:wat::core::Tuple firsts dups))
+          ((:fanout::Seen::StatsResponse::Ok recorded skipped) (:wat::core::Tuple recorded skipped))
           ((:fanout::Seen::StatsResponse::RequestTooLarge _b _c)
             (:wat::kernel::assertion-failed! "fanout: seen stats too large" :wat::core::None :wat::core::None))
           ((:fanout::Seen::StatsResponse::RequestMalformed _p _e _g)
@@ -1261,7 +1295,7 @@
              nil
              (:wat::core::range 0 j))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :firsts 0 :dups 0
+              :record (:fanout::seen::Record :recorded 0 :skipped 0
                         :drop-rate-bp drop-rate :drop-seed drop-seed :drop-after? drop-after?))
      workers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::worker::Handle])
@@ -1349,13 +1383,13 @@
                    1
                    (:wat::core::range 0 m))
      summary0 (:fanout::summarize n m j outs empty-flags)
-     summary (:wat::core::format "{s};seen-firsts={f};seen-dups={d}"
+     summary (:wat::core::format "{s};seen-recorded={f};seen-skipped={d}"
                :s summary0 :f sfirsts :d sdups)
      t-end (:wat::time::epoch-nanos (:wat::time::now))
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};seen-firsts={sf};seen-dups={sd}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};seen-recorded={sf};seen-skipped={sd}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
@@ -1560,7 +1594,7 @@
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :firsts 0 :dups 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1605,7 +1639,7 @@
                       (:queue::queue/grant iqh (:fanout::pids pl))))
            :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :firsts 0 :dups 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1701,7 +1735,7 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh)))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
-              :record (:fanout::seen::Record :firsts 0 :dups 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-rate-bp 0 :drop-seed 0 :drop-after? false))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
           :record (:fanout::mk-worker "a" "q0" 200000000 350
                     (:queue::queue::Handle/addr qh)
@@ -1744,6 +1778,6 @@
      sfirsts (:wat::core::first spair)
      sdups (:wat::core::second spair)]
     (:wat::core::format
-      "total={t};distinct={d};dup={dup};seen-firsts={f};seen-dups={sd}"
+      "total={t};distinct={d};dup={dup};seen-recorded={f};seen-skipped={sd}"
       :t total :d distinct :dup (:wat::core::- total distinct)
       :f sfirsts :sd sdups)))
