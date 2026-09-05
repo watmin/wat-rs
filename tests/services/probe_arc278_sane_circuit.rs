@@ -163,6 +163,16 @@ fn r2_drop_after_tiny() {
     eprintln!("R2 AFTER-TINY {stored}");
 }
 
+/// Check-drop cell — the knob restored by "a worker gives the message back".
+/// `#[ignore]` for the same reason as its siblings: the floor runs rate 0.
+#[ignore]
+#[test]
+fn drop_check_tiny() {
+    let world = load_circuit();
+    let stored = call_string(&world, ":user::drop-check-tiny");
+    eprintln!("DROP-CHECK-TINY {stored}");
+}
+
 #[ignore]
 #[test]
 fn r2_drop_before_write() {
