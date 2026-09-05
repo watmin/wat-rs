@@ -95,3 +95,52 @@ constructing a slash-bearing name, that is a finding and Part 2 stops.
 the same EDN as a `/` method and are a SEPARATE ambiguity, already recorded in
 `[[SCORE-STONE-the-printer-and-the-round-trip-gate]]`. This stone makes the wire *readable*; it does
 not make it *unambiguous*. Say so plainly rather than implying the wire is now total.
+
+---
+
+## ⛔ AMENDED 2026-09-05 — "UPPERCASE MEANS TYPE" IS NOT A RULE THIS LANGUAGE HAS
+
+> **Builder:** *"uppercase is not a type declaration…. `:wat::core::i64` is a type…. it becomes
+> `wat.type/i64` later... once we prepare for the clojure/edn syntax cutover."*
+
+The record backs it. `[[251-types-as-forms/DESIGN-STONE-251.2]]`: *"bridges `:wat::core::T` (old) ·
+`:wat::type::T` (new FQDN) · **`wat.type/T` (surface symbol)**"*, with
+`ns_to_wat_path("wat.type","i64")` = `:wat::type::i64`. **251.5 — the internal canonical flip
+`:wat::core::` → `:wat::type::` — is designed and unshipped.** The cutover is real and parked, not
+hypothetical.
+
+**Two things follow, and one is a retraction.**
+
+**1 — A proposed lint is RETRACTED before it was written.** In discussion I recommended renaming the
+five `Type::lowercase` names and then forbidding that shape with a lint. That rests entirely on
+"uppercase marks a type", which is false. **It would have frozen a discriminator the language does
+not have into a wall** — worse than no wall, because a wall carries authority. It never reached a
+brief; it is recorded here so it cannot be re-proposed.
+`[[feedback_i_cited_a_rule_instead_of_measuring_whether_it_applied]]`
+
+**2 — `fqdn_of`'s rationale in `crates/wat-macros/src/edn_doc.rs` is FALSE, and its answers are
+RIGHT.** Committed at `0582f1919`, it reads: *"a method name does not start uppercase, a type (and
+an enum variant) does."* That is not the rule. What the code actually keys on is **the last
+NAMESPACE segment being uppercase** — which correlates with record types (`Hologram`, `Bytes`,
+`HandlePool`) and never touches `i64`/`String`, because those sit in the NAME position, not the
+namespace. So every answer it gives today is correct and its stated reason is not, and no test can
+catch that. **Ninth comment-caused defect of this campaign; the cure is the same as the other
+eight — say what it keys on, and name what it cannot see.** That becomes Part 3.
+
+## ★ AND THE HARD HALF DISSOLVES RATHER THAN BEING SOLVED
+
+The reverse transform (`:wat.holon.Hologram/make` → `/method` or `::method`?) is ambiguous **only
+while wat and EDN are different syntaxes**. After 251's cutover, `wat.type/i64` IS the wat surface —
+there is no reverse transform, because there is nothing to translate back to.
+
+⛔ **So the reverse discriminator must NOT be solved here.** Any heuristic built for it is machinery
+whose whole purpose is to be deleted, and a wall built on it would outlive its own premise. This
+stone makes the wire **readable**. 251 makes the question **not exist**.
+
+## PART 3 — the comment (added by this amendment)
+
+Correct `fqdn_of`'s doc to state the rule it actually implements (last namespace segment uppercase +
+name not uppercase ⇒ it was a `/` method) and to name its limit plainly: a record type spelled
+lowercase, or a method spelled uppercase, defeats it — and that limit is acceptable **only because
+251's cutover retires the reverse direction entirely.** Cite 251 so the next reader finds the exit
+rather than hardening the heuristic.
