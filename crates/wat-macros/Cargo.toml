@@ -15,6 +15,12 @@ quote = "1"
 proc-macro2 = "1"
 wat-doc = { path = "../wat-doc" }
 wat-reader = { path = "../wat-reader" }
+# arc 255 "the walls must not be muted" / the ```edn doc row — the proc-macro parses the
+# ```edn fence at EXPAND time (a proc-macro cannot consult the runtime type registry, so the
+# tag is validated by name here, not resolved). No cycle: wat-edn does not depend on
+# wat-macros. Proven safe by a `#[test]` inside this crate before this dependency was added
+# for real (see SCORE-the-two-probes-and-a-third-muted-wall.md, probe (a)).
+wat-edn = { path = "../wat-edn" }
 
 [dev-dependencies]
 trybuild = "1"

@@ -10,24 +10,40 @@ use crate::span::Span;
 use crate::value::{Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use wat_macros::wat_intrinsic;
 
-/// `(:wat::core::char s)` → the single `:wat::core::char` in the length-1
-/// String `s`.
+/// arc 255 "the walls must not be muted" / BRIEF-STONE-the-edn-doc-row-is-imposed — this row
+/// is the ONE `#[wat_intrinsic]` row converted to the ```edn tagged-record form as the stone's
+/// proof: few args, one example, byte-identical `metadata-of`/`render-doc` before and after
+/// (verified against `wat-scripts/scratch-pad/255-edn-doc-row-char-before-after.wat`).
+/// `:doc`'s value is a LITERAL multi-line EDN string (Clojure's own docstring convention —
+/// `wat_edn`'s string lexer admits a raw, unescaped newline inside `"..."` same as it admits
+/// any other byte), never `\n`-escaped — an escaped multi-paragraph prose string is exactly
+/// the encoded-newline ugliness the builder rejected outright. The whole fence is indented
+/// uniformly for readability; `edn_doc::extract_edn_fence` dedents it back to flush-left
+/// before parsing, so the indentation below is never part of the parsed `:doc` value (a
+/// column-aligned indent that gave the string's continuation lines MORE margin than their
+/// sibling keys would instead inject that extra whitespace into the prose — measured, not
+/// assumed, in `edn_doc`'s own `indented_fence_dedents_to_the_flush_left_reading` test).
+/// ```edn
+///   #wat.doc/Row {
+///     :doc "`(:wat::core::char s)` → the single `:wat::core::char` in the length-1
+///   String `s`.
 ///
-/// BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
-/// with a clear diagnostic, inheriting the Stone 218.6b discipline from
-/// wat-edn's BMP-only strictness. Errors: `s` is not length-1 (empty or
-/// multi-char), or its single char is a supplementary-plane codepoint. Arc
-/// 220 slice 2.
-///
-/// @added         1.0.0
-/// @Purity        Pure
-/// @Determinism   Deterministic
-/// @Totality         Unreviewed
-/// @ExpandTime    Unreviewed
-/// @Category      Transform
-/// @arg     s :wat::core::String a length-1 BMP string
-/// @ret     :wat::core::char the single character in `s`
-/// @example (:wat::core::char "x") #=> (:wat::core::char "x")
+///   BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
+///   with a clear diagnostic, inheriting the Stone 218.6b discipline from
+///   wat-edn's BMP-only strictness. Errors: `s` is not length-1 (empty or
+///   multi-char), or its single char is a supplementary-plane codepoint. Arc
+///   220 slice 2."
+///     :added "1.0.0"
+///     :purity :wat.runtime.Purity/Pure
+///     :determinism :wat.runtime.Determinism/Deterministic
+///     :totality :wat.runtime.Totality/Unreviewed
+///     :expand-time :wat.runtime.ExpandTime/Unreviewed
+///     :category :wat.runtime.Category/Transform
+///     :args [[s :wat.core/String "a length-1 BMP string"]]
+///     :ret [:wat.core/char "the single character in `s`"]
+///     :examples [[(:wat.core/char "x") (:wat.core/char "x")]]
+///   }
+/// ```
 #[wat_intrinsic(":wat::core::char")]
 pub(crate) fn eval_char_of(
     s: &WatAST,

@@ -51,6 +51,7 @@
 //! ) -> Result<Value, EvalBreak> { ... }
 //! ```
 
+use crate::edn_doc;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{Error, Expr, ExprLit, FnArg, GenericArgument, ItemFn, Lit, LitStr, Meta, Pat,
@@ -682,6 +683,22 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
                 tag, tag
             )
         }
+        wat_doc::DocError::EdnMalformed { why } => {
+            format!("```edn fence failed to parse as EDN: {}", why)
+        }
+        wat_doc::DocError::EdnUnknownTag { got } => {
+            format!(
+                "```edn fence must be a single `#wat.doc/Row {{...}}` or `#wat.doc/Alias {{...}}` \
+                 tagged map; got: {}",
+                got
+            )
+        }
+        wat_doc::DocError::EdnValueNotRepresentable { why } => {
+            format!(
+                "```edn fence's body contains a value with no `WatAST` spelling: {}",
+                why
+            )
+        }
     }
 }
 
@@ -768,13 +785,48 @@ pub(crate) fn emit(
         }
     };
 
-    let doc = match wat_doc::parse(&raw_doc) {
-        Ok(d) => d,
-        Err(e) => {
-            return Err(Error::new_spanned(
-                item,
-                format!("#[wat_intrinsic] {}: {}", fqdn.value(), render_doc_error(&e)),
-            ));
+    // arc 255 "the walls must not be muted" / BRIEF-STONE-the-edn-doc-row-is-imposed — BOTH
+    // forms are accepted (STOP-2: neither's behaviour changes). A ```edn fence in the doc
+    // block routes to `wat_doc::from_metadata` THROUGH `crate::edn_doc`'s generic transcoder
+    // (⛔ NOT a third decoder — every doc-contract check still lives in `from_metadata`); its
+    // absence is the untouched pre-existing `wat_doc::parse` path. `edn_example_body` carries
+    // the ONE `wat_edn::parse` this made, forward to the example-text recovery below — never a
+    // second parse of the fence.
+    let edn_fence: Option<String> = edn_doc::extract_edn_fence(&raw_doc);
+    let (doc, edn_example_body): (wat_doc::DocComment, Option<wat_edn::Value>) = match &edn_fence
+    {
+        Some(edn_src) => {
+            let (_tag, map_ast, body) = match edn_doc::parse_edn_doc_row(edn_src) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(Error::new_spanned(
+                        item,
+                        format!("#[wat_intrinsic] {}: {}", fqdn.value(), render_doc_error(&e)),
+                    ));
+                }
+            };
+            let doc = match wat_doc::from_metadata(&map_ast) {
+                Ok(d) => d,
+                Err(e) => {
+                    return Err(Error::new_spanned(
+                        item,
+                        format!("#[wat_intrinsic] {}: {}", fqdn.value(), render_doc_error(&e)),
+                    ));
+                }
+            };
+            (doc, Some(body))
+        }
+        None => {
+            let doc = match wat_doc::parse(&raw_doc) {
+                Ok(d) => d,
+                Err(e) => {
+                    return Err(Error::new_spanned(
+                        item,
+                        format!("#[wat_intrinsic] {}: {}", fqdn.value(), render_doc_error(&e)),
+                    ));
+                }
+            };
+            (doc, None)
         }
     };
 
@@ -866,12 +918,15 @@ pub(crate) fn emit(
     // Arc 255 STONE "an example is a FORM, not a string" — `doc.examples[i]`
     // now carries a PARSED form (that parse IS the validation this stone
     // adds), not the literal text `ExampleSubmission` needs. Re-derive the
-    // original text directly from `raw_doc` (see `example_text_slices`);
-    // `doc.examples` and this re-scan walk the SAME `@example`/`@example-
-    // norun` lines in the SAME order (both are downstream of `wat_doc::
-    // parse`'s one identical grammar), so the assert below is a sanity check
-    // on that invariant, not a real failure mode.
-    let example_texts = example_text_slices(&raw_doc);
+    // original text: from `raw_doc` (see `example_text_slices`) for the `@`-form, or from the
+    // ONE already-parsed `wat_edn::Value` (`edn_doc::example_texts_from_edn_body` — a second
+    // RENDERING of that one parse, not a second parse) for the ```edn form. Either way,
+    // `doc.examples` and this pass walk the SAME source in the SAME order, so the assert below
+    // is a sanity check on that invariant, not a real failure mode.
+    let example_texts = match &edn_example_body {
+        Some(body) => edn_doc::example_texts_from_edn_body(body),
+        None => example_text_slices(&raw_doc),
+    };
     assert_eq!(
         example_texts.len(),
         doc.examples.len(),

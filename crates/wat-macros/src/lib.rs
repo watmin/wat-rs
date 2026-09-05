@@ -27,6 +27,7 @@ use syn::{parse_macro_input, Error, ItemImpl, LitStr};
 
 mod codegen;
 mod discover;
+mod edn_doc;
 mod wat_intrinsic;
 mod wat_special_form;
 mod wat_special_form_impl;

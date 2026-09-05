@@ -369,6 +369,24 @@ pub enum DocError {
     /// the two text-grammar paths; `":purity"`/`":determinism"`/`":totality"`/`":expand-time"`/
     /// `":category"` for [`from_metadata`]).
     AliasDeclaresAxis { tag: String },
+    /// arc 255 "the walls must not be muted" / the ```edn doc row — the fenced ```edn ... ```
+    /// block's text failed to parse as EDN (`wat_edn::parse` returned `Err`). `why` is that
+    /// error's `Display`. Raised by the wat-macros fence reader BEFORE `from_metadata` is ever
+    /// reached — a malformed fence is a wire-format defect, not a doc-contract one.
+    EdnMalformed { why: String },
+    /// The fence's top-level EDN value was not `#wat.doc/Row {...}` or `#wat.doc/Alias {...}`
+    /// — an untagged value, a tag whose namespace/name isn't `wat.doc/Row` or `wat.doc/Alias`,
+    /// or a tagged value whose body isn't a map. `got` names what was actually found (the tag,
+    /// or a shape description). This is the wat-macros fence reader's OWN validation (a
+    /// proc-macro cannot consult the runtime type registry to resolve the tag — see
+    /// `DESIGN-the-tagged-edn-doc-row.md`); it never reaches `from_metadata`.
+    EdnUnknownTag { got: String },
+    /// An EDN value inside a ```edn fence's body has no `WatAST` spelling (e.g. `Tagged`,
+    /// `Inst`, `Uuid`, `BigDec`, a namespaced `Symbol`) — the EDN→`WatAST` conversion the fence
+    /// reader performs before handing the map to `from_metadata` is NOT total over
+    /// `wat_edn::Value`. `why` names the unrepresentable shape. This is the STOP-1 channel the
+    /// BRIEF asks for: a real `DocError`, never a `panic!`.
+    EdnValueNotRepresentable { why: String },
 }
 
 /// A fully-parsed special-form doc comment.
