@@ -120,6 +120,33 @@
                     :wat::core::None)]
         (:wat::query::Store::ScanIndexResponse::Success rows next-cur)))))
 
+(:wat::core::defn :wat::query::count-index-response
+  [r <- (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])]
+  -> :wat::query::Store::CountIndexResponse
+  (:wat::core::match r
+    ((:wat::core::Err e)
+      (:wat::core::match e
+        ((:wat::sqlite::Error::Transient f)
+          (:wat::query::Store::CountIndexResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
+        ((:wat::sqlite::Error::Constraint f)
+          (:wat::query::Store::CountIndexResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))
+        ((:wat::sqlite::Error::Fatal f)
+          (:wat::query::Store::CountIndexResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))
+    ((:wat::core::Ok n)
+      (:wat::query::Store::CountIndexResponse::Ok n))))
+
+(:wat::core::defn :wat::query::count-from-cell-rows
+  [r <- (:wat::core::Result :- [(:wat::core::Vector :- [(:wat::core::Vector :- [:wat::sqlite::Cell])]) :wat::sqlite::Error])]
+  -> (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])
+  (:wat::core::match r
+    ((:wat::core::Err e) (:wat::core::Err e))
+    ((:wat::core::Ok cell-rows)
+      (:wat::core::if (:wat::core::empty? cell-rows)
+        (:wat::core::Ok 0)
+        (:wat::core::match (:wat::core::nth (:wat::core::nth cell-rows 0) 0)
+          ((:wat::sqlite::Cell::I64 n) (:wat::core::Ok n))
+          (_ (:wat::core::Ok 0)))))))
+
 ;; ─── Cell -> String unpacking (pk/sk/data/ipk/isk columns are always TEXT NOT NULL, so Str is the
 ;; live path; the other arms are exhaustiveness-only, never hit against this store's own schema) ──
 (:wat::core::defn :wat::query::cell->string [c <- :wat::sqlite::Cell] -> :wat::core::String
@@ -387,4 +414,20 @@
         rows-res (:wat::core::match res 
                    ((:wat::core::Err e) (:wat::core::Err e))
                    ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::index-row-from-cells cell-rows))))]
-       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::ScanIndex (:wat::query::scan-index-response rows-res lim))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::ScanIndex (:wat::query::scan-index-response rows-res lim))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
+
+   (count-index [s ctx req]
+     (:wat::core::let
+       [conn (:wat::query::sqlite-store::State/conn s)
+        name (:wat::query::Store::CountIndexRequest/index req)
+        ipk  (:wat::query::Store::CountIndexRequest/ipk req)
+        lo   (:wat::query::Store::CountIndexRequest/isk-lo req)
+        hi   (:wat::query::Store::CountIndexRequest/isk-hi req)
+        sql (:wat::core::format
+              "SELECT COUNT(*) FROM [index_{name}] WHERE ipk=?1 AND isk>=?2 AND isk<=?3"
+              :name name)
+        params (:wat::core::Vector :- [:wat::sqlite::Param]
+                 (:wat::sqlite::Param::Str ipk) (:wat::sqlite::Param::Str lo) (:wat::sqlite::Param::Str hi))
+        res (:wat::sqlite::select conn sql params)
+        n-res (:wat::query::count-from-cell-rows res)]
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::CountIndex (:wat::query::count-index-response n-res))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))])

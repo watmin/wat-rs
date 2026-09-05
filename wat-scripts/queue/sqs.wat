@@ -125,6 +125,7 @@
               receive-calls <- :wat::core::i64
               ticks         <- :wat::core::i64
               depth         <- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply]) :wat::core::String :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+              total         <- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply]) :wat::core::String :wat::core::i64 :wat::core::i64 :-> :wat::core::i64]
               q-name        <- :wat::core::String
               tick-armed?   <- :wat::core::bool
               arm-tick      <- [:wat::core::bool :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::bool (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])])]]
@@ -226,7 +227,7 @@
              ;; lim is cap+1 at every call site — overflow is visible, never truncated.
              depth (:wat::core::fn
                     [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
-                     q <- :wat::core::String  now-ns <- :wat::core::i64  lim <- :wat::core::i64]
+                     q <- :wat::core::String  now-ns <- :wat::core::i64  _lim <- :wat::core::i64]
                     -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
                     (:wat::core::let
                       [lo (:wat::edn::write (:wat::time::at-nanos 0))
@@ -236,17 +237,15 @@
                                    hi-ns <- :wat::core::i64]
                                   -> :wat::core::i64
                                   (:wat::core::match
-                                    (:wat::query::Store/scan-index st2
-                                      (:wat::query::Store::ScanIndexRequest
+                                    (:wat::query::Store/count-index st2
+                                      (:wat::query::Store::CountIndexRequest
                                         :index "by-visible-at" :ipk q
                                         :isk-lo lo
-                                        :isk-hi (:wat::edn::write (:wat::time::at-nanos hi-ns))
-                                        :limit lim :cursor :wat::core::None))
+                                        :isk-hi (:wat::edn::write (:wat::time::at-nanos hi-ns))))
                                     ((:wat::kernel::RecvOutcome::Message sresp)
                                       (:wat::core::match sresp
-                                        ((:wat::query::Store::ScanIndexResponse::Success irows _c)
-                                          (:wat::core::count irows))
-                                        (_ (:wat::kernel::assertion-failed! "queue.depth: scan-index failed" :wat::core::None :wat::core::None))))
+                                        ((:wat::query::Store::CountIndexResponse::Ok n) n)
+                                        (_ (:wat::kernel::assertion-failed! "queue.depth: count-index failed" :wat::core::None :wat::core::None))))
                                     ((:wat::kernel::RecvOutcome::Lost _cause)
                                       (:wat::kernel::assertion-failed! "queue.depth: store lost" :wat::core::None :wat::core::None))
                                     (:wat::kernel::RecvOutcome::Stopped
@@ -256,6 +255,29 @@
                        vis (:wat::core::apply count-hi st [now-ns])
                        all (:wat::core::apply count-hi st [inf-ns])]
                       (:wat::core::Tuple vis (:wat::i64::- all vis))))
+             ;; One scan over [0, +inf). visible+unacked IS total; the send path
+             ;; wants that integer and was buying a split. now-ns is unused; same
+             ;; arity as depth so apply sites swap. lim is cap+1 — overflow visible.
+             total (:wat::core::fn
+                     [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+                      q <- :wat::core::String  _now-ns <- :wat::core::i64  _lim <- :wat::core::i64]
+                     -> :wat::core::i64
+                     (:wat::core::match
+                       (:wat::query::Store/count-index st
+                         (:wat::query::Store::CountIndexRequest
+                           :index "by-visible-at" :ipk q
+                           :isk-lo (:wat::edn::write (:wat::time::at-nanos 0))
+                           :isk-hi (:wat::edn::write (:wat::time::at-nanos 4000000000000000000))))
+                       ((:wat::kernel::RecvOutcome::Message sresp)
+                         (:wat::core::match sresp
+                           ((:wat::query::Store::CountIndexResponse::Ok n) n)
+                           (_ (:wat::kernel::assertion-failed! "queue.total: count-index failed" :wat::core::None :wat::core::None))))
+                       ((:wat::kernel::RecvOutcome::Lost _cause)
+                         (:wat::kernel::assertion-failed! "queue.total: store lost" :wat::core::None :wat::core::None))
+                       (:wat::kernel::RecvOutcome::Stopped
+                         (:wat::kernel::assertion-failed! "queue.total: stop requested" :wat::core::None :wat::core::None))
+                       (:wat::kernel::RecvOutcome::Closed
+                         (:wat::kernel::assertion-failed! "queue.total: store closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
              ;; Closed over nothing. Process children do not see sibling defns,
              ;; so the body lives here. ONE place decides whether to arm.
              none (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
@@ -281,6 +303,7 @@
               :receive-calls 0
               :ticks 0
               :depth depth
+              :total total
               :q-name ""
               :tick-armed? false
               :arm-tick arm-tick)))
@@ -293,8 +316,7 @@
         n0     (:wat::core::count (:queue::Queue::SendRequest/bodies req))
         cap    (:queue::queue::Record/cap (:queue::queue::State/durable s))
         lim    (:wat::i64::+ cap 1)
-        vu     (:wat::core::apply (:queue::queue::State/depth s) store q [now-ns lim])
-        depth  (:wat::i64::+ (:wat::core::first vu) (:wat::core::second vu))
+        depth  (:wat::core::apply (:queue::queue::State/total s) store q [now-ns lim])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
         sends  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])]
        (:wat::core::if (:wat::i64::> (:wat::i64::+ depth n0) cap)
@@ -338,7 +360,7 @@
                        :outbox (:queue::queue::State/outbox s)
                        :receive-calls (:queue::queue::State/receive-calls s)
                        :ticks (:queue::queue::State/ticks s)
-                       :depth (:queue::queue::State/depth s)
+                       :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                        :q-name q
                        :tick-armed? (:queue::queue::State/tick-armed? s)
                        :arm-tick (:queue::queue::State/arm-tick s))]
@@ -355,7 +377,7 @@
                            :outbox (:queue::queue::State/outbox s')
                            :receive-calls (:queue::queue::State/receive-calls s')
                            :ticks (:queue::queue::State/ticks s')
-                           :depth (:queue::queue::State/depth s')
+                           :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                            :q-name (:queue::queue::State/q-name s')
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s'))]
@@ -426,7 +448,7 @@
                            :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                            :receive-calls (:queue::queue::State/receive-calls s')
                            :ticks (:queue::queue::State/ticks s')
-                           :depth (:queue::queue::State/depth s')
+                           :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                            :q-name (:queue::queue::State/q-name s')
                            :tick-armed? (:queue::queue::State/tick-armed? s')
                            :arm-tick (:queue::queue::State/arm-tick s'))
@@ -441,7 +463,7 @@
                            :outbox (:queue::queue::State/outbox s2)
                            :receive-calls (:queue::queue::State/receive-calls s2)
                            :ticks (:queue::queue::State/ticks s2)
-                           :depth (:queue::queue::State/depth s2)
+                           :depth (:queue::queue::State/depth s2) :total (:queue::queue::State/total s2)
                            :q-name (:queue::queue::State/q-name s2)
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s2))
@@ -455,7 +477,7 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
-              vu2 (:wat::core::apply (:queue::queue::State/depth s) fresh q [now-ns lim])
+              vu2 (:wat::core::apply (:queue::queue::State/total s) fresh q [now-ns lim])
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -464,7 +486,7 @@
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
                     :ticks (:queue::queue::State/ticks s)
-                    :depth (:queue::queue::State/depth s)
+                    :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
@@ -472,7 +494,7 @@
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Send
                  (:queue::Queue::SendResponse::Full
-                   (:wat::i64::+ (:wat::core::first vu2) (:wat::core::second vu2))
+                   vu2
                    cap)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                none-alarms)))
@@ -485,7 +507,7 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
-              vu2 (:wat::core::apply (:queue::queue::State/depth s) fresh q [now-ns lim])
+              vu2 (:wat::core::apply (:queue::queue::State/total s) fresh q [now-ns lim])
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -494,7 +516,7 @@
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
                     :ticks (:queue::queue::State/ticks s)
-                    :depth (:queue::queue::State/depth s)
+                    :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
@@ -502,10 +524,10 @@
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Send
                  (:queue::Queue::SendResponse::Full
-                   (:wat::i64::+ (:wat::core::first vu2) (:wat::core::second vu2))
+                   vu2
                    cap)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) vu2 (:wat::core::apply (:queue::queue::State/depth s) fresh q [now-ns lim]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Full (:wat::i64::+ (:wat::core::first vu2) (:wat::core::second vu2)) cap))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
+               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) vu2 (:wat::core::apply (:queue::queue::State/total s) fresh q [now-ns lim]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Full vu2 cap))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
 
    (receive [s ctx req]
      (:wat::core::let
@@ -541,7 +563,7 @@
                  :outbox (:queue::queue::State/outbox s)
                  :receive-calls calls
                  :ticks (:queue::queue::State/ticks s)
-                 :depth (:queue::queue::State/depth s)
+                 :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                  :q-name q
                  :tick-armed? (:queue::queue::State/tick-armed? s)
                  :arm-tick (:queue::queue::State/arm-tick s))]
@@ -558,7 +580,7 @@
                   :outbox (:queue::queue::State/outbox s-n)
                   :receive-calls calls
                   :ticks (:queue::queue::State/ticks s-n)
-                  :depth (:queue::queue::State/depth s-n)
+                  :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                   :q-name (:queue::queue::State/q-name s-n)
                   :tick-armed? (:wat::core::first pair)
                   :arm-tick (:queue::queue::State/arm-tick s-n))]
@@ -582,7 +604,7 @@
                     :outbox (:queue::queue::State/outbox s-n)
                     :receive-calls calls
                     :ticks (:queue::queue::State/ticks s-n)
-                    :depth (:queue::queue::State/depth s-n)
+                    :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                     :q-name (:queue::queue::State/q-name s-n)
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-n))]
@@ -610,7 +632,7 @@
                     :outbox (:queue::queue::State/outbox s-n)
                     :receive-calls calls
                     :ticks (:queue::queue::State/ticks s-n)
-                    :depth (:queue::queue::State/depth s-n)
+                    :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                     :q-name (:queue::queue::State/q-name s-n)
                     :tick-armed? (:queue::queue::State/tick-armed? s-n)
                     :arm-tick (:queue::queue::State/arm-tick s-n))
@@ -626,7 +648,7 @@
                     :outbox (:queue::queue::State/outbox s-w)
                     :receive-calls calls
                     :ticks (:queue::queue::State/ticks s-w)
-                    :depth (:queue::queue::State/depth s-w)
+                    :depth (:queue::queue::State/depth s-w) :total (:queue::queue::State/total s-w)
                     :q-name (:queue::queue::State/q-name s-w)
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-w))]
@@ -671,7 +693,7 @@
                        :outbox (:queue::queue::State/outbox s)
                        :receive-calls (:queue::queue::State/receive-calls s)
                        :ticks (:queue::queue::State/ticks s)
-                       :depth (:queue::queue::State/depth s)
+                       :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                        :q-name q
                        :tick-armed? (:queue::queue::State/tick-armed? s)
                        :arm-tick (:queue::queue::State/arm-tick s))
@@ -686,7 +708,7 @@
                         :outbox (:queue::queue::State/outbox s')
                         :receive-calls (:queue::queue::State/receive-calls s')
                         :ticks (:queue::queue::State/ticks s')
-                        :depth (:queue::queue::State/depth s')
+                        :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                         :q-name (:queue::queue::State/q-name s')
                         :tick-armed? (:wat::core::first pair)
                         :arm-tick (:queue::queue::State/arm-tick s'))]
@@ -711,7 +733,7 @@
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
                     :ticks (:queue::queue::State/ticks s)
-                    :depth (:queue::queue::State/depth s)
+                    :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
@@ -737,7 +759,7 @@
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
                     :ticks (:queue::queue::State/ticks s)
-                    :depth (:queue::queue::State/depth s)
+                    :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
@@ -746,7 +768,7 @@
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))))))
+               (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))))))
 
    (stats [s ctx req]
      (:wat::core::let
@@ -767,7 +789,7 @@
               :outbox (:queue::queue::State/outbox s)
               :receive-calls (:queue::queue::State/receive-calls s)
               :ticks (:queue::queue::State/ticks s)
-              :depth (:queue::queue::State/depth s)
+              :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
               :q-name q
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s))]
@@ -851,7 +873,7 @@
              :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
              :receive-calls (:queue::queue::State/receive-calls s)
              :ticks ticks
-             :depth (:queue::queue::State/depth s)
+             :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
              :q-name (:queue::queue::State/q-name s)
              :tick-armed? false
              :arm-tick (:queue::queue::State/arm-tick s))
@@ -879,7 +901,7 @@
               :outbox (:queue::queue::State/outbox s')
               :receive-calls (:queue::queue::State/receive-calls s')
               :ticks ticks
-              :depth (:queue::queue::State/depth s')
+              :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
               :q-name (:queue::queue::State/q-name s')
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s'))]

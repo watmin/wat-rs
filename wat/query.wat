@@ -567,6 +567,19 @@
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+
+   (:wat::core::defrecord :wat::query::Store::CountIndexRequest   ;; a GSI count — no rows
+     [index  <- :wat::core::String
+      ipk    <- :wat::core::String
+      isk-lo <- :wat::core::String
+      isk-hi <- :wat::core::String])
+
+   (:wat::core::defenum :wat::query::Store::CountIndexResponse :wat::enum::Pure
+     :Ok        [n <- :wat::core::i64]
+     :Transient [err <- :wat::query::Transient]
+     :Fatal     [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at
@@ -601,4 +614,8 @@
 
    ;; a PAGE on a named GSI: ipk fixed, isk in a prefix/range, ordered ASC, after `cursor`.
    (scan-index [self <- :wat::query::Store  req <- :wat::query::Store::ScanIndexRequest]
-     -> :wat::query::Store::ScanIndexResponse :max-request-bytes 524288)])
+     -> :wat::query::Store::ScanIndexResponse :max-request-bytes 524288)
+
+   ;; a COUNT on a named GSI: ipk fixed, isk in a prefix/range. Returns n, never rows.
+   (count-index [self <- :wat::query::Store  req <- :wat::query::Store::CountIndexRequest]
+     -> :wat::query::Store::CountIndexResponse :max-request-bytes 524288)])

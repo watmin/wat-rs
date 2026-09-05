@@ -53,6 +53,21 @@
         (_ -1)))
     (_ -2)))
 
+(:wat::core::defn :sc::one-count
+  [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+   hi-ns <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match
+    (:wat::query::Store/count-index st
+      (:wat::query::Store::CountIndexRequest
+        :index "by-visible-at" :ipk "q"
+        :isk-lo (:wat::edn::write (:wat::time::at-nanos 0))
+        :isk-hi (:wat::edn::write (:wat::time::at-nanos hi-ns))))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:wat::query::Store::CountIndexResponse::Ok n) n)
+        (_ -1)))
+    (_ -2)))
+
 (:wat::core::defn :sc::loop-scans
   [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
    n <- :wat::core::i64  hi-ns <- :wat::core::i64] -> :wat::core::i64
@@ -99,15 +114,29 @@
               (:wat::i64::+ acc (:sc::one-scan st now 1)))
             0 (:wat::core::range 0 1000))
      b1 (:wat::time::epoch-nanos (:wat::time::now))
-     lim1-us (:wat::i64::/ (:wat::i64::- b1 b0) 1000)]
+     lim1-us (:wat::i64::/ (:wat::i64::- b1 b0) 1000)
+     _cwarm (:wat::core::foldl
+              (:wat::core::fn [acc <- :wat::core::i64  _i <- :wat::core::i64] -> :wat::core::i64
+                (:wat::i64::+ acc (:sc::one-count st now)))
+              0 (:wat::core::range 0 50))
+     c0 (:wat::time::epoch-nanos (:wat::time::now))
+     gotc (:wat::core::foldl
+            (:wat::core::fn [acc <- :wat::core::i64  _i <- :wat::core::i64] -> :wat::core::i64
+              (:wat::i64::+ acc (:sc::one-count st now)))
+            0 (:wat::core::range 0 1000))
+     c1 (:wat::time::epoch-nanos (:wat::time::now))
+     count-us (:wat::i64::/ (:wat::i64::- c1 c0) 1000)]
     (:wat::core::format
-      "LIMIT65 rows={r} us_per_scan={u} proj_s_16000={p} ;; LIMIT1 rows={r1} us_per_scan={u1} proj_s_16000={p1}"
+      "LIMIT65 rows={r} us_per_scan={u} proj_s_16000={p} ;; LIMIT1 rows={r1} us_per_scan={u1} proj_s_16000={p1} ;; COUNT n={cn} us_per={cu} proj_s_8000={cp}"
       :r (:wat::i64::/ got 1000)
       :u (:wat::i64::/ full-us 1000)
       :p (:wat::i64::/ (:wat::i64::* (:wat::i64::/ full-us 1000) 16) 1000)
       :r1 (:wat::i64::/ got1 1000)
       :u1 (:wat::i64::/ lim1-us 1000)
-      :p1 (:wat::i64::/ (:wat::i64::* (:wat::i64::/ lim1-us 1000) 16) 1000))))
+      :p1 (:wat::i64::/ (:wat::i64::* (:wat::i64::/ lim1-us 1000) 16) 1000)
+      :cn (:wat::i64::/ gotc 1000)
+      :cu (:wat::i64::/ count-us 1000)
+      :cp (:wat::i64::/ (:wat::i64::* (:wat::i64::/ count-us 1000) 8) 1000))))
 
 (:wat::core::defn :user::compute [] -> :wat::core::String (:sc::run))
 (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:sc::run)))

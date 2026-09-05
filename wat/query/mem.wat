@@ -584,6 +584,23 @@
             rows))
         lim))))
 
+;; Count matching GSI rows without building IndexRow. The partition already exists;
+;; this walks it and returns n. A count that fetched-then-counted in wat would buy nothing.
+(:wat::core::defn :wat::query::count-index-range
+  [rows  <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
+   index <- :wat::core::String
+   lo    <- :wat::core::String
+   hi    <- :wat::core::String]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [n <- :wat::core::i64 r <- :wat::query::StoredRow] -> :wat::core::i64
+      (:wat::core::let [isk (:wat::query::row-isk index r)]
+        (:wat::core::if (:wat::core::and (:wat::core::>= isk lo) (:wat::core::<= isk hi))
+          (:wat::i64::+ n 1)
+          n)))
+    0
+    rows))
+
 ;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
 ;; durable = one flat (PersistentVector :- [StoredRow]); `put` is a replace-by-(pk,sk)
 ;; (DynamoDB PutItem — drop any existing row the incoming key names, then conj; later
@@ -690,4 +707,15 @@
         next-cur (:wat::core::if full?
                    (:wat::core::Some (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full")))
                    :wat::core::None)]
-       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::ScanIndex (:wat::query::Store::ScanIndexResponse::Success limited next-cur))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))])
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::ScanIndex (:wat::query::Store::ScanIndexResponse::Success limited next-cur))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))
+
+   (count-index [s ctx req]
+     (:wat::core::let
+       [index (:wat::query::Store::CountIndexRequest/index req)
+        ipk   (:wat::query::Store::CountIndexRequest/ipk req)
+        lo    (:wat::query::Store::CountIndexRequest/isk-lo req)
+        hi    (:wat::query::Store::CountIndexRequest/isk-hi req)
+        n     (:wat::query::count-index-range
+                (:wat::query::mem-gsi-rows (:wat::query::mem-store::State/index s) index ipk)
+                index lo hi)]
+       (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::CountIndex (:wat::query::Store::CountIndexResponse::Ok n))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))])
