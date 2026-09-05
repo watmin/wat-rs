@@ -637,7 +637,10 @@ pub(crate) fn watast_to_holon(a: &WatAST) -> HolonAST {
 // Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn::render` encode
 // arm; reverted here (DESIGN-STONE-294.j ⛔ CORRECTION: a HolonAST wire form is DATA, never the
 // wat source form this fn renders — `edn::render` now composes `from_holon_item` /
-// `to_holon_inner` instead). Its 8 `runtime.rs` callers are unaffected; private is correct again.
+// `to_holon_inner` instead). private is correct again. Caller count is stale the moment it's
+// written down — arc 255 STONE-stepvalue-is-watast alone took it from 5 to 1 live call in
+// `runtime.rs` (`value_to_watast`'s `Value::holon__HolonAST` passthrough arm); don't trust a
+// number here, grep it.
 pub(crate) fn holon_to_watast(h: &HolonAST) -> WatAST {
     // Arc 230: Symbol/Keyword/Nil/Tag variants retired; check via accessors
     // before the generic match so the Bind arm handles generic compositions.
@@ -865,57 +868,9 @@ pub(crate) fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result
 }
 
 
-/// Arc 066 — wrap a wat Value as a HolonAST Value. Used by
-/// `eval-ast!` to honor its `(Result :- [HolonAST EvalError])` scheme;
-/// returns TypeMismatch for Values that have no HolonAST
-/// representation (channels, fns, ProgramHandles, etc.).
-///
-/// Reuses arc 065's named-verb conventions: primitives lift via the
-/// matching HolonAST leaf constructor (same shape as
-/// `:wat::holon::leaf` would produce); a Value::holon__HolonAST
-/// passes through unchanged (the value IS already a HolonAST per
-/// arc 057's closed algebra).
-pub(crate) fn value_to_holon(op: &'static str, v: Value) -> Result<Value, EvalBreak> {
-    let h = match v {
-        // Primitives — same dispatch as :wat::holon::leaf.
-        Value::i64(n) => HolonAST::i64(n),
-        Value::f64(x) => HolonAST::f64(x),
-        Value::bool(b) => HolonAST::bool_(b),
-        Value::String(s) => HolonAST::string(s.as_str()),
-        // Arc 221 Stone 221.4b — Keyword primitive → HolonAST::Keyword leaf.
-        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
-        // HolonAST::keyword() strips the leading colon (Stone 221.3 holon-rs fa48b39).
-        Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
-        // Arc 230 — Value::Unit (wat nil) → HolonAST::nil() composition.
-        // nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil (retired).
-        Value::Unit => HolonAST::nil(),
-        // Already a HolonAST — pass through unchanged. Eval-ast!'s
-        // contract is "return the form's value as a HolonAST." If
-        // it's already a HolonAST, return it directly; wrapping
-        // would force callers to unwrap a depth they didn't ask for.
-        Value::holon__HolonAST(h) => return Ok(Value::holon__HolonAST(h)),
-        other => {
-            return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: "form whose terminal value has a HolonAST \
-                           representation (primitive or HolonAST)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — receives a Value, no originating AST in scope
-                },
-            )
-            .into());
-        }
-    };
-    Ok(Value::holon__HolonAST(Arc::new(h)))
-}
-
-
-/// Arc 070 — try to recognize a WatAST as a holon-value shape. If
-/// every node down the tree is a literal, a holon-constructor call
-/// with value args, or a bare-list (Bundle-shape) of values, return
-/// the corresponding HolonAST. Otherwise None.
+/// Arc 070 — recognize whether a WatAST is already a holon-value
+/// shape: every node down the tree is a literal, a holon-constructor
+/// call with value args, or a bare-list (Bundle-shape) of values.
 ///
 /// This is what lets `eval-step!` distinguish "input was already a
 /// value" (`AlreadyTerminal`) from "this step reduced a redex"
@@ -923,25 +878,33 @@ pub(crate) fn value_to_holon(op: &'static str, v: Value) -> Result<Value, EvalBr
 /// tracer / cache layer: chain length 0 vs ≥ 1.
 ///
 /// Forms with reduction-shape (arithmetic, comparison, logical,
-/// special forms, user fn calls) return None — they're β-redexes
+/// special forms, user fn calls) return `false` — they're β-redexes
 /// and step normally.
-pub(crate) fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
+///
+/// Arc 255 STONE-stepvalue-is-watast — this is a PREDICATE, not a
+/// converter. It used to answer by *building* the corresponding
+/// `HolonAST`, and that build was where two literal kinds got
+/// corrupted: holon-rs has no native rational or bigint leaf, so
+/// `RationalLit`/`BigIntLit` were silently lowered to `HolonAST::
+/// string(...)` — a `1/2` went in and a `StringLit("1/2")` came back
+/// out through `StepValue::AlreadyTerminal`. The caller
+/// (`step_form`) only ever needed the yes/no; the input `WatAST` was
+/// already correct and is now returned unchanged by the caller
+/// instead of being destroyed and imperfectly rebuilt here. See
+/// `DESIGN-STONE-stepvalue-is-watast-and-the-round-trip-is-lossy.md`.
+pub(crate) fn try_recognize_holon_value(form: &WatAST) -> bool {
     match form {
-        WatAST::IntLit(n, _) => Some(HolonAST::i64(*n)),
-        WatAST::FloatLit(x, _) => Some(HolonAST::f64(*x)),
-        // Arc 300 stone B — SURPRISE (see `watast_to_holon`'s note): holon-rs
-        // has no native rational leaf; lower to its canonical rendered string.
-        WatAST::RationalLit(r, _) => Some(HolonAST::string(format!("{}/{}", r.numer(), r.denom()))),
-        // Arc 300 stone C1 — same SURPRISE as Rational immediately above.
-        WatAST::BigIntLit(n, _) => Some(HolonAST::string(format!("{}N", n))),
-        // Arc 300 stone D — native holon-rs Char leaf (see `watast_to_holon`'s
-        // note); no lossy string rendering needed.
-        WatAST::CharLit(c, _) => Some(HolonAST::char_(*c)),
-        WatAST::BoolLit(b, _) => Some(HolonAST::bool_(*b)),
-        WatAST::StringLit(s, _) => Some(HolonAST::string(s.as_str())),
-        // Arc 221 Stone 221.4b — Keyword value-shape recognition → HolonAST::Keyword leaf.
-        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
-        WatAST::Keyword(k, _) => Some(HolonAST::keyword(k.as_str())),
+        WatAST::IntLit(_, _) => true,
+        WatAST::FloatLit(_, _) => true,
+        // Arc 255 STONE-stepvalue-is-watast — Rational/BigInt are ordinary
+        // recognized value-shapes now; no lowering happens here at all
+        // (the old `Some(HolonAST::string(...))` SURPRISE arms are gone).
+        WatAST::RationalLit(_, _) => true,
+        WatAST::BigIntLit(_, _) => true,
+        WatAST::CharLit(_, _) => true,
+        WatAST::BoolLit(_, _) => true,
+        WatAST::StringLit(_, _) => true,
+        WatAST::Keyword(_, _) => true,
         // A bare Symbol could be either an unbound free variable
         // (NoStepRule territory) or a HolonAST::Symbol leaf (lifted
         // from a `holon::Symbol` per arc 057's `holon_to_watast`).
@@ -950,10 +913,10 @@ pub(crate) fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
         // would still trigger NoStepRule via the existing path
         // when stepping fires. Conservative: don't recognize
         // bare symbols here; let them go to the symbol-ref error.
-        WatAST::Symbol(_, _) => None,
+        WatAST::Symbol(_, _) => false,
         WatAST::List(items, _) => {
             if items.is_empty() {
-                return None;
+                return false;
             }
             match &items[0] {
                 WatAST::Keyword(k, _) => match k.as_str() {
@@ -970,19 +933,13 @@ pub(crate) fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                             // Callers passing primitives to Atom should use :wat::holon::to-holon.
                             WatAST::IntLit(_, _)
                             | WatAST::FloatLit(_, _)
-                            // Arc 300 stone B — Rational joins the primitive-literal group.
                             | WatAST::RationalLit(_, _)
-                            // Arc 300 stone C1 — BigInt joins it too.
                             | WatAST::BigIntLit(_, _)
-                            // Arc 300 stone D — Char joins it too.
                             | WatAST::CharLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
-                            | WatAST::Keyword(_, _) => None,
-                            _ => {
-                                let inner = try_recognize_holon_value(&items[1])?;
-                                Some(HolonAST::Atom(std::sync::Arc::new(inner)))
-                            }
+                            | WatAST::Keyword(_, _) => false,
+                            _ => try_recognize_holon_value(&items[1]),
                         }
                     }
                     ":wat::holon::leaf" if items.len() == 2 => {
@@ -993,66 +950,35 @@ pub(crate) fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                         match &items[1] {
                             WatAST::IntLit(_, _)
                             | WatAST::FloatLit(_, _)
-                            // Arc 300 stone B — Rational joins the primitive-literal group.
                             | WatAST::RationalLit(_, _)
-                            // Arc 300 stone C1 — BigInt joins it too.
                             | WatAST::BigIntLit(_, _)
-                            // Arc 300 stone D — Char joins it too.
                             | WatAST::CharLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
-                            | WatAST::Keyword(_, _) => {
-                                try_recognize_holon_value(&items[1])
-                            }
-                            _ => None,
+                            | WatAST::Keyword(_, _) => try_recognize_holon_value(&items[1]),
+                            _ => false,
                         }
                     }
                     ":wat::holon::Bind" if items.len() == 3 => {
-                        let a = try_recognize_holon_value(&items[1])?;
-                        let b = try_recognize_holon_value(&items[2])?;
-                        Some(HolonAST::bind(a, b))
+                        try_recognize_holon_value(&items[1]) && try_recognize_holon_value(&items[2])
                     }
                     ":wat::holon::Permute" if items.len() == 3 => {
-                        let inner = try_recognize_holon_value(&items[1])?;
-                        let k = match &items[2] {
-                            WatAST::IntLit(n, _) if *n >= 0 && *n <= i64::from(i32::MAX) => {
-                                *n as i32
-                            }
-                            _ => return None,
-                        };
-                        Some(HolonAST::permute(inner, k))
+                        try_recognize_holon_value(&items[1])
+                            && matches!(
+                                &items[2],
+                                WatAST::IntLit(n, _) if *n >= 0 && *n <= i64::from(i32::MAX)
+                            )
                     }
                     ":wat::holon::Thermometer" if items.len() == 4 => {
-                        let v = match &items[1] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        let lo = match &items[2] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        let hi = match &items[3] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        Some(HolonAST::Thermometer {
-                            value: v,
-                            min: lo,
-                            max: hi,
-                        })
+                        matches!(&items[1], WatAST::FloatLit(_, _))
+                            && matches!(&items[2], WatAST::FloatLit(_, _))
+                            && matches!(&items[3], WatAST::FloatLit(_, _))
                     }
                     ":wat::holon::Blend" if items.len() == 5 => {
-                        let a = try_recognize_holon_value(&items[1])?;
-                        let b = try_recognize_holon_value(&items[2])?;
-                        let w1 = match &items[3] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        let w2 = match &items[4] {
-                            WatAST::FloatLit(x, _) => *x,
-                            _ => return None,
-                        };
-                        Some(HolonAST::blend(a, b, w1, w2))
+                        try_recognize_holon_value(&items[1])
+                            && try_recognize_holon_value(&items[2])
+                            && matches!(&items[3], WatAST::FloatLit(_, _))
+                            && matches!(&items[4], WatAST::FloatLit(_, _))
                     }
                     // Source-form `:wat::holon::Bundle` is NOT a
                     // value-shape — it takes a `(:wat::core::Vector :T
@@ -1062,7 +988,7 @@ pub(crate) fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                     // branch below.
                     //
                     // Any other keyword head → reduction-shape.
-                    _ => None,
+                    _ => false,
                 },
                 _ => {
                     // Bare-list head (List or Symbol). Structural
@@ -1070,27 +996,23 @@ pub(crate) fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                     // `holon_to_watast(Bundle(items))` — the source
                     // shape `to-wat` produces. Recognize as a
                     // Bundle iff every child recognizes too.
-                    let mut children = Vec::with_capacity(items.len());
-                    for item in items {
-                        children.push(try_recognize_holon_value(item)?);
-                    }
-                    Some(HolonAST::bundle(children))
+                    items.iter().all(try_recognize_holon_value)
                 }
             }
         }
         // Arc 244 — NilLit is a value literal (evaluates to nil / Unit).
         // Recognized as a terminal value for the stepper.
-        WatAST::NilLit(_) => Some(HolonAST::symbol("nil")),
+        WatAST::NilLit(_) => true,
         // Arc 167 slice 1 — vectors are not value-shape forms
         // for the stepper. They live in binding-position grammar
         // (slice 2's fn / defn signatures); the stepper sees an
         // expression tree. Refuse recognition so the caller falls
         // through to step_form, which surfaces NoStepRule.
-        WatAST::Vector(_, _) => None,
+        WatAST::Vector(_, _) => false,
         // Arc 257 slice 1 — Map/Set literals are not stepper value-shapes.
         // They evaluate to HashMap/HashSet values but the stepper path
         // doesn't reduce them; fall through to eval via NoStepRule.
-        WatAST::Map(_, _) | WatAST::Set(_, _) => None,
+        WatAST::Map(_, _) | WatAST::Set(_, _) => false,
     }
 }
 

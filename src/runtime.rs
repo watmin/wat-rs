@@ -7038,6 +7038,13 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
     match v {
         Value::i64(n) => Ok(WatAST::IntLit(n, span)),
         Value::f64(x) => Ok(WatAST::FloatLit(x, span)),
+        // Arc 255 STONE-stepvalue-is-watast — direct Value -> WatAST, no HolonAST
+        // hop: HolonAST has no rational/bigint leaf (by design — it is a
+        // hypervector encoding of data, not a syntax tree), so routing these
+        // through `value_to_holon` refused with TypeMismatch. `WatAST` has an
+        // exact leaf for both; use it.
+        Value::wat__core__Rational(r) => Ok(WatAST::RationalLit(*r, span)),
+        Value::wat__core__BigInt(n) => Ok(WatAST::BigIntLit(*n, span)),
         Value::bool(b) => Ok(WatAST::BoolLit(b, span)),
         Value::String(s) => Ok(WatAST::StringLit((*s).clone(), span)),
         // Arc 244 — Value::Unit (nil) → NilLit; closes the quasiquote ~nil gap (AUDIT §3 site 9).
@@ -7049,7 +7056,7 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
             span,
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "primitive (i64/f64/bool/String/keyword/nil) or :wat::WatAST",
+                expected: "primitive (i64/f64/rational/bigint/bool/String/keyword/nil) or :wat::WatAST",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -11995,8 +12002,8 @@ pub(crate) fn eval_form_against_defs(
 #[derive(Debug)]
 enum StepValue {
     Next(WatAST),
-    Terminal(HolonAST),
-    AlreadyTerminal(HolonAST),
+    Terminal(WatAST),
+    AlreadyTerminal(WatAST),
 }
 
 /// `(:wat::eval-step! <wat-ast>)` dispatch entry. Mirrors arc 066's
@@ -12195,12 +12202,14 @@ fn eval_walk(
                     // Terminal reached — return (terminal, acc). Arc 255
                     // STONE-eval-walk-faces-watast: the declared return
                     // faces `:wat::WatAST` now, matching the `:wat::WatAST`
-                    // `walk` takes in and hands its callback at every step —
-                    // convert at this boundary, same shape as the reflection
-                    // four (`src/reflect/verbs.rs`).
+                    // `walk` takes in and hands its callback at every step.
+                    // Arc 255 STONE-stepvalue-is-watast: `StepValue`'s
+                    // Terminal/AlreadyTerminal fields are WatAST now too, so
+                    // `terminal` already IS the value to hand back — no
+                    // `holon_to_watast` bridge left at this boundary.
                     let terminal = terminal_opt.expect("terminal_opt set when next_form_opt None");
                     return Ok(Value::Tuple(Arc::new(vec![
-                        Value::wat__WatAST(Arc::new(holon_to_watast(&terminal))),
+                        Value::wat__WatAST(Arc::new(terminal)),
                         acc,
                     ])));
                 }
@@ -12278,10 +12287,14 @@ fn eval_walk(
 /// Arc 255 STONE-the-eval-surface-faces-watast: `StepTerminal`/
 /// `AlreadyTerminal` now declare `:wat::WatAST` (`src/types.rs`),
 /// matching `StepNext`'s field (already WatAST since arc 070) —
-/// `StepResult` no longer violates itself. `step_form`'s internal
-/// `StepValue` still carries a `HolonAST` (the algebra-level
-/// reduction result); convert at THIS boundary via `holon_to_watast`,
-/// same shape as `eval_walk`'s Continue/Skip arms.
+/// `StepResult` no longer violates itself. Arc 255
+/// STONE-stepvalue-is-watast: `step_form`'s internal `StepValue` now
+/// carries `WatAST` in every arm too, so this boundary is a straight
+/// passthrough — no `holon_to_watast` bridge left here (the four
+/// bridge sites this stone's DESIGN named all disappeared; any
+/// remaining `holon_to_watast` calls now live at the point a
+/// `StepValue` is *constructed*, for the arms that are genuinely
+/// producing a holon-algebra result).
 fn step_value_to_enum(sv: StepValue) -> Value {
     match sv {
         StepValue::Next(form) => Value::Enum(Arc::new(EnumValue {
@@ -12290,17 +12303,17 @@ fn step_value_to_enum(sv: StepValue) -> Value {
             names: builtin_enum_variant_names(":wat::eval::StepResult", "StepNext"),
             fields: vec![Value::wat__WatAST(Arc::new(form))],
         })),
-        StepValue::Terminal(holon) => Value::Enum(Arc::new(EnumValue {
+        StepValue::Terminal(form) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::eval::StepResult".into(),
             variant_name: "StepTerminal".into(),
             names: builtin_enum_variant_names(":wat::eval::StepResult", "StepTerminal"),
-            fields: vec![Value::wat__WatAST(Arc::new(holon_to_watast(&holon)))],
+            fields: vec![Value::wat__WatAST(Arc::new(form))],
         })),
-        StepValue::AlreadyTerminal(holon) => Value::Enum(Arc::new(EnumValue {
+        StepValue::AlreadyTerminal(form) => Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::eval::StepResult".into(),
             variant_name: "AlreadyTerminal".into(),
             names: builtin_enum_variant_names(":wat::eval::StepResult", "AlreadyTerminal"),
-            fields: vec![Value::wat__WatAST(Arc::new(holon_to_watast(&holon)))],
+            fields: vec![Value::wat__WatAST(Arc::new(form))],
         })),
     }
 }
@@ -12319,34 +12332,26 @@ fn step_form(form: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Step
     // a `to-wat(holon)` round-trip can produce, plus primitive
     // literals. Reduction-shape forms (arithmetic, comparison,
     // user-function calls, special forms) fall through.
-    if let Some(holon) = try_recognize_holon_value(form) {
-        return Ok(StepValue::AlreadyTerminal(holon));
+    if try_recognize_holon_value(form) {
+        return Ok(StepValue::AlreadyTerminal(form.clone()));
     }
     match form {
         // Literal arms reach here only if `try_recognize_holon_value`
         // somehow misses (it shouldn't — these are the canonical
-        // cases). Defense in depth.
-        WatAST::IntLit(n, _) => Ok(StepValue::Terminal(HolonAST::i64(*n))),
-        WatAST::FloatLit(x, _) => Ok(StepValue::Terminal(HolonAST::f64(*x))),
-        // Arc 300 stone B — SURPRISE (see `watast_to_holon`'s note): holon-rs
-        // has no native rational leaf; lower to its canonical rendered string.
-        WatAST::RationalLit(r, _) => Ok(StepValue::Terminal(HolonAST::string(format!(
-            "{}/{}",
-            r.numer(),
-            r.denom()
-        )))),
-        // Arc 300 stone C1 — same SURPRISE as Rational immediately above.
-        WatAST::BigIntLit(n, _) => Ok(StepValue::Terminal(HolonAST::string(format!("{}N", n)))),
-        // Arc 300 stone D — native holon-rs Char leaf (see `watast_to_holon`'s
-        // note); no lossy string rendering needed.
-        WatAST::CharLit(c, _) => Ok(StepValue::Terminal(HolonAST::char_(*c))),
-        WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
-        WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
-        // Arc 244 — NilLit terminal step → HolonAST::symbol("nil") (nil HolonAST representation).
-        WatAST::NilLit(_) => Ok(StepValue::Terminal(HolonAST::symbol("nil"))),
-        // Arc 221 Stone 221.4b — Keyword literal terminal → HolonAST::Keyword leaf.
-        // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
-        WatAST::Keyword(k, _) => Ok(StepValue::Terminal(HolonAST::keyword(k.as_str()))),
+        // cases). Defense in depth. Arc 255 STONE-stepvalue-is-watast:
+        // the form IS the value already — no HolonAST rebuild, just
+        // hand back the input unchanged (this is what closes the
+        // Rational/BigInt corruption: there is no lossy string lane
+        // left to fall into).
+        WatAST::IntLit(_, _) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::FloatLit(_, _) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::RationalLit(_, _) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::BigIntLit(_, _) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::CharLit(_, _) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::BoolLit(_, _) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::StringLit(_, _) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::NilLit(_) => Ok(StepValue::Terminal(form.clone())),
+        WatAST::Keyword(_, _) => Ok(StepValue::Terminal(form.clone())),
         // A bare symbol that survived to step time means substitution
         // didn't reach it — an unbound free variable. Surface as
         // NoStepRule so the consumer falls back to eval-ast! (which
@@ -12509,19 +12514,29 @@ fn step_list(
         | ":wat::holon::Blend" => {
             step_holon_descend_then_fire(items, list_span, env, sym)
         }
-        // Bare fn terminal — Q6 of arc 068 DESIGN. A `(fn ...)`
-        // form is its own canonical-form holon: no captures (a closure-
-        // bearing fn would have already produced a Function value
-        // with closed_env, not a literal `(fn ...)` form). Wrap as
-        // an opaque-identity Atom of the structural lowering so cosine /
-        // hash / cache keys see it as a single coordinate.
+        // Bare fn terminal — Q6 of arc 068 DESIGN. A `(fn ...)` form is
+        // its own canonical-form value: no captures (a closure-bearing
+        // fn would have already produced a Function value with
+        // closed_env, not a literal `(fn ...)` form) — so it is already
+        // terminal and is returned unchanged.
+        //
+        // Arc 255 STONE-stepvalue-is-watast (orchestrator correction):
+        // this used to lower the form into `HolonAST::Atom` (`watast_to_holon`
+        // + `holon_to_watast`) and back — `HolonAST::Atom` is the VSA
+        // algebra's QUOTE (holon-rs: "the algebra's quote — minimal
+        // holder, repeatable holds compose"; `Atom(Atom(x)) != Atom(x)
+        // != x`), not a generic opaque box. Nothing here bundles, binds,
+        // or takes a cosine of anything — the wrap bought nothing and
+        // cost the stepper's own honesty: it returned a
+        // `(:wat::holon::Atom (fn ...))` form it never received. `wat`
+        // already has its own quote and `WatAST` already holds the form;
+        // no lowering into holon is needed at all.
         // Arc 155 slice 2 — lambda dispatch arm retired; only
         // canonical `:wat::core::fn` recognized.
-        ":wat::core::fn" => {
-            let form = WatAST::List(items.to_vec(), list_span.clone());
-            let h = watast_to_holon(&form);
-            Ok(StepValue::Terminal(HolonAST::Atom(Arc::new(h))))
-        }
+        ":wat::core::fn" => Ok(StepValue::Terminal(WatAST::List(
+            items.to_vec(),
+            list_span.clone(),
+        ))),
         _ => {
             // User-defined function looked up by full keyword path.
             // Top-level defines have closed_env=None; closures (from
@@ -12556,13 +12571,24 @@ fn is_step_canonical(form: &WatAST) -> bool {
             | WatAST::BoolLit(_, _)
             | WatAST::StringLit(_, _)
             | WatAST::Keyword(_, _)
+            // NOT part of the orchestrator's brief for this stone — flagged as a
+            // separate finding, fixed here because without it the stone's own
+            // `value_to_watast` fix in `step_descend_then_fire` is unreachable
+            // through `:wat::eval-step!`: a RationalLit/BigIntLit ARGUMENT was
+            // never "canonical," so a pure-op redex needing one (e.g.
+            // `(:wat::core::+ 1/2 1/3)`) never reached the fire branch at all —
+            // the descend loop re-stepped the already-terminal operand forever,
+            // returning an unchanged `StepNext` on every call. See this stone's
+            // report for the reproducing probe (captured before this change).
+            | WatAST::RationalLit(_, _)
+            | WatAST::BigIntLit(_, _)
     )
 }
 
 /// Step `form` and lift the result back into a `WatAST` so callers
-/// rebuilding an outer form have something to splice in. If the
-/// inner step terminated, `holon_to_watast` provides the lift; if it
-/// produced a Next form, that form is the WatAST directly.
+/// rebuilding an outer form have something to splice in. Every
+/// `StepValue` arm already carries a `WatAST` (arc 255
+/// STONE-stepvalue-is-watast) — no `holon_to_watast` bridge left here.
 fn step_to_watast(
     form: &WatAST,
     env: &Environment,
@@ -12575,7 +12601,7 @@ fn step_to_watast(
         // outer form. AlreadyTerminal differs from Terminal only in
         // signaling chain length to the consumer; descent doesn't
         // care.
-        StepValue::Terminal(h) | StepValue::AlreadyTerminal(h) => Ok(holon_to_watast(&h)),
+        StepValue::Terminal(w) | StepValue::AlreadyTerminal(w) => Ok(w),
     }
 }
 
@@ -12583,7 +12609,18 @@ fn step_to_watast(
 /// canonical, recursively step the leftmost non-canonical one,
 /// rebuild the outer form, return Next. If all args are canonical,
 /// call `eval` — args are values, so eval reduces only the top-level
-/// redex — convert the result via `value_to_holon`, return Terminal.
+/// redex — convert the result directly to `WatAST`, return Terminal.
+///
+/// Arc 255 STONE-stepvalue-is-watast: this used to route the fired
+/// value through `value_to_holon` (Value -> HolonAST) and then
+/// `holon_to_watast` (HolonAST -> WatAST) to satisfy `StepValue::
+/// Terminal`'s old HolonAST-typed field. That middle hop is exactly
+/// what the stone exists to remove, and it was not merely redundant:
+/// `value_to_holon` has no arm for `Value::wat__core__Rational` /
+/// `Value::wat__core__BigInt` (HolonAST has no such leaf, by design),
+/// so any pure op whose result was a rational or bigint — e.g.
+/// `(:wat::core::/ 1 3)` — refused with TypeMismatch. `value_to_watast`
+/// converts `Value -> WatAST` directly and has exact leaves for both.
 fn step_descend_then_fire(
     items: &[WatAST],
     list_span: &Span,
@@ -12601,13 +12638,11 @@ fn step_descend_then_fire(
     // All args canonical — fire.
     let form = WatAST::List(items.to_vec(), list_span.clone());
     let v = eval_inner(&form, env, sym)?.value_owned();
-    let h_val = value_to_holon(":wat::eval-step!", v)?;
-    let h = match h_val {
-        Value::holon__HolonAST(h) => (*h).clone(),
-        // value_to_holon Ok-arm only ever returns Value::holon__HolonAST.
-        _ => unreachable!("value_to_holon returns Value::holon__HolonAST on Ok"),
-    };
-    Ok(StepValue::Terminal(h))
+    Ok(StepValue::Terminal(value_to_watast(
+        ":wat::eval-step!",
+        v,
+        list_span.clone(),
+    )?))
 }
 
 /// Holon-constructor variant of descend-then-fire. Same shape as
@@ -12661,12 +12696,20 @@ fn step_holon_descend_then_fire(
         },
         other => other,
     };
-    let h_val = value_to_holon(":wat::eval-step!", v)?;
-    let h = match h_val {
-        Value::holon__HolonAST(h) => (*h).clone(),
-        _ => unreachable!("value_to_holon returns Value::holon__HolonAST on Ok"),
-    };
-    Ok(StepValue::Terminal(h))
+    // Arc 255 STONE-stepvalue-is-watast — direct Value -> WatAST, no
+    // `value_to_holon` middle hop (see the sibling comment in
+    // `step_descend_then_fire`). Every `:wat::holon::*` constructor's
+    // `eval` arm already returns `Value::holon__HolonAST` directly
+    // (e.g. `eval_algebra_bind`), so the old `value_to_holon` call
+    // here was always hitting its bare passthrough arm — pure
+    // ceremony. `value_to_watast` has that same passthrough arm
+    // (`Value::holon__HolonAST(h) => holon_to_watast(&h)`, `runtime.rs:7054`)
+    // and nothing is lost.
+    Ok(StepValue::Terminal(value_to_watast(
+        ":wat::eval-step!",
+        v,
+        list_span.clone(),
+    )?))
 }
 
 
