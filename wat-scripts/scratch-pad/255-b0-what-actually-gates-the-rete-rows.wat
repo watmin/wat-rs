@@ -37,4 +37,4 @@
         (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
           (:wat::kernel::println (:b0::render r)))
         aliases)
-      (:wat::core::nil))))
+      (:wat::kernel::println ""))))

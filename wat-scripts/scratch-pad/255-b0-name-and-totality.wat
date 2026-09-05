@@ -25,4 +25,4 @@
         (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
           (:wat::kernel::println (:tot::render r)))
         rows)
-      (:wat::core::nil))))
+      (:wat::kernel::println ""))))

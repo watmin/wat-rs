@@ -40,4 +40,4 @@
         (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
           (:wat::kernel::println (:wat::string::concat "ROW " (:drift::plain r))))
         rows)
-      (:wat::core::nil))))
+      (:wat::kernel::println ""))))

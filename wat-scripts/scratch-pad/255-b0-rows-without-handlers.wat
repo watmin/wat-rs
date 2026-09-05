@@ -20,4 +20,4 @@
         (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
           (:wat::kernel::println (:wat::keyword::to-string (:wat::intrinsic::Row/name r))))
         hl)
-      (:wat::core::nil))))
+      (:wat::kernel::println ""))))
