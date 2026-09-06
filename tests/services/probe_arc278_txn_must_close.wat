@@ -87,8 +87,59 @@
           (:wat::kernel::RecvOutcome::TimedOut "TimedOut"))]
     (:wat::core::format "put1={a};put2={b}" :a p1 :b p2)))
 
+(:wat::core::defn :s6::i64-tag
+  [r <- (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])] -> :wat::core::String
+  (:wat::core::match r
+    ((:wat::core::Ok _) "Ok")
+    ((:wat::core::Err e) (:s6::err-tag e))))
+
+(:wat::core::defn :s6::bool-tag [b <- :wat::core::bool] -> :wat::core::String
+  (:wat::core::if b "true" "false"))
+
+(:wat::core::defn :s6::probe-cause [] -> :wat::sqlite::Error
+  (:wat::sqlite::Error::Fatal
+    (:wat::sqlite::Fault :op :probe :code 0 :diagnostic "d" :message "probe-cause")))
+
+;; Cell C — COMMIT fails on a deferred FK; close-then-err; begin2 must be Ok.
+(:wat::core::defn :s6::cell-commit [] -> :wat::core::String
+  (:wat::core::let
+    [conn (:wat::core::Result/expect (:wat::sqlite::open ":memory:") "s6: c-open")
+     none (:wat::core::Vector :- [:wat::sqlite::Param])
+     _fk  (:wat::sqlite::pragma conn "foreign_keys" "ON")
+     _d1  (:wat::sqlite::execute-ddl conn "CREATE TABLE p (id INTEGER PRIMARY KEY)")
+     _d2  (:wat::sqlite::execute-ddl conn
+            "CREATE TABLE c (id INTEGER PRIMARY KEY, pid INTEGER REFERENCES p(id) DEFERRABLE INITIALLY DEFERRED)")
+     _b1  (:wat::sqlite::begin conn)
+     ins  (:s6::i64-tag (:wat::sqlite::execute conn "INSERT INTO c (id, pid) VALUES (1, 999)" none))
+     cmt-r (:wat::sqlite::commit conn)
+     cmt  (:s6::res-tag cmt-r)
+     closed (:wat::core::match cmt-r
+              ((:wat::core::Ok _) "no-err")
+              ((:wat::core::Err e) (:s6::res-tag (:wat::query::close-then-err conn e))))
+     b2   (:s6::res-tag (:wat::sqlite::begin conn))]
+    (:wat::core::format "c-insert={i};c-commit={c};c-closed={l};c-begin2={g}"
+      :i ins :c cmt :l closed :g b2)))
+
+;; Cell D — already-closed is the postcondition, not a failure.
+(:wat::core::defn :s6::cell-closed [] -> :wat::core::String
+  (:wat::core::let
+    [conn (:wat::core::Result/expect (:wat::sqlite::open ":memory:") "s6: d-open")
+     cause (:s6::probe-cause)
+     _b1 (:wat::sqlite::begin conn)
+     _c1 (:wat::sqlite::commit conn)
+     ac-c (:s6::bool-tag (:wat::sqlite::autocommit? conn))
+     cte-c (:s6::res-tag (:wat::query::close-then-err conn cause))
+     _b2 (:wat::sqlite::begin conn)
+     _r2 (:wat::sqlite::rollback conn)
+     ac-r (:s6::bool-tag (:wat::sqlite::autocommit? conn))
+     cte-r (:s6::res-tag (:wat::query::close-then-err conn cause))]
+    (:wat::core::format "d-ac-commit={a};d-cte-commit={b};d-ac-rollback={c};d-cte-rollback={d}"
+      :a ac-c :b cte-c :c ac-r :d cte-r)))
+
 (:wat::core::defn :s6::run [] -> :wat::core::String
-  (:wat::core::format "{c};{s}" :c (:s6::cell-conn) :s (:s6::cell-store)))
+  (:wat::core::format "{c};{s};{k};{d}"
+    :c (:s6::cell-conn) :s (:s6::cell-store)
+    :k (:s6::cell-commit) :d (:s6::cell-closed)))
 
 (:wat::core::defn :user::compute [] -> :wat::core::String (:s6::run))
 (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:s6::run)))

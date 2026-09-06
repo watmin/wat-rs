@@ -65,4 +65,39 @@ fn a_failed_put_does_not_poison_the_next_put() {
         "Ok",
         "CONN rollback after the failed statement must succeed; got {stored}"
     );
+    assert_eq!(
+        field(&stored, "c-commit"),
+        "Constraint:19:FOREIGN KEY constraint failed",
+        "cell C commit must report the FK constraint; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "c-closed"),
+        "Constraint:19:FOREIGN KEY constraint failed",
+        "cell C close-then-err must return the original constraint; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "c-begin2"),
+        "Ok",
+        "cell C begin2 after a failed COMMIT must succeed; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "d-ac-commit"),
+        "true",
+        "autocommit? after a clean commit must be true; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "d-ac-rollback"),
+        "true",
+        "autocommit? after a rollback must be true; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "d-cte-commit"),
+        "Fatal:0:probe-cause",
+        "close-then-err on an already-closed txn must return the original Err; got {stored}"
+    );
+    assert_eq!(
+        field(&stored, "d-cte-rollback"),
+        "Fatal:0:probe-cause",
+        "close-then-err after rollback must return the original Err; got {stored}"
+    );
 }

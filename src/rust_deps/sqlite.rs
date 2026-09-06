@@ -327,6 +327,12 @@ impl WatSqliteConnection {
             .execute_batch("ROLLBACK")
             .map_err(|e| fault_from_rusqlite(&e))
     }
+
+    /// `:rust::sqlite::Connection::is_autocommit conn` — true iff NO transaction
+    /// is open. Cannot fail, so a bare `bool` (cf. `cache.rs:123`).
+    pub fn is_autocommit(&self) -> bool {
+        self.conn.is_autocommit()
+    }
 }
 
 // ─── ReadConnection (RO) ────────────────────────────────────────────────

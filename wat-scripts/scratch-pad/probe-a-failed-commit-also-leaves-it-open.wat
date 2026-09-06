@@ -1,5 +1,10 @@
 ;; probe-a-failed-commit-also-leaves-it-open.wat
 ;;
+;; ✅ CLOSED by `closed is the postcondition` — sqlite-store now routes the
+;; commit-Err arm through `close-then-err` too. This probe drives the RAW
+;; connection, so its output is unchanged: it records what sqlite does, which is
+;; why the store has to do something about it.
+;;
 ;; The ROLLBACK stone closed the STATEMENT-failure path:
 ;;   begin -> put-rows Err -> rollback-then-err.
 ;; It did NOT close the COMMIT-failure path:

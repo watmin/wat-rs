@@ -120,7 +120,7 @@
     ((:wat::core::Ok n) (:wat::core::Ok n))
     ((:wat::core::Err raw) (:wat::core::Err (:wat::sqlite::classify :execute raw)))))
 
-;; ─── pragma / begin / commit / rollback (Connection only) ──────────────────────────────────────
+;; ─── pragma / begin / commit / rollback / autocommit? (Connection only) ────────────────────────
 (:wat::core::defn :wat::sqlite::pragma
   [conn <- :wat::sqlite::Connection name <- :wat::core::String value <- :wat::core::String]
   -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
@@ -149,6 +149,10 @@
     
     ((:wat::core::Ok _) (:wat::core::Ok nil))
     ((:wat::core::Err raw) (:wat::core::Err (:wat::sqlite::classify :rollback raw)))))
+
+(:wat::core::defn :wat::sqlite::autocommit?
+  [conn <- :wat::sqlite::Connection] -> :wat::core::bool
+  (:rust::sqlite::Connection::is_autocommit conn))
 
 ;; ─── select — the raw read; Connection AND ReadConnection both answer to it ───────────────────
 ;; `defclause` dispatches on each arg's CONCRETE runtime type tag, not through `typealias`

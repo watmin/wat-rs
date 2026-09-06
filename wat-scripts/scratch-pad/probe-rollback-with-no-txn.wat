@@ -1,6 +1,11 @@
 ;; probe-rollback-with-no-txn.wat — is ROLLBACK safe when nothing is open?
 ;;
-;; `rollback-then-err` (sqlite-store.wat:41) ASSERTS when the rollback fails.
+;; ✅ ANSWERED by `closed is the postcondition`: `rollback-then-err` became
+;; `close-then-err`, which checks `:wat::sqlite::autocommit?` first. This probe
+;; drives the RAW connection and its output is unchanged — it is the measurement
+;; that made the reshape necessary.
+;;
+;; `rollback-then-err` (sqlite-store.wat:41, as it stood) ASSERTED when rollback failed.
 ;; Before wiring the commit-failure arm to it, measure what rollback does with
 ;; no active transaction — if that is an Err, the naive wiring converts a
 ;; benign auto-rolled-back commit into a store crash.
