@@ -1013,27 +1013,65 @@
       (:wat::core::Vector :- [:wat::core::String])
       (:wat::core::range 0 rest))))
 
+;; Bounds, not an operating point. BASE is the smallest legal wait; CAP sits
+;; past the sweep's turn-up at 50 ms. The client discovers where to sit.
+(:wat::core::def :fanout::BACKOFF-BASE-MS 1)
+(:wat::core::def :fanout::BACKOFF-CAP-MS 100)
+(:wat::core::def :fanout::BACKOFF-SEED 1)
+
+(:wat::core::defn :fanout::pow2 [n <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::if (:wat::i64::<= n 0)
+    1
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::i64  _i <- :wat::core::i64] -> :wat::core::i64
+        (:wat::i64::* acc 2))
+      1
+      (:wat::core::range 0 n))))
+
+;; ceiling = min(CAP, BASE << attempt); draw uniform in [1, ceiling].
+;; int-from is [lo, hi), so the call is 1 .. ceiling+1. ceiling=1 → [1, 2) = {1}.
+(:wat::core::defn :fanout::backoff-delay
+  [seed <- :wat::core::i64  attempt <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:wat::core::let
+    [shifted (:wat::core::if (:wat::i64::>= attempt 7)
+               :fanout::BACKOFF-CAP-MS
+               (:wat::i64::* :fanout::BACKOFF-BASE-MS (:fanout::pow2 attempt)))
+     ceiling (:wat::core::if (:wat::i64::> shifted :fanout::BACKOFF-CAP-MS)
+               :fanout::BACKOFF-CAP-MS shifted)]
+    (:wat::rand::int-from seed 1 (:wat::i64::+ ceiling 1))))
+
 (:wat::core::defn :fanout::publish-until-accepted!*
   [t <- :demo::Topic  msgs <- (:wat::core::Vector :- [:wat::core::String])
-   attempts <- :wat::core::i64  start-ns <- :wat::core::i64  limit-ms <- :wat::core::i64]
-  -> :wat::core::i64
+   attempt <- :wat::core::i64  retries <- :wat::core::i64  seed <- :wat::core::i64
+   start-ns <- :wat::core::i64  limit-ms <- :wat::core::i64  asleep <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs msgs))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:demo::Topic::PublishResponse::Accepted c)
           (:wat::core::let [n (:wat::core::count msgs)]
             (:wat::core::if (:wat::i64::>= c n)
-              (:wat::i64::- attempts 1)
+              (:wat::core::Tuple retries asleep)
               (:wat::core::if (:wat::i64::<= c 0)
                 (:wat::core::let [elapsed (:fanout::elapsed-ms start-ns)]
                   (:wat::core::if (:wat::i64::>= elapsed limit-ms)
                     (:wat::kernel::assertion-failed!
                       (:wat::core::format "verdict=never-accepted;attempts={a};elapsed={ms}"
-                        :a attempts :ms elapsed)
+                        :a retries :ms elapsed)
                       :wat::core::None :wat::core::None)
-                    (:wat::core::let [_ (:fanout::await-timer-ms 1)]
-                      (:fanout::publish-until-accepted!* t msgs (:wat::i64::+ attempts 1) start-ns limit-ms))))
-                (:fanout::publish-until-accepted!* t (:fanout::drop-first msgs c) attempts start-ns limit-ms)))))
+                    (:wat::core::let
+                      [drawn (:fanout::backoff-delay seed attempt)
+                       seed1 (:wat::core::first drawn)
+                       d     (:wat::core::second drawn)
+                       _     (:fanout::await-timer-ms d)]
+                      (:fanout::publish-until-accepted!* t msgs
+                        (:wat::i64::+ attempt 1)
+                        (:wat::i64::+ retries 1)
+                        seed1 start-ns limit-ms
+                        (:wat::i64::+ asleep d)))))
+                (:fanout::publish-until-accepted!* t (:fanout::drop-first msgs c)
+                  0 retries seed start-ns limit-ms asleep)))))
         (_ (:wat::kernel::assertion-failed! "fanout: publish not Accepted" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
@@ -1043,8 +1081,10 @@
       (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fanout::publish-until-accepted!
-  [t <- :demo::Topic  msgs <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::i64
-  (:fanout::publish-until-accepted!* t msgs 1 (:wat::time::epoch-nanos (:wat::time::now)) 60000))
+  [t <- :demo::Topic  msgs <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:fanout::publish-until-accepted!* t msgs 0 0 :fanout::BACKOFF-SEED
+    (:wat::time::epoch-nanos (:wat::time::now)) 60000 0))
 
 ;; Each message keeps its OWN t0. A shared origin would collapse e2e.
 (:wat::core::defn :fanout::stamped-range
@@ -1060,26 +1100,27 @@
     (:wat::core::range 0 ntake)))
 
 ;; Chunk n messages into batches of at most 10. Last batch may be short (n=4 is live).
-;; Returns (Tuple calls full-retries).
+;; Returns (Tuple calls full-retries asleep-ms).
 (:wat::core::defn :fanout::publish-n-until-accepted!
   [t <- :demo::Topic  n <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [nbatches (:wat::i64::/ (:wat::i64::+ n 9) 10)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+      (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
                        b   <- :wat::core::i64]
-        -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+        -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
         (:wat::core::let
           [start (:wat::i64::* b 10)
            ntake (:wat::core::if (:wat::i64::>= (:wat::i64::+ start 10) n)
                     (:wat::i64::- n start)
                     10)
-           retries (:fanout::publish-until-accepted! t (:fanout::stamped-range start ntake))]
+           pair (:fanout::publish-until-accepted! t (:fanout::stamped-range start ntake))]
           (:wat::core::Tuple
             (:wat::i64::+ (:wat::core::first acc) 1)
-            (:wat::i64::+ (:wat::core::second acc) retries))))
-      (:wat::core::Tuple 0 0)
+            (:wat::i64::+ (:wat::core::second acc) (:wat::core::first pair))
+            (:wat::i64::+ (:wat::core::third acc) (:wat::core::second pair)))))
+      (:wat::core::Tuple 0 0 0)
       (:wat::core::range 0 nbatches))))
 
 (:wat::core::defn :fanout::poll-until-visible-zero*
@@ -1493,6 +1534,7 @@
      pub-pair (:fanout::publish-n-until-accepted! topic n)
      pub-calls (:wat::core::first pub-pair)
      pub-retries (:wat::core::second pub-pair)
+     pub-asleep (:wat::core::third pub-pair)
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
      _drain (:fanout::require! (:fanout::poll-until-drained qclients topic 4000))
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -1536,7 +1578,7 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};gave-back={gb};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr}"
+              "setup={setup};publish={pub};drain={drain};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};gave-back={gb};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-stop0)
@@ -1548,7 +1590,8 @@
               :sf sfirsts
               :sd sdups
               :pc pub-calls
-              :fr pub-retries)
+              :fr pub-retries
+              :asleep pub-asleep)
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr}" :p phases :tr traces))))
