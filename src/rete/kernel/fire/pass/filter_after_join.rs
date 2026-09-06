@@ -126,6 +126,27 @@ while !frontier.is_empty() {
                     continue;
                 }
                 let driver = driver_of(compiled_drivers, alpha_id)?;
+                let _prev_gather_node = census_gather_node(filter_id);
+                let hoisted_keys: Option<std::sync::Arc<[Value]>> = {
+                    let els = alpha_elements(&wm.alpha, alpha_id);
+                    if els.is_empty() || new_tokens.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            gather_join_keys(
+                                &bind_view(
+                                    &wm.bind_keys,
+                                    &wm.bind_vals,
+                                    &wm.bind_pool,
+                                    new_tokens[0].binds,
+                                ),
+                                els,
+                                GatherIntern::from_wm(wm, alpha_id),
+                            )
+                            .into(),
+                        )
+                    }
+                };
                 for tok in new_tokens {
                     let any_compat = token_exists_under(
                         driver,
@@ -135,12 +156,14 @@ while !frontier.is_empty() {
                         match_scratch,
                         sym,
                         gather_cache,
+                        hoisted_keys.as_ref(),
                     )?;
                     let pass = if is_exists { any_compat } else { !any_compat };
                     if pass {
                         record_token(&mut wm.beta, d_beta, beta_readers, filter_id, tok);
                     }
                 }
+                census_gather_node(_prev_gather_node);
             }
             // Walk children of this filter: HashJoin (3.6's grandchild) AND
             // Test/Neg/Exists (Test→Test after join-after-filter — spoken
@@ -229,6 +252,27 @@ while !frontier.is_empty() {
                         continue;
                     };
                     let driver = driver_of(compiled_drivers, alpha_id)?;
+                    let _prev_gather_node = census_gather_node(gc_id);
+                    let hoisted_keys: Option<std::sync::Arc<[Value]>> = {
+                        let els = alpha_elements(&wm.alpha, alpha_id);
+                        if els.is_empty() || parent_toks.is_empty() {
+                            None
+                        } else {
+                            Some(
+                                gather_join_keys(
+                                    &bind_view(
+                                        &wm.bind_keys,
+                                        &wm.bind_vals,
+                                        &wm.bind_pool,
+                                        parent_toks[0].binds,
+                                    ),
+                                    els,
+                                    GatherIntern::from_wm(wm, alpha_id),
+                                )
+                                .into(),
+                            )
+                        }
+                    };
                     for tok in &parent_toks {
                         let any_compat = token_exists_under(
                             driver,
@@ -243,12 +287,14 @@ while !frontier.is_empty() {
                             match_scratch,
                             sym,
                             gather_cache,
+                            hoisted_keys.as_ref(),
                         )?;
                         let pass = if is_exists { any_compat } else { !any_compat };
                         if pass {
                             record_token(&mut wm.beta, d_beta, beta_readers, gc_id, *tok);
                         }
                     }
+                    census_gather_node(_prev_gather_node);
                     chain.push(gc_id);
                 }
             }

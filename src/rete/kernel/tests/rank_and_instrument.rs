@@ -1003,6 +1003,146 @@ fn predicted_root_join_record_tokens_redden_under_a_per_element_scan() {
     );
 }
 
+const NOT_RULE: &str = "\
+(:wat::rete::defrule :one::not-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (:wat::rete::not (:one::Reading (?g <- :g)))]\n\
+  :then [(:one::Out ?g 1)])";
+
+fn fire_gather_keys_world(world: &str, ns: &str, seed_args: &str) -> Vec<super::GatherKeyRow> {
+    let world = startup_from_source(world, None, Arc::new(InMemoryLoader::new()))
+        .unwrap_or_else(|e| panic!("{ns} world should freeze: {e:?}"));
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:{ns}::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :{ns})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {seed_args})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let (_fired, rows) = super::with_gather_key_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("{ns} fire raised at {seed_args}: {e:?}"))
+            .value_owned()
+    });
+    rows
+}
+
+fn fire_gather_keys_rule(rule: &str, g: i64, w: i64) -> Vec<super::GatherKeyRow> {
+    let world = startup_from_source(&one_rule_world(rule), None, Arc::new(InMemoryLoader::new()))
+        .unwrap_or_else(|e| panic!("one-rule world should freeze: {e:?}"));
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:one::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :one)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {g} {w})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let (_fired, rows) = super::with_gather_key_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("one-rule fire raised at G={g} W={w}: {e:?}"))
+            .value_owned()
+    });
+    rows
+}
+
+fn print_gather_key_rows(label: &str, denom: &str, rows: &[super::GatherKeyRow]) -> String {
+    let mut out = format!("\n  {label}  denom={denom}\n    node   alpha  calls  distinct\n    --------------------------------\n");
+    let (mut calls, mut max_d) = (0u64, 0u64);
+    for r in rows {
+        calls += r.calls;
+        max_d = max_d.max(r.distinct);
+        out.push_str(&format!(
+            "    {:>4} {:>6} {:>6} {:>8}\n",
+            r.node_id, r.alpha_id, r.calls, r.distinct
+        ));
+    }
+    out.push_str(&format!("    total calls={calls}  max distinct={max_d}\n"));
+    out
+}
+
+/// ★ temperare §5: distinct join-key sets per (node, alpha) on axes that
+/// enter `ensure_gather`. The SCORE decides hoist-with-gate vs refute.
+#[test]
+fn gather_key_sets_are_measured_per_node_and_alpha() {
+    let accum = fire_gather_keys_world(ACCUM_GATHER_WORLD, "agc", "10 80");
+    let exists = fire_gather_keys_rule(
+        "(:wat::rete::defrule :one::exists-rule\n  :when [(:one::Group (?g <- :g))\n         (:wat::rete::exists (:one::Reading (?g <- :g)))]\n  :then [(:one::Out ?g 1)])",
+        10,
+        8,
+    );
+    let not_rule = fire_gather_keys_rule(NOT_RULE, 10, 8);
+    let and_exists = fire_gather_keys_rule(AND_EXISTS_RULE, 10, 8);
+
+    let table = format!(
+        "\ngather key-set stability — existing axes that enter ensure_gather\n\
+         {}{}{}{}",
+        print_gather_key_rows("accum G=10 W=80 (count+sum+exists)", "G=10 tokens / W=80 readings", &accum),
+        print_gather_key_rows("exists-of-leaf G=10 W=8", "G=10 groups", &exists),
+        print_gather_key_rows("not-of-leaf G=10 W=8", "G=10 groups", &not_rule),
+        print_gather_key_rows("exists-of-and G=10 W=8", "G=10 groups", &and_exists),
+    );
+    println!("{table}");
+    assert!(
+        !accum.is_empty() || !exists.is_empty() || !not_rule.is_empty() || !and_exists.is_empty(),
+        "ensure_gather recorded ZERO rows — the instrument did not fire\n{table}"
+    );
+    let max_distinct = accum
+        .iter()
+        .chain(&exists)
+        .chain(&not_rule)
+        .chain(&and_exists)
+        .map(|r| r.distinct)
+        .max()
+        .unwrap_or(0);
+    println!("  max distinct across driven nodes: {max_distinct}");
+    assert!(
+        max_distinct >= 1,
+        "distinct key sets were 0 on a live gather — the fingerprint never inserted\n{table}"
+    );
+    for (name, rows) in [
+        ("accum", &accum),
+        ("exists-of-leaf", &exists),
+        ("not-of-leaf", &not_rule),
+        ("exists-of-and", &and_exists),
+    ] {
+        assert_gather_key_stability(name, rows, &table);
+    }
+}
+
+fn assert_gather_key_stability(axis: &str, rows: &[super::GatherKeyRow], table: &str) {
+    for r in rows {
+        assert_eq!(
+            r.distinct, 1,
+            "{axis}: node {} alpha {} derived {} key sets — hoist would collide\n{table}",
+            r.node_id, r.alpha_id, r.distinct
+        );
+    }
+}
+
+/// Synthetic two-key-set node: the stability gate reddens. No real engine
+/// shape on the driven axes does this (max distinct was 1).
+#[test]
+fn gather_key_stability_gate_reddens_when_one_node_derives_two_key_sets() {
+    let g = Value::String(Arc::new("?g".to_string()));
+    let v = Value::String(Arc::new("?v".to_string()));
+    let k1 = vec![g.clone()];
+    let k2 = vec![g, v];
+    let (_out, rows) = super::with_gather_key_census(|| {
+        super::census_gather_node(7);
+        super::census_ensure_gather(3, &k1);
+        super::census_ensure_gather(3, &k2);
+    });
+    assert_eq!(rows.len(), 1, "one (node, alpha) row");
+    assert_eq!(rows[0].calls, 2);
+    assert_eq!(rows[0].distinct, 2, "the mutation must produce two key sets");
+    let rows_ref = &rows;
+    let red = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_gather_key_stability("synthetic", rows_ref, "two key sets at one node");
+    }));
+    assert!(
+        red.is_err(),
+        "stability gate did not redden under two key sets at one node"
+    );
+    println!(
+        "\ngather key-set stability mutation: node 7 alpha 3 calls=2 distinct=2\n\
+         \x20 assert_gather_key_stability REDDENED (catch_unwind Err)\n"
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]

@@ -150,6 +150,7 @@ for node_id in &kind_ids.acc {
     let __ix = phase_start();
     let empty_index = GatherIndex::Nary(FxHashMap::default());
     let empty_keys: Arc<[Value]> = Arc::from([]);
+    let _prev_gather_node = census_gather_node(*node_id);
     let gathered = ensure_gather(
         gather_cache,
         wm,
@@ -161,6 +162,7 @@ for node_id in &kind_ids.acc {
             new_tokens[0].binds,
         ),
     );
+    census_gather_node(_prev_gather_node);
     phase_end("  ├ accum:index", __ix);
     // Empty :from is not cached (unsampled [] ≠ cartesian []). Acc still
     // walks grouping: ungrouped empty emits identity; grouped empty does not.

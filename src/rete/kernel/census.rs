@@ -2,7 +2,7 @@
 //! on the production path so the round loop can call them unconditionally.
 
 #[cfg(test)]
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 use crate::ast::WatAST;
@@ -483,6 +483,92 @@ pub(crate) fn with_root_join_census<R>(f: impl FnOnce() -> R) -> (R, RootJoinCou
     let out = f();
     let counted = ROOT_JOIN_COUNTS.with(|c| c.replace(prior));
     (out, counted)
+}
+
+// Test-only instrument: `ensure_gather` key-set stability per `(node, alpha)`.
+//
+// temperare §5. The hoist is illegal unless every token at one node derives the
+// same join-key set. `GATHER_CENSUS_NODE` is the node the current token loop
+// belongs to (filter / accumulate); `ensure_gather` records `(node, alpha, keys)`.
+#[cfg(test)]
+#[derive(Clone, Debug)]
+pub(crate) struct GatherKeyRow {
+    pub node_id: i64,
+    pub alpha_id: i64,
+    pub calls: u64,
+    pub distinct: u64,
+}
+
+#[cfg(test)]
+type GatherKeyMap = HashMap<(i64, i64), (u64, HashSet<Vec<String>>)>;
+
+#[cfg(test)]
+// rune:sequi(performance-counter) — test-only ensure_gather key-set census; temperare §5.
+thread_local! {
+    static GATHER_CENSUS_NODE: std::cell::Cell<i64> = const { std::cell::Cell::new(-1) };
+    static GATHER_KEY_CENSUS: std::cell::RefCell<Option<GatherKeyMap>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn census_gather_node(node_id: i64) -> i64 {
+    GATHER_CENSUS_NODE.with(|c| c.replace(node_id))
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_gather_node(_node_id: i64) -> i64 {
+    -1
+}
+
+#[cfg(test)]
+fn join_keys_fp(keys: &[Value]) -> Vec<String> {
+    keys.iter()
+        .map(|k| match k {
+            Value::String(s) => s.to_string(),
+            other => format!("{other:?}"),
+        })
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn census_ensure_gather(alpha_id: i64, join_keys: &[Value]) {
+    let node_id = GATHER_CENSUS_NODE.with(|c| c.get());
+    GATHER_KEY_CENSUS.with(|c| {
+        let mut slot = c.borrow_mut();
+        let Some(map) = slot.as_mut() else {
+            return;
+        };
+        let e = map.entry((node_id, alpha_id)).or_insert_with(|| (0, HashSet::new()));
+        e.0 += 1;
+        e.1.insert(join_keys_fp(join_keys));
+    });
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_ensure_gather(_alpha_id: i64, _join_keys: &[crate::runtime::Value]) {}
+
+/// Run `f` with the gather-key census armed, and return per-(node, alpha) rows.
+#[cfg(test)]
+pub(crate) fn with_gather_key_census<R>(f: impl FnOnce() -> R) -> (R, Vec<GatherKeyRow>) {
+    let prior = GATHER_KEY_CENSUS.with(|c| c.replace(Some(HashMap::new())));
+    let prev_node = GATHER_CENSUS_NODE.with(|c| c.replace(-1));
+    let out = f();
+    GATHER_CENSUS_NODE.with(|c| c.set(prev_node));
+    let recorded = GATHER_KEY_CENSUS.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    let mut rows: Vec<GatherKeyRow> = recorded
+        .unwrap_or_default()
+        .into_iter()
+        .map(|((node_id, alpha_id), (calls, keys))| GatherKeyRow {
+            node_id,
+            alpha_id,
+            calls,
+            distinct: keys.len() as u64,
+        })
+        .collect();
+    rows.sort_by_key(|r| (r.node_id, r.alpha_id));
+    (out, rows)
 }
 
 // ── Per-phase wall-clock inside the fire loop ────────────────────────────────
