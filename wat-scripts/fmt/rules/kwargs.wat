@@ -180,7 +180,7 @@
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?ci ?s :undefined 0) 2 :undefined 1) 0))
          (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?vi (:wat::rete::i64::+ ?ci 1 :undefined 0)))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::kwargs-keys-later
   :when [(:wat::fmt::Claim (?p <- :form))
@@ -261,7 +261,7 @@
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?ci ?s :undefined 0) 2 :undefined 1) 0))
          (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?vi (:wat::rete::i64::+ ?ci 1 :undefined 0)))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 ;; Prefix of a trailing pair-run: ordinary leading-atom. First compound in
 ;; the prefix, and every prefix child after it, starts a line. Withhold after
@@ -347,7 +347,7 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::kwargs-prefix-vector
   :when [(:wat::fmt::Claim (?p <- :form))
@@ -430,7 +430,7 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::kwargs-prefix-map
   :when [(:wat::fmt::Claim (?p <- :form))
@@ -513,7 +513,7 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::kwargs-prefix-set
   :when [(:wat::fmt::Claim (?p <- :form))
@@ -596,7 +596,7 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 ;; Map literal: pairs with no head. Claim + AlignPairs so values ride
 ;; their keys. Break every key after the first (index 0 rides `{`).
@@ -622,4 +622,4 @@
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?ci 2 :undefined 1) 0))]
-  :then [(:wat::fmt::Break :id ?c :kind "align")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Align))])

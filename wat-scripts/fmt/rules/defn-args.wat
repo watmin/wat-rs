@@ -30,4 +30,4 @@
          (:wat::grep::Node  (?ch <- :id) (?args <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?ci 3 :undefined 1) 0))]
-  :then [(:wat::fmt::Break :id ?ch :kind "align")])
+  :then [(:wat::fmt::Break :id ?ch :kind (:wat::fmt::BreakKind::Align))])

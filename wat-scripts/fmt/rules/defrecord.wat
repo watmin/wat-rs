@@ -44,7 +44,7 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?vi 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?v :kind "block")])
+  :then [(:wat::fmt::Break :id ?v :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::defstruct-vec-break
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
@@ -63,7 +63,7 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?vi 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?v :kind "block")])
+  :then [(:wat::fmt::Break :id ?v :kind (:wat::fmt::BreakKind::Block))])
 
 ;; Every variant TAG starts a line. Name, `:-`, purity stay on the head
 ;; line. The field vector rides the tag (no Break on the vector).
@@ -79,7 +79,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?cn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?cn ":wat::enum::Pure"))
          (:wat::rete::where (:wat::rete::string::not= ?cn ":wat::enum::Impure"))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 ;; A tag with no vector sibling gets ` []` written after it. A tag that
 ;; already has a vector is left alone — pass 2 must not insert again.

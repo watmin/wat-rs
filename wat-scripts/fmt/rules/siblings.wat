@@ -67,7 +67,7 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::siblings-explode-vector
   :when [(:wat::fmt::Fallback (?p <- :node))
@@ -88,7 +88,7 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::siblings-explode-map
   :when [(:wat::fmt::Fallback (?p <- :node))
@@ -109,7 +109,7 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 (:wat::rete::defrule :fmt::siblings-explode-set
   :when [(:wat::fmt::Fallback (?p <- :node))
@@ -130,4 +130,4 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind "block")])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])

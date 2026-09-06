@@ -21,7 +21,7 @@
 ;; every 3rd child starts a line) while a `let` binder is a PAIR (`y expr`, so every 2nd does).
 ;; A rule cannot be copied between forms; each names its own shape.
 ;;
-;; Break names a kind ("block" / "align"); the emitter computes the rest.
+;; Break names a kind (BreakKind); the emitter computes the rest.
 ;; The binding VECTOR is its own dispatch target — see let-bindings.wat.
 
 (:wat::load-file! "let-bindings.wat")
@@ -41,7 +41,7 @@
          (:wat::grep::Node  (?b <- :id) (?p <- :parent) (?bi <- :index) (?k <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?bi 1))
          (:wat::rete::where (:wat::rete::string::= ?k "vector"))]
-  :then [(:wat::fmt::Break :id ?b :kind "block")])
+  :then [(:wat::fmt::Break :id ?b :kind (:wat::fmt::BreakKind::Block))])
 
 ;; the BODY — every child after the binding vector — starts its own line.
 (:wat::rete::defrule :fmt::let-body-break
@@ -51,4 +51,4 @@
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::let"))
          (:wat::grep::Node  (?body <- :id) (?p <- :parent) (?bi <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?bi 1))]
-  :then [(:wat::fmt::Break :id ?body :kind "block")])
+  :then [(:wat::fmt::Break :id ?body :kind (:wat::fmt::BreakKind::Block))])

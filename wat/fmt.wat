@@ -1,16 +1,18 @@
 ;; wat/fmt.wat — layout engine: Break + a DUMB emitter. Rules assert Breaks; this file
 ;; holds no style opinion. Arc 277 STONE indent-is-structural.
 ;;
-;; A node with a Break starts a new line. `:block` indents one level (2) from its
-;; form's indent; `:align` sits one past the container's emitted opening delimiter.
-;; A line comment PINS A NEWLINE after itself. Spans locate comments; they never
-;; decide an indent.
+;; A node with a Break starts a new line. BreakKind::Block indents one level (2)
+;; from its form's indent; BreakKind::Align sits one past the container's
+;; emitted opening delimiter. A line comment PINS A NEWLINE after itself.
+;; Spans locate comments; they never decide an indent.
 
-;; kind is a String, not a keyword: rete RHS may insert a string literal but
-;; refuses a keyword literal (`RhsUnresolvableOperand`). `"block"` | `"align"`.
+(:wat::core::defenum :wat::fmt::BreakKind :wat::enum::Pure
+  :Block []
+  :Align [])
+
 (:wat::core::defrecord :wat::fmt::Break
   [id   <- :wat::core::i64
-   kind <- :wat::core::String])
+   kind <- :wat::fmt::BreakKind])
 
 (:wat::core::defrecord :wat::fmt::Comment
   [text     <- :wat::core::String
@@ -297,20 +299,15 @@
 
 (:wat::core::defn :wat::fmt::pad-break
   [acc      <- :wat::fmt::Acc
-   bk       <- :wat::core::String
+   bk       <- :wat::fmt::BreakKind
    indent   <- :wat::core::i64
    open-col <- :wat::core::i64]
   -> :wat::fmt::Acc
-  (:wat::core::if (:wat::core::or (:wat::core::= bk "block")
-                                 (:wat::core::= bk "align"))
-    (:wat::core::let [n (:wat::core::if (:wat::core::= bk "block")
-                        (:wat::i64::+ indent 2)
-                        (:wat::i64::+ open-col 1))]
-      (:wat::fmt::write (:wat::fmt::write-nl acc) (:wat::fmt::spaces n)))
-    (:wat::kernel::assertion-failed!
-      "fmt: Break.kind must be block or align"
-      :wat::core::None
-      :wat::core::None)))
+  (:wat::core::match bk
+    ((:wat::fmt::BreakKind::Block)
+      (:wat::fmt::write (:wat::fmt::write-nl acc) (:wat::fmt::spaces (:wat::i64::+ indent 2))))
+    ((:wat::fmt::BreakKind::Align)
+      (:wat::fmt::write (:wat::fmt::write-nl acc) (:wat::fmt::spaces (:wat::i64::+ open-col 1))))))
 
 (:wat::core::defn :wat::fmt::claimed?
   [claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
@@ -334,7 +331,7 @@
 
 (:wat::core::defn :wat::fmt::apply-break
   [acc       <- :wat::fmt::Acc
-   bk        <- :wat::core::String
+   bk        <- :wat::fmt::BreakKind
    indent    <- :wat::core::i64
    open-col  <- :wat::core::i64
    id        <- :wat::core::i64
@@ -693,7 +690,7 @@
   [kids    <- (:wat::core::Vector :- [:wat::WatAST])
    i       <- :wat::core::i64
    id      <- :wat::core::i64
-   breaks  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   breaks  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
    empties <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    acc     <- :wat::core::i64]
   -> :wat::core::i64
@@ -744,7 +741,7 @@
    kids       <- (:wat::core::Vector :- [:wat::WatAST])
    i          <- :wat::core::i64
    ctor?      <- :wat::core::bool
-   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
    claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
@@ -821,7 +818,7 @@
 (:wat::core::defn :wat::fmt::emit-node
   [acc        <- :wat::fmt::Acc
    node       <- :wat::WatAST
-   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
    claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
@@ -939,7 +936,7 @@
 (:wat::core::defn :wat::fmt::emit
   [forms    <- :wat::WatAST
    comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
-   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
    claims   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    aligns   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
@@ -972,13 +969,20 @@
             (:wat::fmt::Acc/comments acc2))]
     (:wat::fmt::Acc/out acc3)))
 
+(:wat::core::defn :wat::fmt::break-kind-name
+  [k <- :wat::fmt::BreakKind]
+  -> :wat::core::String
+  (:wat::core::match k
+    ((:wat::fmt::BreakKind::Block) "Block")
+    ((:wat::fmt::BreakKind::Align) "Align")))
+
 (:wat::core::defn :wat::fmt::breaks-map
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
                      binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
       (:wat::core::let [b (:wat::core::Option/expect
                             (:wat::map::get binding "?b")
                             "fmt::breaks-map: no ?b")
@@ -994,11 +998,11 @@
                 (:wat::string::interpolate
                   "fmt: conflicting Breaks for node {n} — {a} vs {b}"
                   :n (:wat::i64::to-string id)
-                  :a prev
-                  :b k)
+                  :a (:wat::fmt::break-kind-name prev)
+                  :b (:wat::fmt::break-kind-name k))
                 :wat::core::None
                 :wat::core::None))))))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+    (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
     (:wat::rete::query session (:wat::fmt::q-break))))
 
 (:wat::core::defn :wat::fmt::claims-set

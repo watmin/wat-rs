@@ -26,4 +26,4 @@
          (:wat::grep::Node  (?bind <- :id) (?b <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?ci 2 :undefined 1) 0))]
-  :then [(:wat::fmt::Break :id ?bind :kind "align")])
+  :then [(:wat::fmt::Break :id ?bind :kind (:wat::fmt::BreakKind::Align))])
