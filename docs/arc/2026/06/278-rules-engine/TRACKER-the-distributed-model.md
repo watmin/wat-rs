@@ -19,34 +19,56 @@ Same fixture this morning: **109 deliveries/s, e2e ~12 s, non-deterministic.**
 
 ## ⛔ WHERE WE ARE NOW — 2026-09-06, and where we are going
 
-**Correctness is done. The floor is green at 5215/5215 and has been through every stone below.**
-The arc is in its **perf phase**, and its terminal condition is the builder's:
-**stop when wat's interpretation overhead is the dominant term.** Not compiled wat — `main` is
-heading there separately; this branch grinds architectural perf until interpretation leads.
+**Floor green 5216/5216 through every stone below.** The arc is in its **perf phase**; its
+terminal condition is the builder's: **stop when wat's interpretation overhead is the dominant
+term.** Measured, it is nowhere near — see *the units*.
 
 ### The number
 
 ```
 8000 deliveries (2000 published x 4 subscribers)
-                     publish+drain     throughput
-before the perf phase    37.5 s          213/sec
-after 2 perf stones      23.7 s          338/sec     (+59%)
+                          publish + drain      throughput
+before the perf phase          37.5 s            213/sec
+after 2 perf stones            23.7 s            338/sec
+after the retry stone          24.9 s            (regression, recovered below)
+after find-the-934             23.9 s            338/sec
 ```
 
-### ⛔ THE ORDERED PLAN — do not reorder without a reason on disk
+### ⛔ THE ORDERED PLAN — re-ruled 2026-09-06, read the ruling before reordering
 
-1. **Per-entry batch failure — CHAOS FIRST.** Every batch surface takes a vector IN and returns
-   ONE outcome OUT (`Store::Delete/PutResponse`, `Queue::AckResponse`, `Seen::MarkResponse`).
-   **We have never injected a fault where entry 3 of 10 fails and the rest succeed.** Provoke it,
-   measure whether a partly-failed batch loses a message. *Make the defect visible before
-   repairing it.*
-2. **Per-entry outcomes on the batch surfaces** — earned by what (1) shows, not assumed.
-3. **The topic batch.** `:demo::Topic::PublishRequest [msg <- String]` is **singular**, and main's
-   2000 sequential publishes ARE the current 23.5 s leader. ⚠ **Deliberately after (2)** — built
-   now it would ship another collapsed surface and deepen the debt (1) exposes.
-4. **`setup` 9.7 s + `stop` 6.3 s ≈ 16 s** — process spawn/reap, **40 % of the non-publish wall**.
-   Ruled out of this arc long ago as a boot-time item; **that ruling has expired** and should be
-   revisited once publish stops dominating.
+1. ~~**Per-entry batch failure — CHAOS FIRST.**~~ ✅ DONE (`SCORE-entry-three-of-ten.md`).
+2. ~~**Per-entry outcomes on the batch surfaces.**~~ ⛔ **RULED OUT 2026-09-06.** See *the
+   atomicity ruling* below. It targeted a distinction neither Store implementation can produce.
+3. **`:max-entries [field N]`** — IN FLIGHT. `DESIGN/BRIEF/EXPECTATIONS-a-batch-declares-how-many`,
+   amended twice mid-strike (the field must be a sequence; carry the cap as a def, not a stash).
+4. **The atomicity contract** — NOT DRAWN. A floor test proving both `Store` implementations are
+   all-or-nothing, and the invariant written on the surface. Small. Earned by the ruling below.
+5. **The topic batch.** `:demo::Topic::PublishRequest [msg]` is **singular** and `circuit.wat`
+   calls it **2000 times** — the 23.5 s leader. Batching at 10 makes it 200 calls.
+   ⚠ Carry into that stone: **10 msgs x 4 subscribers = 40 bodies against inbox `cap 64`**, and a
+   send is all-or-nothing, so a 40-body batch needs 40 free slots or the whole thing bounces
+   `Full`. Batch size and cap must be chosen together, with a measurement.
+6. **`setup` 9.7 s + `stop` 6.3 s ≈ 16 s** — process spawn/reap, **40 % of the run**. The old
+   "boot-time, out of scope" ruling has expired; revisit once publish stops dominating.
+
+### ⛔ THE ATOMICITY RULING — 2026-09-06
+
+**A `Store` batch operation is all-or-nothing. A store that partially applies is out of spec.**
+
+Measured, both shipped implementations already hold it:
+
+- `wat/query/sqlite-store.wat:373-405` — `begin` → rows → `commit`, with **every** failure arm
+  routed through `close-then-err`.
+- `wat/query/mem.wat:633` — a pure `foldl` into a new immutable state, installed by the actor.
+
+★ The k-of-n chaos wrapper that motivated per-entry outcomes **had to lie to return at all**
+(`SCORE-entry-three-of-ten.md`). It was not a fault injection; it was an **invalid Store**. Saying
+so is what makes it invalid.
+
+⚠ **EXPIRY:** this ruling dies the day a `Store` implementation cannot hold atomicity — a
+DynamoDB-shaped backend (`BatchWriteItem` returns `UnprocessedItems`), or a batch spanning more
+than one transaction. On that day **per-entry outcomes is the correct shape**, and this is
+re-opened, not patched around.
 
 ### Measured units — the floor under every estimate
 
@@ -56,23 +78,43 @@ bare round trip, process       179 us
 Store/put                      675 us
 Store/count-index              517 us
 Store/scan-index limit 1       573 us
+two closures, narrow scope     1.6 us   <- capture is BY REFERENCE
+two closures, 16 bindings      1.8-2.3 us
+unused match arm, in a defn    0 ns     <- free
+unused match arm, in a SERVICE 30 us    <- NOT free. See the interpreter ruling
 ```
 
-★ **8000 x 143 us is ~1.1 s against a ~23.7 s system. Interpretation is nowhere near the leader**
-— measured, not assumed. The terminal condition is far off.
+★ **8000 x 143 us is ~1.1 s of a ~24 s system. Interpretation is nowhere near the leader.**
 
-### ⛔ RULES EARNED IN THIS PHASE — they cost stones
+### ⛔ THE INTERPRETER RULING — 2026-09-06, the builder's
 
-1. **`publish` alone is a Goodhart metric.** Raising the inbox cap moved 15 s out of `publish`
-   into `drain` with throughput unchanged to 0.3 %. **Measure `publish + drain`.**
-2. **A row must gate what the stone CONTROLS, not what it expects to follow.** Gating a
-   consequence has fired wrongly three times.
-3. **State what must HOLD, not what was last OBSERVED.** `distinct` is an invariant and is gated;
-   `dup` and timings are observations and are reported.
-4. **Every perf stone names the NEW DOMINANT TERM**, with numbers — otherwise we cannot tell when
-   the terminal condition is met.
-5. **"Our impl provably cannot fail that way" is usually "we never injected it."** That sentence
-   is how (1) above got written as a design decision instead of a gap.
+**We do not chase interpreter internals here.** A large unused match arm costs ~30 us inside a
+`defservice` impl and 0 inside a `defn`, and `defservice` emits each impl body **twice** into one
+44 KB `serve`. Chasing *why* is bytecode-compilation work, which this phase explicitly does not do.
+
+**What is banked and usable today — a SHAPE RULE:** keep service impl arms small; put a large body
+in a module-level `defn`. That is how the 934 ms was recovered.
+
+⚠ **Not "split the service."** A `defservice` is one serializing actor over one state — the
+queue's `send`/`receive`/`ack`/`stats`/`-tick` all read and write the same `waiters`, `outbox`,
+`depth`. Splitting them would need shared mutable state across actors. It is not an option.
+
+### ⛔ RULES EARNED — they cost stones
+
+1. **`publish` alone is a Goodhart metric.** Measure **`publish + drain`**.
+2. **A row gates what the stone CONTROLS, never what it expects to follow.**
+3. **State what must HOLD, not what was last OBSERVED.** `distinct` is gated; `dup` and timings
+   are reported.
+4. **Every perf stone names the NEW DOMINANT TERM**, with numbers.
+5. **"Our impl provably cannot fail that way" is usually "we never injected it."**
+6. **A perf delta measured against a stale baseline understates itself twice over.** Always A/B
+   against the run **immediately** before, on a quiet box, `sqs.wat` swapped in place.
+7. **A micro-probe that does not reproduce the production SHAPE proves nothing.** The closure
+   probes were captureless in a two-binding scope; the real ones captured from a deep environment.
+   Ask what differs between probe and production **before** using the number.
+8. **Name an exemplar by where it is DEFINED, not where you last saw it used.** Two misses in one
+   stone came from citing the consumption site (`service.wat:1720`) instead of the emission site
+   (`types.rs:3647`).
 
 ## THE MAIN LINE
 
