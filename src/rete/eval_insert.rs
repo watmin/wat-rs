@@ -185,7 +185,10 @@ pub(crate) fn build_insert_fact(
     };
     // Resolve each value via `resolve_rhs_value` (fenced Lists + `?var` + literal).
     // RHS has no current fact. None → malformed rule.
-    crate::rete::kernel::census_count_n("prod:vec-alloc", 2); // value_asts + fields
+    // Census G (2026-09-06): two hardcoded-2 allocation counters used to sit on this
+    // path. Deleted — they were a constant, not a measurement, and nothing read them.
+    // A real allocation count was rejected (census F: nothing wants one). Covered by
+    // `prod:shape` / `prod:resolve` / `prod:construct` and `prod:derivations`.
     let mut fields: Vec<Value> = Vec::with_capacity(value_asts.len());
     crate::rete::kernel::phase_end("  ├ prod:shape", __ps);
     let __pr = crate::rete::kernel::phase_start();
@@ -204,7 +207,6 @@ pub(crate) fn build_insert_fact(
 
     crate::rete::kernel::phase_end("  ├ prod:resolve", __pr);
     let __pc = crate::rete::kernel::phase_start();
-    crate::rete::kernel::census_count_n("prod:record-alloc", 2); // AggregateValue + the fields Arc
     let out = Value::Aggregate(Arc::new(AggregateValue::record(class, names, Arc::new(fields))));
     crate::rete::kernel::phase_end("  ├ prod:construct", __pc);
     Ok(out)
