@@ -130,12 +130,24 @@
     ""
     (:wat::string::concat " " (:wat::fmt::spaces (:wat::i64::- n 1)))))
 
+;; Drop trailing spaces/tabs on the current line. A newline after pad or
+;; the inter-token space would otherwise leave R9 whitespace.
+(:wat::core::defn :wat::fmt::rstrip-ws
+  [s <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::if (:wat::string::empty? s)
+    s
+    (:wat::core::if (:wat::core::or (:wat::string::ends-with? s " ")
+                                   (:wat::string::ends-with? s "\t"))
+      (:wat::fmt::rstrip-ws (:wat::string::subs s 0 (:wat::i64::- (:wat::string::length s) 1)))
+      s)))
+
 (:wat::core::defn :wat::fmt::ensure-nl [s <- :wat::core::String] -> :wat::core::String
   (:wat::core::if (:wat::string::empty? s)
     s
     (:wat::core::if (:wat::string::ends-with? s "\n")
       s
-      (:wat::string::concat s "\n"))))
+      (:wat::string::concat (:wat::fmt::rstrip-ws s) "\n"))))
 
 ;; Column of the next write, given the previous column and a suffix just appended.
 ;; Derived from EMITTED text, never from a source span.
@@ -181,26 +193,96 @@
       (:wat::i64::<= (:wat::fmt::Comment/col c) col)
       false)))
 
+;; True when the current line is only the indent just written — writing a
+;; newline now would leave a blank line of spaces.
+(:wat::core::defn :wat::fmt::pending-indent?
+  [acc <- :wat::fmt::Acc]
+  -> :wat::core::bool
+  (:wat::core::let [col (:wat::fmt::Acc/col acc)]
+    (:wat::core::if (:wat::i64::<= col 0)
+      false
+      (:wat::core::let [out (:wat::fmt::Acc/out acc)
+                        n   (:wat::string::length out)]
+        (:wat::core::= (:wat::string::subs out (:wat::i64::- n col) n)
+                       (:wat::fmt::spaces col))))))
+
+(:wat::core::defn :wat::fmt::drop-pending-indent
+  [acc <- :wat::fmt::Acc]
+  -> :wat::fmt::Acc
+  (:wat::core::let [col (:wat::fmt::Acc/col acc)
+                    out (:wat::fmt::Acc/out acc)
+                    n   (:wat::string::length out)]
+    (:wat::fmt::Acc
+      :out      (:wat::string::subs out 0 (:wat::i64::- n col))
+      :next-id  (:wat::fmt::Acc/next-id acc)
+      :comments (:wat::fmt::Acc/comments acc)
+      :col      0)))
+
+;; Start a comment on a fresh line without leaving spaces on the previous one.
+(:wat::core::defn :wat::fmt::open-comment-line
+  [acc <- :wat::fmt::Acc]
+  -> :wat::fmt::Acc
+  (:wat::core::if (:wat::i64::= (:wat::fmt::Acc/col acc) 0)
+    acc
+    (:wat::core::if (:wat::fmt::pending-indent? acc)
+      (:wat::fmt::drop-pending-indent acc)
+      (:wat::fmt::write-nl acc))))
+
 (:wat::core::defn :wat::fmt::flush-comments
-  [acc <- :wat::fmt::Acc  line <- :wat::core::i64  col <- :wat::core::i64  indent <- :wat::core::i64]
+  [acc     <- :wat::fmt::Acc
+   line    <- :wat::core::i64
+   col     <- :wat::core::i64
+   indent  <- :wat::core::i64
+   restore <- :wat::core::bool]
   -> :wat::fmt::Acc
   (:wat::core::if (:wat::core::empty? (:wat::fmt::Acc/comments acc))
     acc
     (:wat::core::let [c (:wat::core::first (:wat::fmt::Acc/comments acc))]
       (:wat::core::if (:wat::fmt::comment-before? c line col)
         (:wat::fmt::flush-comments
-          (:wat::core::let [written (:wat::fmt::write
-                                      (:wat::fmt::write
-                                        (:wat::fmt::write-nl acc)
-                                        (:wat::fmt::spaces indent))
-                                      (:wat::string::concat (:wat::fmt::Comment/text c) "\n"))]
+          (:wat::core::let
+            [opened (:wat::fmt::open-comment-line acc)
+             written (:wat::fmt::write opened
+                       (:wat::string::concat
+                         (:wat::fmt::spaces indent)
+                         (:wat::string::concat (:wat::fmt::Comment/text c) "\n")))
+             restored (:wat::core::if restore
+                        (:wat::fmt::write written (:wat::fmt::spaces indent))
+                        written)]
             (:wat::fmt::Acc
-              :out      (:wat::fmt::Acc/out written)
-              :next-id  (:wat::fmt::Acc/next-id written)
+              :out      (:wat::fmt::Acc/out restored)
+              :next-id  (:wat::fmt::Acc/next-id restored)
               :comments (:wat::core::rest (:wat::fmt::Acc/comments acc))
-              :col      (:wat::fmt::Acc/col written)))
-          line col indent)
+              :col      (:wat::fmt::Acc/col restored)))
+          line col indent restore)
         acc))))
+
+;; Exactly one blank line at the end of `out` (two trailing newlines).
+;; Missing → insert. Already present → leave. Extra → trim. Never spaces.
+(:wat::core::defn :wat::fmt::trim-extra-nl
+  [s <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::if (:wat::string::ends-with? s "\n\n\n")
+    (:wat::fmt::trim-extra-nl
+      (:wat::string::subs s 0 (:wat::i64::- (:wat::string::length s) 1)))
+    s))
+
+(:wat::core::defn :wat::fmt::ensure-blank
+  [acc <- :wat::fmt::Acc]
+  -> :wat::fmt::Acc
+  (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc))
+    acc
+    (:wat::core::let
+      [s1 (:wat::fmt::ensure-nl (:wat::fmt::Acc/out acc))
+       s2 (:wat::fmt::trim-extra-nl s1)
+       s3 (:wat::core::if (:wat::string::ends-with? s2 "\n\n")
+            s2
+            (:wat::string::concat s2 "\n"))]
+      (:wat::fmt::Acc
+        :out      s3
+        :next-id  (:wat::fmt::Acc/next-id acc)
+        :comments (:wat::fmt::Acc/comments acc)
+        :col      0))))
 
 (:wat::core::defn :wat::fmt::open-of [kind <- :wat::core::String] -> :wat::core::String
   (:wat::core::if (:wat::core::= kind "list") "("
@@ -749,8 +831,15 @@
                      (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc-bl))
                        acc-bl
                        (:wat::fmt::write acc-bl " ")))))
-     this-indent (:wat::fmt::Acc/col acc-pad)
-     acc1        (:wat::fmt::flush-comments acc-pad src-line src-col this-indent)]
+     this-indent (:wat::core::if (:wat::i64::= parent-id 0)
+                    0
+                    (:wat::fmt::Acc/col acc-pad))
+     acc-com     (:wat::fmt::flush-comments acc-pad src-line src-col this-indent true)
+     acc1        (:wat::core::if (:wat::i64::= parent-id 0)
+                    (:wat::core::if (:wat::fmt::pending-indent? acc-com)
+                      (:wat::fmt::drop-pending-indent acc-com)
+                      acc-com)
+                    acc-com)]
     (:wat::core::if (:wat::core::or (:wat::fmt::type-application? node) force-leaf)
       (:wat::core::let
         [acc2 (:wat::fmt::write acc1 (:wat::core::ast->source node))
@@ -762,7 +851,8 @@
         (:wat::fmt::flush-comments acc3
           (:wat::grep::Extent/end-line x)
           (:wat::grep::Extent/end-col x)
-          this-indent))
+          this-indent
+          false))
     (:wat::core::if (:wat::grep::structural? node)
       (:wat::core::let
         [this-open (:wat::fmt::Acc/col acc1)
@@ -802,13 +892,15 @@
         (:wat::fmt::flush-comments acc4
           (:wat::grep::Extent/end-line x)
           (:wat::grep::Extent/end-col x)
-          this-indent))
+          this-indent
+          false))
       (:wat::core::let
         [acc2 (:wat::fmt::write acc1 (:wat::core::ast->source node))]
         (:wat::fmt::flush-comments acc2
           (:wat::grep::Extent/end-line x)
           (:wat::grep::Extent/end-col x)
-          this-indent))))))
+          this-indent
+          false))))))
 
 (:wat::core::defn :wat::fmt::emit
   [forms    <- :wat::WatAST
@@ -830,18 +922,21 @@
      acc0 (:wat::fmt::Acc :out "" :next-id 1 :comments comments :col 0)
      acc1 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
-              (:wat::core::let [acc-nl (:wat::fmt::write-nl acc)]
-                (:wat::fmt::emit-node acc-nl form breaks claims blanks aligns tables gw atoms widths strides empties 0 0 true 0 false false)))
+              (:wat::core::let [acc-b (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc))
+                                     acc
+                                     (:wat::fmt::ensure-blank acc))]
+                (:wat::fmt::emit-node acc-b form breaks claims blanks aligns tables gw atoms widths strides empties 0 0 true 0 false false)))
             acc0
             top)
-     acc2 (:wat::core::foldl
+     acc2 (:wat::fmt::ensure-blank acc1)
+     acc3 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  c <- :wat::fmt::Comment] -> :wat::fmt::Acc
               (:wat::fmt::write
                 (:wat::fmt::write-nl acc)
                 (:wat::string::concat (:wat::fmt::Comment/text c) "\n")))
-            acc1
-            (:wat::fmt::Acc/comments acc1))]
-    (:wat::fmt::Acc/out acc2)))
+            acc2
+            (:wat::fmt::Acc/comments acc2))]
+    (:wat::fmt::Acc/out acc3)))
 
 (:wat::core::defn :wat::fmt::breaks-map
   [session <- :wat::rete::Session]
