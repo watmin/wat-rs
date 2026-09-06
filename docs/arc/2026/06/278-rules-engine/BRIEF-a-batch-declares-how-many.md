@@ -91,3 +91,85 @@ wire-gated and this one must not be.
 `SCORE-a-single-value-is-a-batch-of-one.md` — the arc's prior surface-shape stone.
 
 Write `SCORE-a-batch-declares-how-many.md`, then `pulsare_yield kind=scored`.
+
+---
+
+# ⛔⛔ AMENDED MID-STRIKE — THE FIELD MUST BE A SEQUENCE
+
+Raised by the builder against the in-flight work: *"this 'type' is unqualified — is this for maps?
+for sets? for vectors? lists? record members?"* It is a real hole, and the BRIEF above never
+closed it. **This section overrides nothing above; it adds a requirement.**
+
+## WHAT IS ALREADY RIGHT — keep it
+
+`src/macros/expand.rs` verifies the **response** carries `RequestTooManyEntries` with the exact
+field shape (`RTE_VARIANT`, `rte_fields`). That is the wall the DESIGN asked for and it is built.
+Nothing here changes it.
+
+## DEFECT A — "entries" counts six things and means three
+
+The guard emits `(:wat::core::count (~field-acc-kw ~req-binder))`. Measured, this session, by
+driving `count` on a `String`:
+
+```
+:wat::core::count: expected (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]),
+                            (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])
+```
+
+| field type | what `count` returns | what "entries" would mean |
+|---|---|---|
+| `Vector` / `PersistentVector` / `List` | elements | ✅ the intended unit |
+| `HashMap` / `PersistentMap` | key–value **pairs** | a different unit |
+| `HashSet` | **distinct** members | ⛔ 15 duplicates pass a cap of 10 |
+
+★ `String` is rejected, so character-counting is unreachable. That is the only case luck covered.
+
+★★ `RequestTooManyEntries [entries cap]` is **one word for three units**. A caller cannot tell
+which it was told. That is the failure class this arc has spent itself closing — the three `_`
+arms speaking for four store outcomes, `Lost` asserting *"transient, exhausted after 3"*.
+
+## DEFECT B — the field is validated only as "a name"
+
+`src/types/surface.rs:668` accepts any `Symbol` or `Keyword`. **Nothing checks the field exists on
+the request record**, and nothing checks its type. `:max-entries [now-ns 10]` on an `i64` field
+declares cleanly and fails later, far from the declaration that caused it.
+
+## ⛔ THE REQUIREMENT — one check closes both
+
+At **declaration time**, resolve the named field on the request record and require its declared
+type to be a **sequence**: `Vector`, `PersistentVector`, or `List`.
+
+- resolving it proves the field **exists** → closes B
+- restricting it makes **"entries" mean elements, and only elements** → closes A
+
+Two errors, each naming its own cause — never one message for both:
+
+```
+method member `send`: `:max-entries` field `bodys` is not a field of
+  `:queue::Queue::SendRequest` (fields: queue, bodies, now-ns)
+
+method member `send`: `:max-entries` counts ELEMENTS; field `tags` is a
+  (HashSet :- [String]), whose count is distinct members. Declare the cap on a
+  sequence field (Vector, PersistentVector or List).
+```
+
+★★★ The name stays `:max-entries`. Renaming it `:max-vector-entries` would be a longer label that
+**still permits a `HashMap` field and still never checks existence** — a label where a wall
+belongs. `entries` is also SQS's own vocabulary (`TooManyEntriesInBatchRequest`). The ambiguity is
+removed by making the wrong declaration **unrepresentable**, not by describing it in the name.
+
+## STOP-6 (new)
+
+If the request record's field types are **not reachable** from where `:max-entries` is parsed —
+i.e. the surface parser sees the option before the request type is resolved — **STOP and report
+where the check would have to live instead.** Do not fall back to a runtime check: a declaration
+error that surfaces at runtime is the defect, not the fix.
+
+## ROWS THIS ADDS
+
+Both are gates.
+
+| # | what must hold | expected |
+|---|---|---|
+| 12 | ⛔ a field that does not exist is a **declaration-time error** | names the field and lists the record's actual fields |
+| 13 | ⛔ a `HashMap` / `HashSet` field is a **declaration-time error** | names the type and says the cap counts elements |
