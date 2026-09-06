@@ -79,7 +79,8 @@
     (_ (:wat::kernel::assertion-failed! "su: send recv failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :su::ack-one [q <- :queue::Queue  id <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::match (:queue::Queue/ack q (:queue::Queue::AckRequest :queue "q" :id id))
+  (:wat::core::match (:queue::Queue/ack q (:queue::Queue::AckRequest :queue "q"
+                                             :ids (:wat::core::Vector :- [:wat::core::String] id)))
     ((:wat::kernel::RecvOutcome::Message _r) nil)
     (_ nil)))
 

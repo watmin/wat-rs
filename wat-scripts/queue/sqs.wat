@@ -91,7 +91,7 @@
 
    (:wat::core::defrecord :queue::Queue::AckRequest
      [queue <- :wat::core::String
-      id    <- :wat::core::String])
+      ids   <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :queue::Queue::AckResponse :wat::enum::Pure
      :Ok []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
@@ -661,7 +661,7 @@
      (:wat::core::let
        [store (:queue::queue::State/store s)
         q     (:queue::Queue::AckRequest/queue req)
-        id    (:queue::Queue::AckRequest/id req)
+        ids   (:queue::Queue::AckRequest/ids req)
         rec   (:queue::queue::State/durable s)
         rate  (:queue::queue::Record/drop-ack-bp rec)
         pair  (:wat::core::if (:wat::i64::> rate 0)
@@ -676,10 +676,17 @@
                 :drop-recv-bp (:queue::queue::Record/drop-recv-bp rec)
                 :drop-ack-bp rate
                 :drop-seed seed1)
+        _cap (:wat::core::if (:wat::i64::> (:wat::core::count ids) 10)
+                (:wat::kernel::assertion-failed! "queue.ack: batch larger than 10" :wat::core::None :wat::core::None)
+                nil)
+        keys (:wat::core::foldl
+               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::Key])  id <- :wat::core::String]
+                 -> (:wat::core::Vector :- [:wat::query::Key])
+                 (:wat::core::conj acc (:wat::query::Key :pk q :sk id)))
+               (:wat::core::Vector :- [:wat::query::Key])
+               ids)
         del   (:wat::query::Store/delete store
-                (:wat::query::Store::DeleteRequest
-                  (:wat::core::Vector :- [:wat::query::Key]
-                    (:wat::query::Key :pk q :sk id))))]
+                (:wat::query::Store::DeleteRequest keys))]
        (:wat::core::match del
          ((:wat::kernel::RecvOutcome::Message sresp)
            (:wat::core::match sresp
@@ -978,7 +985,8 @@
 (:wat::core::defn :user::ack
   [q <- :queue::Queue  name <- :wat::core::String  id <- :wat::core::String]
   -> :wat::core::nil
-  (:wat::core::match (:queue::Queue/ack q (:queue::Queue::AckRequest :queue name :id id))
+  (:wat::core::match (:queue::Queue/ack q (:queue::Queue::AckRequest :queue name
+                                             :ids (:wat::core::Vector :- [:wat::core::String] id)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::AckResponse::Ok) nil)

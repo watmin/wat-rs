@@ -450,29 +450,35 @@
                                   (:wat::core::match sresp
                                     ((:queue::Queue::SendResponse::Ok)
                                       (:wat::core::let
-                                        [inb2 (:wat::core::foldl
-                                                (:wat::core::fn
-                                                  [inb0 <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                   p    <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
-                                                  -> (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                  (:wat::core::match
-                                                    (:queue::Queue/ack inb0
-                                                      (:queue::Queue::AckRequest :queue "inbox" :id (:wat::core::first p)))
-                                                    ((:wat::kernel::RecvOutcome::Message _ar) inb0)
-                                                    ((:wat::kernel::RecvOutcome::Lost _cause)
-                                                      (:wat::core::match
-                                                        (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                                                        ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                                        (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
-                                                    (:wat::kernel::RecvOutcome::Stopped
-                                                      (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
-                                                    (:wat::kernel::RecvOutcome::Closed
-                                                      (:wat::core::match
-                                                        (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                                                        ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                                        (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::match (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))))
-                                                inb
-                                                bucket)]
+                                        [ack-ids (:wat::core::foldl
+                                                   (:wat::core::fn
+                                                     [bacc <- (:wat::core::Vector :- [:wat::core::String])
+                                                      p    <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+                                                     -> (:wat::core::Vector :- [:wat::core::String])
+                                                     (:wat::core::conj bacc (:wat::core::first p)))
+                                                   (:wat::core::Vector :- [:wat::core::String])
+                                                   bucket)
+                                         inb2 (:wat::core::match
+                                                 (:queue::Queue/ack inb
+                                                   (:queue::Queue::AckRequest :queue "inbox" :ids ack-ids))
+                                                 ((:wat::kernel::RecvOutcome::Message _ar) inb)
+                                                 ((:wat::kernel::RecvOutcome::Lost _cause)
+                                                   (:wat::core::match
+                                                     (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                                                     ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                                     (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                                                 (:wat::kernel::RecvOutcome::Stopped
+                                                   (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
+                                                 (:wat::kernel::RecvOutcome::Closed
+                                                   (:wat::core::match
+                                                     (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                                                     ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                                     (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                                                 (:wat::kernel::RecvOutcome::TimedOut
+                                                   (:wat::core::match
+                                                     (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                                                     ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                                     (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))))]
                                         (:wat::core::Tuple inb2 ss)))
                                     ((:queue::Queue::SendResponse::Full _d _c) acc)
                                     (_ (:wat::kernel::assertion-failed! "topic-worker: send not Ok/Full" :wat::core::None :wat::core::None))))
@@ -773,7 +779,8 @@
 (:wat::core::defn :demo::ack-one
   [q <- :queue::Queue  name <- :wat::core::String  id <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match
-    (:queue::Queue/ack q (:queue::Queue::AckRequest :queue name :id id))
+    (:queue::Queue/ack q (:queue::Queue::AckRequest :queue name
+                            :ids (:wat::core::Vector :- [:wat::core::String] id)))
     ((:wat::kernel::RecvOutcome::Message _r) nil)
     (_ (:wat::kernel::assertion-failed! "ack-one failed" :wat::core::None :wat::core::None))))
 

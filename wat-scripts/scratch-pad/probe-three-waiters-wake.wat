@@ -76,7 +76,8 @@
                              (:wat::core::let
                                [ar (:queue::Queue/ack q
                                      (:queue::Queue::AckRequest
-                                       :queue name :id (:queue::Envelope/id e)))]
+                                       :queue name
+                                       :ids (:wat::core::Vector :- [:wat::core::String] (:queue::Envelope/id e))))]
                                (:wat::core::match ar
                                  ((:wat::kernel::RecvOutcome::Message _ar)
                                    (:wat::i64::+ acc 1))
