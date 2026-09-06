@@ -60,7 +60,7 @@
                 true
                 (:wat::core::if (:wat::core::= h ":wat::rete::factbag::retain")
                   true
-                  (:wat::core::= h ":wat::rete::factbag::remove-every-equal"))))))))))
+                  (:wat::core::= h ":wat::rete::factbag::remove-one"))))))))))
 
 (:wat::core::defn :user::already-items-wrapped? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:user::items-call? node)

@@ -166,6 +166,15 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
          3 * 200 = 600. ★ This is the axis that carries D7's shape; see its header.",
     ),
     (
+        "retract-multiplicity",
+        &[3],
+        3,
+        "size=[items]; F(0)×2, F(k)×1 for k>0, G(k)×1; Out(k) :- F(k) AND G(k); fire; retract \
+         F(0) ONCE; re-fire. remove-one leaves one F(0), so Out is every key in [0,items) — \
+         items = 3. The axis sorts and does not distinct. Duplicate ONLY the retracted key so \
+         the justified derived-multiplicity split cannot dominate.",
+    ),
+    (
         "strat-neg",
         &[3, 50],
         75,

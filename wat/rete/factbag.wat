@@ -8,7 +8,7 @@
 ;;   empty              → FactBag
 ;;   add                multiplicity +1 — what insert means
 ;;   add-if-absent      set-add — what merge-facts means, named
-;;   remove-every-equal today's retract, named honestly. Strike 2 deletes it.
+;;   remove-one         drop the FIRST value-equal fact; order of the rest preserved
 ;;   retain             predicate filter — sub-multiset by construction
 ;;   count-of / size    the multiplicity acc::count already observes
 ;;   items              the read view — the ONE place that unwraps FactBag/items
@@ -54,23 +54,34 @@
     b
     (:wat::rete::factbag::add b f)))
 
-;; remove-every-equal — today's retract. Byte-identical fold: keep f iff f ≠ fact.
-;; Strike 2 deletes this door.
-(:wat::core::defn :wat::rete::factbag::remove-every-equal
+;; FactBagDrop — fold state for remove-one. Payload plus a bool, same shape as StratifyAcc.
+(:wat::core::defrecord :wat::rete::FactBagDrop
+  [items   <- (:wat::core::PersistentVector :- [:wat::core::Record])
+   dropped <- :wat::core::bool])
+
+;; remove-one — drop the FIRST value-equal fact; every other fact keeps its position.
+;; Absent => the bag is unchanged. Symmetric with `add`: one call moves the multiplicity by one.
+;; First-not-last so the result is deterministic; order-preserving so retain's sub-multiset
+;; property and fire.wat:316-322's convergence argument stay intact.
+(:wat::core::defn :wat::rete::factbag::remove-one
   [b    <- :wat::rete::FactBag
    fact <- :wat::core::Record]
   -> :wat::rete::FactBag
-  (:wat::core::let [old-facts (:wat::rete::factbag::items b)
-                    new-facts (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
-                                                  f   <- :wat::core::Record]
-                                   -> (:wat::core::PersistentVector :- [:wat::core::Record])
-                                   (:wat::core::if (:wat::core::not (:wat::core::= f fact))
-                                     (:wat::core::PersistentVector/conj acc f)
-                                     acc))
-                                 (:wat::core::PersistentVector)
-                                 old-facts)]
-    (:wat::rete::FactBag :items new-facts)))
+  (:wat::core::let [done (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::rete::FactBagDrop
+                                            f   <- :wat::core::Record]
+                             -> :wat::rete::FactBagDrop
+                             (:wat::core::if (:wat::core::or (:wat::rete::FactBagDrop/dropped acc)
+                                                            (:wat::core::not (:wat::core::= f fact)))
+                               (:wat::rete::FactBagDrop
+                                 :items (:wat::core::PersistentVector/conj (:wat::rete::FactBagDrop/items acc) f)
+                                 :dropped (:wat::rete::FactBagDrop/dropped acc))
+                               (:wat::rete::FactBagDrop
+                                 :items (:wat::rete::FactBagDrop/items acc)
+                                 :dropped true)))
+                           (:wat::rete::FactBagDrop :items (:wat::core::PersistentVector) :dropped false)
+                           (:wat::rete::factbag::items b))]
+    (:wat::rete::FactBag :items (:wat::rete::FactBagDrop/items done))))
 
 ;; retain — predicate filter. Sub-multiset by construction: walks items in order,
 ;; keeps matches, never dedups. fire.wat:316-322's length-as-set-test depends on this.

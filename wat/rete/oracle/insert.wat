@@ -92,9 +92,8 @@
         rest))))
 
 ;; retract — stage a fact removal from Session.facts, by value equality. Zero activation.
-;; Symmetric with insert: the caller re-fires (fire-rules recomputes from the reduced input).
-;; WHY foldl + not-equals guard: mirrors merge-facts' foldl + contains? idiom; structural = on
-;; records makes removal type-safe and value-precise (not identity/pointer removal).
+;; Symmetric with insert and value-precise: one call drops ONE occurrence (factbag::remove-one),
+;; the same way insert adds one. Absent => the bag is unchanged.
 ;; WHY stage-only (no fire): same discipline as insert — facts stay staged for multiple
 ;; removals before the caller locks them in with fire-rules.
 (:wat::core::defn :wat::rete::retract
@@ -107,7 +106,7 @@
     :alpha-memory (:wat::rete::Session/alpha-memory      session)
     :beta-memory (:wat::rete::Session/beta-memory       session)
     :production-memory (:wat::rete::Session/production-memory session)
-    :facts (:wat::rete::factbag::remove-every-equal (:wat::rete::factbag::of session) fact)
+    :facts (:wat::rete::factbag::remove-one (:wat::rete::factbag::of session) fact)
     :next-id (:wat::rete::Session/next-id           session)
     :query-memory (:wat::rete::Session/query-memory session)))
 

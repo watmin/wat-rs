@@ -139,6 +139,12 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          items>=3 to hold both interleavings.",
     ),
     (
+        "retract-multiplicity",
+        &[3],
+        "size=[items]; F(0)×2, F(k)×1 for k>0, G(k)×1; fire; retract F(0) ONCE; re-fire. \
+         remove-one leaves one F(0), so Out is [0,items) — items=3, non-empty.",
+    ),
+    (
         "strat-neg",
         &[2, 4],
         "size=[strata items]; S0(k) marks even k, S1(k) marks NOT-S0(k) i.e. odd k — strata=2 \
