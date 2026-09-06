@@ -350,8 +350,10 @@
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
         sends  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
         room   (:wat::i64::- cap depth)
-        take0  (:wat::core::if (:wat::i64::< n0 room) n0 room)
-        take   (:wat::core::if (:wat::i64::< take0 0) 0 take0)]
+        room   (:wat::core::if (:wat::i64::< room 0) 0 room)
+        take   (:wat::core::if (:wat::i64::> n0 cap)
+                 room
+                 (:wat::core::if (:wat::i64::<= n0 room) n0 0))]
        (:wat::core::if (:wat::core::= take 0)
          (:wat::service::Outcome::Continue s
            (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0)))

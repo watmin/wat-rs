@@ -1,11 +1,10 @@
 ;; probe-the-server-manages-its-own-capacity.wat
 ;;
-;; Queue::send admits a PREFIX. Through the surface:
-;;   cap 10, depth 6, send 8 → Accepted 4, depth 10, first 4 of the 8 present
-;;   send 3 more → Accepted 0, depth unchanged
-;;   drain 5, send 8 → Accepted 5
-;; Topic reports whole messages: nsubs 4, room for 6 pairs → Accepted 1.
-;; nsubs 7, publish 10 against cap 64: no assertion, a count comes back.
+;; Admission: prefix only when n0 > cap; otherwise all-or-nothing.
+;;   cap 10, depth 6, send 8 (8 <= cap) → Accepted 0, depth unchanged
+;;   drain 5 (depth 1, room 9), send 8 → Accepted 8
+;;   cap 10, send 15 (15 > cap) → Accepted 10, first 10 bodies in order
+;; nsubs 7, publish 10 against cap 64 (70 > 64) → a count, no assertion.
 
 (:wat::config::set-redef! true)
 (:wat::load-file! "../topic/sns-fanout.wat")
@@ -99,19 +98,33 @@
      f   (:cap::send-n q "f" 6)
      d6  (:cap::depth q)
      a8  (:cap::send-n q "m" 8)
-     d10 (:cap::depth q)
+     d8  (:cap::depth q)
      envs (:cap::recv-all q)
-     stored (:cap::join-bodies envs)
-     a0  (:cap::send-n q "x" 3)
-     d10b (:cap::depth q)
      _   (:cap::ack-n q envs 5)
      a5  (:cap::send-n q "y" 8)
-     d10c (:cap::depth q)
+     da  (:cap::depth q)
      _keep qh
      _keep2 ish]
     (:wat::core::format
-      "fill={f};depth6={d6};send8={a8};depth10={d10};stored={st};send3={a0};depth-full={df};drain5-send8={a5};depth-after={da}"
-      :f f :d6 d6 :a8 a8 :d10 d10 :st stored :a0 a0 :df d10b :a5 a5 :da d10c)))
+      "fill={f};depth6={d6};send8={a8};depth-after-8={d8};drain5-send8={a5};depth-after={da}"
+      :f f :d6 d6 :a8 a8 :d8 d8 :a5 a5 :da da)))
+
+(:wat::core::defn :cap::above-cap [] -> :wat::core::String
+  (:wat::core::let
+    [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     qh  (:queue::queue/start :locus (:wat::spawn::thread)
+           :record (:queue::queue::Record :cap 10
+                     :store-addr (:wat::query::mem-store::Handle/addr ish)
+                     :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     q   (:cap::dial-q (:queue::queue::Handle/addr qh))
+     n   (:cap::send-n q "z" 15)
+     envs (:cap::recv-all q)
+     stored (:cap::join-bodies envs)
+     _keep qh
+     _keep2 ish]
+    (:wat::core::format "accepted={n};n={c};stored={st}"
+      :n n :c (:wat::core::count envs) :st stored)))
 
 (:wat::core::defn :cap::msgs [n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
   (:cap::bodies "p" n))
@@ -150,10 +163,11 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [q (:cap::queue-phase)
+     ac (:cap::above-cap)
      t1 (:cap::topic-at 4 6 10)
      t7 (:cap::topic-at 7 64 10)]
-    (:wat::core::format "queue={q};nsubs4-room6={t1};nsubs7-pub10={t7}"
-      :q q :t1 t1 :t7 t7)))
+    (:wat::core::format "queue={q};above-cap={ac};nsubs4-room6={t1};nsubs7-pub10={t7}"
+      :q q :ac ac :t1 t1 :t7 t7)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:user::compute)))
