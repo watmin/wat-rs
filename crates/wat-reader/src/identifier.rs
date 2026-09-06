@@ -4,11 +4,13 @@
 //! and their reference sites) need scope discrimination for hygienic
 //! macro expansion per Racket's sets-of-scopes model (Flatt 2016).
 //!
-//! An [`Identifier`] is a (name, `BTreeSet<ScopeId>`) pair. Two
-//! identifiers are "the same" iff both their names AND their scope
-//! sets are equal. Lexical scope lookups therefore distinguish
-//! `tmp` the user wrote from `tmp` a macro introduced — same name,
-//! different scope sets, different identity.
+//! An [`Identifier`] is a `(namespace, name)` tuple with a scope set
+//! riding alongside (Racket sets-of-scopes hygiene — not a third
+//! member of the name). `wat.core/+` is `[wat.core, +]`; `foo` is
+//! `[$bound, foo]`. Two identifiers are "the same" iff both their
+//! spellings AND their scope sets are equal. Lexical scope lookups
+//! therefore distinguish `tmp` the user wrote from `tmp` a macro
+//! introduced — same name, different scope sets, different identity.
 //!
 //! # When scopes are added
 //!
@@ -29,6 +31,7 @@
 //! only attaches to `WatAST::Symbol`.
 
 use std::collections::BTreeSet;
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The reserved namespace every non-namespaced (binder) symbol carries.
@@ -81,10 +84,43 @@ pub fn fresh_scope() -> ScopeId {
 /// Construction is additionally guarded in debug builds at
 /// [`Identifier::bare`] — the single chokepoint. See `resolution`'s module
 /// doc for why.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub struct Identifier {
+    /// The namespace half of the tuple. [`BOUND_NAMESPACE`] (`$bound`) for a
+    /// binder; the spelling before the last `/` for a reference.
+    ns: String,
+    /// The name half of the tuple. The whole spelling for a binder; the
+    /// spelling after the last `/` for a reference.
     name: String,
+    /// The original spelling, so [`as_str`](Self::as_str) / [`leaf`](Self::leaf)
+    /// / [`path`](Self::path) keep returning `&str`. Derived once in [`bare`](Self::bare).
+    flat: String,
+    /// Macro hygiene — orthogonal to the `(ns, name)` tuple.
     scopes: BTreeSet<ScopeId>,
+}
+
+impl PartialEq for Identifier {
+    fn eq(&self, other: &Self) -> bool {
+        self.flat == other.flat && self.scopes == other.scopes
+    }
+}
+
+impl Eq for Identifier {}
+
+impl Hash for Identifier {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.flat.hash(state);
+        self.scopes.hash(state);
+    }
+}
+
+impl std::fmt::Debug for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Identifier")
+            .field("name", &self.flat)
+            .field("scopes", &self.scopes)
+            .finish()
+    }
 }
 
 impl Identifier {
@@ -98,19 +134,27 @@ impl Identifier {
     /// guards the debug path for names constructed via other routes.
     /// See `resolution`'s module doc for why.
     pub fn bare(name: impl Into<String>) -> Self {
-        let name = name.into();
+        let flat = name.into();
         // rune:struere(performance-hotspot) — release-mode validation here would
         // put a contains() scan on every Identifier construction (the parse hot
         // path); the debug-checked single chokepoint + the lexer's token rules are
         // the chosen rung. Promote to a validated newtype if the invariant ever
         // becomes security-load-bearing.
         debug_assert!(
-            !name.contains('\u{1}'),
+            !flat.contains('\u{1}'),
             "Identifier name must not contain U+0001 (env-key separator); got {:?}",
-            name
+            flat
         );
+        // The tuple is derived ONCE, here, from today's split (last `/`).
+        // Accessors return the stored fields; they do not re-split.
+        let (ns, name) = match flat.rfind('/') {
+            Some(slash) => (flat[..slash].to_string(), flat[slash + 1..].to_string()),
+            None => (BOUND_NAMESPACE.to_string(), flat.clone()),
+        };
         Identifier {
+            ns,
             name,
+            flat,
             scopes: BTreeSet::new(),
         }
     }
@@ -122,7 +166,9 @@ impl Identifier {
         let mut scopes = self.scopes.clone();
         scopes.insert(scope);
         Identifier {
+            ns: self.ns.clone(),
             name: self.name.clone(),
+            flat: self.flat.clone(),
             scopes,
         }
     }
@@ -130,7 +176,7 @@ impl Identifier {
     /// The bare name, scope-free. For env keying route through `env_key` —
     /// the bare str alone is not a resolution key for scoped identifiers.
     pub fn as_str(&self) -> &str {
-        &self.name
+        &self.flat
     }
 
     /// The symbol's namespace. TOTAL — every symbol has one; a binder's is
@@ -138,15 +184,10 @@ impl Identifier {
     /// the point (see `DESIGN-STONE-251.8-symbol-proper.md`'s pinned
     /// contract).
     ///
-    /// STONE 251.8a: the namespace is DERIVED from the spelling (split on
-    /// the last `/`), not stored — `Identifier` still holds one `name`
-    /// string. 251.8b is where derived swaps for stored behind this same
-    /// signature.
+    /// STONE 251.8b: stored at construction ([`bare`](Self::bare)), not
+    /// re-derived. Same `&str` signature 251.8a promised.
     pub fn namespace(&self) -> &str {
-        match self.name.rfind('/') {
-            Some(slash) => &self.name[..slash],
-            None => BOUND_NAMESPACE,
-        }
+        &self.ns
     }
 
     /// True when this symbol names something defined elsewhere, false when
@@ -158,32 +199,40 @@ impl Identifier {
 
     /// The last `::`-delimited segment of the spelling. See [`leaf`].
     pub fn leaf(&self) -> &str {
-        leaf(&self.name)
+        leaf(&self.flat)
     }
 
     /// Everything before [`leaf`](Self::leaf). See [`path`].
     pub fn path(&self) -> &str {
-        path(&self.name)
+        path(&self.flat)
     }
 
     /// Everything before the `/` of a surface-method call head. See [`receiver`].
+    ///
+    /// The prefix *is* the stored namespace whenever the spelling had a `/`;
+    /// a binder (no `/`) has receiver `""`, not `$bound`.
     pub fn receiver(&self) -> &str {
-        receiver(&self.name)
+        if self.flat.contains('/') {
+            &self.ns
+        } else {
+            ""
+        }
     }
 
     /// Everything after the `/` of a surface-method call head. See [`method`].
+    /// The stored name half of the tuple (the whole spelling, for a binder).
     pub fn method(&self) -> &str {
-        method(&self.name)
+        &self.name
     }
 
     /// Is the spelling primed (ends in `'`)? See [`prime`].
     pub fn prime(&self) -> bool {
-        prime(&self.name)
+        prime(&self.flat)
     }
 
     /// The spelling with a trailing `'` removed, if present. See [`deprimed`].
     pub fn deprimed(&self) -> &str {
-        deprimed(&self.name)
+        deprimed(&self.flat)
     }
 
     // rune:struere(invariant-coupling) — &BTreeSet IS the contract: its sorted,
@@ -202,10 +251,10 @@ impl Identifier {
 //
 // STONE-one-name-grammar (arc 109): a name is an atom, and structure encoded
 // inside an atom must be re-parsed by every consumer. These six functions are
-// that one re-parse, written once. Each `Identifier` method above delegates
-// to its free-function twin — one implementation, two surfaces, never two
-// implementations (the discipline `namespace()` already set: one signature,
-// callers never change). Most call sites hold a keyword's raw `&str`, not an
+// that one re-parse, written once. `leaf`/`path`/`prime`/`deprimed` on
+// `Identifier` still delegate to the free-function twin (the `::` / `'`
+// grammar is not the stored tuple). `namespace`/`receiver`/`method` return
+// stored fields. Most call sites hold a keyword's raw `&str`, not an
 // `Identifier`, hence the free functions being the primary surface.
 //
 // Four edge cases are pinned in the tests below because the 33 hand-rolls
@@ -356,6 +405,82 @@ mod tests {
         let id = Identifier::bare("wat.core/+");
         assert_eq!(id.namespace(), "wat.core");
         assert!(id.is_reference());
+        assert_eq!(id.name, "+");
+        assert_eq!(id.method(), "+");
+    }
+
+    #[test]
+    fn foo_is_bound_foo() {
+        let id = Identifier::bare("foo");
+        assert_eq!(id.namespace(), BOUND_NAMESPACE);
+        assert_eq!(id.name, "foo");
+        assert_eq!(id.as_str(), "foo");
+        assert!(!id.is_reference());
+    }
+
+    /// Negative control: `namespace()` must borrow the stored `ns` field,
+    /// not a `rfind` slice of `flat`. Revert the accessor to a derivation
+    /// and this goes RED.
+    #[test]
+    fn namespace_borrows_the_stored_field() {
+        let id = Identifier::bare("wat.core/+");
+        assert!(
+            std::ptr::eq(id.namespace(), id.ns.as_str()),
+            "namespace() must return the stored ns field"
+        );
+        let binder = Identifier::bare("foo");
+        assert!(
+            std::ptr::eq(binder.namespace(), binder.ns.as_str()),
+            "binder namespace() must return the stored ns field, not the static BOUND_NAMESPACE"
+        );
+    }
+
+    /// Row 10 — today's split, not the builder's model. `wat.core//` reads
+    /// as `["wat.core/", ""]` (last `/`), not `[wat.core, /]`. Reported,
+    /// not fixed.
+    #[test]
+    fn wat_core_double_slash_is_the_current_last_slash_split() {
+        let id = Identifier::bare("wat.core//");
+        assert_eq!(id.namespace(), "wat.core/");
+        assert_eq!(id.method(), "");
+        assert_eq!(id.receiver(), "wat.core/");
+        assert_eq!(id.as_str(), "wat.core//");
+        assert!(id.is_reference());
+    }
+
+    #[test]
+    fn identifier_accessors_match_the_free_functions_on_todays_inputs() {
+        let spellings = [
+            "foo",
+            "wat.core/+",
+            "wat.core//",
+            ":S/mk",
+            ":wat::cache::Lru",
+            ":sort'",
+            ":sort'/apply",
+            "x",
+            "$bound/foo",
+        ];
+        for spelling in spellings {
+            let id = Identifier::bare(spelling);
+            assert_eq!(id.as_str(), spelling, "as_str {spelling}");
+            let expected_ns = match spelling.rfind('/') {
+                Some(i) => &spelling[..i],
+                None => BOUND_NAMESPACE,
+            };
+            assert_eq!(id.namespace(), expected_ns, "namespace {spelling}");
+            assert_eq!(id.receiver(), receiver(spelling), "receiver {spelling}");
+            assert_eq!(id.method(), method(spelling), "method {spelling}");
+            assert_eq!(id.leaf(), leaf(spelling), "leaf {spelling}");
+            assert_eq!(id.path(), path(spelling), "path {spelling}");
+            assert_eq!(id.deprimed(), deprimed(spelling), "deprimed {spelling}");
+            assert_eq!(id.prime(), prime(spelling), "prime {spelling}");
+            assert_eq!(
+                id.is_reference(),
+                expected_ns != BOUND_NAMESPACE,
+                "is_reference {spelling}"
+            );
+        }
     }
 
     // ── STONE-one-name-grammar: the four pinned edge cases ─────────────────

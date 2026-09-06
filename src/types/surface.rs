@@ -509,7 +509,7 @@ fn parse_method_member_sig(
 
     Ok(SurfaceMember::Method {
         name: method_name,
-        args,
+        args: Box::new(args),
         ret,
         type_params, // Arc 293.4e-pre.ii — extracted by split_method_name_type_params above
         max_request_bytes, // Arc 278 #16 Stone 16.0 — kwargs option `:max-request-bytes N` (default: 512 KiB)

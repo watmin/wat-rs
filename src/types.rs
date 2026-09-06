@@ -442,7 +442,11 @@ pub enum SurfaceMember {
     /// when `args.fixed_params` is non-empty).
     Method {
         name: String,
-        args: crate::argspec::ArgSpec,
+        /// BOXED: the `Method` variant is ~3.8x `Field`'s size and `ArgSpec` is the bulk of it
+        /// (`clippy::large_enum_variant` — a `Vec<SurfaceMember>` of mostly `Field`s would pay
+        /// `Method`'s width for every element). Arc 251.8b widened `Identifier` by two `String`s,
+        /// which is what pushed the variant skew past the lint's 200-byte threshold.
+        args: Box<crate::argspec::ArgSpec>,
         ret: TypeExpr,
         type_params: Vec<String>,
         /// Arc 278 #16 Stone 16.0 — per-operation request-byte budget, parsed from the
