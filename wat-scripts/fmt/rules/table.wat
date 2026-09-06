@@ -2,11 +2,13 @@
 ;; (positional: same arity, encoded as "#N"), consecutive :index under one
 ;; parent, two or more. group is the first member's id. Claim each member
 ;; so R11 and the pair-run do not explode it. The emitter pads; this file
-;; names no width.
+;; names no width. A table is DATA — never at the top level (`?p` is not 0).
+;; table-extend keys off an existing TableRow, so this guard is the only one.
 
 (:wat::rete::defrule :fmt::table-start
   :when [(:wat::grep::Node  (?a <- :id) (?p <- :parent) (?i <- :index) (?ak <- :kind))
          (:wat::rete::where (:wat::rete::string::= ?ak "list"))
+         (:wat::rete::where (:wat::rete::i64::not= ?p 0))
          (:wat::fmt::FormSig (?a <- :form) (?h <- :head) (?k <- :keys))
          (:wat::grep::Node  (?b <- :id) (?p <- :parent) (?j <- :index) (?bk <- :kind))
          (:wat::rete::where (:wat::rete::string::= ?bk "list"))

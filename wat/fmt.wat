@@ -623,6 +623,39 @@
       (:wat::hashmap::assoc gw g
         (:wat::fmt::max-vec prev tw 0 (:wat::core::PersistentVector :- [:wat::core::i64]))))))
 
+;; '(' + tokens + one space between + ')'. The emitter consults 120;
+;; table.wat names no budget.
+(:wat::core::defn :wat::fmt::sum-i64
+  [v   <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   i   <- :wat::core::i64
+   acc <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length v))
+    acc
+    (:wat::fmt::sum-i64 v (:wat::i64::+ i 1) (:wat::i64::+ acc (:wat::core::nth v i)))))
+
+(:wat::core::defn :wat::fmt::table-line-width
+  [cols <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [n (:wat::core::length cols)]
+    (:wat::core::if (:wat::i64::= n 0)
+      2
+      (:wat::i64::+ (:wat::fmt::sum-i64 cols 0 0) (:wat::i64::+ n 1)))))
+
+(:wat::core::defn :wat::fmt::table-row-fits?
+  [tables <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+   gw     <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+   id     <- :wat::core::i64
+   indent <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::match (:wat::core::get tables id)
+    (:wat::core::None false)
+    ((:wat::core::Some g)
+      (:wat::core::match (:wat::core::get gw g)
+        (:wat::core::None false)
+        ((:wat::core::Some cols)
+          (:wat::i64::<= (:wat::i64::+ indent (:wat::fmt::table-line-width cols)) 120))))))
+
 (:wat::core::defn :wat::fmt::gw-walk
   [node   <- :wat::WatAST
    id     <- :wat::core::i64
@@ -813,9 +846,9 @@
      src-col   (:wat::grep::Extent/col x)
      br        (:wat::core::if skip-br?
                  :wat::core::None
-                 (:wat::core::match (:wat::core::get tables parent-id)
-                   ((:wat::core::Some _) :wat::core::None)
-                   (:wat::core::None (:wat::core::get breaks id))))
+                 (:wat::core::if (:wat::fmt::table-row-fits? tables gw parent-id indent)
+                   :wat::core::None
+                   (:wat::core::get breaks id)))
      acc-b     (:wat::fmt::Acc
                  :out      (:wat::fmt::Acc/out acc)
                  :next-id  (:wat::i64::+ id 1)
@@ -858,16 +891,15 @@
         [this-open (:wat::fmt::Acc/col acc1)
          acc2      (:wat::fmt::write acc1 (:wat::fmt::open-of node-kind))
          kids      (:wat::core::ast->children node)
-         skip-kids (:wat::core::match (:wat::core::get tables id)
-                     ((:wat::core::Some _) true)
-                     (:wat::core::None
-                       (:wat::core::match (:wat::core::get atoms id)
-                         (:wat::core::None false)
-                         ((:wat::core::Some _)
-                           (:wat::core::match (:wat::core::get widths id)
-                             (:wat::core::None false)
-                             ((:wat::core::Some w)
-                               (:wat::i64::<= (:wat::i64::+ this-indent w) 120)))))))
+         skip-kids (:wat::core::if (:wat::fmt::table-row-fits? tables gw id this-indent)
+                     true
+                     (:wat::core::match (:wat::core::get atoms id)
+                       (:wat::core::None false)
+                       ((:wat::core::Some _)
+                         (:wat::core::match (:wat::core::get widths id)
+                           (:wat::core::None false)
+                           ((:wat::core::Some w)
+                             (:wat::i64::<= (:wat::i64::+ this-indent w) 120))))))
          st        (:wat::core::match (:wat::core::get strides id)
                      ((:wat::core::Some s) s)
                      (:wat::core::None 0))
@@ -879,12 +911,14 @@
                          ((:wat::core::Some _)
                            (:wat::fmt::broken-key-width kids 0 (:wat::i64::+ id 1) breaks empties 0))
                          (:wat::core::None 0))))
-         tblw      (:wat::core::match (:wat::core::get tables id)
-                     ((:wat::core::Some g)
-                       (:wat::core::match (:wat::core::get gw g)
-                         ((:wat::core::Some v) v)
-                         (:wat::core::None (:wat::core::PersistentVector :- [:wat::core::i64]))))
-                     (:wat::core::None (:wat::core::PersistentVector :- [:wat::core::i64])))
+         tblw      (:wat::core::if (:wat::fmt::table-row-fits? tables gw id this-indent)
+                     (:wat::core::match (:wat::core::get tables id)
+                       ((:wat::core::Some g)
+                         (:wat::core::match (:wat::core::get gw g)
+                           ((:wat::core::Some v) v)
+                           (:wat::core::None (:wat::core::PersistentVector :- [:wat::core::i64]))))
+                       (:wat::core::None (:wat::core::PersistentVector :- [:wat::core::i64])))
+                     (:wat::core::PersistentVector :- [:wat::core::i64]))
          acc3      (:wat::fmt::emit-kids acc2 kids 0
                      (:wat::fmt::type-constructor? node)
                      breaks claims blanks aligns tables gw atoms widths strides empties this-indent this-open id pw st tblw skip-kids)
@@ -928,7 +962,7 @@
                 (:wat::fmt::emit-node acc-b form breaks claims blanks aligns tables gw atoms widths strides empties 0 0 true 0 false false)))
             acc0
             top)
-     acc2 (:wat::fmt::ensure-blank acc1)
+     acc2 (:wat::fmt::write-nl acc1)
      acc3 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  c <- :wat::fmt::Comment] -> :wat::fmt::Acc
               (:wat::fmt::write
