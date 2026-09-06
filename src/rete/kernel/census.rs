@@ -307,6 +307,37 @@ pub(crate) fn with_join_alpha_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
     (out, counted)
 }
 
+// Test-only instrument: one `wm.production.entry` in `production_delta`.
+//
+// temperare §3: the entry was keyed on the outermost loop variable and executed
+// in the innermost body. After the hoist it runs once per production node that
+// derives anything. The count is the proof; a wall-clock is not.
+#[cfg(test)]
+// rune:sequi(performance-counter) — test-only production.entry count; hoist gate.
+thread_local! {
+    /// `HashMap::entry` calls on `wm.production` since the counter was armed.
+    pub(crate) static PROD_ENTRY_LOOKUPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_prod_entry() {
+    PROD_ENTRY_LOOKUPS.with(|c| c.set(c.get() + 1));
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_prod_entry() {}
+
+/// Run `f` with the production-entry counter zeroed, and return what it counted.
+#[cfg(test)]
+pub(crate) fn with_prod_entry_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
+    let prior = PROD_ENTRY_LOOKUPS.with(|c| c.replace(0));
+    let out = f();
+    let counted = PROD_ENTRY_LOOKUPS.with(|c| c.replace(prior));
+    (out, counted)
+}
+
 // ── Per-phase wall-clock inside the fire loop ────────────────────────────────
 //
 // `RoundCensus` counts STRUCTURES (how many tokens, how many elements); this counts NANOSECONDS,

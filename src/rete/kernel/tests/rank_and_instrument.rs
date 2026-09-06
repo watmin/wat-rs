@@ -663,6 +663,128 @@ fn predicted_join_alpha_lookups_redden_under_a_per_pair_scan() {
     );
 }
 
+/// Fanout axis: one production node. `pairs = keys × fanout²`.
+const PROD_ENTRY_POINTS: [(i64, i64); 4] = [(2, 8), (4, 4), (8, 2), (16, 1)];
+/// One `defrule` on `FANOUT_CENSUS_WORLD`. After the hoist: `1 × deriving production nodes`.
+const PROD_ENTRY_NODES: u64 = 1;
+
+fn fanout_pairs(keys: i64, fanout: i64) -> u64 {
+    (keys as u64) * (fanout as u64) * (fanout as u64)
+}
+
+fn pred_prod_entries(deriving_nodes: u64) -> u64 {
+    deriving_nodes
+}
+
+fn fanout_prod_entry_fire(keys: i64, fanout: i64) -> (Value, u64, u64) {
+    let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("fanout world should freeze");
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:fan::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :fan)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {keys} {fanout})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let ((fired, entries), counts) = super::with_count_census(|| {
+        super::with_prod_entry_census(|| {
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("fanout fire raised at keys={keys} fanout={fanout}: {e:?}"))
+                .value_owned()
+        })
+    });
+    let derivations = counts
+        .iter()
+        .find(|(n, _)| *n == "prod:derivations")
+        .map(|(_, c)| *c)
+        .unwrap_or(0);
+    (fired, entries, derivations)
+}
+
+/// ★ THE PROOF: `production.entry` equals `1 × deriving production nodes`, at four
+/// (keys, fanout) points plus the 40k fanout cell.
+///
+/// Before the hoist this axis read one `entry` per derived fact:
+///
+///   keys fanout   pairs  entries  derivations
+///      2      8     128      128          128
+///      4      4      64       64           64
+///      8      2      32       32           32
+///     16      1      16       16           16
+///    100     20   40000    40000        40000
+///
+/// After: one `entry` per HashMap key we flush. Independent of pairs.
+#[test]
+fn prod_entry_lookups_match_the_per_node_prediction() {
+    let pred = pred_prod_entries(PROD_ENTRY_NODES);
+    let mut table = String::from(
+        "\nproduction.entry AFTER hoist — entries == 1 × deriving production nodes\n\
+         \x20 keys fanout   pairs  entries  derivations  pred\n\
+         \x20 -----------------------------------------------\n",
+    );
+    let mut points = PROD_ENTRY_POINTS.to_vec();
+    points.push((100, 20));
+    for (keys, fanout) in points {
+        let pairs = fanout_pairs(keys, fanout);
+        let (fired, entries, derivations) = fanout_prod_entry_fire(keys, fanout);
+        table.push_str(&format!(
+            "  {keys:>4} {fanout:>6} {pairs:>7} {entries:>8} {derivations:>12} {pred:>5}\n"
+        ));
+        assert_eq!(
+            derivations, pairs,
+            "keys={keys} fanout={fanout}: prod:derivations {derivations} ≠ pairs {pairs} — the axis moved\n{table}"
+        );
+        assert_eq!(
+            entries, pred,
+            "keys={keys} fanout={fanout}: entries {entries} ≠ 1 × {PROD_ENTRY_NODES} deriving nodes = {pred}\n{table}"
+        );
+        let wm = to_transient(&fired).expect("fired session");
+        assert_eq!(
+            wm.production.len(),
+            1,
+            "fanout world has one production node; production map has {}\n{table}",
+            wm.production.len()
+        );
+        let stored = wm.production.values().next().expect("the one vec");
+        assert_eq!(
+            stored.len() as u64, pairs,
+            "production vec len {} ≠ pairs {pairs} — buffering dropped or duplicated facts\n{table}",
+            stored.len()
+        );
+    }
+    println!("{table}");
+}
+
+/// Simulated per-fact `entry`: add `pairs` to the after count. Arithmetic, not
+/// an unkeyed engine. Equality against `1 × deriving nodes` FAILS. A weaker
+/// `entries > 0` still PASSES.
+#[test]
+fn predicted_prod_entries_redden_under_a_per_fact_scan() {
+    let pred = pred_prod_entries(PROD_ENTRY_NODES);
+    let (k1, f1) = PROD_ENTRY_POINTS[0];
+    let (k2, f2) = PROD_ENTRY_POINTS[3];
+    let (_f1, obs1, _) = fanout_prod_entry_fire(k1, f1);
+    let (_f2, obs2, _) = fanout_prod_entry_fire(k2, f2);
+    assert_eq!(obs1, pred, "precondition: after-hoist count must match the formula");
+    assert_eq!(obs2, pred, "precondition: after-hoist count must match the formula");
+    let pairs1 = fanout_pairs(k1, f1);
+    let pairs2 = fanout_pairs(k2, f2);
+    let fake1 = obs1 + pairs1;
+    let fake2 = obs2 + pairs2;
+    println!(
+        "\nproduction.entry per-fact simulation (add pairs)\n\
+         \x20 (K,F)=({k1},{f1}): after {obs1} + {pairs1} pairs = {fake1}  pred {pred}\n\
+         \x20 (K,F)=({k2},{f2}): after {obs2} + {pairs2} pairs = {fake2}  pred {pred}\n\
+         \x20 weaker (entries > 0): PASS on {fake1}/{fake2}\n"
+    );
+    assert!(
+        fake1 > 0 && fake2 > 0,
+        "the weaker check (entries > 0) must still pass under the simulation"
+    );
+    assert!(
+        fake1 != pred && fake2 != pred,
+        "equality against 1 × deriving nodes must REDDEN under the simulation: \
+         fake {fake1}/{fake2} vs pred {pred}"
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]
