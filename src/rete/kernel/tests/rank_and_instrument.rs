@@ -317,6 +317,137 @@ fn keyed_gather_visits_do_not_scale_with_group_count() {
     );
 }
 
+/// Fire a one-rule world and return gather visits. Same seed shape as `one_rule_world`.
+fn one_rule_gather_visits(rule: &str, g: i64, w: i64) -> u64 {
+    let world = startup_from_source(&one_rule_world(rule), None, Arc::new(InMemoryLoader::new()))
+        .unwrap_or_else(|e| panic!("one-rule gather world should freeze: {e:?}"));
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:one::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :one)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {g} {w})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let (_fired, visits) = super::with_gather_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| {
+                panic!(
+                    "fire raised at G={g} W={w} rule={:?}: {e:?}",
+                    rule.chars().take(80).collect::<String>()
+                )
+            })
+            .value_owned()
+    });
+    visits
+}
+
+/// Pair at constant 800 elements, tokens 10 → 80.
+fn path_pair(rule: &str) -> (u64, u64) {
+    (
+        one_rule_gather_visits(rule, 10, 80),
+        one_rule_gather_visits(rule, 80, 10),
+    )
+}
+
+/// ★ Every instrumented gather path, not just count+sum+exists-leaf.
+///
+/// The Distinct/All/GroupBy arm materialises the bucket (`gather_bucket`). The mapping
+/// no-`SeedCmp` arm is `seeded_bindings_keyed` — a Leaf under `:and`, not `:exists` of a
+/// Leaf (that one is `!bucket.is_empty()`, O(1)). `AccFold::User` shares Distinct's
+/// materialise; a wat-surface user-fn acc is the same walk.
+///
+/// Old axis (`ACCUM_GATHER_WORLD`) is re-read here so a perturbation of 800/800 is visible.
+#[test]
+fn keyed_gather_visits_per_instrumented_path() {
+    const DISTINCT: &str = "\
+(:wat::rete::defrule :one::distinct-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?xs <- (:wat::rete::acc::distinct ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then [(:one::Out ?g 0)])";
+    const ALL: &str = "\
+(:wat::rete::defrule :one::all-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?xs <- (:wat::rete::acc::all) :from (:one::Reading (?g <- :g)))]\n\
+  :then [(:one::Out ?g 0)])";
+    const GROUP_BY: &str = "\
+(:wat::rete::defrule :one::group-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?m <- (:wat::rete::acc::group-by ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then [(:one::Out ?g 0)])";
+    // Leaf under `:and` → `binding_extensions` → `seeded_bindings_keyed`. Two fact
+    // kids keep `:and` a combinator (a lone Leaf under `:exists` is `any_seeded_keyed`
+    // / `!bucket.is_empty()`, O(1)). No leftover SeedCmp: Reading binds ?g and ?v.
+    const AND_EXISTS: &str = "\
+(:wat::rete::defrule :one::and-exists-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (:wat::rete::exists (:wat::rete::and\n\
+           (:one::Reading (?g <- :g) (?v <- :v))\n\
+           (:one::Reading (?g <- :g) (?v <- :v))))]\n\
+  :then [(:one::Out ?g 1)])";
+
+    let old_small = accum_gather_visits(10, 80);
+    let old_big = accum_gather_visits(80, 10);
+    let distinct = path_pair(DISTINCT);
+    let all = path_pair(ALL);
+    let group_by = path_pair(GROUP_BY);
+    let and_exists = path_pair(AND_EXISTS);
+
+    let row = |name: &str, (s, b): (u64, u64)| {
+        let ratio = if s == 0 { f64::INFINITY } else { b as f64 / s as f64 };
+        format!("  {name:<14}  {s:>8}  {b:>8}  {ratio:>6.2}x")
+    };
+
+    println!(
+        "\nkeyed-gather per path — constant 800 elements, tokens 10 → 80\n\
+         \x20 path            G10W80    G80W10   ratio\n\
+         \x20 ----------------------------------------\n\
+         {}\n\
+         {}\n\
+         {}\n\
+         {}\n\
+         {}\n",
+        row("old-axis", (old_small, old_big)),
+        row("distinct", distinct),
+        row("all", all),
+        row("group-by", group_by),
+        row("and-exists", and_exists),
+    );
+
+    assert_eq!(
+        (old_small, old_big),
+        (800, 800),
+        "old axis perturbed: {old_small}/{old_big} — the addition is not comparable to 800/800"
+    );
+    assert!(
+        distinct.0 > 0,
+        "distinct recorded ZERO visits — AccFold::Distinct materialise was not entered"
+    );
+    assert!(
+        all.0 > 0,
+        "all recorded ZERO visits — AccFold::All materialise was not entered"
+    );
+    assert!(
+        group_by.0 > 0,
+        "group-by recorded ZERO visits — AccFold::GroupBy materialise was not entered"
+    );
+    assert!(
+        and_exists.0 > 0,
+        "and-exists recorded ZERO visits — seeded_bindings_keyed no-SeedCmp map was not entered"
+    );
+
+    let ratio = |s: u64, b: u64| b as f64 / s as f64;
+    for (name, (s, b)) in [
+        ("distinct", distinct),
+        ("all", all),
+        ("group-by", group_by),
+        ("and-exists", and_exists),
+    ] {
+        let r = ratio(s, b);
+        assert!(
+            r <= 2.0,
+            "{name} gather visits scale with the TOKEN count ({s} → {b}, {r:.2}x) while the \
+             element count is constant at 800"
+        );
+    }
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]
