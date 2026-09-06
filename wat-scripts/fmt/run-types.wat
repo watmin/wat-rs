@@ -5,6 +5,7 @@
 (:wat::load-file! "rules/match.wat")
 (:wat::load-file! "rules/let.wat")
 (:wat::load-file! "rules/let-blank.wat")
+(:wat::load-file! "rules/kwargs.wat")
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

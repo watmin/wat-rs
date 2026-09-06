@@ -34,6 +34,11 @@
 (:wat::core::defrecord :wat::fmt::BlankBefore
   [id <- :wat::core::i64])
 
+;; This form's broken children align their second token. The emitter
+;; computes the pad from this pass's first tokens. No rule names a width.
+(:wat::core::defrecord :wat::fmt::AlignPairs
+  [form <- :wat::core::i64])
+
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
    next-id  <- :wat::core::i64
@@ -55,6 +60,10 @@
 (:wat::rete::defquery :wat::fmt::q-blank
   :params []
   :when [(?bl <- :wat::fmt::BlankBefore)])
+
+(:wat::rete::defquery :wat::fmt::q-align
+  :params []
+  :when [(?ap <- :wat::fmt::AlignPairs)])
 
 (:wat::core::defn :wat::fmt::spaces [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::if (:wat::i64::<= n 0)
@@ -268,22 +277,46 @@
         here
         (:wat::core::ast->children node)))))
 
+;; Widest first-token of this form's broken children, from THIS pass's
+;; source spelling of those children — never from already-padded text.
+(:wat::core::defn :wat::fmt::broken-key-width
+  [kids   <- (:wat::core::Vector :- [:wat::WatAST])
+   i      <- :wat::core::i64
+   id     <- :wat::core::i64
+   breaks <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   acc    <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
+    acc
+    (:wat::core::let
+      [child (:wat::core::nth kids i)
+       w     (:wat::core::match (:wat::core::get breaks id)
+               ((:wat::core::Some _)
+                 (:wat::core::let [n (:wat::string::length (:wat::core::ast->source child))]
+                   (:wat::core::if (:wat::i64::> n acc) n acc)))
+               (:wat::core::None acc))]
+      (:wat::fmt::broken-key-width kids (:wat::i64::+ i 1)
+        (:wat::i64::+ id (:wat::fmt::subtree-size child)) breaks w))))
+
 (:wat::core::defn :wat::fmt::emit-kids
-  [acc       <- :wat::fmt::Acc
-   kids      <- (:wat::core::Vector :- [:wat::WatAST])
-   i         <- :wat::core::i64
-   ctor?     <- :wat::core::bool
-   breaks    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
-   claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   blanks    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   indent    <- :wat::core::i64
-   open-col  <- :wat::core::i64
-   parent-id <- :wat::core::i64]
+  [acc        <- :wat::fmt::Acc
+   kids       <- (:wat::core::Vector :- [:wat::WatAST])
+   i          <- :wat::core::i64
+   ctor?      <- :wat::core::bool
+   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
+   claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   indent     <- :wat::core::i64
+   open-col   <- :wat::core::i64
+   parent-id  <- :wat::core::i64
+   pair-width <- :wat::core::i64]
   -> :wat::fmt::Acc
   (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
     acc
     (:wat::core::let
       [child (:wat::core::nth kids i)
+       cid   (:wat::fmt::Acc/next-id acc)
        o     (:wat::fmt::Acc/out acc)
        first-kid? (:wat::core::or
                     (:wat::string::ends-with? o "(")
@@ -292,9 +325,28 @@
                       (:wat::core::or
                         (:wat::string::ends-with? o "{")
                         (:wat::string::ends-with? o "\n"))))
-       acc2 (:wat::fmt::emit-node acc child breaks claims blanks indent open-col first-kid? parent-id
-               (:wat::core::if ctor? (:wat::i64::= i 2) false))]
-      (:wat::fmt::emit-kids acc2 kids (:wat::i64::+ i 1) ctor? breaks claims blanks indent open-col parent-id))))
+       acc2 (:wat::fmt::emit-node acc child breaks claims blanks aligns indent open-col first-kid? parent-id
+               (:wat::core::if ctor? (:wat::i64::= i 2) false))
+       nid  (:wat::i64::+ cid (:wat::fmt::subtree-size child))
+       acc3 (:wat::core::if
+              (:wat::core::if (:wat::i64::> pair-width 0)
+                (:wat::core::if (:wat::i64::< (:wat::i64::+ i 1) (:wat::core::length kids))
+                  (:wat::core::if
+                    (:wat::core::match (:wat::core::get breaks cid)
+                      ((:wat::core::Some _) true)
+                      (:wat::core::None false))
+                    (:wat::core::match (:wat::core::get breaks nid)
+                      ((:wat::core::Some _) false)
+                      (:wat::core::None true))
+                    false)
+                  false)
+                false)
+              (:wat::fmt::write acc2
+                (:wat::fmt::spaces
+                  (:wat::i64::- pair-width
+                    (:wat::string::length (:wat::core::ast->source child)))))
+              acc2)]
+      (:wat::fmt::emit-kids acc3 kids (:wat::i64::+ i 1) ctor? breaks claims blanks aligns indent open-col parent-id pair-width))))
 
 (:wat::core::defn :wat::fmt::emit-node
   [acc        <- :wat::fmt::Acc
@@ -302,6 +354,7 @@
    breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
    claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    indent     <- :wat::core::i64
    open-col   <- :wat::core::i64
    first?     <- :wat::core::bool
@@ -349,9 +402,13 @@
         [this-open (:wat::fmt::Acc/col acc1)
          acc2      (:wat::fmt::write acc1 (:wat::fmt::open-of node-kind))
          kids      (:wat::core::ast->children node)
+         pw        (:wat::core::match (:wat::core::get aligns id)
+                     ((:wat::core::Some _)
+                       (:wat::fmt::broken-key-width kids 0 (:wat::i64::+ id 1) breaks 0))
+                     (:wat::core::None 0))
          acc3      (:wat::fmt::emit-kids acc2 kids 0
                      (:wat::fmt::type-constructor? node)
-                     breaks claims blanks this-indent this-open id)
+                     breaks claims blanks aligns this-indent this-open id pw)
          acc4 (:wat::fmt::write acc3 (:wat::fmt::close-of node-kind))]
         (:wat::fmt::flush-comments acc4
           (:wat::grep::Extent/end-line x)
@@ -369,7 +426,8 @@
    comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
    breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
    claims   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   blanks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
+   blanks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   aligns   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
   -> :wat::core::String
   (:wat::core::let
     [top  (:wat::core::ast->children forms)
@@ -377,7 +435,7 @@
      acc1 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
               (:wat::core::let [acc-nl (:wat::fmt::write-nl acc)]
-                (:wat::fmt::emit-node acc-nl form breaks claims blanks 0 0 true 0 false)))
+                (:wat::fmt::emit-node acc-nl form breaks claims blanks aligns 0 0 true 0 false)))
             acc0
             top)
      acc2 (:wat::core::foldl
@@ -460,6 +518,20 @@
     (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
     (:wat::rete::query session (:wat::fmt::q-blank))))
 
+(:wat::core::defn :wat::fmt::aligns-set
+  [session <- :wat::rete::Session]
+  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  (:wat::core::foldl
+    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+                     binding <- :wat::core::PersistentMap]
+      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      (:wat::core::let [ap (:wat::core::Option/expect
+                             (:wat::map::get binding "?ap")
+                             "fmt::aligns-set: no ?ap")]
+        (:wat::hashmap::assoc m (:wat::fmt::AlignPairs/form ap) true)))
+    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::rete::query session (:wat::fmt::q-align))))
+
 (:wat::core::defn :wat::fmt::format-source
   [path  <- :wat::core::String
    src   <- :wat::core::String
@@ -474,7 +546,8 @@
                    (:wat::fmt::q-break)
                    (:wat::fmt::q-claim)
                    (:wat::fmt::q-fallback)
-                   (:wat::fmt::q-blank))]
+                   (:wat::fmt::q-blank)
+                   (:wat::fmt::q-align))]
         (:wat::rete::with-overlay rules queries
           (:wat::core::fn [overlay <- :wat::rete::Overlay]
             -> :wat::core::String
@@ -482,6 +555,7 @@
               (:wat::fmt::emit forms comments
                 (:wat::fmt::breaks-map fired)
                 (:wat::fmt::owned-set fired)
-                (:wat::fmt::blanks-set fired)))))))
+                (:wat::fmt::blanks-set fired)
+                (:wat::fmt::aligns-set fired)))))))
     ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
       (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None))))
