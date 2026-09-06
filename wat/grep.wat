@@ -33,11 +33,30 @@
 
 ;; ── the fact base wat-grep inserts, one set per file ────────────────────────────────
 
+;; Mirrors WatAST's 14 variant names. :String is a refused variant name
+;; (arc 109 slice 1c); StringLit sidesteps it. No catch-all — unknown
+;; discriminants raise at kind-of, the one boundary.
+(:wat::core::defenum :wat::grep::NodeKind :wat::enum::Pure
+  :IntLit []
+  :FloatLit []
+  :RationalLit []
+  :BigIntLit []
+  :CharLit []
+  :BoolLit []
+  :StringLit []
+  :NilLit []
+  :Keyword []
+  :Symbol []
+  :List []
+  :Vector []
+  :Set []
+  :Map [])
+
 (:wat::core::defrecord :wat::grep::Node
   [id     <- :wat::core::i64
    parent <- :wat::core::i64
    index  <- :wat::core::i64
-   kind   <- :wat::core::String])
+   kind   <- :wat::grep::NodeKind])
 
 ;; ONLY for a nameable kind — the absence IS the guard.
 (:wat::core::defrecord :wat::grep::Named
@@ -179,6 +198,31 @@
     (:wat::core::contains?
       (:wat::core::HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
+;; String → NodeKind. ast-kind returns a String, so this cannot be exhaustive
+;; on its input. The :else is the ONE raise this migration adds.
+(:wat::core::defn :wat::grep::kind-of
+  [s <- :wat::core::String]
+  -> :wat::grep::NodeKind
+  (:wat::core::cond
+    ((:wat::core::= s "int") (:wat::grep::NodeKind::IntLit))
+    ((:wat::core::= s "float") (:wat::grep::NodeKind::FloatLit))
+    ((:wat::core::= s "rational") (:wat::grep::NodeKind::RationalLit))
+    ((:wat::core::= s "bigint") (:wat::grep::NodeKind::BigIntLit))
+    ((:wat::core::= s "char") (:wat::grep::NodeKind::CharLit))
+    ((:wat::core::= s "bool") (:wat::grep::NodeKind::BoolLit))
+    ((:wat::core::= s "string") (:wat::grep::NodeKind::StringLit))
+    ((:wat::core::= s "nil") (:wat::grep::NodeKind::NilLit))
+    ((:wat::core::= s "keyword") (:wat::grep::NodeKind::Keyword))
+    ((:wat::core::= s "symbol") (:wat::grep::NodeKind::Symbol))
+    ((:wat::core::= s "list") (:wat::grep::NodeKind::List))
+    ((:wat::core::= s "vector") (:wat::grep::NodeKind::Vector))
+    ((:wat::core::= s "set") (:wat::grep::NodeKind::Set))
+    ((:wat::core::= s "map") (:wat::grep::NodeKind::Map))
+    (:else (:wat::kernel::assertion-failed!
+             (:wat::string::concat "grep: unknown ast-kind " s)
+             :wat::core::None
+             :wat::core::None))))
+
 ;; walk — assign this node an id, emit its facts, then descend. Pre-order, so `parent` is always
 ;; already numbered when a child is reached.
 (:wat::core::defn :wat::grep::walk
@@ -189,7 +233,7 @@
   -> :wat::grep::Acc
   (:wat::core::let
     [id    (:wat::grep::Acc/next-id acc)
-     kind  (:wat::core::ast-kind node)
+     kind  (:wat::grep::kind-of (:wat::core::ast-kind node))
      nodes (:wat::vector::conj (:wat::grep::Acc/nodes acc)
              (:wat::grep::Node :id id :parent parent :index index :kind kind))
      ;; THE GUARD: no name fact for an unnameable node. `ast-name` is never reached for one.

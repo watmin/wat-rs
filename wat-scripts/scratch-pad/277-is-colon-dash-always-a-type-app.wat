@@ -6,7 +6,7 @@
 
 (:wat::rete::defrule :ta::colon-dash-at-1
   :when [(:wat::grep::Node   (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where  (:wat::rete::string::= ?pk "list"))
+         (:wat::rete::where  (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
          (:wat::grep::Node   (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where  (:wat::rete::i64::= ?ci 1))
          (:wat::grep::Named  (?c <- :id) (?cn <- :name))

@@ -21,14 +21,14 @@
 (:wat::rete::defrule :fx::arrow
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Symbol)))
          (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:fx::IsArrow :id ?id)])
 
 (:wat::rete::defrule :fx::head-kw
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
          (:wat::rete::where (:wat::rete::string::contains? ?n "::"))]
   :then [(:fx::IsHeadKw :id ?id)])
 
@@ -50,7 +50,7 @@
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::grep::Span  (?id <- :id) (?l <- :line))
-         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Symbol)))
          (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:fx::ArrowLine :id ?id :line ?l)])
 

@@ -6,7 +6,7 @@
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Symbol)))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "ctrl::any-symbol"
            :captures (:wat::rete::core::PersistentVector))])

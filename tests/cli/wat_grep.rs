@@ -214,7 +214,7 @@ fn g7_end_to_end_prints_expected_match() {
     let expected = format!(
         "\"#wat.grep/Match {{:file \\\"{}\\\" :line 4 :col 6 :end-line 4 :end-col 8 \
          :rule \\\"g7::match-arrow\\\" :captures #wat.core/PersistentVector \
-         [#wat.grep/Capture {{:name \\\"kind\\\" :value \\\"symbol\\\"}}]}}\"",
+         [#wat.grep/Capture {{:name \\\"kind\\\" :value #wat.grep.NodeKind/Symbol []}}]}}\"",
         target.display()
     );
     assert_eq!(line, expected, "G7: the printed Match must be exact");

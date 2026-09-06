@@ -45,7 +45,7 @@
 (:wat::rete::defrule :dt::declarator
   :when [(:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where
            (:wat::rete::core::or

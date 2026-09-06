@@ -22,7 +22,7 @@
          (:wat::grep::Named (?h <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defn"))
          (:wat::grep::Node  (?args <- :id) (?p <- :parent) (?ai <- :index) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::string::= ?k "vector"))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))
          (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ari <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?ari (:wat::rete::i64::+ ?ai 1 :undefined 0)))
          (:wat::grep::Named (?arrow <- :id) (?an <- :name))

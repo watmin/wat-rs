@@ -26,7 +26,7 @@
 (:wat::rete::defrule :ul::unwrap
   :when [(:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Option/expect"))]
   :then [(:ul::Unwrap :id ?id :parent ?p)])
@@ -36,7 +36,7 @@
   :when [(:ul::Unwrap (?outer <- :parent))
          (:wat::grep::Node (?arg <- :id) (?outer <- :parent) (?ai <- :index) (?ak <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?ai 1))
-         (:wat::rete::where (:wat::rete::string::= ?ak "list"))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?ak (:wat::grep::NodeKind::List)))]
   :then [(:ul::ArgIsList :outer ?outer :arg ?arg)])
 
 ;; ...and that argument's own head is the lookup. Report at the OUTER form's span, because the
