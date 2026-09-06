@@ -25,11 +25,183 @@
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::edn::render::require_one_arg;
-use crate::runtime::{apply_function, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::edn::render::{require_one_arg, value_to_edn_with};
+use crate::runtime::{apply_function, eval_inner, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::services::client::cached_stdio_peer;
 use crate::services::ThreadIO;
 use crate::span::Span;
+use crate::types::TypeEnv;
+use crate::value::value::AggregateValue;
+
+const DOC_ROW_CLASS: &str = "wat::doc::Row";
+
+/// Pretty-print a wat value. A `:wat::doc::Row` record is scoped: `:doc`
+/// keeps literal newlines (prose), `:examples` are dressed by fmt rules
+/// when those rules are loaded. Every other value uses `wat_edn::write_pretty`.
+fn write_pretty_wat_value(
+    v: &Value,
+    types: Option<&TypeEnv>,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> String {
+    match v {
+        Value::Aggregate(a) if a.class.as_ref() == DOC_ROW_CLASS => {
+            write_pretty_doc_row(a, types, env, sym)
+        }
+        _ => wat_edn::write_pretty(&value_to_edn_with(v, types)),
+    }
+}
+
+fn push_prose_string(out: &mut String, s: &str) {
+    let content_col = current_col(out) + 1;
+    out.push('"');
+    for (i, line) in s.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+            if !line.is_empty() {
+                for _ in 0..content_col {
+                    out.push(' ');
+                }
+            }
+        }
+        for c in line.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                _ => out.push(c),
+            }
+        }
+    }
+    out.push('"');
+}
+
+fn current_col(out: &str) -> usize {
+    out.rsplit('\n').next().map(str::len).unwrap_or(0)
+}
+
+fn append_pretty_field(out: &mut String, v: &Value, types: Option<&TypeEnv>, indent: usize) {
+    let pretty = wat_edn::write_pretty(&value_to_edn_with(v, types));
+    let mut first = true;
+    for line in pretty.lines() {
+        if first {
+            out.push_str(line);
+            first = false;
+        } else {
+            out.push('\n');
+            for _ in 0..indent {
+                out.push(' ');
+            }
+            out.push_str(line);
+        }
+    }
+}
+
+fn try_format_source(src: &str, env: &Environment, sym: &SymbolTable) -> String {
+    let form = WatAST::list(vec![
+        WatAST::keyword(":wat::fmt::format-source"),
+        WatAST::string("<doc-row>"),
+        WatAST::string(src),
+        WatAST::list(vec![
+            WatAST::keyword(":wat::rete::collect-rules"),
+            WatAST::keyword(":fmt"),
+        ]),
+    ]);
+    match eval_inner(&form, env, sym) {
+        Ok(tv) => match tv.value_owned() {
+            Value::String(s) => (*s).clone(),
+            _ => src.to_string(),
+        },
+        Err(_) => src.to_string(),
+    }
+}
+
+fn as_value_slice(v: &Value) -> Option<Vec<&Value>> {
+    match v {
+        Value::Vec(items) => Some(items.iter().collect()),
+        Value::wat__core__PersistentVector(p) => Some(p.iter().collect()),
+        _ => None,
+    }
+}
+
+fn write_pretty_examples(
+    out: &mut String,
+    examples: &Value,
+    types: Option<&TypeEnv>,
+    env: &Environment,
+    sym: &SymbolTable,
+) {
+    let Some(entries) = as_value_slice(examples) else {
+        append_pretty_field(out, examples, types, 2);
+        return;
+    };
+    out.push('[');
+    if entries.is_empty() {
+        out.push(']');
+        return;
+    }
+    out.push('\n');
+    for (i, ex) in entries.iter().enumerate() {
+        let slots = as_value_slice(ex);
+        match slots {
+            Some(forms) if forms.iter().any(|f| matches!(f, Value::wat__WatAST(_))) => {
+                out.push_str("    [\n");
+                for form in &forms {
+                    match form {
+                        Value::wat__WatAST(ast) => {
+                            let src = wat_edn::write(&crate::edn::bridge::watast_to_edn(ast));
+                            let formatted = try_format_source(&src, env, sym);
+                            for line in formatted.lines() {
+                                out.push_str("      ");
+                                out.push_str(line);
+                                out.push('\n');
+                            }
+                        }
+                        other => {
+                            out.push_str("      ");
+                            append_pretty_field(out, other, types, 6);
+                            out.push('\n');
+                        }
+                    }
+                }
+                out.push_str("    ]");
+            }
+            _ => {
+                out.push_str("    ");
+                append_pretty_field(out, ex, types, 4);
+            }
+        }
+        if i + 1 < entries.len() {
+            out.push('\n');
+        }
+    }
+    out.push('\n');
+    out.push_str("  ]");
+}
+
+fn write_pretty_doc_row(
+    row: &AggregateValue,
+    types: Option<&TypeEnv>,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> String {
+    let mut out = String::from("#wat.doc/Row {\n");
+    for (name, field) in row.names.iter().zip(row.fields.iter()) {
+        out.push_str("  :");
+        out.push_str(name);
+        out.push(' ');
+        match name.as_str() {
+            "doc" => match field {
+                Value::String(s) => push_prose_string(&mut out, s),
+                other => append_pretty_field(&mut out, other, types, 2),
+            },
+            "examples" => write_pretty_examples(&mut out, field, types, env, sym),
+            _ => append_pretty_field(&mut out, field, types, 2),
+        }
+        out.push('\n');
+    }
+    out.push('}');
+    out
+}
 
 /// The terminal tail shared by `eprintln` / `epprintln`: after the value's
 /// EDN has been emitted to stderr and the write acked, **TERMINATE non-zero**.
@@ -183,9 +355,7 @@ pub fn eval_kernel_pprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::pprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
-    // Terminator appended here (raw-writer service); batched → identical bytes to old `writeln(pretty)`.
-    let mut line = wat_edn::write_pretty(&edn);
+    let mut line = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym);
     line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
     Ok(Value::Unit)
@@ -225,8 +395,7 @@ pub fn eval_kernel_epprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::epprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
-    let reason = wat_edn::write_pretty(&edn);
+    let reason = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym);
     let payload = format!("{reason}\n");
     write_via_stderr(OP, list_span, sym, payload)?;
     eprintln_terminate(reason)

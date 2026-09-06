@@ -131,6 +131,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/Record.wat",
         source: include_str!("../../wat/Record.wat"),
     },
+    // :wat::doc::Row — pprintln of a doc row. After Record.wat (defrecord)
+    // and runtime-meta.wat (axis enums, loaded earlier).
+    WatSource {
+        path: "wat/doc.wat",
+        source: include_str!("../../wat/doc.wat"),
+    },
     // Arc 258 A2 — :wat::program::Env as a flat typed record (seven kernel-stamped fields).
     // Arc 293 annihilation: no longer an extensible base; it is a plain defrecord. Loaded
     // AFTER Record.wat (uses :wat::core::defrecord) and :wat::time::Instant (builtin).
