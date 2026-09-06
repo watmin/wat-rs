@@ -34,11 +34,16 @@
 //! record/struct/enum class, an unknown field/variant name, an out-of-range index, or a type
 //! mismatch on a write. See each delegate's own "Totality ground" for its cited line.
 
+use std::sync::Arc;
+
 use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
+use crate::runtime::eval_inner;
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{
+    Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
+};
 
 /// `(:wat::core::Record/field-at record index) -> :T` — arc 234 Stone 234.2a.
 ///
@@ -413,6 +418,53 @@ pub(crate) fn eval_variant(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     crate::record::construct::eval_variant(xs, list_span, env, sym)
+}
+
+/// `(:wat::core::variant-name e) -> :wat::core::String` — the reader beside `variant`.
+///
+/// STONE-the-fence-refuses-what-it-cannot-prove: nothing previously read an enum value's
+/// variant name (`variant` only constructs). Returns the variant identifier with no
+/// leading colon — `NodeKind::List` → `"List"` — matching the value's own render
+/// (`#wat.grep.NodeKind/List []`).
+///
+/// **Purity ground:** one argument, evaluated by ordinary call-by-value; the body only
+/// reads `EnumValue.variant_name`. Pure ∧ Deterministic.
+///
+/// **Totality ground:** raises `TypeMismatch` on a non-enum. The rete exposure
+/// (`:wat::rete::core::variant-name`) gates enum-ness at check time; this core verb is
+/// Partial on values the domain-level type does not exclude if called untyped.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     e :T an enum value
+/// @ret     :wat::core::String the variant name, no leading colon
+/// @example (:wat::core::do (:wat::core::defenum :probe::NameExample :wat::enum::Pure :V []) (:wat::core::variant-name (:probe::NameExample::V))) #=> "V"
+/// @see     :wat::core::variant
+#[wat_intrinsic(":wat::core::variant-name")]
+pub(crate) fn eval_variant_name(
+    e: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::variant-name";
+    let v = eval_inner(e, env, sym)?.value_owned();
+    match v {
+        Value::Enum(ev) => Ok(Value::String(Arc::new(ev.variant_name.clone()))),
+        other => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "enum",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )
+        .into()),
+    }
 }
 
 /// `(:wat::core::aggregate-new :T field…) -> :T` — arc 294.c.2a, arc 255 Stone

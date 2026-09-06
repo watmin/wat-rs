@@ -730,6 +730,37 @@
 ;; A plain `:wat::core::defn` has no such indirection and already resolved to
 ;; a fn on the bare read.
 ;;
+;; Does this :then item contain `:wat::rete::core::match` at any depth?
+;; STONE-the-fence-refuses-what-it-cannot-prove: a match's exhaustiveness is
+;; form-level; the fence's totality axis is head-level and cannot see arms.
+;; The fence therefore refuses match outright — exhaustive or not (STOP-1).
+(:wat::core::defn :wat::rete::then-item-contains-match?
+  [node <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::let [k (:wat::core::ast-kind node)]
+    (:wat::core::if (:wat::core::= k "list")
+      (:wat::core::let [ch (:wat::core::ast->children node)]
+        (:wat::core::if (:wat::i64::= (:wat::core::length ch) 0)
+          false
+          (:wat::core::let [h (:wat::core::first ch)
+                            hnm (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
+                                   (:wat::core::ast-name h)
+                                   "")]
+            (:wat::core::if (:wat::core::= hnm ":wat::rete::core::match")
+              true
+              (:wat::core::foldl
+                (:wat::core::fn [acc <- :wat::core::bool  c <- :wat::WatAST] -> :wat::core::bool
+                  (:wat::core::if acc true (:wat::rete::then-item-contains-match? c)))
+                false
+                ch)))))
+      (:wat::core::if (:wat::core::= k "vector")
+        (:wat::core::foldl
+          (:wat::core::fn [acc <- :wat::core::bool  c <- :wat::WatAST] -> :wat::core::bool
+            (:wat::core::if acc true (:wat::rete::then-item-contains-match? c)))
+          false
+          (:wat::core::ast->children node))
+        false))))
+
 ;; foldl-compatible: `(acc, item) -> acc`, so `compile-rule` folds this straight over `rhs`
 ;; without a lambda wrapper — the accumulator is a throwaway `i64`, unused except to satisfy
 ;; foldl's shape; every check here is a side-effecting raise (an axis violation panics via
@@ -770,6 +801,15 @@
                                     ;; exact: first-failing-axis walks all four conjuncts;
                                     ;; `:else` is Law A (RetePrimitive), never Total.
                                     (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
+                    ;; C — match is total as a HEAD; exhaustiveness is a property of ITS ARMS
+                    ;; (form-level). A head-level axis cannot tell exhaustive from partial, so
+                    ;; the fence admits neither. cond is NOT in this refusal (row 4): it is
+                    ;; already guarded at expand.
+                    _no-match (:wat::core::Option/expect
+                                (:wat::core::if (:wat::rete::then-item-contains-match? item)
+                                  :wat::core::None
+                                  (:wat::core::Some nil))
+                                "a :then admits only what the fence can prove TOTAL. `match` is total as a HEAD, but a match's exhaustiveness is a property of ITS ARMS — form-level, which a head-level axis cannot see. Use :wat::rete::core::variant-name for a variant's name, or bind the value in :when.")
                     item-ch   (:wat::core::ast->children item)
                     head      (:wat::core::first item-ch)
                     head-val0 (:wat::core::Result/expect

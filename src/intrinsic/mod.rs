@@ -1033,6 +1033,7 @@ mod tests {
         ":wat::core::struct-new",
         ":wat::core::to-record",
         ":wat::core::variant",
+        ":wat::core::variant-name",
         ":wat::core::type-equal?",
         ":wat::core::type-params-used-in",
         // Arc 255 Stone the-registry-answers-first-wave-3 — `aggregate-new`/`kwargs-construct`

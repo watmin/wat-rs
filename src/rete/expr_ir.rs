@@ -1227,7 +1227,7 @@ enum OpExec {
     Eq, NotEq, Gt, Lt, Ge, Le,
     I64Eq, I64NotEq, StrEq, StrNotEq,
     StrLen, StartsWith, EndsWith, Contains, Not,
-    I64Add, I64Sub, I64Mul, I64Div, I64Rem, I64Mod, I64ToF64, I64ToStr,
+    I64Add, I64Sub, I64Mul, I64Div, I64Rem, I64Mod, I64ToF64, I64ToStr, EnumName,
     F64Gt, F64Lt, F64Ge, F64Le, F64Eq, F64NotEq, F64Add, F64Sub, F64Mul, F64Div, F64ToStr,
     BoolToStr, StrEmpty, StrConcat, StrTrim, StrLower, StrSubs,
     PvLen, PvContains, PvGet, VecGet, ListGet, First, PvNew, VecNew, ListNew,
@@ -1268,6 +1268,7 @@ impl OpExec {
             ":wat::i64::mod" => Self::I64Mod,
             ":wat::i64::to-f64" => Self::I64ToF64,
             ":wat::i64::to-string" => Self::I64ToStr,
+            ":wat::core::variant-name" => Self::EnumName,
             ":wat::f64::>" => Self::F64Gt,
             ":wat::f64::<" => Self::F64Lt,
             ":wat::f64::>=" => Self::F64Ge,
@@ -1502,6 +1503,9 @@ fn apply_core_kind(
         (OpExec::I64ToF64, [Value::i64(n)]) => Ok(Value::f64(*n as f64)),
         (OpExec::I64ToStr, [Value::i64(n)]) => {
             Ok(Value::String(Arc::new(n.to_string())))
+        }
+        (OpExec::EnumName, [Value::Enum(ev)]) => {
+            Ok(Value::String(Arc::new(ev.variant_name.clone())))
         }
         (OpExec::F64ToStr, [Value::f64(n)]) => {
             Ok(Value::String(Arc::new(n.to_string())))

@@ -2420,6 +2420,57 @@ fn infer_rete_form(
         // Both operands must resolve to a `TypeDef::Enum`; only then defer to `infer_equality` —
         // the SAME routine core `=` uses (never a second implementation; a second terminal
         // handler on the one routine).
+        // STONE-the-fence-refuses-what-it-cannot-prove — `variant-name`. Form, not Alias:
+        // a user enum can never have a pre-minted row. One operand must be an enum;
+        // the result is String (the variant identifier, no leading colon).
+        ":wat::core::variant-name" => {
+            let mut local_errors: Vec<CheckError> = Vec::new();
+            let string_ty = TypeExpr::Path(":wat::core::String".into());
+            if args.len() != 1 {
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::ArityMismatch { callee: core_name.into(), expected: 1, got: args.len() },
+                });
+                return CheckResult::partial_with(string_ty, local_errors);
+            }
+            let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            let is_enum = |t: &Option<TypeExpr>| -> bool {
+                let resolved = match t.as_ref() {
+                    Some(x) => apply_subst(x, subst),
+                    None => return false,
+                };
+                let head = match &resolved {
+                    TypeExpr::Path(p) => p.clone(),
+                    TypeExpr::Parametric { head, .. } => head.clone(),
+                    _ => return false,
+                };
+                let lookup = |k: &str| matches!(env.types().get(k), Some(crate::types::TypeDef::Enum(_)));
+                lookup(&head) || lookup(&format!(":{}", head.trim_start_matches(':')))
+            };
+            if !is_enum(&a_ty) {
+                let render = |t: &Option<TypeExpr>| {
+                    t.as_ref().map(|x| format_type(&apply_subst(x, subst))).unwrap_or_else(|| "<unknown>".into())
+                };
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: core_name.into(),
+                        remedies: Vec::new(),
+                        reason: format!(
+                            "the rete enum-name surface admits an ENUM operand only — got {}. \
+                             Use :wat::rete::core::variant-name on a value whose declared type is an enum.",
+                            render(&a_ty),
+                        ),
+                    },
+                });
+                return CheckResult::partial_with(string_ty, local_errors);
+            }
+            if local_errors.is_empty() {
+                CheckResult::ok(string_ty)
+            } else {
+                CheckResult::partial_with(string_ty, local_errors)
+            }
+        }
         ":wat::core::=" | ":wat::core::not=" => {
             let mut local_errors: Vec<CheckError> = Vec::new();
             let bool_ty = TypeExpr::Path(":wat::core::bool".into());
@@ -2590,6 +2641,9 @@ fn infer_list(
             }
         }
         match k.as_str() {
+            ":wat::core::variant-name" => {
+                return infer_rete_form(":wat::core::variant-name", args, head_span, env, locals, fresh, subst);
+            }
             // Arc 157 — `:wat::core::def` type-check arm.
             // Position checking happens via `validate_def_position`
             // walker BEFORE `check_form` is called for this form;

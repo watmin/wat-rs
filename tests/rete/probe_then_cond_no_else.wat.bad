@@ -1,0 +1,8 @@
+;; NEGATIVE — cond without :else is refused at EXPAND, not by the fence.
+(:wat::core::defrecord :ne::Box [label <- :wat::core::String])
+(:wat::core::defrecord :ne::Src [n <- :wat::core::i64])
+
+(:wat::rete::defrule :ne::go
+  :when [(:ne::Src (?n <- :n))]
+  :then [(:ne::Box :label (:wat::rete::core::cond
+           ((:wat::rete::i64::> ?n 0 :undefined false) "pos")))])

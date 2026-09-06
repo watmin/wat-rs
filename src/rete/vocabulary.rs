@@ -1092,6 +1092,23 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // STONE-the-fence-refuses-what-it-cannot-prove — `variant-name`, sibling of
+    // `i64::to-string` / `bool::to-string`. Form, not Alias: a user enum can never
+    // have a pre-minted row (same reasoning as `enum::=`). The enum-ness gate lives
+    // in `infer_rete_form`. Runtime is the core reader `:wat::core::variant-name`.
+    // `total: true` is earned by that gate: a well-typed enum always has a variant
+    // name. Returns the variant identifier, no leading colon (`List`, not `:List`).
+    // rete_name is the naming-rule derivative of core_name. `enum::name` was the
+    // brief's grouping, borrowed from `enum::=` which earns it only by collision.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::variant-name",
+        core_name: ":wat::core::variant-name",
+        class: OpClass::Form,
+        params: &[],
+        ret: ParamType::String,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::string::=",
