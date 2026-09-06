@@ -151,8 +151,9 @@ pub(crate) fn build_insert_fact(
     };
 
     // class = keyword stripped of leading ':' (Arc 293.R2.1: colon-free).
-    // A String allocated per derived fact for a class name fixed at compile time — NOT counted by
-    // `match:key-alloc`, which arms only the two resolve_operand sites.
+    // A String allocated per derived fact for a class name fixed at compile time — NOT counted
+    // by `bindkey:alloc`. This file's own RHS resolution IS counted, through `resolve_operand`
+    // (`resolve_rhs_value` below). The class-name String is a different allocation.
     crate::rete::kernel::census_count("prod:class-alloc");
     let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
     crate::rete::kernel::phase_end("  ├ prod:validate", __pv);

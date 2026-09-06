@@ -21,11 +21,11 @@ use super::*;
 /// no condition at all and bulk-adds (fact, alpha) PAIRS. The two shared one key until
 /// 2026-09-03 (C14). [`exec_compiled`] is the `#[cfg(test)]` door (no interned keys).
 ///
-/// `match:key-alloc` is printed but NOT asserted at zero here: this world's RHS insert forms
+/// `bindkey:alloc` is printed but NOT asserted at zero here: this world's RHS insert forms
 /// (`build_insert_fact`, the production pass) resolve `?var` args through the SAME
 /// `resolve_operand` alpha-match uses. RHS is compiled (`DESIGN-STONE-compiled-rhs.md`);
-/// leftover `match:key-alloc` on this world is the oracle `build_insert_fact` path the
-/// differential still runs. So a real fire's `match:key-alloc` can be non-zero even with
+/// leftover `bindkey:alloc` on this world is the oracle `build_insert_fact` path the
+/// differential still runs. So a real fire's `bindkey:alloc` can be non-zero even with
 /// the compiled path in place; the actual row-2 gate that isolates ALPHA-MATCH's failure path
 /// is `compiled_cond_failure_path_allocates_no_binding_keys_at_50_100`, which never
 /// touches RHS resolution.

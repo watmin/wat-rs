@@ -676,7 +676,14 @@ fn eval_clause(
             // allocation (rebuilding the constant `"?var"` key on every call, including every
             // failing one) is exactly what the compiled executor eliminates. Counted, not timed,
             // so the differential can assert it at zero for the compiled path and non-zero here.
-            crate::rete::kernel::census_count("match:key-alloc");
+            //
+            // Named `bindkey:alloc`, not `match:key-alloc`: `resolve_operand` also runs from
+            // RHS insert and step-payload, so the population is binding-key String allocations
+            // anywhere that fn runs. Per-caller attribution (a `&'static str` parameter on
+            // `resolve_operand`) was considered and rejected — no consumer wants it, and C10
+            // (`accum_cost.rs`) holds that discriminating for an instrument's benefit is an
+            // engine edit.
+            crate::rete::kernel::census_count("bindkey:alloc");
             let key = Value::String(Arc::new(var.to_string()));
             let existing = bindings.iter().find_map(|(k, v)| (*k == key).then(|| v.clone()));
             match existing {
@@ -907,11 +914,12 @@ fn rewrite_field_refs(
 /// `:field` from the fact's declared fields, or a literal.
 ///
 /// ⚠ This is the function [`crate::rete::compiled_cond`] exists to stop calling. It re-derives
-/// per fact what is fixed at compile time, and the `match:key-alloc` census here counts the
+/// per fact what is fixed at compile time, and the `bindkey:alloc` census here counts the
 /// specific cost that motivated it: rebuilding the constant binding key as a fresh heap
 /// allocation on every call, including the calls that are about to fail — which is most of them.
 /// The compiled path resolves these same three shapes ONCE. Keep both honest about the shapes;
-/// they are a differential pair.
+/// they are a differential pair. The counter is not a `match:` quantity: this fn also runs from
+/// RHS insert and step-payload.
 pub(crate) fn resolve_operand<B: Bindings>(
     operand: &WatAST,
     fact_fields: &[Value],
@@ -927,7 +935,7 @@ pub(crate) fn resolve_operand<B: Bindings>(
                 // Arc 278 DESIGN-STONE-compiled-conditions.md, row 2 — second heap allocation
                 // rebuilding the same constant key (see the `Bind` arm above); counted for the
                 // same differential.
-                crate::rete::kernel::census_count("match:key-alloc");
+                crate::rete::kernel::census_count("bindkey:alloc");
                 let key = Value::String(Arc::new(name.to_string()));
                 bindings.get(&key).cloned()
             } else {

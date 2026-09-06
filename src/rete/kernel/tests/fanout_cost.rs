@@ -179,11 +179,11 @@ fn beta_write_read_traffic() {
 
 /// Diagnostic — DESIGN-STONE-compiled-rhs.md's zero-allocation gate, not a positive count.
 ///
-/// `match:key-alloc` is armed inside `matcher.rs`'s two `Value::String(Arc::new(...))` sites
+/// `bindkey:alloc` is armed inside `matcher.rs`'s two `Value::String(Arc::new(...))` sites
 /// (alpha's `?v <- :field` and the RHS's `resolve_operand`). Alpha is compiled (arc 278
 /// compiled-conditions), and as of this stone the RHS is too: `exec_compiled_rhs` walks a
 /// pre-built `CompiledRhs` program and never re-allocates a `?var` key, so on a fire with BOTH
-/// compiled paths live, `match:key-alloc` is expected to be EXACTLY ZERO — a fire that still
+/// compiled paths live, `bindkey:alloc` is expected to be EXACTLY ZERO — a fire that still
 /// counted here would mean a form fell through to the `build_insert_fact` fallback. (This
 /// mirrors `a8_node_share_fire_census`'s HOLD → PRODUCE re-point earlier the same day: the
 /// property this test proves changed, so the assertion had to be re-pointed rather than left
@@ -208,12 +208,12 @@ fn fanout_rhs_key_alloc_census() {
     };
     let table = format!(
         "\n  FANOUT RHS ALLOCATION CENSUS — keys=100 x fanout=20, 40,000 derived Pairs\n\
-             \n  match:key-alloc (RHS + alpha, both compiled — expect 0)  {:>10}\n\
+             \n  bindkey:alloc (RHS + alpha, both compiled — expect 0)   {:>10}\n\
              \x20 per derived fact                                       {:>10.2}\n\
              \x20 match:calls (interpreter entries — expect 0)           {:>10}\n\
              \x20 prod:derivations (non-vacuity guard — expect 40,000)   {:>10}\n",
-        get("match:key-alloc"),
-        get("match:key-alloc") as f64 / 40_000.0,
+        get("bindkey:alloc"),
+        get("bindkey:alloc") as f64 / 40_000.0,
         get("match:calls"),
         get("prod:derivations"),
     );
@@ -226,7 +226,7 @@ fn fanout_rhs_key_alloc_census() {
     // without this second assertion that dead-fire zero would be indistinguishable from the
     // proof this test exists to make.
     assert_eq!(
-        get("match:key-alloc"),
+        get("bindkey:alloc"),
         0,
         "expected ZERO key allocations — the compiled RHS pre-builds every ?var key at rule \
              setup and never reallocates one per fact; a nonzero count means some :then form fell \
