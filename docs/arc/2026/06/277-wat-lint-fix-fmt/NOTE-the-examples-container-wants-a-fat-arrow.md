@@ -42,6 +42,63 @@ the relation named rather than positional, and the `[[` gone.
 and the sibling-table rule would align the `:=>` column across examples for free, which is the very
 shape the builder called *"extremely easy to read"*.
 
+## ★ REFINED — VERTICALLY STACKED, one blank line per example (2026-09-06)
+
+> **Builder:** *"i think the examples... should be vertically stacked...."*
+> ```
+> :examples
+> [(some-form)
+>  :=> some-val
+>
+>  (another-form)
+>  :=> another-val]
+> ```
+> *"we have a blank line per example?... the colon-fat-arrow and the ret val get the same line?"*
+
+**Yes to both — and the vertical form is strictly better than the horizontal one first sketched.**
+
+### ⛔ WHY, and it is a reason the first sketch would have failed on
+
+```
+[(some-form) :=> some-val]      readable ONLY while the expression fits on a line
+```
+
+**71 of 476 `@example` expressions exceed 120 characters in source**, and the worst (`step-payload`,
+1,153 chars) formats to **35 lines**. A horizontal `:=>` works for `(char "x") :=> (char "x")` and
+collapses for exactly the examples that motivated this work. **The vertical stack is
+size-independent.**
+
+### ★ AND IT NEEDS NO NEW CAPABILITY — three existing rules cover it
+
+```
+the EXPRESSION      every layout rule already built
+`:=> val`           a TWO-TOKEN SLOT — the arrow-glue rule, unchanged.
+                    Identical in shape to `-> T` and `:- V`, both already ruled.
+the BLANK LINE      BlankBefore, already built — including its "never before the FIRST"
+                    semantics, which is exactly what the builder's sketch shows.
+```
+
+The arrow-glue rule is *"find the arrow child, glue the child after it."* It needs `:=>` beside
+`->` — **one token in one rule.**
+
+### `:=>` ALREADY READS — measured, not assumed
+
+```
+read-string ":=>"            ->  kind=keyword  src=:=>
+read-string "[(f 1)\n :=> 2]" ->  kind=vector   src=[(f 1) :=> 2]
+```
+
+**No lexer change, no language change.** Inside a `#wat.doc/Row` it is ordinary keyword data.
+
+### ⛔ AND AN ARGUMENT OF MINE THAT I WITHDRAW
+
+I argued for the fat arrow partly because *"the sibling-table rule would align the `:=>` column
+across examples for free."* **That is dead under the vertical stack** — separate lines mean there is
+no column to align. It was an argument for the HORIZONTAL form and must not ride into this one.
+
+The surviving arguments are the stronger ones: **the relation is named rather than positional, the
+`[[` lead is gone, and it composes with rules that already exist.**
+
 ## ⚠ WHAT IT TOUCHES — this is why it is deferred, not done
 
 ```
