@@ -472,9 +472,9 @@ fn strat_merge_pv_owner_count() {
     .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
     .value_owned();
 
-    // Owner counts land in the COUNT census, not PHASE_NANOS. `merge:pv-owners`
-    // sums the owner count; `merge:pv-calls` counts the calls, so the mean is
-    // the two divided — one counter cannot carry both.
+    // Owner counts land in the COUNT census, not PHASE_NANOS. `merge:pv-owners-sum`
+    // sums the owner gauge across calls; `merge:pv-calls` counts the calls, so the
+    // mean is the two divided — one counter cannot carry both.
     let (_fired, counts) = super::with_count_census(|| {
         fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None)
             .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
@@ -486,7 +486,7 @@ fn strat_merge_pv_owner_count() {
             .map(|(_, v)| *v)
             .unwrap_or(0)
     };
-    let (total, calls) = (get("merge:pv-owners"), get("merge:pv-calls"));
+    let (total, calls) = (get("merge:pv-owners-sum"), get("merge:pv-calls"));
 
     let mean = if calls > 0 { total as f64 / calls as f64 } else { 0.0 };
     let arm = if total == 0 { "Tree (rpds VectorSync)" } else { "Array" };
@@ -513,6 +513,18 @@ fn strat_merge_pv_owner_count() {
     assert_eq!(
         calls as i64, STRATA,
         "merge_facts must run once per stratum:{out}"
+    );
+    // The tripwire, now armed. `array_owners` is >= 1 on every Array call, so
+    // total == 0 is exactly "no call took the Array arm" — mixed populations
+    // included.
+    //
+    // NOT a tautology: both bumps live in ONE #[cfg(test)] block in
+    // `fire/rules.rs`, so `calls == STRATA` above proves that block ran. A zero
+    // `total` under a correct `calls` is therefore a reading, not an absent
+    // counter.
+    assert_eq!(
+        total, 0,
+        "{out}"
     );
 }
 
