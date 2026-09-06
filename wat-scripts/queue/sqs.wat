@@ -379,63 +379,10 @@
                    (:wat::query::Store::PutRequest rows))]
        (:wat::core::match put-resp
          ((:wat::kernel::RecvOutcome::Message sresp)
-           (:wat::core::let
-             [nap (:wat::core::fn [] -> :wat::core::nil
-                     (:wat::core::match
-                       (:wat::kernel::recv
-                         (:wat::kernel::after :wat::program::PeerKind::thread
-                           (:wat::time::Milliseconds 1) :done))
-                       ((:wat::kernel::RecvOutcome::Message _m) nil)
-                       ((:wat::kernel::RecvOutcome::Lost _c) nil)
-                       (:wat::kernel::RecvOutcome::Stopped nil)
-                       (:wat::kernel::RecvOutcome::Closed nil)
-                       (:wat::kernel::RecvOutcome::TimedOut nil)))
-              once-put (:wat::core::fn
-                          [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
-                          -> :wat::core::bool
-                          (:wat::core::match
-                            (:wat::query::Store/put st (:wat::query::Store::PutRequest rows))
-                            ((:wat::kernel::RecvOutcome::Message r)
-                              (:wat::core::match r
-                                ((:wat::query::Store::PutResponse::Success) false)
-                                ((:wat::query::Store::PutResponse::Transient _e) true)
-                                ((:wat::query::Store::PutResponse::Constraint _e)
-                                  (:wat::kernel::assertion-failed! "queue.send: store put Constraint" :wat::core::None :wat::core::None))
-                                ((:wat::query::Store::PutResponse::Fatal _e)
-                                  (:wat::kernel::assertion-failed! "queue.send: store put Fatal" :wat::core::None :wat::core::None))
-                                ((:wat::query::Store::PutResponse::RequestTooLarge _b _c)
-                                  (:wat::kernel::assertion-failed! "queue.send: store put RequestTooLarge" :wat::core::None :wat::core::None))
-                                ((:wat::query::Store::PutResponse::RequestMalformed _p _e _g)
-                                  (:wat::kernel::assertion-failed! "queue.send: store put RequestMalformed" :wat::core::None :wat::core::None))))
-                            ((:wat::kernel::RecvOutcome::Lost _c)
-                              (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Stopped
-                              (:wat::kernel::assertion-failed! "queue.send: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Closed
-                              (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::TimedOut
-                              (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None))))
-              _ok (:wat::core::match sresp
-                    ((:wat::query::Store::PutResponse::Success) nil)
-                    ((:wat::query::Store::PutResponse::Transient _e)
-                      (:wat::core::let
-                        [_n1 (nap)
-                         t1 (once-put store)
-                         t2 (:wat::core::if t1
-                              (:wat::core::let [_n2 (nap)] (once-put store))
-                              false)]
-                        (:wat::core::if t2
-                          (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None)
-                          nil)))
-                    ((:wat::query::Store::PutResponse::Constraint _e)
-                      (:wat::kernel::assertion-failed! "queue.send: store put Constraint" :wat::core::None :wat::core::None))
-                    ((:wat::query::Store::PutResponse::Fatal _e)
-                      (:wat::kernel::assertion-failed! "queue.send: store put Fatal" :wat::core::None :wat::core::None))
-                    ((:wat::query::Store::PutResponse::RequestTooLarge _b _c)
-                      (:wat::kernel::assertion-failed! "queue.send: store put RequestTooLarge" :wat::core::None :wat::core::None))
-                    ((:wat::query::Store::PutResponse::RequestMalformed _p _e _g)
-                      (:wat::kernel::assertion-failed! "queue.send: store put RequestMalformed" :wat::core::None :wat::core::None)))
-              s' (:queue::queue::State
+           (:wat::core::match sresp
+             ((:wat::query::Store::PutResponse::Success)
+               (:wat::core::let
+                 [s' (:queue::queue::State
                        :durable (:queue::queue::State/durable s)
                        :store store
                        :take (:queue::queue::State/take s)
@@ -552,6 +499,18 @@
                            :arm-tick (:queue::queue::State/arm-tick s2))
                       ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))]
                      (:wat::service::Outcome::Continue s3 ok box (:wat::core::second pair))))))
+             ((:wat::query::Store::PutResponse::Transient _e)
+               (:wat::core::let
+                 [_r (:queue::queue::retry-put store rows)]
+                 (:queue::queue::send-after-put s store q now-ns)))
+             ((:wat::query::Store::PutResponse::Constraint _e)
+               (:wat::kernel::assertion-failed! "queue.send: store put Constraint" :wat::core::None :wat::core::None))
+             ((:wat::query::Store::PutResponse::Fatal _e)
+               (:wat::kernel::assertion-failed! "queue.send: store put Fatal" :wat::core::None :wat::core::None))
+             ((:wat::query::Store::PutResponse::RequestTooLarge _b _c)
+               (:wat::kernel::assertion-failed! "queue.send: store put RequestTooLarge" :wat::core::None :wat::core::None))
+             ((:wat::query::Store::PutResponse::RequestMalformed _p _e _g)
+               (:wat::kernel::assertion-failed! "queue.send: store put RequestMalformed" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
              [fresh (:wat::core::match
@@ -771,63 +730,10 @@
                 (:wat::query::Store::DeleteRequest keys))]
        (:wat::core::match del
          ((:wat::kernel::RecvOutcome::Message sresp)
-           (:wat::core::let
-             [nap (:wat::core::fn [] -> :wat::core::nil
-                     (:wat::core::match
-                       (:wat::kernel::recv
-                         (:wat::kernel::after :wat::program::PeerKind::thread
-                           (:wat::time::Milliseconds 1) :done))
-                       ((:wat::kernel::RecvOutcome::Message _m) nil)
-                       ((:wat::kernel::RecvOutcome::Lost _c) nil)
-                       (:wat::kernel::RecvOutcome::Stopped nil)
-                       (:wat::kernel::RecvOutcome::Closed nil)
-                       (:wat::kernel::RecvOutcome::TimedOut nil)))
-              once-del (:wat::core::fn
-                          [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
-                          -> :wat::core::bool
-                          (:wat::core::match
-                            (:wat::query::Store/delete st (:wat::query::Store::DeleteRequest keys))
-                            ((:wat::kernel::RecvOutcome::Message r)
-                              (:wat::core::match r
-                                ((:wat::query::Store::DeleteResponse::Success) false)
-                                ((:wat::query::Store::DeleteResponse::Transient _e) true)
-                                ((:wat::query::Store::DeleteResponse::Constraint _e)
-                                  (:wat::kernel::assertion-failed! "queue.ack: store delete Constraint" :wat::core::None :wat::core::None))
-                                ((:wat::query::Store::DeleteResponse::Fatal _e)
-                                  (:wat::kernel::assertion-failed! "queue.ack: store delete Fatal" :wat::core::None :wat::core::None))
-                                ((:wat::query::Store::DeleteResponse::RequestTooLarge _b _c)
-                                  (:wat::kernel::assertion-failed! "queue.ack: store delete RequestTooLarge" :wat::core::None :wat::core::None))
-                                ((:wat::query::Store::DeleteResponse::RequestMalformed _p _e _g)
-                                  (:wat::kernel::assertion-failed! "queue.ack: store delete RequestMalformed" :wat::core::None :wat::core::None))))
-                            ((:wat::kernel::RecvOutcome::Lost _c)
-                              (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Stopped
-                              (:wat::kernel::assertion-failed! "queue.ack: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Closed
-                              (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::TimedOut
-                              (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None))))
-              _ok (:wat::core::match sresp
-                    ((:wat::query::Store::DeleteResponse::Success) nil)
-                    ((:wat::query::Store::DeleteResponse::Transient _e)
-                      (:wat::core::let
-                        [_n1 (nap)
-                         t1 (once-del store)
-                         t2 (:wat::core::if t1
-                              (:wat::core::let [_n2 (nap)] (once-del store))
-                              false)]
-                        (:wat::core::if t2
-                          (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None)
-                          nil)))
-                    ((:wat::query::Store::DeleteResponse::Constraint _e)
-                      (:wat::kernel::assertion-failed! "queue.ack: store delete Constraint" :wat::core::None :wat::core::None))
-                    ((:wat::query::Store::DeleteResponse::Fatal _e)
-                      (:wat::kernel::assertion-failed! "queue.ack: store delete Fatal" :wat::core::None :wat::core::None))
-                    ((:wat::query::Store::DeleteResponse::RequestTooLarge _b _c)
-                      (:wat::kernel::assertion-failed! "queue.ack: store delete RequestTooLarge" :wat::core::None :wat::core::None))
-                    ((:wat::query::Store::DeleteResponse::RequestMalformed _p _e _g)
-                      (:wat::kernel::assertion-failed! "queue.ack: store delete RequestMalformed" :wat::core::None :wat::core::None)))
-              s' (:queue::queue::State
+           (:wat::core::match sresp
+             ((:wat::query::Store::DeleteResponse::Success)
+               (:wat::core::let
+                 [s' (:queue::queue::State
                        :durable rec'
                        :store store
                        :take (:queue::queue::State/take s)
@@ -860,6 +766,18 @@
                      (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok))))
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                    (:wat::core::second pair))))
+             ((:wat::query::Store::DeleteResponse::Transient _e)
+               (:wat::core::let
+                 [_r (:queue::queue::retry-delete store keys)]
+                 (:queue::queue::ack-after-delete s store q rec' hit?)))
+             ((:wat::query::Store::DeleteResponse::Constraint _e)
+               (:wat::kernel::assertion-failed! "queue.ack: store delete Constraint" :wat::core::None :wat::core::None))
+             ((:wat::query::Store::DeleteResponse::Fatal _e)
+               (:wat::kernel::assertion-failed! "queue.ack: store delete Fatal" :wat::core::None :wat::core::None))
+             ((:wat::query::Store::DeleteResponse::RequestTooLarge _b _c)
+               (:wat::kernel::assertion-failed! "queue.ack: store delete RequestTooLarge" :wat::core::None :wat::core::None))
+             ((:wat::query::Store::DeleteResponse::RequestMalformed _p _e _g)
+               (:wat::kernel::assertion-failed! "queue.ack: store delete RequestMalformed" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
              [fresh (:wat::core::match
@@ -1047,6 +965,276 @@
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s'))]
        (:wat::service::SelfOutcome::Continue s-a box (:wat::core::second pair))))])
+
+;; Retry a transient put. Bound once at load so the send match's Transient
+;; arm stays a few lines — unused large arms are paid on every send.
+(:wat::core::defn :queue::queue::retry-put
+  [store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+   rows <- (:wat::core::Vector :- [:wat::query::StoredRow])]
+  -> :wat::core::bool
+  (:wat::core::let
+    [nap (:wat::core::fn [] -> :wat::core::nil
+            (:wat::core::match
+              (:wat::kernel::recv
+                (:wat::kernel::after :wat::program::PeerKind::thread
+                  (:wat::time::Milliseconds 1) :done))
+              ((:wat::kernel::RecvOutcome::Message _m) nil)
+              ((:wat::kernel::RecvOutcome::Lost _c) nil)
+              (:wat::kernel::RecvOutcome::Stopped nil)
+              (:wat::kernel::RecvOutcome::Closed nil)
+              (:wat::kernel::RecvOutcome::TimedOut nil)))
+     once-put (:wat::core::fn
+                 [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
+                 -> :wat::core::bool
+                 (:wat::core::match
+                   (:wat::query::Store/put st (:wat::query::Store::PutRequest rows))
+                   ((:wat::kernel::RecvOutcome::Message r)
+                     (:wat::core::match r
+                       ((:wat::query::Store::PutResponse::Success) false)
+                       ((:wat::query::Store::PutResponse::Transient _e) true)
+                       ((:wat::query::Store::PutResponse::Constraint _e)
+                         (:wat::kernel::assertion-failed! "queue.send: store put Constraint" :wat::core::None :wat::core::None))
+                       ((:wat::query::Store::PutResponse::Fatal _e)
+                         (:wat::kernel::assertion-failed! "queue.send: store put Fatal" :wat::core::None :wat::core::None))
+                       ((:wat::query::Store::PutResponse::RequestTooLarge _b _c)
+                         (:wat::kernel::assertion-failed! "queue.send: store put RequestTooLarge" :wat::core::None :wat::core::None))
+                       ((:wat::query::Store::PutResponse::RequestMalformed _p _e _g)
+                         (:wat::kernel::assertion-failed! "queue.send: store put RequestMalformed" :wat::core::None :wat::core::None))))
+                   ((:wat::kernel::RecvOutcome::Lost _c)
+                     (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None))
+                   (:wat::kernel::RecvOutcome::Stopped
+                     (:wat::kernel::assertion-failed! "queue.send: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
+                   (:wat::kernel::RecvOutcome::Closed
+                     (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None))
+                   (:wat::kernel::RecvOutcome::TimedOut
+                     (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None))))
+     _n1 (nap)
+     t1 (once-put store)
+     t2 (:wat::core::if t1
+          (:wat::core::let [_n2 (nap)] (once-put store))
+          false)]
+    (:wat::core::if t2
+      (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None)
+      true)))
+
+(:wat::core::defn :queue::queue::retry-delete
+  [store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+   keys <- (:wat::core::Vector :- [:wat::query::Key])]
+  -> :wat::core::bool
+  (:wat::core::let
+    [nap (:wat::core::fn [] -> :wat::core::nil
+            (:wat::core::match
+              (:wat::kernel::recv
+                (:wat::kernel::after :wat::program::PeerKind::thread
+                  (:wat::time::Milliseconds 1) :done))
+              ((:wat::kernel::RecvOutcome::Message _m) nil)
+              ((:wat::kernel::RecvOutcome::Lost _c) nil)
+              (:wat::kernel::RecvOutcome::Stopped nil)
+              (:wat::kernel::RecvOutcome::Closed nil)
+              (:wat::kernel::RecvOutcome::TimedOut nil)))
+     once-del (:wat::core::fn
+                 [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
+                 -> :wat::core::bool
+                 (:wat::core::match
+                   (:wat::query::Store/delete st (:wat::query::Store::DeleteRequest keys))
+                   ((:wat::kernel::RecvOutcome::Message r)
+                     (:wat::core::match r
+                       ((:wat::query::Store::DeleteResponse::Success) false)
+                       ((:wat::query::Store::DeleteResponse::Transient _e) true)
+                       ((:wat::query::Store::DeleteResponse::Constraint _e)
+                         (:wat::kernel::assertion-failed! "queue.ack: store delete Constraint" :wat::core::None :wat::core::None))
+                       ((:wat::query::Store::DeleteResponse::Fatal _e)
+                         (:wat::kernel::assertion-failed! "queue.ack: store delete Fatal" :wat::core::None :wat::core::None))
+                       ((:wat::query::Store::DeleteResponse::RequestTooLarge _b _c)
+                         (:wat::kernel::assertion-failed! "queue.ack: store delete RequestTooLarge" :wat::core::None :wat::core::None))
+                       ((:wat::query::Store::DeleteResponse::RequestMalformed _p _e _g)
+                         (:wat::kernel::assertion-failed! "queue.ack: store delete RequestMalformed" :wat::core::None :wat::core::None))))
+                   ((:wat::kernel::RecvOutcome::Lost _c)
+                     (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None))
+                   (:wat::kernel::RecvOutcome::Stopped
+                     (:wat::kernel::assertion-failed! "queue.ack: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
+                   (:wat::kernel::RecvOutcome::Closed
+                     (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None))
+                   (:wat::kernel::RecvOutcome::TimedOut
+                     (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None))))
+     _n1 (nap)
+     t1 (once-del store)
+     t2 (:wat::core::if t1
+          (:wat::core::let [_n2 (nap)] (once-del store))
+          false)]
+    (:wat::core::if t2
+      (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None)
+      true)))
+
+(:wat::core::defn :queue::queue::ack-after-delete
+  [s <- :queue::queue::State
+   store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+   q <- :wat::core::String
+   rec' <- :queue::queue::Record
+   hit? <- :wat::core::bool]
+  -> (:wat::service::Outcome :- [:queue::queue::State :queue::Queue::Reply :queue::queue::Op])
+  (:wat::core::let
+    [s' (:queue::queue::State
+          :durable rec'
+          :store store
+          :take (:queue::queue::State/take s)
+          :waiters (:queue::queue::State/waiters s)
+          :outbox (:queue::queue::State/outbox s)
+          :receive-calls (:queue::queue::State/receive-calls s)
+          :ticks (:queue::queue::State/ticks s)
+          :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
+          :q-name q
+          :tick-armed? (:queue::queue::State/tick-armed? s)
+          :arm-tick (:queue::queue::State/arm-tick s))
+     pair (:wat::core::apply (:queue::queue::State/arm-tick s')
+             (:queue::queue::State/tick-armed? s')
+             [(:wat::core::count (:queue::queue::State/waiters s')) 1000000])
+     s-a (:queue::queue::State
+           :durable (:queue::queue::State/durable s')
+           :store store
+           :take (:queue::queue::State/take s')
+           :waiters (:queue::queue::State/waiters s')
+           :outbox (:queue::queue::State/outbox s')
+           :receive-calls (:queue::queue::State/receive-calls s')
+           :ticks (:queue::queue::State/ticks s')
+           :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
+           :q-name (:queue::queue::State/q-name s')
+           :tick-armed? (:wat::core::first pair)
+           :arm-tick (:queue::queue::State/arm-tick s'))]
+    (:wat::service::Outcome::Continue s-a
+      (:wat::core::if hit?
+        :wat::core::None
+        (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok))))
+      (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+      (:wat::core::second pair))))
+
+;; Send-success continuation. Bound once at load so the Transient arm can
+;; call it without carrying the continuation as an unused match-arm body
+;; (that shape cost +1.7 s on publish — see SCORE-find-the-934-milliseconds).
+(:wat::core::defn :queue::queue::send-after-put
+  [s <- :queue::queue::State
+   store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+   q <- :wat::core::String
+   now-ns <- :wat::core::i64]
+  -> (:wat::service::Outcome :- [:queue::queue::State :queue::Queue::Reply :queue::queue::Op])
+  (:wat::core::let
+    [s' (:queue::queue::State
+          :durable (:queue::queue::State/durable s)
+          :store store
+          :take (:queue::queue::State/take s)
+          :waiters (:queue::queue::State/waiters s)
+          :outbox (:queue::queue::State/outbox s)
+          :receive-calls (:queue::queue::State/receive-calls s)
+          :ticks (:queue::queue::State/ticks s)
+          :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
+          :q-name q
+          :tick-armed? (:queue::queue::State/tick-armed? s)
+          :arm-tick (:queue::queue::State/arm-tick s))]
+    (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s'))
+      (:wat::core::let
+        [pair (:wat::core::apply (:queue::queue::State/arm-tick s')
+                 (:queue::queue::State/tick-armed? s')
+                 [(:wat::core::count (:queue::queue::State/waiters s')) 1000000])
+         s2 (:queue::queue::State
+              :durable (:queue::queue::State/durable s')
+              :store store
+              :take (:queue::queue::State/take s')
+              :waiters (:queue::queue::State/waiters s')
+              :outbox (:queue::queue::State/outbox s')
+              :receive-calls (:queue::queue::State/receive-calls s')
+              :ticks (:queue::queue::State/ticks s')
+              :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
+              :q-name (:queue::queue::State/q-name s')
+              :tick-armed? (:wat::core::first pair)
+              :arm-tick (:queue::queue::State/arm-tick s'))]
+        (:wat::service::Outcome::Continue s2
+          (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))
+          (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+          (:wat::core::second pair)))
+      (:wat::core::let
+        [wpair (:wat::core::foldl
+                 (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+                                                                (:wat::core::Tuple :- [(:wat::core::PersistentVector :- [:queue::Waiter])
+                                                                                       (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+                                                                                       :wat::core::i64])])
+                                  w   <- :queue::Waiter]
+                   -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+                                             (:wat::core::Tuple :- [(:wat::core::PersistentVector :- [:queue::Waiter])
+                                                                    (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+                                                                    :wat::core::i64])])
+                   (:wat::core::let
+                     [st   (:wat::core::first acc)
+                      inner (:wat::core::second acc)
+                      keep (:wat::core::first inner)
+                      box  (:wat::core::second inner)
+                      taken (:wat::core::third inner)
+                      empty-ok (:queue::Queue::Reply::Receive
+                                 (:queue::Queue::ReceiveResponse::Ok
+                                   (:wat::core::Vector :- [:queue::Envelope])))]
+                     (:wat::core::if (:wat::i64::<= (:queue::Waiter/deadline-ns w) now-ns)
+                       (:wat::core::Tuple st
+                         (:wat::core::Tuple keep
+                           (:wat::core::conj box
+                             (:wat::service::Directed :conn-id (:queue::Waiter/conn-id w) :reply empty-ok))
+                           taken))
+                       (:wat::core::let
+                         [taken-pair (:wat::core::apply (:queue::queue::State/take s')
+                                        st
+                                        (:queue::Waiter/queue w)
+                                        [now-ns
+                                         (:queue::Waiter/visibility-ns w)
+                                         (:queue::Waiter/limit w)])
+                          st' (:wat::core::first taken-pair)
+                          envs (:wat::core::second taken-pair)]
+                         (:wat::core::if (:wat::core::empty? envs)
+                           (:wat::core::Tuple st' (:wat::core::Tuple (:wat::vector::conj keep w) box taken))
+                           (:wat::core::Tuple st'
+                             (:wat::core::Tuple keep
+                               (:wat::core::conj box
+                                 (:wat::service::Directed
+                                   :conn-id (:queue::Waiter/conn-id w)
+                                   :reply (:queue::Queue::Reply::Receive
+                                            (:queue::Queue::ReceiveResponse::Ok envs))))
+                               (:wat::i64::+ taken (:wat::core::count envs)))))))))
+                 (:wat::core::Tuple store
+                   (:wat::core::Tuple
+                     (:wat::core::PersistentVector :- [:queue::Waiter])
+                     (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+                     0))
+                 (:queue::queue::State/waiters s'))
+         store2 (:wat::core::first wpair)
+         inner (:wat::core::second wpair)
+         keep (:wat::core::first inner)
+         box  (:wat::core::second inner)
+         s2 (:queue::queue::State
+              :durable (:queue::queue::State/durable s')
+              :store store2
+              :take (:queue::queue::State/take s')
+              :waiters keep
+              :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+              :receive-calls (:queue::queue::State/receive-calls s')
+              :ticks (:queue::queue::State/ticks s')
+              :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
+              :q-name (:queue::queue::State/q-name s')
+              :tick-armed? (:queue::queue::State/tick-armed? s')
+              :arm-tick (:queue::queue::State/arm-tick s'))
+         pair (:wat::core::apply (:queue::queue::State/arm-tick s2)
+                 (:queue::queue::State/tick-armed? s2)
+                 [(:wat::core::count (:queue::queue::State/waiters s2)) 1000000])
+         s3 (:queue::queue::State
+              :durable (:queue::queue::State/durable s2)
+              :store store2
+              :take (:queue::queue::State/take s2)
+              :waiters (:queue::queue::State/waiters s2)
+              :outbox (:queue::queue::State/outbox s2)
+              :receive-calls (:queue::queue::State/receive-calls s2)
+              :ticks (:queue::queue::State/ticks s2)
+              :depth (:queue::queue::State/depth s2) :total (:queue::queue::State/total s2)
+              :q-name (:queue::queue::State/q-name s2)
+              :tick-armed? (:wat::core::first pair)
+              :arm-tick (:queue::queue::State/arm-tick s2))
+         ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))]
+        (:wat::service::Outcome::Continue s3 ok box (:wat::core::second pair))))))
 
 ;; ── client helpers (the gate; Handle stays in the same let as the ops) ──────────
 (:wat::core::defn :user::dial-queue
