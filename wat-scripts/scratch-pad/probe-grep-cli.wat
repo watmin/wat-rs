@@ -33,7 +33,7 @@
            :end-col  ?ec
            :rule     "pg::match-arrow"
            :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "kind" :value ?k)))])
+                       (:wat::grep::Capture :name "kind" :value "symbol")))])
 
 ;; `:user::grep` — the mode's entry point. `--grep` validates this shape (the mirror wall) and
 ;; hands the result straight to `:wat::grep::run`. NO `:user::main` in this file — the direct

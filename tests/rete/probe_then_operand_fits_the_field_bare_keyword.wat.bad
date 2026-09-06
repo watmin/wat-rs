@@ -1,0 +1,11 @@
+;; NEGATIVE — a bare keyword in a :then value position. Triggers RhsUnresolvableOperand;
+;; the accepted list must name the call form / constructor, and the reason a keyword is
+;; refused (it is a field reference in a RHS) must still be findable.
+(:wat::core::defrecord :fit::Br [kind <- :wat::core::String])
+(:wat::core::defrecord :fit::In [n <- :wat::core::i64])
+
+(:wat::rete::defrule :fit::kw
+  :when [(:fit::In (?n <- :n))]
+  :then [(:fit::Br :kind :Block)])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

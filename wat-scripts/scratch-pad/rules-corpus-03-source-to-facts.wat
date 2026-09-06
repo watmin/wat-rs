@@ -95,7 +95,7 @@
            :end-col  ?ec
            :rule     "fx::match-arrow"
            :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "kind" :value ?k)))])
+                       (:wat::grep::Capture :name "id" :value (:wat::rete::i64::to-string ?id))))])
 
 (:wat::core::defn :fx::report [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let [facts (:wat::grep::facts-of path (:wat::io::read-file path))

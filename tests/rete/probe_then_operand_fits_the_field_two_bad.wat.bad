@@ -1,0 +1,9 @@
+;; NEGATIVE — two mismatched operands on one rule. Both must be reported (batch, do not bail).
+(:wat::core::defrecord :fit::Box [a <- :wat::core::String b <- :wat::core::String])
+(:wat::core::defrecord :fit::Num [n <- :wat::core::i64 m <- :wat::core::i64])
+
+(:wat::rete::defrule :fit::two
+  :when [(:fit::Num (?n <- :n) (?m <- :m))]
+  :then [(:fit::Box :a ?n :b ?m)])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

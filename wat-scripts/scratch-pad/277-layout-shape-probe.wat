@@ -54,7 +54,8 @@
                        (:wat::grep::Capture :name "dline" :value (:wat::rete::i64::to-string
                                                                    (:wat::rete::i64::- ?cl ?hl :undefined 0)))
                        (:wat::grep::Capture :name "col"   :value (:wat::rete::i64::to-string ?cc))
-                       (:wat::grep::Capture :name "kind"  :value ?ck)))])
+                       ;; kind was NodeKind; Capture.value is String. Dropped, not stringified.
+                       ))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :ls))

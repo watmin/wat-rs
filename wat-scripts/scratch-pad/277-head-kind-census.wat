@@ -34,8 +34,10 @@
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "head-kind"
            :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "kind" :value ?k)
-                       (:wat::grep::Capture :name "pkind" :value ?pk)))])
+                       ;; Capture.value is String; NodeKind cannot ride it (STONE-the-then-block-
+                       ;; never-checked-its-operand). enum::name is out of scope. The ids remain.
+                       (:wat::grep::Capture :name "hid" :value (:wat::rete::i64::to-string ?h))
+                       (:wat::grep::Capture :name "pid" :value (:wat::rete::i64::to-string ?p))))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :hk))

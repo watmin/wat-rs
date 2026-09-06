@@ -23,7 +23,7 @@
            :end-col  ?ec
            :rule     "g7::match-arrow"
            :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "kind" :value ?k)))])
+                       (:wat::grep::Capture :name "kind" :value "symbol")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector :- [:wat::rete::Rule] (:g7::arrow) (:g7::match-arrow)))

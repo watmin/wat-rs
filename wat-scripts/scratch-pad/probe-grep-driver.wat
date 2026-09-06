@@ -31,7 +31,7 @@
            :end-col  ?ec
            :rule     "pg::match-arrow"
            :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "kind" :value ?k)))])
+                       (:wat::grep::Capture :name "kind" :value "symbol")))])
 
 (:wat::core::defn :user::the-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector :- [:wat::rete::Rule] (:pg::arrow) (:pg::match-arrow)))

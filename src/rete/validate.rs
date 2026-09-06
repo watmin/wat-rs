@@ -117,6 +117,23 @@ pub enum ReteCheckErrorKind {
         /// `RVINA ERVDIT`), mirroring `UnknownField`'s `available_fields`.
         accepted: Vec<String>,
     },
+    /// A `:then` operand whose DECLARED type does not match the field it lands in.
+    ///
+    /// `check_rhs_operands` used to ask only whether an operand could ever resolve (a
+    /// literal, a `?var`, a List). It never asked whether it FITS. So
+    /// `(:user::Box :label ?n)` with `?n` an i64 and `label` a String type-checked
+    /// CLEAN and died at an innocent consumer. Two different enums both rete-segment
+    /// to `"enum"` — this variant compares the declared types, not the segments.
+    RhsOperandTypeMismatch {
+        rule: String,
+        fact_type: String,
+        field: String,
+        /// The field's declared type, rendered as wat source (`format_type`).
+        declared: String,
+        /// The operand's declared type — a literal's type, a `?var`'s bind, or a
+        /// constructor's head. Same renderer, so Alpha and Beta do not collapse.
+        actual: String,
+    },
     /// Arc 278 BRIEF-construction-total-three-walls.md #2 — a kwargs `:then` RHS under-supplies
     /// `fact_type`'s declared fields. `reorder_kwargs_by_field_name`'s own doc used to call this
     /// "pre-existing behavior, unchanged" (a supplied-fewer-than-all kwargs RHS silently built a
@@ -214,11 +231,30 @@ impl fmt::Display for ReteCheckErrorKind {
                 f,
                 "defrule `{rule}`: `:then` insert of `:{fact_type}` expects {expected} positional argument(s); got {got}"
             ),
-            ReteCheckErrorKind::RhsUnresolvableOperand { rule, fact_type, operand, accepted } => write!(
+            ReteCheckErrorKind::RhsUnresolvableOperand { rule, fact_type, operand, accepted } => {
+                write!(
+                    f,
+                    "defrule `{rule}`: `:then` insert of `:{fact_type}` has operand `{operand}`, which can \
+                     never resolve at fire time — a RHS operand must be {}",
+                    accepted.join(", or ")
+                )?;
+                // A bare keyword on a RHS is a FIELD REFERENCE (there is no current fact to
+                // read). This is the sentence that taught `Break.kind` to be a String —
+                // the accepted list used to offer nothing but literals and `?var`.
+                if operand.starts_with(':') && !operand.contains('(') && !operand.contains(' ') {
+                    write!(
+                        f,
+                        " — a keyword is a field reference in a RHS, not a value"
+                    )?;
+                }
+                Ok(())
+            }
+            ReteCheckErrorKind::RhsOperandTypeMismatch {
+                rule, fact_type, field, declared, actual,
+            } => write!(
                 f,
-                "defrule `{rule}`: `:then` insert of `:{fact_type}` has operand `{operand}`, which can \
-                 never resolve at fire time — a RHS operand must be {}",
-                accepted.join(", or ")
+                "defrule `{rule}`: `:then` insert of `:{fact_type}` field `:{field}` is declared \
+                 `{declared}`; operand is `{actual}`"
             ),
             ReteCheckErrorKind::RhsMissingFields { rule, fact_type, missing } => write!(
                 f,
@@ -540,7 +576,9 @@ fn validate_rule_when_and_reorder_then(
     };
 
     // :when (mr[2] = (quote [<cond>…])) — validate only, no rewrite.
-    if let Some(when_conds) = quote_vector(mr.get(2)) {
+    // Binds are collected BEFORE the mutable :then walk: quote_vector borrows `mr`
+    // immutably, and `mr.get_mut(3)` cannot overlap that borrow.
+    let binds = if let Some(when_conds) = quote_vector(mr.get(2)) {
         // ★ Binds collected across EVERY condition of the rule, before any is validated. A join
         // variable is bound in one pattern and compared in another, so a per-pattern map would
         // leave it unresolvable — and "unresolvable" was quietly meaning "skip the check". It is
@@ -549,14 +587,18 @@ fn validate_rule_when_and_reorder_then(
         for cond in when_conds {
             validate_when_entry(cond, &rule_name, types, &binds, errors);
         }
-    }
+        binds
+    } else {
+        std::collections::HashMap::new()
+    };
 
     // :then (mr[3] = (quote [<fact-form>…])) — validate, then reorder kwargs. Arc 278 Stone A:
-    // each member is a bare fact-form, no more `insert` wrapper.
+    // each member is a bare fact-form, no more `insert` wrapper. A :then `?var` is typed by
+    // the field it was bound from in :when.
     if let Some(WatAST::List(quote_items, _)) = mr.get_mut(3) {
         if let Some(WatAST::Vector(then_forms, _)) = quote_items.get_mut(1) {
             for fact_form in then_forms.iter_mut() {
-                validate_then_form(fact_form, &rule_name, types, errors);
+                validate_then_form(fact_form, &rule_name, types, &binds, errors);
             }
         }
     }
@@ -1140,14 +1182,82 @@ fn rhs_operand_can_never_resolve(arg: &WatAST) -> bool {
     ) && !matches!(arg, WatAST::Symbol(ident, _) if ident.as_str().starts_with('?'))
 }
 
-/// Flag every value-position operand of a `:then` insert that can never resolve.
+/// What a RHS operand may be — the teaching list on `RhsUnresolvableOperand`.
+/// A `List` (call form) is legal since arc 278 Stone B; the old list omitted it,
+/// which is the message that taught `Break.kind` to be a String.
+fn rhs_operand_accepted() -> Vec<String> {
+    vec![
+        "a ?var bound by this rule's :when".to_string(),
+        "an integer / float / boolean / string literal".to_string(),
+        "a call form — a constructor, or a fenced :wat::rete:: expression".to_string(),
+    ]
+}
+
+/// The declared type of a `:then` operand, when it is knowable without `sym`.
+///
+/// `None` is NOT "skip, it's fine" — it is "this stone does not judge this shape":
+/// a call form that is not a constructor (a fenced `:wat::rete::` expression's
+/// return type needs `sym`), or an unbound `?var` (a different wall, scoped out).
+/// Two enums both rete-segment to `"enum"`; this returns the DECLARED path so
+/// Alpha-into-Beta is visible.
+fn then_operand_declared_type(
+    operand: &WatAST,
+    binds: &std::collections::HashMap<String, String>,
+    types: &TypeEnv,
+) -> Option<String> {
+    match operand {
+        WatAST::IntLit(..) => Some(":wat::core::i64".to_string()),
+        WatAST::FloatLit(..) => Some(":wat::core::f64".to_string()),
+        WatAST::StringLit(..) => Some(":wat::core::String".to_string()),
+        WatAST::BoolLit(..) => Some(":wat::core::bool".to_string()),
+        WatAST::Symbol(sym, _) if sym.as_str().starts_with('?') => {
+            binds.get(sym.as_str()).cloned()
+        }
+        WatAST::List(items, _) if !items.is_empty() => {
+            let WatAST::Keyword(head, _) = &items[0] else { return None };
+            if kwargs_construct_head(head) {
+                if let Some(WatAST::Keyword(ty, _)) = items.get(1) {
+                    return Some(format!(":{}", type_env_name(ty)));
+                }
+                return None;
+            }
+            if lookup_fields(types, &type_env_name(head)).is_some() {
+                return Some(format!(":{}", type_env_name(head)));
+            }
+            if let Some((enum_path, variant)) = head.rsplit_once("::") {
+                let enum_key = if enum_path.starts_with(':') {
+                    enum_path.to_string()
+                } else {
+                    format!(":{enum_path}")
+                };
+                if let Some(TypeDef::Enum(e)) = types.get(&enum_key) {
+                    let known = e.variants.iter().any(|v| match v {
+                        EnumVariant::Unit(n) => n == variant,
+                        EnumVariant::Tagged { name, .. } => name == variant,
+                    });
+                    if known {
+                        return Some(enum_key);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Flag every value-position operand of a `:then` insert that can never resolve,
+/// AND every operand whose declared type does not match the field it lands in.
 fn check_rhs_operands(
-    value_args: &[WatAST],
+    pairs: &[(&str, &WatAST)],
+    field_types: &std::collections::HashMap<String, String>,
+    binds: &std::collections::HashMap<String, String>,
+    types: &TypeEnv,
     rule_name: &str,
     fact_type: &str,
     errors: &mut Vec<ReteCheckError>,
 ) {
-    for arg in value_args {
+    for (field, arg) in pairs {
         if rhs_operand_can_never_resolve(arg) {
             errors.push(ReteCheckError {
                 span: arg.span().clone(),
@@ -1155,13 +1265,82 @@ fn check_rhs_operands(
                     rule: rule_name.to_string(),
                     fact_type: fact_type.to_string(),
                     operand: render_form(arg),
-                    accepted: vec![
-                        "a ?var bound by this rule's :when".to_string(),
-                        "an integer / float / boolean / string literal".to_string(),
-                    ],
+                    accepted: rhs_operand_accepted(),
+                },
+            });
+            continue;
+        }
+        let Some(declared) = field_types.get(*field) else { continue };
+        let Some(actual) = then_operand_declared_type(arg, binds, types) else { continue };
+        if !then_types_fit(declared, &actual) {
+            errors.push(ReteCheckError {
+                span: arg.span().clone(),
+                kind: ReteCheckErrorKind::RhsOperandTypeMismatch {
+                    rule: rule_name.to_string(),
+                    fact_type: fact_type.to_string(),
+                    field: (*field).to_string(),
+                    declared: declared.clone(),
+                    actual,
                 },
             });
         }
+    }
+}
+
+fn field_type_map(types: &TypeEnv, fact_type: &str) -> std::collections::HashMap<String, String> {
+    let names = lookup_fields(types, fact_type).unwrap_or_default();
+    let tys = lookup_field_types(types, fact_type).unwrap_or_default();
+    names.into_iter().zip(tys).collect()
+}
+
+/// The defrecord companion lowers `(:T :f v …)` to
+/// `(:wat::core::kwargs-construct :T :f v …)` before freeze validation sees the
+/// `:then`. Nested constructors therefore do not have `:T` as their head.
+/// Declared-type identity, with one honest widening: a constructor of enum `E`
+/// has declared type `:E`, while a field may be parametric `(:E :- […])`
+/// (`Option/Some` into `Option<Pos>`). That is not a rete-segment collapse —
+/// the HEAD must still be the same type. Alpha-into-Beta stays refused.
+fn then_types_fit(declared: &str, actual: &str) -> bool {
+    if declared == actual {
+        return true;
+    }
+    if let Some(head) = parametric_type_head(declared) {
+        if actual == head {
+            return true;
+        }
+    }
+    false
+}
+
+fn parametric_type_head(t: &str) -> Option<String> {
+    let t = t.trim();
+    if !(t.starts_with('(') && t.contains(" :- ")) {
+        return None;
+    }
+    let inner = t.trim_start_matches('(').trim_end_matches(')');
+    inner.split(" :- ").next().map(str::to_string)
+}
+
+fn kwargs_construct_head(head: &str) -> bool {
+    let h = head.trim_start_matches(':');
+    h == "wat::core::kwargs-construct" || h.ends_with("kwargs-construct")
+}
+
+/// TypeEnv keys are colon-FQDNs (`:wat::grep::Capture`). A Keyword may store that,
+/// or the slash-path `wat.grep/Capture`.
+fn type_env_name(kw: &str) -> String {
+    let k = kw.trim_start_matches(':');
+    if k.contains("::") {
+        k.to_string()
+    } else if k.contains('/') {
+        // Through the ONE door — `identifier::receiver`/`method` are the sanctioned readers
+        // for `/`-structure; a hand-rolled `rsplit_once('/')` here is a SECOND name parser
+        // (STONE-one-name-grammar, arc 109) and the lint says so by name.
+        let ns = wat_reader::identifier::receiver(k);
+        let name = wat_reader::identifier::method(k);
+        format!("{}::{name}", ns.replace('.', "::"))
+    } else {
+        k.to_string()
     }
 }
 
@@ -1191,6 +1370,7 @@ fn walk_nested_constructors(
     operand: &WatAST,
     rule_name: &str,
     types: &TypeEnv,
+    binds: &std::collections::HashMap<String, String>,
     errors: &mut Vec<ReteCheckError>,
 ) {
     let WatAST::List(items, span) = operand else { return };
@@ -1199,9 +1379,29 @@ fn walk_nested_constructors(
     }
     if let WatAST::Keyword(head, _) = &items[0] {
         let args = &items[1..];
-        // Bare aggregate-type constructor head.
-        if let Some(TypeDef::Aggregate(_)) = types.get(head) {
-            let nested_type = head.trim_start_matches(':').to_string();
+        if kwargs_construct_head(head) {
+            if let Some(WatAST::Keyword(ty, _)) = items.get(1) {
+                let nested_type = type_env_name(ty);
+                let rest = &items[2..];
+                if crate::rete::eval_insert::rete_is_kwargs(rest) {
+                    let type_map = field_type_map(types, &nested_type);
+                    let pairs: Vec<(&str, &WatAST)> = rest.chunks(2).filter_map(|pair| {
+                        let WatAST::Keyword(k, _) = &pair[0] else { return None };
+                        Some((k.trim_start_matches(':'), &pair[1]))
+                    }).collect();
+                    check_rhs_operands(&pairs, &type_map, binds, types, rule_name, &nested_type, errors);
+                }
+                for arg in rest {
+                    walk_nested_constructors(arg, rule_name, types, binds, errors);
+                }
+                return;
+            }
+        }
+        // Bare aggregate-type constructor head. `lookup_fields` is the same door
+        // `validate_then_form` uses (`:{fact_type}` key); `types.get(head)` misses when
+        // the Keyword's stored name has no leading colon.
+        if lookup_fields(types, &type_env_name(head)).is_some() {
+            let nested_type = type_env_name(head);
             let field_names = lookup_fields(types, &nested_type).unwrap_or_default();
             let is_kwargs = crate::rete::eval_insert::rete_is_kwargs(args);
             if is_kwargs {
@@ -1236,6 +1436,12 @@ fn walk_nested_constructors(
                         },
                     });
                 }
+                let type_map = field_type_map(types, &nested_type);
+                let pairs: Vec<(&str, &WatAST)> = args.chunks(2).filter_map(|pair| {
+                    let WatAST::Keyword(k, _) = &pair[0] else { return None };
+                    Some((k.trim_start_matches(':'), &pair[1]))
+                }).collect();
+                check_rhs_operands(&pairs, &type_map, binds, types, rule_name, &nested_type, errors);
             } else if args.len() <= 1 {
                 // Single-arg / zero-arg positional passthrough — mirrors `eval_kwargs_construct`'s
                 // own `rest.len() <= 1` passthrough straight to `construct_aggregate`.
@@ -1250,6 +1456,11 @@ fn walk_nested_constructors(
                         },
                     });
                 }
+                let type_map = field_type_map(types, &nested_type);
+                let pairs: Vec<(&str, &WatAST)> = field_names.iter().map(|s| s.as_str())
+                    .zip(args.iter())
+                    .collect();
+                check_rhs_operands(&pairs, &type_map, binds, types, rule_name, &nested_type, errors);
             } else {
                 // Multi-arg, not kwargs — `eval_kwargs_construct` retires this shape
                 // unconditionally at fire time; wall it here with its own message.
@@ -1263,14 +1474,19 @@ fn walk_nested_constructors(
                 });
             }
             for arg in args {
-                walk_nested_constructors(arg, rule_name, types, errors);
+                walk_nested_constructors(arg, rule_name, types, binds, errors);
             }
             return;
         }
         // Bare enum-variant constructor head (`{EnumPath}::{Variant}`) — mirrors
         // `constructor_meta`'s own resolution (`purity.rs`).
         if let Some((enum_path, variant)) = head.rsplit_once("::") {
-            if let Some(TypeDef::Enum(e)) = types.get(enum_path) {
+            let enum_key = if enum_path.starts_with(':') {
+                enum_path.to_string()
+            } else {
+                format!(":{enum_path}")
+            };
+            if let Some(TypeDef::Enum(e)) = types.get(&enum_key) {
                 let expected = e.variants.iter().find_map(|v| match v {
                     EnumVariant::Unit(n) if n == variant => Some(0usize),
                     EnumVariant::Tagged { name, fields } if name == variant => Some(fields.len()),
@@ -1290,7 +1506,7 @@ fn walk_nested_constructors(
                         });
                     }
                     for arg in args {
-                        walk_nested_constructors(arg, rule_name, types, errors);
+                        walk_nested_constructors(arg, rule_name, types, binds, errors);
                     }
                     return;
                 }
@@ -1300,7 +1516,7 @@ fn walk_nested_constructors(
     // Not a recognized constructor head — recurse into every item anyway (a plain call's
     // arguments, e.g. `(:wat::core::+ (:usr::Inner 1) ?a)`, may still nest a constructor deeper).
     for item in items {
-        walk_nested_constructors(item, rule_name, types, errors);
+        walk_nested_constructors(item, rule_name, types, binds, errors);
     }
 }
 
@@ -1310,6 +1526,7 @@ fn validate_then_form(
     fact_form: &mut WatAST,
     rule_name: &str,
     types: &TypeEnv,
+    binds: &std::collections::HashMap<String, String>,
     errors: &mut Vec<ReteCheckError>,
 ) {
     let fact_span = fact_form.span().clone();
@@ -1395,28 +1612,34 @@ fn validate_then_form(
                 },
             });
         }
+        // The wall, kwargs side — unresolvable operands AND declared-type fit. Batch with
+        // unknown/missing rather than returning first: a rule can be both under-supplied AND
+        // type-wrong. Checked on the author's operands, before reorder rewrites `fact_items`.
+        let type_map = field_type_map(types, &fact_type);
+        let pairs: Vec<(&str, &WatAST)> = kv_pairs.iter().map(|(k, v)| (k.as_str(), v)).collect();
+        check_rhs_operands(&pairs, &type_map, binds, types, rule_name, &fact_type, errors);
+        // Arc 278 #1/#3 — recurse for a NESTED constructor operand (e.g. `:inner (:usr::Inner
+        // :x 1)`); the top-level shape above only covers THIS item's own head.
+        for (_, v) in &kv_pairs {
+            walk_nested_constructors(v, rule_name, types, binds, errors);
+        }
+
         if !all_known || has_missing {
             return; // do not rewrite a form already flagged invalid
         }
-        // The wall, kwargs side. Checked BEFORE the reorder rewrites `fact_items` in place, so
-        // the operand reported is the one the author wrote, at the span they wrote it at.
-        let kwargs_values: Vec<WatAST> = kv_pairs.iter().map(|(_, v)| v.clone()).collect();
-        check_rhs_operands(&kwargs_values, rule_name, &fact_type, errors);
-        // Arc 278 #1/#3 — recurse for a NESTED constructor operand (e.g. `:inner (:usr::Inner
-        // :x 1)`); the top-level shape above only covers THIS item's own head.
-        for v in &kwargs_values {
-            walk_nested_constructors(v, rule_name, types, errors);
-        }
-
         reorder_then_kwargs(fact_items, &field_names, &kv_pairs, &fact_span, rule_name, &fact_type, errors);
     } else {
         // The wall, positional side. Independent of the arity verdict below: a rule can be both
         // wrong-arity AND carry an unresolvable operand, and batching every finding is this
         // validator's whole contract (`validate_rete_rules` returns them all, not the first).
-        check_rhs_operands(args, rule_name, &fact_type, errors);
+        let type_map = field_type_map(types, &fact_type);
+        let pairs: Vec<(&str, &WatAST)> = field_names.iter().map(|s| s.as_str())
+            .zip(args.iter())
+            .collect();
+        check_rhs_operands(&pairs, &type_map, binds, types, rule_name, &fact_type, errors);
         // Arc 278 #1/#3 — recurse for a NESTED constructor operand, same as the kwargs branch.
         for a in args {
-            walk_nested_constructors(a, rule_name, types, errors);
+            walk_nested_constructors(a, rule_name, types, binds, errors);
         }
 
         // Positional: arg count must equal the type's field count.

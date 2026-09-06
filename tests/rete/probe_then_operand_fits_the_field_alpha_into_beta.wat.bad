@@ -1,0 +1,12 @@
+;; NEGATIVE — Alpha into a Beta field. A segment-based check returns "enum" for both
+;; and would PASS; declared-type identity must REFUSE.
+(:wat::core::defenum :fit::Alpha :wat::enum::Pure :A [])
+(:wat::core::defenum :fit::Beta :wat::enum::Pure :B [])
+(:wat::core::defrecord :fit::Box [k <- :fit::Beta])
+(:wat::core::defrecord :fit::Src [k <- :fit::Alpha])
+
+(:wat::rete::defrule :fit::cross
+  :when [(:fit::Src (?k <- :k))]
+  :then [(:fit::Box :k ?k)])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
