@@ -272,7 +272,7 @@ fn render_phase_table_proves_missing_phase_and_zero_total() {
     assert!(boom.is_err(), "missing required phase must panic");
 }
 
-/// The keyed-gather gate — RED until the Accumulate/Negation/Exists gathers are keyed.
+/// The keyed-gather ratio — a SECOND reading, not the proof.
 ///
 /// Both runs hold the ELEMENT COUNT CONSTANT (G×W = 800 readings) and differ only in how many
 /// tokens probe them (8× apart in group count). That separates "the gather is quadratic" from
@@ -283,14 +283,10 @@ fn render_phase_table_proves_missing_phase_and_zero_total() {
 ///   un-keyed (today): every token scans all 800 elements → visits ∝ G → an 8× spread.
 ///   keyed:            every token probes its own bucket   → visits ≈ G×W = 800/node → FLAT.
 ///
-/// What would turn this red — the R59 question, answered before the assertion was written:
-///   (a) the instrument recording nothing (`small == 0`) — asserted separately, because a
-///       silent zero would make the ratio 0/0 and "pass" while measuring nothing at all;
-///   (b) a gather that still walks the whole element memory per token — the defect under test;
-///   (c) a keyed gather whose buckets are wrong in a way that re-scans (e.g. an empty key
-///       tuple degenerating every element into one bucket for a workload that DOES share vars).
-///
-/// It cannot pass by luck or by machine speed: it counts examinations, not nanoseconds.
+/// ⛔ THIS RATIO IS EXACTLY BLIND on `and-exists`. Keyed visits are `G·W·(1+W)`; a whole-memory
+/// scan adds `G·elements`. Holding `G×W` constant makes the sum symmetric in G and W, so the
+/// regressed ratio is 1.00 at every swap. The proof is `keyed_gather_visits_match_the_keyed_prediction`.
+/// This bound stays as a second reading for shapes the closed form does not model.
 #[test]
 fn keyed_gather_visits_do_not_scale_with_group_count() {
     // G×W = 800 readings in BOTH runs; only the token count moves (10 → 80).
@@ -346,6 +342,41 @@ fn path_pair(rule: &str) -> (u64, u64) {
     )
 }
 
+/// Axis points with G×W = 800. Four points so a formula that fits one pair is not a coincidence.
+const GATHER_POINTS: [(i64, i64); 4] = [(10, 80), (20, 40), (40, 20), (80, 10)];
+
+fn pred_simple(g: i64, w: i64) -> u64 {
+    (g as u64) * (w as u64)
+}
+
+fn pred_and_exists(g: i64, w: i64) -> u64 {
+    let (g, w) = (g as u64, w as u64);
+    g * w * (1 + w)
+}
+
+const DISTINCT_RULE: &str = "\
+(:wat::rete::defrule :one::distinct-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?xs <- (:wat::rete::acc::distinct ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then [(:one::Out ?g 0)])";
+const ALL_RULE: &str = "\
+(:wat::rete::defrule :one::all-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?xs <- (:wat::rete::acc::all) :from (:one::Reading (?g <- :g)))]\n\
+  :then [(:one::Out ?g 0)])";
+const GROUP_BY_RULE: &str = "\
+(:wat::rete::defrule :one::group-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (?m <- (:wat::rete::acc::group-by ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :then [(:one::Out ?g 0)])";
+const AND_EXISTS_RULE: &str = "\
+(:wat::rete::defrule :one::and-exists-rule\n\
+  :when [(:one::Group (?g <- :g))\n\
+         (:wat::rete::exists (:wat::rete::and\n\
+           (:one::Reading (?g <- :g) (?v <- :v))\n\
+           (:one::Reading (?g <- :g) (?v <- :v))))]\n\
+  :then [(:one::Out ?g 1)])";
+
 /// ★ Every instrumented gather path, not just count+sum+exists-leaf.
 ///
 /// The Distinct/All/GroupBy arm materialises the bucket (`gather_bucket`). The mapping
@@ -356,38 +387,12 @@ fn path_pair(rule: &str) -> (u64, u64) {
 /// Old axis (`ACCUM_GATHER_WORLD`) is re-read here so a perturbation of 800/800 is visible.
 #[test]
 fn keyed_gather_visits_per_instrumented_path() {
-    const DISTINCT: &str = "\
-(:wat::rete::defrule :one::distinct-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?xs <- (:wat::rete::acc::distinct ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
-  :then [(:one::Out ?g 0)])";
-    const ALL: &str = "\
-(:wat::rete::defrule :one::all-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?xs <- (:wat::rete::acc::all) :from (:one::Reading (?g <- :g)))]\n\
-  :then [(:one::Out ?g 0)])";
-    const GROUP_BY: &str = "\
-(:wat::rete::defrule :one::group-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?m <- (:wat::rete::acc::group-by ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
-  :then [(:one::Out ?g 0)])";
-    // Leaf under `:and` → `binding_extensions` → `seeded_bindings_keyed`. Two fact
-    // kids keep `:and` a combinator (a lone Leaf under `:exists` is `any_seeded_keyed`
-    // / `!bucket.is_empty()`, O(1)). No leftover SeedCmp: Reading binds ?g and ?v.
-    const AND_EXISTS: &str = "\
-(:wat::rete::defrule :one::and-exists-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (:wat::rete::exists (:wat::rete::and\n\
-           (:one::Reading (?g <- :g) (?v <- :v))\n\
-           (:one::Reading (?g <- :g) (?v <- :v))))]\n\
-  :then [(:one::Out ?g 1)])";
-
     let old_small = accum_gather_visits(10, 80);
     let old_big = accum_gather_visits(80, 10);
-    let distinct = path_pair(DISTINCT);
-    let all = path_pair(ALL);
-    let group_by = path_pair(GROUP_BY);
-    let and_exists = path_pair(AND_EXISTS);
+    let distinct = path_pair(DISTINCT_RULE);
+    let all = path_pair(ALL_RULE);
+    let group_by = path_pair(GROUP_BY_RULE);
+    let and_exists = path_pair(AND_EXISTS_RULE);
 
     let row = |name: &str, (s, b): (u64, u64)| {
         let ratio = if s == 0 { f64::INFINITY } else { b as f64 / s as f64 };
@@ -446,6 +451,96 @@ fn keyed_gather_visits_per_instrumented_path() {
              element count is constant at 800"
         );
     }
+}
+
+/// ★ THE PROOF: visits equal the keyed prediction, at four (G,W) points with G×W = 800.
+///
+/// Simple keyed gather (each token probes its bucket of W readings): `G · W`.
+/// `:and` of two Leaves under `:exists`: first Leaf yields W, each of those extends
+/// through the second Leaf's W → `G · (W + W²) = G · W · (1 + W)`.
+///
+/// A whole-memory-per-token scan adds `G · (G·W)` and breaks the equality at every point.
+/// The ratio on `and-exists` cannot see that class — see the mutation below.
+#[test]
+fn keyed_gather_visits_match_the_keyed_prediction() {
+    let mut table = String::from(
+        "\nkeyed-gather prediction — visits == formula, G×W = 800\n\
+         \x20 path          G    W     got    pred\n\
+         \x20 -------------------------------------\n",
+    );
+    let simple = [
+        ("old-axis", None),
+        ("distinct", Some(DISTINCT_RULE)),
+        ("all", Some(ALL_RULE)),
+        ("group-by", Some(GROUP_BY_RULE)),
+    ];
+    for (name, rule) in simple {
+        for (g, w) in GATHER_POINTS {
+            let got = match rule {
+                None => accum_gather_visits(g, w),
+                Some(r) => one_rule_gather_visits(r, g, w),
+            };
+            let pred = pred_simple(g, w);
+            table.push_str(&format!("  {name:<12} {g:>3} {w:>4} {got:>8} {pred:>8}\n"));
+            assert_eq!(
+                got, pred,
+                "{name} G={g} W={w}: visits {got} ≠ keyed prediction G·W = {pred}\n{table}"
+            );
+        }
+    }
+    for (g, w) in GATHER_POINTS {
+        let got = one_rule_gather_visits(AND_EXISTS_RULE, g, w);
+        let pred = pred_and_exists(g, w);
+        table.push_str(&format!("  {:<12} {g:>3} {w:>4} {got:>8} {pred:>8}\n", "and-exists"));
+        assert_eq!(
+            got, pred,
+            "and-exists G={g} W={w}: visits {got} ≠ keyed prediction G·W·(1+W) = {pred}\n{table}"
+        );
+    }
+    println!("{table}");
+}
+
+/// Simulated whole-memory-per-token on `and-exists`: add `G · elements` to the observed
+/// keyed count. Not an unkeyed engine — the regression is applied in this test's arithmetic.
+///
+/// Holding G×W = 800 constant, keyed + G·800 is symmetric in G and W, so the ratio of the
+/// two swap points is exactly 1.00 (the ratio assertion PASSES). The equality against
+/// `G·W·(1+W)` FAILS at both points. That is the ratio's blind spot.
+#[test]
+fn predicted_visits_redden_under_a_whole_memory_scan_the_ratio_cannot_see() {
+    let elements = pred_simple(10, 80);
+    assert_eq!(elements, 800);
+    let (g1, w1) = (10i64, 80i64);
+    let (g2, w2) = (80i64, 10i64);
+    let obs1 = one_rule_gather_visits(AND_EXISTS_RULE, g1, w1);
+    let obs2 = one_rule_gather_visits(AND_EXISTS_RULE, g2, w2);
+    let pred1 = pred_and_exists(g1, w1);
+    let pred2 = pred_and_exists(g2, w2);
+    assert_eq!(obs1, pred1, "precondition: keyed count must match the formula");
+    assert_eq!(obs2, pred2, "precondition: keyed count must match the formula");
+
+    let fake1 = obs1 + (g1 as u64) * elements;
+    let fake2 = obs2 + (g2 as u64) * elements;
+    let ratio = fake2 as f64 / fake1 as f64;
+    println!(
+        "\nand-exists whole-memory simulation (add G·elements)\n\
+         \x20 (G,W)=({g1},{w1}): keyed {obs1} + {g1}·{elements} = {fake1}  pred {pred1}\n\
+         \x20 (G,W)=({g2},{w2}): keyed {obs2} + {g2}·{elements} = {fake2}  pred {pred2}\n\
+         \x20 ratio of fakes: {ratio:.2}  (≤ 2.0 would PASS)\n"
+    );
+    assert!(
+        ratio <= 2.0,
+        "the ratio of the simulated regression must still pass; got {ratio:.2}"
+    );
+    assert_eq!(
+        fake1, fake2,
+        "the simulation must be symmetric in G and W (the ratio's blind spot); {fake1} vs {fake2}"
+    );
+    assert!(
+        fake1 != pred1 && fake2 != pred2,
+        "equality against G·W·(1+W) must REDDEN under the simulation: \
+         fake {fake1}/{fake2} vs pred {pred1}/{pred2}"
+    );
 }
 
 /// Native FIRE rank across the three instrumented cells now that
