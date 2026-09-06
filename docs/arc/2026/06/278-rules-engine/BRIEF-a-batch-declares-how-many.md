@@ -173,3 +173,81 @@ Both are gates.
 |---|---|---|
 | 12 | ⛔ a field that does not exist is a **declaration-time error** | names the field and lists the record's actual fields |
 | 13 | ⛔ a `HashMap` / `HashSet` field is a **declaration-time error** | names the type and says the cap counts elements |
+
+---
+
+# ⛔⛔⛔ AMENDED AGAIN — CARRY THE CAP AS A DEF, NOT A STASH
+
+Builder, on the in-flight `:wat::types::max-entries` intrinsic: *"this 'max' is a service
+thing... it has no meaning for types?"* It does not, and pulling that thread found three
+compounding problems. **This replaces the mechanism, not the requirement.**
+
+## THE EXEMPLAR I POINTED AT WAS THE WRONG HALF
+
+The rooms above cite `wat/service.wat:1720`, where `cap-const-kw` is **consumed**. The half that
+matters is where it is **emitted**:
+
+**`src/types.rs:3647-3664`** — `defsurface` registration builds one real wat def per op:
+
+```
+(:wat::core::def :<Surface>::<OP>-MAX-REQUEST-BYTES <n>)
+```
+
+★ It is a **value in the program**. `wat/telemetry.wat:387` reads it by name —
+`:wat::telemetry::Journal::WRITE-LOGS-MAX-REQUEST-BYTES`. `defservice` merely rebuilds that name
+by string interpolation. No intrinsic. No reflection. No state.
+
+## WHY THE STASH MUST GO — four questions, 4-NO
+
+`src/types/surface.rs:43` is a `thread_local! { static MAX_ENTRIES: RefCell<HashMap<...>> }`,
+written at `:100`, read at `:165`, **never cleared**, behind a new `:wat::types::max-entries`
+intrinsic — the ONLY intrinsic in that namespace.
+
+- **Obvious? NO.** A request cap is a surface/service concept. `:wat::types::` is where it has no
+  meaning, and the namespace was created to hold this one thing.
+- **Simple? NO.** walk → stash → key → retrieve → new namespace, against name → value.
+- **Honest? NO — and this is a live bug.** The stash is never cleared and is keyed by
+  `(surface, op)`. In a long-lived process — `wat --mcp` — a later program whose surface omits
+  `:max-entries` finds an earlier program's entry under the same key and **emits a guard it never
+  declared.** That directly violates EXPECTATIONS row 5, *absent means uncapped*.
+- **Good UX? NO.** The byte cap is readable by any wat program; this one is visible only to the
+  macro. A caller cannot ask *"what is the max batch size?"* — the one question a batch API exists
+  to answer. SQS publishes its limits.
+
+## ⛔ THE MECHANISM
+
+Emit **two** defs per op from surface registration, beside the byte-cap def at `src/types.rs:3664`:
+
+```
+:<Surface>::<OP>-MAX-ENTRIES        <n>            ;; i64
+:<Surface>::<OP>-MAX-ENTRIES-FIELD  "<field>"      ;; String
+```
+
+Absent option → **emit neither**, and `defservice` emits no guard. Absence is the absence of a
+def, not a zero in a table — there is then no state in which a stale value can be read.
+
+In `defservice`, build those two names beside `cap-const-kw` (`wat/service.wat:1720`) with the
+same `keyword::from-string` + `string::interpolate` shape.
+
+**Delete** `:wat::types::max-entries`, `stash_max_entries_from_defsurface`, the `MAX_ENTRIES`
+thread_local, and the `:wat::types::` namespace registration.
+
+## WHAT IS UNCHANGED
+
+Everything in the first amendment stands: the field must resolve on the request record and its
+type must be a **sequence** (rows 12 and 13). And the response-side wall in `src/macros/expand.rs`
+— `RTE_VARIANT` with its exact field shape — is correct and stays.
+
+## ROWS THIS ADDS
+
+| # | what must hold | expected |
+|---|---|---|
+| 14 | ⛔ **the cap is a readable def** | `:queue::Queue::SEND-MAX-ENTRIES` evaluates to `10` from ordinary wat, as the byte-cap const does |
+| 15 | ⛔ **no expand-time mutable state** | `grep -n "thread_local\|RefCell" src/types/surface.rs` finds none added by this stone |
+| 16 | ⛔ **no `:wat::types::` intrinsic** | `grep -rn 'wat_intrinsic(":wat::types::' src/` is empty |
+
+## STOP-7 (new)
+
+If a def cannot carry the field **name** (a String const beside an i64 const is not supported at
+`types.rs:3664`), **STOP and report what that emitter accepts.** Do not reintroduce a stash to
+carry the half a def cannot.
