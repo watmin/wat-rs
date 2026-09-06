@@ -2,6 +2,8 @@
 (:wat::load-file! "rules/defn.wat")
 (:wat::load-file! "rules/siblings.wat")
 (:wat::load-file! "rules/match.wat")
+(:wat::load-file! "rules/if.wat")
+(:wat::load-file! "rules/cond.wat")
 (:wat::load-file! "rules/let.wat")
 (:wat::load-file! "rules/let-blank.wat")
 (:wat::load-file! "rules/kwargs.wat")

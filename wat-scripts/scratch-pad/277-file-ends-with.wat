@@ -7,6 +7,8 @@
 (:wat::load-file! "../fmt/rules/defn.wat")
 (:wat::load-file! "../fmt/rules/siblings.wat")
 (:wat::load-file! "../fmt/rules/match.wat")
+(:wat::load-file! "../fmt/rules/if.wat")
+(:wat::load-file! "../fmt/rules/cond.wat")
 (:wat::load-file! "../fmt/rules/let.wat")
 (:wat::load-file! "../fmt/rules/let-blank.wat")
 (:wat::load-file! "../fmt/rules/kwargs.wat")
