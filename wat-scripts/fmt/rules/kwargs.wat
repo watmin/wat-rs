@@ -12,6 +12,7 @@
 (:wat::rete::defrule :fmt::kwargs-claim-from-1
   :when [(:wat::grep::Node  (?p <- :id) (?pk <- :kind))
          (:wat::rete::where (:wat::rete::string::= ?pk "list"))
+         (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))
@@ -51,6 +52,7 @@
 (:wat::rete::defrule :fmt::kwargs-claim-later
   :when [(:wat::grep::Node  (?p <- :id) (?pk <- :kind))
          (:wat::rete::where (:wat::rete::string::= ?pk "list"))
+         (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))

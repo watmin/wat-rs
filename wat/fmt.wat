@@ -39,11 +39,27 @@
 (:wat::core::defrecord :wat::fmt::AlignPairs
   [form <- :wat::core::i64])
 
+;; A list form's grouping identity: head name plus either the trailing
+;; pair-run key sequence or positional arity ("#N").
+(:wat::core::defrecord :wat::fmt::FormSig
+  [form <- :wat::core::i64
+   head <- :wat::core::String
+   keys <- :wat::core::String])
+
+;; A member of an adjacent same-sig group. group is the first member's id.
+(:wat::core::defrecord :wat::fmt::TableRow
+  [form  <- :wat::core::i64
+   group <- :wat::core::i64])
+
 (:wat::core::defrecord :wat::fmt::Acc
   [out      <- :wat::core::String
    next-id  <- :wat::core::i64
    comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
    col      <- :wat::core::i64])
+
+(:wat::core::defrecord :wat::fmt::SigAcc
+  [next-id <- :wat::core::i64
+   sigs    <- (:wat::core::PersistentVector :- [:wat::fmt::FormSig])])
 
 (:wat::rete::defquery :wat::fmt::q-break
   :params []
@@ -64,6 +80,10 @@
 (:wat::rete::defquery :wat::fmt::q-align
   :params []
   :when [(?ap <- :wat::fmt::AlignPairs)])
+
+(:wat::rete::defquery :wat::fmt::q-table
+  :params []
+  :when [(?t <- :wat::fmt::TableRow)])
 
 (:wat::core::defn :wat::fmt::spaces [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::if (:wat::i64::<= n 0)
@@ -277,6 +297,180 @@
         here
         (:wat::core::ast->children node)))))
 
+(:wat::core::defn :wat::fmt::kw-key?
+  [n <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind n) "keyword"))
+    false
+    (:wat::core::let [nm (:wat::core::ast-name n)]
+      (:wat::core::if (:wat::core::= nm ":-")
+        false
+        (:wat::core::not (:wat::core::= nm "->"))))))
+
+(:wat::core::defn :wat::fmt::even-keys?
+  [kids <- (:wat::core::Vector :- [:wat::WatAST])
+   i    <- :wat::core::i64
+   lim  <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::i64::>= i lim)
+    true
+    (:wat::core::if (:wat::fmt::kw-key? (:wat::core::nth kids i))
+      (:wat::fmt::even-keys? kids (:wat::i64::+ i 2) lim)
+      false)))
+
+(:wat::core::defn :wat::fmt::run-from?
+  [kids <- (:wat::core::Vector :- [:wat::WatAST])
+   s    <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::let [n   (:wat::core::length kids)
+                    len (:wat::i64::- n s)]
+    (:wat::core::if (:wat::i64::< len 2)
+      false
+      (:wat::core::if (:wat::core::not (:wat::i64::= (:wat::i64::rem len 2) 0))
+        false
+        (:wat::fmt::even-keys? kids s n)))))
+
+(:wat::core::defn :wat::fmt::find-run
+  [kids <- (:wat::core::Vector :- [:wat::WatAST])
+   s    <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::if (:wat::i64::>= s (:wat::core::length kids))
+    -1
+    (:wat::core::if (:wat::fmt::run-from? kids s)
+      s
+      (:wat::fmt::find-run kids (:wat::i64::+ s 1)))))
+
+(:wat::core::defn :wat::fmt::join-from
+  [kids <- (:wat::core::Vector :- [:wat::WatAST])
+   i    <- :wat::core::i64
+   lim  <- :wat::core::i64
+   acc  <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::if (:wat::i64::>= i lim)
+    acc
+    (:wat::core::let [nm   (:wat::core::ast-name (:wat::core::nth kids i))
+                      acc2 (:wat::core::if (:wat::string::empty? acc)
+                             nm
+                             (:wat::string::concat acc (:wat::string::concat "|" nm)))]
+      (:wat::fmt::join-from kids (:wat::i64::+ i 2) lim acc2))))
+
+(:wat::core::defn :wat::fmt::form-keys
+  [kids <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> :wat::core::String
+  (:wat::core::let [s (:wat::fmt::find-run kids 1)]
+    (:wat::core::if (:wat::i64::< s 0)
+      (:wat::string::concat "#" (:wat::i64::to-string (:wat::i64::- (:wat::core::length kids) 1)))
+      (:wat::fmt::join-from kids s (:wat::core::length kids) ""))))
+
+(:wat::core::defn :wat::fmt::sigs-walk
+  [acc  <- :wat::fmt::SigAcc
+   node <- :wat::WatAST]
+  -> :wat::fmt::SigAcc
+  (:wat::core::let
+    [id   (:wat::fmt::SigAcc/next-id acc)
+     sigs (:wat::fmt::SigAcc/sigs acc)
+     kind (:wat::core::ast-kind node)
+     sigs2 (:wat::core::if (:wat::core::not (:wat::core::= kind "list"))
+             sigs
+             (:wat::core::let [kids (:wat::core::ast->children node)]
+               (:wat::core::if (:wat::i64::<= (:wat::core::length kids) 0)
+                 sigs
+                 (:wat::core::if (:wat::core::not (:wat::grep::nameable? (:wat::core::nth kids 0)))
+                   sigs
+                   (:wat::vector::conj sigs
+                     (:wat::fmt::FormSig
+                       :form id
+                       :head (:wat::core::ast-name (:wat::core::nth kids 0))
+                       :keys (:wat::fmt::form-keys kids)))))))
+     acc1 (:wat::fmt::SigAcc :next-id (:wat::i64::+ id 1) :sigs sigs2)]
+    (:wat::core::if (:wat::grep::structural? node)
+      (:wat::core::foldl
+        (:wat::core::fn [a <- :wat::fmt::SigAcc  child <- :wat::WatAST] -> :wat::fmt::SigAcc
+          (:wat::fmt::sigs-walk a child))
+        acc1
+        (:wat::core::ast->children node))
+      acc1)))
+
+(:wat::core::defn :wat::fmt::form-sigs-of
+  [forms <- :wat::WatAST]
+  -> (:wat::core::PersistentVector :- [:wat::fmt::FormSig])
+  (:wat::fmt::SigAcc/sigs
+    (:wat::core::foldl
+      (:wat::core::fn [a <- :wat::fmt::SigAcc  form <- :wat::WatAST] -> :wat::fmt::SigAcc
+        (:wat::fmt::sigs-walk a form))
+      (:wat::fmt::SigAcc
+        :next-id 1
+        :sigs (:wat::core::PersistentVector :- [:wat::fmt::FormSig]))
+      (:wat::core::ast->children forms))))
+
+(:wat::core::defn :wat::fmt::token-widths
+  [node <- :wat::WatAST]
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  (:wat::core::foldl
+    (:wat::core::fn [v <- (:wat::core::PersistentVector :- [:wat::core::i64])
+                     c <- :wat::WatAST]
+      -> (:wat::core::PersistentVector :- [:wat::core::i64])
+      (:wat::vector::conj v (:wat::string::length (:wat::core::ast->source c))))
+    (:wat::core::PersistentVector :- [:wat::core::i64])
+    (:wat::core::ast->children node)))
+
+(:wat::core::defn :wat::fmt::max-vec
+  [a   <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   b   <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   i   <- :wat::core::i64
+   acc <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  (:wat::core::let [na (:wat::core::length a)
+                    nb (:wat::core::length b)]
+    (:wat::core::if (:wat::core::if (:wat::i64::>= i na) (:wat::i64::>= i nb) false)
+      acc
+      (:wat::core::let
+        [va (:wat::core::if (:wat::i64::< i na) (:wat::core::nth a i) 0)
+         vb (:wat::core::if (:wat::i64::< i nb) (:wat::core::nth b i) 0)
+         v  (:wat::core::if (:wat::i64::> va vb) va vb)]
+        (:wat::fmt::max-vec a b (:wat::i64::+ i 1) (:wat::vector::conj acc v))))))
+
+(:wat::core::defn :wat::fmt::merge-widths
+  [gw <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+   g  <- :wat::core::i64
+   tw <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+  (:wat::core::match (:wat::core::get gw g)
+    (:wat::core::None (:wat::hashmap::assoc gw g tw))
+    ((:wat::core::Some prev)
+      (:wat::hashmap::assoc gw g
+        (:wat::fmt::max-vec prev tw 0 (:wat::core::PersistentVector :- [:wat::core::i64]))))))
+
+(:wat::core::defn :wat::fmt::gw-walk
+  [node   <- :wat::WatAST
+   id     <- :wat::core::i64
+   tables <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+   gw     <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])]
+  -> (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+  (:wat::core::let
+    [gw1 (:wat::core::match (:wat::core::get tables id)
+            ((:wat::core::Some g) (:wat::fmt::merge-widths gw g (:wat::fmt::token-widths node)))
+            (:wat::core::None gw))]
+    (:wat::core::if (:wat::fmt::type-application? node)
+      gw1
+      (:wat::core::if (:wat::grep::structural? node)
+        (:wat::fmt::gw-kids (:wat::core::ast->children node) 0 (:wat::i64::+ id 1) tables gw1)
+        gw1))))
+
+(:wat::core::defn :wat::fmt::gw-kids
+  [kids   <- (:wat::core::Vector :- [:wat::WatAST])
+   i      <- :wat::core::i64
+   id     <- :wat::core::i64
+   tables <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+   gw     <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])]
+  -> (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
+    gw
+    (:wat::core::let [child (:wat::core::nth kids i)
+                      gw2   (:wat::fmt::gw-walk child id tables gw)]
+      (:wat::fmt::gw-kids kids (:wat::i64::+ i 1)
+        (:wat::i64::+ id (:wat::fmt::subtree-size child)) tables gw2))))
+
 ;; Widest first-token among broken children whose NEXT sibling has no
 ;; Break (a key with a riding value). Prefix compounds do not contribute:
 ;; their next sibling is also broken. From THIS pass's source spelling.
@@ -314,10 +508,13 @@
    claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   tables    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+   gw        <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
    indent     <- :wat::core::i64
    open-col   <- :wat::core::i64
    parent-id  <- :wat::core::i64
-   pair-width <- :wat::core::i64]
+   pair-width <- :wat::core::i64
+   tblw       <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::fmt::Acc
   (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
     acc
@@ -332,7 +529,7 @@
                       (:wat::core::or
                         (:wat::string::ends-with? o "{")
                         (:wat::string::ends-with? o "\n"))))
-       acc2 (:wat::fmt::emit-node acc child breaks claims blanks aligns indent open-col first-kid? parent-id
+       acc2 (:wat::fmt::emit-node acc child breaks claims blanks aligns tables gw indent open-col first-kid? parent-id
                (:wat::core::if ctor? (:wat::i64::= i 2) false))
        nid  (:wat::i64::+ cid (:wat::fmt::subtree-size child))
        acc3 (:wat::core::if
@@ -352,8 +549,17 @@
                 (:wat::fmt::spaces
                   (:wat::i64::- pair-width
                     (:wat::string::length (:wat::core::ast->source child)))))
-              acc2)]
-      (:wat::fmt::emit-kids acc3 kids (:wat::i64::+ i 1) ctor? breaks claims blanks aligns indent open-col parent-id pair-width))))
+              acc2)
+       acc4 (:wat::core::if
+              (:wat::core::if (:wat::i64::< i (:wat::core::length tblw))
+                (:wat::i64::< (:wat::i64::+ i 1) (:wat::core::length kids))
+                false)
+              (:wat::fmt::write acc3
+                (:wat::fmt::spaces
+                  (:wat::i64::- (:wat::core::nth tblw i)
+                    (:wat::string::length (:wat::core::ast->source child)))))
+              acc3)]
+      (:wat::fmt::emit-kids acc4 kids (:wat::i64::+ i 1) ctor? breaks claims blanks aligns tables gw indent open-col parent-id pair-width tblw))))
 
 (:wat::core::defn :wat::fmt::emit-node
   [acc        <- :wat::fmt::Acc
@@ -362,6 +568,8 @@
    claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   tables     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+   gw         <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
    indent     <- :wat::core::i64
    open-col   <- :wat::core::i64
    first?     <- :wat::core::bool
@@ -374,7 +582,9 @@
      x         (:wat::grep::extent-of node)
      src-line  (:wat::grep::Extent/line x)
      src-col   (:wat::grep::Extent/col x)
-     br        (:wat::core::get breaks id)
+     br        (:wat::core::match (:wat::core::get tables parent-id)
+                 ((:wat::core::Some _) :wat::core::None)
+                 (:wat::core::None (:wat::core::get breaks id)))
      acc-b     (:wat::fmt::Acc
                  :out      (:wat::fmt::Acc/out acc)
                  :next-id  (:wat::i64::+ id 1)
@@ -409,13 +619,22 @@
         [this-open (:wat::fmt::Acc/col acc1)
          acc2      (:wat::fmt::write acc1 (:wat::fmt::open-of node-kind))
          kids      (:wat::core::ast->children node)
-         pw        (:wat::core::match (:wat::core::get aligns id)
-                     ((:wat::core::Some _)
-                       (:wat::fmt::broken-key-width kids 0 (:wat::i64::+ id 1) breaks 0))
-                     (:wat::core::None 0))
+         pw        (:wat::core::match (:wat::core::get tables id)
+                     ((:wat::core::Some _) 0)
+                     (:wat::core::None
+                       (:wat::core::match (:wat::core::get aligns id)
+                         ((:wat::core::Some _)
+                           (:wat::fmt::broken-key-width kids 0 (:wat::i64::+ id 1) breaks 0))
+                         (:wat::core::None 0))))
+         tblw      (:wat::core::match (:wat::core::get tables id)
+                     ((:wat::core::Some g)
+                       (:wat::core::match (:wat::core::get gw g)
+                         ((:wat::core::Some v) v)
+                         (:wat::core::None (:wat::core::PersistentVector :- [:wat::core::i64]))))
+                     (:wat::core::None (:wat::core::PersistentVector :- [:wat::core::i64])))
          acc3      (:wat::fmt::emit-kids acc2 kids 0
                      (:wat::fmt::type-constructor? node)
-                     breaks claims blanks aligns this-indent this-open id pw)
+                     breaks claims blanks aligns tables gw this-indent this-open id pw tblw)
          acc4 (:wat::fmt::write acc3 (:wat::fmt::close-of node-kind))]
         (:wat::fmt::flush-comments acc4
           (:wat::grep::Extent/end-line x)
@@ -434,15 +653,18 @@
    breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::String])
    claims   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
    blanks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   aligns   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
+   aligns   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+   tables   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])]
   -> :wat::core::String
   (:wat::core::let
     [top  (:wat::core::ast->children forms)
+     gw   (:wat::fmt::gw-kids top 0 1 tables
+            (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])]))
      acc0 (:wat::fmt::Acc :out "" :next-id 1 :comments comments :col 0)
      acc1 (:wat::core::foldl
             (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
               (:wat::core::let [acc-nl (:wat::fmt::write-nl acc)]
-                (:wat::fmt::emit-node acc-nl form breaks claims blanks aligns 0 0 true 0 false)))
+                (:wat::fmt::emit-node acc-nl form breaks claims blanks aligns tables gw 0 0 true 0 false)))
             acc0
             top)
      acc2 (:wat::core::foldl
@@ -539,6 +761,20 @@
     (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
     (:wat::rete::query session (:wat::fmt::q-align))))
 
+(:wat::core::defn :wat::fmt::tables-map
+  [session <- :wat::rete::Session]
+  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+  (:wat::core::foldl
+    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+                     binding <- :wat::core::PersistentMap]
+      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+      (:wat::core::let [tr (:wat::core::Option/expect
+                             (:wat::map::get binding "?t")
+                             "fmt::tables-map: no ?t")]
+        (:wat::hashmap::assoc m (:wat::fmt::TableRow/form tr) (:wat::fmt::TableRow/group tr))))
+    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (:wat::rete::query session (:wat::fmt::q-table))))
+
 (:wat::core::defn :wat::fmt::format-source
   [path  <- :wat::core::String
    src   <- :wat::core::String
@@ -548,13 +784,21 @@
     ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
       (:wat::core::let
         [facts   (:wat::grep::facts-of path src)
-         records (:wat::grep::facts-as-records facts)
+         rec0    (:wat::grep::facts-as-records facts)
+         records (:wat::core::foldl
+                   (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                                    s   <- :wat::fmt::FormSig]
+                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
+                     (:wat::vector::conj acc s))
+                   rec0
+                   (:wat::fmt::form-sigs-of forms))
          queries (:wat::core::PersistentVector :- [:wat::rete::Query]
                    (:wat::fmt::q-break)
                    (:wat::fmt::q-claim)
                    (:wat::fmt::q-fallback)
                    (:wat::fmt::q-blank)
-                   (:wat::fmt::q-align))]
+                   (:wat::fmt::q-align)
+                   (:wat::fmt::q-table))]
         (:wat::rete::with-overlay rules queries
           (:wat::core::fn [overlay <- :wat::rete::Overlay]
             -> :wat::core::String
@@ -563,6 +807,7 @@
                 (:wat::fmt::breaks-map fired)
                 (:wat::fmt::owned-set fired)
                 (:wat::fmt::blanks-set fired)
-                (:wat::fmt::aligns-set fired)))))))
+                (:wat::fmt::aligns-set fired)
+                (:wat::fmt::tables-map fired)))))))
     ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
       (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None))))
