@@ -1616,7 +1616,7 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
 
-    const EN: &str = r#"(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)
+    const EN: &str = r#"(:wat::core::defenum :probe::E :wat::enum::Pure :A :B :C)
 
 (:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :probe::E])
 (:wat::core::defrecord :probe::Out [k <- :wat::core::String])
@@ -1639,7 +1639,10 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#;
 
-    for (name, src, other) in [("keyword", KW, ":beta"), ("enum", EN, ":probe::E::B")] {
+    for (name, src, constant, never_c) in [
+        ("keyword", KW, ":alpha", ":zeta"),
+        ("enum", EN, ":probe::E::A", ":probe::E::C"),
+    ] {
         assert_eq!(
             raw_count(src),
             Ok(1),
@@ -1656,14 +1659,19 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
         // ⛔ DISCRIMINATION. A constant matching NEITHER fact must select nothing — otherwise the
         // operand is being evaluated but not compared, and the rows above prove nothing.
-        let never = src.replacen(&format!("::= :v {other}"), "::= :v :zeta", 1);
-        if never != *src {
-            assert_eq!(
-                raw_count(&never),
-                Ok(0),
-                "`{name}`: a constant equal to no fact must select NOTHING"
-            );
-        }
+        // The rewrite targets the RULE's constant (`:alpha` / `:probe::E::A`), which is in the
+        // source — not the miss fact's value. The old `if never != *src` skipped both iterations.
+        // Enum never-constant is `:probe::E::C` (a third face, matching neither A nor B), not
+        // a bare `:zeta` — that is an unknown field, not a :probe::E value.
+        let never = src.replacen(&format!("::= :v {constant}"), &format!("::= :v {never_c}"), 1);
+        assert_ne!(never, *src, "the rewrite must change the constant");
+        let never_count = raw_count(&never);
+        println!("`{name}` discrimination raw_count(&never) = {never_count:?}");
+        assert_eq!(
+            never_count,
+            Ok(0),
+            "`{name}`: a constant equal to no fact must select NOTHING"
+        );
     }
 
     // ⛔⛔ THE FIELD REFERENCE STILL WINS — the backward-compatibility proof, and the load-bearing
