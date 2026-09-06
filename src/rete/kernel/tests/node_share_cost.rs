@@ -75,7 +75,7 @@ fn produced_of_kind(census: &[super::RoundCensus], kind: &str) -> usize {
 ///   2026-09-04, and `F+C` printed ~670% accounted.
 ///
 ///   G/H/I/J/K/L — the branch the fire DOES take, cumulative, ONE FIRE's worth per arm, with
-///   every scale read off the fire's own counters (`filter:test-reuse`, `dbeta:alloc`,
+///   every scale read off the fire's own counters (`filter:test-reuse`, `dbeta:nonempty`,
 ///   `dbeta:tokens`) and asserted against a replay before any clock starts. `bind_view` ->
 ///   `where_tree.candidates` -> the two `HashSet` builds -> the `tid` loop -> the `d_beta`
 ///   pushes, plus L for the `d_beta_from_parents` gather that feeds them.
@@ -285,7 +285,7 @@ fn node_share_where_cost_decomposition() {
     };
     let fire_reuse = counted("filter:test-reuse");
     let fire_evals = counted("filter:test-evals");
-    let fire_gathers = counted("dbeta:alloc");
+    let fire_gathers = counted("dbeta:nonempty");
     let fire_gather_tokens = counted("dbeta:tokens");
 
     // Non-vacuity and scale, BEFORE any timing.

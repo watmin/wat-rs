@@ -1065,7 +1065,13 @@ fn d_beta_from_parents(parents_of: &ParentsOf, d_beta: &BetaMemory, node_id: i64
     {
         census_count_n("dbeta:calls", 1);
         census_count_n("dbeta:tokens", out.len() as u64);
-        census_count_n("dbeta:alloc", u64::from(!out.is_empty()));
+        // Named `dbeta:nonempty`, not `dbeta:alloc`: 0 or 1 per call, not an allocation
+        // count. `out` is grown by repeated `extend` above, so one call can allocate
+        // several times. Counting real allocations was considered and rejected — nothing
+        // wants that number, it would exceed `dbeta:calls`, and it would break the identity
+        // at `node_share_cost.rs` (`fire_gathers * width == fire_gather_tokens`) and
+        // silently mis-scale arm L's reconstruction.
+        census_count_n("dbeta:nonempty", u64::from(!out.is_empty()));
         census_count_n("dbeta:multi", u64::from(contributing > 1));
     }
     phase_end("  ├ dbeta:gather", __dbg);
