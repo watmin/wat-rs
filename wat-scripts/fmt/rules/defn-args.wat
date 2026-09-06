@@ -13,7 +13,8 @@
          (:wat::rete::where (:wat::rete::i64::= ?ari (:wat::rete::i64::+ ?ai 1 :undefined 0)))
          (:wat::grep::Named (?arrow <- :id) (?an <- :name))
          (:wat::rete::where (:wat::rete::string::= ?an "->"))]
-  :then [(:wat::fmt::Claim :form ?args)])
+  :then [(:wat::fmt::Claim :form ?args)
+         (:wat::fmt::AlignStride :form ?args :stride 3)])
 
 (:wat::rete::defrule :fmt::defn-arg-per-line
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))

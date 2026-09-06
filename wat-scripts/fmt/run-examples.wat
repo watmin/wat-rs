@@ -7,6 +7,7 @@
 (:wat::load-file! "rules/kwargs.wat")
 (:wat::load-file! "rules/table.wat")
 (:wat::load-file! "rules/atoms.wat")
+(:wat::load-file! "rules/defrecord.wat")
 
 (:wat::core::defrecord :user::Ex
   [n       <- :wat::core::i64
