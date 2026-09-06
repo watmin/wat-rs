@@ -90,5 +90,5 @@
         :chained-ns   chained-ns
         :batch-ns     batch-ns
         :drop-ns      (:wat::core::i64::- chained-ns batch-ns)
-        :chained-len  (:wat::core::length (:wat::rete::Session/facts sa))
-        :batch-len    (:wat::core::length (:wat::rete::Session/facts sb))))))
+        :chained-len  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts sa)))
+        :batch-len    (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts sb)))))))

@@ -72,5 +72,5 @@
         :batch-ns       (:seedp::ns-between b0 b1)
         ;; both paths must stage the SAME number of facts — a faster path that stages fewer
         ;; is not faster, it is wrong. This is the non-vacuity guard on the comparison.
-        :per-fact-facts (:wat::core::PersistentVector/length (:wat::rete::Session/facts sa))
-        :batch-facts    (:wat::core::PersistentVector/length (:wat::rete::Session/facts sb))))))
+        :per-fact-facts (:wat::core::PersistentVector/length (:wat::rete::factbag::items (:wat::rete::Session/facts sa)))
+        :batch-facts    (:wat::core::PersistentVector/length (:wat::rete::factbag::items (:wat::rete::Session/facts sb)))))))

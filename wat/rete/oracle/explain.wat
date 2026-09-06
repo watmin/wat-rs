@@ -59,7 +59,7 @@
   ;; would make the differential harness unwrap one side and not the other, i.e. compare two
   ;; different things.
   -> (:wat::rete::FireOutcome :- [:wat::rete::Explained])
-  (:wat::core::let [input       (:wat::rete::Session/facts session)
+  (:wat::core::let [input       (:wat::rete::factbag::items (:wat::rete::factbag::of session))
                     ;; HAND-FACED (arc 278 the fire-outcome wall) — stdlib, per-site semantic.
                     ;; The oracle enforces no ceilings, so only `Fired` is reachable; the other
                     ;; arms say so loudly rather than being swallowed.
@@ -97,7 +97,7 @@
                                       :alpha-memory empty
                                       :beta-memory empty
                                       :production-memory empty
-                                      :facts closed
+                                      :facts (:wat::rete::FactBag :items closed)
                                       :next-id (:wat::rete::Session/next-id session)
                                       :query-memory empty))
                                   ((:wat::rete::FireOutcome::Fired __replayed) __replayed)

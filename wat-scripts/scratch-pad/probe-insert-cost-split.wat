@@ -154,5 +154,5 @@
         ;; 0+1+…+(n-1) = n(n-1)/2 — computed, never eyeballed against a magic number.
         :expected-sum (:wat::core::i64::/ (:wat::core::i64::* n (:wat::core::i64::- n 1)) 2)
         :conj-len     (:wat::core::length cv)
-        :insert-prime-len (:wat::core::length (:wat::rete::Session/facts primed))
-        :insert-len   (:wat::core::length (:wat::rete::Session/facts staged))))))
+        :insert-prime-len (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts primed)))
+        :insert-len   (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts staged)))))))

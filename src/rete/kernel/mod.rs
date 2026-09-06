@@ -19,7 +19,7 @@
 //! alpha-memory      <- :wat::core::PersistentMap
 //! beta-memory       <- :wat::core::PersistentMap
 //! production-memory <- :wat::core::PersistentMap
-//! facts             <- :wat::core::PersistentVector
+//! facts             <- :wat::rete::FactBag
 //! next-id           <- :wat::core::i64
 //! query-memory      <- :wat::core::PersistentMap
 //! ```

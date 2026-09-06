@@ -380,6 +380,11 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/rete.wat",
         source: include_str!("../wat/rete.wat"),
     },
+    // Arc 278 — FactBag doors. Loads AFTER wat/rete.wat (FactBag + Session records).
+    WatSource {
+        path: "wat/rete/factbag.wat",
+        source: include_str!("../wat/rete/factbag.wat"),
+    },
     // Arc 278 — interpreted compile (rule-set → network). Dual of the native
     // compiler. Loads AFTER wat/rete.wat (records, Session).
     WatSource {

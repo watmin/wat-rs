@@ -49,7 +49,7 @@
     (:wat::core::match (:ins::seed s 200000)
       ;; Staging 200_000 facts under a 4096-byte ceiling must NOT reach here.
       ((:wat::rete::InsertOutcome::Inserted staged)
-        (:wat::kernel::println (:wat::core::length (:wat::rete::Session/facts staged))))
+        (:wat::kernel::println (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts staged)))))
       ((:wat::rete::InsertOutcome::MemoryCeilingExceeded limit used staged)
         (:wat::core::do
           (:wat::kernel::println "ARM MemoryCeilingExceeded")

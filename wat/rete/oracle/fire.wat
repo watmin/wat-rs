@@ -147,7 +147,8 @@
                                 :wat::core::None
                                 (:wat::core::Some nil))
                               "fire-once: oracle cannot consume an Export — empty rules, live network")
-                    facts    (:wat::rete::Session/facts   session)
+                    bag      (:wat::rete::factbag::of session)
+                    facts    (:wat::rete::factbag::items bag)
                     ;; WHY sort: compile mints ids left-to-right, so ascending id IS
                     ;; topological. PersistentMap/keys is HAMT order — not that. The old
                     ;; split (all joins, then all filters) was commute-tolerant. The
@@ -173,7 +174,7 @@
         :alpha-memory new-amem
         :beta-memory filtered-bmem
         :production-memory new-pmem
-        :facts facts
+        :facts bag
         :next-id (:wat::rete::Session/next-id session)
         :query-memory qmem))))
 
@@ -283,9 +284,15 @@
                                    ":wat::rete::fire-grow-fixpoint: the oracle hit a round cap — the oracle enforces none"
                                    :wat::core::None :wat::core::None)))
                     derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
-                    old-facts (:wat::rete::Session/facts session)
-                    new-facts (:wat::rete::merge-facts old-facts derived)]
-    (:wat::core::if (:wat::core::= (:wat::core::length new-facts) (:wat::core::length old-facts))
+                    old-bag   (:wat::rete::factbag::of session)
+                    new-bag   (:wat::core::foldl
+                                (:wat::core::fn [acc <- :wat::rete::FactBag
+                                                 f   <- :wat::core::Record]
+                                  -> :wat::rete::FactBag
+                                  (:wat::rete::factbag::add-if-absent acc f))
+                                old-bag
+                                derived)]
+    (:wat::core::if (:wat::core::= (:wat::rete::factbag::size new-bag) (:wat::rete::factbag::size old-bag))
       fired
       (:wat::rete::fire-grow-fixpoint
         (:wat::rete::Session
@@ -294,7 +301,7 @@
           :alpha-memory (:wat::rete::Session/alpha-memory fired)
           :beta-memory (:wat::rete::Session/beta-memory  fired)
           :production-memory (:wat::rete::Session/production-memory fired)
-          :facts new-facts
+          :facts new-bag
           :next-id (:wat::rete::Session/next-id fired)
           :query-memory (:wat::rete::Session/query-memory fired))))))
 
@@ -350,9 +357,11 @@
                     derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
                     ;; base ∪ D(F) — everything that still has a reason to be here.
                     supported (:wat::rete::merge-facts base derived)
-                    old-facts (:wat::rete::Session/facts session)
-                    new-facts (:wat::rete::retain-supported old-facts supported)]
-    (:wat::core::if (:wat::core::= (:wat::core::length new-facts) (:wat::core::length old-facts))
+                    old-bag   (:wat::rete::factbag::of session)
+                    new-bag   (:wat::rete::factbag::retain old-bag
+                                (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool
+                                  (:wat::core::PersistentVector/contains? supported f)))]
+    (:wat::core::if (:wat::core::= (:wat::rete::factbag::size new-bag) (:wat::rete::factbag::size old-bag))
       fired
       (:wat::rete::fire-support-fixpoint base
         (:wat::rete::Session
@@ -361,7 +370,7 @@
           :alpha-memory (:wat::rete::Session/alpha-memory fired)
           :beta-memory (:wat::rete::Session/beta-memory  fired)
           :production-memory (:wat::rete::Session/production-memory fired)
-          :facts new-facts
+          :facts new-bag
           :next-id (:wat::rete::Session/next-id fired)
           :query-memory (:wat::rete::Session/query-memory fired))))))
 
@@ -377,7 +386,7 @@
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::rete::fire-support-fixpoint
-    (:wat::rete::Session/facts session)
+    (:wat::rete::factbag::items (:wat::rete::factbag::of session))
     (:wat::rete::fire-grow-fixpoint session)))
 
 ;; Stratification numbering lives in wat/rete/oracle/stratify.wat
@@ -447,7 +456,7 @@
                                      (:wat::rete::Session/production-memory fired))
                       merged-d    (:wat::rete::merge-facts acc-derived new-derived)
                       ;; advance facts to the post-fixpoint closure (input ∪ derived so far)
-                      new-facts   (:wat::rete::Session/facts fired)]
+                      new-facts   (:wat::rete::factbag::items (:wat::rete::factbag::of fired))]
       (:wat::rete::fire-stratified-loop
         rules type-strata
         (:wat::core::i64::+ current 1)
@@ -468,7 +477,7 @@
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::core::let [rules     (:wat::rete::Session/rules session)
-                    facts     (:wat::rete::Session/facts session)
+                    facts     (:wat::rete::factbag::items (:wat::rete::factbag::of session))
                     final-ts  (:wat::rete::stratify rules)
                     ;; compute highest stratum number across all rules (0 if rules is empty)
                     max-s     (:wat::core::foldl
@@ -493,7 +502,7 @@
                                 :alpha-memory (:wat::core::PersistentMap)
                                 :beta-memory (:wat::core::PersistentMap)
                                 :production-memory fprod-m
-                                :facts closed
+                                :facts (:wat::rete::FactBag :items closed)
                                 :next-id (:wat::rete::Session/next-id session)
                                 :query-memory (:wat::core::PersistentMap))
                     ;; HAND-FACED, same reason as `fire-fixpoint` above.
@@ -513,7 +522,7 @@
       :alpha-memory (:wat::core::PersistentMap)
       :beta-memory (:wat::core::PersistentMap)
       :production-memory fprod-m
-      :facts closed
+      :facts (:wat::rete::FactBag :items closed)
       :next-id (:wat::rete::Session/next-id session)
       :query-memory (:wat::rete::Session/query-memory q-fired))))
 
@@ -550,7 +559,7 @@
 (:wat::core::defn :wat::rete::fire-rules$oracle
   [session <- :wat::rete::Session]
   -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
-  (:wat::core::let [input (:wat::rete::Session/facts session)
+  (:wat::core::let [input (:wat::rete::factbag::of session)
                     rules (:wat::rete::Session/rules session)
                     net   (:wat::rete::Session/network session)
                     _export (:wat::core::Option/expect

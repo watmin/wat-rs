@@ -56,7 +56,7 @@
 ;; fired-sum    : the CONTENT of what landed, not merely how much — 0+1+2+3+4 = 10 at n=5.
 
 (:wat::core::defn :nin::staged-count [s <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::Session/facts s)))
+  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts s))))
 
 ;; `query` returns a bare `PersistentVector` (untyped elements) — the checker said so
 ;; on the first pass, and the accum grid axis reads it the same way (map a concretely-typed fn over

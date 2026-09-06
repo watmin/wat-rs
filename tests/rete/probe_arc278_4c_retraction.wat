@@ -63,14 +63,14 @@
   (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
     (:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter
       (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) "weather::Temperature"))
-      (:wat::rete::Session/facts fired))))))
+      (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
 
 (:wat::core::defn :user::part-a-coldandwindy-in-facts [] -> :wat::core::i64
   ;; rune:vocare(vantage-bypass-test) — input-vs-derived layout: derived ColdAndWindy must NOT leak into Session/facts
   (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
     (:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter
       (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) "weather::ColdAndWindy"))
-      (:wat::rete::Session/facts fired))))))
+      (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
 
 (:wat::core::defn :user::part-a-coldandwindy-derived [] -> :wat::core::i64
   (:test::count-derived (:test::fire (:test::seed-oslo (:test::compile-ab-rules))) (:weather::q-ColdAndWindy)))

@@ -37,7 +37,7 @@
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
 (:wat::core::defn :user::seed-temps-fact-count [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::Session/facts (:test::seed-temps (:test::compile-temp-rule)))))
+  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts (:test::seed-temps (:test::compile-temp-rule))))))
 
 ;; (1) exactly one AlphaNode populated (one condition; one of two staged facts matches).
 (:wat::core::defn :user::alpha-populated-count [] -> :wat::core::i64
