@@ -21,8 +21,8 @@
     (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs (:tp::msgs n)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::PublishResponse::Ok) "Ok")
-        ((:demo::Topic::PublishResponse::Full _d _c) "Full")
+        ((:demo::Topic::PublishResponse::Accepted n)
+          (:wat::core::format "Accepted({n})" :n n))
         ((:demo::Topic::PublishResponse::RequestTooLarge _b _c) "RequestTooLarge")
         ((:demo::Topic::PublishResponse::RequestTooManyEntries e c)
           (:wat::core::format "RequestTooManyEntries({e},{c})" :e e :c c))

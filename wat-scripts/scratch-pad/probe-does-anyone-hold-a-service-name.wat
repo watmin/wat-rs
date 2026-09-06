@@ -33,11 +33,9 @@
   (:wat::core::match r
     ((:wat::kernel::RecvOutcome::Message m)
       (:wat::core::match m
-        ((:queue::Queue::SendResponse::Ok) "Ok")
-        ((:queue::Queue::SendResponse::Full _d _c) "Full")
+        ((:queue::Queue::SendResponse::Accepted n)
+          (:wat::core::format "Accepted({n})" :n n))
         ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "RequestTooLarge")
-        ((:queue::Queue::SendResponse::RequestTooManyEntries e c)
-          (:wat::core::format "RequestTooManyEntries({e},{c})" :e e :c c))
         ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "RequestMalformed")))
     (_ "recv-failed")))
 

@@ -999,6 +999,20 @@
 ;; BRIEF-278-a-liveness-bound-only-catches-a-hang: a red here is STUCK, never
 ;; "the box was busy". Force-expire via publish-until-accepted!* with
 ;; limit-ms 0 against a full inbox.
+(:wat::core::defn :fanout::drop-first
+  [v <- (:wat::core::Vector :- [:wat::core::String])  n <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::let
+    [len (:wat::core::count v)
+     n0  (:wat::core::if (:wat::i64::< n 0) 0 n)
+     rest (:wat::core::if (:wat::i64::>= n0 len) 0 (:wat::i64::- len n0))]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])  i <- :wat::core::i64]
+        -> (:wat::core::Vector :- [:wat::core::String])
+        (:wat::core::conj acc (:wat::core::nth v (:wat::i64::+ n0 i))))
+      (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::range 0 rest))))
+
 (:wat::core::defn :fanout::publish-until-accepted!*
   [t <- :demo::Topic  msgs <- (:wat::core::Vector :- [:wat::core::String])
    attempts <- :wat::core::i64  start-ns <- :wat::core::i64  limit-ms <- :wat::core::i64]
@@ -1006,17 +1020,21 @@
   (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs msgs))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::PublishResponse::Ok) (:wat::i64::- attempts 1))
-        ((:demo::Topic::PublishResponse::Full d c)
-          (:wat::core::let [elapsed (:fanout::elapsed-ms start-ns)]
-            (:wat::core::if (:wat::i64::>= elapsed limit-ms)
-              (:wat::kernel::assertion-failed!
-                (:wat::core::format "verdict=never-accepted;depth={d};cap={c};attempts={a};elapsed={ms}"
-                  :d d :c c :a attempts :ms elapsed)
-                :wat::core::None :wat::core::None)
-              (:wat::core::let [_ (:fanout::await-timer-ms 1)]
-                (:fanout::publish-until-accepted!* t msgs (:wat::i64::+ attempts 1) start-ns limit-ms)))))
-        (_ (:wat::kernel::assertion-failed! "fanout: publish not Ok/Full" :wat::core::None :wat::core::None))))
+        ((:demo::Topic::PublishResponse::Accepted c)
+          (:wat::core::let [n (:wat::core::count msgs)]
+            (:wat::core::if (:wat::i64::>= c n)
+              (:wat::i64::- attempts 1)
+              (:wat::core::if (:wat::i64::<= c 0)
+                (:wat::core::let [elapsed (:fanout::elapsed-ms start-ns)]
+                  (:wat::core::if (:wat::i64::>= elapsed limit-ms)
+                    (:wat::kernel::assertion-failed!
+                      (:wat::core::format "verdict=never-accepted;attempts={a};elapsed={ms}"
+                        :a attempts :ms elapsed)
+                      :wat::core::None :wat::core::None)
+                    (:wat::core::let [_ (:fanout::await-timer-ms 1)]
+                      (:fanout::publish-until-accepted!* t msgs (:wat::i64::+ attempts 1) start-ns limit-ms))))
+                (:fanout::publish-until-accepted!* t (:fanout::drop-first msgs c) attempts start-ns limit-ms)))))
+        (_ (:wat::kernel::assertion-failed! "fanout: publish not Accepted" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Stopped
@@ -1430,12 +1448,20 @@
                               -> (:wat::core::Vector :- [:fanout::worker::Handle])
                               (:wat::core::let
                                 [h (:fanout::worker/start
-                                     :locus (:wat::spawn::process/post-spawn
-                                              (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                                                (:wat::core::let
-                                                  [pids (:fanout::pids pl)
-                                                   _ (:queue::queue/grant qh pids)]
-                                                  (:fanout::seen/grant seenh pids))))
+                                     :locus (:wat::spawn::ProcessOpts
+                                              :post-spawn-fn
+                                                (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                                                  (:wat::core::let
+                                                    [pids (:fanout::pids pl)
+                                                     _ (:queue::queue/grant qh pids)]
+                                                    (:fanout::seen/grant seenh pids)))
+                                              :env-fn "(:wat::program::EmptyEnv)"
+                                              ;; Stop returns every first-seen Outcome. A bursty
+                                              ;; queue can land all 2000 on one worker; 512 KiB
+                                              ;; does not hold that vector.
+                                              :max-message-bytes 2097152
+                                              :runner-count (:wat::program::cpu-count)
+                                              :label :wat::core::None)
                                      :record (:fanout::mk-worker
                                                (:fanout::wid qi wi)
                                                (:fanout::qname qi)

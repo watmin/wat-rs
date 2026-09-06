@@ -74,8 +74,10 @@
         :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Ok) nil)
-        (_ (:wat::kernel::assertion-failed! "su: send not Ok" :wat::core::None :wat::core::None))))
+        ((:queue::Queue::SendResponse::Accepted n)
+          (:wat::core::if (:wat::core::= n 1) nil
+            (:wat::kernel::assertion-failed! "su: send not fully accepted" :wat::core::None :wat::core::None)))
+        (_ (:wat::kernel::assertion-failed! "su: send not Accepted" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "su: send recv failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :su::ack-one [q <- :queue::Queue  id <- :wat::core::String] -> :wat::core::nil

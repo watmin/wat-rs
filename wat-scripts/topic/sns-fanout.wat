@@ -41,8 +41,7 @@
   [(:wat::core::defrecord :demo::Topic::PublishRequest
      [msgs <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :demo::Topic::PublishResponse :wat::enum::Pure
-     :Ok []
-     :Full [depth <- :wat::core::i64  cap <- :wat::core::i64]
+     :Accepted [count <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestTooManyEntries [entries <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
@@ -104,19 +103,13 @@
        (:wat::core::match sr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
-             ((:queue::Queue::SendResponse::Ok)
+             ((:queue::Queue::SendResponse::Accepted pairs)
                (:wat::service::Outcome::Continue s
-                 (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Ok)))
+                 (:wat::core::Some (:demo::Topic::Reply::Publish
+                   (:demo::Topic::PublishResponse::Accepted
+                     (:wat::i64::/ pairs nsubs))))
                  sends none-alarms))
-             ((:queue::Queue::SendResponse::Full d c)
-               (:wat::service::Outcome::Continue s
-                 (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full d c)))
-                 sends none-alarms))
-             ((:queue::Queue::SendResponse::RequestTooManyEntries e c)
-               (:wat::kernel::assertion-failed!
-                 (:wat::core::format "topic publish: inbox send RequestTooManyEntries({e},{c})" :e e :c c)
-                 :wat::core::None :wat::core::None))
-             (_ (:wat::kernel::assertion-failed! "topic publish: send not Ok/Full" :wat::core::None :wat::core::None))))
+             (_ (:wat::kernel::assertion-failed! "topic publish: send not Accepted" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
              [fresh (:wat::core::match
@@ -124,9 +117,9 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
-             ;; Do not claim Ok — the inbox write is unknowable. Full is the caller's retry.
+             ;; Do not claim Accepted n — the inbox write is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
-               (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full 0 0)))
+               (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Accepted 0)))
                sends none-alarms)))
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "topic publish: send stopped" :wat::core::None :wat::core::None))
@@ -137,10 +130,10 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
-             ;; Do not claim Ok — the inbox write is unknowable. Full is the caller's retry.
+             ;; Do not claim Accepted n — the inbox write is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
-               (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full 0 0)))
-               sends none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)] (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full 0 0))) sends none-alarms))))))
+               (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Accepted 0)))
+               sends none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)] (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Accepted 0))) sends none-alarms))))))
 
    (stats [s ctx req]
      (:wat::core::let
@@ -322,10 +315,8 @@
                           :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
                       ((:wat::kernel::RecvOutcome::Message r)
                         (:wat::core::match r
-                          ((:queue::Queue::SendResponse::Ok) "message")
-                          ((:queue::Queue::SendResponse::Full _d _c) "message")
+                          ((:queue::Queue::SendResponse::Accepted _n) "message")
                           ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "message")
-                          ((:queue::Queue::SendResponse::RequestTooManyEntries _e _c) "message")
                           ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "message")))
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
@@ -462,16 +453,19 @@
                               (:wat::core::match sr
                                 ((:wat::kernel::RecvOutcome::Message sresp)
                                   (:wat::core::match sresp
-                                    ((:queue::Queue::SendResponse::Ok)
+                                    ((:queue::Queue::SendResponse::Accepted nacc)
+                                      (:wat::core::if (:wat::i64::<= nacc 0)
+                                        acc
                                       (:wat::core::let
                                         [ack-ids (:wat::core::foldl
                                                    (:wat::core::fn
                                                      [bacc <- (:wat::core::Vector :- [:wat::core::String])
-                                                      p    <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+                                                      i    <- :wat::core::i64]
                                                      -> (:wat::core::Vector :- [:wat::core::String])
-                                                     (:wat::core::conj bacc (:wat::core::first p)))
+                                                     (:wat::core::conj bacc
+                                                       (:wat::core::first (:wat::core::nth bucket i))))
                                                    (:wat::core::Vector :- [:wat::core::String])
-                                                   bucket)
+                                                   (:wat::core::range 0 nacc))
                                          inb2 (:wat::core::match
                                                  (:queue::Queue/ack inb
                                                    (:queue::Queue::AckRequest :queue "inbox" :ids ack-ids))
@@ -493,9 +487,8 @@
                                                      (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
                                                      ((:wat::kernel::ConnectOutcome::Connected p) p)
                                                      (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))))]
-                                        (:wat::core::Tuple inb2 ss)))
-                                    ((:queue::Queue::SendResponse::Full _d _c) acc)
-                                    (_ (:wat::kernel::assertion-failed! "topic-worker: send not Ok/Full" :wat::core::None :wat::core::None))))
+                                        (:wat::core::Tuple inb2 ss))))
+                                    (_ (:wat::kernel::assertion-failed! "topic-worker: send not Accepted" :wat::core::None :wat::core::None))))
                                 ((:wat::kernel::RecvOutcome::Lost _cause)
                                   ;; Hard site: this sub may have taken the batch. Do not ack
                                   ;; the bucket — visibility redelivers; Seen absorbs if it landed.
@@ -702,15 +695,16 @@
                                               :msgs (:wat::core::Vector :- [:wat::core::String] msg)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::PublishResponse::Ok) "")
-        ((:demo::Topic::PublishResponse::Full d c)
-          (:wat::core::let [elapsed (:demo::elapsed-ms start-ns)]
-            (:wat::core::if (:wat::i64::>= elapsed limit-ms)
-              (:wat::core::format "verdict=never-accepted;depth={d};cap={c};attempts={a};elapsed={ms}"
-                :d d :c c :a attempts :ms elapsed)
-              (:wat::core::let [_ (:demo::await-timer-ms 1)]
-                (:demo::publish-until-accepted!* t msg (:wat::i64::+ attempts 1) start-ns limit-ms)))))
-        (_ (:wat::kernel::assertion-failed! "topic publish not Ok/Full" :wat::core::None :wat::core::None))))
+        ((:demo::Topic::PublishResponse::Accepted c)
+          (:wat::core::if (:wat::i64::>= c 1)
+            ""
+            (:wat::core::let [elapsed (:demo::elapsed-ms start-ns)]
+              (:wat::core::if (:wat::i64::>= elapsed limit-ms)
+                (:wat::core::format "verdict=never-accepted;attempts={a};elapsed={ms}"
+                  :a attempts :ms elapsed)
+                (:wat::core::let [_ (:demo::await-timer-ms 1)]
+                  (:demo::publish-until-accepted!* t msg (:wat::i64::+ attempts 1) start-ns limit-ms))))))
+        (_ (:wat::kernel::assertion-failed! "topic publish not Accepted" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Stopped
@@ -808,8 +802,10 @@
         :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Ok) nil)
-        (_ (:wat::kernel::assertion-failed! "send-one not Ok" :wat::core::None :wat::core::None))))
+        ((:queue::Queue::SendResponse::Accepted n)
+          (:wat::core::if (:wat::core::= n 1) nil
+            (:wat::kernel::assertion-failed! "send-one not fully accepted" :wat::core::None :wat::core::None)))
+        (_ (:wat::kernel::assertion-failed! "send-one not Accepted" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "send-one recv failed" :wat::core::None :wat::core::None))))
 
 ;; THREAD: no grant needed — a thread-tier queue shares the parent's admission.
@@ -1017,7 +1013,7 @@
       :dt dt
       :p (:wat::core::if (:wat::i64::< dt 100) "yes" "no"))))
 
-;; A full inbox refuses. No workers, so nothing drains. cap 2, nsubs=1: third is Full.
+;; A full inbox refuses. No workers, so nothing drains. cap 2, nsubs=1: third is Accepted 0.
 (:wat::core::defn :user::inbox-refuses [] -> :wat::core::String
   (:wat::core::let
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
@@ -1037,15 +1033,16 @@
            (:wat::core::match rr
              ((:wat::kernel::RecvOutcome::Message r)
                (:wat::core::match r
-                 ((:demo::Topic::PublishResponse::Ok) "ok")
-                 ((:demo::Topic::PublishResponse::Full _d _c) "full")
+                 ((:demo::Topic::PublishResponse::Accepted n)
+                   (:wat::core::str n))
                  (_ "other")))
              (_ "fail")))]
     (:wat::core::format "a={a};b={b};c={c}" :a (tag r1) :b (tag r2) :c (tag r3))))
 
 ;; Negative control for the publish liveness bound: a full inbox, no workers,
-;; so Full never clears. limit-ms 0 trips on the first Full and must name
-;; depth, cap, attempts, elapsed — a bound that only says "gave up" fails.
+;; so Accepted 0 never clears. limit-ms 0 trips on the first zero and must name
+;; attempts, elapsed — a bound that only says "gave up" fails. Depth and cap
+;; are not on the response.
 (:wat::core::defn :user::publish-bound-reports [] -> :wat::core::String
   (:wat::core::let
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)

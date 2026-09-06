@@ -177,10 +177,9 @@
       (:queue::Queue::SendRequest :queue name :bodies (:tr::bodies) :now-ns now-ns))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Ok) "Ok")
-        ((:queue::Queue::SendResponse::Full _d _c) "Full")
+        ((:queue::Queue::SendResponse::Accepted n)
+          (:wat::core::format "Accepted({n})" :n n))
         ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "RequestTooLarge")
-        ((:queue::Queue::SendResponse::RequestTooManyEntries _e _c) "RequestTooManyEntries")
         ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "RequestMalformed")))
     ((:wat::kernel::RecvOutcome::Lost c)
       (:wat::core::format "Lost:{m}" :m (:wat::kernel::LociDiedError/message c)))

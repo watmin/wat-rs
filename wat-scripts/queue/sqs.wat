@@ -46,10 +46,8 @@
       bodies <- (:wat::core::Vector :- [:wat::core::String])
       now-ns <- :wat::core::i64])
    (:wat::core::defenum :queue::Queue::SendResponse :wat::enum::Pure
-     :Ok []
-     :Full [depth <- :wat::core::i64  cap <- :wat::core::i64]
+     :Accepted [count <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestTooManyEntries [entries <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
 
@@ -100,7 +98,7 @@
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(send    [self <- :queue::Queue  req <- :queue::Queue::SendRequest]
-     -> :queue::Queue::SendResponse :max-request-bytes 524288 :max-entries [bodies 64])
+     -> :queue::Queue::SendResponse :max-request-bytes 524288)
    (receive [self <- :queue::Queue  req <- :queue::Queue::ReceiveRequest]
      -> :queue::Queue::ReceiveResponse :max-request-bytes 524288)
    (ack     [self <- :queue::Queue  req <- :queue::Queue::AckRequest]
@@ -344,21 +342,23 @@
        [store (:queue::queue::State/store s)
         q      (:queue::Queue::SendRequest/queue req)
         now-ns (:queue::Queue::SendRequest/now-ns req)
-        n0     (:wat::core::count (:queue::Queue::SendRequest/bodies req))
+        bodies (:queue::Queue::SendRequest/bodies req)
+        n0     (:wat::core::count bodies)
         cap    (:queue::queue::Record/cap (:queue::queue::State/durable s))
         lim    (:wat::i64::+ cap 1)
         depth  (:wat::core::apply (:queue::queue::State/total s) store q [now-ns lim])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
-        sends  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])]
-       (:wat::core::if (:wat::i64::> (:wat::i64::+ depth n0) cap)
+        sends  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+        room   (:wat::i64::- cap depth)
+        take0  (:wat::core::if (:wat::i64::< n0 room) n0 room)
+        take   (:wat::core::if (:wat::i64::< take0 0) 0 take0)]
+       (:wat::core::if (:wat::core::= take 0)
          (:wat::service::Outcome::Continue s
-           (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Full depth cap)))
+           (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0)))
            sends
            none-alarms)
          (:wat::core::let
-           [bodies (:queue::Queue::SendRequest/bodies req)
-        n      (:wat::core::count bodies)
-        rows   (:wat::core::foldl
+           [rows   (:wat::core::foldl
                  (:wat::core::fn
                    [acc <- (:wat::core::Vector :- [:wat::query::StoredRow])
                     i   <- :wat::core::i64]
@@ -375,7 +375,7 @@
                          :index-keys (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
                                        "by-visible-at" (:wat::query::IndexKey :ipk q :isk isk))))))
                  (:wat::core::Vector :- [:wat::query::StoredRow])
-                 (:wat::core::range 0 n))
+                 (:wat::core::range 0 take))
         put-resp (:wat::query::Store/put store
                    (:wat::query::Store::PutRequest rows))]
        (:wat::core::match put-resp
@@ -413,7 +413,7 @@
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s'))]
                      (:wat::service::Outcome::Continue s2
-                       (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))
+                       (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted take)))
                        (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                        (:wat::core::second pair)))
                    (:wat::core::let
@@ -498,12 +498,12 @@
                            :q-name (:queue::queue::State/q-name s2)
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s2))
-                      ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))]
+                      ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted take)))]
                      (:wat::service::Outcome::Continue s3 ok box (:wat::core::second pair))))))
              ((:wat::query::Store::PutResponse::Transient _e)
                (:wat::core::let
                  [_r (:queue::queue::retry-put store rows)]
-                 (:queue::queue::send-after-put s store q now-ns)))
+                 (:queue::queue::send-after-put s store q now-ns take)))
              ((:wat::query::Store::PutResponse::Constraint _e)
                (:wat::kernel::assertion-failed! "queue.send: store put Constraint" :wat::core::None :wat::core::None))
              ((:wat::query::Store::PutResponse::Fatal _e)
@@ -519,7 +519,6 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
-              vu2 (:wat::core::apply (:queue::queue::State/total s) fresh q [now-ns lim])
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -532,12 +531,10 @@
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
-             ;; Do not claim Ok — the put is unknowable. Full is the caller's retry.
+             ;; Do not claim Accepted n — the put is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Send
-                 (:queue::Queue::SendResponse::Full
-                   vu2
-                   cap)))
+                 (:queue::Queue::SendResponse::Accepted 0)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                none-alarms)))
          (:wat::kernel::RecvOutcome::Stopped
@@ -549,7 +546,6 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
-              vu2 (:wat::core::apply (:queue::queue::State/total s) fresh q [now-ns lim])
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -562,14 +558,12 @@
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s))]
-             ;; Do not claim Ok — the put is unknowable. Full is the caller's retry.
+             ;; Do not claim Accepted n — the put is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Send
-                 (:queue::Queue::SendResponse::Full
-                   vu2
-                   cap)))
+                 (:queue::Queue::SendResponse::Accepted 0)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) vu2 (:wat::core::apply (:queue::queue::State/total s) fresh q [now-ns lim]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Full vu2 cap))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
+               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
 
    (receive [s ctx req]
      (:wat::core::let
@@ -1116,7 +1110,8 @@
   [s <- :queue::queue::State
    store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
    q <- :wat::core::String
-   now-ns <- :wat::core::i64]
+   now-ns <- :wat::core::i64
+   n-ok <- :wat::core::i64]
   -> (:wat::service::Outcome :- [:queue::queue::State :queue::Queue::Reply :queue::queue::Op])
   (:wat::core::let
     [s' (:queue::queue::State
@@ -1149,7 +1144,7 @@
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s'))]
         (:wat::service::Outcome::Continue s2
-          (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))
+          (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted n-ok)))
           (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
           (:wat::core::second pair)))
       (:wat::core::let
@@ -1234,7 +1229,7 @@
               :q-name (:queue::queue::State/q-name s2)
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s2))
-         ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Ok)))]
+         ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted n-ok)))]
         (:wat::service::Outcome::Continue s3 ok box (:wat::core::second pair))))))
 
 ;; ── client helpers (the gate; Handle stays in the same let as the ops) ──────────
@@ -1253,10 +1248,10 @@
   (:wat::core::match (:queue::Queue/send q (:queue::Queue::SendRequest :queue name :bodies (:wat::core::Vector :- [:wat::core::String] body) :now-ns now-ns))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Ok) nil)
-        ((:queue::Queue::SendResponse::Full _d _c)
-          (:wat::kernel::assertion-failed! "send Full" :wat::core::None :wat::core::None))
-        (_ (:wat::kernel::assertion-failed! "send not Ok" :wat::core::None :wat::core::None))))
+        ((:queue::Queue::SendResponse::Accepted n)
+          (:wat::core::if (:wat::core::= n 1) nil
+            (:wat::kernel::assertion-failed! "send not fully accepted" :wat::core::None :wat::core::None)))
+        (_ (:wat::kernel::assertion-failed! "send not Accepted" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "send: recv failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::receive
