@@ -447,18 +447,12 @@ pub(crate) struct IntrinsicEntry {
     // The iv-b2 carry: parsed + carried now, read by the `verify-examples`
     // reflection seam (`src/intrinsic/reflect.rs`). `examples` is now read
     // by the seam (iv-b2-a), so its `#[expect(dead_code)]` has been removed.
-    // `args` and `ret_type` are read by `doc_arg_ret_types_match_checker_scheme`
-    // (cfg(test) — 255.1b-firm) and dead in non-test builds. Use `#[allow(dead_code)]`
-    // (not `#[expect]`) because in test builds the field IS used, which would make
-    // `#[expect(dead_code)]` fire an "unfulfilled expectation" warning.
-    // `deprecated` is still unread — reader lands later; keep its `#[expect(dead_code)]`.
-    // `see` is read by `eval_render_doc`'s See-also section (non-test) — no dead_code attr.
-    #[allow(dead_code)] // read by doc_arg_ret_types_match_checker_scheme (cfg(test))
+    // `args`/`ret_type`/`deprecated` are read in production by `eval_metadata_of`'s
+    // registry branch (the six doc-contract keys). `see` is read by `eval_render_doc`'s
+    // See-also section (non-test) — no dead_code attr.
     pub args: &'static [(&'static str, &'static str, &'static str, bool)],
-    #[allow(dead_code)] // read by doc_arg_ret_types_match_checker_scheme (cfg(test))
     pub ret_type: &'static str,
     pub examples: &'static [ExampleSubmission],
-    #[expect(dead_code)] // reader lands later → keep
     pub deprecated: Option<(&'static str, &'static str)>,
     pub see: &'static [&'static str],
     /// `@alias <fqdn>` — arc 255 Stone 2a. `Some(core)` means the alias field IS the dispatch,

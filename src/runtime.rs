@@ -7126,6 +7126,172 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
 // Arc 109 Stone — the reflect home — `eval_body_of` moved to `src/reflect/verbs.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
+/// Doc-contract keys `wat_doc::from_metadata` reads, shared by both `metadata-of`
+/// branches so a key from either branch is the same shape by inspection.
+///
+/// `:yields` is deliberately NOT emitted. The decoder reads it and `DocComment`
+/// carries it; `IntrinsicEntry` also carries `yields` (the DESIGN's "no yields
+/// field" census was wrong — `src/intrinsic/mod.rs`). Emitting it from one
+/// branch only would recreate two-shapes; emitting empty/fabricated is the
+/// papering-over this stone is against. Named gap, not closed here.
+/// `:syntax` is carried on `IntrinsicEntry` and is outside the doc-row contract.
+struct DocContractEmit {
+    args: Vec<(String, String, String, bool)>,
+    examples: Vec<(WatAST, Option<WatAST>, bool)>,
+    see: Vec<String>,
+    deprecated: Option<(String, String)>,
+    alias: Option<String>,
+    ret_type: String,
+    ret: String,
+}
+
+fn metadata_parse_form(src: &str, file: &str, span: &Span) -> Result<WatAST, EvalBreak> {
+    crate::parser::parse_one_with_file(src, file).map_err(|e| {
+        RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::runtime::metadata-of".into(),
+                reason: format!("failed to parse {file}: {e}"),
+            },
+        )
+        .into()
+    })
+}
+
+fn metadata_type_token_value(ty: &str, span: &Span) -> Result<Value, EvalBreak> {
+    let ast = metadata_parse_form(ty, "<metadata-of type>", span)?;
+    match ast {
+        WatAST::Keyword(k, _) => Ok(Value::wat__core__keyword(Arc::new(k))),
+        other => Ok(Value::wat__WatAST(Arc::new(other))),
+    }
+}
+
+fn metadata_vec(items: Vec<Value>) -> Value {
+    Value::Vec(Arc::new(items))
+}
+
+fn emit_doc_contract(
+    put: &mut impl FnMut(&str, Value),
+    c: &DocContractEmit,
+    span: &Span,
+) -> Result<(), EvalBreak> {
+    let mut arg_vals = Vec::with_capacity(c.args.len());
+    for (name, ty, desc, is_rest) in &c.args {
+        let name_kw = if *is_rest {
+            format!(":{name}...")
+        } else {
+            format!(":{name}")
+        };
+        arg_vals.push(metadata_vec(vec![
+            Value::wat__core__keyword(Arc::new(name_kw)),
+            metadata_type_token_value(ty, span)?,
+            Value::String(Arc::new(desc.clone())),
+        ]));
+    }
+    put(":args", metadata_vec(arg_vals));
+
+    let mut ex_vals = Vec::with_capacity(c.examples.len());
+    for (expr, expected, run) in &c.examples {
+        let mut entry = vec![Value::wat__WatAST(Arc::new(expr.clone()))];
+        if *run {
+            match expected {
+                Some(e) => entry.push(Value::wat__WatAST(Arc::new(e.clone()))),
+                None => entry.push(Value::Unit),
+            }
+        }
+        ex_vals.push(metadata_vec(entry));
+    }
+    put(":examples", metadata_vec(ex_vals));
+
+    put(
+        ":see",
+        metadata_vec(
+            c.see
+                .iter()
+                .map(|s| Value::wat__core__keyword(Arc::new(s.clone())))
+                .collect(),
+        ),
+    );
+
+    if let Some((since, instead)) = &c.deprecated {
+        put(
+            ":deprecated",
+            metadata_vec(vec![
+                Value::String(Arc::new(since.clone())),
+                Value::String(Arc::new(instead.clone())),
+            ]),
+        );
+    }
+    if let Some(a) = &c.alias {
+        put(":alias", Value::wat__core__keyword(Arc::new(a.clone())));
+    }
+    put(
+        ":ret",
+        metadata_vec(vec![
+            metadata_type_token_value(&c.ret_type, span)?,
+            Value::String(Arc::new(c.ret.clone())),
+        ]),
+    );
+    Ok(())
+}
+
+fn doc_contract_from_entry(
+    entry: &crate::intrinsic::IntrinsicEntry,
+    span: &Span,
+) -> Result<DocContractEmit, EvalBreak> {
+    let mut examples = Vec::with_capacity(entry.examples.len());
+    for ex in entry.examples {
+        let expr = metadata_parse_form(ex.expr, "<metadata-of example expr>", span)?;
+        let expected = match ex.expected {
+            Some(s) => Some(metadata_parse_form(
+                s,
+                "<metadata-of example expected>",
+                span,
+            )?),
+            None => None,
+        };
+        examples.push((expr, expected, ex.run));
+    }
+    Ok(DocContractEmit {
+        args: entry
+            .args
+            .iter()
+            .map(|(n, t, d, r)| ((*n).to_string(), (*t).to_string(), (*d).to_string(), *r))
+            .collect(),
+        examples,
+        see: entry.see.iter().map(|s| (*s).to_string()).collect(),
+        deprecated: entry
+            .deprecated
+            .map(|(since, instead)| (since.to_string(), instead.to_string())),
+        alias: entry.alias_of.map(str::to_string),
+        ret_type: entry.ret_type.to_string(),
+        ret: entry.ret.to_string(),
+    })
+}
+
+fn doc_contract_from_comment(doc: &wat_doc::DocComment) -> DocContractEmit {
+    DocContractEmit {
+        args: doc
+            .args
+            .iter()
+            .map(|a| (a.name.clone(), a.ty.clone(), a.desc.clone(), a.is_rest))
+            .collect(),
+        examples: doc
+            .examples
+            .iter()
+            .map(|e| (e.expr.clone(), e.expected.clone(), e.run))
+            .collect(),
+        see: doc.see.clone(),
+        deprecated: doc
+            .deprecated
+            .as_ref()
+            .map(|d| (d.since.clone(), d.use_instead.clone())),
+        alias: doc.alias.clone(),
+        ret_type: doc.ret_type.clone(),
+        ret: doc.ret.clone(),
+    }
+}
+
 /// `(:wat::runtime::metadata-of <name :keyword>) -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])])`
 ///
 /// Stone 241.7. Returns the binding's metadata-map as Option:
@@ -7136,8 +7302,9 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
 ///   doc-axis key (arc 255 Stone "metadata-of answers in one shape"): `:purity`/
 ///   `:determinism`/`:totality`/`:expand-time`/`:category`/`:defined-in` come back as the SAME
 ///   `Value::Enum` shape the intrinsic branch above produces (both read through the one
-///   decoder, `wat_doc::from_metadata`), plus `:doc`/`:added`/`:ret` as `Value::String` — never
-///   the raw, un-decoded `Value::wat__WatAST` this branch used to hand back for these keys
+///   decoder, `wat_doc::from_metadata`), plus `:doc`/`:added` as `Value::String` and `:ret` as
+///   the pair `[type, description]` the decoder reads — never the raw, un-decoded
+///   `Value::wat__WatAST` this branch used to hand back for these keys
 /// - Some({:k1 v1 ...}) when metadata was attached at def time but carries NO doc-axis key
 ///   (e.g. `{:restricted-to […]}`, a capability restriction unrelated to the doc contract):
 ///   read and stored exactly as authored, raw and un-decoded, wrapped as `Value::wat__WatAST`
@@ -7224,12 +7391,12 @@ fn eval_metadata_of(
     // a user `defn`. ZERO eval behavior change: the handler dispatch route is
     // untouched; this only READS the baseline the registry already carries.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
-        // 13 `put`s below (`:name`/`:kind`/`:defined-in`/`:layer`/`:arity`/`:purity`/
-        // `:determinism`/`:totality`/`:expand-time`/`:doc`/`:added`/`:ret`/`:category`) —
-        // bumped from a stale `8` (already undercounting pre-`:totality`/`:expand-time`)
-        // while touching this block for the "metadata-of answers in one shape" stone.
+        // `:name`/`:kind`/`:defined-in`/`:layer`/`:arity`/`:purity`/`:determinism`/
+        // `:totality`/`:expand-time`/`:doc`/`:added`/`:category` plus the six doc-contract
+        // keys (`:args`/`:examples`/`:see`/`:deprecated`/`:alias`/`:ret`-as-pair). `:ret`
+        // used to be the description alone; it is now the pair the decoder reads.
         let mut map: std::collections::HashMap<Value, Value> =
-            std::collections::HashMap::with_capacity(13);
+            std::collections::HashMap::with_capacity(19);
         // iv-c: put inserts PLAIN values (no HolonAST wrapping).
         let mut put = |key: &str, val: Value| {
             map.insert(Value::wat__core__keyword(Arc::new(key.to_string())), val);
@@ -7276,12 +7443,18 @@ fn eval_metadata_of(
         put(":expand-time", expand_time_val);
         // :doc — the GFM prose body from the structured doc contract (iv-b1).
         // :added — the @added version string.
-        // :ret — the @ret description.
-        // (Vector-valued keys :args/:examples/:see are CARRIED on the entry
-        //  but rendered by the iv-b2 verifier seam, not here — scope cut.)
+        // :args/:examples/:see/:deprecated/:alias/:ret — the six doc-contract keys
+        // this stone puts. Shapes are `from_metadata`'s, not new ones. `:ret` is
+        // the pair `[type, description]` (was the description alone). `:syntax`
+        // is carried on the entry and stays out of the map. `:yields` is a named
+        // gap — both branches omit it, so they cannot drift by inspection.
         put(":doc", Value::String(Arc::new(entry.prose.to_string())));
         put(":added", Value::String(Arc::new(entry.added.to_string())));
-        put(":ret", Value::String(Arc::new(entry.ret.to_string())));
+        emit_doc_contract(
+            &mut put,
+            &doc_contract_from_entry(entry, name_ast.span())?,
+            name_ast.span(),
+        )?;
         // :category — closed-domain Value::Enum (iv-c / arc 255.1b-iv-c Part C).
         let category_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.category);
         put(":category", category_val);
@@ -7328,7 +7501,7 @@ fn eval_metadata_of(
                 }
             };
             let mut map: std::collections::HashMap<Value, Value> =
-                std::collections::HashMap::with_capacity(9);
+                std::collections::HashMap::with_capacity(16);
             let mut put = |key: &str, val: Value| {
                 map.insert(Value::wat__core__keyword(Arc::new(key.to_string())), val);
             };
@@ -7355,13 +7528,18 @@ fn eval_metadata_of(
                 ":defined-in",
                 crate::intrinsic::ToEnumValue::to_enum_value(&crate::intrinsic::DefinedIn::Wat),
             );
-            // :doc / :added / :ret — same `Value::String` shape as the registry branch;
-            // `:args`/`:examples`/`:see`/`:yields`/`:deprecated` are deliberately NOT emitted,
-            // matching the registry branch's own scope cut (its comment: "CARRIED on the
-            // entry but rendered by the iv-b2 verifier seam, not here").
+            // :doc / :added — same `Value::String` shape as the registry branch.
+            // `:args`/`:examples`/`:see`/`:deprecated`/`:alias`/`:ret`-as-pair — the SAME
+            // `emit_doc_contract` the registry branch uses, fed from `DocComment`'s
+            // identically-named fields. A key from either branch is the same shape by
+            // inspection. `:yields` is omitted here too (named gap — see `DocContractEmit`).
             put(":doc", Value::String(Arc::new(doc.prose.clone())));
             put(":added", Value::String(Arc::new(doc.added.clone())));
-            put(":ret", Value::String(Arc::new(doc.ret.clone())));
+            emit_doc_contract(
+                &mut put,
+                &doc_contract_from_comment(&doc),
+                name_ast.span(),
+            )?;
             Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(
                 Arc::new(map),
             )))))
