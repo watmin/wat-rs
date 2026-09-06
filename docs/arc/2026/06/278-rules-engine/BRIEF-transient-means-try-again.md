@@ -95,3 +95,66 @@ is fine, both live in `scratch-pad/`.
 
 `SCORE-entry-three-of-ten.md` — the measurement that found this, including the literal responses
 and why the queue dies.
+
+---
+
+# ⛔ AMENDED 2026-09-06 — STOP-6 IS DISCHARGED. THIS STONE IS LIVE AGAIN.
+
+Everything above stands **except** the two blockers. Read this section last; it replaces them.
+
+## STOP-6 — discharged, with the measurement
+
+The rollback did become its own stone, exactly as the amendment above required, and then a second
+one when grading it found two more doors:
+
+- `105ecf16d` — `ROLLBACK` at all three layers; the statement-failure path closes.
+- `d0a160a9f` — **`closed is the postcondition`**: `close-then-err` replaces `rollback-then-err`,
+  the **commit**-failure path closes too, and an already-closed transaction is treated as the
+  postcondition rather than as a failure to assert on.
+
+`tests/services/probe_arc278_txn_must_close.wat` is now a floor gate. My runs ×2:
+
+```
+put1=Fatal:no such table: main;put2=Fatal:no such table: main
+```
+
+★ `put2` reports **its own cause**, not `cannot start a transaction within a transaction`. **A
+second `Store/put` after a failed one is no longer a second `begin` on a wedged connection.**
+
+## ⛔ AND THE STRONGER FACT THE RETRY ACTUALLY NEEDS
+
+"Reports the same error" is not "can do work." Measured before re-shipping this brief —
+`wat-scripts/scratch-pad/probe-a-retry-can-actually-succeed.wat`:
+
+```
+attempt1-stmt=Fatal:no such table: nosuch;closed=Fatal:attempt-1;
+retry-begin=Ok;retry-write=1;retry-commit=Ok;rows-after=1
+```
+
+★★ After a transaction fails and closes, the **retry commits durable work** — the row lands and is
+readable. `closed=Fatal:attempt-1` also confirms the original cause survives the close.
+
+**This is the fact the whole stone rests on, and it is now measured rather than assumed.**
+
+## STOP-3 — its premise is now PROVEN, not assumed
+
+STOP-3 said *"this stone assumes an honest store, where `:Transient` means nothing committed."*
+That is no longer an assumption:
+
+- `sqlite-store.wat:373-386` (`put`) and `:392-405` (`delete`) — `begin` → rows → `commit`, with
+  **every** failure arm routed through `close-then-err`.
+- A failed batch therefore commits nothing **and** leaves the connection usable.
+
+★ So *"retry the failed entries"* and *"retry the whole batch"* remain the same set — **all of
+them failed, none were enqueued** — and re-sending the request is not a double-enqueue.
+
+⚠ STOP-3 **still stands as written**: if you find a path where a `put` can partially commit, STOP.
+The premise is proven for the sqlite store; it is not a licence to skip checking.
+
+## WHAT DID NOT CHANGE
+
+The three `_` arms (`sqs.wat:217`, `:472`, `:728`) are **untouched** — verified this session.
+The blast radius is still `wat-scripts/queue/sqs.wat` only; STOPs 1, 2, 4, 5 stand unchanged.
+
+⚠ The store surface still returns **one** outcome for a whole batch. Per-entry outcomes are step
+(2) of the tracker's ordered plan and are **not** this stone. Retry the request as sent.
