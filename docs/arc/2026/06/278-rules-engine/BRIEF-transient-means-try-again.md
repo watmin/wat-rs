@@ -17,6 +17,42 @@ Read `DESIGN-transient-means-try-again.md` first — especially *what a retry mu
 | `circuit.wat:440-470` | the worker's **bounded** retry (`a1`/`a2`/`a3`, then exhaustion) — the shape to copy |
 | `wat/query/sqlite-store.wat:57`, `:70` | proof the real store emits `:Transient` |
 
+## ⛔⛔ AMENDED MID-STRIKE — READ THIS BEFORE THE RETRY
+
+Two findings after the brief was written. **Both change the work.**
+
+### 1. The batch IS atomic — so retrying the whole batch is correct
+
+`sqlite-store.wat:343-355`: `put` is `begin` → `put-rows` → `commit`, and `delete` is the same
+shape. **A failed batch commits nothing**, so "retry only the failed entries" and "retry the whole
+batch" are the *same set* — all of them failed, none were enqueued.
+
+★ The DESIGN's *"assumes an honest store"* is therefore not an assumption; it is what the code
+does. **State it as the contract: a `Store` batch is all-or-nothing.**
+
+### 2. ⛔ BUT THERE IS NO ROLLBACK. ANYWHERE.
+
+```wat
+(:wat::core::match (:wat::sqlite::begin conn)
+  ((:wat::core::Ok _)
+    (:wat::core::match (:wat::query::put-rows conn names new-rows)
+      ((:wat::core::Err e) (:wat::core::Err e))     ;; ← transaction left OPEN
+      ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))
+```
+
+`grep rollback` over `wat/query/sqlite-store.wat`, `wat/sqlite*.wat` and `src/intrinsic/sqlite*`
+returns **nothing**. The verb does not exist to call.
+
+★★ **The retry you are about to add walks straight into this**: a second `begin` on a connection
+whose transaction was never closed. **Establish what actually happens before building the retry
+on top of it.**
+
+- **STOP-6 (new)** — measure it first: after a failed `put`, does a subsequent `put` on the same
+  connection succeed? If it does not, **the rollback is a prerequisite and this stone stops** —
+  report it and hand it back. Do not add a retry that retries into a wedged connection.
+- If a rollback verb must be added to make the retry safe, that is **its own stone**. Report the
+  need; do not grow this one into a sqlite-surface change.
+
 ## THE CHANGE, AT EACH OF THE THREE SITES
 
 ```
