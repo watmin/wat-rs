@@ -997,6 +997,7 @@ fn probe_gap_cost_split() {
     let bind_only: HashMap<i64, Vec<u8>> = HashMap::new();
     let cond_key_ids: CondKeyIds = HashMap::new();
     let i64_by_fact: Vec<Option<super::I64Row>> = Vec::new();
+    let alpha = super::JoinAlpha::resolve(&conds, &bind_only, &cond_key_ids, 2).expect("join alpha");
 
 
     {
@@ -1009,7 +1010,7 @@ fn probe_gap_cost_split() {
             super::join_extend(
                 &tok,
                 &el,
-                2,
+                &alpha,
                 &mut super::FireCtx {
             sym: crate::rete::compiled_cond::test_sym(),
                     compiled_conds: &conds,
@@ -1071,7 +1072,7 @@ fn probe_gap_cost_split() {
                 super::join_extend(
                     &tok,
                     &el,
-                    2,
+                    &alpha,
                     &mut super::FireCtx {
             sym: crate::rete::compiled_cond::test_sym(),
                         compiled_conds: &conds,

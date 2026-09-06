@@ -225,6 +225,12 @@ for node_id in &kind_ids.join_parent {
             wm.bind_pool.reserve(n_join.saturating_mul(4));
             wm.match_pool.reserve(n_join.saturating_mul(2));
             // Full cross-join: every left token keyed against right_idx[J].
+            let alpha = JoinAlpha::resolve(
+                compiled_conds,
+                &wm.bind_only,
+                &wm.cond_key_ids,
+                alpha_id,
+            )?;
             let __cpr = phase_start();
             let mut new_tokens: Vec<Token> = Vec::with_capacity(n_join);
             if let Some(ridx) = right_idx.get(child_id) {
@@ -239,7 +245,7 @@ for node_id in &kind_ids.join_parent {
                             match join_extend(
                                 tok,
                                 el,
-                                alpha_id,
+                                &alpha,
                                 &mut FireCtx {
                             sym,
                                     compiled_conds,
@@ -339,6 +345,12 @@ for node_id in &kind_ids.join_parent {
             dr.iter().count(),
         );
 
+        let alpha = JoinAlpha::resolve(
+            compiled_conds,
+            &wm.bind_only,
+            &wm.cond_key_ids,
+            alpha_id,
+        )?;
         let mut new_tokens = hj_step3_term1(
             sym,
             wm,
@@ -348,7 +360,7 @@ for node_id in &kind_ids.join_parent {
             dl,
             jk,
             child_id,
-            alpha_id,
+            &alpha,
         )?;
 
         hj_step4_term2(
@@ -361,7 +373,7 @@ for node_id in &kind_ids.join_parent {
             dr,
             jk,
             child_id,
-            alpha_id,
+            &alpha,
         )?;
 
         // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
@@ -415,11 +427,12 @@ fn hj_step4_term2(
     dr: AlphaNews<'_>,
     jk: &[Value],
     child_id: &i64,
-    alpha_id: i64,
+    alpha: &JoinAlpha<'_>,
 ) -> Result<(), EvalBreak> {
 // Step 4: term2 = old_left ⋈ Δright (probe left_idx[J] — still OLD, Δleft not yet added).
 // left_idx is a separate map from right_idx; no aliasing — safe immutable borrow.
 let __s4 = phase_start();
+let alpha_id = alpha.id;
 if !dr.is_empty() {
     if let Some(lidx) = left_idx.get(child_id) {
         let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
@@ -439,7 +452,7 @@ if !dr.is_empty() {
                     if let Some(new_tok) = join_extend(
                         tok,
                         &el,
-                        alpha_id,
+                        alpha,
                         &mut FireCtx {
                             sym,
                             compiled_conds,
@@ -485,7 +498,7 @@ fn hj_step3_term1(
     dl: &[Token],
     jk: &[Value],
     child_id: &i64,
-    alpha_id: i64,
+    alpha: &JoinAlpha<'_>,
 ) -> Result<Vec<Token>, EvalBreak> {
 // Step 3: term1 = Δleft ⋈ all_right (probe right_idx[J] — now includes Δright).
 // The mutable borrow from step 2 ended with that scope block; safe to borrow immutably.
@@ -504,7 +517,7 @@ if !dl.is_empty() {
                     if let Some(new_tok) = join_extend(
                         tok,
                         el,
-                        alpha_id,
+                        alpha,
                         &mut FireCtx {
                             sym,
                             compiled_conds,

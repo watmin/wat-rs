@@ -543,6 +543,126 @@ fn predicted_visits_redden_under_a_whole_memory_scan_the_ratio_cannot_see() {
     );
 }
 
+/// Two-condition join: one HashJoin. `keys × fanout²` emitted pairs.
+/// Axis for the join_extend per-alpha lookup count (temperare §1).
+const JOIN_EXTEND_WORLD: &str = "\
+(:wat::core::defrecord :jx::A [k <- :wat::core::i64  a <- :wat::core::i64])\n\
+(:wat::core::defrecord :jx::B [k <- :wat::core::i64  b <- :wat::core::i64])\n\
+(:wat::core::defrecord :jx::Out [k <- :wat::core::i64  a <- :wat::core::i64  b <- :wat::core::i64])\n\
+\n\
+(:wat::core::defn :jx::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:jx::A :k k :a f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))) (:jx::B :k k :b f)) ((:wat::rete::InsertOutcome::Inserted __staged) __staged) ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __ilimit __iused __icount) (:wat::kernel::assertion-failed! \"insert: session memory ceiling exceeded while staging\" :wat::core::None :wat::core::None))))\n\
+    s\n\
+    (:wat::core::range 0 fanout)))\n\
+\n\
+(:wat::core::defn :jx::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:jx::seed-key acc k fanout))\n\
+    s\n\
+    (:wat::core::range 0 keys)))\n\
+\n\
+(:wat::rete::defrule :jx::join-rule\n\
+  :when [(:jx::A (?k <- :k) (?a <- :a))\n\
+         (:jx::B (?k <- :k) (?b <- :b))]\n\
+  :then [(:jx::Out ?k ?a ?b)])\n";
+
+/// One HashJoin on this world. The after-hoist prediction is `3 × HASH_JOINS`.
+const JOIN_EXTEND_HASH_JOINS: u64 = 1;
+
+const JOIN_EXTEND_POINTS: [(i64, i64); 4] = [(2, 8), (4, 4), (8, 2), (16, 1)];
+
+fn join_extend_pairs(keys: i64, fanout: i64) -> u64 {
+    (keys as u64) * (fanout as u64) * (fanout as u64)
+}
+
+fn pred_join_alpha_lookups(hash_joins: u64) -> u64 {
+    3 * hash_joins
+}
+
+fn join_extend_lookups(keys: i64, fanout: i64) -> u64 {
+    let world = startup_from_source(JOIN_EXTEND_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("join-extend world should freeze");
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:jx::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :jx)) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {keys} {fanout})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let (_fired, lookups) = super::with_join_alpha_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("join-extend fire raised at keys={keys} fanout={fanout}: {e:?}"))
+            .value_owned()
+    });
+    lookups
+}
+
+/// ★ THE PROOF: lookups equal `3 × hash-joins`, at four (keys, fanout) points.
+///
+/// Before the hoist, this axis read 1 lookup per emitted pair (the `compiled_conds`
+/// get; `span_from_row` is skipped because the join-index already has a BindSpan):
+///
+///   keys fanout   pairs  lookups
+///      2      8     128      128
+///      4      4      64       64
+///      8      2      32       32
+///     16      1      16       16
+///
+/// After: `JoinAlpha::resolve` runs once per HashJoin, three gets. Independent of pairs.
+#[test]
+fn join_alpha_lookups_match_the_per_node_prediction() {
+    let pred = pred_join_alpha_lookups(JOIN_EXTEND_HASH_JOINS);
+    let mut table = String::from(
+        "\njoin_extend per-alpha lookups AFTER hoist — visits == 3 × hash-joins\n\
+         \x20 keys fanout   pairs  lookups  pred\n\
+         \x20 ----------------------------------\n",
+    );
+    for (keys, fanout) in JOIN_EXTEND_POINTS {
+        let pairs = join_extend_pairs(keys, fanout);
+        let got = join_extend_lookups(keys, fanout);
+        table.push_str(&format!("  {keys:>4} {fanout:>6} {pairs:>7} {got:>8} {pred:>5}\n"));
+        assert_eq!(
+            got, pred,
+            "keys={keys} fanout={fanout}: lookups {got} ≠ 3 × {JOIN_EXTEND_HASH_JOINS} hash-joins = {pred}\n{table}"
+        );
+    }
+    println!("{table}");
+}
+
+/// Simulated inner-loop regression: add `pairs` (the measured before: one compiled_conds
+/// get per emitted pair) to the after count. Arithmetic, not an unkeyed engine.
+///
+/// Equality against `3 × hash-joins` FAILS. A weaker `lookups > 0` still PASSES.
+#[test]
+fn predicted_join_alpha_lookups_redden_under_a_per_pair_scan() {
+    let pred = pred_join_alpha_lookups(JOIN_EXTEND_HASH_JOINS);
+    let (k1, f1) = JOIN_EXTEND_POINTS[0];
+    let (k2, f2) = JOIN_EXTEND_POINTS[3];
+    let obs1 = join_extend_lookups(k1, f1);
+    let obs2 = join_extend_lookups(k2, f2);
+    assert_eq!(obs1, pred, "precondition: after-hoist count must match the formula");
+    assert_eq!(obs2, pred, "precondition: after-hoist count must match the formula");
+    let pairs1 = join_extend_pairs(k1, f1);
+    let pairs2 = join_extend_pairs(k2, f2);
+    let fake1 = obs1 + pairs1;
+    let fake2 = obs2 + pairs2;
+    println!(
+        "\njoin_extend per-pair simulation (add pairs)\n\
+         \x20 (K,F)=({k1},{f1}): after {obs1} + {pairs1} pairs = {fake1}  pred {pred}\n\
+         \x20 (K,F)=({k2},{f2}): after {obs2} + {pairs2} pairs = {fake2}  pred {pred}\n\
+         \x20 weaker (lookups > 0): PASS on {fake1}/{fake2}\n"
+    );
+    assert!(
+        fake1 > 0 && fake2 > 0,
+        "the weaker check (lookups > 0) must still pass under the simulation"
+    );
+    assert!(
+        fake1 != pred && fake2 != pred,
+        "equality against 3 × hash-joins must REDDEN under the simulation: \
+         fake {fake1}/{fake2} vs pred {pred}"
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]
