@@ -104,11 +104,76 @@
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
              ((:queue::Queue::SendResponse::Accepted pairs)
-               (:wat::service::Outcome::Continue s
-                 (:wat::core::Some (:demo::Topic::Reply::Publish
-                   (:demo::Topic::PublishResponse::Accepted
-                     (:wat::i64::/ pairs nsubs))))
-                 sends none-alarms))
+               (:wat::core::let
+                 [floor (:wat::i64::/ pairs nsubs)
+                  rem   (:wat::i64::mod pairs nsubs)]
+                 (:wat::core::if (:wat::core::= rem 0)
+                   (:wat::service::Outcome::Continue s
+                     (:wat::core::Some (:demo::Topic::Reply::Publish
+                       (:demo::Topic::PublishResponse::Accepted floor)))
+                     sends none-alarms)
+                   (:wat::core::let
+                     [need (:wat::i64::- nsubs rem)
+                      msg  (:wat::core::nth msgs floor)
+                      tail (:wat::core::foldl
+                             (:wat::core::fn
+                               [acc <- (:wat::core::Vector :- [:wat::core::String])
+                                i   <- :wat::core::i64]
+                               -> (:wat::core::Vector :- [:wat::core::String])
+                               (:wat::core::conj acc
+                                 (:wat::core::format "{i}|{m}" :i i :m msg)))
+                             (:wat::core::Vector :- [:wat::core::String])
+                             (:wat::core::range rem nsubs))
+                      now2 (:wat::time::epoch-nanos (:wat::time::now))
+                      tr (:queue::Queue/send (:demo::topic::State/inbox s)
+                           (:queue::Queue::SendRequest :queue "inbox" :bodies tail :now-ns now2))]
+                     (:wat::core::match tr
+                       ((:wat::kernel::RecvOutcome::Message r2)
+                         (:wat::core::match r2
+                           ((:queue::Queue::SendResponse::Accepted ntop)
+                             (:wat::service::Outcome::Continue s
+                               (:wat::core::Some (:demo::Topic::Reply::Publish
+                                 (:demo::Topic::PublishResponse::Accepted
+                                   (:wat::core::if (:wat::core::= ntop need)
+                                     (:wat::i64::+ floor 1)
+                                     floor))))
+                               sends none-alarms))
+                           (_ (:wat::kernel::assertion-failed! "topic publish: top-up send not Accepted" :wat::core::None :wat::core::None))))
+                       ((:wat::kernel::RecvOutcome::Lost _cause)
+                         (:wat::core::let
+                           [fresh (:wat::core::match
+                                    (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
+                                    ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                    (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                            s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
+                           (:wat::service::Outcome::Continue s'
+                             (:wat::core::Some (:demo::Topic::Reply::Publish
+                               (:demo::Topic::PublishResponse::Accepted floor)))
+                             sends none-alarms)))
+                       (:wat::kernel::RecvOutcome::Stopped
+                         (:wat::kernel::assertion-failed! "topic publish: top-up stopped" :wat::core::None :wat::core::None))
+                       (:wat::kernel::RecvOutcome::Closed
+                         (:wat::core::let
+                           [fresh (:wat::core::match
+                                    (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
+                                    ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                    (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                            s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
+                           (:wat::service::Outcome::Continue s'
+                             (:wat::core::Some (:demo::Topic::Reply::Publish
+                               (:demo::Topic::PublishResponse::Accepted floor)))
+                             sends none-alarms)))
+                       (:wat::kernel::RecvOutcome::TimedOut
+                         (:wat::core::let
+                           [fresh (:wat::core::match
+                                    (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
+                                    ((:wat::kernel::ConnectOutcome::Connected p) p)
+                                    (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                            s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
+                           (:wat::service::Outcome::Continue s'
+                             (:wat::core::Some (:demo::Topic::Reply::Publish
+                               (:demo::Topic::PublishResponse::Accepted floor)))
+                             sends none-alarms))))))))
              (_ (:wat::kernel::assertion-failed! "topic publish: send not Accepted" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
