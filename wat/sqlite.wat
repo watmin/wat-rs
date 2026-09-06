@@ -120,7 +120,7 @@
     ((:wat::core::Ok n) (:wat::core::Ok n))
     ((:wat::core::Err raw) (:wat::core::Err (:wat::sqlite::classify :execute raw)))))
 
-;; ─── pragma / begin / commit (Connection only) ─────────────────────────────────────────────────
+;; ─── pragma / begin / commit / rollback (Connection only) ──────────────────────────────────────
 (:wat::core::defn :wat::sqlite::pragma
   [conn <- :wat::sqlite::Connection name <- :wat::core::String value <- :wat::core::String]
   -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
@@ -142,6 +142,13 @@
     
     ((:wat::core::Ok _) (:wat::core::Ok nil))
     ((:wat::core::Err raw) (:wat::core::Err (:wat::sqlite::classify :commit raw)))))
+
+(:wat::core::defn :wat::sqlite::rollback
+  [conn <- :wat::sqlite::Connection] -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  (:wat::core::match (:rust::sqlite::Connection::rollback conn)
+    
+    ((:wat::core::Ok _) (:wat::core::Ok nil))
+    ((:wat::core::Err raw) (:wat::core::Err (:wat::sqlite::classify :rollback raw)))))
 
 ;; ─── select — the raw read; Connection AND ReadConnection both answer to it ───────────────────
 ;; `defclause` dispatches on each arg's CONCRETE runtime type tag, not through `typealias`

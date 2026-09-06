@@ -317,6 +317,16 @@ impl WatSqliteConnection {
             .execute_batch("COMMIT")
             .map_err(|e| fault_from_rusqlite(&e))
     }
+
+    /// `:rust::sqlite::Connection::rollback conn` — `ROLLBACK;`.
+    /// Pairs with `begin`: a failed statement inside a transaction must
+    /// close it, or the next `begin` is `cannot start a transaction within
+    /// a transaction`.
+    pub fn rollback(&self) -> Result<(), (i64, String, String)> {
+        self.conn
+            .execute_batch("ROLLBACK")
+            .map_err(|e| fault_from_rusqlite(&e))
+    }
 }
 
 // ─── ReadConnection (RO) ────────────────────────────────────────────────

@@ -29,6 +29,28 @@
 (:wat::core::defn :wat::query::lift-fault [f <- :wat::sqlite::Fault] -> :wat::query::Fault
   (:wat::query::Fault :message (:wat::sqlite::Fault/message f)))
 
+(:wat::core::defn :wat::query::sqlite-error-message
+  [e <- :wat::sqlite::Error] -> :wat::core::String
+  (:wat::core::match e
+    ((:wat::sqlite::Error::Transient f) (:wat::sqlite::Fault/message f))
+    ((:wat::sqlite::Error::Constraint f) (:wat::sqlite::Fault/message f))
+    ((:wat::sqlite::Error::Fatal f) (:wat::sqlite::Fault/message f))))
+
+;; Close the open transaction, then return the ORIGINAL error. A rollback
+;; that cannot close is unrecoverable — assert, naming both causes.
+(:wat::core::defn :wat::query::rollback-then-err
+  [conn <- :wat::sqlite::Connection  e <- :wat::sqlite::Error]
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  (:wat::core::match (:wat::sqlite::rollback conn)
+    ((:wat::core::Ok _) (:wat::core::Err e))
+    ((:wat::core::Err rb)
+      (:wat::kernel::assertion-failed!
+        (:wat::core::format
+          "sqlite-store: rollback failed; original={o}; rollback={r}"
+          :o (:wat::query::sqlite-error-message e)
+          :r (:wat::query::sqlite-error-message rb))
+        :wat::core::None :wat::core::None))))
+
 ;; ─── per-op response builders — classify a raw sqlite Result into the op's own outcome enum.
 ;; Each `Store::<Op>Response` exposes only the error variants that op's surface declares; a sqlite
 ;; classification with no matching variant on THIS op folds into `:Fatal` (defensive — never hit
@@ -352,7 +374,7 @@
             ((:wat::core::Ok _)
               (:wat::core::match (:wat::query::put-rows conn names new-rows)
                 
-                ((:wat::core::Err e) (:wat::core::Err e))
+                ((:wat::core::Err e) (:wat::query::rollback-then-err conn e))
                 ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::Put (:wat::query::put-response chained))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
 
@@ -366,7 +388,7 @@
             ((:wat::core::Err e) (:wat::core::Err e))
             ((:wat::core::Ok _)
               (:wat::core::match (:wat::query::delete-rows conn names keys)
-                ((:wat::core::Err e) (:wat::core::Err e))
+                ((:wat::core::Err e) (:wat::query::rollback-then-err conn e))
                 ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::Delete (:wat::query::delete-response chained))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
 

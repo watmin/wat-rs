@@ -1,8 +1,8 @@
-;; probe-transient-stop6-open-txn.wat — STOP-6 of transient-means-try-again.
+;; probe_arc278_txn_must_close.wat — a failed sqlite statement must close its transaction.
 ;;
-;; After a failed put, sqlite-store leaves the transaction OPEN (no rollback verb
-;; exists). Does a subsequent put on the same connection succeed?
-;; If not, the rollback is a prerequisite and the retry stone stops.
+;; Floor gate for DESIGN-a-transaction-that-fails-must-close. Was
+;; wat-scripts/scratch-pad/probe-transient-stop6-open-txn.wat (STOP-6).
+;; STORE/put2 must not be "cannot start a transaction within a transaction".
 
 (:wat::config::set-redef! true)
 
@@ -44,7 +44,7 @@
     :index-keys (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey]
                   "by-visible-at" (:wat::query::IndexKey :ipk "q" :isk "0"))))
 
-;; Cell A — raw connection: begin, fail inside, begin again.
+;; Cell A — raw connection. Fail inside a txn, ROLLBACK, begin again.
 (:wat::core::defn :s6::cell-conn [] -> :wat::core::String
   (:wat::core::let
     [conn (:wat::core::Result/expect (:wat::sqlite::open ":memory:") "s6: open")
@@ -54,12 +54,14 @@
             (:wat::sqlite::execute conn "INSERT INTO nosuch (x) VALUES (1)" none)
             ((:wat::core::Ok _) "Ok")
             ((:wat::core::Err e) (:s6::err-tag e)))
+     rb   (:s6::res-tag (:wat::sqlite::rollback conn))
      b2   (:s6::res-tag (:wat::sqlite::begin conn))
      cmt  (:s6::res-tag (:wat::sqlite::commit conn))]
-    (:wat::core::format "begin1={a};fail={b};begin2={c};commit={d}"
-      :a b1 :b e1 :c b2 :d cmt)))
+    (:wat::core::format "begin1={a};fail={b};rollback={r};begin2={c};commit={d}"
+      :a b1 :b e1 :r rb :c b2 :d cmt)))
 
-;; Cell B — Store put with no schema: begin+DELETE FROM main fails, txn open, put again.
+;; Cell B — Store put with no schema (the STOP-6 path). put1 fails; put2 must
+;; not be "cannot start a transaction within a transaction".
 (:wat::core::defn :s6::cell-store [] -> :wat::core::String
   (:wat::core::let
     [h (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
@@ -86,7 +88,7 @@
     (:wat::core::format "put1={a};put2={b}" :a p1 :b p2)))
 
 (:wat::core::defn :s6::run [] -> :wat::core::String
-  (:wat::core::format "CONN={c};STORE={s}" :c (:s6::cell-conn) :s (:s6::cell-store)))
+  (:wat::core::format "{c};{s}" :c (:s6::cell-conn) :s (:s6::cell-store)))
 
 (:wat::core::defn :user::compute [] -> :wat::core::String (:s6::run))
 (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:s6::run)))
