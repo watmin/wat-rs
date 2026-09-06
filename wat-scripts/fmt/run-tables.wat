@@ -6,6 +6,7 @@
 (:wat::load-file! "rules/let-blank.wat")
 (:wat::load-file! "rules/kwargs.wat")
 (:wat::load-file! "rules/table.wat")
+(:wat::load-file! "rules/atoms.wat")
 
 (:wat::core::defn :user::inc-group
   [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
@@ -39,7 +40,8 @@
                      (:wat::fmt::q-fallback)
                      (:wat::fmt::q-blank)
                      (:wat::fmt::q-align)
-                     (:wat::fmt::q-table))]
+                     (:wat::fmt::q-table)
+                     (:wat::fmt::q-atoms))]
           (:wat::rete::with-overlay rules queries
             (:wat::core::fn [overlay <- :wat::rete::Overlay]
               -> :wat::core::nil
@@ -74,7 +76,9 @@
                        (:wat::fmt::owned-set fired)
                        (:wat::fmt::blanks-set fired)
                        (:wat::fmt::aligns-set fired)
-                       (:wat::fmt::tables-map fired))]
+                       (:wat::fmt::tables-map fired)
+                       (:wat::fmt::atoms-set fired)
+                       (:wat::fmt::widths-map (:wat::fmt::widths-of forms)))]
                 (:wat::core::do
                   (:wat::kernel::println
                     (:wat::string::interpolate "GROUPS2={a} GROUPS3={b} ROWS={r}"

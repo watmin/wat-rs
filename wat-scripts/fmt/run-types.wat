@@ -7,6 +7,7 @@
 (:wat::load-file! "rules/let-blank.wat")
 (:wat::load-file! "rules/kwargs.wat")
 (:wat::load-file! "rules/table.wat")
+(:wat::load-file! "rules/atoms.wat")
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

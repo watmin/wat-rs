@@ -121,6 +121,8 @@
 (:wat::rete::defrule :fmt::kwargs-keys-from-1
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "list"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))
@@ -165,6 +167,8 @@
 (:wat::rete::defrule :fmt::kwargs-keys-later
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "list"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))
@@ -241,6 +245,8 @@
 (:wat::rete::defrule :fmt::kwargs-prefix-list
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "list"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))
@@ -316,6 +322,8 @@
 (:wat::rete::defrule :fmt::kwargs-prefix-vector
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "list"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))
@@ -391,6 +399,8 @@
 (:wat::rete::defrule :fmt::kwargs-prefix-map
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "list"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))
@@ -466,6 +476,8 @@
 (:wat::rete::defrule :fmt::kwargs-prefix-set
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "list"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
          (:wat::rete::where (:wat::rete::string::= ?sk "keyword"))
@@ -537,3 +549,29 @@
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind "block")])
+
+;; Map literal: pairs with no head. Claim + AlignPairs so values ride
+;; their keys. Break every key after the first (index 0 rides `{`).
+;; Completeness: last child index is odd.
+(:wat::rete::defrule :fmt::kwargs-map-claim
+  :when [(:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "map"))
+         (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
+         (:wat::grep::Node  (?last <- :id) (?p <- :parent) (?L <- :index))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?more <- :id) (?p <- :parent) (?mi <- :index))
+             (:wat::rete::where (:wat::rete::i64::= ?mi (:wat::rete::i64::+ ?L 1 :undefined 0)))))
+         (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?L 2 :undefined 1) 1))]
+  :then [(:wat::fmt::Claim :form ?p)
+         (:wat::fmt::AlignPairs :form ?p)])
+
+(:wat::rete::defrule :fmt::kwargs-map-keys
+  :when [(:wat::fmt::Claim (?p <- :form))
+         (:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
+         (:wat::rete::where (:wat::rete::string::= ?pk "map"))
+         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::rete::where (:wat::rete::i64::> ?ci 0))
+         (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?ci 2 :undefined 1) 0))]
+  :then [(:wat::fmt::Break :id ?c :kind "align")])
