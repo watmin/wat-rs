@@ -3559,6 +3559,53 @@ pub(crate) fn wat_keyword_to_clojure_symbol(kw: &str) -> Option<String> {
     Some(format!("{}/{}", ns_parts.join("."), name))
 }
 
+/// Three head spellings, one clojure-target spelling.
+///
+/// STONE-three-spellings-one-seam: fmt rules match this canonical form so dropping
+/// a keyword flavor is the deletion of one arm, not a 12-file rewrite.
+///
+/// ```text
+/// ":wat::core::defn"  ─┐
+/// ":wat.core/defn"    ─┼─►  "wat.core/defn"
+/// "wat.core/defn"     ─┘
+/// ```
+///
+/// Arm 1 reuses [`wat_keyword_to_clojure_symbol`] (the one `::`/`/` grammar, via
+/// `identifier::leaf`/`path`). Arm 2 strips the leading colon of a dotted keyword.
+/// Arm 3 is identity: already the target, or a bare name (`x`, `<-`, `:else`).
+pub(crate) fn canonical_head_name(name: &str) -> String {
+    if let Some(s) = wat_keyword_to_clojure_symbol(name) {
+        return s;
+    }
+    if let Some(body) = name.strip_prefix(':') {
+        if body.contains('/') {
+            return body.to_string();
+        }
+    }
+    name.to_string()
+}
+
+#[cfg(test)]
+mod canonical_head_name_tests {
+    use super::canonical_head_name;
+
+    #[test]
+    fn three_spellings_fold_to_the_clojure_target() {
+        assert_eq!(canonical_head_name(":wat::core::defn"), "wat.core/defn");
+        assert_eq!(canonical_head_name(":wat.core/defn"), "wat.core/defn");
+        assert_eq!(canonical_head_name("wat.core/defn"), "wat.core/defn");
+    }
+
+    #[test]
+    fn bare_data_and_binders_are_identity() {
+        assert_eq!(canonical_head_name(":else"), ":else");
+        assert_eq!(canonical_head_name(":-"), ":-");
+        assert_eq!(canonical_head_name("<-"), "<-");
+        assert_eq!(canonical_head_name("x"), "x");
+        assert_eq!(canonical_head_name("->"), "->");
+    }
+}
+
 fn ns_to_enum_path(ns: &str) -> String {
     format!(":{}", ns.replace('.', "::"))
 }

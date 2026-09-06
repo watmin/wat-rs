@@ -13,14 +13,14 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defn"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defn"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 (:wat::rete::defrule :fmt::defn-argspec-break
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defn"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defn"))
          (:wat::grep::Node  (?args <- :id) (?p <- :parent) (?ai <- :index) (?k <- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))
          (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ari <- :index))
@@ -33,7 +33,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defn"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defn"))
          (:wat::grep::Node  (?arrow <- :id) (?p <- :parent))
          (:wat::grep::Named (?arrow <- :id) (?an <- :name))
          (:wat::rete::where (:wat::rete::string::= ?an "->"))]
@@ -43,7 +43,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defn"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defn"))
          (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ari <- :index))
          (:wat::grep::Named (?arrow <- :id) (?an <- :name))
          (:wat::rete::where (:wat::rete::string::= ?an "->"))

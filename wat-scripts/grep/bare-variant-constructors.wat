@@ -36,34 +36,34 @@
   :when [(:bv::Head (?id <- :id) (?n <- :name))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Some"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/Some"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "bare"      :value ?n)
-                       (:wat::grep::Capture :name "qualified" :value ":wat::core::Option::Some")))])
+                       (:wat::grep::Capture :name "qualified" :value "wat.core.Option/Some")))])
 
 (:wat::rete::defrule :bv::ok
   :when [(:bv::Head (?id <- :id) (?n <- :name))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Ok"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/Ok"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "bare"      :value ?n)
-                       (:wat::grep::Capture :name "qualified" :value ":wat::core::Result::Ok")))])
+                       (:wat::grep::Capture :name "qualified" :value "wat.core.Result/Ok")))])
 
 (:wat::rete::defrule :bv::err
   :when [(:bv::Head (?id <- :id) (?n <- :name))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Err"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/Err"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "bare"      :value ?n)
-                       (:wat::grep::Capture :name "qualified" :value ":wat::core::Result::Err")))])
+                       (:wat::grep::Capture :name "qualified" :value "wat.core.Result/Err")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :bv))

@@ -29,7 +29,7 @@
          (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::grep::Span  (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::first"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/first"))]
   :then [(:wat::grep::Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "calls-a-partial-verb"

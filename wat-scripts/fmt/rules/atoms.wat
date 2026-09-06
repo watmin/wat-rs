@@ -26,5 +26,5 @@
              (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
              (:wat::rete::where (:wat::rete::i64::= ?hi 0))
              (:wat::grep::Named (?h <- :id) (?hn <- :name))
-             (:wat::rete::where (:wat::rete::string::= ?hn ":wat::core::defenum"))))]
+             (:wat::rete::where (:wat::rete::string::= ?hn "wat.core/defenum"))))]
   :then [(:wat::fmt::AllAtoms :form ?p)])

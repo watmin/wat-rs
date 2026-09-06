@@ -16,7 +16,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::cond"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/cond"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 ;; one CLAUSE per line. Child 0 is the head; every child from index 1 on
@@ -25,7 +25,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::cond"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/cond"))
          (:wat::grep::Node  (?cl <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))]
   :then [(:wat::fmt::Break :id ?cl :kind (:wat::fmt::BreakKind::Block))])
@@ -37,7 +37,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::cond"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/cond"))
          (:wat::grep::Node  (?first <- :id) (?p <- :parent) (?fi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?fi 1))
          (:wat::grep::Node  (?cl <- :id) (?p <- :parent) (?ci <- :index))

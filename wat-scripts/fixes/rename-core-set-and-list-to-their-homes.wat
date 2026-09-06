@@ -96,7 +96,7 @@
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
          ;; the literal into unquoted keyword syntax.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
-         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::HashSet/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.HashSet/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-hashset-slash-to-hashset-colon"
            :captures (:wat::rete::core::PersistentVector
@@ -114,7 +114,7 @@
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-hashset-slash's comment.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
-         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::List/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.List/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-list-slash-to-linkedlist-colon"
            :captures (:wat::rete::core::PersistentVector
@@ -133,12 +133,12 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::rete::core::List/get"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.rete.core.List/get"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-list-get-to-rete-linkedlist-get"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value ":wat::rete::linkedlist::get")))])
+                       (:wat::grep::Capture :name "new" :value "wat.rete.linkedlist/get")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :rn))

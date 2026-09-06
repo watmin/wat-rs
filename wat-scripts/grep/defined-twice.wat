@@ -49,10 +49,10 @@
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where
            (:wat::rete::core::or
-             (:wat::rete::string::= ?n ":wat::core::defn")
+             (:wat::rete::string::= ?n "wat.core/defn")
              (:wat::rete::core::or
-               (:wat::rete::string::= ?n ":wat::core::defrecord")
-               (:wat::rete::string::= ?n ":wat::core::defmacro"))))]
+               (:wat::rete::string::= ?n "wat.core/defrecord")
+               (:wat::rete::string::= ?n "wat.core/defmacro"))))]
   :then [(:dt::Declarator :parent ?p)])
 
 (:wat::rete::defrule :dt::defines

@@ -817,6 +817,7 @@ mod stream;
 // `pub(crate)` to call four of these handlers directly (bypassing the registry) are retired;
 // nothing outside this module calls into it anymore.
 mod string;
+mod grep;
 mod uuid;
 mod vec;
 mod vector;

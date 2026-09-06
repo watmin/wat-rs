@@ -9,21 +9,21 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defrecord"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defrecord"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 (:wat::rete::defrule :fmt::defstruct-claim
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defstruct"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defstruct"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 (:wat::rete::defrule :fmt::defenum-claim
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defenum"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defenum"))]
   :then [(:wat::fmt::Claim :form ?p)
          (:wat::fmt::AlignPairs :form ?p)])
 
@@ -31,7 +31,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defrecord"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defrecord"))
          (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index) (?vk <- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?vk (:wat::grep::NodeKind::Vector)))
          (:wat::grep::Node  (?arrow <- :id) (?v <- :parent) (?ai <- :index))
@@ -50,7 +50,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defstruct"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defstruct"))
          (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index) (?vk <- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?vk (:wat::grep::NodeKind::Vector)))
          (:wat::grep::Node  (?arrow <- :id) (?v <- :parent) (?ai <- :index))
@@ -71,14 +71,14 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defenum"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defenum"))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index) (?ck <- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?ck (:wat::grep::NodeKind::Keyword)))
          (:wat::rete::where (:wat::rete::i64::> ?ci 1))
          (:wat::grep::Named (?c <- :id) (?cn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?cn ":-"))
-         (:wat::rete::where (:wat::rete::string::not= ?cn ":wat::enum::Pure"))
-         (:wat::rete::where (:wat::rete::string::not= ?cn ":wat::enum::Impure"))]
+         (:wat::rete::where (:wat::rete::string::not= ?cn "wat.enum/Pure"))
+         (:wat::rete::where (:wat::rete::string::not= ?cn "wat.enum/Impure"))]
   :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
 
 ;; A tag with no vector sibling gets ` []` written after it. A tag that
@@ -87,14 +87,14 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::defenum"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defenum"))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index) (?ck <- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?ck (:wat::grep::NodeKind::Keyword)))
          (:wat::rete::where (:wat::rete::i64::> ?ci 1))
          (:wat::grep::Named (?c <- :id) (?cn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?cn ":-"))
-         (:wat::rete::where (:wat::rete::string::not= ?cn ":wat::enum::Pure"))
-         (:wat::rete::where (:wat::rete::string::not= ?cn ":wat::enum::Impure"))
+         (:wat::rete::where (:wat::rete::string::not= ?cn "wat.enum/Pure"))
+         (:wat::rete::where (:wat::rete::string::not= ?cn "wat.enum/Impure"))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index) (?vk <- :kind))

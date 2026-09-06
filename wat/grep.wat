@@ -239,7 +239,7 @@
      ;; THE GUARD: no name fact for an unnameable node. `ast-name` is never reached for one.
      named (:wat::core::if (:wat::grep::nameable? node)
              (:wat::vector::conj (:wat::grep::Acc/named acc)
-               (:wat::grep::Named :id id :name (:wat::core::ast-name node)))
+               (:wat::grep::Named :id id :name (:wat::grep::canonical-name (:wat::core::ast-name node))))
              (:wat::grep::Acc/named acc))
      ;; NO GUARD: extent-of is total (ast-span / ast-end-span are total). Every node gets a Span.
      ex    (:wat::grep::extent-of node)

@@ -6,7 +6,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::let"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/let"))
          (:wat::grep::Node  (?b <- :id) (?p <- :parent) (?bi <- :index) (?k <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?bi 1))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))]
@@ -19,7 +19,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::let"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/let"))
          (:wat::grep::Node  (?b <- :id) (?p <- :parent) (?bi <- :index) (?k <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?bi 1))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))

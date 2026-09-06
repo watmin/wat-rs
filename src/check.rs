@@ -17884,6 +17884,18 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 277 STONE-three-spellings-one-seam — the head-spelling fold. Registered here
+    // rather than parked on FROZEN_CHECKER_DEBT_LEDGER so `doc_arg_ret_types_match_checker_scheme`
+    // verifies its `@arg`/`@ret` for real; the ledger is for debt, and this has none.
+    env.register(
+        ":wat::grep::canonical-name".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
     env.register(
         ":wat::string::to-lowercase".to_string(),
         TypeScheme {

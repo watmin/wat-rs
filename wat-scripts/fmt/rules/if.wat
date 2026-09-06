@@ -11,7 +11,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::if"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/if"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 ;; Child 0 is the head, child 1 is the test (stays on the head line),
@@ -20,7 +20,7 @@
   :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::if"))
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/if"))
          (:wat::grep::Node  (?br <- :id) (?p <- :parent) (?bi <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?bi 1))]
   :then [(:wat::fmt::Break :id ?br :kind (:wat::fmt::BreakKind::Block))])

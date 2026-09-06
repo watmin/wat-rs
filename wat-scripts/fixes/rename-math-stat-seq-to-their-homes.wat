@@ -104,12 +104,12 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::zip"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/zip"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "zip"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value ":wat::seq::zip")))])
+                       (:wat::grep::Capture :name "new" :value "wat.seq/zip")))])
 
 (:wat::rete::defrule :hms::window
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
@@ -117,12 +117,12 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::window"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/window"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "window"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value ":wat::seq::window")))])
+                       (:wat::grep::Capture :name "new" :value "wat.seq/window")))])
 
 (:wat::rete::defrule :hms::remove-at
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
@@ -130,12 +130,12 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
-         (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::remove-at"))]
+         (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/remove-at"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "remove-at"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value ":wat::seq::remove-at")))])
+                       (:wat::grep::Capture :name "new" :value "wat.seq/remove-at")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :hms))
