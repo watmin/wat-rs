@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-09-06. **ARC 277 IS LIVE. 255 IS UNBLOCKED.**
+# SEAM — the ONE live breadcrumb. As of 2026-09-06. **THE TREE IS DIRTY. THREE STONES ARE STACKED.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -6,109 +6,179 @@
 > never a disk copy), ground HEAD against the disk, and read this whole file before you touch
 > anything.
 
-> `251/SEAM.md` · `278/SEAM.md` PARKED. ⛔ **PARKED IS NOT DEAD.**
+> `251/SEAM.md` · `278/SEAM.md` PARKED and point HERE. ⛔ **PARKED IS NOT DEAD.**
 
-> ## ⚠⚠ A STONE IS IN FLIGHT WITH GROK — CHECK BEFORE YOU TOUCH ANYTHING
->
-> **Stone:** `[[DESIGN-STONE-the-emitter-survives-a-comment]]` (277/). Briefed at HEAD `e4f1cd817`;
-> tree had `wat/fmt.wat` modified + one new fixture, 0 unpushed.
->
-> ```bash
-> git status --short                              # its edits live in wat/fmt.wat
-> cat /home/john/work/holon/.pulsare/to-claude    # a SCORE may be waiting
-> pgrep -af 'cargo|nextest'
-> ```
->
-> ⛔ **Do NOT re-run cargo to check on it** (FM 18). **Row 3 is `wat/spawn.wat` — a REAL FILE, not a
-> fixture**, and row 7 is the one that stops rule 5 deleting 869 deliberate blank lines.
+## ⚠⚠ FIRST — THE TREE IS NOT CLEAN AND ONE STONE CANNOT LAND
+
+```bash
+git status --porcelain        # 20 entries. HEAD 54db1d7cb, 0 unpushed.
+grep -c is_uppercase src/edn/render.rs      # ⛔ MUST BE 0 BEFORE ANYTHING COMMITS
+```
+
+**Three stones are stacked, uncommitted, entangled, and the floor was NEVER RUN on the stack.**
+
+```
+251.8b        crates/wat-reader/src/identifier.rs        VERIFIED by me — see below
+pprintln      src/services/verbs.rs · src/load/stdlib.rs · wat/doc.wat · tests/cli/pprintln_doc_row*
+              VERIFIED by me — golden byte-identical, scoping holds
+keyword       src/edn/render.rs + 7 moved goldens        ⛔ DISQUALIFIED
+```
+
+⛔ **The keyword stone installs a CASE-KEYED structural test**, which the builder ruled out outright:
+*"we must never key any tooling on character case."* It cannot land.
+
+⚠ **And they are entangled.** The keyword fix re-captured
+`tests/cli/pprintln_doc_row__step_payload.edn` from 7 `#wat.ast/Keyword` carriers to 0. Reverting
+the heuristic drags that golden back with it.
+
+**The fork, unresolved — the builder was asked and the session ended:**
+1. revert keyword (render.rs + its 7 goldens), re-capture the pprintln golden at 7, land the other two
+2. land 251.8b alone, hold the rest
+3. land all three with the heuristic as debt — ⛔ argued against: it is a live ruling, and `#95`
+   would put that guess on the type checker's resolution path
 
 ## GROUND FIRST
 
-> **THE FRESHNESS PROBE — DERIVE IT, NEVER TYPE IT.**
+> **DERIVE THE PROBE, NEVER TYPE IT.**
 > ```bash
 > S=docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md
 > git log --oneline "$(git log -1 --format=%H -- $S)..HEAD"
 > ```
 > **Empty → nothing moved.** ⚠ **A PASSING PROBE PROVES NOTHING ABOUT TRUTH.** Re-run the commands.
+> ⛔ **AND THE PROBE IS BLIND TO A DIRTY TREE.** It compares commits. Read `git status` too — this
+> session committed a rider's mid-strike work inside a CURARE commit by not doing that.
 
 ```
-floor ........ 5179/5179, 0 FAIL, 18 skipped    scripts/floor.sh (runs doctests first)
-clippy ....... 0 under `-D warnings --all-targets`
-fmt rules .... 12 files in wat-scripts/fmt/rules/    ← A NEW STYLE RULE IS A NEW FILE. Proven 5×.
-277 docs ..... 103 artifacts
+floor ........ 5199/5199 at 61626c416 — the LAST GREEN. NOT re-run on the stack.
+clippy ....... 0 at that commit
 host ......... JohnDesktop · john · ~/work/holon/wat-rs
 ```
 
-## ⭐⭐ WHAT 277 BUILT — wat-fmt is REAL, and it is written in wat
+## ★★★ THE ARC TURNED. 277 IS DONE ENOUGH; THE FIGHT IS 251.
+
+The builder, at the end: *"we have been preparing for this fight for quite a while… i think its time
+we face it."* The fight is the **symbol/keyword fusion**, and the order is now derived, not guessed:
 
 ```
-wat/fmt.wat              the emitter. Facts: Break{id,kind} Claim BlankBefore AlignPairs
-                         AlignStride TableRow Width AllAtoms EmptyVecAfter
-wat-scripts/fmt/rules/   12 rule files — defn defn-args defrecord defrecord-fields let
-                         let-bindings let-blank match kwargs table atoms siblings
+251.8b   Identifier STORES (ns, name)      ← DRAWN + STRUCK, in the tree, verified
+#95      dotted call heads type-check      ← 255 owes 251 this. MEASURED LIVE, see below
+codec    keyword/symbol unfused            ← nothing left to guess once 251.8b lands
+then     keywords cease to be heads        ← builder's ruling: interim coexistence, then kill
+maybe    collections as heads              ({:a :b} :a) => :b — a capability, NOT a migration step
 ```
 
-★★★ **THE PRIORITY TARGET IS MET.** 614 doc `@example` lines — mean 110 cols, **max 1528, 160 over
-120** — now format to **0 over 120, worst 104, idempotent**. The reason
-`[[PARKED-the-migration-waits-on-wat-fmt]]` gave for parking arc 255 is **DISCHARGED**.
-
-⚠ **NOT the same as "the migration is ready."** `crates/wat-doc/src/print.rs` must be wired to call
-`wat fmt` for each `:examples` entry. **That is the actual next 255 step** and it is not built.
-
-## THE RULES, ALL BUILDER-RULED
+### ⛔ #95 IS LIVE — the A/B that proves it
 
 ```
-defn        head+name+param-spec on line 1 · arg-spec one arg/line, `<-` ALIGNED · ret-spec ONE
-            line · body own line · empty [] is NOT an exception
-let         head line BARE · vector own line · one binder/line · body after · blank after a
-            COMPLEX binder
-match       scrutinee rides · one arm per line          (`_` IS legal: 105 uses, check.rs:6251)
-defrecord/  name rides · fields one/line · `<-` aligned
-defstruct
-defenum     name+purity only on line 1 · TAG+vector ONE unit · tags padded · bare variant gets
-            `[]` INSERTED  ← wat-fmt's ONE token-insertion licence
-kwargs      trailing PAIR RUN one/line, values aligned · positionals obey leading-atom
-types       a type application is ATOMIC · a constructor glues type-args, explodes values
-tables      2+ adjacent same-head same-key-sequence siblings → aligned table
-atoms       a pair collection stays INLINE iff every value is an ATOM and it FITS (120)
-exploded    the default. Compression comes later.
+(:wat::i64::+ 1 2 3)   →  ArityMismatch: expected 2 argument(s); got 3
+(wat.i64/+   1 2 3)    →  clean
+(wat.core/+  1 2 3)    →  clean, CORRECTLY — core/+ is the variadic clause; i64/+ is binary
 ```
 
-## ⛔ OPEN — and NONE of it blocks 255
+`infer_list`'s gate — `check.rs:2622` `if let WatAST::Keyword(k, head_span) = head`, closing `5892`
+— wraps **~3,270 lines** of call inference. A `Symbol` head falls past all of it. `k` is used purely
+as a string, so widening is a bind, **not** a fork.
+
+⚠ **But the registry is keyed by FQDN**, so a dotted head must be mapped back — by `ns_to_wat_path`,
+**the function with the casing heuristic**. Widening the gate today puts that guess on the type
+checker's RESOLUTION path, where being wrong binds the wrong function silently. **That is why 251.8b
+comes first.**
+
+## ★★★ ONE DEFECT WEARING FOUR HATS — and 251.8b is its root
 
 ```
-E · where a TRAILING comment goes    UNRULED. The reader stone called attachment POLICY, and a
-                                     trailing comment on an EXPLODED form has no line to belong to.
-R8 · aligned trailing comments       needs E settled
-level-2 alignment inside a value     grep.wat:284-289's Location/line vs Location/col
-:examples fat arrow                  DEFERRED by the builder; the NOTE carries the VERTICAL shape
-                                     and what it touches (the DOCTEST GATE runs those pairs)
-arc 109 · bare variant ILLEGAL       NOTE written; wat-fmt's `[]` insertion IS its migration,
-                                     so the checker change costs nothing AFTER the corpus is formatted
+keyword_from_wat_path   splits ":wat::rete::Explained/support" on the last "::", strands the "/"
+                        in the name, falls back to #wat.ast/Keyword — 7 in one doc row, 89 corpus
+                        @examples would have carried it into the sweep
+ns_to_wat_path          rejoining, decides "::" vs "/" BY CAPITALISATION          ⛔ RULED OUT
+#95                     cannot look up a dotted head without that same rejoin
+receiver / method       split on the LAST "/", so `wat.core//` reads ["wat.core/", ""] and not
+                        [wat.core, /] — 5 LIVE division operators (:wat::core::/ and siblings)
 ```
 
-## ★ WHAT ACTUALLY WORKS — earned this session, 10 stones
+**All four are structure re-derived from a flat string, and the derivation having to choose.**
+`Identifier { name: String }` with `namespace()` doing a `rfind('/')` on every read is the root.
+251.8a said so and named its own successor.
 
-- **THE FLOOR AND CLIPPY ARE THE ORCHESTRATOR'S, ALWAYS.** They caught a red a targeted run could
-  not in **4 of 10** stones — including a half-finished deletion (a file left tracked in git).
-- **A FIXTURE PROVES A RULE FIRES; ONLY A REAL FILE PROVES THE FORMATTER WORKS.** First contact with
-  `wat/deporder.wat` found 3 defects nine stones of fixtures never could.
-- **VALIDATE A PROBE FIRES BEFORE READING ITS SILENCE.** Cost 3 mis-aimed sabotages in one stone.
-- **REFUTE, DON'T PATCH.** 5 refutations; every one found a real defect.
-- **ASK THE SUBSTRATE.** `is_kwargs` came from `check.rs:13444` — the formatter cannot disagree with
-  the language about what a kwarg call is.
+## 251.8b — STRUCK AND VERIFIED BY ME, waiting only on the fork above
 
-## ⛔ WHAT COST THE MOST — and it is ONE pattern, four times
+```
+namespace()  ->  &self.ns                    a field, not a rfind
+rfind('/') in Identifier ACCESSORS  ->  0    the 4 remaining are: bare (the chokepoint, derives
+                                             once) + 3 free fns on &str (raw-string grammar)
+struct       ->  ns · name · flat · scopes   flat is stored so as_str() keeps -> &str
+```
 
-**AN ACCEPTANCE ROW OF MINE COULD BE SATISFIED BY THE DEFECT — 4×:**
-`"ret-spec on its own line"` (→ `->` and the type on separate lines, shipped green) ·
-the arg-spec · `"a positional must RIDE"` (→ a compound rode, 132 cols) ·
-`"one pair per line"` (→ said nothing about WHICH COLUMN).
-**Every one was caught by the builder's eye, not my gate.**
-`[[feedback_an_acceptance_row_is_a_pin_unless_it_derives_its_bar]]`
+⚠ **`scopes` is Racket sets-of-scopes hygiene (Flatt 2016) — NOT part of the tuple.** Folding it in
+makes a three-member name, the illegal shape.
 
-**AND TWO NUMBERS PUBLISHED WRONG:** "36 forms at once" was **3**; "~354 table sites" was **1,527**.
-Both were an inference from a correct measurement that I never checked against the thing it claimed.
+⚠ **Row 9 is the stone: BEHAVIOUR MUST NOT CHANGE.** It buys nothing visible. `wat.core//` still
+answers `["wat.core/", ""]`, contradicting the builder's `[wat.core, /]` — that is a READER question
+and the next stone, deliberately not fixed here.
+
+## ★★ AND A FINDING THE SESSION ENDED ON — the two EDN writers have ONE cause
+
+```
+wat_edn::write_pretty          the shared writer                  used by the runtime's pprintln
+crates/wat-doc/src/print.rs    a HAND-ROLLED named emitter        used at proc-macro time
+```
+
+`print.rs`'s own header: *"A named emitter, **not `wat-edn`'s `write-pretty`**. **`write-pretty`
+escapes newlines inside strings (measured)**."* **That single behaviour forked the writer** — not
+layering; wat-doc reaches wat-edn transitively through wat-reader already.
+
+★ The pprintln stone teaches the runtime path to do prose — **removing the fork's cause** — but it
+puts the capability in `verbs.rs`, the runtime side of a fence `print.rs` cannot cross, which
+guarantees the fork survives. **The prose mode belongs in `wat-edn`'s writer**, with both callers on
+it and `print.rs`'s emitter deleted. That is the natural successor stone.
+
+## ⚠ RULINGS FROM THIS SESSION — do not re-litigate
+
+- **Never key tooling on character case.** Structural case-tests survive at `subsume.rs:60/95`,
+  `declare/parse.rs:1013`, and `edn_doc.rs`'s `fqdn_of` — a wider scope than the one stone.
+- **A symbol is `(ns, name)`.** `wat.core/+` → `[wat.core, +]` · `foo` → `[$bound, foo]`. At most one
+  slash in the name; `wat.core//` is `[wat.core, /]`; a third member is illegal.
+- **No `::` in keywords** once the clojure migration completes.
+- **Heads cease to be keywords** — interim coexistence, then keywords killed as heads.
+- **A metadata map is DATA, not a hypervector.** 6 live `HashMap :- [keyword HolonAST]` annotations
+  survive in `.wat`, and `tests/lint/holon_is_vsa_only.rs` scans `src/` and `crates/*/src/` ONLY —
+  the whole `.wat` corpus is outside it.
+- **arc 255's real order** (`PARKED-the-migration-waits-on-wat-fmt`): step 1 wat-fmt EXISTS (met);
+  step 2 `DocSpecialForm`'s metadata-map reader (NOT built — 87 rows, 52 `@alias`, 36 `@syntax`);
+  step 3 the `@-form` ratchet; step 4 the sweep. **`if`/`cond` was never the unlock.**
+
+## ✅ WHAT LANDED THIS SESSION
+
+```
+Break.kind · Node.kind are enums      a runtime wall retired into the type; a NAME-freezing gate
+:then checks declared field types     i64-into-String and Alpha-into-Beta both refused
+the fence refuses what it cannot prove match, exhaustive or not; cond still admitted
+variant-name + its rete exposure      three stranded callers walk again
+three spellings, one seam             canonical = wat.core/… ; drop a flavor = delete ONE arm
+if · cond                             TWO NEW FILES, nothing else — the criterion, 6× proven
+metadata-of answers with the whole row a #wat.doc/Row renders from ONE lookup
+```
+
+## ⛔ WHAT COST THE MOST — and it is ONE pattern
+
+**I MEASURED SOMETHING ADJACENT TO THE ARTIFACT AND REPORTED IT AS THE ARTIFACT.** The builder asked
+five times to see a rendered `#wat.doc/Row` and got widths, line counts, fragments, and a
+structurally-compared golden that was **not `print`'s output**. The command that answered it was one
+line with nothing after the binary — and I had already run it, then piped it away.
+
+★ **`pprintln` of a VALUE is unescaped.** The escaping I blamed on missing tooling was `println` of a
+**String**, which is correct EDN behaviour. **"wat has no raw stdout" was FALSE and I drew a whole
+stone on it.** Before reaching for `io::write-file` or a decoder: *am I printing a value or a string?*
+
+**And four census errors, every one a PATTERN instead of a SITE**, all caught by the peer or the
+floor, never by my own gate: the missed `starts-with?` files · `yields` at `mod.rs:510` clipped by an
+`awk NR<=490` window **inside the correction that fixed a previous miscount** · `HolonAST` counted 9
+when 6 were live · `:then` sites counted by `string::=` and never `string::not=`.
+
+**Six no-op sabotages** read as evidence before being caught: two self-consistent renames, a
+`"block"→"align"` flip aimed at a file that could not show it, a `sed` for a string absent from the
+file, a `grep -v` that ate closing parens, and an emitter swap with no rebuild — **`wat/*.wat` is
+FROZEN into the release binary.**
 
 ---
 
@@ -117,8 +187,7 @@ Both were an inference from a correct measurement that I never checked against t
 >
 > ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Re-run the commands. Do not read the numbers.
 >
-> ⚠ **AND THE HARDER ONE: the same acceptance-row defect landed FOUR times in one session** and the
-> builder caught all four. A row that the defect can satisfy is not a row. **Derive the bar from
-> the ruling, quote the ruling's words, and name the column.**
+> ⛔ **AND THE TREE IS DIRTY WITH A DISQUALIFIED STONE IN IT.** `git status` before anything else.
+> The floor has never run on this stack.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.`
