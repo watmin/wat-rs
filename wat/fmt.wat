@@ -277,8 +277,9 @@
         here
         (:wat::core::ast->children node)))))
 
-;; Widest first-token of this form's broken children, from THIS pass's
-;; source spelling of those children — never from already-padded text.
+;; Widest first-token among broken children whose NEXT sibling has no
+;; Break (a key with a riding value). Prefix compounds do not contribute:
+;; their next sibling is also broken. From THIS pass's source spelling.
 (:wat::core::defn :wat::fmt::broken-key-width
   [kids   <- (:wat::core::Vector :- [:wat::WatAST])
    i      <- :wat::core::i64
@@ -290,13 +291,19 @@
     acc
     (:wat::core::let
       [child (:wat::core::nth kids i)
+       size  (:wat::fmt::subtree-size child)
+       nid   (:wat::i64::+ id size)
        w     (:wat::core::match (:wat::core::get breaks id)
                ((:wat::core::Some _)
-                 (:wat::core::let [n (:wat::string::length (:wat::core::ast->source child))]
-                   (:wat::core::if (:wat::i64::> n acc) n acc)))
+                 (:wat::core::if (:wat::i64::< (:wat::i64::+ i 1) (:wat::core::length kids))
+                   (:wat::core::match (:wat::core::get breaks nid)
+                     ((:wat::core::Some _) acc)
+                     (:wat::core::None
+                       (:wat::core::let [n (:wat::string::length (:wat::core::ast->source child))]
+                         (:wat::core::if (:wat::i64::> n acc) n acc))))
+                   acc))
                (:wat::core::None acc))]
-      (:wat::fmt::broken-key-width kids (:wat::i64::+ i 1)
-        (:wat::i64::+ id (:wat::fmt::subtree-size child)) breaks w))))
+      (:wat::fmt::broken-key-width kids (:wat::i64::+ i 1) nid breaks w))))
 
 (:wat::core::defn :wat::fmt::emit-kids
   [acc        <- :wat::fmt::Acc
