@@ -17,6 +17,63 @@ Same fixture this morning: **109 deliveries/s, e2e ~12 s, non-deterministic.**
 
 ---
 
+## ⛔ WHERE WE ARE NOW — 2026-09-06, and where we are going
+
+**Correctness is done. The floor is green at 5215/5215 and has been through every stone below.**
+The arc is in its **perf phase**, and its terminal condition is the builder's:
+**stop when wat's interpretation overhead is the dominant term.** Not compiled wat — `main` is
+heading there separately; this branch grinds architectural perf until interpretation leads.
+
+### The number
+
+```
+8000 deliveries (2000 published x 4 subscribers)
+                     publish+drain     throughput
+before the perf phase    37.5 s          213/sec
+after 2 perf stones      23.7 s          338/sec     (+59%)
+```
+
+### ⛔ THE ORDERED PLAN — do not reorder without a reason on disk
+
+1. **Per-entry batch failure — CHAOS FIRST.** Every batch surface takes a vector IN and returns
+   ONE outcome OUT (`Store::Delete/PutResponse`, `Queue::AckResponse`, `Seen::MarkResponse`).
+   **We have never injected a fault where entry 3 of 10 fails and the rest succeed.** Provoke it,
+   measure whether a partly-failed batch loses a message. *Make the defect visible before
+   repairing it.*
+2. **Per-entry outcomes on the batch surfaces** — earned by what (1) shows, not assumed.
+3. **The topic batch.** `:demo::Topic::PublishRequest [msg <- String]` is **singular**, and main's
+   2000 sequential publishes ARE the current 23.5 s leader. ⚠ **Deliberately after (2)** — built
+   now it would ship another collapsed surface and deepen the debt (1) exposes.
+4. **`setup` 9.7 s + `stop` 6.3 s ≈ 16 s** — process spawn/reap, **40 % of the non-publish wall**.
+   Ruled out of this arc long ago as a boot-time item; **that ruling has expired** and should be
+   revisited once publish stops dominating.
+
+### Measured units — the floor under every estimate
+
+```
+bare round trip, thread locus  143 us   <- the interpretation + dispatch floor
+bare round trip, process       179 us
+Store/put                      675 us
+Store/count-index              517 us
+Store/scan-index limit 1       573 us
+```
+
+★ **8000 x 143 us is ~1.1 s against a ~23.7 s system. Interpretation is nowhere near the leader**
+— measured, not assumed. The terminal condition is far off.
+
+### ⛔ RULES EARNED IN THIS PHASE — they cost stones
+
+1. **`publish` alone is a Goodhart metric.** Raising the inbox cap moved 15 s out of `publish`
+   into `drain` with throughput unchanged to 0.3 %. **Measure `publish + drain`.**
+2. **A row must gate what the stone CONTROLS, not what it expects to follow.** Gating a
+   consequence has fired wrongly three times.
+3. **State what must HOLD, not what was last OBSERVED.** `distinct` is an invariant and is gated;
+   `dup` and timings are observations and are reported.
+4. **Every perf stone names the NEW DOMINANT TERM**, with numbers — otherwise we cannot tell when
+   the terminal condition is met.
+5. **"Our impl provably cannot fail that way" is usually "we never injected it."** That sentence
+   is how (1) above got written as a design decision instead of a gap.
+
 ## THE MAIN LINE
 
 ### 1. Prove redelivery works — ✅ DONE 2026-09-02
@@ -98,7 +155,7 @@ sends, and its *placement in the loop* is what decides the fault:
      `gap=300 → delivered; raced=yes-and-VISIBLE`, and its presence-wait already uses
      `:wait (Wait::UpTo …)` since Stone B. Same position B was in before its strike.
 
-### ⛔ WHERE CHAOS ACTUALLY STANDS — 2026-09-04
+### ⛔ WHERE CHAOS ACTUALLY STANDS — 2026-09-04 (HISTORICAL; superseded by WHERE WE ARE NOW)
 
 **The order (D → chaos → C) is COMPLETE.** What follows is the honest ledger, because "is this done"
 was asked and the answer was not obvious from the stone list.
