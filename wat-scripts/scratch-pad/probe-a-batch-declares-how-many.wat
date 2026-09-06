@@ -1,8 +1,9 @@
-;; probe-a-batch-declares-how-many.wat — `:max-entries [bodies 10]` on Queue::send.
+;; probe-a-batch-declares-how-many.wat — `:max-entries [bodies 64]` on Queue::send.
 ;;
-;; 11 bodies into a cap-10 send must be RequestTooManyEntries{11,10} with depth
-;; unchanged, at BOTH thread and process loci. 10 still passes (Ok, depth +10).
-;; The cap is a readable def: :queue::Queue::SEND-MAX-ENTRIES = 10.
+;; 65 bodies into a cap-64 send must be RequestTooManyEntries{65,64} with depth
+;; unchanged, at BOTH thread and process loci. 64 still passes (Ok, depth +64).
+;; The cap is a readable def: :queue::Queue::SEND-MAX-ENTRIES = 64.
+;; Raised 10 → 64 so a topic batch of 10 × 4 subscribers is one Queue/send.
 
 (:wat::config::set-redef! true)
 (:wat::load-file! "../queue/sqs.wat")
@@ -58,12 +59,12 @@
   [q <- :queue::Queue] -> :wat::core::String
   (:wat::core::let
     [d0 (:bd::depth q)
-     t11 (:bd::send-tag q 11)
-     d11 (:bd::depth q)
-     t10 (:bd::send-tag q 10)
-     d10 (:bd::depth q)]
-    (:wat::core::format "{t11};depth {d0}->{d11};{t10};depth {d11}->{d10}"
-      :t11 t11 :d0 d0 :d11 d11 :t10 t10 :d10 d10)))
+     t65 (:bd::send-tag q 65)
+     d65 (:bd::depth q)
+     t64 (:bd::send-tag q 64)
+     d64 (:bd::depth q)]
+    (:wat::core::format "{t65};depth {d0}->{d65};{t64};depth {d65}->{d64}"
+      :t65 t65 :d0 d0 :d65 d65 :t64 t64 :d64 d64)))
 
 (:wat::core::defn :bd::thread [] -> :wat::core::String
   (:wat::core::let

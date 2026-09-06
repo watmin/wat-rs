@@ -100,7 +100,7 @@
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(send    [self <- :queue::Queue  req <- :queue::Queue::SendRequest]
-     -> :queue::Queue::SendResponse :max-request-bytes 524288 :max-entries [bodies 10])
+     -> :queue::Queue::SendResponse :max-request-bytes 524288 :max-entries [bodies 64])
    (receive [self <- :queue::Queue  req <- :queue::Queue::ReceiveRequest]
      -> :queue::Queue::ReceiveResponse :max-request-bytes 524288)
    (ack     [self <- :queue::Queue  req <- :queue::Queue::AckRequest]

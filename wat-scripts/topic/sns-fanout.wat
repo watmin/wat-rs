@@ -38,11 +38,13 @@
 ;; publish means ACCEPTED, and accepted means the N rows are in the inbox store.
 (:wat::core::defsurface :demo::Topic :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :demo::Topic::PublishRequest [msg <- :wat::core::String])
+  [(:wat::core::defrecord :demo::Topic::PublishRequest
+     [msgs <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :demo::Topic::PublishResponse :wat::enum::Pure
      :Ok []
      :Full [depth <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestTooManyEntries [entries <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :demo::Topic::StatsRequest [])
@@ -53,7 +55,7 @@
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(publish [self <- :demo::Topic  req <- :demo::Topic::PublishRequest]
-     -> :demo::Topic::PublishResponse :max-request-bytes 524288)
+     -> :demo::Topic::PublishResponse :max-request-bytes 524288 :max-entries [msgs 10])
    (stats   [self <- :demo::Topic  req <- :demo::Topic::StatsRequest]
      -> :demo::Topic::StatsResponse :max-request-bytes 524288)])
 
@@ -76,18 +78,25 @@
   :impls
   [(publish [s ctx req]
      (:wat::core::let
-       [msg   (:demo::Topic::PublishRequest/msg req)
+       [msgs  (:demo::Topic::PublishRequest/msgs req)
         nsubs (:demo::topic::Record/nsubs (:demo::topic::State/durable s))
         now   (:wat::time::epoch-nanos (:wat::time::now))
         bodies (:wat::core::foldl
                  (:wat::core::fn
                    [acc <- (:wat::core::Vector :- [:wat::core::String])
-                    i   <- :wat::core::i64]
+                    msg <- :wat::core::String]
                    -> (:wat::core::Vector :- [:wat::core::String])
-                   (:wat::core::conj acc
-                     (:wat::core::format "{i}|{m}" :i i :m msg)))
+                   (:wat::core::foldl
+                     (:wat::core::fn
+                       [acc2 <- (:wat::core::Vector :- [:wat::core::String])
+                        i    <- :wat::core::i64]
+                       -> (:wat::core::Vector :- [:wat::core::String])
+                       (:wat::core::conj acc2
+                         (:wat::core::format "{i}|{m}" :i i :m msg)))
+                     acc
+                     (:wat::core::range 0 nsubs)))
                  (:wat::core::Vector :- [:wat::core::String])
-                 (:wat::core::range 0 nsubs))
+                 msgs)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])
         sr (:queue::Queue/send (:demo::topic::State/inbox s)
@@ -103,6 +112,10 @@
                (:wat::service::Outcome::Continue s
                  (:wat::core::Some (:demo::Topic::Reply::Publish (:demo::Topic::PublishResponse::Full d c)))
                  sends none-alarms))
+             ((:queue::Queue::SendResponse::RequestTooManyEntries e c)
+               (:wat::kernel::assertion-failed!
+                 (:wat::core::format "topic publish: inbox send RequestTooManyEntries({e},{c})" :e e :c c)
+                 :wat::core::None :wat::core::None))
              (_ (:wat::kernel::assertion-failed! "topic publish: send not Ok/Full" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
@@ -685,7 +698,8 @@
   [t <- :demo::Topic  msg <- :wat::core::String
    attempts <- :wat::core::i64  start-ns <- :wat::core::i64  limit-ms <- :wat::core::i64]
   -> :wat::core::String
-  (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msg msg))
+  (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest
+                                              :msgs (:wat::core::Vector :- [:wat::core::String] msg)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:demo::Topic::PublishResponse::Ok) "")
@@ -993,7 +1007,8 @@
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      t0 (:wat::time::epoch-nanos (:wat::time::now))
-     _  (:wat::core::match (:demo::Topic/publish tc (:demo::Topic::PublishRequest :msg "hello"))
+     _  (:wat::core::match (:demo::Topic/publish tc (:demo::Topic::PublishRequest
+                                                     :msgs (:wat::core::Vector :- [:wat::core::String] "hello")))
           ((:wat::kernel::RecvOutcome::Message _r) nil)
           (_ nil))
      t1 (:wat::time::epoch-nanos (:wat::time::now))
@@ -1012,9 +1027,12 @@
      th (:demo::topic/start :locus (:wat::spawn::thread)
           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
-     r1 (:demo::Topic/publish tc (:demo::Topic::PublishRequest :msg "a"))
-     r2 (:demo::Topic/publish tc (:demo::Topic::PublishRequest :msg "b"))
-     r3 (:demo::Topic/publish tc (:demo::Topic::PublishRequest :msg "c"))
+     r1 (:demo::Topic/publish tc (:demo::Topic::PublishRequest
+                                  :msgs (:wat::core::Vector :- [:wat::core::String] "a")))
+     r2 (:demo::Topic/publish tc (:demo::Topic::PublishRequest
+                                  :msgs (:wat::core::Vector :- [:wat::core::String] "b")))
+     r3 (:demo::Topic/publish tc (:demo::Topic::PublishRequest
+                                  :msgs (:wat::core::Vector :- [:wat::core::String] "c")))
      tag (:wat::core::fn [rr <- (:wat::kernel::RecvOutcome :- [:demo::Topic::PublishResponse])] -> :wat::core::String
            (:wat::core::match rr
              ((:wat::kernel::RecvOutcome::Message r)
