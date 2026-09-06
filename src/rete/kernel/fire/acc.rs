@@ -342,8 +342,7 @@ pub(super) fn fold_bucket(
             if let Some(field) = packed_operand_field(var, view, sample) {
                 return fold_i64s(
                     fold,
-                    bucket.iter().map(|&i| {
-                        census_gather_visit();
+                    gather_bucket(bucket).map(|i| {
                         row_i64(&elements[i], field, view.i64_by_fact)
                     }),
                     bucket.len(),
@@ -363,8 +362,7 @@ pub(super) fn fold_bucket(
             };
             fold_i64s(
                 fold,
-                bucket.iter().map(|&i| {
-                    census_gather_visit();
+                gather_bucket(bucket).map(|i| {
                     slot_i64(&elements[i], slot, view.vals, view.pool)
                 }),
                 bucket.len(),
@@ -375,8 +373,7 @@ pub(super) fn fold_bucket(
             if let Some(field) = packed_operand_field(var, view, sample) {
                 return fold_i64s(
                     fold,
-                    bucket.iter().map(|&i| {
-                        census_gather_visit();
+                    gather_bucket(bucket).map(|i| {
                         row_i64(&elements[i], field, view.i64_by_fact)
                     }),
                     bucket.len(),
@@ -396,15 +393,14 @@ pub(super) fn fold_bucket(
             };
             fold_i64s(
                 fold,
-                bucket.iter().map(|&i| {
-                    census_gather_visit();
+                gather_bucket(bucket).map(|i| {
                     slot_i64(&elements[i], slot, view.vals, view.pool)
                 }),
                 bucket.len(),
             )
         }
         AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => {
-            let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
+            let gathered: Vec<&Element> = gather_bucket(bucket).map(|i| &elements[i]).collect();
             accumulate_value(fold, &gathered, sym, view)
         }
     }

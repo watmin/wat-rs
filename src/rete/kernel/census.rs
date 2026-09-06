@@ -255,6 +255,16 @@ pub(crate) fn census_gather_visit() {
 #[inline(always)]
 pub(crate) fn census_gather_visit() {}
 
+/// The one gather-bucket walk. Each yielded index is one examination
+/// (`census_gather_visit`, a no-op in release). A raw `bucket.iter()` in a
+/// gather arm has no form — `tests/lint/no_raw_gather_bucket_walk.rs`.
+#[inline]
+pub(crate) fn gather_bucket(bucket: &[usize]) -> impl Iterator<Item = usize> + '_ {
+    bucket.iter().copied().inspect(|_| {
+        census_gather_visit();
+    })
+}
+
 /// Run `f` with the gather-visit counter zeroed, and return what it counted.
 ///
 /// Any outer count is restored afterwards, so nesting cannot silently swallow a measurement.
