@@ -785,6 +785,119 @@ fn predicted_prod_entries_redden_under_a_per_fact_scan() {
     );
 }
 
+fn fire_col_field(world: &str, ns: &str, seed_args: &str) -> super::ColFieldCounts {
+    let world = startup_from_source(world, None, Arc::new(InMemoryLoader::new()))
+        .unwrap_or_else(|e| panic!("{ns} world should freeze: {e:?}"));
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:{ns}::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :{ns})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {seed_args})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let (_fired, counts) = super::with_col_field_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("{ns} fire raised at {seed_args}: {e:?}"))
+            .value_owned()
+    });
+    counts
+}
+
+/// ★ temperare §4: count `col_field_of` and `key_of_el`'s empty-binds arm on the
+/// axes that already exist. The SCORE decides hoist vs refute from these rows.
+#[test]
+fn col_field_of_is_measured_on_the_driven_axes() {
+    let fan_small = fire_col_field(FANOUT_CENSUS_WORLD, "fan", "10 10");
+    let fan_cell = fire_col_field(FANOUT_CENSUS_WORLD, "fan", "100 20");
+    let acc_g10 = fire_col_field(ACCUM_GATHER_WORLD, "agc", "10 80");
+    let acc_g80 = fire_col_field(ACCUM_GATHER_WORLD, "agc", "80 10");
+
+    let row = |name: &str, denom: u64, c: &super::ColFieldCounts| {
+        let empty_frac = if c.key_of_el == 0 {
+            f64::NAN
+        } else {
+            c.key_of_el_empty as f64 / c.key_of_el as f64
+        };
+        let col_frac = if c.key_of_el == 0 {
+            f64::NAN
+        } else {
+            c.col_field_of as f64 / c.key_of_el as f64
+        };
+        format!(
+            "  {name:<22} {denom:>8} {:>8} {:>8} {empty_frac:>7.2} {:>8} {col_frac:>7.2} {:>8}",
+            c.key_of_el, c.key_of_el_empty, c.col_field_of, c.from_wm
+        )
+    };
+
+    let table = format!(
+        "\ncol_field_of measurement — existing axes, no invented workload\n\
+         \x20 axis                     denom  key_of_el   empty  empty/k   col_of  col/k   from_wm\n\
+         \x20 ------------------------------------------------------------------------------------\n\
+         {}\n\
+         {}\n\
+         {}\n\
+         {}\n\
+         denom: fanout occupancy-right = keys×fanout; accum readings = G×W.\n",
+        row("fanout 10×10 (pairs=1000)", 10 * 10, &fan_small),
+        row("fanout 100×20 (pairs=40k)", 100 * 20, &fan_cell),
+        row("accum G=10 W=80 (read=800)", 10 * 80, &acc_g10),
+        row("accum G=80 W=10 (read=800)", 80 * 10, &acc_g80),
+    );
+    println!("{table}");
+    assert!(
+        fan_cell.key_of_el > 0,
+        "fanout cell recorded ZERO key_of_el — the hash-join sites were never entered\n{table}"
+    );
+    assert!(
+        acc_g10.key_of_el > 0 || acc_g10.col_field_of > 0,
+        "accum G10W80 recorded ZERO key_of_el AND ZERO col_field_of — gather never keyed\n{table}"
+    );
+    assert_eq!(
+        fan_small.col_field_of, fan_cell.col_field_of,
+        "col_field_of scaled with occupancy ({fan_small:?} vs {fan_cell:?}) — the hoist did not hold\n{table}"
+    );
+    assert_eq!(
+        fan_cell.key_of_el, 2000,
+        "fanout cell key_of_el {} ≠ occupancy-right 2000 — indexing skipped elements\n{table}",
+        fan_cell.key_of_el
+    );
+    assert_eq!(
+        fan_cell.key_of_el_empty, fan_cell.key_of_el,
+        "fanout empty-binds {} ≠ key_of_el {} — occupancy is supposed to be unpacked\n{table}",
+        fan_cell.key_of_el_empty, fan_cell.key_of_el
+    );
+    assert_eq!(
+        fan_small.from_wm, fan_cell.from_wm,
+        "from_wm scaled with occupancy ({fan_small:?} vs {fan_cell:?}) — intern was not hoisted with col_field_of\n{table}"
+    );
+}
+
+/// Simulated per-element `col_field_of`: add occupancy to the after count.
+/// Equality of the two fanout sizes FAILS. The weaker `col_field_of > 0` still PASSES.
+#[test]
+fn predicted_col_field_of_reddens_under_a_per_element_scan() {
+    let small = fire_col_field(FANOUT_CENSUS_WORLD, "fan", "10 10");
+    let big = fire_col_field(FANOUT_CENSUS_WORLD, "fan", "100 20");
+    assert_eq!(small.col_field_of, big.col_field_of, "precondition: after-hoist count is independent of occupancy");
+    let occ_small = 10 * 10;
+    let occ_big = 100 * 20;
+    let fake_small = small.col_field_of + occ_small;
+    let fake_big = big.col_field_of + occ_big;
+    println!(
+        "\ncol_field_of per-element simulation (add occupancy)\n\
+         \x20 10×10:  after {} + {occ_small} occ = {fake_small}\n\
+         \x20 100×20: after {} + {occ_big} occ = {fake_big}\n\
+         \x20 weaker (col_field_of > 0): PASS on {fake_small}/{fake_big}\n",
+        small.col_field_of, big.col_field_of
+    );
+    assert!(
+        fake_small > 0 && fake_big > 0,
+        "the weaker check (col_field_of > 0) must still pass under the simulation"
+    );
+    assert_ne!(
+        fake_small, fake_big,
+        "equality of col_field_of across occupancy sizes must REDDEN under the simulation: \
+         fake {fake_small} vs {fake_big}"
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]

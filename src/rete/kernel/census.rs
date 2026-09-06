@@ -338,6 +338,83 @@ pub(crate) fn with_prod_entry_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
     (out, counted)
 }
 
+// Test-only instrument: `col_field_of` vs `key_of_el`'s empty-binds arm vs `from_wm`.
+//
+// temperare §4. The two questions are separable: `col_field_of` also runs from
+// gather_join_keys / build_gather_index (hoisted already), and `key_of_el` takes
+// the `binds.len > 0` early return on any element that already has a BindSpan.
+// `from_wm` is eight reference copies + an i64; counted so the SCORE can say
+// whether constructing it in the loop is a cost of the same class.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ColFieldCounts {
+    pub col_field_of: u64,
+    pub key_of_el: u64,
+    pub key_of_el_empty: u64,
+    pub from_wm: u64,
+}
+
+#[cfg(test)]
+// rune:sequi(performance-counter) — test-only col_field_of / key_of_el / from_wm; temperare §4.
+thread_local! {
+    pub(crate) static COL_FIELD_COUNTS: std::cell::Cell<ColFieldCounts> =
+        const { std::cell::Cell::new(ColFieldCounts { col_field_of: 0, key_of_el: 0, key_of_el_empty: 0, from_wm: 0 }) };
+}
+
+#[cfg(test)]
+#[inline]
+fn bump_col_field<F: FnOnce(&mut ColFieldCounts)>(f: F) {
+    COL_FIELD_COUNTS.with(|c| {
+        let mut v = c.get();
+        f(&mut v);
+        c.set(v);
+    });
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_col_field_of() {
+    bump_col_field(|v| v.col_field_of += 1);
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_col_field_of() {}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_key_of_el(empty_binds: bool) {
+    bump_col_field(|v| {
+        v.key_of_el += 1;
+        if empty_binds {
+            v.key_of_el_empty += 1;
+        }
+    });
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_key_of_el(_empty_binds: bool) {}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_from_wm() {
+    bump_col_field(|v| v.from_wm += 1);
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_from_wm() {}
+
+/// Run `f` with the col_field census zeroed, and return what it counted.
+#[cfg(test)]
+pub(crate) fn with_col_field_census<R>(f: impl FnOnce() -> R) -> (R, ColFieldCounts) {
+    let prior = COL_FIELD_COUNTS.with(|c| c.replace(ColFieldCounts::default()));
+    let out = f();
+    let counted = COL_FIELD_COUNTS.with(|c| c.replace(prior));
+    (out, counted)
+}
+
 // ── Per-phase wall-clock inside the fire loop ────────────────────────────────
 //
 // `RoundCensus` counts STRUCTURES (how many tokens, how many elements); this counts NANOSECONDS,
