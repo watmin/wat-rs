@@ -312,6 +312,7 @@
                           ((:queue::Queue::SendResponse::Ok) "message")
                           ((:queue::Queue::SendResponse::Full _d _c) "message")
                           ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "message")
+                          ((:queue::Queue::SendResponse::RequestTooManyEntries _e _c) "message")
                           ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "message")))
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")

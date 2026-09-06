@@ -415,6 +415,13 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head == ":wat::core::type-equal?" {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
+    // `count` is the collection-size reader (`src/runtime.rs` Path B wrap and
+    // `wat/service.wat` `:max-entries` guard both call it). Pure ∧ deterministic:
+    // it reads an already-evaluated Vector/List/Map/Set and returns its i64 size.
+    // Not total: a non-countable argument is a located TypeMismatch.
+    if head == ":wat::core::count" {
+        return Some(OpMeta { pure: true, deterministic: true, total: false });
+    }
     // Arc 255 Stone P6-c-W2 — `:wat::stream::empty`/`cons` are pure constructors
     // (`src/intrinsic/stream.rs`): `empty` allocates the fixed `Stream::Empty` terminator from
     // nothing; `cons` stores exactly what it is handed as a new `Stream::Cons` cell and never
@@ -578,6 +585,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // Collection/map/vector readers and predicates
             | ":wat::core::get"
             | ":wat::core::length"
+            | ":wat::core::count"
             | ":wat::core::empty?"
             | ":wat::core::contains?"
             | ":wat::core::first"

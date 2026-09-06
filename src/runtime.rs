@@ -6353,7 +6353,7 @@ fn dispatch_keyword_head_value(
                             // `Nature::Peer` — every other nature (aggregate dispatch) falls
                             // through to the unchanged `:<T>/<method>` lookup below.
                             if s.nature == Some(crate::types::Nature::Peer) {
-                                if let crate::types::SurfaceMember::Method { ret, .. } = member {
+                                if let crate::types::SurfaceMember::Method { ret, max_entries, .. } = member {
                                     use crate::scope::Identifier;
                                     if args.len() < 2 {
                                         return Err(RuntimeError::new(
@@ -6697,7 +6697,106 @@ fn dispatch_keyword_head_value(
                                         send_recv_ast,
                                     ], span.clone());
 
-                                    return eval_inner(&wrapped_ast, &call_env, sym)
+                                    let final_ast = if let Some((field, cap)) = max_entries.clone() {
+                                        let accessor = format!(
+                                            "{}::{}Request/{}",
+                                            protocol_fqdn, variant, field
+                                        );
+                                        let rte_ctor =
+                                            format!("{resp_base}::RequestTooManyEntries");
+                                        let k_sym = Identifier::bare("__k");
+                                        WatAST::List(
+                                            vec![
+                                                WatAST::Keyword(
+                                                    ":wat::core::let".into(),
+                                                    span.clone(),
+                                                ),
+                                                WatAST::Vector(
+                                                    vec![
+                                                        WatAST::Symbol(k_sym.clone(), span.clone()),
+                                                        WatAST::List(
+                                                            vec![
+                                                                WatAST::Keyword(
+                                                                    ":wat::core::count".into(),
+                                                                    span.clone(),
+                                                                ),
+                                                                WatAST::List(
+                                                                    vec![
+                                                                        WatAST::Keyword(
+                                                                            accessor, span.clone(),
+                                                                        ),
+                                                                        WatAST::Symbol(
+                                                                            Identifier::bare(
+                                                                                "__req",
+                                                                            ),
+                                                                            span.clone(),
+                                                                        ),
+                                                                    ],
+                                                                    span.clone(),
+                                                                ),
+                                                            ],
+                                                            span.clone(),
+                                                        ),
+                                                    ],
+                                                    span.clone(),
+                                                ),
+                                                WatAST::List(
+                                                    vec![
+                                                        WatAST::Keyword(
+                                                            ":wat::core::if".into(),
+                                                            span.clone(),
+                                                        ),
+                                                        WatAST::List(
+                                                            vec![
+                                                                WatAST::Keyword(
+                                                                    ":wat::i64::>".into(),
+                                                                    span.clone(),
+                                                                ),
+                                                                WatAST::Symbol(
+                                                                    k_sym.clone(),
+                                                                    span.clone(),
+                                                                ),
+                                                                WatAST::IntLit(cap, span.clone()),
+                                                            ],
+                                                            span.clone(),
+                                                        ),
+                                                        WatAST::List(
+                                                            vec![
+                                                                WatAST::Keyword(
+                                                                    ":wat::kernel::RecvOutcome::Message"
+                                                                        .into(),
+                                                                    span.clone(),
+                                                                ),
+                                                                WatAST::List(
+                                                                    vec![
+                                                                        WatAST::Keyword(
+                                                                            rte_ctor, span.clone(),
+                                                                        ),
+                                                                        WatAST::Symbol(
+                                                                            k_sym, span.clone(),
+                                                                        ),
+                                                                        WatAST::IntLit(
+                                                                            cap,
+                                                                            span.clone(),
+                                                                        ),
+                                                                    ],
+                                                                    span.clone(),
+                                                                ),
+                                                            ],
+                                                            span.clone(),
+                                                        ),
+                                                        wrapped_ast,
+                                                    ],
+                                                    span.clone(),
+                                                ),
+                                            ],
+                                            span.clone(),
+                                        )
+                                    } else {
+                                        wrapped_ast
+                                    };
+
+                                    return eval_inner(&final_ast, &call_env, sym)
                                         .map(|tv| tv.value_owned());
                                 }
                             }

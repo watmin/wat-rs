@@ -343,7 +343,7 @@
      ;; known-clauses: durable, ephemeral, ops (REQUIRED), init, hibernate, stop, durable-parent.
      ;; Arc 293 S2: :satisfies (name a surface — reference its S1-synthesized protocol) and
      ;; :impls (bodies-only op implementations, in place of :ops) join the recognized clauses.
-     known-clauses  (:wat::hashmap::assoc (:wat::hashmap::assoc
+     known-clauses  (:wat::hashmap::assoc (:wat::hashmap::assoc (:wat::hashmap::assoc
                       (:wat::hashmap::assoc
                        (:wat::hashmap::assoc
                         (:wat::hashmap::assoc
@@ -378,7 +378,7 @@
                       ;; sanitization is not something a service opts into — it is what a service IS.
                       ;; See serve-op-arms below: the request-SHAPE guard is generated for EVERY op
                       ;; of EVERY service, always.
-                      "max-frame-bytes" true) "deadline-ms" true)
+                      "max-frame-bytes" true) "deadline-ms" true) "$surface-form" true)
      clauses-len    (:wat::core::length clauses-body)
      n-clause-pairs (:wat::i64::/ clauses-len 2)
      ;; even-length guard
@@ -921,6 +921,96 @@
                                         (:wat::string::concat es " …] (the explicit s2s dependency DAG)"))))))))))
                       true
                       ephemeral-peer-surfaces)
+     ;; `:$surface-form` is attached by expand.rs. Walk `:features` for this op's
+     ;; `:max-entries` field name. "" means the op did not declare the option —
+     ;; emit no guard. The numeric cap is the runtime def `:<S>::<OP>-MAX-ENTRIES`.
+     surface-decl   (:wat::core::if (:wat::hashmap::contains-key? clause-map "$surface-form")
+                      (:wat::core::Option/expect
+                        (:wat::hashmap::get clause-map "$surface-form")
+                        "defservice: :$surface-form")
+                      empty-vec)
+     max-entries-field-of
+       (:wat::core::fn [surface-ast <- :wat::WatAST  op <- :wat::core::String]
+         -> :wat::core::String
+         (:wat::core::let
+           [sch (:wat::core::ast->children surface-ast)
+            nsch (:wat::core::length sch)
+            features-vec
+              (:wat::core::second
+                (:wat::core::foldl
+                  (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::bool :wat::WatAST])
+                                   i <- :wat::core::i64]
+                    -> (:wat::core::Tuple :- [:wat::core::bool :wat::WatAST])
+                    (:wat::core::if (:wat::core::first acc)
+                      acc
+                      (:wat::core::if (:wat::i64::>= (:wat::i64::+ i 1) nsch)
+                        acc
+                        (:wat::core::let
+                          [node (:wat::core::Option/expect
+                                   (:wat::core::get sch i)
+                                   "defservice: surface child")]
+                          (:wat::core::if
+                            (:wat::core::and
+                              (:wat::core::= (:wat::core::ast-kind node) "keyword")
+                              (:wat::core::= (:wat::core::ast-name node) ":features"))
+                            (:wat::core::Tuple true
+                              (:wat::core::Option/expect
+                                (:wat::core::get sch (:wat::i64::+ i 1))
+                                "defservice: :features value"))
+                            acc)))))
+                  (:wat::core::Tuple false empty-vec)
+                  (:wat::core::range 0 nsch)))
+            methods (:wat::core::ast->children features-vec)]
+           (:wat::core::foldl
+             (:wat::core::fn [found <- :wat::core::String  method <- :wat::WatAST]
+               -> :wat::core::String
+               (:wat::core::if (:wat::core::not (:wat::core::= found ""))
+                 found
+                 (:wat::core::let
+                   [mch (:wat::core::ast->children method)
+                    nmch (:wat::core::length mch)]
+                   (:wat::core::if (:wat::i64::< nmch 1)
+                     found
+                     (:wat::core::if
+                       (:wat::core::not
+                         (:wat::core::= (:wat::core::ast-name
+                                          (:wat::core::Option/expect
+                                            (:wat::core::get mch 0)
+                                            "defservice: method head"))
+                                        op))
+                       found
+                       (:wat::core::foldl
+                         (:wat::core::fn [f <- :wat::core::String  j <- :wat::core::i64]
+                           -> :wat::core::String
+                           (:wat::core::if (:wat::core::not (:wat::core::= f ""))
+                             f
+                             (:wat::core::if (:wat::i64::>= (:wat::i64::+ j 1) nmch)
+                               f
+                               (:wat::core::let
+                                 [knode (:wat::core::Option/expect
+                                          (:wat::core::get mch j)
+                                          "defservice: method option key")]
+                                 (:wat::core::if
+                                   (:wat::core::and
+                                     (:wat::core::= (:wat::core::ast-kind knode) "keyword")
+                                     (:wat::core::= (:wat::core::ast-name knode) ":max-entries"))
+                                   (:wat::core::let
+                                     [val (:wat::core::Option/expect
+                                            (:wat::core::get mch (:wat::i64::+ j 1))
+                                            "defservice: :max-entries value")
+                                      vch (:wat::core::ast->children val)
+                                      raw (:wat::core::ast-name
+                                            (:wat::core::Option/expect
+                                              (:wat::core::get vch 0)
+                                              "defservice: :max-entries field"))]
+                                     (:wat::core::if (:wat::string::starts-with? raw ":")
+                                       (:wat::string::subs raw 1 (:wat::string::length raw))
+                                       raw))
+                                   f)))))
+                         ""
+                         (:wat::core::range 0 nmch)))))))
+             ""
+             methods)))
      ;; peer-forms-calls: (Vector :- [WatAST]) of `(:S::surface-forms)` call nodes — one per :peers surface.
      ;; Spliced into the service-forms concat (below) so each dialed surface's forms cross the fork.
      ;; DESIGN-STONE the-child-needs-the-entry-not-the-library: each contributor to
@@ -1933,9 +2023,31 @@
                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; client gone → keep serving
                                                    (:wat::kernel::SendOutcome::Stopped nil)                                    ;; arc 278 #73 — the WORLD is stopping → return
                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))
-                                                 ~shape-guarded))]
+                                                 ~shape-guarded))
+                              entries-field (max-entries-field-of surface-decl op-str)
+                              entries-cap-kw (:wat::keyword::from-string
+                                               (:wat::string::concat proto-base
+                                                 (:wat::string::interpolate "::{op-upper}-MAX-ENTRIES" :op-upper op-upper)))
+                              k-sym         (:wat::core::symbol-node "k")
+                              rte-ctor-kw   (:wat::keyword::from-string
+                                              (:wat::string::concat proto-base
+                                                (:wat::string::interpolate "::{variant-pascal}Response::RequestTooManyEntries" :variant-pascal variant-pascal)))
+                              field-acc-kw  (:wat::keyword::from-string
+                                              (:wat::string::concat proto-base
+                                                (:wat::string::interpolate "::{variant-pascal}Request/{f}" :variant-pascal variant-pascal :f entries-field)))
+                              guarded-final (:wat::core::if (:wat::core::not (:wat::core::= entries-field ""))
+                                              `(:wat::core::let [~k-sym (:wat::core::count (~field-acc-kw ~req-binder))]
+                                                 (:wat::core::if (:wat::i64::> ~k-sym ~entries-cap-kw)
+                                                   (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
+                                                       (~reply-variant-kw (~rte-ctor-kw ~k-sym ~entries-cap-kw)))
+                                                     (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
+                                                     (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))
+                                                     (:wat::kernel::SendOutcome::Stopped nil)
+                                                     ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))
+                                                   ~guarded-arm))
+                                              guarded-arm)]
                              (:wat::core::conj acc
-                               `((~op-variant-kw ~req-binder) ~guarded-arm))))))
+                               `((~op-variant-kw ~req-binder) ~guarded-final))))))
                      (:wat::core::Vector :- [:wat::WatAST])
                      impl-clauses)
 
@@ -2289,12 +2401,29 @@
                           ;; to a dialer and possibly stricter); a FOO violation is unreachable from
                           ;; here (it can only fire once a frame has actually left for the wire) and
                           ;; stays the server's own dismissal.
-                          method-body     `(:wat::core::if (:wat::kernel::peer-wire? c)
+                          byte-body       `(:wat::core::if (:wat::kernel::peer-wire? c)
                                              (:wat::core::let [~n-sym (:wat::string::length (:wat::edn::write req))]
                                                (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
                                                  (:wat::kernel::RecvOutcome::Message (~rtl-ctor-kw ~n-sym ~cap-const-kw))
                                                  ~send-recv-form))
-                                             ~send-recv-form)]
+                                             ~send-recv-form)
+                          entries-field   (max-entries-field-of surface-decl op-str)
+                          entries-cap-kw  (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-upper}-MAX-ENTRIES" :op-upper op-upper)))
+                          k-sym           (:wat::core::symbol-node "k")
+                          rte-ctor-kw     (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-pascal}Response::RequestTooManyEntries" :op-pascal op-pascal)))
+                          field-acc-kw    (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-pascal}Request/{f}" :op-pascal op-pascal :f entries-field)))
+                          method-body     (:wat::core::if (:wat::core::not (:wat::core::= entries-field ""))
+                                            `(:wat::core::let [~k-sym (:wat::core::count (~field-acc-kw req))]
+                                               (:wat::core::if (:wat::i64::> ~k-sym ~entries-cap-kw)
+                                                 (:wat::kernel::RecvOutcome::Message (~rte-ctor-kw ~k-sym ~entries-cap-kw))
+                                                 ~byte-body))
+                                            byte-body)]
                          (:wat::core::if is-internal
 
                            acc

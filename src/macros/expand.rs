@@ -79,6 +79,7 @@ pub fn expand_all_with(
             // function"}` and `kwargs-construct: type :S::Msg is not a registered aggregate`.
             // Registration was never the complaint. Hoisting is a STAGE, not an ordering.
             let (hoisted, surface_form) = hoist_surface_messages(expanded, registry, privilege)?;
+            remember_surface(registry, &surface_form);
             out.extend(hoisted);
             out.push(surface_form);
         } else {
@@ -96,6 +97,64 @@ fn is_defsurface_form(form: &WatAST) -> bool {
         }
     }
     false
+}
+
+fn surface_name_from_defsurface(form: &WatAST) -> Option<String> {
+    let WatAST::List(items, _) = form else { return None };
+    match items.get(1) {
+        Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+        Some(WatAST::List(inner, _)) => match inner.first() {
+            Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn remember_surface(registry: &mut MacroRegistry, surface_form: &WatAST) {
+    if let Some(name) = surface_name_from_defsurface(surface_form) {
+        registry.surface_forms.insert(name, surface_form.clone());
+    }
+}
+
+fn satisfies_surface_name(items: &[WatAST]) -> Option<String> {
+    let mut i = 0usize;
+    while i + 1 < items.len() {
+        if matches!(&items[i], WatAST::Keyword(k, _) if k == ":satisfies") {
+            return match &items[i + 1] {
+                WatAST::Keyword(s, _) => Some(s.clone()),
+                WatAST::List(inner, _) => match inner.first() {
+                    Some(WatAST::Keyword(s, _)) => Some(s.clone()),
+                    _ => None,
+                },
+                _ => None,
+            };
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Attach the satisfied surface's expanded form as `:$surface-form <ast>` so
+/// `defservice` can walk `:features` for `:max-entries` at expand time. No
+/// thread_local: the map lives on the per-freeze `MacroRegistry`.
+fn attach_surface_form(items: Vec<WatAST>, span: Span, surfaces: &HashMap<String, WatAST>) -> Vec<WatAST> {
+    let Some(WatAST::Keyword(head, _)) = items.first() else {
+        return items;
+    };
+    if head != ":wat::service::defservice" {
+        return items;
+    }
+    let Some(name) = satisfies_surface_name(&items) else {
+        return items;
+    };
+    let Some(surface) = surfaces.get(&name) else {
+        return items;
+    };
+    let mut items = items;
+    items.push(WatAST::Keyword(":$surface-form".into(), span.clone()));
+    items.push(surface.clone());
+    items
 }
 
 /// Process one already-expanded top-level form for hoisting: register a bare
@@ -175,6 +234,7 @@ fn hoist_top_level_form(
                         if is_defsurface_form(&child) {
                             let (hoisted, surface_form) =
                                 hoist_surface_messages(child, registry, privilege)?;
+                            remember_surface(registry, &surface_form);
                             spliced.extend(hoisted);
                             spliced.push(surface_form);
                         } else {
@@ -435,6 +495,7 @@ pub(super) fn expand_form(
 
     match form {
         WatAST::List(items, list_span) => {
+            let items = attach_surface_form(items, list_span.clone(), &registry.surface_forms);
             // Data forms — NOT expanded. quote/forms/literal (`Boundary::AllData`) and
             // quasiquote (`Boundary::Quasiquote`) carry DATA, not code; recursing would
             // eagerly expand macro calls the caller means to observe or template, not
@@ -616,6 +677,9 @@ pub(super) fn expand_form(
                             // the same pair `hoist_top_level_form` uses. Register-only: the
                             // form stays in `out` for the hoist pass to strip/splice.
                             registry.register(parse_defmacro_form(expanded.clone())?, privilege)?;
+                        }
+                        if is_defsurface_form(&expanded) {
+                            remember_surface(registry, &expanded);
                         }
                         out.push(expanded);
                     }

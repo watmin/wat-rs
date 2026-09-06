@@ -460,6 +460,10 @@ pub enum SurfaceMember {
         /// (the whole point of Stone 16.2's per-op enforcement codegen). Non-serviceable
         /// surfaces never consult this field, so their methods staying implicit is fine.
         max_request_bytes_explicit: bool,
+        /// `:max-entries [field N]` — per-field entry cap. `None` = absent = uncapped.
+        /// There is no default. Declaring it on a Peer op whose Response lacks
+        /// `RequestTooManyEntries [entries cap]` is a compile error.
+        max_entries: Option<(String, i64)>,
     },
 }
 
@@ -3092,6 +3096,130 @@ fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
 /// is in fact impure, the post-registration containment pass `validate_aggregate_containment`
 /// catches the synthesized `Pure` enum's impure field, exactly as it backstops the backing
 /// records above.)
+/// `:max-entries` counts ELEMENTS. Only Vector / PersistentVector / List qualify.
+fn typeexpr_is_sequence(ty: &TypeExpr) -> bool {
+    match ty {
+        TypeExpr::Parametric { head, .. } => {
+            let h = head.trim_start_matches(':');
+            h == "wat::core::Vector"
+                || h == "wat::core::PersistentVector"
+                || h == "wat::core::List"
+        }
+        _ => false,
+    }
+}
+
+fn typeexpr_diag(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Path(p) => p.clone(),
+        TypeExpr::Parametric { head, args } => {
+            let head = if head.starts_with(':') {
+                head.clone()
+            } else {
+                format!(":{head}")
+            };
+            let inner = args.iter().map(typeexpr_diag).collect::<Vec<_>>().join(" ");
+            format!("({head} :- [{inner}])")
+        }
+        other => format!("{other:?}"),
+    }
+}
+
+/// Declaration-time wall: the named field exists on the request record and is a sequence.
+/// Lives here (not in `parse_defsurface`) because the parser has no `TypeEnv` — the
+/// request type is reachable only after `:messages` hoist + `register_types` order.
+fn check_max_entries_field(
+    method_name: &str,
+    request_ty: &TypeExpr,
+    field: &str,
+    env: &TypeEnv,
+    decl_span: &Span,
+) -> Result<(), TypeError> {
+    let Some(req_path) = request_ty.base_fqdn() else {
+        return Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: ":wat::core::defsurface".into(),
+                reason: format!(
+                    "method member `{method_name}`: `:max-entries` field `{field}` cannot be \
+                     resolved — the request type `{request_ty:?}` has no name"
+                ),
+            },
+        ));
+    };
+    match env.get(&req_path) {
+        Some(TypeDef::Aggregate(agg)) => match agg.fields.iter().find(|(n, _)| n == field) {
+            None => {
+                let names = agg
+                    .fields
+                    .iter()
+                    .map(|(n, _)| n.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Err(TypeError::new(
+                    decl_span.clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: ":wat::core::defsurface".into(),
+                        reason: format!(
+                            "method member `{method_name}`: `:max-entries` field `{field}` is not \
+                             a field of `{req_path}` (fields: {names})"
+                        ),
+                    },
+                ))
+            }
+            Some((_, ty)) if typeexpr_is_sequence(ty) => Ok(()),
+            Some((_, ty)) => {
+                let unit = match ty {
+                    TypeExpr::Parametric { head, .. }
+                        if head.trim_start_matches(':').ends_with("HashSet") =>
+                    {
+                        "whose count is distinct members"
+                    }
+                    TypeExpr::Parametric { head, .. }
+                        if head.trim_start_matches(':').ends_with("HashMap")
+                            || head.trim_start_matches(':').ends_with("PersistentMap") =>
+                    {
+                        "whose count is key-value pairs"
+                    }
+                    _ => "whose count is not elements",
+                };
+                Err(TypeError::new(
+                    decl_span.clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: ":wat::core::defsurface".into(),
+                        reason: format!(
+                            "method member `{method_name}`: `:max-entries` counts ELEMENTS; field \
+                             `{field}` is a {ty}, {unit}. Declare the cap on a sequence field \
+                             (Vector, PersistentVector or List).",
+                            ty = typeexpr_diag(ty)
+                        ),
+                    },
+                ))
+            }
+        },
+        Some(_) => Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: ":wat::core::defsurface".into(),
+                reason: format!(
+                    "method member `{method_name}`: `:max-entries` field `{field}` cannot be \
+                     resolved — `{req_path}` is not a record with fields"
+                ),
+            },
+        )),
+        None => Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: ":wat::core::defsurface".into(),
+                reason: format!(
+                    "method member `{method_name}`: `:max-entries` field `{field}` cannot be \
+                     resolved — request type `{req_path}` is not yet registered"
+                ),
+            },
+        )),
+    }
+}
+
 fn synthesize_surface_protocol(
     surface: &SurfaceDef,
     env: &TypeEnv,
@@ -3170,7 +3298,7 @@ fn synthesize_surface_protocol(
     let enforce_rtl_lock = surface.nature == Some(Nature::Peer);
 
     for member in &surface.members {
-        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, .. } = member
+        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, max_entries, .. } = member
         else {
             continue; // Field members are data, not operations.
         };
@@ -3267,7 +3395,21 @@ fn synthesize_surface_protocol(
         // carries no wire payload → this surface is not a clean protocol; synthesize nothing.
         let request_ty = match args.fixed_params.get(1) {
             Some((_, ty)) => ty.clone(),
-            None => return Ok(vec![]),
+            None => {
+                if max_entries.is_some() {
+                    return Err(TypeError::new(
+                        decl_span.clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: ":wat::core::defsurface".into(),
+                            reason: format!(
+                                "method member `{name}`: `:max-entries` needs a request record \
+                                 to name a field of, and this op has no request argument"
+                            ),
+                        },
+                    ));
+                }
+                return Ok(vec![]);
+            }
         };
 
         // Arc 278 #74b — `<Op>Request` is LAW, the twin of the `<Op>Response` rule above (same
@@ -3322,6 +3464,10 @@ fn synthesize_surface_protocol(
                     },
                 ));
             }
+        }
+
+        if let Some((field, _)) = max_entries {
+            check_max_entries_field(name, &request_ty, field, env, decl_span)?;
         }
 
         // The purity gate: BOTH request and response must cross (EDN-serializable). Any impure
@@ -3446,6 +3592,35 @@ fn synthesize_surface_protocol(
                                 remedies: vec![],
                             },
                         ));
+                    }
+                    if max_entries.is_some() {
+                        const RTE_VARIANT: &str = "RequestTooManyEntries";
+                        let rte_fields: Vec<(String, TypeExpr)> = vec![
+                            ("entries".to_string(), TypeExpr::Path(":wat::core::i64".into())),
+                            ("cap".to_string(), TypeExpr::Path(":wat::core::i64".into())),
+                        ];
+                        let rte_shaped = variants.iter().any(|v| {
+                            matches!(v,
+                                EnumVariant::Tagged { name: vn, fields }
+                                    if vn == RTE_VARIANT && *fields == rte_fields)
+                        });
+                        if !rte_shaped {
+                            return Err(TypeError::new(
+                                decl_span.clone(),
+                                TypeErrorKind::MalformedVariant {
+                                    enum_name: resp_path.clone(),
+                                    offending: RTE_VARIANT.to_string(),
+                                    reason: format!(
+                                        "op `{}` in surface {}: `:max-entries` is declared but `{}` \
+                                         does not carry `:RequestTooManyEntries [entries <- :wat::core::i64 \
+                                         cap <- :wat::core::i64]` — the cap cannot be declared without \
+                                         a way to report it",
+                                        name, surface.name, resp_path
+                                    ),
+                                    remedies: vec![],
+                                },
+                            ));
+                        }
                     }
                 }
                 // Non-Path ret, or a ret that resolves to a Newtype/Alias/Union/Surface, or an
@@ -3619,28 +3794,56 @@ fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: S
 /// downstream channel: a runtime `def`, spliced into `rest` alongside the surface carrier).
 /// Field members are skipped (no wire budget). `CONST_NAME = "<Surface>::<OP>-MAX-REQUEST-BYTES"`
 /// (op name upper-cased), e.g. surface `:probe::Cap1`, op `do-op` → `:probe::Cap1::DO-OP-MAX-REQUEST-BYTES`.
+///
+/// When the op declared `:max-entries [field N]`, two more defs ride the same channel:
+/// `:<S>::<OP>-MAX-ENTRIES` (i64) and `:<S>::<OP>-MAX-ENTRIES-FIELD` (String). Absent
+/// option → emit neither. Absence is the absence of a def, not a zero in a table.
 fn build_op_budget_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
-    surface
-        .members
-        .iter()
-        .filter_map(|member| match member {
-            SurfaceMember::Method { name, max_request_bytes, .. } => {
-                // `surface.name` already carries the leading `:` sigil (matches every other
-                // `WatAST::Keyword` string in this codebase) — do NOT prepend another.
-                let const_name =
-                    format!("{}::{}-MAX-REQUEST-BYTES", surface.name, name.to_uppercase());
-                Some(WatAST::List(
-                    vec![
-                        WatAST::Keyword(":wat::core::def".into(), span.clone()),
-                        WatAST::Keyword(const_name, span.clone()),
-                        WatAST::IntLit(*max_request_bytes, span.clone()),
-                    ],
+    let mut out = Vec::new();
+    for member in &surface.members {
+        let SurfaceMember::Method { name, max_request_bytes, max_entries, .. } = member else {
+            continue;
+        };
+        // `surface.name` already carries the leading `:` sigil (matches every other
+        // `WatAST::Keyword` string in this codebase) — do NOT prepend another.
+        let op_u = name.to_uppercase();
+        out.push(WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::def".into(), span.clone()),
+                WatAST::Keyword(
+                    format!("{}::{}-MAX-REQUEST-BYTES", surface.name, op_u),
                     span.clone(),
-                ))
-            }
-            SurfaceMember::Field { .. } => None,
-        })
-        .collect()
+                ),
+                WatAST::IntLit(*max_request_bytes, span.clone()),
+            ],
+            span.clone(),
+        ));
+        if let Some((field, n)) = max_entries {
+            out.push(WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::def".into(), span.clone()),
+                    WatAST::Keyword(
+                        format!("{}::{}-MAX-ENTRIES", surface.name, op_u),
+                        span.clone(),
+                    ),
+                    WatAST::IntLit(*n, span.clone()),
+                ],
+                span.clone(),
+            ));
+            out.push(WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::def".into(), span.clone()),
+                    WatAST::Keyword(
+                        format!("{}::{}-MAX-ENTRIES-FIELD", surface.name, op_u),
+                        span.clone(),
+                    ),
+                    WatAST::StringLit(field.clone(), span.clone()),
+                ],
+                span.clone(),
+            ));
+        }
+    }
+    out
 }
 
 /// Shared loop body for [`register_types`] and [`register_stdlib_types`].
@@ -7038,6 +7241,165 @@ mod tests {
             }
             other => panic!("expected MalformedVariant (missing RequestMalformed); got {other:?}"),
         }
+    }
+
+    #[test]
+    fn max_entries_without_request_too_many_entries_is_a_located_error() {
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad5 :nature :wat::kernel::Peer
+                  :messages [(:wat::core::recordtype :t::Bad5::FooRequest :wat::core::Record
+                                [items <- (:wat::core::Vector :- [:wat::core::String])])
+                             (:wat::core::defenum :t::Bad5::FooResponse :wat::enum::Pure
+                                :Ok []
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                                   expected <- :wat::core::String
+                                                   got <- :wat::core::String])]
+                  :features [(foo [self <- :t::Bad5  req <- :t::Bad5::FooRequest]
+                               -> :t::Bad5::FooResponse
+                               :max-request-bytes 524288
+                               :max-entries [items 10])])"#,
+        )
+        .expect_err("`:max-entries` without RequestTooManyEntries must be a located error");
+        match err.kind() {
+            TypeErrorKind::MalformedVariant { enum_name, offending, reason, .. } => {
+                assert_eq!(enum_name, ":t::Bad5::FooResponse");
+                assert_eq!(offending, "RequestTooManyEntries");
+                assert_eq!(
+                    reason,
+                    "op `foo` in surface :t::Bad5: `:max-entries` is declared but `:t::Bad5::FooResponse` does not carry `:RequestTooManyEntries [entries <- :wat::core::i64 cap <- :wat::core::i64]` — the cap cannot be declared without a way to report it"
+                );
+            }
+            other => panic!("expected MalformedVariant (missing RequestTooManyEntries); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn max_entries_unknown_field_is_a_located_error() {
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad6 :nature :wat::kernel::Peer
+                  :messages [(:wat::core::recordtype :t::Bad6::FooRequest :wat::core::Record
+                                [queue <- :wat::core::String
+                                 bodies <- (:wat::core::Vector :- [:wat::core::String])
+                                 now-ns <- :wat::core::i64])
+                             (:wat::core::defenum :t::Bad6::FooResponse :wat::enum::Pure
+                                :Ok []
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestTooManyEntries [entries <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                                   expected <- :wat::core::String
+                                                   got <- :wat::core::String])]
+                  :features [(foo [self <- :t::Bad6  req <- :t::Bad6::FooRequest]
+                               -> :t::Bad6::FooResponse
+                               :max-request-bytes 524288
+                               :max-entries [bodys 10])])"#,
+        )
+        .expect_err("`:max-entries` on a missing field must be a located error");
+        match err.kind() {
+            TypeErrorKind::MalformedDecl { reason, .. } => {
+                assert_eq!(
+                    reason,
+                    "method member `foo`: `:max-entries` field `bodys` is not a field of `:t::Bad6::FooRequest` (fields: queue, bodies, now-ns)"
+                );
+            }
+            other => panic!("expected MalformedDecl (unknown field); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn max_entries_hashset_field_is_a_located_error() {
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad7 :nature :wat::kernel::Peer
+                  :messages [(:wat::core::recordtype :t::Bad7::FooRequest :wat::core::Record
+                                [tags <- (:wat::core::HashSet :- [:wat::core::String])])
+                             (:wat::core::defenum :t::Bad7::FooResponse :wat::enum::Pure
+                                :Ok []
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestTooManyEntries [entries <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                                   expected <- :wat::core::String
+                                                   got <- :wat::core::String])]
+                  :features [(foo [self <- :t::Bad7  req <- :t::Bad7::FooRequest]
+                               -> :t::Bad7::FooResponse
+                               :max-request-bytes 524288
+                               :max-entries [tags 10])])"#,
+        )
+        .expect_err("`:max-entries` on a HashSet field must be a located error");
+        match err.kind() {
+            TypeErrorKind::MalformedDecl { reason, .. } => {
+                assert_eq!(
+                    reason,
+                    "method member `foo`: `:max-entries` counts ELEMENTS; field `tags` is a (:wat::core::HashSet :- [:wat::core::String]), whose count is distinct members. Declare the cap on a sequence field (Vector, PersistentVector or List)."
+                );
+            }
+            other => panic!("expected MalformedDecl (HashSet field); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn max_entries_emits_readable_defs_and_omits_them_when_absent() {
+        let src = r#"(:wat::core::defsurface :t::Cap :nature :wat::kernel::Peer
+                  :messages [(:wat::core::recordtype :t::Cap::FooRequest :wat::core::Record
+                                [items <- (:wat::core::Vector :- [:wat::core::String])])
+                             (:wat::core::defenum :t::Cap::FooResponse :wat::enum::Pure
+                                :Ok []
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestTooManyEntries [entries <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                                   expected <- :wat::core::String
+                                                   got <- :wat::core::String])
+                             (:wat::core::recordtype :t::Cap::BarRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Cap::BarResponse :wat::enum::Pure
+                                :Ok []
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                                   expected <- :wat::core::String
+                                                   got <- :wat::core::String])]
+                  :features [(foo [self <- :t::Cap  req <- :t::Cap::FooRequest]
+                               -> :t::Cap::FooResponse
+                               :max-request-bytes 524288
+                               :max-entries [items 10])
+                             (bar [self <- :t::Cap  req <- :t::Cap::BarRequest]
+                               -> :t::Cap::BarResponse
+                               :max-request-bytes 524288)])"#;
+        let forms = crate::parse_all!(src).expect("parse ok");
+        let mut reg = crate::macros::MacroRegistry::new();
+        let rest = crate::macros::register_defmacros(forms, &mut reg).expect("register_defmacros ok");
+        let renv = crate::runtime::Environment::default();
+        let sym = crate::runtime::SymbolTable::default();
+        let expanded = crate::macros::expand_all(rest, &mut reg, &renv, &sym).expect("expand_all ok");
+        let mut env = TypeEnv::with_builtins();
+        let rest = register_types(expanded, &mut env).expect("register ok");
+        let def_of = |name: &str| -> Option<&WatAST> {
+            rest.iter().find_map(|f| match f {
+                WatAST::List(items, _) if items.len() == 3 => match items.as_slice() {
+                    [WatAST::Keyword(h, _), WatAST::Keyword(n, _), val]
+                        if h == ":wat::core::def" && n == name =>
+                    {
+                        Some(val)
+                    }
+                    _ => None,
+                },
+                _ => None,
+            })
+        };
+        match def_of(":t::Cap::FOO-MAX-ENTRIES") {
+            Some(WatAST::IntLit(10, _)) => {}
+            other => panic!("FOO-MAX-ENTRIES must be 10; got {other:?}"),
+        }
+        match def_of(":t::Cap::FOO-MAX-ENTRIES-FIELD") {
+            Some(WatAST::StringLit(s, _)) if s == "items" => {}
+            other => panic!("FOO-MAX-ENTRIES-FIELD must be \"items\"; got {other:?}"),
+        }
+        assert!(
+            def_of(":t::Cap::BAR-MAX-ENTRIES").is_none(),
+            "absent :max-entries must emit neither def"
+        );
+        assert!(
+            def_of(":t::Cap::BAR-MAX-ENTRIES-FIELD").is_none(),
+            "absent :max-entries must emit neither field def"
+        );
     }
 
     #[test]

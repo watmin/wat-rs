@@ -405,6 +405,7 @@ fn parse_method_member_sig(
     // value), a non-keyword where a key is expected, a DUPLICATE key, a non-i64 value, or
     // a value <= 0. (Enforcement / checker rule / codegen are a LATER stone — parse only.)
     let mut max_request_bytes: Option<i64> = None;
+    let mut max_entries: Option<(String, i64)> = None;
     let opts = &rest[3..];
     let mut i = 0usize;
     while i < opts.len() {
@@ -482,6 +483,95 @@ fn parse_method_member_sig(
                 }
                 max_request_bytes = Some(n);
             }
+            ":max-entries" => {
+                if max_entries.is_some() {
+                    return Err(TypeError::new(
+                        opts[i].span().clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "method member `{}`: duplicate option `:max-entries`",
+                                method_name
+                            ),
+                        },
+                    ));
+                }
+                let WatAST::Vector(items, _) = val else {
+                    return Err(TypeError::new(
+                        val.span().clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "method member `{}`: `:max-entries` must be `[field N]` \
+                                 (a vector of the field name and a positive i64); got {}",
+                                method_name,
+                                val.variant_name()
+                            ),
+                        },
+                    ));
+                };
+                if items.len() != 2 {
+                    return Err(TypeError::new(
+                        val.span().clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "method member `{}`: `:max-entries` must be `[field N]`; \
+                                 got {} element(s)",
+                                method_name,
+                                items.len()
+                            ),
+                        },
+                    ));
+                }
+                let field = match &items[0] {
+                    WatAST::Symbol(ident, _) => ident.as_str().to_string(),
+                    WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
+                    other => {
+                        return Err(TypeError::new(
+                            other.span().clone(),
+                            TypeErrorKind::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    "method member `{}`: `:max-entries` field must be a name; got {}",
+                                    method_name,
+                                    other.variant_name()
+                                ),
+                            },
+                        ))
+                    }
+                };
+                let n = match &items[1] {
+                    WatAST::IntLit(n, _) => *n,
+                    other => {
+                        return Err(TypeError::new(
+                            other.span().clone(),
+                            TypeErrorKind::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    "method member `{}`: `:max-entries` N must be a positive \
+                                     i64 literal; got {}",
+                                    method_name,
+                                    other.variant_name()
+                                ),
+                            },
+                        ))
+                    }
+                };
+                if n <= 0 {
+                    return Err(TypeError::new(
+                        items[1].span().clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "method member `{}`: `:max-entries` N must be POSITIVE; got {}",
+                                method_name, n
+                            ),
+                        },
+                    ));
+                }
+                max_entries = Some((field, n));
+            }
             unknown => {
                 return Err(TypeError::new(
                     opts[i].span().clone(),
@@ -489,7 +579,7 @@ fn parse_method_member_sig(
                         head: HEAD.into(),
                         reason: format!(
                             "method member `{}`: unrecognized option `{}` — recognized options: \
-                             `:max-request-bytes`",
+                             `:max-request-bytes`, `:max-entries`",
                             method_name, unknown
                         ),
                     },
@@ -513,6 +603,7 @@ fn parse_method_member_sig(
         type_params, // Arc 293.4e-pre.ii — extracted by split_method_name_type_params above
         max_request_bytes, // Arc 278 #16 Stone 16.0 — kwargs option `:max-request-bytes N` (default: 512 KiB)
         max_request_bytes_explicit, // Arc 278 #16 Stone 16.3 — was the key actually written?
+        max_entries,
     })
 }
 
