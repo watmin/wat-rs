@@ -940,9 +940,10 @@ pub(crate) fn exec_compiled(
 /// every binding key on every fact, which is the allocation the module header names as the
 /// reason this module exists. [`exec_compiled`] is the `#[cfg(test)]` door that passes `None`.
 ///
-/// It bumps the `compiled:calls` census on purpose: this function replaced `alpha_match_inner`
+/// It bumps the `compiled:exec` census on purpose: this function replaced `alpha_match_inner`
 /// as the round loop's step 1, so `match:calls` reads ZERO on a real fire now. A census that
-/// silently went to zero would look like the path went dead rather than moved.
+/// silently went to zero would look like the path went dead rather than moved. The skip_span
+/// arm of `alpha_activate_fact` is a different mechanism and emits `compiled:span-elided`.
 pub(crate) fn exec_compiled_with_key_ids(
     sym: &crate::runtime::SymbolTable,
     compiled: &CompiledCond,
@@ -952,11 +953,12 @@ pub(crate) fn exec_compiled_with_key_ids(
     fact: &Value,
     key_ids: Option<&[u32]>,
 ) -> Option<(u32, u16)> {
-    // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's call counter, parallel to
-    // `alpha_match_inner`'s `match:calls`. Since this stone re-points the round loop's step 1 at
-    // this function (`kernel/`), `match:calls` alone would read zero on a real fire from here
-    // on; this is what a diagnostic census reads instead to see the production path is live.
-    crate::rete::kernel::census_count("compiled:calls");
+    // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's EXECUTION counter,
+    // parallel to `alpha_match_inner`'s `match:calls`. Since this stone re-points the round
+    // loop's step 1 at this function (`kernel/`), `match:calls` alone would read zero on a
+    // real fire from here on; this is what a diagnostic census reads instead to see the
+    // production path actually ran. The skip_span arm is `compiled:span-elided`, not this.
+    crate::rete::kernel::census_count("compiled:exec");
     scratch.clear();
     scratch.resize(compiled.n_slots, None);
 

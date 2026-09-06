@@ -1318,7 +1318,7 @@ fn c4_probe_bind_only_decides_skip_span_for_the_accum_axis() {
         arm.compiled_conds.len()
     );
 
-    let run = |bo: &HashMap<i64, Vec<u8>>, wm: &mut super::FireSession| -> (usize, usize, u64) {
+    let run = |bo: &HashMap<i64, Vec<u8>>, wm: &mut super::FireSession| -> (usize, usize, u64, u64) {
         let mut d_alpha: AlphaDelta = FxHashMap::default();
         wm.alpha.clear(); wm.bind_pool.clear(); wm.bind_keys.clear();
         wm.bind_vals.clear(); wm.bind_val_ids.clear(); wm.i64_by_fact.clear();
@@ -1340,52 +1340,69 @@ fn c4_probe_bind_only_decides_skip_span_for_the_accum_axis() {
                 }).expect("activate");
             }
         });
-        let calls = rows.iter().find(|(n, _)| *n == "compiled:calls").map(|(_, c)| *c).unwrap_or(0);
-        // ⛔ THE DISCRIMINATOR IS THE WORK, NOT THE CALL COUNT — and that is now a MEASUREMENT
-        // rather than a claim. `compiled:calls` bumps once per (fact, candidate alpha) pair on
-        // BOTH sides (the `skip_span` arm in `fire/delta.rs`, `exec_compiled_with_key_ids` in
-        // `compiled_cond.rs`), so it is equal across the two arms by construction and can never
-        // tell them apart. What separates them is that the skip branch returns `Some((0,0))` and
-        // interns nothing, while the else branch drives `BindIntern` and grows the pools.
-        (wm.bind_pool.len(), wm.bind_vals.len(), calls)
+        let exec = rows
+            .iter()
+            .find(|(n, _)| *n == "compiled:exec")
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
+        let elided = rows
+            .iter()
+            .find(|(n, _)| *n == "compiled:span-elided")
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
+        // ⛔ THE DISCRIMINATOR IS THE WORK, AND THE TWO KEYS NOW NAME THE TWO PATHS.
+        // Same (fact, candidate alpha) pairs on both arms: the built map takes `skip_span`
+        // (`compiled:span-elided`) and executes nothing; the empty map takes
+        // `exec_compiled_with_key_ids` (`compiled:exec`) and elides nothing. What still
+        // separates them in WORK is that skip returns `Some((0,0))` and interns nothing,
+        // while the else branch drives `BindIntern` and grows the pools.
+        (wm.bind_pool.len(), wm.bind_vals.len(), exec, elided)
     };
     // ── (2) the map production builds vs (3) the EMPTY map the two benchmark arms pass ──
-    let (pool_built, vals_built, calls_built) = run(&built, &mut wm);
+    let (pool_built, vals_built, exec_built, elided_built) = run(&built, &mut wm);
     let empty: HashMap<i64, Vec<u8>> = HashMap::new();
-    let (pool_empty, vals_empty, calls_empty) = run(&empty, &mut wm);
+    let (pool_empty, vals_empty, exec_empty, elided_empty) = run(&empty, &mut wm);
 
     println!(
         "C4 PROBE: bind-only conds {}/{} · built pool={pool_built} vals={vals_built} \
-         calls={calls_built} · empty pool={pool_empty} vals={vals_empty} calls={calls_empty}",
-        built.len(), arm.compiled_conds.len()
+         exec={exec_built} elided={elided_built} · empty pool={pool_empty} vals={vals_empty} \
+         exec={exec_empty} elided={elided_empty}",
+        built.len(),
+        arm.compiled_conds.len()
     );
 
-    // ⛔ C14 — THIS IS WHERE A LOST CALL SITE REDS, AND IT IS THE ONLY PLACE.
+    // ⛔ C14 / census B — THIS IS WHERE A LOST BUMP SITE REDS, AND IT IS THE ONLY PLACE.
     //
-    // Since 2026-09-03 `compiled:calls` counts compiled-condition EXECUTIONS only; the batched
-    // occupancy fill that used to supply all of it now emits `alpha:leaf-fill-pairs`
-    // (`fire/pass/alpha.rs`). That rename left `accum_matcher_op_census` (`accum_cost.rs`) reading
-    // ZERO, because the accum axis's seed fills alpha in batch and its derived facts match no
-    // alpha — so NOTHING in the suite entered the compiled path with the census armed, and either
-    // per-call bump could be deleted unnoticed.
-    //
-    // This loop does enter it, on both arms, and the invariant is exact rather than a constant:
-    // every (fact, candidate alpha) pair executes exactly one compiled condition, through the
-    // `skip_span` arm when `bind_only` is built and through `exec_compiled_with_key_ids` when it
-    // is empty. The arms differ in the WORK per call, never in the NUMBER of calls. Delete either
-    // bump and one side drops while the other does not.
-    assert!(
-        calls_built > 0,
-        "compiled:calls is zero on the built arm — `alpha_activate_fact` executed no compiled \
-         condition at all, so the equality below would hold over nothing"
+    // The batched occupancy fill emits `alpha:leaf-fill-pairs` (`fire/pass/alpha.rs`). This
+    // loop enters the compiled path on both arms. Every (fact, candidate alpha) pair is
+    // reached once: through `skip_span` when `bind_only` is built, through
+    // `exec_compiled_with_key_ids` when it is empty. Delete either bump and
+    // `elided_built == exec_empty` drops from one side.
+    assert_eq!(
+        elided_built, exec_empty,
+        "elided_built={elided_built} exec_empty={exec_empty}: same (fact, alpha) pairs by two \
+         paths. An inequality means one of the two bump sites (`fire/delta.rs` skip_span, \
+         `compiled_cond.rs` exec_compiled_with_key_ids) stopped counting"
     );
     assert_eq!(
-        calls_built, calls_empty,
-        "compiled:calls is {calls_built} with `bind_only` built and {calls_empty} with it empty. \
-         Both arms visit the same (fact, candidate alpha) pairs and each pair executes exactly \
-         one compiled condition, so these must agree: an inequality means one of the two bump \
-         sites (`fire/delta.rs`'s `skip_span` arm, `compiled_cond.rs`'s \
-         `exec_compiled_with_key_ids`) stopped counting, not that the arms diverged"
+        exec_built, 0,
+        "the built arm must execute nothing (skip_span is the whole path); compiled:exec is \
+         {exec_built}"
+    );
+    assert_eq!(
+        elided_empty, 0,
+        "the empty arm must elide nothing (every pair reaches the executor); \
+         compiled:span-elided is {elided_empty}"
+    );
+    assert!(
+        elided_built > 0,
+        "compiled:span-elided is zero on the built arm — `alpha_activate_fact` took no skip_span \
+         path at all, so the equality above would hold over nothing"
+    );
+    assert!(
+        exec_empty > 0,
+        "compiled:exec is zero on the empty arm — `exec_compiled_with_key_ids` never ran, so \
+         the equality above would hold over nothing"
     );
     assert_ne!(
         (pool_built, vals_built),

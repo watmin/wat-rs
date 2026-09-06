@@ -278,7 +278,9 @@ pub(crate) fn alpha_seed(
         // 100% of that counter's 80,200 on the accum axis while the two genuine per-call sites
         // (`fire/delta.rs`'s `skip_span` arm and `compiled_cond.rs`) contributed ZERO — so a call
         // count was really a pair count, and losing a call site changed nothing anyone asserted.
-        // One counter, one unit. See `accum_matcher_op_census` (`tests/accum_cost.rs`).
+        // Those two sites later split (census B, 2026-09-06) into `compiled:exec` and
+        // `compiled:span-elided` — still not this bulk add. One counter, one unit.
+        // See `accum_matcher_op_census` (`tests/accum_cost.rs`).
         census_count_n("alpha:leaf-fill-pairs", ids.len() as u64 * aids.len() as u64);
         // rune:perspicere(intentional-structure) — Arc vs owned Vec is the occupancy-share door
         let els: Arc<Vec<Element>> = Arc::from(

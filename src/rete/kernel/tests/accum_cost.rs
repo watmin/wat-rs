@@ -12,10 +12,10 @@ use super::*;
 /// Arc 278 DESIGN-STONE-compiled-conditions.md — a real fire's step 1 no longer
 /// runs `alpha_match_inner`: `match:calls` (and its `match:clause`/`match:bind-insert`
 /// siblings) are armed INSIDE `alpha_match_inner`'s own body, so they read zero here
-/// now by construction, not by regression. `compiled:calls` counts the two places a
-/// compiled condition is EXECUTED — the `skip_span` arm of `alpha_activate_fact`
-/// (`fire/delta.rs`) and `exec_compiled_with_key_ids` (`compiled_cond.rs`) — and it
-/// reads ZERO on this axis, which the census below asserts and explains.
+/// now by construction, not by regression. `compiled:exec` counts real executions of
+/// `exec_compiled_with_key_ids`; `compiled:span-elided` counts the `skip_span` arm of
+/// `alpha_activate_fact` (`fire/delta.rs`) that returns without invoking the executor.
+/// Both read ZERO on this axis, which the census below asserts and explains.
 /// `alpha:leaf-fill-pairs` is the OTHER unit: the batched occupancy leaf-fill in
 /// `alpha_seed` (`fire/pass/alpha.rs`, `DESIGN-STONE-occupancy-leaf-column`) executes
 /// no condition at all and bulk-adds (fact, alpha) PAIRS. The two shared one key until
@@ -41,9 +41,9 @@ fn accum_matcher_op_census() {
     //
     // `alpha:leaf-fill-pairs` is a PAIR count: `alpha_seed`'s batched occupancy leaf-fill bulk-adds
     // `facts × alphas` in a single `census_count_n` and executes no compiled condition at all.
-    // `compiled:calls` is a CALL count: one bump per compiled-condition execution, at the
-    // `skip_span` arm of `alpha_activate_fact` (`fire/delta.rs`) and inside
-    // `exec_compiled_with_key_ids` (`compiled_cond.rs`).
+    // `compiled:exec` is an EXECUTION count: one bump inside `exec_compiled_with_key_ids`.
+    // `compiled:span-elided` is the `skip_span` arm of `alpha_activate_fact` (`fire/delta.rs`),
+    // which returns without invoking the executor. They used to share one key.
     //
     // Both used to emit `compiled:calls`, and on THIS axis the product supplied 100% of it —
     // driven 2026-09-03 by renaming only the `alpha_seed` key, which took `compiled:calls` to
@@ -57,7 +57,8 @@ fn accum_matcher_op_census() {
             .unwrap_or(0)
     };
     let pairs = count_of("alpha:leaf-fill-pairs");
-    let calls = count_of("compiled:calls");
+    let exec = count_of("compiled:exec");
+    let elided = count_of("compiled:span-elided");
 
     // LIVENESS, naming ONLY the mechanism it can observe. The old guard here read `calls > 0` and
     // blamed "occupancy fill / skip-span / exec_compiled" — three mechanisms, of which it could
@@ -87,13 +88,20 @@ fn accum_matcher_op_census() {
     // `c4_probe_bind_only_decides_skip_span_for_the_accum_axis` went RED — which looked like a
     // designed union and was in fact both arms reading zero, the product covering for them.
     // Discriminating the arms is still a hot-path engine edit for an instrument's benefit, and
-    // the discrimination already exists one file over, in bind-pool LENGTH.
+    // the discrimination already exists one file over, in bind-pool LENGTH. Census B splits
+    // the two *names* the existing bump sites already pass; it does not change which arm RUNS.
     assert_eq!(
-        calls, 0,
-        "compiled:calls is {calls}, not 0 — a compiled condition is now EXECUTED on this axis, \
+        exec, 0,
+        "compiled:exec is {exec}, not 0 — a compiled condition is now EXECUTED on this axis, \
          where the batched occupancy fill previously supplied every alpha element without one. \
          That is a real change in how this fire matches: say what entered the path. Do NOT \
          re-pin the number"
+    );
+    assert_eq!(
+        elided, 0,
+        "compiled:span-elided is {elided}, not 0 — the skip_span arm now runs on this axis, \
+         where `alpha_activate_fact` previously returned before either bump. That is a real \
+         change in how this fire matches: say what entered the path. Do NOT re-pin the number"
     );
 
     // ⛔ THE 80,200 PIN IS GONE FROM HERE, DELIBERATELY — do not restore it under the new name.
@@ -115,11 +123,12 @@ fn accum_matcher_op_census() {
     // incidental witness. It is gated deliberately in
     // `seed_batches_uniform_classes_and_defers_mixed_ones`.
     //
-    // `compiled:calls` is ABSENT ON PURPOSE, and this exact-equality list is what holds it absent:
-    // the compiled path is entered zero times here, so the counter is never created (see the
-    // `calls == 0` assertion above for why, and for where it IS entered). `alpha:leaf-fill-pairs`
-    // took the place it used to occupy in this list on 2026-09-03 (C14) — a rename, not a new
-    // mark: the same bulk add, under a name that says which unit it carries.
+    // `compiled:exec` and `compiled:span-elided` are ABSENT ON PURPOSE, and this exact-equality
+    // list is what holds them absent: the compiled path is entered zero times here, so neither
+    // counter is created (see the two `== 0` assertions above for why, and for where they ARE
+    // entered). `alpha:leaf-fill-pairs` took the place `compiled:calls` used to occupy in this
+    // list on 2026-09-03 (C14) — a rename, not a new mark: the same bulk add, under a name that
+    // says which unit it carries.
     let mut names: Vec<&str> = rows.iter().map(|(n, _)| *n).collect();
     names.sort_unstable();
     assert_eq!(

@@ -75,7 +75,7 @@ pub(crate) fn alpha_activate_fact(
                 None => false,
             };
         let matched = if skip_span {
-            census_count("compiled:calls");
+            census_count("compiled:span-elided");
             Some((0u32, 0u16))
         } else {
             let mut intern = crate::rete::compiled_cond::BindIntern {
