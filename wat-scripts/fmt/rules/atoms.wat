@@ -20,5 +20,11 @@
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
-             (:wat::rete::where (:wat::rete::string::= ?k "set"))))]
+             (:wat::rete::where (:wat::rete::string::= ?k "set"))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
+             (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+             (:wat::grep::Named (?h <- :id) (?hn <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?hn ":wat::core::defenum"))))]
   :then [(:wat::fmt::AllAtoms :form ?p)])

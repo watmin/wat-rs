@@ -43,7 +43,8 @@
                      (:wat::fmt::q-align)
                      (:wat::fmt::q-table)
                      (:wat::fmt::q-atoms)
-                     (:wat::fmt::q-stride))]
+                     (:wat::fmt::q-stride)
+                     (:wat::fmt::q-empty-vec))]
           (:wat::rete::with-overlay rules queries
             (:wat::core::fn [overlay <- :wat::rete::Overlay]
               -> :wat::core::nil
@@ -81,7 +82,8 @@
                        (:wat::fmt::tables-map fired)
                        (:wat::fmt::atoms-set fired)
                        (:wat::fmt::widths-map (:wat::fmt::widths-of forms))
-                       (:wat::fmt::strides-map fired))]
+                       (:wat::fmt::strides-map fired)
+                       (:wat::fmt::empties-set fired))]
                 (:wat::core::do
                   (:wat::kernel::println
                     (:wat::string::interpolate "GROUPS2={a} GROUPS3={b} ROWS={r}"
