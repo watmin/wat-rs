@@ -415,6 +415,76 @@ pub(crate) fn with_col_field_census<R>(f: impl FnOnce() -> R) -> (R, ColFieldCou
     (out, counted)
 }
 
+// Test-only instrument: root_join_delta's two costs, separable.
+//
+// temperare §2. `span_from_row` is conditional on empty binds (the population
+// question). `record_token` is unconditional, once per seeded element.
+// After the batch, `record_tokens` is once per (alpha, RootJoin-child) that emits.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct RootJoinCounts {
+    pub elements: u64,
+    pub span: u64,
+    pub record_token: u64,
+    pub record_tokens: u64,
+}
+
+#[cfg(test)]
+// rune:sequi(performance-counter) — test-only root_join span/record counts; temperare §2.
+thread_local! {
+    pub(crate) static ROOT_JOIN_COUNTS: std::cell::Cell<RootJoinCounts> =
+        const { std::cell::Cell::new(RootJoinCounts { elements: 0, span: 0, record_token: 0, record_tokens: 0 }) };
+}
+
+#[cfg(test)]
+#[inline]
+fn bump_root_join<F: FnOnce(&mut RootJoinCounts)>(f: F) {
+    ROOT_JOIN_COUNTS.with(|c| {
+        let mut v = c.get();
+        f(&mut v);
+        c.set(v);
+    });
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_root_join_element() {
+    bump_root_join(|v| v.elements += 1);
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_root_join_element() {}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_root_join_span() {
+    bump_root_join(|v| v.span += 1);
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_root_join_span() {}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_root_join_record_tokens() {
+    bump_root_join(|v| v.record_tokens += 1);
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_root_join_record_tokens() {}
+
+/// Run `f` with the root-join census zeroed, and return what it counted.
+#[cfg(test)]
+pub(crate) fn with_root_join_census<R>(f: impl FnOnce() -> R) -> (R, RootJoinCounts) {
+    let prior = ROOT_JOIN_COUNTS.with(|c| c.replace(RootJoinCounts::default()));
+    let out = f();
+    let counted = ROOT_JOIN_COUNTS.with(|c| c.replace(prior));
+    (out, counted)
+}
+
 // ── Per-phase wall-clock inside the fire loop ────────────────────────────────
 //
 // `RoundCensus` counts STRUCTURES (how many tokens, how many elements); this counts NANOSECONDS,

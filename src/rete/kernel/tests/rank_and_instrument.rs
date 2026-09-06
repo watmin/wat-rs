@@ -898,6 +898,111 @@ fn predicted_col_field_of_reddens_under_a_per_element_scan() {
     );
 }
 
+fn fire_root_join(world: &str, ns: &str, seed_args: &str) -> super::RootJoinCounts {
+    let world = startup_from_source(world, None, Arc::new(InMemoryLoader::new()))
+        .unwrap_or_else(|e| panic!("{ns} world should freeze: {e:?}"));
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:{ns}::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :{ns})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {seed_args})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let (_fired, counts) = super::with_root_join_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("{ns} fire raised at {seed_args}: {e:?}"))
+            .value_owned()
+    });
+    counts
+}
+
+/// ★ temperare §2: count `span_from_row` vs `record_token` in root_join_delta
+/// on the axes that already exist. Denom = Left occupancy (keys×fanout) / Groups.
+#[test]
+fn root_join_costs_are_measured_on_the_driven_axes() {
+    let fan_small = fire_root_join(FANOUT_CENSUS_WORLD, "fan", "10 10");
+    let fan_cell = fire_root_join(FANOUT_CENSUS_WORLD, "fan", "100 20");
+    let acc_g10 = fire_root_join(ACCUM_GATHER_WORLD, "agc", "10 80");
+    let acc_g80 = fire_root_join(ACCUM_GATHER_WORLD, "agc", "80 10");
+
+    let row = |name: &str, denom: u64, c: &super::RootJoinCounts| {
+        let span_frac = if c.elements == 0 {
+            f64::NAN
+        } else {
+            c.span as f64 / c.elements as f64
+        };
+        format!(
+            "  {name:<22} {denom:>8} {:>8} {:>8} {span_frac:>7.2} {:>8} {:>8}",
+            c.elements, c.span, c.record_token, c.record_tokens
+        )
+    };
+
+    let table = format!(
+        "\nroot_join_delta measurement — existing axes\n\
+         \x20 axis                     denom   elems    span  span/e   rec_tok  rec_toks\n\
+         \x20 -------------------------------------------------------------------------\n\
+         {}\n\
+         {}\n\
+         {}\n\
+         {}\n\
+         denom: fanout Left occupancy = keys×fanout; accum Groups = G.\n",
+        row("fanout 10×10", 10 * 10, &fan_small),
+        row("fanout 100×20", 100 * 20, &fan_cell),
+        row("accum G=10 W=80", 10, &acc_g10),
+        row("accum G=80 W=10", 80, &acc_g80),
+    );
+    println!("{table}");
+    assert!(
+        fan_cell.elements > 0,
+        "fanout cell recorded ZERO root-join elements — the nest was never entered\n{table}"
+    );
+    assert_eq!(
+        fan_cell.span, fan_cell.elements,
+        "span branch {} ≠ elements {} — occupancy is supposed to take span_from_row\n{table}",
+        fan_cell.span, fan_cell.elements
+    );
+    assert_eq!(
+        fan_cell.record_token, 0,
+        "record_token still ran {} times — the batch did not replace the per-element write\n{table}",
+        fan_cell.record_token
+    );
+    assert_eq!(
+        fan_small.record_tokens, fan_cell.record_tokens,
+        "record_tokens scaled with occupancy ({fan_small:?} vs {fan_cell:?}) — the batch did not hold\n{table}"
+    );
+    assert_eq!(
+        acc_g10.record_tokens, acc_g80.record_tokens,
+        "accum record_tokens scaled with G ({acc_g10:?} vs {acc_g80:?})\n{table}"
+    );
+}
+
+/// Simulated per-element `record_token`: add elements to the after `record_tokens`
+/// count. Equality of the two fanout sizes FAILS. The weaker `> 0` still PASSES.
+#[test]
+fn predicted_root_join_record_tokens_redden_under_a_per_element_scan() {
+    let small = fire_root_join(FANOUT_CENSUS_WORLD, "fan", "10 10");
+    let big = fire_root_join(FANOUT_CENSUS_WORLD, "fan", "100 20");
+    assert_eq!(
+        small.record_tokens, big.record_tokens,
+        "precondition: after-batch count is independent of occupancy"
+    );
+    let fake_small = small.record_tokens + small.elements;
+    let fake_big = big.record_tokens + big.elements;
+    println!(
+        "\nroot_join record_tokens per-element simulation (add elements)\n\
+         \x20 10×10:  after {} + {} elems = {fake_small}\n\
+         \x20 100×20: after {} + {} elems = {fake_big}\n\
+         \x20 weaker (record_tokens > 0): PASS on {fake_small}/{fake_big}\n",
+        small.record_tokens, small.elements, big.record_tokens, big.elements
+    );
+    assert!(
+        fake_small > 0 && fake_big > 0,
+        "the weaker check (record_tokens > 0) must still pass under the simulation"
+    );
+    assert_ne!(
+        fake_small, fake_big,
+        "equality of record_tokens across occupancy sizes must REDDEN under the simulation: \
+         fake {fake_small} vs {fake_big}"
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]
