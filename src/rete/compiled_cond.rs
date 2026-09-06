@@ -953,10 +953,12 @@ pub(crate) fn exec_compiled_with_key_ids(
     fact: &Value,
     key_ids: Option<&[u32]>,
 ) -> Option<(u32, u16)> {
-    // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's EXECUTION counter,
-    // parallel to `alpha_match_inner`'s `match:calls`. Since this stone re-points the round
-    // loop's step 1 at this function (`kernel/`), `match:calls` alone would read zero on a
-    // real fire from here on; this is what a diagnostic census reads instead to see the
+    // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's EXECUTION counter.
+    // FIRST statement, before any early exit — deliberately parallel to `alpha_match_inner`'s
+    // `match:calls`, which also bumps before `alpha_pattern`'s `?`. Both count every
+    // invocation, so an interpreter-vs-compiled differential compares the same population.
+    // On a real fire `match:calls` still reads zero because the round loop's step 1 is this
+    // function (`kernel/`); this is what a diagnostic census reads instead to see the
     // production path actually ran. The skip_span arm is `compiled:span-elided`, not this.
     crate::rete::kernel::census_count("compiled:exec");
     scratch.clear();

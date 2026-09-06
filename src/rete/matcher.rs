@@ -529,9 +529,12 @@ pub(crate) fn alpha_match_inner_seeded(
 ///
 /// The head check runs BEFORE clause evaluation and bumps its own census (`match:head-miss`):
 /// most facts fail on type alone, so testing the cheap discriminator first is what keeps the
-/// common failure off the clause walk entirely. `match:calls` counted here is the counter
-/// `compiled_cond.rs` deliberately parallels — see that module's header on why it reads zero on
-/// a real fire now.
+/// common failure off the clause walk entirely. `match:calls` is bumped BEFORE `alpha_pattern`'s
+/// `?`, so this counts every invocation — including a `cond` that is not an alpha pattern.
+/// That is the unit `compiled:exec` matches: both counters bump before their guards, so an
+/// interpreter-vs-compiled call differential compares the same population. On a real fire this
+/// still reads zero because the round loop's step 1 is the compiled path; the parallel is for
+/// that differential, not for production traffic.
 fn alpha_match_inner_opts(
     sym: Option<&SymbolTable>,
     cond: &WatAST,
@@ -541,8 +544,8 @@ fn alpha_match_inner_opts(
     seed: &[(Value, Value)],
     defer_unbound: bool,
 ) -> BindPairs {
-    let pat = alpha_pattern(cond)?;
     crate::rete::kernel::census_count("match:calls");
+    let pat = alpha_pattern(cond)?;
     if pat.type_head != fact_class {
         crate::rete::kernel::census_count("match:head-miss");
         return None;
