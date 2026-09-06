@@ -534,7 +534,9 @@ pub(crate) fn alpha_match_inner_seeded(
 /// That is the unit `compiled:exec` matches: both counters bump before their guards, so an
 /// interpreter-vs-compiled call differential compares the same population. On a real fire this
 /// still reads zero because the round loop's step 1 is the compiled path; the parallel is for
-/// that differential, not for production traffic.
+/// that differential, not for production traffic. Measured 2026-09-06 on floor
+/// `2026-09-06T21-44-01Z` (5465 passed): a `cond` that `alpha_pattern` rejects was never
+/// observed across the full suite.
 fn alpha_match_inner_opts(
     sym: Option<&SymbolTable>,
     cond: &WatAST,
