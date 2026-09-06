@@ -126,9 +126,21 @@ the stamp necessarily lands after it, so the stamp names its own parent. Confirm
 that is what you are looking at; anything more is stale.)
 
 **The WORK LIST — the live open list, and the only place a row's status lives — is
-`docs/arc/2026/06/278-rules-engine/VIGILIA-2026-08-30-WORK-LIST.md`** (41 L1 + 70 L2 from the
-19-ward cast at HEAD `78b1fad56`). Read its Class A block first: five wards independently found
-five instances of one class, and working the list top-to-bottom as 111 items misses it.
+`docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/WORK-LIST.md`** (81 L1 + 97 L2 from the
+19-ward cast at HEAD `21530efab`). Read its CLASS A block first: several wards independently found
+instances of ONE class, and working the list top-to-bottom as 178 items misses it. That
+directory also holds the 19 ward returns **verbatim** in `reports/` — the 2026-08-30 cast lost
+all nineteen of its own, which is why they now go to disk before any synthesis.
+
+**And the live SUBSET being worked is `vigilia-2026-09-05/RETE-BOARD.md`** — builder's ruling
+2026-09-05: this branch works rete only, main owns the cross-codebase cleanup. That file names
+what is out of scope. Start there, not at the full list.
+
+Superseded: `VIGILIA-2026-08-30-WORK-LIST.md` (41 L1 + 70 L2 at `78b1fad56`) — history, not open
+rows. **⛔ When a new vigilia is cast, THIS paragraph is what you change** — the pointer rotted
+once already (it named the 08-30 list for a day after the 09-05 cast superseded it), and a stale
+work-list pointer fails exactly the way the breadcrumb pointer did below: the ledger ticks, the
+file is wrong.
 
 Its predecessor, `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md`, holds the
 theater hunt, the closing tally, and the TRACKED DECISIONS rows — historical reasoning plus two
