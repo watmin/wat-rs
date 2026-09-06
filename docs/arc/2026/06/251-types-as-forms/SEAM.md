@@ -1,7 +1,10 @@
-# SEAM — ⛔ PARKED 2026-08-14. THE LIVE SEAM IS ARC 255.
+# SEAM — ⚠ RESUMING 2026-09-06. THE LIVE SEAM IS ARC 294.
 
-> **This arc is PARKED. Do not resume from this file.**
-> The one live breadcrumb is **`docs/arc/2026/06/255-builtin-registry/SEAM.md`** — read that first.
+> ⚠ **2026-09-06 — 251 IS RESUMING.** The builder: *"C has been reasoned - 251 is resumed...
+> our clojurification begins."* **Still do not resume from this file** — everything below the
+> next heading is a 2026-08-14 snapshot. The one live breadcrumb is
+> **`docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md`** (NOT 255's — that banner is stale;
+> 255 itself now redirects to 294). Stone **251.8b LANDED** 2026-09-06 (`71c9f2f58`).
 >
 > The builder, 2026-08-14: *"we park 251 and 278 on 255's clean up… 255 will force us to organize"*
 > → **"A has been reasoned - we're going from 251 to 255 now."**
