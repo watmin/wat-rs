@@ -1080,11 +1080,17 @@
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
 
+(:wat::core::defn :fanout::publish-until-accepted-from!
+  [t <- :demo::Topic  msgs <- (:wat::core::Vector :- [:wat::core::String])
+   seed <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:fanout::publish-until-accepted!* t msgs 0 0 seed
+    (:wat::time::epoch-nanos (:wat::time::now)) 60000 0))
+
 (:wat::core::defn :fanout::publish-until-accepted!
   [t <- :demo::Topic  msgs <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
-  (:fanout::publish-until-accepted!* t msgs 0 0 :fanout::BACKOFF-SEED
-    (:wat::time::epoch-nanos (:wat::time::now)) 60000 0))
+  (:fanout::publish-until-accepted-from! t msgs :fanout::BACKOFF-SEED))
 
 ;; Each message keeps its OWN t0. A shared origin would collapse e2e.
 (:wat::core::defn :fanout::stamped-range
@@ -1099,29 +1105,388 @@
     (:wat::core::Vector :- [:wat::core::String])
     (:wat::core::range 0 ntake)))
 
-;; Chunk n messages into batches of at most 10. Last batch may be short (n=4 is live).
+;; Chunk [lo, hi) into batches of at most 10. Last batch may be short.
 ;; Returns (Tuple calls full-retries asleep-ms).
+(:wat::core::defn :fanout::publish-share-until-accepted!
+  [t <- :demo::Topic  lo <- :wat::core::i64  hi <- :wat::core::i64  seed <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  (:wat::core::if (:wat::i64::>= lo hi)
+    (:wat::core::Tuple 0 0 0)
+    (:wat::core::let
+      [n (:wat::i64::- hi lo)
+       nbatches (:wat::i64::/ (:wat::i64::+ n 9) 10)]
+      (:wat::core::foldl
+        (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+                         b   <- :wat::core::i64]
+          -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+          (:wat::core::let
+            [start (:wat::i64::+ lo (:wat::i64::* b 10))
+             ntake (:wat::core::if (:wat::i64::>= (:wat::i64::+ start 10) hi)
+                      (:wat::i64::- hi start)
+                      10)
+             pair (:fanout::publish-until-accepted-from! t (:fanout::stamped-range start ntake) seed)]
+            (:wat::core::Tuple
+              (:wat::i64::+ (:wat::core::first acc) 1)
+              (:wat::i64::+ (:wat::core::second acc) (:wat::core::first pair))
+              (:wat::i64::+ (:wat::core::third acc) (:wat::core::second pair)))))
+        (:wat::core::Tuple 0 0 0)
+        (:wat::core::range 0 nbatches)))))
+
 (:wat::core::defn :fanout::publish-n-until-accepted!
   [t <- :demo::Topic  n <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  (:fanout::publish-share-until-accepted! t 0 n :fanout::BACKOFF-SEED))
+
+(:wat::core::defn :fanout::share-lo
+  [i <- :wat::core::i64  n <- :wat::core::i64  p <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::/ (:wat::i64::* i n) p))
+
+(:wat::core::defn :fanout::share-hi
+  [i <- :wat::core::i64  n <- :wat::core::i64  p <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::/ (:wat::i64::* (:wat::i64::+ i 1) n) p))
+
+(:wat::core::defn :fanout::publisher-seed [i <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::+ :fanout::BACKOFF-SEED (:wat::i64::* i 7919)))
+
+;; Named fields so a defservice impl can read them. first/second/third on a
+;; Tuple inside :impls typechecks as an unsolved var; a process child also
+;; cannot see a defn that is written after the defservice.
+(:wat::core::defrecord :fanout::ShareStats
+  [calls   <- :wat::core::i64
+   retries <- :wat::core::i64
+   asleep  <- :wat::core::i64])
+
+(:wat::core::defn :fanout::share-stats!
+  [t <- :demo::Topic  lo <- :wat::core::i64  hi <- :wat::core::i64  seed <- :wat::core::i64]
+  -> :fanout::ShareStats
   (:wat::core::let
-    [nbatches (:wat::i64::/ (:wat::i64::+ n 9) 10)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
-                       b   <- :wat::core::i64]
-        -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
-        (:wat::core::let
-          [start (:wat::i64::* b 10)
-           ntake (:wat::core::if (:wat::i64::>= (:wat::i64::+ start 10) n)
-                    (:wat::i64::- n start)
-                    10)
-           pair (:fanout::publish-until-accepted! t (:fanout::stamped-range start ntake))]
+    [pair (:fanout::publish-share-until-accepted! t lo hi seed)]
+    (:fanout::ShareStats
+      :calls   (:wat::core::first pair)
+      :retries (:wat::core::second pair)
+      :asleep  (:wat::core::third pair))))
+
+;; ── publisher: one client, one share of the id range, its own seed ──────────
+(:wat::core::defsurface :fanout::Publisher :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :fanout::Publisher::StartRequest [])
+   (:wat::core::defenum :fanout::Publisher::StartResponse :wat::enum::Pure
+     :Ok []
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :fanout::Publisher::StatsRequest [])
+   (:wat::core::defenum :fanout::Publisher::StatsResponse :wat::enum::Pure
+     :Ok [done <- :wat::core::bool  calls <- :wat::core::i64
+          retries <- :wat::core::i64  asleep <- :wat::core::i64]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                        expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(start [self <- :fanout::Publisher  req <- :fanout::Publisher::StartRequest]
+     -> :fanout::Publisher::StartResponse :max-request-bytes 524288)
+   (stats [self <- :fanout::Publisher  req <- :fanout::Publisher::StatsRequest]
+     -> :fanout::Publisher::StatsResponse :max-request-bytes 524288)])
+
+(:wat::service::defservice :fanout::publisher
+  :satisfies :fanout::Publisher
+  ;; stats is the join: it must outlive one publisher's share (~20 s at N=2000).
+  ;; Default 10000 would TimedOut mid -run and the parent would see a hang-shaped failure.
+  :deadline-ms 120000
+  :durable   [id         <- :wat::core::String
+              topic-addr <- (:wat::kernel::Address :- [:demo::Topic::Op :demo::Topic::Reply])
+              lo         <- :wat::core::i64
+              hi         <- :wat::core::i64
+              seed       <- :wat::core::i64
+              done       <- :wat::core::bool
+              calls      <- :wat::core::i64
+              retries    <- :wat::core::i64
+              asleep     <- :wat::core::i64
+              attempt    <- :wat::core::i64]
+  :ephemeral [topic      <- (:wat::kernel::Peer :- [:demo::Topic::Op :demo::Topic::Reply])
+              remaining  <- (:wat::core::Vector :- [:wat::core::String])]
+  :peers     [:demo::Topic]
+  :init (:wat::core::fn
+          [record <- :fanout::publisher::Record]
+          -> :fanout::publisher::State
+          (:fanout::publisher::State :durable record
+            :topic
+              (:wat::core::match (:wat::kernel::connect (:fanout::publisher::Record/topic-addr record))
+                ((:wat::kernel::ConnectOutcome::Connected p) p)
+                ((:wat::kernel::ConnectOutcome::Refused c)
+                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                ((:wat::kernel::ConnectOutcome::Rejected c)
+                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                ((:wat::kernel::ConnectOutcome::Failed c)
+                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+            :remaining (:wat::core::Vector :- [:wat::core::String])))
+  :impls
+  [(start [s ctx req]
+     (:wat::core::let
+       [none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Publisher::Reply])])
+        run (:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-run)]
+       (:wat::service::Outcome::Continue s
+         (:wat::core::Some (:fanout::Publisher::Reply::Start (:fanout::Publisher::StartResponse::Ok)))
+         none-sends
+         [run])))
+   (stats [s ctx req]
+     (:wat::core::let
+       [rec (:fanout::publisher::State/durable s)
+        none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Publisher::Reply])])
+        none-arms  (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::publisher::Op])])]
+       (:wat::service::Outcome::Continue s
+         (:wat::core::Some (:fanout::Publisher::Reply::Stats
+           (:fanout::Publisher::StatsResponse::Ok
+             (:fanout::publisher::Record/done rec)
+             (:fanout::publisher::Record/calls rec)
+             (:fanout::publisher::Record/retries rec)
+             (:fanout::publisher::Record/asleep rec))))
+         none-sends none-arms)))
+   (-run [s ctx]
+     (:wat::core::let
+       [none-sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Publisher::Reply])])
+        none-arms  (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::publisher::Op])])
+        rec (:fanout::publisher::State/durable s)
+        t   (:fanout::publisher::State/topic s)
+        lo  (:fanout::publisher::Record/lo rec)
+        hi  (:fanout::publisher::Record/hi rec)
+        seed0 (:fanout::publisher::Record/seed rec)
+        stamp
+          (:wat::core::fn [start <- :wat::core::i64  ntake <- :wat::core::i64]
+            -> (:wat::core::Vector :- [:wat::core::String])
+            (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])  k <- :wat::core::i64]
+                -> (:wat::core::Vector :- [:wat::core::String])
+                (:wat::core::conj acc
+                  (:wat::core::format "{m}|{t0}"
+                    :m (:wat::core::str (:wat::i64::+ start k))
+                    :t0 (:wat::time::epoch-nanos (:wat::time::now)))))
+              (:wat::core::Vector :- [:wat::core::String])
+              (:wat::core::range 0 ntake)))
+        drop-first
+          (:wat::core::fn [v <- (:wat::core::Vector :- [:wat::core::String])  n <- :wat::core::i64]
+            -> (:wat::core::Vector :- [:wat::core::String])
+            (:wat::core::let
+              [len (:wat::core::count v)
+               n0  (:wat::core::if (:wat::i64::< n 0) 0 n)
+               rest (:wat::core::if (:wat::i64::>= n0 len) 0 (:wat::i64::- len n0))]
+              (:wat::core::foldl
+                (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])  i <- :wat::core::i64]
+                  -> (:wat::core::Vector :- [:wat::core::String])
+                  (:wat::core::conj acc (:wat::core::nth v (:wat::i64::+ n0 i))))
+                (:wat::core::Vector :- [:wat::core::String])
+                (:wat::core::range 0 rest))))
+        await-ms
+          (:wat::core::fn [ms <- :wat::core::i64] -> :wat::core::nil
+            (:wat::core::match
+              (:wat::kernel::recv
+                (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Milliseconds ms) :done))
+              ((:wat::kernel::RecvOutcome::Message _m) nil)
+              ((:wat::kernel::RecvOutcome::Lost _c) nil)
+              (:wat::kernel::RecvOutcome::Stopped nil)
+              (:wat::kernel::RecvOutcome::Closed nil)
+              (:wat::kernel::RecvOutcome::TimedOut nil)))
+        n (:wat::core::if (:wat::i64::>= lo hi) 0 (:wat::i64::- hi lo))
+        nbatches (:wat::i64::/ (:wat::i64::+ n 9) 10)
+        acc0 (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 seed0))
+        acc
+          (:wat::core::foldl
+            (:wat::core::fn
+              [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+                                            (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+               b <- :wat::core::i64]
+              -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+                                        (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+              (:wat::core::let
+                [calls (:wat::core::first (:wat::core::first acc))
+                 retries (:wat::core::second (:wat::core::first acc))
+                 asleep (:wat::core::first (:wat::core::second acc))
+                 start (:wat::i64::+ lo (:wat::i64::* b 10))
+                 ntake (:wat::core::if (:wat::i64::>= (:wat::i64::+ start 10) hi)
+                          (:wat::i64::- hi start)
+                          10)
+                 msgs (stamp start ntake)
+                 start-ns (:wat::time::epoch-nanos (:wat::time::now))
+                 st0 (:wat::core::Tuple
+                        (:wat::core::Tuple msgs 0 0)
+                        (:wat::core::Tuple seed0 0 false))
+                 st
+                   (:wat::core::foldl
+                     (:wat::core::fn
+                       [st <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::String]) :wat::core::i64 :wat::core::i64])
+                                                     (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::bool])])
+                        _i <- :wat::core::i64]
+                       -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::String]) :wat::core::i64 :wat::core::i64])
+                                                 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::bool])])
+                       (:wat::core::let
+                         [left (:wat::core::first st)
+                          right (:wat::core::second st)
+                          remaining (:wat::core::first left)
+                          rtry (:wat::core::second left)
+                          aslp (:wat::core::third left)
+                          sd (:wat::core::first right)
+                          attempt (:wat::core::second right)
+                          done (:wat::core::third right)]
+                         (:wat::core::if done
+                           st
+                           (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs remaining))
+                             ((:wat::kernel::RecvOutcome::Message r)
+                               (:wat::core::match r
+                                 ((:demo::Topic::PublishResponse::Accepted c)
+                                   (:wat::core::let [nc (:wat::core::count remaining)]
+                                     (:wat::core::if (:wat::i64::>= c nc)
+                                       (:wat::core::Tuple left (:wat::core::Tuple sd attempt true))
+                                       (:wat::core::if (:wat::i64::<= c 0)
+                                         (:wat::core::let
+                                           [elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns) 1000000)]
+                                           (:wat::core::if (:wat::i64::>= elapsed 60000)
+                                             (:wat::kernel::assertion-failed!
+                                               (:wat::core::format "verdict=never-accepted;attempts={a};elapsed={ms}"
+                                                 :a rtry :ms elapsed)
+                                               :wat::core::None :wat::core::None)
+                                             (:wat::core::let
+                                               [shifted (:wat::core::if (:wat::i64::>= attempt 7)
+                                                          100
+                                                          (:wat::core::foldl
+                                                            (:wat::core::fn [a <- :wat::core::i64  _j <- :wat::core::i64] -> :wat::core::i64
+                                                              (:wat::i64::* a 2))
+                                                            1
+                                                            (:wat::core::range 0 attempt)))
+                                                ceiling (:wat::core::if (:wat::i64::> shifted 100) 100 shifted)
+                                                drawn (:wat::rand::int-from sd 1 (:wat::i64::+ ceiling 1))
+                                                seed1 (:wat::core::first drawn)
+                                                d (:wat::core::second drawn)
+                                                _nap (await-ms d)]
+                                               (:wat::core::Tuple
+                                                 (:wat::core::Tuple remaining (:wat::i64::+ rtry 1) (:wat::i64::+ aslp d))
+                                                 (:wat::core::Tuple seed1 (:wat::i64::+ attempt 1) false)))))
+                                         (:wat::core::Tuple
+                                           (:wat::core::Tuple (drop-first remaining c) rtry aslp)
+                                           (:wat::core::Tuple sd 0 false))))))
+                                 (_ (:wat::kernel::assertion-failed! "fanout: publish not Accepted" :wat::core::None :wat::core::None))))
+                             ((:wat::kernel::RecvOutcome::Lost cause)
+                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                             (:wat::kernel::RecvOutcome::Stopped
+                               (:wat::kernel::assertion-failed! "fanout: publish stopped" :wat::core::None :wat::core::None))
+                             (:wat::kernel::RecvOutcome::Closed
+                               (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None))
+                             (:wat::kernel::RecvOutcome::TimedOut
+                               (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))))
+                     st0
+                     (:wat::core::range 0 256))
+                 left (:wat::core::first st)
+                 right (:wat::core::second st)
+                 _ok (:wat::core::if (:wat::core::third right)
+                       nil
+                       (:wat::kernel::assertion-failed! "fanout: publisher batch never accepted" :wat::core::None :wat::core::None))]
+                (:wat::core::Tuple
+                  (:wat::core::Tuple (:wat::i64::+ calls 1) (:wat::i64::+ retries (:wat::core::second left)))
+                  (:wat::core::Tuple (:wat::i64::+ asleep (:wat::core::third left)) (:wat::core::first right)))))
+            acc0
+            (:wat::core::range 0 nbatches))
+        rec' (:fanout::publisher::Record
+               :id (:fanout::publisher::Record/id rec)
+               :topic-addr (:fanout::publisher::Record/topic-addr rec)
+               :lo lo :hi hi
+               :seed seed0
+               :done true
+               :calls (:wat::core::first (:wat::core::first acc))
+               :retries (:wat::core::second (:wat::core::first acc))
+               :asleep (:wat::core::first (:wat::core::second acc))
+               :attempt 0)
+        s' (:fanout::publisher::State :durable rec' :topic t
+             :remaining (:wat::core::Vector :- [:wat::core::String]))]
+       (:wat::service::SelfOutcome::Continue s' none-sends none-arms)))])
+
+(:wat::core::defn :fanout::dial-publisher
+  [a <- (:wat::kernel::Address :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+  -> (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])
+  (:wat::core::match (:wat::kernel::connect a)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :fanout::start-publisher!
+  [w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+  -> :wat::core::nil
+  (:wat::core::match (:fanout::Publisher/start w (:fanout::Publisher::StartRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:fanout::Publisher::StartResponse::Ok) nil)
+        (_ (:wat::kernel::assertion-failed! "fanout: publisher start not Ok" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+    (:wat::kernel::RecvOutcome::Stopped
+      (:wat::kernel::assertion-failed! "fanout: publisher start stopped" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
+
+(:wat::core::defn :fanout::publisher-stats
+  [w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+  -> :fanout::Publisher::StatsResponse
+  (:wat::core::let
+    [inert (:fanout::Publisher::Reply::Stats
+             (:fanout::Publisher::StatsResponse::Ok false 0 0 0))]
+    (:wat::core::match
+      (:wat::service::call-by-deadline w
+        (:fanout::Publisher::Op::Stats (:fanout::Publisher::StatsRequest))
+        120000 inert)
+      ((:wat::service::CallOutcome::Answered m)
+        (:wat::core::match m
+          ((:fanout::Publisher::Reply::Stats r) r)
+          (_ (:wat::kernel::assertion-failed! "fanout: publisher stats misrouted" :wat::core::None :wat::core::None))))
+      ((:wat::service::CallOutcome::DeadlineFired)
+        (:wat::kernel::assertion-failed! "fanout: publisher stats deadline" :wat::core::None :wat::core::None))
+      ((:wat::service::CallOutcome::Lost _c)
+        (:wat::kernel::assertion-failed! "fanout: publisher stats lost" :wat::core::None :wat::core::None))
+      ((:wat::service::CallOutcome::Closed)
+        (:wat::kernel::assertion-failed! "fanout: publisher stats closed" :wat::core::None :wat::core::None)))))
+
+(:wat::core::defn :fanout::publishers-all-done?
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [ok <- :wat::core::bool
+                     w  <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+      -> :wat::core::bool
+      (:wat::core::match (:fanout::publisher-stats w)
+        ((:fanout::Publisher::StatsResponse::Ok d _c _r _s) (:wat::core::and ok d))
+        (_ false)))
+    true
+    peers))
+
+(:wat::core::defn :fanout::sum-publisher-stats
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  (:wat::core::foldl
+    (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+                     w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+      -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+      (:wat::core::match (:fanout::publisher-stats w)
+        ((:fanout::Publisher::StatsResponse::Ok _d c r s)
           (:wat::core::Tuple
-            (:wat::i64::+ (:wat::core::first acc) 1)
-            (:wat::i64::+ (:wat::core::second acc) (:wat::core::first pair))
-            (:wat::i64::+ (:wat::core::third acc) (:wat::core::second pair)))))
-      (:wat::core::Tuple 0 0 0)
-      (:wat::core::range 0 nbatches))))
+            (:wat::i64::+ (:wat::core::first a) c)
+            (:wat::i64::+ (:wat::core::second a) r)
+            (:wat::i64::+ (:wat::core::third a) s)))
+        (_ a)))
+    (:wat::core::Tuple 0 0 0)
+    peers))
+
+;; Poll until every publisher reports done. Returns (Tuple calls retries asleep).
+(:wat::core::defn :fanout::join-publishers*
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
+   left <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  (:wat::core::if (:wat::i64::<= left 0)
+    (:wat::kernel::assertion-failed! "fanout: publishers never done" :wat::core::None :wat::core::None)
+    (:wat::core::if (:fanout::publishers-all-done? peers)
+      (:fanout::sum-publisher-stats peers)
+      (:wat::core::let [_ (:fanout::await-timer-ms 1)]
+        (:fanout::join-publishers* peers (:wat::i64::- left 1))))))
+
+(:wat::core::defn :fanout::join-publishers
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  (:fanout::join-publishers* peers 120000))
 
 (:wat::core::defn :fanout::poll-until-visible-zero*
   [q <- :queue::Queue  left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
@@ -1377,7 +1742,7 @@
 ;; Wiring + input stream. start workers → publish → drain on depth → Stop.
 ;; rate 0 (the default) arms no -disrupt alarm at all.
 (:wat::core::defn :fanout::run-with
-  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
+  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool
@@ -1466,6 +1831,24 @@
                 (:wat::core::Vector :- [:queue::Queue])
                 (:wat::core::range 0 m))
      topic (:fanout::dial-topic (:demo::topic::Handle/addr th))
+     phandles (:wat::core::foldl
+                (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::publisher::Handle])
+                                 i   <- :wat::core::i64]
+                  -> (:wat::core::Vector :- [:fanout::publisher::Handle])
+                  (:wat::core::conj acc
+                    (:fanout::publisher/start
+                      :locus (:wat::spawn::process/post-spawn
+                               (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                                 (:demo::topic/grant th (:fanout::pids pl))))
+                      :record (:fanout::publisher::Record
+                                :id (:wat::core::str i)
+                                :topic-addr (:demo::topic::Handle/addr th)
+                                :lo (:fanout::share-lo i n p)
+                                :hi (:fanout::share-hi i n p)
+                                :seed (:fanout::publisher-seed i)
+                                :done false :calls 0 :retries 0 :asleep 0 :attempt 0))))
+                (:wat::core::Vector :- [:fanout::publisher::Handle])
+                (:wat::core::range 0 p))
      _twgo (:wat::core::foldl
              (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
                (:demo::start-topic-worker!
@@ -1531,7 +1914,22 @@
            nil
            wpeers)
      t-pub0 (:wat::time::epoch-nanos (:wat::time::now))
-     pub-pair (:fanout::publish-n-until-accepted! topic n)
+     ppeers (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
+                               i   <- :wat::core::i64]
+                -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
+                (:wat::core::conj acc
+                  (:fanout::dial-publisher (:fanout::publisher::Handle/addr (:wat::core::nth phandles i)))))
+              (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
+              (:wat::core::range 0 p))
+     _pgo (:wat::core::foldl
+            (:wat::core::fn [acc <- :wat::core::nil
+                             w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+              -> :wat::core::nil
+              (:fanout::start-publisher! w))
+            nil
+            ppeers)
+     pub-pair (:fanout::join-publishers ppeers)
      pub-calls (:wat::core::first pub-pair)
      pub-retries (:wat::core::second pub-pair)
      pub-asleep (:wat::core::third pub-pair)
@@ -1599,20 +1997,25 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 0 0 0 0 0 false 0 0))
+  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0))
+
+(:wat::core::defn :user::run-p*
+  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
+  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j rate seed 0 0 0 false 0 0))
+  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0))
+  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -1630,10 +2033,10 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 0 0 0 0 42 true 1000 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0)))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 0 0 0 0 42 true 0 1000)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
