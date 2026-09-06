@@ -4,7 +4,65 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-03 (thirty-ninth — 38 STRIKES LANDED. ⭐⭐ THIS ARC FOUND A TYPE-SOUNDNESS HOLE AND CLOSED IT.). Supersedes every earlier stamp and every dated block below.**
+**CURRENT STAMP 2026-09-06 (fortieth — 57 STRIKES LANDED, 19 of them this session. ⭐⭐ A VIGILIA OF 19 WARDS, AND THE ENGINE'S OWN INSTRUMENTS WERE THE DEFECT AS OFTEN AS THE ENGINE.). Supersedes every earlier stamp and every dated block below.**
+
+> **FLOOR 5460/5460, 21 skipped. clippy rc=0.** Was 5420 at session start.
+>
+> **THE SESSION IN ONE SENTENCE:** a 19-ward vigilia at `21530efab` returned **81 L1 + 97 L2**; the
+> rete subset was worked to closure, and in EIGHT of the cures **the tree had already written the
+> correct rule down and applied it in exactly one place.**
+>
+> **Cured (rete):** A1 (a `:where` query losing rows — D2's un-cured left twin) · F1 (the explain
+> *referee* was nondeterministic across processes) · D3 (`record_token`'s "cannot bypass" claim,
+> false at four sites, with the census gate mutation-proved blind to all four) · D1 (a count used as
+> a prefix offset) · A8 (a cure maintained by convention, guarding against fact LOSS) · A3 (a zip
+> that was two arrays) · the `filter:test-pass` union (three gates asserting arithmetic identities)
+> · `GATHER_VISITS` (three strikes: counting, then coverage, then the experimental design) · all
+> five `temperare` rows · D2p (a discrimination row that had never executed).
+>
+> ⛔ **`temperare` TAUGHT THE METHOD.** Five rows, and my READING of two was wrong in OPPOSITE
+> directions — §1 overstated 3×, §4 dismissed as vacuous when it was 1.00 per element. Both settled
+> by a COUNT. Readings of a hot path are unreliable in both directions; instrument first, and the
+> reason is not that a hoist might not help — it is that **the story about why gets recorded and
+> inherited.**
+>
+> ⛔ **AND THE MEASURABLE SPEEDUP CAME FROM THE CORRECTNESS STRIKES.** Two grid passes at this HEAD
+> (noise floor measured, not assumed): `node-share` **13–18% faster** across all three rungs against
+> a ≤2.5% run-to-run floor; `neg-consumer 1000` −13.3% against 0.0%. Most plausibly D3's
+> `record_tokens` reserve and A3's `SlotZip` locality — **not** the rows filed as performance. The
+> structural shape and the fast shape kept turning out to be the same shape.
+>
+> ⚠ `compare-grids.sh` emitted a `⭐faster(disjoint)` flag on IDENTICAL CODE. Without the second
+> pass I would have reported six wins instead of two, one of them fabricated.
+>
+> **⛔ OPEN AND IN MOTION — F2, the retract violation.** Builder's hierarchy, stated 2026-09-06:
+> **Clara is the reference for correctness; the wat oracle must be in Clara parity; wat-native must
+> adhere to the oracle's public behaviour and differ only in performance.** Driven: Clara removes
+> ONE copy per retract, wat removes ALL. `retract` has NO native implementation (one definition,
+> `wat/rete/oracle/insert.wat:100`), so the cure is single. **A proof axis is mid-strike** —
+> `strike-retract-multiplicity-proof/`, expected verdict `:accuracy :MISMATCH :oracle-accuracy
+> :MISMATCH :port-accuracy :match` = "the SPEC is wrong". The cure follows it.
+>
+> **★ AND THREE INSTRUMENTS ARE BLIND TO IT** — see `vigilia-2026-09-05/RETE-BOARD.md` § "Why THREE
+> instruments are blind". The grid fixtures stage no duplicate; the port check compares a shared
+> verb to itself; and **the TMS fuzzer's MODEL was derived from the implementation** and encodes the
+> defect as ground truth. A property test whose model is read off the code cannot falsify the code.
+> The oracle protects against a PORT bug; only an EXTERNAL reference protects against a SPEC bug.
+>
+> **CLOSED AS JUSTIFIED, do not "fix":** derived-fact multiplicity (Clara 2, wat 1). `fire.wat:214`
+> — *"the dedup guard is the termination invariant"*; `:255` — *"monotone-finite termination —
+> datalog property"*. Set semantics on derived facts IS the termination proof. Native and oracle
+> agree, so the hierarchy holds.
+>
+> **THE BOARD IS `docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/RETE-BOARD.md`** — rete-only
+> rows, with everything else named as out of scope (main owns the cross-codebase cleanup). The 19
+> ward returns are VERBATIM in that directory's `reports/`, because the 2026-08-30 cast lost all
+> nineteen of its own.
+>
+> **STILL OPEN (rete):** F2's cure · census sections B and D–M (twelve rows; `match:calls` counts
+> calls-that-had-a-pattern) · the combinator-inner `ensure_gather` · the keyed-gather gate reaching
+> only the paths one accum fixture enters · A4, whose root is in main's file · **the oracle-vs-Clara
+> pairing has NEVER run on ANY axis** (`0 of 47` recorded grids carry `:oracle-accuracy`).
 
 > ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
 > *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
@@ -16,8 +74,8 @@
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline 8f34088d6..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 8f34088d6..HEAD --name-only
+git log --oneline 2e07f8935..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 2e07f8935..HEAD --name-only
 ```
 
 **PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —
