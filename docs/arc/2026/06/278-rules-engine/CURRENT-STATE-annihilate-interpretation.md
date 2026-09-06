@@ -45,8 +45,10 @@
 >
 > **★ AND THREE INSTRUMENTS ARE BLIND TO IT** — see `vigilia-2026-09-05/RETE-BOARD.md` § "Why THREE
 > instruments are blind". The grid fixtures stage no duplicate; the port check compares a shared
-> verb to itself; and **the TMS fuzzer's MODEL was derived from the implementation** and encodes the
-> defect as ground truth. A property test whose model is read off the code cannot falsify the code.
+> verb to itself; and the TMS fuzzer shares that same verb across all four arms. ⛔ **CORRECTED
+> 2026-09-06: the fuzzer has NO model** — I claimed one from its COMMENT without reading its code.
+> `final-facts` exists only inside that comment; `tms::step` calls the real `retract`. So it is TWO
+> blinding mechanisms across three instruments, not three, and the fuzzer needs no re-derivation.
 > The oracle protects against a PORT bug; only an EXTERNAL reference protects against a SPEC bug.
 >
 > **CLOSED AS JUSTIFIED, do not "fix":** derived-fact multiplicity (Clara 2, wat 1). `fire.wat:214`

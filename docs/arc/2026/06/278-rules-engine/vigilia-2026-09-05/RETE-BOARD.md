@@ -171,15 +171,28 @@ would collapse a multiplicity difference even if one were staged.)
 oracle call the SAME code, so `oracle == native` always. `check-grid-three-way.sh`'s header names
 this class exactly: *"a flaw the oracle and its faithful Rust port SHARE is invisible."*
 
-**3. ★ The TMS fuzzer's MODEL was derived from the implementation.**
+**3. ⛔ CORRECTED 2026-09-06 — the TMS fuzzer has NO MODEL. It is blind for reason 2, not a third reason.**
+
+I asserted a model here after reading the file's COMMENT and never reading its code. Driven:
+`final-facts` appears **exactly once in the file — inside that comment**; it is not a function.
+`tms::step` (`:68-87`) calls the REAL `:wat::rete::retract` at ops 3/4/5, and `run-prog` folds it
+for all four arms (native/oracle × interleaved/one-shot). **Every arm shares the verb**, so the
+cure moves all four together and the property (path independence) holds under either semantics.
+So there are **two blinding mechanisms across three instruments**, not three: fixtures that stage
+no duplicate (1), and a shared verb compared to itself (2) — which covers the port check AND the
+fuzzer. `[[a-named-counter-proof-is-still-a-claim]]`: I read what the test SAID, not what it CALLS.
+
+**And the comment is its own L2:** it describes a `final-facts` replay that does not exist,
+asserting semantics for a model the file does not contain. Stale prose claiming a proof.
+
+The quoted comment, kept because the author's REASONING is still the interesting part:
 `wat-tests/rete/differential-fuzz-tms.wat:26-30`:
 
 > *"THE MODEL IS A MULTISET, NOT A SET, and that is load-bearing. `insert` appends and may
 > duplicate; **`retract` removes EVERY fact equal to its argument**. So a program that inserts A0
 > twice leaves two facts… `final-facts` below replays the program with exactly those semantics."*
 
-The fuzzer's own model encodes the defect as ground truth, so a model-vs-engine comparison agrees
-too. And `:57` shows the author met the behaviour and routed around it:
+And `:57` shows the author met the behaviour and routed around it:
 
 > *"Two A's so a retraction can leave the class non-empty (**an all-or-nothing retraction cannot
 > tell "removed one" from "removed the class"**)"*
@@ -192,4 +205,5 @@ the half that is wrong.
 implementation cannot falsify the implementation. The oracle protects against a port bug; only an
 EXTERNAL reference protects against a spec bug. That is the whole content of the builder's
 hierarchy — Clara → oracle → native — and F2 is the case that proves it: **three instruments, all
-green, one external question, immediate divergence.**
+green, one external question, immediate divergence.** ⛔ But the *mechanism* is two, not three (see
+the correction above) — and a miscounted mechanism is how a cure gets aimed at the wrong instrument.
