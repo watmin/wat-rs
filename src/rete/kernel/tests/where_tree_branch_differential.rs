@@ -80,7 +80,8 @@ struct Dispatch {
     evals: u64,
     /// `filter:test-reuse` — obligation 2's arm: a fact pushed WITHOUT evaluating.
     reuse: u64,
-    /// `filter:test-pass` — a token that reached a beta/d_beta push.
+    /// `filter:test-pass` — a predicate ran and returned true (subset of `filter:test-evals`).
+    /// A tree-proven push without evaluating is `filter:test-reuse`, not this.
     pass: u64,
 }
 

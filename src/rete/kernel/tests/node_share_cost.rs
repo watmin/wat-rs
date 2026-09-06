@@ -60,7 +60,8 @@ fn produced_of_kind(census: &[super::RoundCensus], kind: &str) -> usize {
 ///
 /// ⛔ THOSE TWO 10,000s ARE HISTORY, NOT THE PRESENT, and this sentence stood in the present
 /// tense until 2026-09-02. Re-driven that day, the SAME census at `[50 200]` reads
-/// `evals 0 · reuse 200 · passes 200 · envs 0 · keyallocs 0`: the where-tree proves every
+/// `evals 0 · reuse 200 · envs 0 · keyallocs 0` (and after the census-name split,
+/// `passes 0`: `filter:test-pass` is evaluated-and-passed only). The where-tree proves every
 /// candidate a pure comparison, so the fire builds NO environments, allocates NO keys, and
 /// calls `exec_where` ZERO times.
 ///
@@ -473,7 +474,6 @@ fn node_share_where_cost_decomposition() {
                 }
                 if proven.contains(&tid) && arm.where_tree.is_pure_cmp(tid) {
                     super::census_count("filter:test-reuse");
-                    super::census_count("filter:test-pass");
                     black_box(arm.beta_readers.contains(&tid));
                     continue;
                 }
@@ -498,7 +498,6 @@ fn node_share_where_cost_decomposition() {
                 }
                 if proven.contains(&tid) && arm.where_tree.is_pure_cmp(tid) {
                     super::census_count("filter:test-reuse");
-                    super::census_count("filter:test-pass");
                     black_box(arm.beta_readers.contains(&tid));
                     d_beta.entry(tid).or_default().push(*tok);
                     continue;
@@ -814,87 +813,122 @@ fn node_share_where_cost_decomposition() {
     );
 }
 
-/// (b) landed — this census now gates the index, not the pre-index waste.
+/// (b) landed — this census now reports the reuse axis honestly.
 ///
-/// Node-share: M tokens, N rules, one shared dim `(= i (k rem n))`. Linear eval is
-/// M×N with ~98% waste. The where-tree must cut that to ~1 eval/token so
-/// `evals ≈ passes ≈ M`. If `evals` climbs back toward M×N the tree stopped
-/// discriminating (analysis miss, or dispatch still walking every sibling).
+/// Node-share: M tokens, N rules, one shared dim `(= i (k rem n))`. The where-tree proves
+/// every candidate a pure comparison, so `filter:test-evals == 0` and the pushes are
+/// `filter:test-reuse`. `filter:test-pass` is evaluated-and-passed only, so it is 0 here
+/// (subset of evals). Wasted-eval arithmetic is inapplicable — see
+/// `assert_waste_applicable` and the control that drives its refusal.
+fn node_share_filter_counts(n: i64, m: i64) -> (u64, u64, u64) {
+    let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("node-share world should freeze");
+    let src = format!(
+        "(:wat::core::match (:wat::rete::fire-rules (:nsh::seed (:wat::core::match (:wat::rete::compile (:nsh::build-rules {n})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {m})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
+    );
+    let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
+    let (_fired, rows) = super::with_count_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
+            .value_owned()
+    });
+    let get = |k: &str| {
+        rows.iter()
+            .find(|(a, _)| *a == k)
+            .map(|(_, v)| *v)
+            .unwrap_or(0)
+    };
+    (
+        get("filter:test-evals"),
+        get("filter:test-reuse"),
+        get("filter:test-pass"),
+    )
+}
+
+/// Wasted-eval arithmetic is `evals − evaluated-passes`. It is not a number when
+/// `evals == 0`: saturating_sub yields 0 and waste_pct takes the `0.0` branch by
+/// construction — the flattering reading this strike exists to refuse.
+///
+/// Extracted so the control test below can DRIVE the refusal rather than describe it.
+fn assert_waste_applicable(evals: u64, reuse: u64, n: i64, m: i64) {
+    assert!(
+        evals > 0,
+        "INAPPLICABLE SHAPE: wasted-eval arithmetic needs `filter:test-evals` > 0 \
+         (wasted = evals − evaluated-passes). N={n} M={m} recorded evals=0 reuse={reuse}. \
+         This axis takes the reuse arm; waste_pct is 0.0 by construction, not a measurement."
+    );
+}
+
 #[test]
 fn node_share_filter_eval_census() {
     let mut table = String::from(
-        "\nnode-share — `where` evaluations vs passes (the (b) WhereDiscNode gate)\n\
-             \x20 rules  items |    evals    reuse    passes   wasted  waste%   evals/token\n\
-             \x20 -----------------------------------------------------------------------------\n",
+        "\nnode-share — `where` evaluations vs reuse vs evaluated-passes\n\
+             \x20 rules  items |    evals    reuse    passes   waste%\n\
+             \x20 -------------------------------------------------------\n",
     );
-    let mut worst_waste = 0.0f64;
     for (n, m) in [(10i64, 200i64), (25, 200), (50, 200)] {
-        let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
-            .expect("node-share world should freeze");
-        let src = format!(
-                "(:wat::core::match (:wat::rete::fire-rules (:nsh::seed (:wat::core::match (:wat::rete::compile (:nsh::build-rules {n})) ((:wat::rete::CompileOutcome::Compiled __session) __session) ((:wat::rete::CompileOutcome::MayNotTerminate __rule __ft) (:wat::kernel::assertion-failed! \"compile: the rule set may not terminate\" :wat::core::None :wat::core::None))) {m})) ((:wat::rete::FireOutcome::Fired __fired) __fired) ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds) (:wat::kernel::assertion-failed! \"fire-rules: session memory ceiling exceeded\" :wat::core::None :wat::core::None)) ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still) (:wat::kernel::assertion-failed! \"fire-rules: fixpoint round cap exceeded\" :wat::core::None :wat::core::None)))"
-            );
-        let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
-        let (_fired, rows) = super::with_count_census(|| {
-            eval_in_frozen(&ast, &world, &Environment::new())
-                .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
-                .value_owned()
-        });
-        let get = |k: &str| {
-            rows.iter()
-                .find(|(a, _)| *a == k)
-                .map(|(_, v)| *v)
-                .unwrap_or(0)
-        };
-        let evals = get("filter:test-evals");
-        let reuse = get("filter:test-reuse");
-        let passes = get("filter:test-pass");
-        let envs = get("filter:test-env-builds");
-        let keys = get("filter:test-key-alloc");
-        // Non-vacuity FIRST: a fire that never reached a TestNode would report 0 evals and
-        // 0 passes, and a "0% waste" reading would look like the best possible news.
-        // Proven `(= dim lit)` or range skip `exec_where` (`filter:test-reuse`).
+        let (evals, reuse, passes) = node_share_filter_counts(n, m);
         assert!(
-                evals > 0 || reuse > 0,
-                "node-share N={n} M={m} recorded ZERO `where` evaluations and ZERO reuse — the \
-                 filter pass never ran, so any ratio taken from this is an artifact, not a measurement"
-            );
-        assert!(
-            passes > 0,
-            "node-share N={n} M={m} recorded ZERO passes — the tree pruned every TestNode \
-                 (under-approx) or nothing fired"
+            evals > 0 || reuse > 0,
+            "node-share N={n} M={m} recorded ZERO `where` evaluations and ZERO reuse — the \
+             filter pass never ran, so any ratio taken from this is an artifact, not a measurement"
         );
-        let wasted = evals.saturating_sub(passes);
-        let waste_pct = if evals == 0 {
-            0.0
-        } else {
-            100.0 * wasted as f64 / evals as f64
-        };
-        worst_waste = worst_waste.max(waste_pct);
+        assert_eq!(
+            evals, 0,
+            "node-share N={n} M={m} recorded evals={evals} — this axis is the reuse branch; \
+             a non-zero eval means the fire now calls `exec_where` here"
+        );
+        assert!(
+            reuse > 0,
+            "node-share N={n} M={m} recorded ZERO reuse — the tree-proven push never ran"
+        );
+        assert_eq!(
+            passes, 0,
+            "node-share N={n} M={m} recorded passes={passes} with evals=0 — `filter:test-pass` \
+             is a subset of `filter:test-evals`; a non-zero here is the union this strike split"
+        );
         table.push_str(&format!(
-                "  {n:>5}  {m:>5} | {evals:>8}  {reuse:>8}  {passes:>8} {wasted:>8}  {waste_pct:>5.1}%  \
-                 {:>10.2}  | envs {envs:>7}  keyallocs {keys:>7}\n",
-                evals as f64 / m as f64,
-            ));
-        // ~1 candidate per token. Slack of 2× covers a second filter pass / mild over-approx.
-        // Linear scan is N×M (10_000 at [50 200]) — that must not pass.
-        assert!(
-            evals <= passes.saturating_mul(2),
-            "where-tree should eval about as many predicates as pass (one matching residue \
-                 per token). N={n} M={m} evals={evals} passes={passes}.{table}"
-        );
-        assert!(
-            evals <= (m as u64).saturating_mul(4),
-            "where-tree evals should sit near M (one token → one residue), not N×M. \
-                 N={n} M={m} evals={evals}.{table}"
-        );
+            "  {n:>5}  {m:>5} | {evals:>8}  {reuse:>8}  {passes:>8}     n/a\n"
+        ));
     }
     println!("{table}");
+}
+
+/// ★ The waste gate must REFUSE the node-share axis, not pass green over 0.0 < 50.0.
+///
+/// A probe that quietly measures nothing on the wrong input is the defect this strike exists
+/// to remove. This drives `assert_waste_applicable` on the reuse axis and requires it to panic
+/// as INAPPLICABLE rather than any other failure.
+#[test]
+fn node_share_waste_gate_is_refused_when_evals_are_zero() {
+    let (evals, reuse, passes) = node_share_filter_counts(10, 200);
+    assert_eq!(evals, 0, "control fixture must be the reuse axis, evals={evals}");
+    assert!(reuse > 0, "control fixture must have reused, reuse={reuse}");
+    assert_eq!(passes, 0, "control fixture must not count reuse as a pass");
+    let hushed = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_waste_applicable(evals, reuse, 10, 200)
+    }));
+    std::panic::set_hook(hushed);
+
+    let Err(payload) = outcome else {
+        panic!(
+            "the waste-applicability guard ACCEPTED an evals=0 axis. The waste assertions \
+             would therefore report `0.0 < 50.0` as a measurement on a fire that never \
+             evaluated a predicate."
+        );
+    };
+    let msg = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or("<non-string panic payload>")
+        .to_string();
     assert!(
-        worst_waste < 50.0,
-        "(b) must collapse wasted `where` evals (a token tested by every rule, matching \
-             at most one) — peak waste {worst_waste:.1}%. If this rose, dispatch is linear \
-             again or DimKey failed to unify the node-share residue.{table}"
+        msg.contains("INAPPLICABLE SHAPE"), // rune:lint(loose-assert) — the payload is a rendered census; the stable thing is WHICH guard refused
+        "the guard refused the control, but NOT for inapplicability — so this proves the control \
+         is broken rather than that the guard discriminates. Panic was:\n{msg}"
     );
 }
 
