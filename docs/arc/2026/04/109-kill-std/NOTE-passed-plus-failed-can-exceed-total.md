@@ -4,8 +4,14 @@
 `docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/recon/census-name-audit.md`.
 
 ⛔ **NOT worked there — it is out of scope.** That session is rete-only by the builder's ruling, and
-`src/test_runner.rs` is the `wat test` runner (this arc, slice 1), not rete. Written here so the
-finding is not lost with the sweep that found it.
+`src/test_runner.rs` is the `wat test` runner, not rete. Written down so the finding is not lost
+with the sweep that found it.
+
+**Parked in arc 109 at the builder's direction**, which is where this tree collects substrate
+findings that are surfaced but not worked. The code's own arc is
+`docs/arc/2026/04/015-wat-test-for-consumers` (`test_runner.rs` is its slice 1) — that is where a
+cure would land; this note is only the record that the defect is known. There is deliberately no
+second copy over there: two copies is how two files drift.
 
 ## The defect
 
