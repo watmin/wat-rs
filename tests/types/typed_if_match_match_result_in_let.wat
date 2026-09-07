@@ -3,6 +3,6 @@
   (:wat::core::let
     [s
       (:wat::core::match (:wat::core::Some 1) 
-        ((:wat::core::Some _) "yes")
-        (:wat::core::None "no"))]
+        [:wat::core::Some {:value _} "yes"]
+        [:wat::core::None {} "no"])]
     s))

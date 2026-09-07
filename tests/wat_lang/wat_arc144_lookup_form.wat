@@ -30,15 +30,15 @@
   (:wat::core::match
     (:wat::runtime::signature-of-defn :my::ident)
     
-    ((:wat::core::Some _) true)
-    (:wat::core::None    false)))
+    [:wat::core::Some {:value _} true]
+    [:wat::core::None {}    false]))
 
 (:wat::core::defn :t::test3-body-macro [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :my::ident)
     
-    ((:wat::core::Some _) true)
-    (:wat::core::None    false)))
+    [:wat::core::Some {:value _} true]
+    [:wat::core::None {}    false]))
 
 ;; ─── Type lookup ───────────────────────────────────────────────────────────
 
@@ -51,15 +51,15 @@
   (:wat::core::match
     (:wat::runtime::signature-of-defn :my::Point)
     
-    ((:wat::core::Some _) true)
-    (:wat::core::None    false)))
+    [:wat::core::Some {:value _} true]
+    [:wat::core::None {}    false]))
 
 (:wat::core::defn :t::test6-body-struct-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :my::Tick)
     
-    ((:wat::core::Some _) false)
-    (:wat::core::None    true)))
+    [:wat::core::Some {:value _} false]
+    [:wat::core::None {}    true]))
 
 ;; ─── Regression guards: UserFunction + Primitive ────────────────────────────
 
@@ -67,15 +67,15 @@
   (:wat::core::match
     (:wat::runtime::lookup-define :t::my-add)
     
-    ((:wat::core::Some _) true)
-    (:wat::core::None    false)))
+    [:wat::core::Some {:value _} true]
+    [:wat::core::None {}    false]))
 
 (:wat::core::defn :t::test8-sig-foldl [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::foldl)
     
-    ((:wat::core::Some _) true)
-    (:wat::core::None    false)))
+    [:wat::core::Some {:value _} true]
+    [:wat::core::None {}    false]))
 
 ;; ─── Unknown name returns None across all three ──────────────────────────────
 
@@ -86,13 +86,13 @@
      b-opt (:wat::runtime::body-of    :no::such::thing)]
     (:wat::core::match d-opt
       
-      ((:wat::core::Some _) false)
-      (:wat::core::None
+      [:wat::core::Some {:value _} false]
+      [:wat::core::None {}
         (:wat::core::match s-opt
           
-          ((:wat::core::Some _) false)
-          (:wat::core::None
+          [:wat::core::Some {:value _} false]
+          [:wat::core::None {}
             (:wat::core::match b-opt
               
-              ((:wat::core::Some _) false)
-              (:wat::core::None    true))))))))
+              [:wat::core::Some {:value _} false]
+              [:wat::core::None {}    true])])])))

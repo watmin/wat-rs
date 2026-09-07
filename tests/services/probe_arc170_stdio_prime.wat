@@ -13,30 +13,30 @@
     [h  (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread)
           :record (:wat::kernel::stdout-svc::Record) :fd fd)
      c  (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdout-svc::Handle/addr h))
-          ((:wat::kernel::ConnectOutcome::Connected p) p)
-          ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
-          ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
-          ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))
+          [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+          [:wat::kernel::ConnectOutcome::Refused {:cause cc}  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)]
+          [:wat::kernel::ConnectOutcome::Rejected {:cause cc} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)]
+          [:wat::kernel::ConnectOutcome::Failed {:cause cc}   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)])
      r1 (:wat::core::match (:wat::kernel::StdOut/write c (:wat::kernel::StdOut::WriteRequest :bytes "primed-line-1\n"))
-          ((:wat::kernel::RecvOutcome::Message resp)
+          [:wat::kernel::RecvOutcome::Message {:msg resp}
             (:wat::core::match resp
-              ((:wat::kernel::StdOut::WriteResponse::Ok) 1)
-              ((:wat::kernel::StdOut::WriteResponse::RequestTooLarge b cap) 0)
-              ((:wat::kernel::StdOut::WriteResponse::RequestMalformed mpath mexpected mgot)
-                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-          ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "write: stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))
+              [:wat::kernel::StdOut::WriteResponse::Ok {} 1]
+              [:wat::kernel::StdOut::WriteResponse::RequestTooLarge {:bytes b :cap cap} 0]
+              [:wat::kernel::StdOut::WriteResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+          [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "write: stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)])
      r2 (:wat::core::match (:wat::kernel::StdOut/write c (:wat::kernel::StdOut::WriteRequest :bytes "primed-line-2\n"))
-          ((:wat::kernel::RecvOutcome::Message resp)
+          [:wat::kernel::RecvOutcome::Message {:msg resp}
             (:wat::core::match resp
-              ((:wat::kernel::StdOut::WriteResponse::Ok) 1)
-              ((:wat::kernel::StdOut::WriteResponse::RequestTooLarge b cap) 0)
-              ((:wat::kernel::StdOut::WriteResponse::RequestMalformed mpath mexpected mgot)
-                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-          ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "write: stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))]
+              [:wat::kernel::StdOut::WriteResponse::Ok {} 1]
+              [:wat::kernel::StdOut::WriteResponse::RequestTooLarge {:bytes b :cap cap} 0]
+              [:wat::kernel::StdOut::WriteResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+          [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "write: stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)])]
     (:wat::i64::+ r1 r2)))
 
 ;; ── run-stdout-batched: start stdout-svc on `fd`, connect', then drive the BATCHED helper
@@ -53,10 +53,10 @@
     [h (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread)
          :record (:wat::kernel::stdout-svc::Record) :fd fd)
      c (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdout-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause cc}  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause cc} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause cc}   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)])
      _w (:wat::kernel::stdio-write-out c payload)]
     nil))
 
@@ -67,26 +67,26 @@
     [h (:wat::kernel::stdin-svc/start :locus (:wat::spawn::thread)
          :record (:wat::kernel::stdin-svc::Record) :fd fd)
      c (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdin-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))]
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause cc}  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause cc} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause cc}   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)])]
     (:wat::core::match (:wat::kernel::StdIn/read-frame c (:wat::kernel::StdIn::ReadFrameRequest :max-buffer-bytes 524288))
-      ((:wat::kernel::RecvOutcome::Message resp)
+      [:wat::kernel::RecvOutcome::Message {:msg resp}
         (:wat::core::match resp
-          ((:wat::kernel::StdIn::ReadFrameResponse::Frame line) line)
-          ((:wat::kernel::StdIn::ReadFrameResponse::Eof) "EOF")
+          [:wat::kernel::StdIn::ReadFrameResponse::Frame {:line line} line]
+          [:wat::kernel::StdIn::ReadFrameResponse::Eof {} "EOF"]
           ;; Arc 170 stdin-joins-the-lock-step — a stop request is its OWN outcome, so it
           ;; reaches every consumer as a located non-exhaustive error rather than silently
           ;; folding into ::Eof. This probe never stops mid-read, so the arm is unreachable
           ;; here; it is written distinctly ("STOP", not "EOF") so a future run that DOES
           ;; hit it reports what happened instead of a plausible lie.
-          ((:wat::kernel::StdIn::ReadFrameResponse::Stopped) "STOP")
-          ((:wat::kernel::StdIn::ReadFrameResponse::RequestTooLarge b cap) "RTL")
-          ((:wat::kernel::StdIn::ReadFrameResponse::RequestMalformed mpath mexpected mgot)
-            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+          [:wat::kernel::StdIn::ReadFrameResponse::Stopped {} "STOP"]
+          [:wat::kernel::StdIn::ReadFrameResponse::RequestTooLarge {:bytes b :cap cap} "RTL"]
+          [:wat::kernel::StdIn::ReadFrameResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
       ;; arc 278 #73 — a LOCAL recv() interruption while parked reading, distinct from the
       ;; wire-level ::ReadFrameResponse::Stopped above; same "STOP" surface either way.
-      (:wat::kernel::RecvOutcome::Stopped "STOP")
-      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None)))))
+      [:wat::kernel::RecvOutcome::Stopped {} "STOP"]
+      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "read-frame: stdin service peer closed" :wat::core::None :wat::core::None)])))

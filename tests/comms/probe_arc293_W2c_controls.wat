@@ -23,30 +23,30 @@
               (:wat::core::match
                 (:wat::kernel::send self
                   (:wat::core::match (:wat::kernel::recv self)
-                    ((:wat::kernel::RecvOutcome::Message m) m)
-                    ((:wat::kernel::RecvOutcome::Lost cause)
-                      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                    (:wat::kernel::RecvOutcome::Stopped
-                      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-                    (:wat::kernel::RecvOutcome::Closed
-                      (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None))))
-                (:wat::kernel::SendOutcome::Sent nil)
-                (:wat::kernel::SendOutcome::Closed nil)
-                ((:wat::kernel::SendOutcome::Lost _c) nil)
-                (:wat::kernel::SendOutcome::Stopped nil))))  ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
+                    [:wat::kernel::RecvOutcome::Message {:msg m} m]
+                    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                    [:wat::kernel::RecvOutcome::Stopped {}
+                      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+                    [:wat::kernel::RecvOutcome::Closed {}
+                      (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)]))
+                [:wat::kernel::SendOutcome::Sent {} nil]
+                [:wat::kernel::SendOutcome::Closed {} nil]
+                [:wat::kernel::SendOutcome::Lost {:cause _c} nil]
+                [:wat::kernel::SendOutcome::Stopped {} nil])))  ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
      _   (:wat::core::match (:wat::kernel::send peer (:w2c_ctrl::S :val 99))
-           (:wat::kernel::SendOutcome::Sent nil)
-           (:wat::kernel::SendOutcome::Closed nil)
-           ((:wat::kernel::SendOutcome::Lost _c) nil)
-           (:wat::kernel::SendOutcome::Stopped nil)) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
+           [:wat::kernel::SendOutcome::Sent {} nil]
+           [:wat::kernel::SendOutcome::Closed {} nil]
+           [:wat::kernel::SendOutcome::Lost {:cause _c} nil]
+           [:wat::kernel::SendOutcome::Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      got (:wat::core::match (:wat::kernel::recv peer)
-           ((:wat::kernel::RecvOutcome::Message m) m)
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
+           [:wat::kernel::RecvOutcome::Message {:msg m} m]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)])]
     (:w2c_ctrl::S/val got)))
 
 ;; Record control: parent sends a portable record to a PROCESS child.
@@ -58,7 +58,7 @@
            (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]
     (:wat::core::match (:wat::kernel::send p (:w2c_ctrl::R :val 42))
-      (:wat::kernel::SendOutcome::Sent nil)
-      (:wat::kernel::SendOutcome::Closed nil)
-      ((:wat::kernel::SendOutcome::Lost _c) nil)
-      (:wat::kernel::SendOutcome::Stopped nil)))) ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
+      [:wat::kernel::SendOutcome::Sent {} nil]
+      [:wat::kernel::SendOutcome::Closed {} nil]
+      [:wat::kernel::SendOutcome::Lost {:cause _c} nil]
+      [:wat::kernel::SendOutcome::Stopped {} nil]))) ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause

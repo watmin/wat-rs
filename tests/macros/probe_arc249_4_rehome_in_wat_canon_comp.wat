@@ -11,5 +11,5 @@
     `(:wat::core::Vector :- [:wat::core::i64] ~@mapped)))
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::match (:wat::core::get (:my::inc-vof 10 20 30) 0) 
-    ((:wat::core::Some n) n)
-    (:wat::core::None -1)))
+    [:wat::core::Some {:value n} n]
+    [:wat::core::None {} -1]))

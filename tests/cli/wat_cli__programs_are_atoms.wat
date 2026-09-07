@@ -23,5 +23,5 @@
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
     (:wat::core::match (:wat::eval-ast! program)
-      ((:wat::core::Ok _) nil)
-      ((:wat::core::Err _) nil))))
+      [:wat::core::Ok {:value _} nil]
+      [:wat::core::Err {:error _} nil])))

@@ -38,12 +38,12 @@
 
     (:wat::test::assert-eq
       (:wat::core::match dup 
-        ((:wat::core::Err (:wat::sqlite::Error::Constraint _)) true)
-        (_ false))
+        [:wat::core::Err {:error [:wat::sqlite::Error::Constraint {:fault _}]} true]
+        [_ false])
       true)
 
     (:wat::test::assert-eq
       (:wat::core::match bad 
-        ((:wat::core::Err (:wat::sqlite::Error::Fatal _)) true)
-        (_ false))
+        [:wat::core::Err {:error [:wat::sqlite::Error::Fatal {:fault _}]} true]
+        [_ false])
       true)))

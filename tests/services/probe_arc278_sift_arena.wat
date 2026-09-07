@@ -47,7 +47,7 @@
           [record       <- :prod::producer::Record
            journal-addr <- (:wat::kernel::Address :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
           -> :prod::producer::State
-          (:prod::producer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+          (:prod::producer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])))
   :impls
   [(flood [s ctx req]
      (:wat::core::let
@@ -124,7 +124,7 @@
           [record       <- :cons::consumer::Record
            journal-addr <- (:wat::kernel::Address :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
           -> :cons::consumer::State
-          (:cons::consumer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+          (:cons::consumer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])))
   :impls
   [(sift [s ctx req]
      (:wat::core::let
@@ -159,29 +159,29 @@
                                     (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
                                       (:wat::core::match
                                         (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
-                                        ((:wat::edn::ReadForeignOutcome::Value fr)
+                                        [:wat::edn::ReadForeignOutcome::Value {:value fr}
                                           (:wat::core::if
                                             (:wat::rete::string::= (:wat::edn::ForeignRecord/class fr) "prod::Alert")
                                             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-                                              ((:wat::core::Some s) (:wat::core::= s "high"))
-                                              (:wat::core::None false))
-                                            false))
-                                        ((:wat::edn::ReadForeignOutcome::Malformed _) false))))
+                                              [:wat::core::Some {:value s} (:wat::core::= s "high")]
+                                              [:wat::core::None {} false])
+                                            false)]
+                                        [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))
                             sr    (:wat::telemetry::Journal/sift-logs journal
                                     (:wat::telemetry::Journal::SiftLogsRequest :namespace ns
                                       :time-lo 0 :time-hi 100000 :limit 50
                                       :cursor (:cons::Consumer::PageState/cur state) :sieve sieve))]
-                           (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
-                             ((:wat::telemetry::Journal::SiftLogsResponse::Success logs next-cur)
+                           (:wat::core::match sr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv
+                             [:wat::telemetry::Journal::SiftLogsResponse::Success {:logs logs :cursor next-cur}
                                (:wat::core::let
                                  [new-acc (:wat::core::+ (:cons::Consumer::PageState/acc state)
                                             (:wat::core::count logs))]
                                  (:wat::core::match next-cur
-                                   (:wat::core::None
-                                     (:cons::Consumer::PageState :done true :cur :wat::core::None :acc new-acc :fault :wat::core::None))
-                                   ((:wat::core::Some c)
-                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Some c) :acc new-acc :fault :wat::core::None)))))
-                             ((:wat::telemetry::Journal::SiftLogsResponse::Fatal err)
+                                   [:wat::core::None {}
+                                     (:cons::Consumer::PageState :done true :cur :wat::core::None :acc new-acc :fault :wat::core::None)]
+                                   [:wat::core::Some {:value c}
+                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Some c) :acc new-acc :fault :wat::core::None)]))]
+                             [:wat::telemetry::Journal::SiftLogsResponse::Fatal {:err err}
                                ;; the fence's refusal — sift's own rejection, not a wire-breach.
                                ;; Captured, not swallowed: `err`'s `reason` is the concrete
                                ;; `:wat::query::Fault` the sift-logs implementation constructs,
@@ -189,14 +189,14 @@
                                (:cons::Consumer::PageState :done true :cur :wat::core::None
                                  :acc (:cons::Consumer::PageState/acc state)
                                  :fault (:wat::core::Some
-                                          (:wat::query::Fault/message (:wat::query::Fatal/reason err)))))
-                             (_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1 :fault :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
+                                          (:wat::query::Fault/message (:wat::query::Fatal/reason err))))]
+                             [_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1 :fault :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))))
                      initial
                      page-idxs)]
        (:wat::service::Outcome::Reply s
          (:wat::core::match (:cons::Consumer::PageState/fault final)
-           ((:wat::core::Some message) (:cons::Consumer::SiftResponse::Refused message))
-           (:wat::core::None (:cons::Consumer::SiftResponse::Count (:cons::Consumer::PageState/acc final)))))))])
+           [:wat::core::Some {:value message} (:cons::Consumer::SiftResponse::Refused message)]
+           [:wat::core::None {} (:cons::Consumer::SiftResponse::Count (:cons::Consumer::PageState/acc final))]))))])
 
 ;; ── the orchestrator (the circuit builder): mem-store' + journal' + producer' + consumer', all
 ;; PROCESS-tier, grant-before-dial at every hop. flood (block), then sift (block); return the
@@ -228,21 +228,21 @@
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:cons::consumer::Record) :journal-addr jaddr)
-     producer (:wat::core::match (:wat::kernel::connect (:prod::producer::Handle/addr ph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-     consumer (:wat::core::match (:wat::kernel::connect (:cons::consumer::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     producer (:wat::core::match (:wat::kernel::connect (:prod::producer::Handle/addr ph)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     consumer (:wat::core::match (:wat::kernel::connect (:cons::consumer::Handle/addr ch)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      _flood   (:prod::Producer/flood producer
                 (:prod::Producer::FloodRequest :count 240 :namespace "arena-ns"))
      sr       (:cons::Consumer/sift consumer (:cons::Consumer::SiftRequest :namespace "arena-ns"))]
-    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
-      ((:cons::Consumer::SiftResponse::Refused message) message)
+    (:wat::core::match sr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv
+      [:cons::Consumer::SiftResponse::Refused {:message message} message]
       ;; arc 255 Stone 1c-g — a survivor count here would mean the `Value`-comparing predicate
       ;; was NOT refused; that is the regression this fixture now exists to catch.
-      ((:cons::Consumer::SiftResponse::Count n)
+      [:cons::Consumer::SiftResponse::Count {:n n}
         (:wat::kernel::assertion-failed! "compute: expected the Value-comparing predicate to be REFUSED by sift's fence (arc 255 Stone 1c-g), got a survivor count instead"
-          :wat::core::None :wat::core::None))
+          :wat::core::None :wat::core::None)]
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-      ((:cons::Consumer::SiftResponse::RequestTooLarge bytes cap)
+      [:cons::Consumer::SiftResponse::RequestTooLarge {:bytes bytes :cap cap}
         (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None))
-      ((:cons::Consumer::SiftResponse::RequestMalformed mpath mexpected mgot)
-        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)]
+      [:cons::Consumer::SiftResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))

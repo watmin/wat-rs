@@ -38,4 +38,4 @@
 (:wat::core::defn :user::req-n [] -> :wat::core::i64
   (:wat::core::match (:my::aws::Waf::Op::CreateWebACL (:my::aws::Waf::CreateWebACLRequest :n 7))
     
-    ((:my::aws::Waf::Op::CreateWebACL req) (:my::aws::Waf::CreateWebACLRequest/n req))))
+    [:my::aws::Waf::Op::CreateWebACL {:req req} (:my::aws::Waf::CreateWebACLRequest/n req)]))

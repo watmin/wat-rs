@@ -163,8 +163,8 @@
     [inner   (:wat::core::HashSet :- [:wat::core::i64] 1 2 3)
      m       (:wat::core::HashMap :- [:wat::core::keyword :wat::type::Infer] :my-set inner)
      fetched (:wat::core::match (:wat::core::get m :my-set) 
-                ((:wat::core::Some v) (:wat::core::contains? v 2))
-                (:wat::core::None     false))]
+                [:wat::core::Some {:value v} (:wat::core::contains? v 2)]
+                [:wat::core::None {}     false])]
     fetched))
 
 ;; ─── Probe 10 — HashSet as KEY inside a HashMap ──────────────────────────────

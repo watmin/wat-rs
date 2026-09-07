@@ -39,8 +39,8 @@
   [o <- (:wat::core::Option :- [(:wat::core::Result :- [:wat::core::i64 :wat::core::String])])]
   -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::match o 
-    ((:wat::core::Some r) (:wat::core::Ok (:wat::core::Result/try r)))
-    (:wat::core::None    (:wat::core::Err "missing"))))
+    [:wat::core::Some {:value r} (:wat::core::Ok (:wat::core::Result/try r))]
+    [:wat::core::None {}    (:wat::core::Err "missing")]))
 
 ;; test6: try inside match arm propagates → Result(Err("inner-boom"))
 (:wat::core::defn :t::test6-try-match-arm [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])

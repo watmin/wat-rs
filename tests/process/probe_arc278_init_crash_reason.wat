@@ -44,18 +44,18 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit/start :locus (:wat::spawn::thread) :record (:t::boominit::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
-      ((:wat::kernel::RecvOutcome::Message __recv)
+      [:wat::kernel::RecvOutcome::Message {:msg __recv}
         (:wat::core::match __recv
-          ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
-          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")
-          ((:t::Boom::PingResponse::RequestMalformed mpath mexpected mgot)
-            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+          [:t::Boom::PingResponse::Ok {:x x} "UNEXPECTED-OK"]
+          [:t::Boom::PingResponse::RequestTooLarge {:bytes bytes :cap cap} "UNEXPECTED-TOO-LARGE"]
+          [:t::Boom::PingResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+      [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::LociDiedError/message __cause)]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))
 
 ;; PROCESS locus — at HEAD /start SUCCEEDED (Started sent before :init ran) and the owner's
 ;; connect' collapsed to a bare ECONNREFUSED with the reason discarded. GREEN: the reordered
@@ -64,15 +64,15 @@
 (:wat::core::defn :user::compute-process [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit/start :locus (:wat::spawn::process) :record (:t::boominit::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
-      ((:wat::kernel::RecvOutcome::Message __recv)
+      [:wat::kernel::RecvOutcome::Message {:msg __recv}
         (:wat::core::match __recv
-          ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
-          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")
-          ((:t::Boom::PingResponse::RequestMalformed mpath mexpected mgot)
-            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+          [:t::Boom::PingResponse::Ok {:x x} "UNEXPECTED-OK"]
+          [:t::Boom::PingResponse::RequestTooLarge {:bytes bytes :cap cap} "UNEXPECTED-TOO-LARGE"]
+          [:t::Boom::PingResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+      [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::LociDiedError/message __cause)]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))

@@ -34,10 +34,10 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m) "message")
-      ((:wat::kernel::RecvOutcome::Lost _cause) "lost")
-      (:wat::kernel::RecvOutcome::Stopped "stopped")
-      (:wat::kernel::RecvOutcome::Closed "closed"))))
+      [:wat::kernel::RecvOutcome::Message {:msg _m} "message"]
+      [:wat::kernel::RecvOutcome::Lost {:cause _cause} "lost"]
+      [:wat::kernel::RecvOutcome::Stopped {} "stopped"]
+      [:wat::kernel::RecvOutcome::Closed {} "closed"])))
 
 ;; ── single stdout write — the value crosses the wire DECODED ────────────────
 ;; `(println "hello")` → recv' → Message[m], m the native String "hello".
@@ -48,10 +48,10 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message m) m)
-      ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST")
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+      [:wat::kernel::RecvOutcome::Message {:msg m} m]
+      [:wat::kernel::RecvOutcome::Lost {:cause _cause} "UNEXPECTED-LOST"]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))
 
 ;; ── stdout + terminal stderr — partial Messages then Lost ───────────────────
 ;; The child prints "one"/"two" (two Messages on the wire) then `(eprintln "oops")`
@@ -70,23 +70,23 @@
                (:wat::kernel::println "two")
                (:wat::kernel::eprintln "oops")))))
      r1 (:wat::core::match (:wat::kernel::recv p)
-          ((:wat::kernel::RecvOutcome::Message m) m)
-          ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
-          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-1")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
+          [:wat::kernel::RecvOutcome::Message {:msg m} m]
+          [:wat::kernel::RecvOutcome::Lost {:cause _cause} "UNEXPECTED-LOST-1"]
+          [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED-1"]
+          [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED-1"])
      r2 (:wat::core::match (:wat::kernel::recv p)
-          ((:wat::kernel::RecvOutcome::Message m) m)
-          ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-2")
-          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-2")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2"))
+          [:wat::kernel::RecvOutcome::Message {:msg m} m]
+          [:wat::kernel::RecvOutcome::Lost {:cause _cause} "UNEXPECTED-LOST-2"]
+          [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED-2"]
+          [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED-2"])
      r3 (:wat::core::match (:wat::kernel::recv p)
-          ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-3")
-          ((:wat::kernel::RecvOutcome::Lost cause)
+          [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE-3"]
+          [:wat::kernel::RecvOutcome::Lost {:cause cause}
             (:wat::core::match cause
-              ((:wat::kernel::LociDiedError::Panic message _failure) message)
-              (_ "LOST-NON-PANIC-3")))
-          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-3")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-3"))]
+              [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+              [_ "LOST-NON-PANIC-3"])]
+          [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED-3"]
+          [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED-3"])]
     [r1 r2 r3]))
 
 ;; ── body-raise failure ("parse-error" case) — Lost[Panic] ──────────────────
@@ -107,13 +107,13 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::raise! (:wat::core::Fault/of "inner-failure")))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::match cause
-          ((:wat::kernel::LociDiedError::Panic message _failure) message)
-          (_ "LOST-NON-PANIC")))
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+          [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+          [_ "LOST-NON-PANIC"])]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))
 
 ;; ── missing :user::main — Lost[RuntimeError] (UserMainMissing) ─────────────
 ;; The entry forms define NO :user::main. Startup + main-signature validation both
@@ -132,17 +132,17 @@
          (:wat::core::forms
            (:wat::core::defn :my::not-a-main [] -> :wat::core::nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::match cause
-          ((:wat::kernel::LociDiedError::RuntimeError _message) "runtime-error")
-          ((:wat::kernel::LociDiedError::Panic _pm _pf) "panic")
-          ((:wat::kernel::LociDiedError::StartupError _sm) "startup-error")
-          ((:wat::kernel::LociDiedError::MainSignature _mm) "main-signature")
-          ((:wat::kernel::LociDiedError::BadReturn _bm) "bad-return")
-          (_ "other-lost")))
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+          [:wat::kernel::LociDiedError::RuntimeError {:message _message} "runtime-error"]
+          [:wat::kernel::LociDiedError::Panic {:message _pm :failure _pf} "panic"]
+          [:wat::kernel::LociDiedError::StartupError {:error _sm} "startup-error"]
+          [:wat::kernel::LociDiedError::MainSignature {:message _mm} "main-signature"]
+          [:wat::kernel::LociDiedError::BadReturn {:message _bm} "bad-return"]
+          [_ "other-lost"])]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))
 
 ;; ── partial output then panic — partial Message then Lost[Panic] ───────────
 ;; The child prints "before panic" (one Message on the wire) then
@@ -158,18 +158,18 @@
                (:wat::kernel::println "before panic")
                (:wat::kernel::raise! (:wat::core::Fault/of "boom"))))))
      r1 (:wat::core::match (:wat::kernel::recv p)
-          ((:wat::kernel::RecvOutcome::Message m) m)
-          ((:wat::kernel::RecvOutcome::Lost _cause) "UNEXPECTED-LOST-1")
-          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-1")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-1"))
+          [:wat::kernel::RecvOutcome::Message {:msg m} m]
+          [:wat::kernel::RecvOutcome::Lost {:cause _cause} "UNEXPECTED-LOST-1"]
+          [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED-1"]
+          [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED-1"])
      r2 (:wat::core::match (:wat::kernel::recv p)
-          ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE-2")
-          ((:wat::kernel::RecvOutcome::Lost cause)
+          [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE-2"]
+          [:wat::kernel::RecvOutcome::Lost {:cause cause}
             (:wat::core::match cause
-              ((:wat::kernel::LociDiedError::Panic message _failure) message)
-              (_ "LOST-NON-PANIC-2")))
-          (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED-2")
-          (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED-2"))]
+              [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+              [_ "LOST-NON-PANIC-2"])]
+          [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED-2"]
+          [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED-2"])]
     [r1 r2]))
 
 ;; ── scope inside — empty child loader → Err arm → terminal eprintln → Lost ──
@@ -184,16 +184,16 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match
                (:wat::eval-file! "/nonexistent-in-child-loader.wat")
-               ((:wat::core::Ok h) (:wat::kernel::println "ok"))
-               ((:wat::core::Err _) (:wat::kernel::eprintln "err"))))))]
+               [:wat::core::Ok {:value h} (:wat::kernel::println "ok")]
+               [:wat::core::Err {:error _} (:wat::kernel::eprintln "err")]))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::match cause
-          ((:wat::kernel::LociDiedError::Panic message _failure) message)
-          (_ "LOST-NON-PANIC")))
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+          [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+          [_ "LOST-NON-PANIC"])]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))
 
 ;; ── scope outside — same empty-loader Err arm; the Ok "leaked" never runs ───
 ;; recv' → Lost[Panic] whose message is the eprintln value's EDN "\"blocked\"".
@@ -204,13 +204,13 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match
                (:wat::eval-file! "/also-nonexistent-in-child-loader.wat")
-               ((:wat::core::Ok _) (:wat::kernel::println "leaked"))
-               ((:wat::core::Err _) (:wat::kernel::eprintln "blocked"))))))]
+               [:wat::core::Ok {:value _} (:wat::kernel::println "leaked")]
+               [:wat::core::Err {:error _} (:wat::kernel::eprintln "blocked")]))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::match cause
-          ((:wat::kernel::LociDiedError::Panic message _failure) message)
-          (_ "LOST-NON-PANIC")))
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+          [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+          [_ "LOST-NON-PANIC"])]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))

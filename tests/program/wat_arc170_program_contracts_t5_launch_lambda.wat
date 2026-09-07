@@ -13,22 +13,22 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [n    (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+               [n    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
                 _out (:wat::kernel::println (:wat::i64::* n 2))]
                nil))))
      _ (:wat::core::match (:wat::kernel::send p 21)
-         (:wat::kernel::SendOutcome::Sent nil)
-         (:wat::kernel::SendOutcome::Closed nil)
+         [:wat::kernel::SendOutcome::Sent {} nil]
+         [:wat::kernel::SendOutcome::Closed {} nil]
          ;; arc 278 #73 — uniform, precondition is the recv' right below: a stop that
          ;; interrupted this write is still in force when the read parks, so the read
          ;; returns Stopped and the caller is told once, by the arm below.
-         (:wat::kernel::SendOutcome::Stopped nil)
-         ((:wat::kernel::SendOutcome::Lost _c) nil))]
+         [:wat::kernel::SendOutcome::Stopped {} nil]
+         [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message m) m)
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::assertion-failed! "launch: stop requested before child sent its value — child was ALIVE, channel open" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "launch: child closed before sending its value" :wat::core::None :wat::core::None)))))
+      [:wat::kernel::RecvOutcome::Message {:msg m} m]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Stopped {}
+        (:wat::kernel::assertion-failed! "launch: stop requested before child sent its value — child was ALIVE, channel open" :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Closed {}
+        (:wat::kernel::assertion-failed! "launch: child closed before sending its value" :wat::core::None :wat::core::None)])))

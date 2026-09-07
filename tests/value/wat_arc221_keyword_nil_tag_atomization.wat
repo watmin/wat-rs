@@ -68,8 +68,8 @@
      m2  (:wat::hashmap::assoc m :tag-a 10)
      m3  (:wat::hashmap::assoc m2 :tag-b 20)]
     (:wat::core::match (:wat::hashmap::get m3 :tag-a) 
-      ((:wat::core::Some v) v)
-      (_ -1))))
+      [:wat::core::Some {:value v} v]
+      [_ -1])))
 
 (:wat::core::defn :t::p4-b-val [] -> :wat::core::i64
   (:wat::core::let
@@ -77,8 +77,8 @@
      m2  (:wat::hashmap::assoc m :tag-a 10)
      m3  (:wat::hashmap::assoc m2 :tag-b 20)]
     (:wat::core::match (:wat::hashmap::get m3 :tag-b) 
-      ((:wat::core::Some v) v)
-      (_ -1))))
+      [:wat::core::Some {:value v} v]
+      [_ -1])))
 
 (:wat::core::defn :t::p4-len [] -> :wat::core::i64
   (:wat::core::let
@@ -119,8 +119,8 @@
      m    (:wat::core::HashMap :- [:wat::core::Uuid :wat::core::String])
      m2   (:wat::hashmap::assoc m u1 "world-entry")]
     (:wat::core::match (:wat::hashmap::get m2 u1) 
-      ((:wat::core::Some v) v)
-      (_ "NOT-FOUND"))))
+      [:wat::core::Some {:value v} v]
+      [_ "NOT-FOUND"])))
 
 (:wat::core::defn :t::p6-not-found [] -> :wat::core::String
   (:wat::core::let
@@ -130,5 +130,5 @@
      m    (:wat::core::HashMap :- [:wat::core::Uuid :wat::core::String])
      m2   (:wat::hashmap::assoc m u1 "hello-entry")]
     (:wat::core::match (:wat::hashmap::get m2 u2) 
-      ((:wat::core::Some v) v)
-      (_ "NOT-FOUND"))))
+      [:wat::core::Some {:value v} v]
+      [_ "NOT-FOUND"])))

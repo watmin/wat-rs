@@ -24,10 +24,10 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::test::assert-eq "expected-value" "actual-value"))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::match cause
-          ((:wat::kernel::LociDiedError::Panic message _failure) message)
-          (_ "LOST-NON-PANIC")))
-      (:wat::kernel::RecvOutcome::Stopped "UNEXPECTED-STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
+          [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+          [_ "LOST-NON-PANIC"])]
+      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))

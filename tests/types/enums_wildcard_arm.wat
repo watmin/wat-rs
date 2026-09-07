@@ -2,5 +2,5 @@
 (:wat::core::defenum :my::Color :wat::enum::Pure :Red :Green :Blue)
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match :my::Color::Blue 
-    (:my::Color::Red (:wat::kernel::println "red"))
-    (_               (:wat::kernel::println "other"))))
+    [:my::Color::Red {} (:wat::kernel::println "red")]
+    [_               (:wat::kernel::println "other")]))

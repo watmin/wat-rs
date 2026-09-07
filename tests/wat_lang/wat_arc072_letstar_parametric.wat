@@ -6,8 +6,8 @@
   (:wat::core::let
     [wrapped   (:wat::core::Ok 42)
      extracted (:wat::core::match wrapped 
-                 ((:wat::core::Ok n) (:wat::i64::+ n 1))
-                 ((:wat::core::Err _) -1))]
+                 [:wat::core::Ok {:value n} (:wat::i64::+ n 1)]
+                 [:wat::core::Err {:error _} -1])]
     extracted))
 
 ;; test2: (Result :- [(Tuple :- [i64 i64]) i64]) — tuple payload → returns i64 11
@@ -18,8 +18,8 @@
   (:wat::core::let
     [wrapped   (:t::wrap-it)
      extracted (:wat::core::match wrapped 
-                 ((:wat::core::Ok pair) (:wat::core::second pair))
-                 ((:wat::core::Err _) -1))]
+                 [:wat::core::Ok {:value pair} (:wat::core::second pair)]
+                 [:wat::core::Err {:error _} -1])]
     extracted))
 
 ;; test4: operator < and >= still lex as keywords → returns bool true

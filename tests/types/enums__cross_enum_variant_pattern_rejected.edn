@@ -24,39 +24,39 @@
       :remedies []
     }
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: variant pattern :my::Color::Red doesn't belong to scrutinee enum :my::Side"
+      :message "malformed :wat::core::match form: variant `:my::Color::Red` doesn't belong to scrutinee enum :my::Side"
       :location #wat.core/Span {
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 7
-        :col 6
+        :col 5
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 7
-            :col 21
+            :col 27
           }
         }
       }
       :causes []
       :head ":wat::core::match"
-      :reason "variant pattern :my::Color::Red doesn't belong to scrutinee enum :my::Side"
+      :reason "variant `:my::Color::Red` doesn't belong to scrutinee enum :my::Side"
       :remedies []
     }
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: variant pattern :my::Color::Green doesn't belong to scrutinee enum :my::Side"
+      :message "malformed :wat::core::match form: variant `:my::Color::Green` doesn't belong to scrutinee enum :my::Side"
       :location #wat.core/Span {
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 8
-        :col 6
+        :col 5
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 8
-            :col 23
+            :col 29
           }
         }
       }
       :causes []
       :head ":wat::core::match"
-      :reason "variant pattern :my::Color::Green doesn't belong to scrutinee enum :my::Side"
+      :reason "variant `:my::Color::Green` doesn't belong to scrutinee enum :my::Side"
       :remedies []
     }
     #wat.check/MalformedForm {
@@ -86,7 +86,7 @@
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 8
-            :col 27
+            :col 30
           }
         }
       }

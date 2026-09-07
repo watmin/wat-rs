@@ -4,8 +4,8 @@
   :Hold)
 (:wat::core::defn :my::act [e <- :my::Event] -> :wat::core::String
   (:wat::core::match e 
-    ((:my::Event::Open size) (:wat::f64::to-string size))
-    (:my::Event::Hold        "hold")))
+    [:my::Event::Open {:size size} (:wat::f64::to-string size)]
+    [:my::Event::Hold {}        "hold"]))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [line1 (:my::act (:my::Event::Open 7.5))

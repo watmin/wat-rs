@@ -37,7 +37,7 @@
 (:wat::core::defn :probe::run [] -> :wat::telemetry::Journal::WriteMetricsResponse
   (:wat::core::let
     [h       (:probe::toy-journal/start :locus (:wat::spawn::thread) :record (:probe::toy-journal::Record))
-     journal (:wat::core::match (:wat::kernel::connect (:probe::toy-journal::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     journal (:wat::core::match (:wat::kernel::connect (:probe::toy-journal::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
      m       (:wat::telemetry::Metric
@@ -54,10 +54,10 @@
     ;; to the inner WriteMetricsResponse (the .rs asserts the raw Success response, not a RecvOutcome).
     (:wat::core::match
       (:wat::telemetry::Journal/write-metrics journal (:wat::telemetry::Journal::WriteMetricsRequest batch))
-      ((:wat::kernel::RecvOutcome::Message resp) resp)
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+      [:wat::kernel::RecvOutcome::Message {:msg resp} resp]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Stopped {}
+        (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Closed {}
+        (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))

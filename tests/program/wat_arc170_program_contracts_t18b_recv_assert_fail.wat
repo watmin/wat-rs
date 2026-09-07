@@ -24,18 +24,18 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [n (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+               [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
                 ;; assert-eq: n=2 vs expected=3 — this fails, child panics
                 _ (:wat::test::assert-eq n 3)
                 ;; println never reached (child already dead):
                 _2 (:wat::kernel::println n)]
                nil))))
      _ (:wat::core::match (:wat::kernel::send p 2)
-         (:wat::kernel::SendOutcome::Sent nil)
-         (:wat::kernel::SendOutcome::Closed nil)
+         [:wat::kernel::SendOutcome::Sent {} nil]
+         [:wat::kernel::SendOutcome::Closed {} nil]
          ;; arc 278 #73 — uniform, precondition is the recv-all' right below: a stop
          ;; that interrupted this write is still in force when the read parks, so the
          ;; drain returns Err[Stopped] and the caller is told once, by that Result.
-         (:wat::kernel::SendOutcome::Stopped nil)
-         ((:wat::kernel::SendOutcome::Lost _c) nil))]
+         [:wat::kernel::SendOutcome::Stopped {} nil]
+         [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
     (:wat::kernel::recv-all p)))

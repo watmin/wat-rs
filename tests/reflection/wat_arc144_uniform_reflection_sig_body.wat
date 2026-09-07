@@ -11,9 +11,9 @@
                 (:wat::runtime::body-of :user::add)]
               (:wat::core::match sig-opt
                 
-                ((:wat::core::Some _)
+                [:wat::core::Some {:value _}
                   (:wat::core::match body-opt
                     
-                    ((:wat::core::Some _) true)
-                    (:wat::core::None    false)))
-                (:wat::core::None false))))
+                    [:wat::core::Some {:value _} true]
+                    [:wat::core::None {}    false])]
+                [:wat::core::None {} false])))

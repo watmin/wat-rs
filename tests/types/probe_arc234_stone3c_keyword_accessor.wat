@@ -32,8 +32,8 @@
     [m {:host "localhost"}
      v (:missing m)]
     (:wat::core::match v 
-      ((:wat::core::Some _) false)
-      (:wat::core::None     true))))
+      [:wat::core::Some {:value _} false]
+      [:wat::core::None {}     true])))
 
 ;; ─── Probe 6: keyword accessor on struct ─────────────────────────────────────
 (:wat::core::defn :user::probe-6 [] -> :wat::core::i64

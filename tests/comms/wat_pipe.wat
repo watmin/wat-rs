@@ -30,11 +30,11 @@
      a    (:wat::io::IOReader/read-line r)
      b    (:wat::io::IOReader/read-line r)]
     (:wat::core::match a 
-      ((:wat::core::Some sa)
+      [:wat::core::Some {:value sa}
        (:wat::core::match b 
-         ((:wat::core::Some sb) (:wat::string::join "," (:wat::core::Vector :- [:wat::core::String] sa sb)))
-         (:wat::core::None     "second-missing")))
-      (:wat::core::None "first-missing"))))
+         [:wat::core::Some {:value sb} (:wat::string::join "," (:wat::core::Vector :- [:wat::core::String] sa sb))]
+         [:wat::core::None {}     "second-missing"])]
+      [:wat::core::None {} "first-missing"])))
 
 ;; pipe_write_string_then_read_exact_bytes
 (:wat::core::defn :my::pipe-write-string-exact-bytes [] -> :wat::core::i64
@@ -45,8 +45,8 @@
      n    (:wat::io::IOWriter/write-string w "hello")
      got  (:wat::io::IOReader/read r 5)]
     (:wat::core::match got 
-      ((:wat::core::Some bytes) n)
-      (:wat::core::None        -1))))
+      [:wat::core::Some {:value bytes} n]
+      [:wat::core::None {}        -1])))
 
 ;; pipe_preserves_utf8_lines
 (:wat::core::defn :my::pipe-preserves-utf8 [] -> (:wat::core::Option :- [:wat::core::String])

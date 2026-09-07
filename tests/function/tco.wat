@@ -16,9 +16,9 @@
                 (:wat::core::Some remaining)
                 :wat::core::None)
               
-              ((:wat::core::Some v)
-                (:app::drain (:wat::i64::- v 1) (:wat::i64::+ acc 1)))
-              (:wat::core::None acc)))
+              [:wat::core::Some {:value v}
+                (:app::drain (:wat::i64::- v 1) (:wat::i64::+ acc 1))]
+              [:wat::core::None {} acc]))
 
 (:wat::core::defn :user::compute_t2 [] -> :wat::core::i64 (:app::drain 100000 0))
 

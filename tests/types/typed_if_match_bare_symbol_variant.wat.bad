@@ -12,13 +12,13 @@
       (:wat::kernel::Thread/drain-and-join handle)
      chain
       (:wat::core::match result 
-        ((:wat::core::Ok _)  (:wat::core::panic! "test wants Err"))
-        ((:wat::core::Err e) e))
+        [:wat::core::Ok {:value _}  (:wat::core::panic! "test wants Err")]
+        [:wat::core::Err {:error e} e])
      err
       (:wat::core::match (:wat::core::first chain) 
-        ((:wat::core::Some e) e)
-        (:wat::core::None    (:wat::core::panic! "expected non-empty chain")))]
+        [:wat::core::Some {:value e} e]
+        [:wat::core::None {} (:wat::core::panic! "expected non-empty chain")])]
     (:wat::core::match err 
       ((Panic m)        m)
       ((RuntimeError m) m)
-      (:wat::kernel::LociDiedError::Disconnected "disc"))))
+      [:wat::kernel::LociDiedError::Disconnected {} "disc"])))

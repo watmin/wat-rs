@@ -24,8 +24,8 @@
   (:wat::core::let [m (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]
                                  :foo 42 :bar 99)]
     (:wat::core::match (:wat::hashmap::get m :foo) 
-      ((:wat::core::Some v) v)
-      (_ -1))))
+      [:wat::core::Some {:value v} v]
+      [_ -1])))
 
 ;; Probe 2b: get miss → key :missing not present
 (:wat::core::defn :t::p2b-get-miss [] -> :wat::core::bool
@@ -46,8 +46,8 @@
                                  :foo 1)]
     (:wat::core::let [m2 (:wat::hashmap::assoc m :foo 999)]
       (:wat::core::match (:wat::hashmap::get m2 :foo) 
-        ((:wat::core::Some v) v)
-        (_ -1)))))
+        [:wat::core::Some {:value v} v]
+        [_ -1]))))
 
 ;; Probe 3c: assoc does not mutate original → original :foo = 1
 (:wat::core::defn :t::p3c-assoc-immutable [] -> :wat::core::i64
@@ -55,8 +55,8 @@
                                  :foo 1)]
     (:wat::core::let [_m2 (:wat::hashmap::assoc m :foo 999)]
       (:wat::core::match (:wat::hashmap::get m :foo) 
-        ((:wat::core::Some v) v)
-        (_ -1)))))
+        [:wat::core::Some {:value v} v]
+        [_ -1]))))
 
 ;; Probe 4a: dissoc removes key → length 2
 (:wat::core::defn :t::p4a-dissoc-remove [] -> :wat::core::i64
@@ -85,8 +85,8 @@
     (:wat::core::let [ks (:wat::hashmap::keys m)]
       (:wat::core::let [first-key (:wat::core::match
                                      (:wat::vec::get ks 0) 
-                                     ((:wat::core::Some k) k)
-                                     (_ :missing))]
+                                     [:wat::core::Some {:value k} k]
+                                     [_ :missing])]
         (:wat::hashmap::contains-key? m first-key)))))
 
 ;; Probe 6: values returns Vec of length 3
@@ -142,11 +142,11 @@
     [inner (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64] :x 42)
      outer (:wat::core::HashMap :- [:wat::core::keyword :wat::type::Infer] :inner inner)]
     (:wat::core::match (:wat::hashmap::get outer :inner) 
-      ((:wat::core::Some inner2)
+      [:wat::core::Some {:value inner2}
         (:wat::core::match (:wat::hashmap::get inner2 :x) 
-          ((:wat::core::Some v) v)
-          (_ -2)))
-      (_ -1))))
+          [:wat::core::Some {:value v} v]
+          [_ -2])]
+      [_ -1])))
 
 ;; Probe 11a: (HashMap :- [(HashSet :- [i64]) String]) length 1
 (:wat::core::defn :t::p11a-hashset-key-len [] -> :wat::core::i64

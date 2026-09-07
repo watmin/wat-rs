@@ -19,7 +19,7 @@
               x))
      mapped (:wat::core::map boom (:wat::core::Vector :- [:wat::core::i64] 1 2 99))]
     (:wat::core::match (:wat::stream::next mapped)
-      ((:wat::stream::NextOutcome::Item value _rest) value)
-      (:wat::stream::NextOutcome::Exhausted
-        (:wat::kernel::assertion-failed! "expected at least one mapped element" :wat::core::None :wat::core::None)))))
+      [:wat::stream::NextOutcome::Item {:value value :rest _rest} value]
+      [:wat::stream::NextOutcome::Exhausted {}
+        (:wat::kernel::assertion-failed! "expected at least one mapped element" :wat::core::None :wat::core::None)])))
 

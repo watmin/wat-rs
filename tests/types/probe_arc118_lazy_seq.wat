@@ -16,13 +16,13 @@
                              (:wat::stream::cons 2
                                (:wat::stream::lazy (:wat::stream::empty)))))]
     (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item first-value rest)
+      [:wat::stream::NextOutcome::Item {:value first-value :rest rest}
         (:wat::core::do
           (:wat::kernel::pprintln first-value)
           (:wat::core::match (:wat::stream::next rest)
-            ((:wat::stream::NextOutcome::Item second-value _rest2)
-              (:wat::core::do (:wat::kernel::pprintln second-value) nil))
-            (:wat::stream::NextOutcome::Exhausted
-              (:wat::kernel::assertion-failed! "expected a second element, stream exhausted" :wat::core::None :wat::core::None)))))
-      (:wat::stream::NextOutcome::Exhausted
-        (:wat::kernel::assertion-failed! "expected a first element, stream exhausted" :wat::core::None :wat::core::None)))))
+            [:wat::stream::NextOutcome::Item {:value second-value :rest _rest2}
+              (:wat::core::do (:wat::kernel::pprintln second-value) nil)]
+            [:wat::stream::NextOutcome::Exhausted {}
+              (:wat::kernel::assertion-failed! "expected a second element, stream exhausted" :wat::core::None :wat::core::None)]))]
+      [:wat::stream::NextOutcome::Exhausted {}
+        (:wat::kernel::assertion-failed! "expected a first element, stream exhausted" :wat::core::None :wat::core::None)])))

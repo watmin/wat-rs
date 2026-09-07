@@ -4,8 +4,8 @@
               [resp (:wat::core::Ok 418)
                label
                 (:wat::core::match resp 
-                  ((:wat::core::Ok 200) "ok")
-                  ((:wat::core::Ok 404) "not found")
-                  ((:wat::core::Ok n) (:wat::string::concat "code:" (:wat::i64::to-string n)))
-                  ((:wat::core::Err msg) msg))]
+                  [:wat::core::Ok {:value 200} "ok"]
+                  [:wat::core::Ok {:value 404} "not found"]
+                  [:wat::core::Ok {:value n} (:wat::string::concat "code:" (:wat::i64::to-string n))]
+                  [:wat::core::Err {:error msg} msg])]
               (:wat::kernel::println label)))

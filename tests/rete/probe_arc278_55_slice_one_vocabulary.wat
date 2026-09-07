@@ -92,8 +92,8 @@
 
 (:wat::core::defn :test::rete-match-shape-area [s <- :test::S5Shape] -> :wat::core::i64
   (:wat::rete::core::match s
-    ((:test::S5Shape::Circle r) (:wat::i64::* r r))
-    (:test::S5Shape::Square    0)))
+    [:test::S5Shape::Circle {:r r} (:wat::i64::* r r)]
+    [:test::S5Shape::Square {}    0]))
 
 (:wat::core::defn :user::rete-match-pattern-not-classified-as-expr-pure [] -> :wat::core::bool
   (:wat::rete::pure? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle 5)))))

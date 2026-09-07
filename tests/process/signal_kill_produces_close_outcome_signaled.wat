@@ -41,12 +41,12 @@
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::core::let
                   [n (:wat::core::match (:wat::kernel::readln)
-                       ((:wat::kernel::ReadlnOutcome::Datum d) d)
-                       (:wat::kernel::ReadlnOutcome::Eof nil)
-                       (:wat::kernel::ReadlnOutcome::Stopped nil))]
+                       [:wat::kernel::ReadlnOutcome::Datum {:v d} d]
+                       [:wat::kernel::ReadlnOutcome::Eof {} nil]
+                       [:wat::kernel::ReadlnOutcome::Stopped {} nil])]
                   nil))))]
     (:wat::core::do
       (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal::Kill)
-        (:wat::kernel::SignalOutcome::Delivered nil)
-        ((:wat::kernel::SignalOutcome::Failed _c) nil))
+        [:wat::kernel::SignalOutcome::Delivered {} nil]
+        [:wat::kernel::SignalOutcome::Failed {:cause _c} nil])
       proc)))

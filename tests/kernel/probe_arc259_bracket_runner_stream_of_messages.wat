@@ -9,30 +9,30 @@
                          (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))))
       _a (:wat::kernel::send peer 1)
       a  (:wat::core::match (:wat::kernel::recv peer)
-           ((:wat::kernel::RecvOutcome::Message m) m)
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed before serving item 1" :wat::core::None :wat::core::None)))
+           [:wat::kernel::RecvOutcome::Message {:msg m} m]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': peer closed before serving item 1" :wat::core::None :wat::core::None)])
       _b (:wat::kernel::send peer 2)
       b  (:wat::core::match (:wat::kernel::recv peer)
-           ((:wat::kernel::RecvOutcome::Message m) m)
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed before serving item 2" :wat::core::None :wat::core::None)))
+           [:wat::kernel::RecvOutcome::Message {:msg m} m]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': peer closed before serving item 2" :wat::core::None :wat::core::None)])
       _c (:wat::kernel::send peer 3)
       c  (:wat::core::match (:wat::kernel::recv peer)
-           ((:wat::kernel::RecvOutcome::Message m) m)
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed before serving item 3" :wat::core::None :wat::core::None)))]
+           [:wat::kernel::RecvOutcome::Message {:msg m} m]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': peer closed before serving item 3" :wat::core::None :wat::core::None)])]
      (:wat::core::+ a (:wat::core::+ b c))))
 

@@ -29,7 +29,7 @@
 //! non-exhaustive error alongside it is that refusal's consequence — no arm was recognised — not a
 //! second defect).
 //!
-//! `#[ignore]`d until the stone un-ignores them.
+//! Un-ignored by this stone.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -52,7 +52,6 @@ fn run(fixture: &str) -> (i32, String) {
 }
 
 #[test]
-#[ignore = "RED at HEAD — the match arm becomes a bracket clause with a map pattern (109 NOTE amendment 2026-09-06); un-ignored BY that stone"]
 fn a_map_pattern_arm_binds_its_declared_keys() {
     let (code, out) = run("probe_arc109_match_arm__declared_order.wat");
     assert_eq!(code, 0, "the bracket clause + map pattern must be accepted; got {out:?}");
@@ -60,7 +59,6 @@ fn a_map_pattern_arm_binds_its_declared_keys() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — the match arm becomes a bracket clause with a map pattern (109 NOTE amendment 2026-09-06); un-ignored BY that stone"]
 fn a_map_pattern_binds_by_name_not_by_position() {
     let (code, out) = run("probe_arc109_match_arm__reversed_keys.wat");
     assert_eq!(code, 0, "keys written out of declaration order must still be accepted; got {out:?}");
@@ -72,7 +70,6 @@ fn a_map_pattern_binds_by_name_not_by_position() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — the match arm becomes a bracket clause with a map pattern (109 NOTE amendment 2026-09-06); un-ignored BY that stone"]
 fn a_unit_variant_arm_is_an_empty_map() {
     let (code, out) = run("probe_arc109_match_arm__unit_empty_map.wat");
     assert_eq!(code, 0, "a unit variant's arm is `{{}}`, mirroring its `{{}}` wire; got {out:?}");
@@ -80,7 +77,6 @@ fn a_unit_variant_arm_is_an_empty_map() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — the match arm becomes a bracket clause with a map pattern (109 NOTE amendment 2026-09-06); un-ignored BY that stone"]
 fn the_retired_positional_clause_is_refused() {
     let (code, _) = run("probe_arc109_match_arm__positional_control.wat");
     assert_ne!(

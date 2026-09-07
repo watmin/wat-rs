@@ -4,21 +4,21 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: :my::Event::Pair is a tagged variant; pattern must be (`:my::Event::Pair` binders...)"
+      :message "malformed :wat::core::match form: map pattern has 0 key(s), variant `:my::Event::Pair` declares 2"
       :location #wat.core/Span {
         :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
         :line 6
-        :col 6
+        :col 5
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 6
-            :col 22
+            :col 28
           }
         }
       }
       :causes []
       :head ":wat::core::match"
-      :reason ":my::Event::Pair is a tagged variant; pattern must be (`:my::Event::Pair` binders...)"
+      :reason "map pattern has 0 key(s), variant `:my::Event::Pair` declares 2"
       :remedies []
     }
     #wat.check/MalformedForm {

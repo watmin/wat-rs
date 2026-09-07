@@ -69,5 +69,5 @@
   (:wat::core::match
               (:wat::runtime::lookup-define :my::add_t10)
               
-              ((:wat::core::Some _) 1)
-              (:wat::core::None    0)))
+              [:wat::core::Some {:value _} 1]
+              [:wat::core::None {}    0]))

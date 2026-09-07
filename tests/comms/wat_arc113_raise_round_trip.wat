@@ -31,27 +31,27 @@
             (:wat::core::Fault/of "arc113-raise-data"))))]
     (:wat::core::match (:wat::kernel::recv p)
       ;; A clean send would mean the raise! never fired — surface :None (the test asserts Some).
-      ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::None]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::match cause
-          ((:wat::kernel::LociDiedError::Panic _message failure)
+          [:wat::kernel::LociDiedError::Panic {:message _message :failure failure}
             (:wat::core::match failure
               ;; STRUCTURAL read: Failure/error yields the raised :wat::core::Fault RECORD
               ;; directly (it rode the panic boundary as data); Fault/message reads the
               ;; field off it — no edn::write, no edn::read, no string round-trip.
-              ((:wat::core::Some f)
+              [:wat::core::Some {:value f}
                (:wat::core::Some
-                 (:wat::core::Fault/message (:wat::kernel::Failure/error f))))
-              (:wat::core::None :wat::core::None)))
+                 (:wat::core::Fault/message (:wat::kernel::Failure/error f)))]
+              [:wat::core::None {} :wat::core::None])]
           ;; LociDiedError is the no-hidden-failures enum — every OTHER death is named
           ;; EXPLICITLY (no `_` lump; verbosity is the shield). Each surfaces a distinct
           ;; WRONG:<variant> so a RED names exactly which non-Panic death arrived.
-          ((:wat::kernel::LociDiedError::RuntimeError _m) (:wat::core::Some "WRONG:RuntimeError"))
-          (:wat::kernel::LociDiedError::Disconnected (:wat::core::Some "WRONG:Disconnected"))
-          (:wat::kernel::LociDiedError::Stopped (:wat::core::Some "WRONG:Stopped"))
-          ((:wat::kernel::LociDiedError::StartupError _m) (:wat::core::Some "WRONG:StartupError"))
-          ((:wat::kernel::LociDiedError::EntryFormFailure _m) (:wat::core::Some "WRONG:EntryFormFailure"))
-          ((:wat::kernel::LociDiedError::MainSignature _m) (:wat::core::Some "WRONG:MainSignature"))
-          ((:wat::kernel::LociDiedError::BadReturn _m) (:wat::core::Some "WRONG:BadReturn"))))
-      (:wat::kernel::RecvOutcome::Stopped (:wat::core::Some "UNEXPECTED-STOPPED"))
-      (:wat::kernel::RecvOutcome::Closed :wat::core::None))))
+          [:wat::kernel::LociDiedError::RuntimeError {:message _m} (:wat::core::Some "WRONG:RuntimeError")]
+          [:wat::kernel::LociDiedError::Disconnected {} (:wat::core::Some "WRONG:Disconnected")]
+          [:wat::kernel::LociDiedError::Stopped {} (:wat::core::Some "WRONG:Stopped")]
+          [:wat::kernel::LociDiedError::StartupError {:error _m} (:wat::core::Some "WRONG:StartupError")]
+          [:wat::kernel::LociDiedError::EntryFormFailure {:message _m} (:wat::core::Some "WRONG:EntryFormFailure")]
+          [:wat::kernel::LociDiedError::MainSignature {:message _m} (:wat::core::Some "WRONG:MainSignature")]
+          [:wat::kernel::LociDiedError::BadReturn {:message _m} (:wat::core::Some "WRONG:BadReturn")])]
+      [:wat::kernel::RecvOutcome::Stopped {} (:wat::core::Some "UNEXPECTED-STOPPED")]
+      [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])))

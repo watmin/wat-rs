@@ -23,16 +23,16 @@
           (:wat::core::defn :user::main [] -> :wat::core::nil
             (:wat::kernel::raise! (:wat::core::Fault/of "structured-error-data")))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::None]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::match cause
-          ((:wat::kernel::LociDiedError::Panic _message failure)
+          [:wat::kernel::LociDiedError::Panic {:message _message :failure failure}
             (:wat::core::match failure
               ;; THE GATE: read the raised Error STRUCTURALLY off the Failure — no string re-parse.
-              ((:wat::core::Some f)
+              [:wat::core::Some {:value f}
                (:wat::core::Some
-                 (:wat::core::Fault/message (:wat::kernel::Failure/error f))))
-              (:wat::core::None :wat::core::None)))
-          (_ :wat::core::None)))
-      (:wat::kernel::RecvOutcome::Stopped :wat::core::None)
-      (:wat::kernel::RecvOutcome::Closed :wat::core::None))))
+                 (:wat::core::Fault/message (:wat::kernel::Failure/error f)))]
+              [:wat::core::None {} :wat::core::None])]
+          [_ :wat::core::None])]
+      [:wat::kernel::RecvOutcome::Stopped {} :wat::core::None]
+      [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])))

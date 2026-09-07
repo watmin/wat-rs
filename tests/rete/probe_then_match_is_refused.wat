@@ -7,8 +7,8 @@
 (:wat::rete::defrule :nm::go
   :when [(:nm::Src (?k <- :k))]
   :then [(:nm::Box :label (:wat::rete::core::match ?k
-           ((:nm::K::Aa) "aa")
-           ((:nm::K::Bb) "bb")))])
+           [:nm::K::Aa {} "aa"]
+           [:nm::K::Bb {} "bb"]))])
 
 (:wat::core::defn :user::run-compile [] -> :wat::core::i64
   (:wat::core::let

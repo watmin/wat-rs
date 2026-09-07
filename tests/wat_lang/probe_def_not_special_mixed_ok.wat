@@ -29,8 +29,8 @@
                 d    :h::MixDir8::Up
                 a    (:h::MixAmount8 10)
                 dv   (:wat::core::match d
-                       (:h::MixDir8::Up 10)
-                       (:h::MixDir8::Down 20))
+                       [:h::MixDir8::Up {} 10]
+                       [:h::MixDir8::Down {} 20])
                 n    (:wat::i64::+
                        (:wat::i64::+
                          ans
@@ -41,10 +41,10 @@
                 _out (:wat::kernel::println n)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message m) m)
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::assertion-failed! "launch: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "launch: child closed before sending its value" :wat::core::None :wat::core::None)))))
+      [:wat::kernel::RecvOutcome::Message {:msg m} m]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Stopped {}
+        (:wat::kernel::assertion-failed! "launch: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Closed {}
+        (:wat::kernel::assertion-failed! "launch: child closed before sending its value" :wat::core::None :wat::core::None)])))

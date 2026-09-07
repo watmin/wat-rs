@@ -30,11 +30,11 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h  (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
-     c  (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c  (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      _s (:wat::kernel::send c (:my::Svc::Op::Boom (:my::Svc::BoomRequest)))]
     (:wat::core::match (:wat::kernel::recv c)
-      ((:wat::kernel::RecvOutcome::Message _m) "MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::string::concat "LOST:" (:wat::kernel::LociDiedError/message cause)))
-      (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-      (:wat::kernel::RecvOutcome::Closed "CLOSED"))))
+      [:wat::kernel::RecvOutcome::Message {:msg _m} "MESSAGE"]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::string::concat "LOST:" (:wat::kernel::LociDiedError/message cause))]
+      [:wat::kernel::RecvOutcome::Stopped {} "STOPPED"]
+      [:wat::kernel::RecvOutcome::Closed {} "CLOSED"])))

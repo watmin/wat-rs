@@ -18,8 +18,8 @@
   (:wat::core::let
     [m {:a 1 :b 2 :c 3}]
     (:wat::core::match (:wat::core::get m :b) 
-      ((:wat::core::Some v) v)
-      (:wat::core::None -1))))
+      [:wat::core::Some {:value v} v]
+      [:wat::core::None {} -1])))
 
 ;; probe 3: string-valued map length 2
 (:wat::core::defn :t::p3-string-map-len [] -> :wat::core::i64
@@ -34,8 +34,8 @@
   (:wat::core::let
     [outer {:outer {:inner 42}}]
     (:wat::core::match (:wat::core::get outer :outer) 
-      ((:wat::core::Some inner-map) (:wat::core::length inner-map))
-      (:wat::core::None -1))))
+      [:wat::core::Some {:value inner-map} (:wat::core::length inner-map)]
+      [:wat::core::None {} -1])))
 
 ;; probe 6: empty {} length 0
 (:wat::core::defn :t::p6-empty-map-len [] -> :wat::core::i64
@@ -74,5 +74,5 @@
   (:wat::core::let
     [m {:a #{1 2} :b #{3 4}}]
     (:wat::core::match (:wat::core::get m :a) 
-      ((:wat::core::Some s) (:wat::core::length s))
-      (:wat::core::None -1))))
+      [:wat::core::Some {:value s} (:wat::core::length s)]
+      [:wat::core::None {} -1])))

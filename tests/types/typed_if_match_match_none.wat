@@ -3,5 +3,5 @@
   (:wat::core::let
     [o :wat::core::None]
     (:wat::core::match o 
-      ((:wat::core::Some v) v)
-      (:wat::core::None -1))))
+      [:wat::core::Some {:value v} v]
+      [:wat::core::None {} -1])))

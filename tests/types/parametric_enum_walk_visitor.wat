@@ -9,6 +9,6 @@
           (:wat::holon::to-holon "v")))
       0
       :my::test::count-visit) 
-    ((:wat::core::Ok pair)
-      (:wat::core::second pair))
-    ((:wat::core::Err _e) -1)))
+    [:wat::core::Ok {:value pair}
+      (:wat::core::second pair)]
+    [:wat::core::Err {:error _e} -1]))

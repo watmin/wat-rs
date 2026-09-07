@@ -53,22 +53,22 @@
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap
      h   (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
-     c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      r   (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))]
     ;; arc 278 the recv'-outcome wall — `do-op` now returns a matchable
     ;; `(RecvOutcome :- [DoOpResponse])`; the happy-path Response comes through ::Message.
     (:wat::core::match r
-      ((:wat::kernel::RecvOutcome::Message resp)
+      [:wat::kernel::RecvOutcome::Message {:msg resp}
         (:wat::core::match resp
-          ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) bytes)
-          ((:probe::Op1::DoOpResponse::RequestMalformed mpath mexpected mgot)
-            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))
-          ((:probe::Op1::DoOpResponse::Ok n) -1)))
-      ((:wat::kernel::RecvOutcome::Lost _cause) -2)
+          [:probe::Op1::DoOpResponse::RequestTooLarge {:bytes bytes :cap cap} bytes]
+          [:probe::Op1::DoOpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)]
+          [:probe::Op1::DoOpResponse::Ok {:n n} -1])]
+      [:wat::kernel::RecvOutcome::Lost {:cause _cause} -2]
       ;; arc 278 #73 — a stop is neither the death (-2) nor the close (-3) this probe already
       ;; distinguishes; -4 names it as its own terminal outcome rather than folding it into either.
-      (:wat::kernel::RecvOutcome::Stopped -4)
-      (:wat::kernel::RecvOutcome::Closed -3))))
+      [:wat::kernel::RecvOutcome::Stopped {} -4]
+      [:wat::kernel::RecvOutcome::Closed {} -3])))
 
 ;; (2) the SAME connection recovers IN PLACE: an over-cap request (→ RequestTooLarge, connection
 ;;     KEPT — the request arrived, so it is a normal reply, no eviction) then an in-budget request
@@ -77,18 +77,18 @@
   (:wat::core::let
     [big   (:probe::pl 20)     ;; > cap
      h     (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
-     c     (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c     (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      r1    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))    ;; RequestTooLarge; keep
      r2    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload "hi"))]  ;; SAME c → Ok
     ;; arc 278 the recv'-outcome wall — the in-budget Ok Response comes through ::Message.
     (:wat::core::match r2
-      ((:wat::kernel::RecvOutcome::Message resp)
+      [:wat::kernel::RecvOutcome::Message {:msg resp}
         (:wat::core::match resp
-          ((:probe::Op1::DoOpResponse::Ok n) n)
-          ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) -1)
-          ((:probe::Op1::DoOpResponse::RequestMalformed mpath mexpected mgot)
-            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-      ((:wat::kernel::RecvOutcome::Lost _cause) -2)
+          [:probe::Op1::DoOpResponse::Ok {:n n} n]
+          [:probe::Op1::DoOpResponse::RequestTooLarge {:bytes bytes :cap cap} -1]
+          [:probe::Op1::DoOpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+      [:wat::kernel::RecvOutcome::Lost {:cause _cause} -2]
       ;; arc 278 #73 — same sentinel scheme as above: -4 is the stop, distinct from -2/-3.
-      (:wat::kernel::RecvOutcome::Stopped -4)
-      (:wat::kernel::RecvOutcome::Closed -3))))
+      [:wat::kernel::RecvOutcome::Stopped {} -4]
+      [:wat::kernel::RecvOutcome::Closed {} -3])))

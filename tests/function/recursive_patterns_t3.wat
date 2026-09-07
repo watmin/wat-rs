@@ -5,8 +5,8 @@
                 (:wat::core::Some (:wat::core::Some 42))
                v
                 (:wat::core::match mm 
-                  ((:wat::core::Some (:wat::core::Some x)) x)
-                  ((:wat::core::Some :wat::core::None) -1)
-                  (:wat::core::None -2)
-                  (_ -3))]
+                  [:wat::core::Some {:value [:wat::core::Some {:value x}]} x]
+                  [:wat::core::Some {:value :wat::core::None} -1]
+                  [:wat::core::None {} -2]
+                  [_ -3])]
               (:wat::kernel::println (:wat::i64::to-string v))))

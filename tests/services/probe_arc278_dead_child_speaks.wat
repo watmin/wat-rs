@@ -65,16 +65,16 @@
 (:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
     [h    (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
-     echo (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     echo (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      _s   (:wat::kernel::send echo
             (:probe::Echo::Op::Echo
               (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom"))))]
     (:wat::core::match (:wat::kernel::recv echo)
-      ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum")))
+      [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message)]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum"))]
       ;; arc 278 #73 — reported as ITSELF. This test never stops mid-read, so the arm is
       ;; unreachable today; naming it honestly is what keeps it unreachable-and-legible rather
       ;; than unreachable-and-mislabelled.
-      (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
-      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
+      [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Stopped)]
+      [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Closed)])))

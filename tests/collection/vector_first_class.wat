@@ -36,49 +36,49 @@
     [a (:wat::holon::to-holon "x")
      b (:wat::holon::to-holon "x")]
     (:wat::core::match (:wat::holon::cosine a b)
-      ((:wat::holon::CosineOutcome::Similarity c)
-        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
-      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
-      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
+      [:wat::holon::CosineOutcome::Similarity {:similarity c}
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")]
+      [:wat::holon::CosineOutcome::Degenerate {:side _side} "degenerate"]
+      [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :vfc::cosine-vec-vec [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
     (:wat::core::match (:wat::holon::cosine va vb)
-      ((:wat::holon::CosineOutcome::Similarity c)
-        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
-      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
-      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
+      [:wat::holon::CosineOutcome::Similarity {:similarity c}
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")]
+      [:wat::holon::CosineOutcome::Degenerate {:side _side} "degenerate"]
+      [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :vfc::cosine-ast-vec [] -> :wat::core::String
   (:wat::core::let
     [a (:wat::holon::to-holon "x")
      vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
     (:wat::core::match (:wat::holon::cosine a vb)
-      ((:wat::holon::CosineOutcome::Similarity c)
-        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
-      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
-      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
+      [:wat::holon::CosineOutcome::Similarity {:similarity c}
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")]
+      [:wat::holon::CosineOutcome::Degenerate {:side _side} "degenerate"]
+      [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :vfc::cosine-vec-ast [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      b (:wat::holon::to-holon "x")]
     (:wat::core::match (:wat::holon::cosine va b)
-      ((:wat::holon::CosineOutcome::Similarity c)
-        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far"))
-      ((:wat::holon::CosineOutcome::Degenerate _side) "degenerate")
-      ((:wat::holon::CosineOutcome::DimensionMismatch _e _g) "mismatch"))))
+      [:wat::holon::CosineOutcome::Similarity {:similarity c}
+        (:wat::core::if (:wat::core::> c 0.99)  "near-1" "far")]
+      [:wat::holon::CosineOutcome::Degenerate {:side _side} "degenerate"]
+      [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :vfc::dot-vec-vec [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
     (:wat::core::match (:wat::holon::dot va vb)
-      ((:wat::holon::DotOutcome::Computed d)
-        (:wat::core::if (:wat::core::> d 0.0)  "positive" "non-positive"))
-      ((:wat::holon::DotOutcome::DimensionMismatch _e _g) "mismatch"))))
+      [:wat::holon::DotOutcome::Computed {:product d}
+        (:wat::core::if (:wat::core::> d 0.0)  "positive" "non-positive")]
+      [:wat::holon::DotOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :vfc::simhash-agree [] -> :wat::core::String
   (:wat::core::let
