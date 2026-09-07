@@ -903,19 +903,6 @@
         (_ (:wat::core::Tuple -1 -1))))
     (_ (:wat::core::Tuple -1 -1))))
 
-(:wat::core::defn :fanout::queue-drained? [q <- :queue::Queue] -> :wat::core::bool
-  (:wat::core::let [d (:fanout::depth-of q)]
-    (:wat::core::and (:wat::core::= (:wat::core::first d) 0)
-      (:wat::core::= (:wat::core::second d) 0))))
-
-(:wat::core::defn :fanout::all-drained?
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::bool
-  (:wat::core::foldl
-    (:wat::core::fn [ok <- :wat::core::bool  q <- :queue::Queue] -> :wat::core::bool
-      (:wat::core::if (:wat::core::not ok) false (:fanout::queue-drained? q)))
-    true
-    qclients))
-
 (:wat::core::defn :fanout::topic-outbox [t <- :demo::Topic] -> :wat::core::i64
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
@@ -934,20 +921,6 @@
         (_ -1)))
     (_ -1)))
 
-(:wat::core::defn :fanout::any-unread?
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool  q <- :queue::Queue] -> :wat::core::bool
-      (:wat::core::if acc true
-        (:wat::core::= (:wat::core::first (:fanout::depth-of q)) -1)))
-    false
-    qclients))
-
-(:wat::core::defn :fanout::fully-drained?
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic] -> :wat::core::bool
-  (:wat::core::and (:fanout::all-drained? qclients)
-    (:wat::core::= (:fanout::topic-outbox t) 0)))
-
 (:wat::core::defn :fanout::require!
   [r <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::core::= r "")
@@ -957,41 +930,88 @@
 (:wat::core::defn :fanout::elapsed-ms [start-ns <- :wat::core::i64] -> :wat::core::i64
   (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns) 1000000))
 
-(:wat::core::defn :fanout::depth-snapshot
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::String
+(:wat::core::defn :fanout::sweep-of
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  q <- :queue::Queue] -> :wat::core::String
-      (:wat::core::let [d (:fanout::depth-of q)]
-        (:wat::core::format "{acc}[{v}/{u}]"
-          :acc acc :v (:wat::core::first d) :u (:wat::core::second d))))
-    ""
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+                     q   <- :queue::Queue]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+      (:wat::core::conj acc (:fanout::depth-of q)))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
     qclients))
+
+(:wat::core::defn :fanout::snapshot-str
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
+  -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String
+                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+      -> :wat::core::String
+      (:wat::core::format "{acc}[{v}/{u}]"
+        :acc acc :v (:wat::core::first d) :u (:wat::core::second d)))
+    ""
+    sweep))
+
+(:wat::core::defn :fanout::sweep-unread?
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool
+                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+      -> :wat::core::bool
+      (:wat::core::or acc (:wat::core::= (:wat::core::first d) -1)))
+    false
+    sweep))
+
+(:wat::core::defn :fanout::sweep-drained?
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [ok <- :wat::core::bool
+                     d  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+      -> :wat::core::bool
+      (:wat::core::and ok
+        (:wat::core::and (:wat::core::= (:wat::core::first d) 0)
+          (:wat::core::= (:wat::core::second d) 0))))
+    true
+    sweep))
 
 ;; Conjunction across N queues plus the topic inbox. No single wire event.
 ;; Bounded, and it reports what it last saw — the check rung, taken only
-;; where the shape rung is unavailable.
+;; where the shape rung is unavailable. One sweep per iteration; the four
+;; facts are derived from it. rts counts Queue/stats + Topic/stats calls.
 (:wat::core::defn :fanout::poll-until-drained*
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
-   left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
-  -> :wat::core::String
+   left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64
+   rts <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
   (:wat::core::let
-    [snap (:fanout::depth-snapshot qclients)
-     box  (:fanout::topic-outbox t)]
-    (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::any-unread? qclients))
-      (:wat::core::format "drained-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
-        :s snap :b box :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
-      (:wat::core::if (:fanout::fully-drained? qclients t)
-        ""
+    [sweep (:fanout::sweep-of qclients)
+     box   (:fanout::topic-outbox t)
+     rts'  (:wat::i64::+ rts (:wat::i64::+ (:wat::core::count qclients) 1))]
+    (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::sweep-unread? sweep))
+      (:wat::core::Tuple
+        (:wat::core::format "drained-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
+          :s (:fanout::snapshot-str sweep) :b box
+          :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
+        rts')
+      (:wat::core::if (:wat::core::and (:fanout::sweep-drained? sweep) (:wat::core::= box 0))
+        (:wat::core::Tuple "" rts')
         (:wat::core::if (:wat::i64::<= left 1)
-          (:wat::core::format "drained-never: last={s} outbox={b} attempts={a} elapsed={ms}"
-            :s snap :b box :a total :ms (:fanout::elapsed-ms start-ns))
+          (:wat::core::Tuple
+            (:wat::core::format "drained-never: last={s} outbox={b} attempts={a} elapsed={ms}"
+              :s (:fanout::snapshot-str sweep) :b box
+              :a total :ms (:fanout::elapsed-ms start-ns))
+            rts')
           (:wat::core::let [_ (:fanout::await-timer-ms 5)]
-            (:fanout::poll-until-drained* qclients t (:wat::i64::- left 1) start-ns total)))))))
+            (:fanout::poll-until-drained* qclients t (:wat::i64::- left 1) start-ns total rts')))))))
 
 (:wat::core::defn :fanout::poll-until-drained
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic  attempts <- :wat::core::i64]
-  -> :wat::core::String
-  (:fanout::poll-until-drained* qclients t attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
+  (:fanout::poll-until-drained* qclients t attempts
+    (:wat::time::epoch-nanos (:wat::time::now)) attempts 0))
 
 ;; LIVENESS BOUND — only a hang may trip this. Full is correct backpressure
 ;; (the queue is bounded; a waiting producer is the design). Giving up loses
@@ -1973,7 +1993,9 @@
      pub-asleep (:wat::core::first (:wat::core::second pub-pair))
      pub-attempts (:wat::core::second (:wat::core::second pub-pair))
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
-     _drain (:fanout::require! (:fanout::poll-until-drained qclients topic 4000))
+     drain-pair (:fanout::poll-until-drained qclients topic 4000)
+     _drain (:fanout::require! (:wat::core::first drain-pair))
+     poll-calls (:wat::core::second drain-pair)
      t-collect0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
@@ -2016,7 +2038,7 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};collect={collect};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};gave-back={gb};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};total={total}"
+              "setup={setup};publish={pub};drain={drain};collect={collect};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};gave-back={gb};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};total={total}"
               :setup (ms t-setup0 t-pub0)
               :pub (ms t-pub0 t-drain0)
               :drain (ms t-drain0 t-collect0)
@@ -2032,6 +2054,7 @@
               :fr pub-retries
               :asleep pub-asleep
               :pa pub-attempts
+              :polls poll-calls
               :total (ms t-setup0 t-end))
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
