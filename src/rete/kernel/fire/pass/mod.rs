@@ -152,8 +152,7 @@ pub(crate) struct RoundScratch<'a> {
     pub(crate) cond_key_ids: &'a CondKeyIds,
     pub(crate) cand_scratch: &'a mut Vec<i64>,
     pub(crate) match_scratch: &'a mut SlotFrame,
-    pub(crate) seen_ids: &'a mut rustc_hash::FxHashSet<u64>,
-    pub(crate) seen_rest: &'a mut rustc_hash::FxHashSet<Value>,
+    pub(crate) seen: &'a mut SeenSet,
     pub(crate) leaf_aids: &'a LeafAidsByClass,
     /// Tests the ACCUMULATE pass (3.20) had to dispatch early to feed an accumulate whose parent
     /// is a Test. The FILTER pass (3.5) must skip them: a Test dispatched twice against one

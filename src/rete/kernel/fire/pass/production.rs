@@ -5,7 +5,7 @@
 //! move and none a logic change: dedent one level, and the prologue aliases
 //! `kind_ids` / `parents_of` / `compiled_rhs_cache` re-spelled as the `arm`
 //! (rune:lint(cited-name-absent) compiled_rhs_cache — the pre-move local whose arm field is `compiled_rhs`)
-//! fields they always were, and `&mut seen_ids` / `&mut seen_rest` written
+//! fields they always were, and `&mut seen` written
 //! unborrowed — inline they were owned locals, here they arrive already
 //! `&mut`. That last one is the same adaptation root-join needed for
 //! `&d_alpha`; it is a property of extraction, not of these passes.
@@ -28,8 +28,7 @@ pub(crate) fn production_delta(
     wm: &mut FireSession,
     arm: &InternedNetwork,
     d_beta: &BetaMemory,
-    seen_ids: &mut rustc_hash::FxHashSet<u64>,
-    seen_rest: &mut rustc_hash::FxHashSet<Value>,
+    seen: &mut SeenSet,
     support: &mut Option<&mut ExplainSupport>,
     sym: &SymbolTable,
 ) -> Result<Vec<u32>, EvalBreak> {
@@ -85,7 +84,7 @@ pub(crate) fn production_delta(
             // `seen` grows by one entry per NEW derived fact, and hashbrown stores only 7-bit
             // control tags — it RE-HASHES every element on every resize. Reserve the exact
             // upper bound for this parent's tokens × RHS forms.
-            seen_ids.reserve(ts.len().saturating_mul(compiled_rhs_forms.len()));
+            seen.reserve(ts.len().saturating_mul(compiled_rhs_forms.len()));
 
             let first = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, ts[0].binds);
             let slot_tables: crate::rete::compiled_rhs::RhsSlotTables = compiled_rhs_forms
@@ -119,7 +118,7 @@ pub(crate) fn production_delta(
                     let __pd = phase_start();
                     census_count("prod:derivations");
                     // Dedup + termination guard: only propagate truly new facts.
-                    if seen_insert(seen_ids, seen_rest, &derived) {
+                    if seen.insert(&derived) {
                         // P12a: record the support index (first-producer-wins; or_insert_with).
                         // ⛔ Do not touch this `idx.entry` — it is keyed on the derived
                         // fact, which varies. The hoist is `wm.production.entry` only.

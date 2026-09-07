@@ -183,16 +183,52 @@ pub(crate) fn record_seed_leaf_vs_alpha(
     });
 }
 
-/// Stamped Aggregates membership is the construction fingerprint
-/// (`DESIGN-STONE-seen-identity-set`). `identity == 0` still stores `Value`.
-pub(crate) fn seen_insert(
-    ids: &mut FxHashSet<u64>,
-    rest: &mut FxHashSet<Value>,
-    v: &Value,
-) -> bool {
-    match v {
-        Value::Aggregate(a) if a.identity() != 0 => ids.insert(a.identity()),
-        _ => rest.insert(v.clone()),
+/// The fixpoint's dedup set. Stamped aggregates key on their construction
+/// fingerprint; everything else stores the whole value. ONE set, two
+/// representations — `insert` is the only door.
+///
+/// ⚠ Encapsulation, not a cure for the cross-path hazard. An unstamped-but-shallow
+/// aggregate still takes the `rest` arm inside this door. Equal aggregates cannot
+/// land in different halves today because `AggregateValue::from_parts` is the sole
+/// stamping site — a `src/value/` invariant rete does not own.
+pub(crate) struct SeenSet {
+    ids: FxHashSet<u64>,
+    rest: FxHashSet<Value>,
+}
+
+impl SeenSet {
+    pub(crate) fn with_capacity(n: usize) -> Self {
+        Self {
+            ids: FxHashSet::with_capacity_and_hasher(n, Default::default()),
+            rest: FxHashSet::default(),
+        }
+    }
+
+    /// Stamped Aggregates membership is the construction fingerprint
+    /// (`DESIGN-STONE-seen-identity-set`). `identity == 0` still stores `Value`.
+    pub(crate) fn insert(&mut self, v: &Value) -> bool {
+        match v {
+            Value::Aggregate(a) if a.identity() != 0 => self.ids.insert(a.identity()),
+            _ => {
+                // ⛔ No debug_assert that an unstamped Aggregate is absent from `ids`.
+                // Checking the other half for the same logical value needs the stamp
+                // `from_parts` would have written — a hash of (nature, class, fields) —
+                // on every rest-arm insert. STOP-2: that is a hot-path hash even in
+                // debug. The split itself is the fast path and is correct today.
+                self.rest.insert(v.clone())
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.ids.len() + self.rest.len()
+    }
+
+    /// Reserve the stamp-half only — production's upper bound is one new
+    /// stamped fact per (token × RHS form). Unstamped values still grow `rest`.
+    pub(crate) fn reserve(&mut self, n: usize) {
+        self.ids.reserve(n);
     }
 }
 
@@ -276,9 +312,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     wm.i64_by_fact.reserve(input_facts.len());
     let __seen = phase_start();
     let __seen_alloc = phase_start();
-    let mut seen_ids: FxHashSet<u64> =
-        FxHashSet::with_capacity_and_hasher(input_facts.len(), Default::default());
-    let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
+    let mut seen = SeenSet::with_capacity(input_facts.len());
     phase_end("  │  setup:seen:alloc", __seen_alloc);
     phase_end("  ├ setup:seen", __seen);
     let mut owned_delta: Vec<u32> = Vec::new();
@@ -488,8 +522,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     cond_key_ids: &cond_key_ids,
                     cand_scratch: &mut cand_scratch,
                     match_scratch: &mut match_scratch,
-                    seen_ids: &mut seen_ids,
-                    seen_rest: &mut seen_rest,
+                    seen: &mut seen,
                     leaf_aids: &leaf_aids,
                     pre_dispatched: &mut pre_dispatched,
                 },
@@ -510,8 +543,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     cond_key_ids: &cond_key_ids,
                     cand_scratch: &mut cand_scratch,
                     match_scratch: &mut match_scratch,
-                    seen_ids: &mut seen_ids,
-                    seen_rest: &mut seen_rest,
+                    seen: &mut seen,
                     leaf_aids: &leaf_aids,
                     pre_dispatched: &mut pre_dispatched,
                 },
@@ -544,8 +576,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
-                seen_ids: &mut seen_ids,
-                seen_rest: &mut seen_rest,
+                seen: &mut seen,
                 leaf_aids: &leaf_aids,
                 pre_dispatched: &mut pre_dispatched,
             },
@@ -564,8 +595,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
-                seen_ids: &mut seen_ids,
-                seen_rest: &mut seen_rest,
+                seen: &mut seen,
                 leaf_aids: &leaf_aids,
                 pre_dispatched: &mut pre_dispatched,
             },
@@ -584,8 +614,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
-                seen_ids: &mut seen_ids,
-                seen_rest: &mut seen_rest,
+                seen: &mut seen,
                 leaf_aids: &leaf_aids,
                 pre_dispatched: &mut pre_dispatched,
             },
@@ -615,8 +644,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
-                seen_ids: &mut seen_ids,
-                seen_rest: &mut seen_rest,
+                seen: &mut seen,
                 leaf_aids: &leaf_aids,
                 pre_dispatched: &mut pre_dispatched,
             },
@@ -634,8 +662,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut wm,
             &arm,
             &d_beta,
-            &mut seen_ids,
-            &mut seen_rest,
+            &mut seen,
             &mut support,
             sym,
         )?;
@@ -653,8 +680,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &left_idx,
             &right_idx,
             &arm.feeding_alpha_of,
-            &seen_ids,
-            &seen_rest,
+            &seen,
             round_no,
             this_round_in,
         );
