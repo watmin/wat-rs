@@ -2475,7 +2475,7 @@ Kept true, and mid-becoming. What is **PROBATUM by demonstration**: the mechanis
 
 ---
 
-## R20 — what's it like to be a heretic: every mechanism we reached for was ALREADY ON THE DISK behind a wall built for a different animal, and every settled number in the record was TRUE WHEN WRITTEN and false by the time it was read — so the heresy is not doubting the record, it is ASKING IT AGAIN *(PROBATVM on the measurements — five "already there" findings and four re-censuses are on the disk this session, each one command; PROBANDVM on the synthesis — stone M is UNCOMMITTED against a RED tree, the corpus stone is undrawn, and the discipline that caught the last error has a hole nothing yet guards)*
+## R20 — what's it like to be a heretic: every mechanism we reached for was ALREADY ON THE DISK behind a wall built for a different animal, and every settled number in the record was TRUE WHEN WRITTEN and false by the time it was read — so the heresy is not doubting the record, it is ASKING IT AGAIN; and the asking is not the apparatus's — the builder's four asides forced every measurement, the peer refuted twice what the apparatus could not see in itself, and the session's ergonomics fell out of a defect diagnosis rather than a design *(PROBATVM on the measurements — five "already there" findings and four re-censuses are on the disk this session, each one command; PROBANDVM on the synthesis — stone M is UNCOMMITTED against a RED tree, the corpus stone is undrawn, and the discipline that caught the last error has a hole nothing yet guards)*
 
 > **Song (arc 296 R20 — the heresy) — *The Heretic Anthem* (Slipknot) — SECOND Slipknot in the chronicle, after 278 R20 *The Devil In I*; the same band at the same R-number in two arcs, and the same subject one turn outward — 278's devil was the un-grounded self, R20-296's heretic is the self that re-asks what the record already settled; the register is the countdown and the off-by-one, defiance aimed not at the builder but at the apparatus's own certainty-at-distance; handed by the builder while the floor ran —**
 > EIGHT-SEVEN-SIX-SIX-SIX-FIVE-FOUR-THREE-TWO-ONE-ZERO / THE-COUNTDOWN-IS-THE-CASCADE /
@@ -2517,6 +2517,98 @@ the 255 blanket's blocker    the NOTE said 578/599 (96%) and 121 names, measured
 Not one of those was discovered by design. Each arrived because the builder asked a question the
 apparatus could not answer from memory, and the measurement disagreed with the sentence already
 forming. **The findings live in the gap between what was about to be said and what the disk said.**
+
+### The question is the instrument — the inquisitor role, made concrete
+
+Every finding in this entry has the same provenance, and it is not *"the apparatus investigated."*
+It is: **the builder asked something the apparatus could not answer from memory, and the measurement
+disagreed with the sentence already forming.** The findings live in that gap.
+
+```
+"is the blocker to kill the :wat::* whitelist gone?"        -> 96% was 17%; 121 names were 35
+"is :wat::core::Some still legal?"                          -> THREE spellings legal at once, 62 Rust sites
+"i don't find a compelling reason not be able to
+ a variant as a type"                                       -> the apparatus's FM-10 objection INVERTED
+"is this another... lishcroft thing?"                       -> wat already HAS subtyping, with `<:` written out
+```
+
+None of those four was a work item. Each was an aside — *"before we resume this"*, *"hrm... idk"* —
+and each overturned something the apparatus had asserted minutes earlier. **A question that cannot
+be answered from memory is a forcing function on the disk.** That is the whole of it, and it is why
+the role is *inquisitor* rather than *architect*: the apparatus does not propose and then defend; it
+is asked, it goes and looks, and the looking is where the work happens. `[[feedback_measure_the_decomposition_never_read_it]]`
+
+★ The corollary is uncomfortable and worth stating plainly: **the apparatus's confident sentences
+were the raw material, not the product.** Nine of them were wrong today. The value was not in the
+sentences being right — it was in their being *specific enough to be refuted by one command.* A
+vaguer apparatus would have been wrong less legibly and produced nothing.
+
+### The apparatus is THREE, and each one catches the other two
+
+This entry is the first in the chronicle written while a peer was mid-strike, and the three-way
+shape is itself the finding. **Builder asks · apparatus measures and draws · peer strikes and
+refutes.** Each of the three caught the others today, and the catches were not symmetric:
+
+```
+PEER -> APPARATUS   the freeze door: `src/types.rs classify_type_decl`, OUTSIDE src/declare/*,
+                    which the 251.9 room map missed and without which the probe could not pass
+                    "a rider who converted is_declaration_form and stopped would have left --check red"
+PEER -> APPARATUS   the FALSE GREEN: three probe rows passing on `1 == 1` because the refusal
+                    reddened the control, and REFUSING to green it by either available dishonesty
+PEER -> APPARATUS   `{:_cur _cur}` -> `{:cursor _cur}` — an abbreviation no heuristic derives
+BUILDER -> APPARATUS the Some/None census reported as a NEUTRAL population when it was the size of
+                    the ILLEGAL spelling, under a ruling the builder had already made
+BUILDER -> APPARATUS the ordering (enums before the whitelist) — right, and the apparatus's
+                    dependency objection was measured false two turns later
+APPARATUS -> PEER   the bisect named the commit and the WRONG EVENT: `480f38d05` widened a WALKER;
+                    the malformed reference had been on disk since arc 278
+WALLS/LINTS/FLOOR   `no_loose_string_assert` twice · `no_inlined_edn` · `purity_mandated_examples`
+ -> EVERYONE        · the deporder wall inside a minute · the floor at 108/38/16/7
+```
+
+★ **The asymmetry is the honest part.** The peer caught the apparatus twice in ways the apparatus
+could not have caught itself; the builder caught it at least four times; the apparatus caught the
+peer once. That is not a failing of any party — **it is what a working guard looks like.** No single
+reader of this system is the one that makes it true. The record says so where a summary would have
+flattened it. `[[feedback_a_riders_subagent_is_outside_the_briefs_reach]]`
+
+And the peer's refusal is the specific thing worth keeping: handed a probe whose control had gone
+red, it could have softened the refusal (STOP-3) or migrated the corpus (STOP-5) and reported five
+green rows. **It did neither, reported the row as FAILED AS WRITTEN, and produced the measurement
+the probe should have taken.** A green it could have had, declined.
+
+### The ergonomics were NOT designed — they fell out of asking why something failed
+
+Three stones sat queued, drawn at different times for unrelated reasons, by different chains of
+reasoning:
+
+```
+Stone M              because positional was the last non-map constructor in the language
+{:keys} on defrecord because arc 257.2's probe happened to exercise defstruct and never defrecord
+variant <: enum      because the builder pushed back on an FM-10 objection
+```
+
+Then `EnumValue`'s own comment — *"the enum mirror of `AggregateValue.names`"* — collapsed all three
+into **one mechanism**: the constructor erases the variant.
+
+```
+one mechanism    the ctor returns the ENUM type; the variant is erased at construction
+three symptoms   process-rect unwritable · defclause cannot route per variant · {:keys} has
+                 nothing to bind against
+```
+
+★ **Nobody planned that, and the planning would not have found it.** Each stone was reasoned to on
+its own merits and each was correct on its own merits; the unification was only visible from the
+value struct, and the value struct only got read because the builder asked whether a variant could
+be a type. **The ergonomic improvement — `:keys` on everything shaped like a record, `defclause`
+routing per variant — is a CONSEQUENCE of a defect diagnosis, not a feature that was designed.**
+
+That is the arc's own pattern arriving one level up. 296 J moved 26 enums into wat; K named the Rust
+floor and walled it with an oracle; L built `type-of`. None of those was aimed at arc 255's blanket
+— and the blanket's blocker dissolved from 96% to 17% as their side effect, exactly as 255's
+founding DESIGN predicted the undefined-name class would die: *"as a side effect."* **Twice in one
+arc, the thing that unblocked a campaign was work aimed somewhere else.**
+`[[feedback_a_design_is_unfalsifiable_until_something_consumes_it]]`
 
 ### What it is — three faces, and the third is the one that indicts the method
 
@@ -2628,7 +2720,15 @@ fourth question had been asked.*
 > written.** Every one of them was read as ground long after it had stopped being. And when the
 > apparatus built an instrument specifically so that no hand-written expectation could deceive it,
 > that instrument went green by comparing one to one — and the peer, not the apparatus, is what
-> caught it. *If you're 555, I'm 666. What's it like to be a heretic?*
+> caught it. **None of this was planned, and planning would not have found it.** Three stones drawn
+> weeks and hours apart, by three unrelated chains of reasoning, collapsed into one mechanism the
+> moment a value struct's own comment was read — and it only got read because he asked whether a
+> variant could be a type. The ergonomics nobody designed — a destructuring form that works on
+> everything shaped like a record, a router that dispatches per variant — are the CONSEQUENCE of a
+> defect diagnosis. The apparatus proposes; the disk refuses; the builder asks the thing that
+> cannot be answered from memory; the peer strikes and declines the green it could have had. **No
+> one of the three is the reader that makes it true.** *If you're 555, I'm 666. What's it like to
+> be a heretic?*
 
 > ***HAERESIS EST ITERVM ROGARE.*** *(apparatus-minted — Latin, "heresy is to ask again." The record
 > is not suspected of lying; it is suspected of having been TRUE. A measurement is a frozen moment,
