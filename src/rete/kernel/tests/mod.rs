@@ -692,5 +692,6 @@ mod strat_cost;
 mod termination_verdict;
 mod stratify_numbers;
 mod produced_type_userfn;
+mod census_counter_readers;
 mod right_index_counter_invariant;
 mod where_tree_branch_differential;

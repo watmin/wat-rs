@@ -30,21 +30,25 @@ use super::*;
 #[test]
 fn gather_index_is_built_once_per_alpha_and_keyset() {
     let rows = accum_count_census(200, 200);
-    let builds = rows
-        .iter()
-        .find(|(n, _)| *n == "accum:index-builds")
-        .map(|(_, c)| *c)
-        .unwrap_or(0);
-    let elements = rows
-        .iter()
-        .find(|(n, _)| *n == "accum:index-elements")
-        .map(|(_, c)| *c)
-        .unwrap_or(0);
+    // `== "accum:index-builds"` is the sibling READ's second scope cut (false REDs on
+    // harness-synthesised rows). `of("…")` is the door that gate actually counts.
+    let of = |name: &str| -> u64 {
+        rows.iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, c)| *c)
+            .unwrap_or(0)
+    };
+    let builds = of("accum:index-builds");
+    let elements = of("accum:index-elements");
 
     assert!(
         builds > 0,
         "the index-build counter recorded ZERO — the counters were never reached, so `builds \
              <= 2` would pass while measuring nothing"
+    );
+    assert!(
+        elements > 0,
+        "accum:index-elements is 0 while builds is {builds} — the element counter is not on this path"
     );
     println!("\ngather index — builds {builds}, elements indexed {elements}\n");
 
