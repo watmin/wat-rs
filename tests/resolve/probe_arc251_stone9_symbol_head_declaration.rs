@@ -12,6 +12,13 @@
 //! The two programs of a pair are byte-identical below line 1, asserted here rather than
 //! promised in a comment — so a green row cannot come from the fixtures having drifted apart.
 //!
+//! ⚠ THE MALFORMATIONS ARE DIALECT-NEUTRAL, ON PURPOSE. The first draft used a bare-symbol
+//! variant (`Red []`) as the negative control — which 251.5's target declaration makes CORRECT
+//! (`(wat.core/defenum probe/Color wat.enum/Pure  Red :- [])`). That row would have pinned a
+//! legacy rule as permanently true and forced 251.5 to violate its own arc's acceptance test.
+//! Both controls now fail for a reason the clojure flip does not touch: a payload that is not a
+//! vector, and a missing mandatory purity marker.
+//!
 //! RED at HEAD on all three rows; `#[ignore]`d until 251.9 un-ignores them.
 
 use std::path::PathBuf;
@@ -52,10 +59,10 @@ fn pair(case: &str) -> (i32, i32) {
 #[ignore = "RED at HEAD — arc 251 stone 251.9 (the catch-all that ate the declaration); un-ignored BY that stone, which is what makes these three the acceptance rows"]
 fn malformed_variant_is_refused_under_both_head_spellings() {
     let (kw, sym) = pair("malformed_variant");
-    assert_ne!(kw, 0, "control: the keyword head MUST refuse a bare-symbol variant");
+    assert_ne!(kw, 0, "control: the keyword head MUST refuse a non-vector variant payload");
     assert_eq!(
         sym, kw,
-        "a symbol-headed defenum swallowed a malformed variant the keyword head refuses \
+        "a symbol-headed defenum swallowed a malformed variant payload the keyword head refuses \
          — the declaration parser never ran (declare/parse.rs:199 catch-all)"
     );
 }

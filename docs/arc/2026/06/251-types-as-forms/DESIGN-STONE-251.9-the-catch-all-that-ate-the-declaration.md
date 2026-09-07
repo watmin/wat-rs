@@ -68,11 +68,27 @@ path to a wrong decision, which is the difference between this door and the halt
 
 ### ⛔ NAMES ARE OUT OF SCOPE — affirmatively cut, not deferred
 
-A declared NAME cannot be mapped. `probe.Note/make` is either `:probe::Note/make` or
-`:probe::Note::make`; segment-counting does not discriminate (`wat.core/first` is a legitimate
-2-segment receiver) and capitalisation is ruled out by the builder. **Only the registry knows**, and
-it cannot answer until arc 255 closes `is_resolvable_call_head`'s reserved-prefix shortcut (which
-accepts a `:wat::` namespace without validating the leaf — `src/resolve/normalize.rs:424`).
+A declared NAME cannot be mapped **to the registry's current keying**. `probe.Note/make` would
+have to become `:probe::Note/make` or `:probe::Note::make`; segment-counting does not discriminate
+(`wat.core/first` is a legitimate 2-segment receiver) and capitalisation is ruled out by the builder.
+
+⚠ **AMENDED 2026-09-06 — the ambiguity is an INTERIM LOOKUP problem, not a language problem.** The
+TUPLE was never ambiguous: `wat.core.HashMap/length` is `[wat.core.HashMap, length]` — the type is a
+NAMESPACE SEGMENT, and `Type::member` vs `Type/member` was one thing spelled two ways. The builder,
+2026-09-06: *"`Type::member` … `Type/member` … is just a syntax we should never have had"*, and its
+end state is not a mapping at all but per-namespace verbs — `(wat.core/length x)` dispatching, with
+`wat.map/length` / `wat.vec/length` as the concrete homes (109's domain). The dot notation is
+modelled **only for variants** (`probe/Color.Red` — arc 296 stone H), where the dot sits in the NAME
+half; a dot LEFT of the slash is ordinary namespace nesting.
+
+So the interim mapping has **two** cures, not one:
+- **(a)** arc 255 closes `is_resolvable_call_head`'s reserved-prefix shortcut (it accepts a `:wat::`
+  namespace without validating the leaf — `src/resolve/normalize.rs:424`) so the registry can answer.
+- **(b)** re-key the registry on the TUPLE, which is what 251.8b set up by making `Identifier` STORE
+  `(ns, name)`. Then nothing is mapped back and `ns_to_wat_path` is deleted outright — already on
+  arc 251's own FINAL MEASUREMENT list (`DESIGN.md`: the codec's ~27 sites go).
+
+Either cure unblocks names. Neither is this stone.
 
 This costs nothing, because **names already fail LOUDLY**: `"malformed :wat::core::defenum
 declaration: name must be a keyword; got symbol"` (`src/types.rs:4778` and siblings). A loud refusal
