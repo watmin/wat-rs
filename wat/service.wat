@@ -1011,6 +1011,158 @@
                          (:wat::core::range 0 nmch)))))))
              ""
              methods)))
+     ;; Walk :messages of the attached surface form.
+     messages-vec-of
+       (:wat::core::fn [surface-ast <- :wat::WatAST] -> :wat::WatAST
+         (:wat::core::let
+           [sch (:wat::core::ast->children surface-ast)
+            nsch (:wat::core::length sch)]
+           (:wat::core::second
+             (:wat::core::foldl
+               (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::bool :wat::WatAST])
+                                i <- :wat::core::i64]
+                 -> (:wat::core::Tuple :- [:wat::core::bool :wat::WatAST])
+                 (:wat::core::if (:wat::core::first acc)
+                   acc
+                   (:wat::core::if (:wat::i64::>= (:wat::i64::+ i 1) nsch)
+                     acc
+                     (:wat::core::let
+                       [node (:wat::core::Option/expect
+                                (:wat::core::get sch i)
+                                "defservice: surface child")]
+                       (:wat::core::if
+                         (:wat::core::and
+                           (:wat::core::= (:wat::core::ast-kind node) "keyword")
+                           (:wat::core::= (:wat::core::ast-name node) ":messages"))
+                         (:wat::core::Tuple true
+                           (:wat::core::Option/expect
+                             (:wat::core::get sch (:wat::i64::+ i 1))
+                             "defservice: :messages value"))
+                         acc)))))
+               (:wat::core::Tuple false empty-vec)
+               (:wat::core::range 0 nsch)))))
+     strip-colon
+       (:wat::core::fn [raw <- :wat::core::String] -> :wat::core::String
+         (:wat::core::if (:wat::string::starts-with? raw ":")
+           (:wat::string::subs raw 1 (:wat::string::length raw))
+           raw))
+     ;; True iff the named response enum has :Accepted [count <- i64].
+     response-has-accepted-count?
+       (:wat::core::fn [surface-ast <- :wat::WatAST  want <- :wat::core::String] -> :wat::core::bool
+         (:wat::core::foldl
+           (:wat::core::fn [found <- :wat::core::bool  form <- :wat::WatAST]
+             -> :wat::core::bool
+             (:wat::core::if found
+               found
+               (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind form) "list"))
+                 found
+                 (:wat::core::let
+                   [ch (:wat::core::ast->children form)
+                    nch (:wat::core::length ch)]
+                   (:wat::core::if (:wat::i64::< nch 2)
+                     found
+                     (:wat::core::if
+                       (:wat::core::not
+                         (:wat::string::ends-with?
+                           (:wat::core::ast-name
+                             (:wat::core::Option/expect (:wat::core::get ch 0) "defservice: msg head"))
+                           "defenum"))
+                       found
+                       (:wat::core::if
+                         (:wat::core::not
+                           (:wat::core::=
+                             (strip-colon
+                               (:wat::core::ast-name
+                                 (:wat::core::Option/expect (:wat::core::get ch 1) "defservice: enum name")))
+                             want))
+                         found
+                         (:wat::core::foldl
+                           (:wat::core::fn [ok <- :wat::core::bool  j <- :wat::core::i64]
+                             -> :wat::core::bool
+                             (:wat::core::if ok
+                               ok
+                               (:wat::core::if (:wat::i64::>= (:wat::i64::+ j 1) nch)
+                                 ok
+                                 (:wat::core::let
+                                   [knode (:wat::core::Option/expect
+                                            (:wat::core::get ch j)
+                                            "defservice: enum child")]
+                                   (:wat::core::if
+                                     (:wat::core::and
+                                       (:wat::core::= (:wat::core::ast-kind knode) "keyword")
+                                       (:wat::core::= (strip-colon (:wat::core::ast-name knode)) "Accepted"))
+                                     (:wat::core::let
+                                       [fields (:wat::core::Option/expect
+                                                 (:wat::core::get ch (:wat::i64::+ j 1))
+                                                 "defservice: Accepted fields")
+                                        fch (:wat::core::ast->children fields)]
+                                       (:wat::core::if (:wat::core::empty? fch)
+                                         ok
+                                         (:wat::core::= (strip-colon
+                                                          (:wat::core::ast-name
+                                                            (:wat::core::Option/expect
+                                                              (:wat::core::get fch 0)
+                                                              "defservice: Accepted field")))
+                                                        "count")))
+                                     ok)))))
+                           false
+                           (:wat::core::range 0 nch)))))))))
+           false
+           (:wat::core::ast->children (messages-vec-of surface-ast))))
+     ;; Field names of the named request record, in declaration order.
+     request-field-names-of
+       (:wat::core::fn [surface-ast <- :wat::WatAST  want <- :wat::core::String]
+         -> (:wat::core::Vector :- [:wat::core::String])
+         (:wat::core::foldl
+           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])  form <- :wat::WatAST]
+             -> (:wat::core::Vector :- [:wat::core::String])
+             (:wat::core::if (:wat::core::not (:wat::core::empty? acc))
+               acc
+               (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind form) "list"))
+                 acc
+                 (:wat::core::let
+                   [ch (:wat::core::ast->children form)
+                    nch (:wat::core::length ch)]
+                   (:wat::core::if (:wat::i64::< nch 3)
+                     acc
+                     (:wat::core::if
+                       (:wat::core::not
+                         (:wat::string::ends-with?
+                           (:wat::core::ast-name
+                             (:wat::core::Option/expect (:wat::core::get ch 0) "defservice: rec head"))
+                           "defrecord"))
+                       acc
+                       (:wat::core::if
+                         (:wat::core::not
+                           (:wat::core::=
+                             (strip-colon
+                               (:wat::core::ast-name
+                                 (:wat::core::Option/expect (:wat::core::get ch 1) "defservice: rec name")))
+                             want))
+                         acc
+                         (:wat::core::let
+                           [fields (:wat::core::Option/expect
+                                     (:wat::core::get ch (:wat::i64::- nch 1))
+                                     "defservice: rec fields")
+                            fch (:wat::core::ast->children fields)
+                            nf (:wat::core::length fch)]
+                           (:wat::core::foldl
+                             (:wat::core::fn [names <- (:wat::core::Vector :- [:wat::core::String])  i <- :wat::core::i64]
+                               -> (:wat::core::Vector :- [:wat::core::String])
+                               (:wat::core::if (:wat::core::not (:wat::core::= (:wat::i64::mod i 3) 0))
+                                 names
+                                 (:wat::core::if (:wat::i64::>= i nf)
+                                   names
+                                   (:wat::core::conj names
+                                     (strip-colon
+                                       (:wat::core::ast-name
+                                         (:wat::core::Option/expect
+                                           (:wat::core::get fch i)
+                                           "defservice: rec field")))))))
+                             (:wat::core::Vector :- [:wat::core::String])
+                             (:wat::core::range 0 nf))))))))))
+           (:wat::core::Vector :- [:wat::core::String])
+           (:wat::core::ast->children (messages-vec-of surface-ast))))
      ;; peer-forms-calls: (Vector :- [WatAST]) of `(:S::surface-forms)` call nodes — one per :peers surface.
      ;; Spliced into the service-forms concat (below) so each dialed surface's forms cross the fork.
      ;; DESIGN-STONE the-child-needs-the-entry-not-the-library: each contributor to
@@ -1028,8 +1180,10 @@
                             acc
                             (:wat::core::let
                               [sf-kw (:wat::keyword::from-string
-                                       (:wat::string::interpolate "{s-str}::surface-forms" :s-str s-str))]
-                              (:wat::core::conj acc `(~sf-kw)))))
+                                       (:wat::string::interpolate "{s-str}::surface-forms" :s-str s-str))
+                               ch-kw (:wat::keyword::from-string
+                                       (:wat::string::interpolate "{s-str}::client-helpers" :s-str s-str))]
+                              (:wat::core::conj (:wat::core::conj acc `(~sf-kw)) `(~ch-kw)))))
                         (:wat::core::Vector :- [:wat::WatAST])
                         peers-surfaces)
 
@@ -2242,10 +2396,12 @@
      ;; type; the surface method <S>/<op> becomes the blind entry once a satisfier extend-type wires
      ;; it to this concrete client fn (S4). Request/response records are the surface's own
      ;; (user-declared `<S>::<Op>Request` / `<S>::<Op>Response` — the S1/gRPC naming convention).
-     op-methods    (:wat::core::foldl
-                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
+     op-methods-pair (:wat::core::foldl
+                     (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST])
+                                                                   (:wat::core::Vector :- [:wat::WatAST])])
                                       clause <- :wat::WatAST]
-                       -> (:wat::core::Vector :- [:wat::WatAST])
+                       -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST])
+                                                 (:wat::core::Vector :- [:wat::WatAST])])
                        (:wat::core::let
                          [ch              (:wat::core::ast->children clause)
                           op-node         (:wat::core::first ch)
@@ -2423,18 +2579,180 @@
                                                (:wat::core::if (:wat::i64::> ~k-sym ~entries-cap-kw)
                                                  (:wat::kernel::RecvOutcome::Message (~rte-ctor-kw ~k-sym ~entries-cap-kw))
                                                  ~byte-body))
-                                            byte-body)]
+                                            byte-body)
+                          op-defn         (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                                            `(:wat::core::defn ~method-name ~method-params -> ~recv-ret-ty ~method-body)
+                                            `(:wat::core::defn ~method-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~method-body))
+                          resp-want       (:wat::string::interpolate "{b}::{p}Response"
+                                            :b proto-base :p op-pascal)
+                          req-want        (:wat::string::interpolate "{b}::{p}Request"
+                                            :b proto-base :p op-pascal)
+                          has-accepted    (response-has-accepted-count? surface-decl resp-want)
+                          emit-all?       (:wat::core::and
+                                            (:wat::core::not (:wat::core::= entries-field ""))
+                                            has-accepted)
+                          all-method-name (:wat::keyword::from-string
+                                            (:wat::string::interpolate "{b}/{op-str}-all"
+                                              :b proto-base :op-str op-str))
+                          surface-op-kw   (:wat::keyword::from-string
+                                            (:wat::string::interpolate "{b}/{op-str}"
+                                              :b proto-base :op-str op-str))
+                          accepted-ctor-kw (:wat::keyword::from-string
+                                             (:wat::string::concat proto-base
+                                               (:wat::string::interpolate "::{op-pascal}Response::Accepted" :op-pascal op-pascal)))
+                          req-ctor-kw     (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-pascal}Request" :op-pascal op-pascal)))
+                          fld-sym         (:wat::core::symbol-node "fld")
+                          nch-sym         (:wat::core::symbol-node "nch")
+                          acc-sym         (:wat::core::symbol-node "acc")
+                          i-sym           (:wat::core::symbol-node "i")
+                          done-sym        (:wat::core::symbol-node "done")
+                          pair-sym        (:wat::core::symbol-node "pair")
+                          tot-sym         (:wat::core::symbol-node "tot")
+                          last-sym        (:wat::core::symbol-node "last")
+                          start-sym       (:wat::core::symbol-node "start")
+                          ntake-sym       (:wat::core::symbol-node "ntake")
+                          ch-sym          (:wat::core::symbol-node "ch")
+                          creq-sym        (:wat::core::symbol-node "creq")
+                          resp-sym        (:wat::core::symbol-node "resp")
+                          field-names
+                            (:wat::core::let
+                              [found (request-field-names-of surface-decl req-want)]
+                              (:wat::core::if (:wat::core::not (:wat::core::empty? found))
+                                found
+                                (:wat::core::if (:wat::string::ends-with? req-want "SendRequest")
+                                  (:wat::core::Vector :- [:wat::core::String] "queue" "bodies" "now-ns")
+                                  (:wat::core::if (:wat::string::ends-with? req-want "PublishRequest")
+                                    (:wat::core::Vector :- [:wat::core::String] "msgs")
+                                    found))))
+                          ctor-args
+                            (:wat::core::foldl
+                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
+                                               fname <- :wat::core::String]
+                                -> (:wat::core::Vector :- [:wat::WatAST])
+                                (:wat::core::let
+                                  [kw (:wat::core::keyword-node (:wat::string::concat ":" fname))
+                                   acc-kw (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-pascal}Request/{f}"
+                                                :op-pascal op-pascal :f fname)))
+                                   val (:wat::core::if (:wat::core::= fname entries-field)
+                                         ch-sym
+                                         `(~acc-kw req))]
+                                  (:wat::core::conj (:wat::core::conj acc kw) val)))
+                              (:wat::core::Vector :- [:wat::WatAST])
+                              field-names)
+                          chunk-req-form  `(~req-ctor-kw ~@ctor-args)
+                          all-body
+                            `(:wat::core::let
+                               [~fld-sym (~field-acc-kw req)
+                                ~n-sym (:wat::core::count ~fld-sym)
+                                ~nch-sym (:wat::core::if (:wat::core::= ~n-sym 0)
+                                           1
+                                           (:wat::i64::/ (:wat::i64::+ ~n-sym (:wat::i64::- ~entries-cap-kw 1)) ~entries-cap-kw))
+                                ~acc-sym
+                                  (:wat::core::foldl
+                                    (:wat::core::fn
+                                      [~acc-sym <- (:wat::core::Tuple :- [:wat::core::bool
+                                                                          (:wat::core::Tuple :- [:wat::core::i64 ~recv-ret-ty])])
+                                       ~i-sym <- :wat::core::i64]
+                                      -> (:wat::core::Tuple :- [:wat::core::bool
+                                                                (:wat::core::Tuple :- [:wat::core::i64 ~recv-ret-ty])])
+                                      (:wat::core::let
+                                        [~done-sym (:wat::core::first ~acc-sym)
+                                         ~pair-sym (:wat::core::second ~acc-sym)
+                                         ~tot-sym (:wat::core::first ~pair-sym)
+                                         ~last-sym (:wat::core::second ~pair-sym)]
+                                        (:wat::core::if ~done-sym
+                                          ~acc-sym
+                                          (:wat::core::let
+                                            [~start-sym (:wat::i64::* ~i-sym ~entries-cap-kw)
+                                             ~ntake-sym (:wat::core::if (:wat::i64::>= (:wat::i64::+ ~start-sym ~entries-cap-kw) ~n-sym)
+                                                          (:wat::i64::- ~n-sym ~start-sym)
+                                                          ~entries-cap-kw)
+                                             ~ch-sym
+                                               (:wat::core::foldl
+                                                 (:wat::core::fn [a <- (:wat::core::Vector :- [:wat::core::String])
+                                                                  j <- :wat::core::i64]
+                                                   -> (:wat::core::Vector :- [:wat::core::String])
+                                                   (:wat::core::conj a (:wat::core::nth ~fld-sym (:wat::i64::+ ~start-sym j))))
+                                                 (:wat::core::Vector :- [:wat::core::String])
+                                                 (:wat::core::range 0 ~ntake-sym))
+                                             ~creq-sym ~chunk-req-form
+                                             ~r-sym (~surface-op-kw c ~creq-sym)]
+                                            (:wat::core::match ~r-sym
+                                              ((:wat::kernel::RecvOutcome::Message ~resp-sym)
+                                                (:wat::core::match ~resp-sym
+                                                  ((~accepted-ctor-kw ~k-sym)
+                                                    (:wat::core::if (:wat::core::= ~k-sym ~ntake-sym)
+                                                      (:wat::core::Tuple false
+                                                        (:wat::core::Tuple (:wat::i64::+ ~tot-sym ~k-sym) ~r-sym))
+                                                      (:wat::core::Tuple true
+                                                        (:wat::core::Tuple (:wat::i64::+ ~tot-sym ~k-sym)
+                                                          (:wat::kernel::RecvOutcome::Message
+                                                            (~accepted-ctor-kw (:wat::i64::+ ~tot-sym ~k-sym)))))))
+                                                  (_ (:wat::core::Tuple true (:wat::core::Tuple ~tot-sym ~r-sym)))))
+                                              (_ (:wat::core::Tuple true (:wat::core::Tuple ~tot-sym ~r-sym))))))))
+                                    (:wat::core::Tuple false
+                                      (:wat::core::Tuple 0
+                                        (:wat::kernel::RecvOutcome::Message (~accepted-ctor-kw 0))))
+                                    (:wat::core::range 0 ~nch-sym))]
+                               (:wat::core::if (:wat::core::first ~acc-sym)
+                                 (:wat::core::second (:wat::core::second ~acc-sym))
+                                 (:wat::kernel::RecvOutcome::Message
+                                   (~accepted-ctor-kw (:wat::core::first (:wat::core::second ~acc-sym))))))
+                          all-defn        (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                                            `(:wat::core::defn ~all-method-name ~method-params -> ~recv-ret-ty ~all-body)
+                                            `(:wat::core::defn ~all-method-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~all-body))
+                          ;; `:S/<op>-all` is the DESIGN spelling (sibling of `:S/<op>`).
+                          ;; check.rs treats any `:S/not-a-member` as UnknownCallee before
+                          ;; env.get, so a defservice impl cannot name it. `::send-all` is
+                          ;; the same helper without a slash — env.get finds it. Process
+                          ;; children receive both via `::client-helpers`.
+                          all-alias-name  (:wat::keyword::from-string
+                                            (:wat::string::interpolate "{b}::{op-str}-all"
+                                              :b proto-base :op-str op-str))
+                          all-alias-defn  (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                                            `(:wat::core::defn ~all-alias-name ~method-params -> ~recv-ret-ty ~all-body)
+                                            `(:wat::core::defn ~all-alias-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~all-body))]
                          (:wat::core::if is-internal
-
                            acc
-                           (:wat::core::conj acc
-                             ;; STONE-the-last-mint — same siblings-binder splice as `record-def`/
-                             ;; `state-def`/`service-op-def`, over `fqdn-tp-syms`.
-                             (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
-                               `(:wat::core::defn ~method-name ~method-params -> ~recv-ret-ty ~method-body)
-                               `(:wat::core::defn ~method-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~method-body))))))
-                     (:wat::core::Vector :- [:wat::WatAST])
+                           (:wat::core::let
+                             [acc1 (:wat::core::Tuple
+                                     (:wat::core::conj (:wat::core::first acc) op-defn)
+                                     (:wat::core::second acc))]
+                             (:wat::core::if emit-all?
+                               (:wat::core::Tuple
+                                 (:wat::core::first acc1)
+                                 (:wat::core::conj
+                                   (:wat::core::conj (:wat::core::second acc1) all-defn)
+                                   all-alias-defn))
+                               acc1)))))
+                     (:wat::core::Tuple
+                       (:wat::core::Vector :- [:wat::WatAST])
+                       (:wat::core::Vector :- [:wat::WatAST]))
                      impl-clauses)
+     op-methods     (:wat::core::first op-methods-pair)
+     all-methods    (:wat::core::second op-methods-pair)
+     client-helpers-kw (:wat::keyword::from-string
+                         (:wat::string::interpolate "{b}::client-helpers" :b proto-base))
+     ;; `:wat::`-rooted surfaces already live in the child's bake; defining
+     ;; `:<wat::S>::client-helpers` is ReservedPrefix. Peers skip concatenating
+     ;; those calls (peer-forms-calls). User surfaces always emit, even empty,
+     ;; so a peer's `(:S::client-helpers)` resolves.
+     client-helpers-splice
+       (:wat::core::if (:wat::string::starts-with? proto-base "wat::")
+         (:wat::core::Vector :- [:wat::WatAST])
+         (:wat::core::if (:wat::core::empty? all-methods)
+           (:wat::core::Vector :- [:wat::WatAST]
+             `(:wat::core::defn ~client-helpers-kw
+                [] -> (:wat::core::Vector :- [:wat::WatAST])
+                (:wat::core::Vector :- [:wat::WatAST])))
+           (:wat::core::Vector :- [:wat::WatAST]
+             `(:wat::core::defn ~client-helpers-kw
+                [] -> (:wat::core::Vector :- [:wat::WatAST])
+                (:wat::core::forms ~@all-methods)))))
 
      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
      ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)
@@ -2480,7 +2798,15 @@
                                 :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
-     methods           (:wat::core::conj op-methods stop-method)
+     methods           (:wat::core::conj
+                          (:wat::core::foldl
+                            (:wat::core::fn [a <- (:wat::core::Vector :- [:wat::WatAST])
+                                             d <- :wat::WatAST]
+                              -> (:wat::core::Vector :- [:wat::WatAST])
+                              (:wat::core::conj a d))
+                            op-methods
+                            all-methods)
+                          stop-method)
 
      ;; ── arc 291 4a: owner-only hibernate method (mirror of stop) ─────────────────
      ;; Method: (defn <fqdn>/hibernate [h <- Handle] -> state-ty ...)
@@ -3234,6 +3560,7 @@
        ~dispatch-admin-def
        ~extract-addr-def
        ~@methods
+       ~@client-helpers-splice
        ~service-forms-def
        ~start-fn
        ~resume-fn

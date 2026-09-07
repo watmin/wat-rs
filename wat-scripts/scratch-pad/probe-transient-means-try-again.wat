@@ -180,6 +180,8 @@
         ((:queue::Queue::SendResponse::Accepted n)
           (:wat::core::format "Accepted({n})" :n n))
         ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "RequestTooLarge")
+        ((:queue::Queue::SendResponse::RequestTooManyEntries e c)
+          (:wat::core::format "RequestTooManyEntries({e},{c})" :e e :c c))
         ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "RequestMalformed")))
     ((:wat::kernel::RecvOutcome::Lost c)
       (:wat::core::format "Lost:{m}" :m (:wat::kernel::LociDiedError/message c)))

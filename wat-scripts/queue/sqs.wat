@@ -48,6 +48,7 @@
    (:wat::core::defenum :queue::Queue::SendResponse :wat::enum::Pure
      :Accepted [count <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestTooManyEntries [entries <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
 
@@ -98,7 +99,7 @@
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(send    [self <- :queue::Queue  req <- :queue::Queue::SendRequest]
-     -> :queue::Queue::SendResponse :max-request-bytes 524288)
+     -> :queue::Queue::SendResponse :max-request-bytes 524288 :max-entries [bodies 64])
    (receive [self <- :queue::Queue  req <- :queue::Queue::ReceiveRequest]
      -> :queue::Queue::ReceiveResponse :max-request-bytes 524288)
    (ack     [self <- :queue::Queue  req <- :queue::Queue::AckRequest]

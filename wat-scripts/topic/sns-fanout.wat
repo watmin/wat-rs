@@ -98,8 +98,10 @@
                  msgs)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:demo::topic::Op])])
-        sr (:queue::Queue/send (:demo::topic::State/inbox s)
-             (:queue::Queue::SendRequest :queue "inbox" :bodies bodies :now-ns now))]
+        inbox (:demo::topic::State/inbox s)
+        sr
+          (:queue::Queue::send-all inbox
+            (:queue::Queue::SendRequest :queue "inbox" :bodies bodies :now-ns now))]
        (:wat::core::match sr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
@@ -382,6 +384,7 @@
                         (:wat::core::match r
                           ((:queue::Queue::SendResponse::Accepted _n) "message")
                           ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "message")
+                          ((:queue::Queue::SendResponse::RequestTooManyEntries _e _c) "message")
                           ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "message")))
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
