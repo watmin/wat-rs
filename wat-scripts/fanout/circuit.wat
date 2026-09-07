@@ -862,6 +862,17 @@
       (:wat::kernel::assertion-failed! "fanout: start stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
 
+(:wat::core::defn :fanout::arm-workers!
+  [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
+  -> :wat::core::nil
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::nil
+                     w   <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
+      -> :wat::core::nil
+      (:fanout::start-worker! w))
+    nil
+    wpeers))
+
 ;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
 (:wat::core::defn :fanout::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
@@ -976,6 +987,51 @@
           (:wat::core::= (:wat::core::second d) 0))))
     true
     sweep))
+
+(:wat::core::defn :fanout::sweep-filled?
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+   n     <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [ok <- :wat::core::bool
+                     d  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+      -> :wat::core::bool
+      (:wat::core::and ok
+        (:wat::core::and (:wat::core::= (:wat::core::first d) n)
+          (:wat::core::= (:wat::core::second d) 0))))
+    true
+    sweep))
+
+;; Publishers returning is not the fill: topic-workers may still be
+;; fanning the last inbox rows. Poll until every subscriber queue holds
+;; n visible, 0 unacked. Attempts = n×m, same hang bound as drain.
+(:wat::core::defn :fanout::poll-until-filled*
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
+   n <- :wat::core::i64  left <- :wat::core::i64
+   start-ns <- :wat::core::i64  total <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::let
+    [sweep (:fanout::sweep-of qclients)
+     box   (:fanout::topic-outbox t)]
+    (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::sweep-unread? sweep))
+      (:wat::core::format "filled-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
+        :s (:fanout::snapshot-str sweep) :b box
+        :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
+      (:wat::core::if (:wat::core::and (:fanout::sweep-filled? sweep n) (:wat::core::= box 0))
+        ""
+        (:wat::core::if (:wat::i64::<= left 1)
+          (:wat::core::format "filled-never: last={s} outbox={b} want={n} attempts={a} elapsed={ms}"
+            :s (:fanout::snapshot-str sweep) :b box :n n
+            :a total :ms (:fanout::elapsed-ms start-ns))
+          (:wat::core::let [_ (:fanout::await-timer-ms 5)]
+            (:fanout::poll-until-filled* qclients t n (:wat::i64::- left 1) start-ns total)))))))
+
+(:wat::core::defn :fanout::poll-until-filled
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
+   n <- :wat::core::i64  attempts <- :wat::core::i64]
+  -> :wat::core::String
+  (:fanout::poll-until-filled* qclients t n attempts
+    (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
 ;; Conjunction across N queues plus the topic inbox. No single wire event.
 ;; Bounded, and it reports what it last saw — the check rung, taken only
@@ -1804,7 +1860,8 @@
    rate <- :wat::core::i64  seed <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool
-   drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64]
+   drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64
+   sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -1834,7 +1891,7 @@
                         :locus (:wat::spawn::process/post-spawn
                                  (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                                    (:wat::query::sqlite-store/grant sh (:fanout::pids pl))))
-                        :record (:queue::queue::Record :cap 32 :store-addr (:wat::query::sqlite-store::Handle/addr sh) :drop-recv-bp drop-recv-bp :drop-ack-bp drop-ack-bp :drop-seed drop-seed))]
+                        :record (:queue::queue::Record :cap sub-cap :store-addr (:wat::query::sqlite-store::Handle/addr sh) :drop-recv-bp drop-recv-bp :drop-ack-bp drop-ack-bp :drop-seed drop-seed))]
                   (:wat::core::conj acc h)))
               (:wat::core::Vector :- [:queue::queue::Handle])
               (:wat::core::range 0 m))
@@ -1966,11 +2023,7 @@
                   (:fanout::dial-worker (:fanout::worker::Handle/addr (:wat::core::nth workers i)))))
               (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])
               (:wat::core::range 0 wcount))
-     _go (:wat::core::foldl
-           (:wat::core::fn [acc <- :wat::core::nil  w <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])] -> :wat::core::nil
-             (:fanout::start-worker! w))
-           nil
-           wpeers)
+     _go-early (:wat::core::if fill-first? nil (:fanout::arm-workers! wpeers))
      t-pub0 (:wat::time::epoch-nanos (:wat::time::now))
      ppeers (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
@@ -1992,8 +2045,17 @@
      pub-retries (:wat::core::second (:wat::core::first pub-pair))
      pub-asleep (:wat::core::first (:wat::core::second pub-pair))
      pub-attempts (:wat::core::second (:wat::core::second pub-pair))
+     _filled (:wat::core::if fill-first?
+               (:fanout::require! (:fanout::poll-until-filled qclients topic n (:wat::i64::* n m)))
+               nil)
+     fill-sweep (:fanout::sweep-of qclients)
+     fill-depth (:fanout::snapshot-str fill-sweep)
+     t-arm0 (:wat::time::epoch-nanos (:wat::time::now))
+     _go-late (:wat::core::if fill-first? (:fanout::arm-workers! wpeers) nil)
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
-     drain-pair (:fanout::poll-until-drained qclients topic 4000)
+     ;; One 5 ms poll slot per delivered pair (n×m). Hang if drain is slower
+     ;; than 200 pairs/sec. Scales with the work; not a raised constant.
+     drain-pair (:fanout::poll-until-drained qclients topic (:wat::i64::* n m))
      _drain (:fanout::require! (:wat::core::first drain-pair))
      poll-calls (:wat::core::second drain-pair)
      t-collect0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -2038,12 +2100,14 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};publish={pub};drain={drain};collect={collect};stop={stop};qticks={ticks};topic-ticks={tt};disrupts={dh};gave-back={gb};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};gave-back={gb};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};total={total}"
               :setup (ms t-setup0 t-pub0)
-              :pub (ms t-pub0 t-drain0)
+              :fill (ms t-pub0 t-arm0)
+              :arm (ms t-arm0 t-drain0)
               :drain (ms t-drain0 t-collect0)
               :collect (ms t-collect0 t-stop0)
               :stop (ms t-stop0 t-end)
+              :fd fill-depth
               :ticks ticks
               :tt tticks
               :dh dhits
@@ -2063,25 +2127,25 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0))
+  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0))
+  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0))
+  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0))
+  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -2099,10 +2163,10 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false)))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -2175,8 +2239,20 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [proof (:user::deadline-redial-is-fresh)
-     triple (:user::run* 2000 4 3)]
+    [argv (:wat::runtime::argv)
+     proof (:user::deadline-redial-is-fresh)
+     usage "usage: circuit.wat [n m j sub-cap fill-first?]"
+     triple
+       (:wat::core::match (:wat::core::get argv 2)
+         (:wat::core::None (:user::run* 2000 4 3))
+         ((:wat::core::Some ns)
+           (:fanout::run-with
+             (:fanout::parse-i64 ns)
+             (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 3) usage))
+             (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 4) usage))
+             1 0 0 0 0 0 false 0 0
+             (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 5) usage))
+             (:wat::core::= (:wat::core::Option/expect (:wat::core::get argv 6) usage) "true"))))]
     (:wat::core::let
       [_ (:wat::kernel::println proof)
        _ (:wat::kernel::println
