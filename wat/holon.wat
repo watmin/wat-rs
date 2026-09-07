@@ -282,3 +282,14 @@
 (:wat::core::defenum :wat::holon::DotOutcome :wat::enum::Pure
   :Computed [product <- :wat::core::f64]
   :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64])
+
+;; ─── Arc 296 K: aliases that wat uses, declared in wat ──────────────────────
+;;
+;; :wat::holon::BundleResult — arc 032. The canonical Result shape Bundle (and
+;; every downstream caller that threads through Bundle) returns. Non-parametric:
+;; Bundle's Ok arm is always HolonAST; CapacityExceeded is the algebra's only
+;; capacity-failure shape. Callers can write either form; alias resolution
+;; unifies them as the same type at the checker layer.
+(:wat::core::typealias :wat::holon::BundleResult
+  (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded]))
+

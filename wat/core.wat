@@ -2129,11 +2129,35 @@
   :Ok  [value <- :T]
   :Err [error <- :E])
 
+;; :wat::core::Bytes — arc 296 K. Substrate-general byte buffer. Alias for
+;; `(:wat::core::Vector :- [:wat::core::u8])`. Per arc 062 + /gaze: the universal
+;; name "Bytes" wins across adjacent ecosystems. Lives in `:wat::core::*` because
+;; byte buffers predate every current and future consumer. Both `:wat::core::Bytes`
+;; and `(:wat::core::Vector :- [:wat::core::u8])` work at call sites.
+(:wat::core::typealias :wat::core::Bytes
+  (:wat::core::Vector :- [:wat::core::u8]))
+
 ;; Placed here, near the top of core.wat and before :wat::core::Error below:
 ;; the :wat::core::Error surface's `location` feature is typed
 ;; :wat::kernel::Location, so core.wat genuinely depends on this type — that
 ;; measured dependency edge is why Location lives here rather than alongside
 ;; its seven kernel-diagnostics siblings in wat/kernel/diagnostics.wat.
+;; ⛔ HOSTED HERE, NOT IN wat/holon.wat — arc 296 K, and the load-order gate said so:
+;;   wat/holon/Ngram.wat @16 -> wat/holon.wat @27 [:wat::holon::Holons]
+;; The holon OPERATOR files (Ngram/Bigram/Trigram/…) load BEFORE wat/holon.wat and annotate
+;; with this alias (`Ngram.wat:34`). As a Rust builtin it had no position at all; declaring it
+;; in wat gave it one, and the one it needs is earlier than its family file. core.wat is the
+;; precedented cross-namespace host — it already declares `:wat::kernel::Location` below, and
+;; its own load-set entry records that it reaches `:wat::holon::HolonAST` (a builtin).
+
+;; :wat::holon::Holons — arc 033. The ubiquitous "list of holons" shape that
+;; Bundle takes as input and that every encode-*-facts vocab function returns.
+;; Named via /gaze — structurally honest, epistemically neutral, plural of the
+;; element type. Content-agnostic: facts, claims, or anything else a caller
+;; bundles; the alias makes no truth assertion.
+(:wat::core::typealias :wat::holon::Holons
+  (:wat::core::Vector :- [:wat::holon::HolonAST]))
+
 (:wat::core::defrecord :wat::kernel::Location
   [file <- :wat::core::String
    line <- :wat::core::i64

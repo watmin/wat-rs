@@ -925,6 +925,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // nature.root_keyword(). Value-top is an implicit rule in `is_subtype` — no
     // lattice edge registered (analogous to :wat::core::Record). The type system synthesizes
     // `:wat::core::is-Struct?` via `register_type_predicates`.
+    //
+    // ⛔ ARC 296 K NAMED FLOOR — a category root cannot be declared with the form
+    // it produces (`defstruct` declaring `:wat::core::Struct`). Impossible in
+    // principle. The wall admits this literal iff `Nature::from_root_keyword(name)`
+    // is `Some`.
     env.register_builtin(TypeDef::Aggregate(AggregateDef {
         nature: Nature::Struct,
         name: ":wat::core::Struct".into(),
@@ -957,17 +962,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Callers can write either form; alias resolution unifies them
     // as the same type at the checker layer.
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::holon::BundleResult".into(),
-        type_params: vec![],
-        expr: TypeExpr::Parametric {
-            head: "wat::core::Result".into(),
-            args: vec![
-                TypeExpr::Path(":wat::holon::HolonAST".into()),
-                TypeExpr::Path(":wat::holon::CapacityExceeded".into()),
-            ],
-        },
-    }));
+    // ⛔ ARC 296 K — GENERATED FROM WAT. The AliasDef literal is DELETED; this
+    // row is now emitted from `(:wat::core::typealias :wat::holon::BundleResult …)`
+    // in `wat/holon.wat`.
+    ::wat_source_derive::wat_alias_register_from!(env, "wat/holon.wat", ":wat::holon::BundleResult");
 
     // :wat::holon::Holons — arc 033. Typealias for the ubiquitous
     // "list of holons" shape that Bundle takes as input and that
@@ -982,14 +980,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   typealias :wat::holon::Holons = (:Vec :- [wat::holon::HolonAST])
     //
     // Callers can write either form; alias resolution unifies them.
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::holon::Holons".into(),
-        type_params: vec![],
-        expr: TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
-        },
-    }));
+    // ⛔ ARC 296 K — GENERATED FROM WAT. The AliasDef literal is DELETED; this
+    // row is now emitted from `(:wat::core::typealias :wat::holon::Holons …)`
+    // in `wat/holon.wat`.
+    ::wat_source_derive::wat_alias_register_from!(env, "wat/core.wat", ":wat::holon::Holons");
 
     // :wat::core::EvalError — populated in the Err slot of a :Result
     // returned by the eval-family forms (:wat::eval-ast! /
@@ -1036,14 +1030,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // both `:wat::core::Bytes` and `(:Vec :- [u8])` work at call sites.
     //
     //   typealias :wat::core::Bytes = (:Vec :- [u8])
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::Bytes".into(),
-        type_params: vec![],
-        expr: TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":wat::core::u8".into())],
-        },
-    }));
+    // ⛔ ARC 296 K — GENERATED FROM WAT. The AliasDef literal is DELETED; this
+    // row is now emitted from `(:wat::core::typealias :wat::core::Bytes …)`
+    // in `wat/core.wat`.
+    ::wat_source_derive::wat_alias_register_from!(env, "wat/core.wat", ":wat::core::Bytes");
 
     // :wat::core::nil — arc 153. Renamed from `:wat::core::unit`
     // (which arc 109 slice 1d minted). Same type-theoretic role as
@@ -1069,6 +1059,13 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // migrated during sweep 1b; out-of-tree callers spelling
     // `:wat::core::unit` now produce a TypeMismatch resolving the
     // unknown FQDN against `:()`.
+    // ⛔ ARC 296 K NAMED FLOOR — `:wat::core::nil` stays a Rust AliasDef.
+    // STOP-2: the unit the language is built out of is `TypeExpr::Tuple(vec![])`,
+    // not a path. A wat `typealias` expr of `:wat::core::nil` only becomes
+    // Tuple([]) via the canonicalize special-case that EXISTS because nil is
+    // already the unit — the concept declaring itself. `:()` as the expr is the
+    // retired spelling the BareLegacyUnitType walker steers AWAY from. Impossible
+    // in principle, not "not moved yet".
     env.register_builtin(TypeDef::Alias(AliasDef {
         name: ":wat::core::nil".into(),
         type_params: vec![],
@@ -2120,6 +2117,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Zero fields is not a reason to pick a holder — a record with no fields is legal (builder,
     // 2026-08-15). A root's nature is what it IS, not what is convenient to register.
+    //
+    // ⛔ ARC 296 K NAMED FLOOR — `:wat::core::Record` is what `defrecord` produces.
+    // Declaring it with `defrecord` is the concept declaring itself. The wall admits
+    // this literal iff `Nature::from_root_keyword(name)` is `Some`.
     env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
         name: ":wat::core::Record".into(),
         type_params: vec![],
@@ -2145,6 +2146,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // NOTE: `register_type_predicates` synthesizes `:wat::holon::is-Record?` for this type
     // (same as `:wat::core::Record` gets `:wat::is-Record?`). This is correct — it is a type.
     // See SCORE-STONE-S-A § Honest deltas.
+    //
+    // ⛔ ARC 296 K NAMED FLOOR — `:wat::holon::Record` is the holonic-record nature
+    // root; same impossibility as `:wat::core::Record`. The wall admits this
+    // literal iff `Nature::from_root_keyword(name)` is `Some`.
     env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::HolonRecord,
         name: ":wat::holon::Record".into(),
         type_params: vec![],

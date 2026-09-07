@@ -31,6 +31,7 @@
 //! - [`wat_enum_from!`] — a `defenum` becomes a Rust enum.
 //! - [`wat_enum_register_from!`] — a `defenum` becomes a TypeEnv `EnumDef` registration
 //!   (the enum sibling of [`wat_record_from!`]).
+//! - [`wat_alias_register_from!`] — a `typealias` becomes a TypeEnv `AliasDef` registration.
 //!
 //! Anything else wat declares and Rust must agree with belongs here too, under the same rule: the
 //! wat form is the single source, the Rust artifact is derived, and `include_str!` makes rustc
@@ -555,6 +556,102 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
                         ),
                     )*
                 ],
+            }));
+        }
+    }
+    .into())
+}
+
+// ─── wat_alias_register_from! ────────────────────────────────────────────────
+//
+// Arc 296 K. The third sibling of `wat_record_from!` / `wat_enum_register_from!`.
+// A `(:wat::core::typealias :ns::Name <type-form>)` (optional `:- [T …]` binder)
+// becomes one `env.register_builtin(TypeDef::Alias(...))` statement.
+//
+// The type-form is emitted as SOURCE TEXT and parsed by the substrate's
+// `parse_type_expr_from_source` at registration time — same decision as
+// `wat_record_from!`. No second type parser.
+
+#[proc_macro]
+pub fn wat_alias_register_from(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as WatRecordFromArgs);
+    match expand_wat_alias_register_from(&args) {
+        Ok(ts) => ts,
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+fn expand_wat_alias_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> {
+    let rel = args.path.value();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+        syn::Error::new_spanned(&args.path, "CARGO_MANIFEST_DIR unset — cannot resolve the wat file")
+    })?;
+    let abs: PathBuf = PathBuf::from(&manifest).join(&rel);
+    let src = std::fs::read_to_string(&abs).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("cannot read `{}`: {e}", abs.display()))
+    })?;
+
+    let want = args.type_path.value();
+    let forms = wat_reader::parse_all_with_file(&src, &abs.to_string_lossy()).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("wat parse error in `{}`: {e:?}", abs.display()))
+    })?;
+
+    let mut type_params: Vec<String> = Vec::new();
+    let mut expr_text: Option<String> = None;
+
+    for form in &forms {
+        let wat_reader::WatAST::List(items, _) = form else { continue };
+        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        if head != ":wat::core::typealias" {
+            continue;
+        }
+        let Some((tp, payload)) = declared_name(items) else { continue };
+        if tp != want {
+            continue;
+        }
+        type_params = binder_type_params(items).map_err(|m| {
+            syn::Error::new_spanned(&args.type_path, format!("`{want}`: {m}"))
+        })?;
+        let Some(expr_node) = items.get(payload) else {
+            return Err(syn::Error::new_spanned(
+                &args.type_path,
+                format!("`{want}` in `{}`: typealias has no type-form after the name", abs.display()),
+            ));
+        };
+        let Some(text) = node_source_text(&src, expr_node.span()) else {
+            return Err(syn::Error::new_spanned(
+                &args.type_path,
+                format!("`{want}`: alias type-form carries no source range"),
+            ));
+        };
+        expr_text = Some(text);
+        break;
+    }
+
+    let Some(expr_text) = expr_text else {
+        return Err(syn::Error::new_spanned(
+            &args.type_path,
+            format!(
+                "no `(:wat::core::typealias {want} …)` in `{}` — wat is the source of truth, so the registration cannot be generated without it",
+                abs.display()
+            ),
+        ));
+    };
+
+    let env = &args.env;
+    let type_path = &args.type_path;
+    let tparams: Vec<&String> = type_params.iter().collect();
+
+    Ok(quote! {
+        {
+            const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
+            #env.register_builtin(crate::types::TypeDef::Alias(crate::types::AliasDef {
+                name: #type_path.into(),
+                type_params: ::std::vec![ #( #tparams.into() ),* ],
+                expr: crate::types::parse_type_expr_from_source(#expr_text).unwrap_or_else(|e| panic!(
+                    "wat_alias_register_from!({}): type form `{}` which the type parser rejects: {e:?}",
+                    #type_path, #expr_text,
+                )),
             }));
         }
     }
