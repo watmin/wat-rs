@@ -261,7 +261,7 @@ fn binding_key_cost() {
 ///
 /// Diagnostic, not a gate. Read with `--no-capture`.
 #[test]
-#[ignore = "rune:excusare(no-falsifier) — five operations (build/lookup/clone/extend/drop) across two representations at four cardinalities. A single ordering (array-wins-all, trie-wins-all, a named crossover) is one cell of that grid and leaves the rest untested; a conjunction of orderings is a threshold tuned from this corpus, which R60 refuses. Nothing achievable fails the check without inventing the constant the probe exists not to pick."]
+#[ignore = "rune:excusare(no-falsifier) — tried asserting array-wins-extend at every cardinality (the dominance question): the sibling token_bindings_representation_dominance already prints DOMINANCE: NO on that exact question, so the assert would be a known-false gate. Tried a single-cell ordering: one cell of a 5×2×4 grid, and a green is not evidence about the table. The test sat on the floor asserting nothing, counted as a passing test that cannot fail. Nothing achievable reds the rest of the grid without inventing a crossover N, which R60 refuses."]
 fn binding_repr_microbench() {
     use std::hint::black_box;
     use std::time::Instant;
@@ -594,7 +594,7 @@ fn kv(i: usize) -> (Value, Value) {
 ///
 /// Run: cargo nextest run --release --run-ignored=only --no-capture -E 'test(token_bindings_representation_dominance)'
 #[test]
-#[ignore = "rune:excusare(below-resolution) — captured red .floor/2026-09-07T03-20-25Z: at card 64 EXTEND trie 5860.1 ns vs array 3995.9 ns, ≈5.3× on a curve that reads 871.5 ns at card 32. This floor's rete-cohort contention band is 3.5×–4.4× (.config/nextest.toml). The 5.3× excursion is inside that band; the array column grew smoothly. Isolated 6-sample 2026-09-07: trie wins card-64 EXTEND in 6/6."]
+#[ignore = "rune:excusare(below-resolution) — margin: the array/trie EXTEND ratio at card 64 — medians 2028.8 ns / 676.3 ns = 3.0×, six isolated samples 2026-09-07. Noise floor: this floor's rete-cohort contention band, measured 3.5×–4.4× (.config/nextest.toml: 8.13s→35.39s, 7.98s→29.42s, 13.77s→48.72s). The margin sits inside the floor. Captured red .floor/2026-09-07T03-20-25Z (trie 5860.1 ns vs array 3995.9 ns at card 64) is the consequence, not the margin."]
 fn token_bindings_representation_dominance() {
     use std::hint::black_box;
 
