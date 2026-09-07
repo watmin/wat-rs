@@ -17,104 +17,115 @@ Same fixture this morning: **109 deliveries/s, e2e ~12 s, non-deterministic.**
 
 ---
 
-## ⛔ WHERE WE ARE NOW — 2026-09-06, and where we are going
+## ⛔ WHERE WE ARE NOW — 2026-09-07
 
-**Floor green 5216/5216 through every stone below.** The arc is in its **perf phase**; its
-terminal condition is the builder's: **stop when wat's interpretation overhead is the dominant
-term.** Measured, it is nowhere near — see *the units*.
+**Floor green 5221/5221 through every stone.** 41 commits this session, 0 unpushed.
 
-### The number
+### ⛔⛔ THE HEADLINE — "publish" was never publish
 
-```
-8000 deliveries (2000 published x 4 subscribers)
-                          publish + drain      throughput
-before the perf phase          37.5 s            213/sec
-after 2 perf stones            23.7 s            338/sec
-after the retry stone          24.9 s            (regression, recovered below)
-after find-the-934             23.9 s            338/sec
-```
-
-### ⛔ THE ORDERED PLAN — re-ruled 2026-09-06, read the ruling before reordering
-
-1. ~~**Per-entry batch failure — CHAOS FIRST.**~~ ✅ DONE (`SCORE-entry-three-of-ten.md`).
-2. ~~**Per-entry outcomes on the batch surfaces.**~~ ⛔ **RULED OUT 2026-09-06.** See *the
-   atomicity ruling* below. It targeted a distinction neither Store implementation can produce.
-3. **`:max-entries [field N]`** — IN FLIGHT. `DESIGN/BRIEF/EXPECTATIONS-a-batch-declares-how-many`,
-   amended twice mid-strike (the field must be a sequence; carry the cap as a def, not a stash).
-4. **The atomicity contract** — NOT DRAWN. A floor test proving both `Store` implementations are
-   all-or-nothing, and the invariant written on the surface. Small. Earned by the ruling below.
-5. **The topic batch.** `:demo::Topic::PublishRequest [msg]` is **singular** and `circuit.wat`
-   calls it **2000 times** — the 23.5 s leader. Batching at 10 makes it 200 calls.
-   ⚠ Carry into that stone: **10 msgs x 4 subscribers = 40 bodies against inbox `cap 64`**, and a
-   send is all-or-nothing, so a 40-body batch needs 40 free slots or the whole thing bounces
-   `Full`. Batch size and cap must be chosen together, with a measurement.
-6. **`setup` 9.7 s + `stop` 6.3 s ≈ 16 s** — process spawn/reap, **40 % of the run**. The old
-   "boot-time, out of scope" ruling has expired; revisit once publish stops dominating.
-
-### ⛔ THE ATOMICITY RULING — 2026-09-06
-
-**A `Store` batch operation is all-or-nothing. A store that partially applies is out of spec.**
-
-Measured, both shipped implementations already hold it:
-
-- `wat/query/sqlite-store.wat:373-405` — `begin` → rows → `commit`, with **every** failure arm
-  routed through `close-then-err`.
-- `wat/query/mem.wat:633` — a pure `foldl` into a new immutable state, installed by the actor.
-
-★ The k-of-n chaos wrapper that motivated per-entry outcomes **had to lie to return at all**
-(`SCORE-entry-three-of-ten.md`). It was not a fault injection; it was an **invalid Store**. Saying
-so is what makes it invalid.
-
-⚠ **EXPIRY:** this ruling dies the day a `Store` implementation cannot hold atomicity — a
-DynamoDB-shaped backend (`BatchWriteItem` returns `UnprocessedItems`), or a batch spanning more
-than one transaction. On that day **per-entry outcomes is the correct shape**, and this is
-re-opened, not patched around.
-
-### Measured units — the floor under every estimate
+With backpressure removed (`cap 16384` instead of 64/32), the same 8000 pairs:
 
 ```
-bare round trip, thread locus  143 us   <- the interpretation + dispatch floor
-bare round trip, process       179 us
-Store/put                      675 us
-Store/count-index              517 us
-Store/scan-index limit 1       573 us
-two closures, narrow scope     1.6 us   <- capture is BY REFERENCE
-two closures, 16 bindings      1.8-2.3 us
-unused match arm, in a defn    0 ns     <- free
-unused match arm, in a SERVICE 30 us    <- NOT free. See the interpreter ruling
+                  publish   drain   retries
+cap 64/32 (ship)    20700     190      1375
+cap 16384            4872   22804         0
 ```
 
-★ **8000 x 143 us is ~1.1 s of a ~24 s system. Interpretation is nowhere near the leader.**
+★★★ **Accepting 8000 pairs takes 4.9 s. Draining them takes 22.8 s = 351 pairs/sec.** The 20.7 s
+we called "publish" all session was the publisher *waiting for the drain*, and `drain=190ms` was
+only the tail because everything had already drained during publish.
 
-### ⛔ THE INTERPRETER RULING — 2026-09-06, the builder's
+★★ And the per-message trace agrees — a message that did not bounce:
 
-**We do not chase interpreter internals here.** A large unused match arm costs ~30 us inside a
-`defservice` impl and 0 inside a `defn`, and `defservice` emits each impl body **twice** into one
-44 KB `serve`. Chasing *why* is bytecode-compilation work, which this phase explicitly does not do.
+```
+pub-work      0.506 ms    3.0%
+inbox-wait   11.119 ms   67.0%
+worker-proc   0.052 ms    0.3%
+fanout-work   0.077 ms    0.5%
+subq-wait     4.853 ms   29.2%
+e2e          16.608 ms
+```
 
-**What is banked and usable today — a SHAPE RULE:** keep service impl arms small; put a large body
-in a module-level `defn`. That is how the 934 ms was recovered.
+**96.2 % queueing, 0.8 % processing.** Even attributing both `Store/put`s in full (675 µs each),
+durability is ≤8 % of e2e. The system is **queue-bound** — not durability-bound, not
+interpretation-bound.
 
-⚠ **Not "split the service."** A `defservice` is one serializing actor over one state — the
-queue's `send`/`receive`/`ack`/`stats`/`-tick` all read and write the same `waiters`, `outbox`,
-`depth`. Splitting them would need shared mutable state across actors. It is not an option.
+⚠ Uncapped *total* is worse (27.7 s vs 20.9 s): backpressure was also pacing, overlapping the
+publisher with the workers. Both regimes are real; we had only ever measured one.
 
-### ⛔ RULES EARNED — they cost stones
+### ⛔ THE NEXT STONE — is 351 pairs/sec a constant or a curve?
 
-1. **`publish` alone is a Goodhart metric.** Measure **`publish + drain`**.
-2. **A row gates what the stone CONTROLS, never what it expects to follow.**
-3. **State what must HOLD, not what was last OBSERVED.** `distinct` is gated; `dup` and timings
-   are reported.
+The builder's own benchmark shape: **fill deep, then drain, and plot pairs/sec against depth.**
+Never run here. If flat, the system paces honestly under load; if it degrades, that is the thing
+to attack.
+
+★ `a count never reads more than it needs` (`e6f840dc9`) was drawn **as its prerequisite** — before
+it, a deep drain would have spent its time in our own unbounded `COUNT(*)`.
+
+### THE OTHER OPEN ITEMS
+
+1. **`collect` 5.9 s** — the harness measuring itself: `collect-stop` ships 8000 Outcome records,
+   `Worker::disrupts` returns an accumulated `points` String. Both unbounded responses, and
+   `:max-page` + `scan-index-all` already exist unused by the harness.
+2. **The 2.4× at m=8** — fanout-worker buckets: `:limit 10` over 8 destinations is 1.25 per bucket.
+   Now *safe* to address because responses are bounded.
+3. **`setup` 12.4 s** — cold boot. **Parked by the builder.**
+4. **`drain` 0.2 s / `stop` 0.4 s** — nothing left in either. Done.
+
+### ⛔ THE LAYER THAT EMERGED — surface vs userland
+
+The builder's framing, now the arc's shape:
+
+| layer | what it is |
+|---|---|
+| **surface + service** | the wire contract. Declares limits, **rejects** violations, one round trip, no policy. The DoS wall. |
+| **userland** (`-all`) | makes a bound invisible without violating it. Opt-in **by name**. |
+
+- **write:** `:max-entries` bounds the request; `<op>-all` chunks and sums the prefix
+- **read:** `:max-page` bounds the response; `<op>-all` follows the cursor, yields a `Stream`
+- both emit the tool **iff** the declarations that make it sound are present
+
+⚠ **Limits are contract; nobody raises one to fit a caller** (SNS 10, SQS 10, DDB 25). The instinct
+to raise one means the flaw is elsewhere. I removed `Queue::send`'s cap to paper over an oversized
+caller and had to put it back.
+
+★★ **`circuit.wat` still holds eight hand-rolled userland helpers** (`publish-until-accepted!*`,
+`drop-first`, `backoff-delay`, …) — **already duplicated once** into the Publisher child, because a
+process child cannot see script helpers. That duplication is why its bugs kept surfacing. The layer
+belongs in `wat/`, frozen into the binary.
+
+### RULES EARNED — they cost stones
+
+1. **`publish` alone is a Goodhart metric.** Measure `publish + drain`.
+2. **A row gates what the stone CONTROLS**, never what it expects to follow.
+3. **State what must HOLD, not what was last OBSERVED.**
 4. **Every perf stone names the NEW DOMINANT TERM**, with numbers.
-5. **"Our impl provably cannot fail that way" is usually "we never injected it."**
-6. **A perf delta measured against a stale baseline understates itself twice over.** Always A/B
-   against the run **immediately** before, on a quiet box, `sqs.wat` swapped in place.
-7. **A micro-probe that does not reproduce the production SHAPE proves nothing.** The closure
-   probes were captureless in a two-binding scope; the real ones captured from a deep environment.
-   Ask what differs between probe and production **before** using the number.
-8. **Name an exemplar by where it is DEFINED, not where you last saw it used.** Two misses in one
-   stone came from citing the consumption site (`service.wat:1720`) instead of the emission site
-   (`types.rs:3647`).
+5. **"Provably cannot fail that way" is usually "we never injected it."**
+6. **A perf delta against a stale baseline understates itself twice over.**
+7. **A micro-probe that does not reproduce the production SHAPE proves nothing.**
+8. **Name an exemplar by where it is DEFINED, not where you last saw it used.**
+9. **A macro must never splice a handler body into more than one branch** — invisible in the
+   source, ~30 µs per op in a `defservice` arm.
+10. **We bounded what a read RETURNS and never what it EXAMINES.** `count-index` returned one i64
+    and walked every row. Ask both questions of every read.
+11. **Pin BOTH delay sites or neither** — `circuit.wat`'s parent helper and the Publisher child's
+    inlined copy are separate; patching one silently measures the other.
+
+### MEASURED UNITS
+
+```
+bare round trip, thread    143 us     the interpretation floor
+bare round trip, process   179 us
+Store/put                  675 us
+Store/count-index          517 us
+unused match arm, defn       0 ns
+unused match arm, SERVICE   30 us     keep service impl arms small
+two closures               1.6 us     capture is BY REFERENCE
+await-timer-ms 1          1269 us     ~270 us of it is timer machinery
+```
+
+★ 8000 × 143 µs ≈ 1.1 s against a ~40 s run. **Interpretation is nowhere near the leader**, and the
+trace now says why: 96 % of a message's life is waiting.
 
 ## THE MAIN LINE
 
