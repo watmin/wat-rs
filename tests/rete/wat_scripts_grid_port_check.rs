@@ -98,6 +98,15 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
          facts (count/sum/min/max/exists) — 10 groups * 5 = 50.",
     ),
     (
+        "accum-lead-rule-cascade",
+        &[3, 2, 3],
+        2,
+        "size=[items anchors depth]; Busy(k,n) :- [?n <- acc::count :from Reading] AND Anchor(k). \
+         The Link cascade is INERT (unread). :derived is enc(k,n) per Busy, sorted not deduped. \
+         Expected count = anchors = 2, CONSTANT in depth — constancy IS the assertion, not a \
+         formula of the depth dial. Non-vacuity is anchors>0 plus the three-way.",
+    ),
+    (
         "accum-over-derived",
         &[9],
         10,

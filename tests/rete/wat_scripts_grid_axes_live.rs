@@ -72,6 +72,13 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          is already non-empty.",
     ),
     (
+        "accum-lead-rule-cascade",
+        &[2, 1, 2],
+        "size=[items anchors depth]; leading acc::count :from Reading joined to Anchor. \
+         anchors=1 derives one Busy — non-empty. The correctness size is [3 2 3]; this is \
+         liveness. Count is anchors, not depth.",
+    ),
+    (
         "accum-over-derived",
         &[4],
         "size=[depth]; Step(k):-Step(k-1) for k in [1,depth] plus one Tally. depth=4 is past \
