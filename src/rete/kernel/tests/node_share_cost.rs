@@ -473,7 +473,10 @@ fn node_share_where_cost_decomposition() {
                     continue;
                 }
                 if proven.contains(&tid) && arm.where_tree.is_pure_cmp(tid) {
-                    super::census_count("filter:test-reuse");
+                    // Production parity: `dispatch_where_tests` bumps `filter:test-reuse` here
+                    // (`fire/mod.rs`). The reconstruction must pay that cost. The key is
+                    // `bench:`-scoped so a synthetic loop cannot feed a production reader.
+                    super::census_count("bench:filter-reuse");
                     black_box(arm.beta_readers.contains(&tid));
                     continue;
                 }
@@ -497,7 +500,10 @@ fn node_share_where_cost_decomposition() {
                     continue;
                 }
                 if proven.contains(&tid) && arm.where_tree.is_pure_cmp(tid) {
-                    super::census_count("filter:test-reuse");
+                    // Production parity: `dispatch_where_tests` bumps `filter:test-reuse` here
+                    // (`fire/mod.rs`). The reconstruction must pay that cost. The key is
+                    // `bench:`-scoped so a synthetic loop cannot feed a production reader.
+                    super::census_count("bench:filter-reuse");
                     black_box(arm.beta_readers.contains(&tid));
                     d_beta.entry(tid).or_default().push(*tok);
                     continue;
