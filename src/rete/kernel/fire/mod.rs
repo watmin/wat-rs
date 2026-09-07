@@ -493,6 +493,8 @@ fn token_exists_under<B: Bindings + ?Sized>(
         }
         // rune:temperare(simplicity-win) — combinator :not/:exists still PMap::from_pairs;
         // leaf already uses BindView. n tokens with combinator inners is the rare path.
+        // Measured 2026-09-07 on floor 2026-09-07T02-03-18Z (5471 passed): re-derives 206 /
+        // hoisted 245583 (0.084%). Premise holds. No hoist.
         other => {
             let seed = crate::value::pmap::PMap::from_pairs(
                 tok.iter().map(|(k, v)| (k.clone(), v.clone())),
