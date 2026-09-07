@@ -15,7 +15,8 @@ reveals.
 | 6 | correctness untouched | n=2000 fill-first | `total=8000;distinct=8000;dup=0` |
 | 7 | curve undisturbed | n=500 / 1000 | within **±15 %** of 3922 / 3160 |
 | 8 | chaos unchanged | `scripts/floor.sh`, count `drop` | **38 drop tests pass** |
-| 9 | scripts load | `cargo nextest run --release every_wat_scripts_file_loads` | green |
+| 9 | scripts load | `cargo nextest run --release every_wat_scripts_file_loads` | green — **five of the six extra files are members** |
+| 9b | the eight out-of-blast sites took a `_` and nothing else | `git diff -- wat-scripts/topic wat-scripts/scratch-pad` | **only** a trailing binding added per site; no logic, no renames, no tidying |
 | 10 | the floor | `scripts/floor.sh` | **read the Summary line**: 5221 passed (± added) |
 
 ⚠ **Row 7 is the one that could quietly fail.** A counter is nearly free, but `sqs.wat` is on the hot
@@ -24,6 +25,11 @@ instrument is changing the thing it measures and that is a finding, not a roundi
 
 ⚠ **Row 3 says "roughly doubles", not a band.** The exact ratio is the *output* of this stone. Pinning
 it would be gating on the answer.
+
+⚠ **Row 9b exists because the blast radius grew after STOP-1.** Eight sites in six files are being
+touched purely to absorb one extra binding. A file opened for a mechanical edit is a file where an
+unrelated "improvement" is cheap to slip in — and five of them are floor members. The diff must be
+boring.
 
 ## Runtime prediction
 
