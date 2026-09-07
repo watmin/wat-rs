@@ -710,7 +710,7 @@ fn seed_counts(world: &crate::freeze::FrozenWorld, entry: &str) -> (u64, u64, u6
     (
         get("seed:batch-class-uniform"),
         get("seed:batch-class-mixed"),
-        get("seed:mixed-class-activate"),
+        get("seed:mixed-fact-activate"),
     )
 }
 
