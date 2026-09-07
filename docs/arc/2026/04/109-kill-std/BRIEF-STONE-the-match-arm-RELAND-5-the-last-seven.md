@@ -38,9 +38,37 @@ go dead.
 ★ This is the one that matters beyond the migration: **the rete compiler is wat's future, and it
 cannot lower the language's current match form.** It should move with the grammar, not behind it.
 
-**Work:** teach `expr_ir.rs`'s match lowering the bracket clause + map pattern — `[_ body]`,
-`[<binder> body]`, `[<Variant> {:k v} body]`, and the nested `[Variant {:k v}]` (no body) form.
-`purity.rs:1306`'s classifier needs the same.
+### ⛔ AMENDED — this is an IR CHANGE, not an arm reader fix. I understated it.
+
+Reading the code rather than the error message: rete's refusal is a **stated scope boundary**, not
+drift. `lower_pat` says so twice, in as many words:
+
+```rust
+"match map-destructure is not lowered in v1"      // at the List-with-Map head, and at a bare Map
+Pat::Variant { name, payload: Option<Box<Pat>> }  // payload is ONE POSITIONAL nested pattern
+```
+
+So `lower()` is not failing to keep up — it is correctly refusing something it was never given. The
+work is three layers, and only the first is what I originally wrote:
+
+```
+1  lower_match gains a WatAST::Vector arm (the bracket clause)             small
+2  Pat::Variant's payload becomes NAMED — Option<Box<Pat>> cannot express
+   {:k v}; it needs field-name -> sub-pattern                              AN IR CHANGE
+3  the matcher consuming Pat binds BY NAME, not by position
+```
+
+★ **It is the identical position→name move the surface just made, one layer down.** The arms went
+from `(Variant a b)` to `[Variant {:a a :b b}]`; `Pat::Variant` is still `(name, one positional
+payload)`. And once the payload is named, **rete needs the declared field names too** — the same
+fact the codemod needed and could not get until 296 L. `type-of` pays off a second time, here.
+
+**Work:** items 1-3 above, plus `purity.rs:1306`'s classifier. Include the nested `[Variant {:k v}]`
+(no body) form.
+
+⚠ **If this is too large for this reland, SAY SO and split it** — causes 1 and 3 are independent and
+can land without it. A grid axis staying dead with a NAMED reason is honest; a widened refusal is
+not (STOP-3).
 
 ## CAUSE 3 — NOT THIS STONE'S (`wat_scripts` loader ×1)
 
