@@ -172,3 +172,66 @@ lost is DRY, not the invariant — and the invariant is the stone.
 the queue's `:ephemeral [store <- Peer …]` both do it.
 
 **Re-drawn as `DESIGN/BRIEF/EXPECTATIONS-exhaustion-is-a-named-variant.md`.**
+
+---
+
+# CORRECTION — claude, 2026-09-07, same session
+
+**The probe I committed on the DRAWN commit was wrong, and the GRADING above repeats its error.**
+
+`probe-a-local-fn-can-be-generic.wat` concluded *"a generic local `fn` dies at EVERY call site"* and
+quoted `parameter #1 expects :wat::core::T; got :wat::core::i64`. **That error was my syntax.** I
+declared `:- [T]` and then wrote the parameters as `:wat::core::T`. The correct form —
+`wat/io.wat:40` is the exemplar — declares `:- [T]` and writes parameters as `:T` / `T`. Every
+conclusion rested on a type name that was never the type parameter.
+
+Re-measured with the correct syntax:
+
+```
+TOP-LEVEL defn   applied at i64 AND String  ->  BOTH WORK   "i64=3 String=hi!!"
+LOCAL fn         applied at i64             ->  works
+                 then applied at String     ->  "(value head): parameter #1
+                                                 expects :wat::core::i64;
+                                                 got :wat::core::String"
+```
+
+★ **A local `fn`'s type parameter instantiates once, at first use, then freezes. A top-level `defn`
+instantiates per call site.**
+
+## What this changes
+
+| claim | status |
+|---|---|
+| "the LOOP cannot be shared" (GRADING, above) | ⚠ **too strong.** Not by a local `fn`; **yes** by a top-level `defn` |
+| "a generic local `fn` never instantiates its type parameter" | ✗ **false.** It instantiates exactly once |
+| "the TYPE cannot be shared" (parametric enum is `Open` in the child) | ✅ **stands** — measured separately, correct syntax, unaffected |
+| two closed enums are the fallback | ✅ stands |
+
+⚠ The *conclusion* for a circuit-local fix is unchanged — a local `fn` still cannot serve both peer
+types — but the **reason** was wrong, and the wrong reason hid an option.
+
+## ⛔ THE OPTION IT HID
+
+A shared combinator **is** buildable as a generic top-level `defn`. It is not buildable inside
+`circuit.wat`, because the worker child runs `:env-fn "(:wat::program::EmptyEnv)"` (`:2086`) and
+cannot see the file's own `defn`s. **It can see the stdlib** — `circuit.wat` makes 71 `:wat::` calls
+from inside service impls.
+
+★★★ So the real choice is not *"one enum or two"*. It is **where the retry layer lives**:
+
+- **in `circuit.wat`** — two closed enums, two hand-rolled loops. Ships soon, and adds a fourth and
+  fifth hand-rolling to a file the tracker already flags as holding eight helpers that belong in
+  `wat/`.
+- **in `wat/`** — one generic combinator, one outcome shape, visible to every process child. The
+  `EmptyEnv` constraint that killed both of my designs **stops existing**.
+
+⚠ And the tracker already ruled on this before today: *"`circuit.wat` still holds eight hand-rolled
+userland helpers … already duplicated once into the Publisher child, because a process child cannot
+see script helpers. **That duplication is why its bugs kept surfacing. The layer belongs in `wat/`,
+frozen into the binary.**"*
+
+★★ Today produced the evidence for that ruling rather than a counter-example to it: three ladders,
+one shape, two of them dropping their exhaustion flag — all of it hand-rolled in a file that cannot
+share code with its own children.
+
+**The probe is corrected on disk and runs green.** No stone is re-drawn on this correction yet.

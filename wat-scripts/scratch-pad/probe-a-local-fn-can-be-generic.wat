@@ -1,55 +1,51 @@
-;; probe-a-local-fn-can-be-generic.wat — arc 278, drawn for
-;; `one retry OUTCOME, three call sites`.
+;; probe-a-local-fn-can-be-generic.wat — arc 278.
 ;;
-;; ⛔ THE ANSWER IS NO — and that answer shaped the stone.
+;; ⛔ THIS PROBE WAS WRONG ON 2026-09-07 AND IS CORRECTED HERE.
 ;;
-;; circuit.wat's worker holds three hand-rolled retry ladders (check :513, mark
-;; :574, ack :591). Two speak to a `Seen` peer, one to a `Queue` peer. A single
-;; shared combinator would have to be GENERIC over the peer's [Op Reply] pair, and
-;; it would have to be a LOCAL `fn`: the worker runs in a process child with
-;; `:env-fn "(:wat::program::EmptyEnv)"` and cannot see a top-level `defn`.
+;; The first version concluded "a generic local fn dies at EVERY call site" and
+;; quoted `parameter #1 expects :wat::core::T; got :wat::core::i64`. That error was
+;; MY SYNTAX, not the language: I declared `:- [T]` and then wrote the parameters as
+;; `:wat::core::T`. The correct form — `wat/io.wat:40` is the exemplar — declares
+;; `:- [T]` and writes the parameters as `:T` / `T`. Everything the old probe
+;; claimed rested on a type name that was never the type parameter.
 ;;
-;; The generic local form was tried first:
+;; ★ THE ACTUAL RULE, measured with the correct syntax:
 ;;
-;;   twice (:wat::core::fn :- [:wat::core::T]
-;;            [x <- :wat::core::T  f <- [:wat::core::T :-> :wat::core::T]]
-;;            -> :wat::core::T  (f (f x)))
-;;   … (twice 1 bump) …  (twice "hi" shout)
+;;   TOP-LEVEL defn   applied at i64 AND String  ->  BOTH WORK ("i64=3 String=hi!!")
+;;   LOCAL fn         applied at i64             ->  works
+;;                    then applied at String     ->  "(value head): parameter #1
+;;                                                    expects :wat::core::i64;
+;;                                                    got :wat::core::String"
 ;;
-;; It DEFINES cleanly and then dies at every call site:
+;; A local `fn`'s type parameter is instantiated ONCE, at its first use, and then
+;; frozen. A top-level `defn` instantiates PER CALL SITE.
 ;;
-;;   (value head): parameter #1 expects :wat::core::T; got :wat::core::i64
-;;   (value head): parameter #2 expects [:wat::core::T :-> :wat::core::T];
-;;                 got [:wat::core::i64 :-> :wat::core::i64]
+;; ★★ WHY IT MATTERS HERE. circuit.wat's worker holds three retry ladders (check
+;; :513, mark :574, ack :591). Two speak to a `Seen` peer, one to a `Queue` peer, so
+;; one shared combinator must serve two types. That rules out a local `fn` — but NOT
+;; a top-level `defn`. The blocker for a top-level defn is different and separate:
+;; the worker runs in a process child with `:env-fn "(:wat::program::EmptyEnv)"`
+;; (:2086) and cannot see `circuit.wat`'s own defns. It CAN see the stdlib — the file
+;; makes 71 calls into `:wat::` from inside service impls.
 ;;
-;; A local `fn` bound in a `let` is a monomorphic VALUE; its type parameter is
-;; never instantiated by application. `wat/core.wat:1349` emits that same form, but
-;; from inside a macro, where the types are already concrete.
-;;
-;; ★ So the shape that must stop being re-hand-rolled is not the LOOP — it is the
-;; OUTCOME. A `bool` retry flag can be dropped, and at two of the three ladders it
-;; IS dropped. An enum variant cannot be: the match must name it. This probe is the
-;; worked reference for that shape.
-(:wat::core::defenum :fanout::probe::RetryOutcome :wat::enum::Pure
-  :Got       [value <- :wat::core::i64]
-  :Exhausted [attempts <- :wat::core::i64])
+;; ★★★ So a single shared combinator IS buildable — as a generic defn in `wat/`,
+;; frozen into the binary. It is not buildable inside circuit.wat. That is the
+;; choice this probe exists to make explicit.
+(:wat::core::defn :probe::twice :- [T]
+  [x <- :T  f <- [T :-> T]] -> :T
+  (f (f x)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [;; one monomorphic combinator, two call sites, exhaustion as a VALUE
-     try-until (:wat::core::fn
-                 [start <- :wat::core::i64  limit <- :wat::core::i64]
-                 -> :fanout::probe::RetryOutcome
-                 (:wat::core::if (:wat::i64::>= start limit)
-                   (:fanout::probe::RetryOutcome::Exhausted limit)
-                   (:fanout::probe::RetryOutcome::Got start)))
-     ;; the caller CANNOT ignore Exhausted — the match must name it
-     render (:wat::core::fn [o <- :fanout::probe::RetryOutcome] -> :wat::core::String
-              (:wat::core::match o
-                ((:fanout::probe::RetryOutcome::Got v)
-                  (:wat::core::format "got={v}" :v v))
-                ((:fanout::probe::RetryOutcome::Exhausted a)
-                  (:wat::core::format "EXHAUSTED after {a}" :a a))))
-     ok   (render (try-until 1 3))
-     dead (render (try-until 5 3))]
-    (:wat::kernel::println (:wat::core::format "{a} | {b}" :a ok :b dead))))
+    [bump  (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i 1))
+     shout (:wat::core::fn [s <- :wat::core::String] -> :wat::core::String (:wat::string::concat s "!"))
+     ;; a TOP-LEVEL generic defn, applied at two different types
+     n (:probe::twice 1 bump)
+     s (:probe::twice "hi" shout)
+     ;; a LOCAL generic fn, applied at ONE type — a second type here is a
+     ;; type error, which is the whole finding
+     once-only (:wat::core::fn :- [T] [x <- :T  f <- [T :-> T]] -> :T (f x))
+     k (once-only 10 bump)]
+    (:wat::kernel::println
+      (:wat::core::format "top: i64={n} String={s} | local (one type only): {k}"
+        :n n :s s :k k))))
