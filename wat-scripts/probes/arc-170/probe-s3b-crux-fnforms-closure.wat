@@ -19,20 +19,20 @@
      a  (:wat::core::match ra
           [:wat::kernel::RecvOutcome::Message {:msg m} m]
           [:wat::kernel::RecvOutcome::Lost {:cause cause}
-            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
           [:wat::kernel::RecvOutcome::Stopped {}
-            (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
           [:wat::kernel::RecvOutcome::Closed {}
-            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)])
+            (:wat::kernel::assertion-failed! :message "recv': w closed unexpectedly")])
      rb (:wat::kernel::recv w)
      b  (:wat::core::match rb
           [:wat::kernel::RecvOutcome::Message {:msg m} m]
           [:wat::kernel::RecvOutcome::Lost {:cause cause}
-            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
           [:wat::kernel::RecvOutcome::Stopped {}
-            (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
           [:wat::kernel::RecvOutcome::Closed {}
-            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)])]
+            (:wat::kernel::assertion-failed! :message "recv': w closed unexpectedly")])]
     (:wat::kernel::println
       (:wat::string::concat
         (:wat::i64::to-string (:wat::core::second a))

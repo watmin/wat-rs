@@ -38,9 +38,9 @@
                   -> :wat::core::String
                   (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
   [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)]))
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")]))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::bracket::process-dial-runner
                     (:wat::program::self-peer
@@ -58,25 +58,25 @@
                       (:wat::core::match (:wat::kernel::recv worker)
                         [:wat::kernel::RecvOutcome::Message {:msg m} m]
                         [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                          (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                         [:wat::kernel::RecvOutcome::Stopped {}
-                          (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+                          (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                         [:wat::kernel::RecvOutcome::Closed {}
-                          (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)])
+                          (:wat::kernel::assertion-failed! :message "recv': worker closed unexpectedly")])
                       (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 1 "b"))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
                  r2 (:wat::core::ann-form
                       (:wat::core::match (:wat::kernel::recv worker)
                         [:wat::kernel::RecvOutcome::Message {:msg m} m]
                         [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                          (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                         [:wat::kernel::RecvOutcome::Stopped {}
-                          (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+                          (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                         [:wat::kernel::RecvOutcome::Closed {}
-                          (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)])
+                          (:wat::kernel::assertion-failed! :message "recv': worker closed unexpectedly")])
                       (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))]
                 (:wat::string::concat (:wat::core::second r1)
                   (:wat::string::concat " | " (:wat::core::second r2))))]
             [:wat::core::None {}
-              (:wat::kernel::assertion-failed! "peer-pid None" :wat::core::None :wat::core::None)])]
+              (:wat::kernel::assertion-failed! :message "peer-pid None")])]
     (:wat::kernel::println out)))

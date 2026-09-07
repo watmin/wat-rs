@@ -47,10 +47,9 @@
   (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
     [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
     [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
-      (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge"
-        :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
     [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-      (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; arc 170 C2 D — the checker RETURNS `(::Coords, ::GrantHandles)` (a Tuple: the pure
 ;; field-ordered Address'+data record, and the impure parent-local typed-handle struct);

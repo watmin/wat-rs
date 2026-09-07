@@ -80,9 +80,9 @@
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None)]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None)]
-         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)])]
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
     (:wat::core::do (:tco::try c "service : non-tail") nil)))
 
 ;; ── row 2: the SAME call, now the let's tail — TCO drops the frame first ─────────
@@ -91,9 +91,9 @@
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None)]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None)]
-         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)])]
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
     (:tco::try c "service : let-TAIL")))
 
 ;; ── rows 3+4: a NON-service live resource — a raw kernel Listener' ───────────────

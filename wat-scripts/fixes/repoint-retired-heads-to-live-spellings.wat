@@ -126,7 +126,7 @@
      tree  (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
              [:wat::core::ReadOutcome::Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      eds   (:user::process-grants-walk (:wat::core::ast->children tree) src lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
@@ -208,7 +208,7 @@
      tree  (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
              [:wat::core::ReadOutcome::Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      eds   (:user::tuple-get-zero-walk (:wat::core::ast->children tree) src lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
@@ -236,6 +236,6 @@
     (:wat::core::match (:wat::kernel::readln )
       [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
       [:wat::kernel::ReadlnOutcome::Eof {}
-        (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "readln: end of input")]
       [:wat::kernel::ReadlnOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

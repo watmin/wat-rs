@@ -93,13 +93,13 @@
                 (:probe-retag::serve-thread self l
                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                   false -1))))
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op::Ping)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
      r    (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open" :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': c closed" :wat::core::None :wat::core::None)])]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': c closed")])]
     r))
 
 ;; ── PROCESS tier — IDENTICAL shape, forked child universe. The child re-declares Surface + Svc
@@ -165,16 +165,16 @@
                     false -1)))))
      addr (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open" :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)])
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])
+     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op::Ping)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
      r    (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open" :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': c closed" :wat::core::None :wat::core::None)])]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': c closed")])]
     r))
 
 ;; ── the assertion — BOTH tiers: the client's RE-TAGGED :Ping AND the timer's pass-through :Tick ────

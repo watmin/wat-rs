@@ -111,7 +111,7 @@ pub struct AssertionPayload {
     pub raised_error: Option<Value>,
 }
 
-/// `(:wat::kernel::assertion-failed! message actual expected)` → `:()`.
+/// `(:wat::kernel::assertion-failed!' message actual expected)` → `:()`.
 ///
 /// Signature (registered in `check.rs`):
 /// - `message`: `:String` — short diagnostic (e.g., `"assert-eq failed"`).
@@ -130,7 +130,7 @@ pub fn eval_kernel_assertion_failed(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::assertion-failed!";
+    const OP: &str = ":wat::kernel::assertion-failed!'";
 
     if args.len() != 3 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {

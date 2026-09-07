@@ -21,9 +21,7 @@
     [:wat::core::ReadWithCommentsOutcome::Forms {:forms forms :comments comments}
       (:wat::core::length comments)]
     [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
-      (:wat::kernel::assertion-failed!
-        (:wat::string::concat tag (:wat::core::Error/message cause))
-        :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::string::concat tag (:wat::core::Error/message cause)))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

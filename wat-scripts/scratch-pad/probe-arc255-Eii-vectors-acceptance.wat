@@ -3,7 +3,7 @@
 (:wat::core::defn :user::check [label <- :wat::core::String cond <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if cond
     (:wat::kernel::println (:wat::string::concat "ok   " label))
-    (:wat::kernel::assertion-failed! (:wat::string::concat "FAIL " label) :wat::core::None :wat::core::None)))
+    (:wat::kernel::assertion-failed! :message (:wat::string::concat "FAIL " label))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

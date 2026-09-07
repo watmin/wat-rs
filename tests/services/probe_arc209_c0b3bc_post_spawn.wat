@@ -14,17 +14,17 @@
      tx    (:wat::core::match (:wat::kernel::connect addr)
              [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
              [:wat::kernel::ConnectOutcome::Refused {:cause _c}
-               (:wat::kernel::assertion-failed! "connect': refused binding the hook channel" :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message "connect': refused binding the hook channel")]
              [:wat::kernel::ConnectOutcome::Rejected {:cause _c}
-               (:wat::kernel::assertion-failed! "connect': rejected binding the hook channel" :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message "connect': rejected binding the hook channel")]
              [:wat::kernel::ConnectOutcome::Failed {:cause _c}
-               (:wat::kernel::assertion-failed! "connect': failed binding the hook channel" :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message "connect': failed binding the hook channel")])
      rx    (:wat::core::match (:wat::kernel::accept lis)
              [:wat::kernel::AcceptOutcome::Accepted {:peer p} p]
              [:wat::kernel::AcceptOutcome::Closed {}
-               (:wat::kernel::assertion-failed! "accept': listener closed before the hook channel was accepted" :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message "accept': listener closed before the hook channel was accepted")]
              [:wat::kernel::AcceptOutcome::Failed {:cause _c}
-               (:wat::kernel::assertion-failed! "accept': failed accepting the hook channel" :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message "accept': failed accepting the hook channel")])
      _proc (:wat::test::spawn-peer
              (:wat::spawn::process/post-spawn
                (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -35,9 +35,9 @@
      pid   (:wat::core::match (:wat::kernel::recv rx)
              [:wat::kernel::RecvOutcome::Message {:msg m} m]
              [:wat::kernel::RecvOutcome::Lost {:cause cause}
-               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
              [:wat::kernel::RecvOutcome::Stopped {}
-               (:wat::kernel::assertion-failed! "recv': stopped before the post-spawn hook sent the pid — the peer was ALIVE" :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message "recv': stopped before the post-spawn hook sent the pid — the peer was ALIVE")]
              [:wat::kernel::RecvOutcome::Closed {}
-               (:wat::kernel::assertion-failed! "recv': rx closed before the post-spawn hook sent the pid" :wat::core::None :wat::core::None)])]
+               (:wat::kernel::assertion-failed! :message "recv': rx closed before the post-spawn hook sent the pid")])]
     pid))

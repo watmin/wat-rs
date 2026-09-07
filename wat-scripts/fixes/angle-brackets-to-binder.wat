@@ -223,11 +223,9 @@
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:user::angle-shaped-keyword? node)
     (:wat::core::if call-head?
-      (:wat::kernel::assertion-failed!
-        (:wat::string::interpolate
+      (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
           "angle-brackets-to-binder: refusing call-head site `{n}` — a call-site type application (class D) or method-member name (class C) has no REFERENCE-role render (it is not a callable/name, a form is not a name). Hand-fix it per BRIEF-STONE-annihilate-the-angle-bracket.md STEP 2 instead of running this codemod over it."
-          :n (:wat::core::ast-name node))
-        :wat::core::None :wat::core::None)
+          :n (:wat::core::ast-name node)))
       (:wat::core::let [nm      (:wat::core::ast-name node)
                          text    (:wat::core::if prev-decl-head?
                                    (:user::render-decl nm)
@@ -273,7 +271,7 @@
                     tree      (:wat::core::match (:wat::core::read-string src)
                                  [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
                                  [:wat::core::ReadOutcome::Malformed {:cause __cause}
-                                   (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+                                   (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
                     all-edits (:user::seq-edits forms lines true false "top")
                     rev-edits (:wat::core::reverse all-edits)]
@@ -295,5 +293,5 @@
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
-      [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])))
+      [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
+      [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

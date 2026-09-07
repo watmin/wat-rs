@@ -37,16 +37,15 @@
       (:wat::core::match recvd
         [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
         [:probe::Echo::EchoResponse::RequestTooLarge {:bytes _b :cap _c}
-          (:wat::kernel::assertion-failed! "too-large" :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message "too-large")]
         [:probe::Echo::EchoResponse::RequestMalformed {:path _p :expected _e :got _g}
-          (:wat::kernel::assertion-failed! "malformed" :wat::core::None :wat::core::None)])]
+          (:wat::kernel::assertion-failed! :message "malformed")])]
     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause)
-        :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     [:wat::kernel::RecvOutcome::Stopped {}
-      (:wat::kernel::assertion-failed! "stopped" :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "stopped")]
     [:wat::kernel::RecvOutcome::Closed {}
-      (:wat::kernel::assertion-failed! "closed" :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "closed")]))
 
 (:wat::core::defn :probe::illegal [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let

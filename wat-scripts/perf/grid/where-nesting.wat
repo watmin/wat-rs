@@ -229,9 +229,7 @@
       ((:wat::core::= row 10) (:wnst::int-then-compare))
       ((:wat::core::= row 11) (:wnst::bool-direct))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-nesting: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-nesting: unknown row " (:wat::i64::to-string row)))))))
 
 ;; seed session items — stage Req(i) for i in [0, items). Both fields are FORMULAS over i (rule 3):
 ;;   k(i) = i

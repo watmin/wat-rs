@@ -34,10 +34,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::kernel::assertion-failed!
-               "intentional panic from probe_run_hermetic_no_deadlock"
-               :wat::core::None
-               :wat::core::None))))]
+             (:wat::kernel::assertion-failed! :message "intentional panic from probe_run_hermetic_no_deadlock"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}

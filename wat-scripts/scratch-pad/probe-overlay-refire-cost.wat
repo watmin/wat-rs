@@ -135,11 +135,9 @@
      _guard    (:wat::core::if
                  (:wat::core::= ovl-d (:wat::i64::+ base-d (:ovl::temp-n)))
                  nil
-                 (:wat::kernel::assertion-failed!
-                   (:wat::string::concat
+                 (:wat::kernel::assertion-failed! :message (:wat::string::concat
                      (:wat::string::concat "overlay derived " (:wat::i64::to-string ovl-d))
-                     (:wat::string::concat " but base was " (:wat::i64::to-string base-d)))
-                   :wat::core::None :wat::core::None))]
+                     (:wat::string::concat " but base was " (:wat::i64::to-string base-d)))))]
     (:wat::string::concat
       (:wat::string::concat
         (:wat::string::concat "n=" (:wat::i64::to-string n))

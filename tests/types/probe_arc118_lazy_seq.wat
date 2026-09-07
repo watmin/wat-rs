@@ -23,6 +23,6 @@
             [:wat::stream::NextOutcome::Item {:value second-value :rest _rest2}
               (:wat::core::do (:wat::kernel::pprintln second-value) nil)]
             [:wat::stream::NextOutcome::Exhausted {}
-              (:wat::kernel::assertion-failed! "expected a second element, stream exhausted" :wat::core::None :wat::core::None)]))]
+              (:wat::kernel::assertion-failed! :message "expected a second element, stream exhausted")]))]
       [:wat::stream::NextOutcome::Exhausted {}
-        (:wat::kernel::assertion-failed! "expected a first element, stream exhausted" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "expected a first element, stream exhausted")])))

@@ -61,10 +61,7 @@
 (:wat::core::defn :wat::test::assert-eq :- [T] [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) 
       nil
-      (:wat::kernel::assertion-failed!
-        "assert-eq failed"
-        (:wat::core::Some (:wat::core::show actual))
-        (:wat::core::Some (:wat::core::show expected)))))
+      (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Some (:wat::core::show actual)) :expected (:wat::core::Some (:wat::core::show expected)))))
 
 ;; ─── assert-true / assert-false ───────────────────────────────────────
 ;;
@@ -76,17 +73,11 @@
 (:wat::core::defn :wat::test::assert-true [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
       nil
-      (:wat::kernel::assertion-failed!
-        "assert-true failed"
-        (:wat::core::Some (:wat::core::show actual))
-        (:wat::core::Some "true"))))
+      (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Some (:wat::core::show actual)) :expected (:wat::core::Some "true"))))
 
 (:wat::core::defn :wat::test::assert-false [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
-      (:wat::kernel::assertion-failed!
-        "assert-false failed"
-        (:wat::core::Some (:wat::core::show actual))
-        (:wat::core::Some "false"))
+      (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Some (:wat::core::show actual)) :expected (:wat::core::Some "false"))
       nil))
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
@@ -97,10 +88,7 @@
 (:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::string::contains? haystack needle) 
       nil
-      (:wat::kernel::assertion-failed!
-        "assert-contains failed"
-        (:wat::core::Some haystack)
-        (:wat::core::Some needle))))
+      (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Some haystack) :expected (:wat::core::Some needle))))
 
 ;; ─── assert-coincident ────────────────────────────────────────────────
 ;;
@@ -132,10 +120,7 @@
         (:wat::holon::CoincidentExplanation/coincident expl)]
       (:wat::core::if ok 
         nil
-        (:wat::kernel::assertion-failed!
-          "assert-coincident failed — holons not at the same point"
-          (:wat::core::Some (:wat::test::render-coincident-explanation expl))
-          :wat::core::None))))
+        (:wat::kernel::assertion-failed! :message "assert-coincident failed — holons not at the same point" :actual (:wat::core::Some (:wat::test::render-coincident-explanation expl))))))
 
 ;; Helper — turn a CoincidentExplanation into a multi-line, named-
 ;; field string for assertion failure displays. Each field on its own

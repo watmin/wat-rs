@@ -118,11 +118,11 @@
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
     [:wat::kernel::ConnectOutcome::Refused {:cause cz}
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
     [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
     [:wat::kernel::ConnectOutcome::Failed {:cause cz}
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))
 
 (:wat::core::defn :wat-tests::pcache/label
   [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [:wat::core::String :wat::core::i64])])]
@@ -153,11 +153,11 @@
               (:wat::string::concat "/" (:wat::string::concat mexpected
                 (:wat::string::concat "/" mgot)))))])]
     [:wat::kernel::RecvOutcome::Lost {:cause __cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
     [:wat::kernel::RecvOutcome::Stopped {}
-      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
     [:wat::kernel::RecvOutcome::Closed {}
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 (:wat::core::defn :wat-tests::pcache/run [locus <- :wat::spawn::Locus] -> :wat::core::String
   (:wat::core::let

@@ -19,8 +19,7 @@
   [acc <- :wat::core::i64
    x   <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::kernel::assertion-failed! "boom inside the fold"
-    :wat::core::None :wat::core::None))
+  (:wat::kernel::assertion-failed! :message "boom inside the fold"))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

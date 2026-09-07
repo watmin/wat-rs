@@ -95,10 +95,8 @@
   (:wat::core::let [parts (:wat::string::split fqdn "::")
                     n     (:wat::core::length parts)]
     (:wat::core::if (:wat::core::< n 2)
-      (:wat::kernel::assertion-failed!
-        (:wat::string::concat
-          "type-query-to-defquery: type has no namespace: " fqdn)
-        :wat::core::None :wat::core::None)
+      (:wat::kernel::assertion-failed! :message (:wat::string::concat
+          "type-query-to-defquery: type has no namespace: " fqdn))
       (:wat::core::let [ty (:wat::core::Option/expect
                              (:wat::core::get parts (:wat::i64::- n 1))
                              "type->qname: last")
@@ -158,9 +156,7 @@
               (:wat::core::Option/expect
                 (:wat::core::get ch 2)
                 "node-type: qbts string")))
-          (:wat::kernel::assertion-failed!
-            "type-query-to-defquery: query-by-type-string must be (session \"ns::Type\")"
-            :wat::core::None :wat::core::None)))
+          (:wat::kernel::assertion-failed! :message "type-query-to-defquery: query-by-type-string must be (session \"ns::Type\")")))
       :wat::core::None)))
 
 (:wat::core::defn :user::collect-types
@@ -410,9 +406,7 @@
      tree  (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
              [:wat::core::ReadOutcome::Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed!
-                 (:wat::core::Error/message __cause)
-                 :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms (:wat::core::ast->children tree)
      types (:user::collect-types-seq forms
              (:wat::core::Vector :- [:wat::core::String]))
@@ -423,9 +417,7 @@
       (:wat::core::let
         [_comp (:wat::core::if (:user::has-compile-seq forms)
                  nil
-                 (:wat::kernel::assertion-failed!
-                   "type-query-to-defquery: heretic query in a file with no compile"
-                   :wat::core::None :wat::core::None))
+                 (:wat::kernel::assertion-failed! :message "type-query-to-defquery: heretic query in a file with no compile"))
          inserted (:user::needed-texts types existing)
          ins-edits
            (:wat::core::if (:wat::core::= inserted "")
@@ -464,8 +456,6 @@
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
       [:wat::kernel::ReadlnOutcome::Eof {}
-        (:wat::kernel::assertion-failed! "readln: end of input"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "readln: end of input")]
       [:wat::kernel::ReadlnOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "readln: stop requested"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

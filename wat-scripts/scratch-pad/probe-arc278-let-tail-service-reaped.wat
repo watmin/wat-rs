@@ -61,9 +61,9 @@
     [h (:tl::bag-svc/start :locus (:wat::spawn::thread) :record (:tl::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tl::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None)]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None)]
-         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)])
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])
      ;; CONTROL — the same call from a BINDING slot: served.
      _ (:tl::try c "from let-BINDING")]
     ;; THE VIOLATION — the same call from the TAIL: closed.

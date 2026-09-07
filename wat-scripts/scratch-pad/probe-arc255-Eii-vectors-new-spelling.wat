@@ -8,4 +8,4 @@
      total (:wat::core::+ (:wat::vector::length pv) (:wat::vec::length v))]
     (:wat::core::if (:wat::core::= total 4)
       (:wat::kernel::println "OK")
-      (:wat::kernel::assertion-failed! (:wat::string::concat "expected 4, got " (:wat::core::str total)) :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! :message (:wat::string::concat "expected 4, got " (:wat::core::str total))))))

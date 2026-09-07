@@ -73,8 +73,7 @@
           [s (:wat::time::to-iso8601 i 3)]
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123Z"))]
       [:wat::core::None {}
-        (:wat::kernel::assertion-failed!
-          "from-iso8601 returned None for valid input" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "from-iso8601 returned None for valid input")])))
 
 
 ;; ─── from-iso8601 / to-iso8601 — round-trip 9 digits ──────────────
@@ -90,9 +89,7 @@
           [s (:wat::time::to-iso8601 i 9)]
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123456789Z"))]
       [:wat::core::None {}
-        (:wat::kernel::assertion-failed!
-          "from-iso8601 returned None for nanosecond-precision input"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "from-iso8601 returned None for nanosecond-precision input")])))
 
 
 ;; ─── from-iso8601 — :None on parse failure ────────────────────────

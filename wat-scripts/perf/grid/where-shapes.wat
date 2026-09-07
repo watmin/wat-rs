@@ -170,9 +170,7 @@
       ((:wat::core::= row 5) (:wsh::userfn))
       ((:wat::core::= row 6) (:wsh::cross-var))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-shapes: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-shapes: unknown row " (:wat::i64::to-string row)))))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
 ;;

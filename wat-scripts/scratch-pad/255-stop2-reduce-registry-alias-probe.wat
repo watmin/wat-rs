@@ -27,5 +27,5 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::if (:wat::core::and (:probe::both-agree?) (:wat::core::= (:probe::sum-via-reduce) 15))
     nil
-    (:wat::kernel::assertion-failed! "STOP-2 FAILED: :wat::core::reduce did not answer foldl's answer" :wat::core::None :wat::core::None)))
+    (:wat::kernel::assertion-failed! :message "STOP-2 FAILED: :wat::core::reduce did not answer foldl's answer")))
 

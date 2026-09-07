@@ -233,7 +233,7 @@
   [src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines   (:wat::string::split src "\n")
-                    tree    (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+                    tree    (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms   (:wat::core::ast->children tree)
                     ;; walk → :fix::Node facts (kind/name/offset/len/post-arrow)
                     nodes   (:fix::collect-nodes-seq forms false lines)
@@ -272,4 +272,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])))
+    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

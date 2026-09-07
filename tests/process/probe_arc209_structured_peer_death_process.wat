@@ -15,10 +15,8 @@
   (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::process)
                            (:wat::core::forms
                              (:wat::core::defn :user::main [] -> :wat::core::nil
-                               (:wat::core::let [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
-                                                  _ (:wat::kernel::assertion-failed! "proc-structured-marker"
-                                                      (:wat::core::Some "PROC-ACTUAL-5521")
-                                                      (:wat::core::Some "PROC-EXPECTED-8841"))]
+                               (:wat::core::let [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
+                                                  _ (:wat::kernel::assertion-failed! :message "proc-structured-marker" :actual (:wat::core::Some "PROC-ACTUAL-5521") :expected (:wat::core::Some "PROC-EXPECTED-8841"))]
                                  nil))))
                     ;; arc 278 #73 — uniform, precondition is the recv' right below: a stop
                     ;; that interrupted this write is still in force when the read parks, so

@@ -57,11 +57,11 @@
      child-pid (:wat::core::match (:wat::kernel::recv p)
                  [:wat::kernel::RecvOutcome::Message {:msg m} m]
                  [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                   (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                  [:wat::kernel::RecvOutcome::Stopped {}
-                   (:wat::kernel::assertion-failed! "labeled child: stop requested before sending its pid — child was ALIVE, channel open" :wat::core::None :wat::core::None)]
+                   (:wat::kernel::assertion-failed! :message "labeled child: stop requested before sending its pid — child was ALIVE, channel open")]
                  [:wat::kernel::RecvOutcome::Closed {}
-                   (:wat::kernel::assertion-failed! "labeled child closed before sending its pid" :wat::core::None :wat::core::None)])
+                   (:wat::kernel::assertion-failed! :message "labeled child closed before sending its pid")])
      _ (:wat::kernel::println child-pid)
      release-outcome (:wat::kernel::readln)]
     (:wat::core::match release-outcome

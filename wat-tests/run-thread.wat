@@ -49,17 +49,13 @@
             ;; it into either :None (Closed's meaning: thread finished quietly) or
             ;; :Some (Lost's meaning: the thread died).
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed!
-                "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
-                :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
             [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])]
     (:wat::core::match fail
 
       [:wat::core::None {} nil]
       [:wat::core::Some {:value _f}
-       (:wat::kernel::assertion-failed!
-         "Ok-path: expected :None but got :Some — passing assertion was misclassified as failure"
-         :wat::core::None :wat::core::None)])))
+       (:wat::kernel::assertion-failed! :message "Ok-path: expected :None but got :Some — passing assertion was misclassified as failure")])))
 
 ;; ─── Err-path: failing assertion inside run-thread ────────────────────
 
@@ -90,14 +86,10 @@
             ;; it into either :None (Closed's meaning: thread finished quietly) or
             ;; :Some (Lost's meaning: the thread died).
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed!
-                "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
-                :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
             [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])]
     (:wat::core::match fail
 
       [:wat::core::Some {:value _f} nil]
       [:wat::core::None {}
-       (:wat::kernel::assertion-failed!
-         "Err-path: expected :Some failure but got :None — chain handling broken"
-         :wat::core::None :wat::core::None)])))
+       (:wat::kernel::assertion-failed! :message "Err-path: expected :Some failure but got :None — chain handling broken")])))

@@ -220,9 +220,7 @@
       ((:wat::core::= row 9)  (:wnm::fsq))
       ((:wat::core::= row 10) (:wnm::mix-and))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-numeric: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-numeric: unknown row " (:wat::i64::to-string row)))))))
 
 ;; seed session items — stage Num(i) for i in [0, items). Every field a FORMULA over i (rule 3):
 ;;   a(i) = i - 100

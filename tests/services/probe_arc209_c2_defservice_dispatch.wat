@@ -40,23 +40,20 @@
     [:my::Counter::Reply::Get {:resp resp}
      (:wat::core::match resp [:my::Counter::GetResponse::Ok {:value value} value]
        [:my::Counter::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
-         (:wat::kernel::assertion-failed! "reply-value: unexpected GetResponse::RequestTooLarge"
-           :wat::core::None :wat::core::None)]
+         (:wat::kernel::assertion-failed! :message "reply-value: unexpected GetResponse::RequestTooLarge")]
        [:my::Counter::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-         (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+         (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
     [:my::Counter::Reply::Increment {:resp resp}
      (:wat::core::match resp [:my::Counter::IncrementResponse::Ok {:value value} value]
        [:my::Counter::IncrementResponse::RequestTooLarge {:bytes bytes :cap cap}
-         (:wat::kernel::assertion-failed! "reply-value: unexpected IncrementResponse::RequestTooLarge"
-           :wat::core::None :wat::core::None)]
+         (:wat::kernel::assertion-failed! :message "reply-value: unexpected IncrementResponse::RequestTooLarge")]
        [:my::Counter::IncrementResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-         (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+         (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
     ;; arc 278 no-hidden-failures — the reserved protocol-tier failure. Unreachable here
     ;; (recv' surfaces Reply::Failed as a raise BEFORE this helper sees it), but the
     ;; hand-written match must stay exhaustive + honest: surface the cause, never `_`-swallow.
     [:my::Counter::Reply::Failed {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause)
-        :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
 
 ;; Hand-drive the GENERATED serve (C.3 wraps start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +
@@ -84,25 +81,25 @@
                 (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:my::Counter::Reply :my::counter::Op])])])
                 0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      r1   (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed! "recv': stopped before the Increment reply — the peer was ALIVE" :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "recv': stopped before the Increment reply — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome::Closed {}
-              (:wat::kernel::assertion-failed! "recv': c closed before the Increment reply" :wat::core::None :wat::core::None)])
+              (:wat::kernel::assertion-failed! :message "recv': c closed before the Increment reply")])
      _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Get (:my::Counter::GetRequest))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      r2   (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed! "recv': stopped before the Get reply — the peer was ALIVE" :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "recv': stopped before the Get reply — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome::Closed {}
-              (:wat::kernel::assertion-failed! "recv': c closed before the Get reply" :wat::core::None :wat::core::None)])]
+              (:wat::kernel::assertion-failed! :message "recv': c closed before the Get reply")])]
     ;; Increment 5 → state 0→5, reply IncrementResponse{5}; Get → reply GetResponse{5}.
     ;; Assert the Get reply's value is 5.
     ;; Scope-exit drops `svc` → RAII drain → :Shutdown → serve exits → join completes.

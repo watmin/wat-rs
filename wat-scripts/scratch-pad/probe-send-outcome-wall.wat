@@ -25,33 +25,25 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
-           (:wat::kernel::assertion-failed! "SEND-WALL-PROBE-CRASH" :wat::core::None :wat::core::None)))
+           (:wat::kernel::assertion-failed! :message "SEND-WALL-PROBE-CRASH")))
      ;; synchronize on the worker's death: recv' blocks until EOF + the crash reason
      ;; lands on the crash channel — by the time this returns, the worker has fully
      ;; unwound and dropped its ends (deterministic, no race).
      r1 (:wat::kernel::recv p)
      _  (:wat::core::match r1
           [:wat::kernel::RecvOutcome::Message {:msg _m}
-            (:wat::kernel::assertion-failed!
-              "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Message"
-              :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Message")]
           [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
           [:wat::kernel::RecvOutcome::Stopped {}
-            (:wat::kernel::assertion-failed!
-              "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Stopped"
-              :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Stopped")]
           [:wat::kernel::RecvOutcome::Closed {}
-            (:wat::kernel::assertion-failed!
-              "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed"
-              :wat::core::None :wat::core::None)])
+            (:wat::kernel::assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed")])
      ;; the worker is now guaranteed dead. Pre-strike this send' RAISED "send failed:
      ;; channel disconnected"; post-strike it returns a matchable SendOutcome value.
      outcome (:wat::kernel::send p 42)]
     (:wat::core::match outcome
       [:wat::kernel::SendOutcome::Sent {}
-        (:wat::kernel::assertion-failed!
-          "PROBE-FAIL: got SendOutcome::Sent to a dead peer — expected Closed/Lost"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "PROBE-FAIL: got SendOutcome::Sent to a dead peer — expected Closed/Lost")]
       [:wat::kernel::SendOutcome::Closed {}
         (:wat::kernel::println
           "PROBE-PASS: SendOutcome::Closed (a VALUE, not a raise) after send' to a dead peer")]

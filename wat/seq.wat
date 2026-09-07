@@ -648,9 +648,7 @@
     [:wat::stream::NextOutcome::Item {:value value :rest rest}
       (:wat::core::reductions-walk f value rest)]
     [:wat::stream::NextOutcome::Exhausted {}
-      (:wat::kernel::assertion-failed!
-        "reductions: the 2-arity form needs at least one element to seed the accumulation; got an empty collection"
-        :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "reductions: the 2-arity form needs at least one element to seed the accumulation; got an empty collection")]))
 
 (:wat::core::defclause :wat::core::reductions
   ;; 3-arity: explicit init.

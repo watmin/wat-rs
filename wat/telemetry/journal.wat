@@ -86,11 +86,11 @@
             [store (:wat::core::match (:wat::kernel::connect store-addr)
                      [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
                      [:wat::kernel::ConnectOutcome::Refused {:cause c}
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                      [:wat::kernel::ConnectOutcome::Rejected {:cause c}
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                      [:wat::kernel::ConnectOutcome::Failed {:cause c}
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
              _es   (:wat::query::Store/ensure-schema store
                      (:wat::query::Store::EnsureSchemaRequest
                        :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
@@ -301,7 +301,7 @@
        [store    (:wat::telemetry::journal::State/store s)
         pred-src (:wat::core::match (:wat::telemetry::Journal::SiftLogsRequest/sieve req) 
                    [:wat::query::Sieve::Predicate {:pred pred} pred])
-        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])))
+        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
         purep    (:wat::rete::pure? pform)
         detp     (:wat::rete::deterministic? pform)
         totp     (:wat::rete::total? pform)
@@ -367,7 +367,7 @@
        [store    (:wat::telemetry::journal::State/store s)
         pred-src (:wat::core::match (:wat::telemetry::Journal::SiftMetricsRequest/sieve req) 
                    [:wat::query::Sieve::Predicate {:pred pred} pred])
-        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])))
+        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
         purep    (:wat::rete::pure? pform)
         detp     (:wat::rete::deterministic? pform)
         totp     (:wat::rete::total? pform)

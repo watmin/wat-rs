@@ -18,9 +18,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
-           (:wat::kernel::assertion-failed! "structured-death-marker"
-              (:wat::core::Some "ACTUAL-42173")
-              (:wat::core::Some "EXPECTED-99731"))))]
+           (:wat::kernel::assertion-failed! :message "structured-death-marker" :actual (:wat::core::Some "ACTUAL-42173") :expected (:wat::core::Some "EXPECTED-99731"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}

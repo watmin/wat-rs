@@ -80,7 +80,9 @@ pub(crate) fn eval_kernel_raise(
     crate::kernel::abort::eval_kernel_raise(std::slice::from_ref(error), list_span, env, sym)
 }
 
-/// `(:wat::kernel::assertion-failed! message actual expected)` → `:T`.
+/// `(:wat::kernel::assertion-failed!' message actual expected)` → `:T`.
+/// The primed positional primitive. The user-facing name is the kwargs
+/// macro `:wat::kernel::assertion-failed!` (`wat/kernel/assertion.wat`).
 /// Panics with an [`crate::assertion::AssertionPayload`] so `run-sandboxed`'s
 /// `catch_unwind` can populate `Failure.actual`/`Failure.expected`. Never
 /// returns.
@@ -95,7 +97,7 @@ pub(crate) fn eval_kernel_raise(
 /// @arg     actual (:wat::core::Option :- [:wat::core::String]) stringified actual value, when the caller has one
 /// @arg     expected (:wat::core::Option :- [:wat::core::String]) stringified expected value, when the caller has one
 /// @ret     :T never returns — `T` unifies with whatever the caller's context demands
-/// @example-norun (:wat::kernel::assertion-failed! "assert-eq failed" (Some "1") (Some "2")) #=> never returns
+/// @example-norun (:wat::kernel::assertion-failed!' "assert-eq failed" (Some "1") (Some "2")) #=> never returns
 // Registered `TypeScheme` — `check.rs:16104` — gate LIVE.
 //
 // Deciding line for `@Category ControlFlow`: `src/assertion.rs:110`
@@ -106,7 +108,7 @@ pub(crate) fn eval_kernel_raise(
 // Deciding line for `@Purity Effectful` / `@Determinism Deterministic`: same
 // as `raise!` — a real unwind, and the same three string args always produce
 // the same payload.
-#[wat_intrinsic(":wat::kernel::assertion-failed!")]
+#[wat_intrinsic(":wat::kernel::assertion-failed!'")]
 pub(crate) fn eval_kernel_assertion_failed(
     message: &WatAST,
     actual: &WatAST,

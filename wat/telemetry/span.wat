@@ -34,11 +34,11 @@
             :sink (:wat::core::match (:wat::kernel::connect sink-addr)
                     [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
                     [:wat::kernel::ConnectOutcome::Refused {:cause c}
-                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                     [:wat::kernel::ConnectOutcome::Rejected {:cause c}
-                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                     [:wat::kernel::ConnectOutcome::Failed {:cause c}
-                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])))
+                      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
   :impls
   [;; incr — PURE: counters[name] + 1, thread new state.
    (incr [s ctx req]
@@ -244,11 +244,11 @@
         ~span-name (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr ~h-sym))
                      [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
                      [:wat::kernel::ConnectOutcome::Refused {:cause c}
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                      [:wat::kernel::ConnectOutcome::Rejected {:cause c}
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                      [:wat::kernel::ConnectOutcome::Failed {:cause c}
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
         ~result-sym ~body
         ~close-sym (:wat::telemetry::Span/close ~span-name (:wat::telemetry::Span::CloseRequest))]
        ~result-sym)))

@@ -24,11 +24,11 @@
      got (:wat::core::match (:wat::kernel::recv peer)
            [:wat::kernel::RecvOutcome::Message {:msg m} m]
            [:wat::kernel::RecvOutcome::Lost {:cause cause}
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
     got))
 
 ;; compute-error-init: spawn a thread peer with an init-fn that divides by zero —
@@ -82,10 +82,10 @@
      got (:wat::core::match (:wat::kernel::recv peer)
            [:wat::kernel::RecvOutcome::Message {:msg m} m]
            [:wat::kernel::RecvOutcome::Lost {:cause cause}
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
     got))
 

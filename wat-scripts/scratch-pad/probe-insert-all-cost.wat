@@ -65,9 +65,9 @@
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln )
                              [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
                              [:wat::kernel::ReadlnOutcome::Eof {}
-                               (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+                               (:wat::kernel::assertion-failed! :message "readln: end of input")]
                              [:wat::kernel::ReadlnOutcome::Stopped {}
-                               (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
+                               (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     n       (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
 
                     ;; Two independent compiled sessions, compiled OUTSIDE every timed window.

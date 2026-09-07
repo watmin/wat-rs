@@ -225,9 +225,7 @@
       ((:wat::core::= row 11) (:wmv::five-fn))
       ((:wat::core::= row 12) (:wmv::chain-arith))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-multivar: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-multivar: unknown row " (:wat::i64::to-string row)))))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
 ;;

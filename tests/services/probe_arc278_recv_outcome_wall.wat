@@ -48,10 +48,7 @@
           (:probe::crash::State :durable record))
   :impls
   [(boom [s ctx req]
-     (:wat::kernel::assertion-failed!
-       "BOOM-CRASH-SENTINEL-9173"
-       (:wat::core::Some "boom")
-       (:wat::core::Some "ok")))
+     (:wat::kernel::assertion-failed! :message "BOOM-CRASH-SENTINEL-9173" :actual (:wat::core::Some "boom") :expected (:wat::core::Some "ok")))
    (boomrt [s ctx req]
      (:wat::core::let
        [zero (:probe::crash::Record/x (:probe::crash::State/durable s))
@@ -64,7 +61,7 @@
 ;; asserts this NEVER happens). ::Message → Outcome::Message.
 (:wat::core::defn :probe::client-boom-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s (:wat::kernel::send c (:probe::Crash::Op::Boom (:probe::Crash::BoomRequest)))]
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message)]
@@ -75,7 +72,7 @@
 
 (:wat::core::defn :probe::client-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s (:wat::kernel::send c (:probe::Crash::Op::Boomrt (:probe::Crash::BoomrtRequest)))]
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message)]
@@ -89,7 +86,7 @@
 ;; the exact reason). ::Closed → Outcome::Closed; ::Message → Outcome::Message (both asserted NEVER).
 (:wat::core::defn :probe::admin-boom-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s (:wat::kernel::send c (:probe::Crash::Op::Boom (:probe::Crash::BoomRequest)))]
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
       [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message)]
@@ -100,7 +97,7 @@
 
 (:wat::core::defn :probe::admin-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+    [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s (:wat::kernel::send c (:probe::Crash::Op::Boomrt (:probe::Crash::BoomrtRequest)))]
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
       [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message)]

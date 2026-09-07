@@ -62,37 +62,35 @@
                      addr (:wat::core::match (:wat::kernel::recv self)               ;; A's addr (down)
                             [:wat::kernel::RecvOutcome::Message {:msg m} m]
                             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                             [:wat::kernel::RecvOutcome::Stopped {}
-                              (:wat::kernel::assertion-failed! "recv': stopped before the owner sent A's addr — the peer was ALIVE" :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message "recv': stopped before the owner sent A's addr — the peer was ALIVE")]
                             [:wat::kernel::RecvOutcome::Closed {}
-                              (:wat::kernel::assertion-failed! "recv': owner closed (addr handoff)" :wat::core::None :wat::core::None)])
-                     c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                              (:wat::kernel::assertion-failed! :message "recv': owner closed (addr handoff)")])
+                     c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
                      er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))     ;; dial #1 — ADMITTED
                      _    (:wat::core::match (:wat::kernel::send self (:wat::core::match er1 [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
                               [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
                               [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
-                                (:wat::kernel::assertion-failed! "prober dial #1: unexpected RequestTooLarge"
-                                  :wat::core::None :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message "prober dial #1: unexpected RequestTooLarge")]
                               [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil]) ;; report "echo:hi" UP
+                                (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil]) ;; report "echo:hi" UP
                      _sig (:wat::core::match (:wat::kernel::recv self)               ;; BLOCK for re-dial (2nd addr)
                             [:wat::kernel::RecvOutcome::Message {:msg m} m]
                             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                             [:wat::kernel::RecvOutcome::Stopped {}
-                              (:wat::kernel::assertion-failed! "recv': stopped before the owner sent the re-dial signal — the peer was ALIVE" :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message "recv': stopped before the owner sent the re-dial signal — the peer was ALIVE")]
                             [:wat::kernel::RecvOutcome::Closed {}
-                              (:wat::kernel::assertion-failed! "recv': owner closed (re-dial signal)" :wat::core::None :wat::core::None)])
-                     c2   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                              (:wat::kernel::assertion-failed! :message "recv': owner closed (re-dial signal)")])
+                     c2   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
                      er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))     ;; dial #2 — after revoke: BOUNCED → RAISE → die (before the send below)
                      _    (:wat::core::match (:wat::kernel::send self (:wat::core::match er2 [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
                               [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
                               [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
-                                (:wat::kernel::assertion-failed! "prober dial #2: unexpected RequestTooLarge"
-                                  :wat::core::None :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message "prober dial #2: unexpected RequestTooLarge")]
                               [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                                (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] ;; dial #2 reply UP — ONLY reached if ADMITTED. makes the test DISCRIMINATE: if the revoke ever regressed, dial #2 admits, this fires, the owner's r2 = "echo:hi" → compute Ok → the test (asserts Err) goes RED. without it, the prober's clean exit ALSO disconnects the channel → recv' raises → Err either way (vacuous).
+                                (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] ;; dial #2 reply UP — ONLY reached if ADMITTED. makes the test DISCRIMINATE: if the revoke ever regressed, dial #2 admits, this fires, the owner's r2 = "echo:hi" → compute Ok → the test (asserts Err) goes RED. without it, the prober's clean exit ALSO disconnects the channel → recv' raises → Err either way (vacuous).
                     nil))))
      r2  (:wat::core::match (:wat::kernel::peer-pid prober) 
            [:wat::core::Some {:value p}
@@ -102,11 +100,11 @@
                 r1 (:wat::core::match (:wat::kernel::recv prober)                    ;; "echo:hi" (dial #1 admitted); ::Message passes m through so the DISCRIMINATE assert holds
                      [:wat::kernel::RecvOutcome::Message {:msg m} m]
                      [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                      [:wat::kernel::RecvOutcome::Stopped {}
-                       (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)]
+                       (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")]
                      [:wat::kernel::RecvOutcome::Closed {}
-                       (:wat::kernel::assertion-failed! "recv': prober closed" :wat::core::None :wat::core::None)])
+                       (:wat::kernel::assertion-failed! :message "recv': prober closed")])
                 _  (:probe::echo/revoke eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; ack'd PeersDenied — pid GONE
                 _  (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])                                   ;; arc 278 #73 — the recv' below already faces the stop ;; re-dial signal (AFTER revoke ack)
                 r2 (:wat::core::match (:wat::kernel::recv prober)                    ;; owner FACES the outcome as a VALUE, returns the enum
@@ -119,6 +117,5 @@
                      [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Bounced)])]      ;; prober closed without a reply = not served
                r2)]                                                                  ;; the enum outcome
            [:wat::core::None {}
-             (:wat::kernel::assertion-failed! "peer-pid None on process prober"
-               :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "peer-pid None on process prober")])]
     r2))

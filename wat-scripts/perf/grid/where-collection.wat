@@ -257,9 +257,7 @@
       ((:wat::core::= row 9)  (:wc::fold-some-zero))
       ((:wat::core::= row 10) (:wc::nested-fold-bound))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-collection: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-collection: unknown row " (:wat::i64::to-string row)))))))
 
 ;; build-tags i -> a (PersistentVector :- [i64]) of length (i mod 6), element j = (i + 3j) mod 13.
 (:wat::core::defn :wc::build-tags [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])

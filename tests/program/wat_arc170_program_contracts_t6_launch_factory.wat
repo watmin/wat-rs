@@ -11,7 +11,7 @@
   (:wat::core::let
     [main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
-                    [n    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
+                    [n    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                      _out (:wat::kernel::println
                             (:wat::i64::+ n ~offset))]
                     nil))
@@ -28,8 +28,8 @@
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg m} m]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "launch: stop requested before child sent its value — child was ALIVE, channel open" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed! "launch: child closed before sending its value" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "launch: child closed before sending its value")])))

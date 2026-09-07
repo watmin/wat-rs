@@ -62,13 +62,9 @@
                   ;; 4 — read once more. Now it is gone.
                   (:wat::core::match (:wat::kernel::recv child)
                     [:wat::kernel::RecvOutcome::Message {:msg extra}
-                      (:wat::kernel::assertion-failed!
-                        "the child kept talking after it announced its stop"
-                        :wat::core::None :wat::core::None)]
+                      (:wat::kernel::assertion-failed! :message "the child kept talking after it announced its stop")]
                     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                      (:wat::kernel::assertion-failed!
-                        (:wat::kernel::LociDiedError/message cause)
-                        :wat::core::None :wat::core::None)]
+                      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                     ;; arc 278 #73 — the case this file's header once had no variant
                     ;; for: a STOP observed on a peer that is still ALIVE. That is
                     ;; NOT this test's subject (a SIGTERM-driven clean process exit,
@@ -76,36 +72,20 @@
                     ;; arm reports the stop distinctly rather than folding into
                     ;; Closed's `true`.
                     [:wat::kernel::RecvOutcome::Stopped {}
-                      (:wat::kernel::assertion-failed!
-                        "recv: stopped — the substrate was asked to stop; the child was ALIVE (not the SIGTERM-close this test proves)"
-                        :wat::core::None :wat::core::None)]
+                      (:wat::kernel::assertion-failed! :message "recv: stopped — the substrate was asked to stop; the child was ALIVE (not the SIGTERM-close this test proves)")]
                     [:wat::kernel::RecvOutcome::Closed {} true])]
                 [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                  (:wat::kernel::assertion-failed!
-                    (:wat::kernel::LociDiedError/message cause)
-                    :wat::core::None :wat::core::None)]
+                  (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                 [:wat::kernel::RecvOutcome::Stopped {}
-                  (:wat::kernel::assertion-failed!
-                    "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open"
-                    :wat::core::None :wat::core::None)]
+                  (:wat::kernel::assertion-failed! :message "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
                 [:wat::kernel::RecvOutcome::Closed {}
-                  (:wat::kernel::assertion-failed!
-                    "the child died without announcing a stop — the signal did not run the protocol"
-                    :wat::core::None :wat::core::None)])]
+                  (:wat::kernel::assertion-failed! :message "the child died without announcing a stop — the signal did not run the protocol")])]
             [:wat::kernel::SignalOutcome::Failed {:cause cause}
-              (:wat::kernel::assertion-failed!
-                (:wat::kernel::Failure/message cause)
-                :wat::core::None :wat::core::None)])]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])]
         [:wat::kernel::RecvOutcome::Lost {:cause cause}
-          (:wat::kernel::assertion-failed!
-            (:wat::kernel::LociDiedError/message cause)
-            :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
         [:wat::kernel::RecvOutcome::Stopped {}
-          (:wat::kernel::assertion-failed!
-            "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open"
-            :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
         [:wat::kernel::RecvOutcome::Closed {}
-          (:wat::kernel::assertion-failed!
-            "the child closed before we ever signalled it"
-            :wat::core::None :wat::core::None)]))
+          (:wat::kernel::assertion-failed! :message "the child closed before we ever signalled it")]))
     true))

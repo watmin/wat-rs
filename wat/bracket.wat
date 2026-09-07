@@ -47,7 +47,7 @@
         [:wat::kernel::SendOutcome::Closed {} (:wat::bracket::runner-loop self work-fn)]   ;; parent gone → next recv' faces it
         [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::bracket::runner-loop self work-fn)])]
     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
     [:wat::kernel::RecvOutcome::Stopped {} nil]
@@ -93,7 +93,7 @@
         [:wat::bracket::PoolMsg::Setup {:deps _deps}
           (:wat::bracket::process-runner self work-fn)])]
     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
     [:wat::kernel::RecvOutcome::Stopped {} nil]
@@ -130,11 +130,11 @@
             (:wat::core::match (:wat::kernel::connect deps)
               [:wat::kernel::ConnectOutcome::Connected {:peer p} (:wat::core::Some p)]
               [:wat::kernel::ConnectOutcome::Refused {:cause c}
-                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
               [:wat::kernel::ConnectOutcome::Rejected {:cause c}
-                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
               [:wat::kernel::ConnectOutcome::Failed {:cause c}
-                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]))]
+                (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))]
         [:wat::bracket::PoolMsg::Work {:pair pair}
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "bracket process-dial-runner: Work before Setup")
@@ -147,7 +147,7 @@
               [:wat::kernel::SendOutcome::Closed {} (:wat::bracket::process-dial-runner self work-fn ctx)]   ;; parent gone → next recv' faces it
               [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::bracket::process-dial-runner self work-fn ctx)]))])]
     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
     [:wat::kernel::RecvOutcome::Stopped {} nil]
@@ -217,7 +217,7 @@
                 [:wat::kernel::SendOutcome::Closed {} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]
                 [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]))])]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome::Stopped {} nil]
       [:wat::kernel::RecvOutcome::Closed {} nil])))
 
@@ -233,9 +233,7 @@
          [:wat::bracket::PoolMsg::Work {:pair pair}
            (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
          [:wat::bracket::PoolMsg::Setup {:deps _deps}
-           (:wat::kernel::assertion-failed!
-             "bracket thread runner: unexpected PoolMsg::Setup (plain thread pool — no kwargs tail)"
-             :wat::core::None :wat::core::None)])))))
+           (:wat::kernel::assertion-failed! :message "bracket thread runner: unexpected PoolMsg::Setup (plain thread pool — no kwargs tail)")])))))
 
 (:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
   (spawn-runner [self work-fn]
@@ -411,9 +409,7 @@
        n             (:wat::core::length ftypes)
        _n-check      (:wat::core::if (:wat::core::= (:wat::core::length fnames) n)
                         nil
-                       (:wat::kernel::assertion-failed!
-                         "bracket process-work-forms: field-names-of/field-types-of length mismatch"
-                         :wat::core::None :wat::core::None))
+                       (:wat::kernel::assertion-failed! :message "bracket process-work-forms: field-names-of/field-types-of length mismatch"))
        coords-ty-str (:wat::core::format "{base-str}::Coords" :base-str base-str)
        coords-ty-kw  (:wat::core::keyword-node (:wat::string::concat ":" coords-ty-str))
        ;; Arc 109 ③ — angle brackets are ILLEGAL for types; sp-out/sp-in/runner-self-kw/
@@ -461,11 +457,11 @@
                             `(:wat::core::match (:wat::kernel::connect (~accessor-kw deps))
                                [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
                                [:wat::kernel::ConnectOutcome::Refused {:cause c}
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                                 (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                                [:wat::kernel::ConnectOutcome::Rejected {:cause c}
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                                 (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                                [:wat::kernel::ConnectOutcome::Failed {:cause c}
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                                 (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
                             `(~accessor-kw deps))]
              (:wat::core::conj acc form)))
          (:wat::core::Vector :- [:wat::WatAST])
@@ -501,7 +497,7 @@
                       [:wat::kernel::SendOutcome::Lost {:cause _c} (:user::bracket::dial-runner self ctx)]))])]
             ;; arc 278 the recv'-outcome wall — ::Lost → eprintln (terminal); ::Closed → exit.
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not
             ;; drop, the substrate is stopping. Same body, stated cause.
             [:wat::kernel::RecvOutcome::Stopped {} nil]
@@ -624,48 +620,34 @@
             (:wat::bracket::collect-loop peers items
               (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m))]
         [:wat::spawn::ServiceEvent::Closed {:idx idx}
-          (:wat::kernel::assertion-failed!
-            (:wat::string::interpolate
+          (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
               "bracket collect-loop: runner {idx} closed unexpectedly"
-              :idx idx)
-            :wat::core::None :wat::core::None)]
+              :idx idx))]
         [:wat::spawn::ServiceEvent::Lost {:idx idx :cause cause}
-          (:wat::kernel::assertion-failed!
-            (:wat::string::interpolate
+          (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
               "bracket collect-loop: runner {idx} crashed: {cause}"
-              :idx idx :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None)]
+              :idx idx :cause (:wat::kernel::Failure/message cause)))]
         ;; arc 278 no-hidden-failures — a pool runner sent an UNDECODABLE result. A bracket
         ;; runner speaks a fixed (i64,O) protocol; garbage on that channel is a should-never-
         ;; happen. Mirror :Lost — raise LOUD with the rich decode reason (never a `_` wildcard
         ;; that would re-hide the failure this arc forbids).
         [:wat::spawn::ServiceEvent::Malformed {:idx idx :cause cause}
-          (:wat::kernel::assertion-failed!
-            (:wat::string::interpolate
+          (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
               "bracket collect-loop: runner {idx} sent an undecodable result: {cause}"
-              :idx idx :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None)]
+              :idx idx :cause (:wat::kernel::Failure/message cause)))]
         ;; arc 278 Stone 1a — a pool runner sent an OVER-FOO (over-budget) frame. A bracket
         ;; runner speaks a fixed (i64,O) protocol; an oversized result is a should-never-happen.
         ;; Mirror :Malformed — raise LOUD with the reason (never a `_` wildcard that re-hides it).
         [:wat::spawn::ServiceEvent::Rejected {:idx idx :cause cause}
-          (:wat::kernel::assertion-failed!
-            (:wat::string::interpolate
+          (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
               "bracket collect-loop: runner {idx} sent an over-budget frame: {cause}"
-              :idx idx :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None)]
+              :idx idx :cause (:wat::kernel::Failure/message cause)))]
         [:wat::spawn::ServiceEvent::Shutdown {}
-          (:wat::kernel::assertion-failed!
-            "bracket collect-loop: unexpected Shutdown event"
-            :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message "bracket collect-loop: unexpected Shutdown event")]
         [:wat::spawn::ServiceEvent::Connection {:peer _peer}
-          (:wat::kernel::assertion-failed!
-            "bracket collect-loop: unexpected Connection event"
-            :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message "bracket collect-loop: unexpected Connection event")]
         [:wat::spawn::ServiceEvent::Admin {:msg _msg}
-          (:wat::kernel::assertion-failed!
-            "bracket collect-loop: unexpected Admin event (select' has no self-peer)"
-            :wat::core::None :wat::core::None)]))))
+          (:wat::kernel::assertion-failed! :message "bracket collect-loop: unexpected Admin event (select' has no self-peer)")]))))
 
 ;; ── map-worker — the ONE carrier-generic pool coordinator (arc 170 gap J unification) ──
 ;;

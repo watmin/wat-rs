@@ -218,10 +218,7 @@
     ((:wat::core::= s "vector") (:wat::grep::NodeKind::Vector))
     ((:wat::core::= s "set") (:wat::grep::NodeKind::Set))
     ((:wat::core::= s "map") (:wat::grep::NodeKind::Map))
-    (:else (:wat::kernel::assertion-failed!
-             (:wat::string::concat "grep: unknown ast-kind " s)
-             :wat::core::None
-             :wat::core::None))))
+    (:else (:wat::kernel::assertion-failed! :message (:wat::string::concat "grep: unknown ast-kind " s)))))
 
 ;; walk — assign this node an id, emit its facts, then descend. Pre-order, so `parent` is always
 ;; already numbered when a child is reached.
@@ -478,11 +475,9 @@
     [paths (:wat::core::match (:wat::kernel::readln)
              [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
              [:wat::kernel::ReadlnOutcome::Eof {}
-               (:wat::kernel::assertion-failed! "wat::grep::run: readln: end of input"
-                 :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message "wat::grep::run: readln: end of input")]
              [:wat::kernel::ReadlnOutcome::Stopped {}
-               (:wat::kernel::assertion-failed! "wat::grep::run: readln: stop requested"
-                 :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message "wat::grep::run: readln: stop requested")])
      bad
        (:wat::rete::with-overlay rules
          (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::grep::q-match))

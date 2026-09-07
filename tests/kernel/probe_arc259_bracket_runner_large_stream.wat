@@ -11,11 +11,11 @@
                        res (:wat::core::match (:wat::kernel::recv peer)
                              [:wat::kernel::RecvOutcome::Message {:msg m} m]
                              [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                              [:wat::kernel::RecvOutcome::Stopped {}
-                               (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+                               (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                              [:wat::kernel::RecvOutcome::Closed {}
-                               (:wat::kernel::assertion-failed! "recv': peer closed mid-stream" :wat::core::None :wat::core::None)])]
+                               (:wat::kernel::assertion-failed! :message "recv': peer closed mid-stream")])]
        (:user::drive peer (:wat::core::- n 1) (:wat::core::+ acc res)))))
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64

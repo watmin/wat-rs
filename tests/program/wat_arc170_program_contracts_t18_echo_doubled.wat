@@ -28,7 +28,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
+               [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                 _ (:wat::kernel::println (:wat::i64::* n 2))]
                nil))))
      _ (:wat::core::match (:wat::kernel::send p 21)
@@ -42,4 +42,4 @@
     (:wat::core::match (:wat::kernel::recv-all p)
       [:wat::core::Ok {:value outputs} outputs]
       [:wat::core::Err {:error cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))

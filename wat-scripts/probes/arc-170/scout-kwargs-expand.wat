@@ -12,6 +12,6 @@
         -> :wat::core::String
         (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetRequest item)) [:probe::Kv::GetResponse::Ok {:v v} v]
   [:probe::Kv::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Kv::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])))))))
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])))))))

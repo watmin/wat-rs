@@ -45,22 +45,22 @@
      addr (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed! "recv': stopped before sending the capability — the peer was ALIVE" :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "recv': stopped before sending the capability — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome::Closed {}
-              (:wat::kernel::assertion-failed! "recv': svc closed before sending the capability" :wat::core::None :wat::core::None)])
+              (:wat::kernel::assertion-failed! :message "recv': svc closed before sending the capability")])
      ;; dial the capability — the child is guaranteed listening (it sent AFTER listen()).
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _    (:wat::core::match (:wat::kernel::send c 5) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      got  (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed! "recv': stopped before replying — the peer was ALIVE" :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "recv': stopped before replying — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome::Closed {}
-              (:wat::kernel::assertion-failed! "recv': c closed before replying" :wat::core::None :wat::core::None)])]
+              (:wat::kernel::assertion-failed! :message "recv': c closed before replying")])]
     ;; No Stop op. Scope-exit drops `svc` → the child's input pipe EOFs → the self-peer's
     ;; Recv{0} fires → serve's poll' returns :Shutdown → the child exits → join completes.
     ;; (If this hangs, poll' isn't watching the self-peer over the socket tier — STOP-1.)

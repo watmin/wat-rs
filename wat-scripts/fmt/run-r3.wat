@@ -28,4 +28,4 @@
               :i (:wat::core::if same? "true" "false")))
           (:wat::kernel::println out))]
       [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message (:wat::core::Error/message cause))])))

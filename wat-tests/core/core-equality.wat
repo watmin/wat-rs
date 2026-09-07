@@ -102,9 +102,7 @@
   (:wat::core::match (:wat::test::run-hermetic (:wat::test::assert-false (:wat::core::= 3 3.0)))
     [:wat::kernel::RunResult::Passed {} nil]
     [:wat::kernel::RunResult::Failed {:failure _f}
-      (:wat::kernel::assertion-failed!
-        "expected mixed-numeric = to check clean and evaluate FALSE (arc 300 C5 + C4 category-aware =)"
-        :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "expected mixed-numeric = to check clean and evaluate FALSE (arc 300 C5 + C4 category-aware =)")]))
 
 ;; ─── REJECTION: direct cross-type = → check-time type error ─────────────
 ;;
@@ -123,15 +121,9 @@
              (:wat::core::let [b (:wat::core::= 1 1.5)] b))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m}
-        (:wat::kernel::assertion-failed!
-          "expected check-time type error for (= 1 1.5)"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "expected check-time type error for (= 1 1.5)")]
       [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed!
-          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed!
-          "expected check-time type error for (= 1 1.5)"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "expected check-time type error for (= 1 1.5)")])))

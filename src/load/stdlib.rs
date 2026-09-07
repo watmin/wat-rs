@@ -251,6 +251,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/readln.wat",
         source: include_str!("../../wat/kernel/readln.wat"),
     },
+    // Arc 109 — `assertion-failed!` kwargs macro lowering to the primed
+    // positional `assertion-failed!'`. Load-order-free (the prime is a
+    // Rust intrinsic). Beside readln.wat, the other kwargs-is-always-a-macro
+    // kernel surface.
+    WatSource {
+        path: "wat/kernel/assertion.wat",
+        source: include_str!("../../wat/kernel/assertion.wat"),
+    },
     // Arc 170 CULMINATION (arc 278 IPC de-prime) — wat/kernel/hermetic.wat
     // and wat/kernel/sandbox.wat ANNIHILATED. They defined the manual
     // sandbox-a-program family (run-sandboxed / run-sandboxed-ast /

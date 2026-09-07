@@ -14587,7 +14587,7 @@ mod tests {
 
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::failing-fn [] -> :() (:wat::kernel::assertion-failed! "stack test" :wat::core::None :wat::core::None))
+            (:wat::core::defn :my::app::failing-fn [] -> :() (:wat::kernel::assertion-failed! :message "stack test"))
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
@@ -19782,11 +19782,11 @@ mod tests {
         let s = step_to_show(
             r#"(:wat::eval-step!
                  (:wat::core::quote
-                   (:wat::kernel::assertion-failed! "x" :wat::core::None :wat::core::None)))"#,
+                   (:wat::kernel::assertion-failed!' "x" :wat::core::None :wat::core::None)))"#,
         );
         assert_eq!(
             s,
-            r#":wat::core::EvalError{#0: "effectful-in-step", #1: "eval-step! refuses effectful op: :wat::kernel::assertion-failed!"}"#
+            r#":wat::core::EvalError{#0: "effectful-in-step", #1: "eval-step! refuses effectful op: :wat::kernel::assertion-failed!'"}"#
         );
     }
 

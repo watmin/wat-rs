@@ -2,5 +2,5 @@
 ;; A failing deftest-hermetic': body raises; message must surface via process Err channel.
 
 (:wat::test::deftest-hermetic :user::failing 
-  (:wat::kernel::assertion-failed! "HERMETIC-FAIL-SENTINEL" :wat::core::None :wat::core::None))
+  (:wat::kernel::assertion-failed! :message "HERMETIC-FAIL-SENTINEL"))
 

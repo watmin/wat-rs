@@ -78,9 +78,9 @@
               (:se::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))
      c    (:wat::core::match (:wat::kernel::connect a)
             [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-            [:wat::kernel::ConnectOutcome::Refused {:cause _f}  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None)]
-            [:wat::kernel::ConnectOutcome::Rejected {:cause _f} (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None)]
-            [:wat::kernel::ConnectOutcome::Failed {:cause _f}   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)])
+            [:wat::kernel::ConnectOutcome::Refused {:cause _f}  (:wat::kernel::assertion-failed! :message "refused")]
+            [:wat::kernel::ConnectOutcome::Rejected {:cause _f} (:wat::kernel::assertion-failed! :message "rejected")]
+            [:wat::kernel::ConnectOutcome::Failed {:cause _f}   (:wat::kernel::assertion-failed! :message "failed")])
      _    (:se::try c "row non-tail")]
     ;; TAIL: the caller's env (holding `svc`, the lineage Thread' peer) is dropped by the
     ;; trampoline BEFORE this runs. `Thread::drop` → drain_and_join → the serve loop's

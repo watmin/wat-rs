@@ -39,18 +39,12 @@
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m} nil]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "roundtrip-via-eval failed: "
-            (:wat::kernel::LociDiedError/message cause))
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "roundtrip-via-eval failed: "
+            (:wat::kernel::LociDiedError/message cause)))]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed!
-          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed!
-          "roundtrip-via-eval: child closed before signaling completion"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "roundtrip-via-eval: child closed before signaling completion")])))
 
 
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-quasiquote-splices-runtime-values

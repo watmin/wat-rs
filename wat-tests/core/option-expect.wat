@@ -84,18 +84,12 @@
                [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m}
-        (:wat::kernel::assertion-failed!
-          "expected panic on :None expect, got clean completion"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "expected panic on :None expect, got clean completion")]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::test::assert-eq
           (:wat::kernel::LociDiedError/message cause)
           "broker disconnected")]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed!
-          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed!
-          "expected panic on :None expect, got clean close"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "expected panic on :None expect, got clean close")])))

@@ -148,7 +148,7 @@
               :c (:wat::i64::to-string (:user::WC/checked wc))
               :b (:wat::i64::to-string (:user::WC/mismatch wc)))))]
       [:wat::core::ReadOutcome::Malformed {:cause c}
-        (:wat::kernel::assertion-failed! (:wat::core::Error/message c) :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [argv (:wat::runtime::argv)]

@@ -54,9 +54,7 @@
       [:wat::core::Some {:value f} (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
                   "assert-eq failed")]
-      [:wat::core::None {} (:wat::kernel::assertion-failed!
-               "expected Failure, got :None"
-               :wat::core::None :wat::core::None)])))
+      [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-contains — pass + fail ────────────────────────────────────
 
@@ -92,9 +90,7 @@
             ;; nor a clean pass; assert it distinctly rather than fold it into either
             ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed!
-                "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
-                :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
             [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])]
     (:wat::core::match fail  
       [:wat::core::Some {:value f}
@@ -104,14 +100,11 @@
            _
             (:wat::core::match actual  
               [:wat::core::Some {:value a} (:wat::test::assert-eq a "hello")]
-              [:wat::core::None {} (:wat::kernel::assertion-failed!
-                       "actual slot empty" :wat::core::None :wat::core::None)])]
+              [:wat::core::None {} (:wat::kernel::assertion-failed! :message "actual slot empty")])]
           (:wat::core::match expected  
             [:wat::core::Some {:value e} (:wat::test::assert-eq e "xyz")]
-            [:wat::core::None {} (:wat::kernel::assertion-failed!
-                     "expected slot empty" :wat::core::None :wat::core::None)]))]
-      [:wat::core::None {} (:wat::kernel::assertion-failed!
-               "expected Failure, got :None" :wat::core::None :wat::core::None)])))
+            [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected slot empty")]))]
+      [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-coincident — pass + fail-renders-explanation ─────────────
 
@@ -156,9 +149,7 @@
             ;; nor a clean pass; assert it distinctly rather than fold it into either
             ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed!
-                "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open"
-                :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
             [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])]
     (:wat::core::match fail  
       [:wat::core::Some {:value f}
@@ -174,11 +165,8 @@
                 (:wat::test::assert-contains
                             a "min-sigma-to-pass")
                 nil)]
-            [:wat::core::None {} (:wat::kernel::assertion-failed!
-                     "actual slot empty — explanation should populate it"
-                     :wat::core::None :wat::core::None)]))]
-      [:wat::core::None {} (:wat::kernel::assertion-failed!
-               "expected Failure, got :None" :wat::core::None :wat::core::None)])))
+            [:wat::core::None {} (:wat::kernel::assertion-failed! :message "actual slot empty — explanation should populate it")]))]
+      [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
@@ -200,19 +188,19 @@
      m1 (:wat::core::match (:wat::kernel::recv p)
           [:wat::kernel::RecvOutcome::Message {:msg m} m]
           [:wat::kernel::RecvOutcome::Lost {:cause cause}
-            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
           [:wat::kernel::RecvOutcome::Stopped {}
-            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: stopped before first line — the child was ALIVE" :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: stopped before first line — the child was ALIVE")]
           [:wat::kernel::RecvOutcome::Closed {}
-            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before first line" :wat::core::None :wat::core::None)])
+            (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: child closed before first line")])
      m2 (:wat::core::match (:wat::kernel::recv p)
           [:wat::kernel::RecvOutcome::Message {:msg m} m]
           [:wat::kernel::RecvOutcome::Lost {:cause cause}
-            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
           [:wat::kernel::RecvOutcome::Stopped {}
-            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: stopped before second line — the child was ALIVE" :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: stopped before second line — the child was ALIVE")]
           [:wat::kernel::RecvOutcome::Closed {}
-            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before second line" :wat::core::None :wat::core::None)])]
+            (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: child closed before second line")])]
     (:wat::core::do
       (:wat::test::assert-eq m1 "alpha")
       (:wat::test::assert-eq m2 "beta"))))
@@ -253,15 +241,15 @@
              (:wat::kernel::eprintln "error: code 42"))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome::Message {:msg _m}
-             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Message" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got Message")]
            [:wat::kernel::RecvOutcome::Lost {:cause cause}
              (:wat::core::match cause
                [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got other Lost" :wat::core::None :wat::core::None)])]
+               [_ (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got other Lost")])]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got Stopped")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "code [0-9]+" msg))))
 
 ;; :wat-tests::test::test-assert-stderr-matches-fail-reports-pattern
@@ -308,11 +296,11 @@
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome::Message {:msg m} m]
            [:wat::kernel::RecvOutcome::Lost {:cause cause}
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "run-string-entry-path: stopped before the child sent its value — the child was ALIVE" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "run-string-entry-path: stopped before the child sent its value — the child was ALIVE")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "run-string-entry-path: child closed before sending its value" :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "run-string-entry-path: child closed before sending its value")])]
     (:wat::test::assert-eq msg "from-string")))
 
 ;; Duplicate of :wat-tests::test::test-assert-stdout-is-matches at line 132 —
@@ -335,11 +323,11 @@
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome::Message {:msg m} m]
            [:wat::kernel::RecvOutcome::Lost {:cause cause}
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "run-ast-via-program: stopped before the child sent its value — the child was ALIVE" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "run-ast-via-program: stopped before the child sent its value — the child was ALIVE")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "run-ast-via-program: child closed before sending its value" :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "run-ast-via-program: child closed before sending its value")])]
     (:wat::test::assert-eq msg "from-ast")))
 
 ;; deftest's self-test is redundant here — every other passing deftest

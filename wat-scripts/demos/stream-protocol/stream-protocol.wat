@@ -87,9 +87,9 @@
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
       [:wat::kernel::ReadlnOutcome::Eof {}
-        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stream ended before a SectionDone marker" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "stream-protocol: section truncated — stream ended before a SectionDone marker")]
       [:wat::kernel::ReadlnOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stop requested before a SectionDone marker" :wat::core::None :wat::core::None)])
+        (:wat::kernel::assertion-failed! :message "stream-protocol: section truncated — stop requested before a SectionDone marker")])
 
     ;; A payload frame: accept it, ack it, keep going.
     [:proto::Frame::Chunk {:text text}

@@ -54,9 +54,9 @@
                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t)))))
      got  (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open" :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)])]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])]
     got))
 
 ;; ── PROCESS tier ──────────────────────────────────────────────────────────────
@@ -90,9 +90,9 @@
                    (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t))))))
      got (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open" :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)])]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])]
     got))
 
 ;; ── the assertion — both tiers deliver the timer's :tick through poll' ─────────

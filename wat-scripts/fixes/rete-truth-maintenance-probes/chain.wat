@@ -59,16 +59,10 @@
       ;; Equality assertions: native must match oracle for every derived type.
       (:wat::core::if (:wat::core::= n-b o-b) 
         (:wat::kernel::println "PASS: B native == B oracle")
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "FAIL: B native=" (:wat::core::str n-b) " oracle=" (:wat::core::str o-b))
-          :wat::core::None :wat::core::None))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "FAIL: B native=" (:wat::core::str n-b) " oracle=" (:wat::core::str o-b))))
       (:wat::core::if (:wat::core::= n-c o-c) 
         (:wat::kernel::println "PASS: C native == C oracle")
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "FAIL: C native=" (:wat::core::str n-c) " oracle=" (:wat::core::str o-c))
-          :wat::core::None :wat::core::None))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "FAIL: C native=" (:wat::core::str n-c) " oracle=" (:wat::core::str o-c))))
       (:wat::core::if (:wat::core::= n-c 2) 
         (:wat::kernel::println "PASS: C = 2 (expected)")
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "FAIL: C expected=2 got=" (:wat::core::str n-c))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "FAIL: C expected=2 got=" (:wat::core::str n-c)))))))

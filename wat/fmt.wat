@@ -340,12 +340,9 @@
   -> :wat::fmt::Acc
   (:wat::core::if (:wat::fmt::claimed? claims parent-id)
     (:wat::fmt::pad-break acc bk indent open-col)
-    (:wat::kernel::assertion-failed!
-      (:wat::string::interpolate
+    (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
         "fmt: rule positioned a grandchild — node {n}'s parent is unclaimed"
-        :n (:wat::i64::to-string id))
-      :wat::core::None
-      :wat::core::None)))
+        :n (:wat::i64::to-string id)))))
 
 ;; Child 1 is the symbol/keyword `:-` and child 2 is a vector. Shared by
 ;; type DECLARATIONS (arity 3, atomic) and CONSTRUCTORS (arity > 3, glue then explode).
@@ -994,14 +991,11 @@
           [:wat::core::Some {:value prev}
             (:wat::core::if (:wat::core::= prev k)
               (:wat::hashmap::assoc m id k)
-              (:wat::kernel::assertion-failed!
-                (:wat::string::interpolate
+              (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
                   "fmt: conflicting Breaks for node {n} — {a} vs {b}"
                   :n (:wat::i64::to-string id)
                   :a (:wat::fmt::break-kind-name prev)
-                  :b (:wat::fmt::break-kind-name k))
-                :wat::core::None
-                :wat::core::None))])))
+                  :b (:wat::fmt::break-kind-name k))))])))
     (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
     (:wat::rete::query session (:wat::fmt::q-break))))
 
@@ -1159,4 +1153,4 @@
                 (:wat::fmt::strides-map fired)
                 (:wat::fmt::empties-set fired))))))]
     [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message cause))]))

@@ -17,8 +17,7 @@
 
 (:wat::core::defn :probe::kw [& [tag <- :wat::core::String]] -> :wat::core::i64
   (:wat::core::let
-    [_boom (:wat::kernel::assertion-failed! "deliberate — dumping the stack shape"
-             :wat::core::None :wat::core::None)]
+    [_boom (:wat::kernel::assertion-failed! :message "deliberate — dumping the stack shape")]
     0))
 
 ;; NON-tail: bind the call's result, then return something else.

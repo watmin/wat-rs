@@ -44,7 +44,7 @@
     ((:wat::core::= s "vector") (:user::NodeKind::Vector))
     ((:wat::core::= s "set") (:user::NodeKind::Set))
     ((:wat::core::= s "map") (:user::NodeKind::Map))
-    (:else (:wat::kernel::assertion-failed! (:wat::string::concat "grep: unknown ast-kind " s) :wat::core::None :wat::core::None))))
+    (:else (:wat::kernel::assertion-failed! :message (:wat::string::concat "grep: unknown ast-kind " s)))))
 
 (:wat::core::defn :user::kind-name
   [k <- :user::NodeKind]

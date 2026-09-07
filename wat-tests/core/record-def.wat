@@ -107,21 +107,15 @@
                [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m}
-        (:wat::kernel::assertion-failed!
-          "expected class-guard panic on wrong-class receiver; got Success"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "expected class-guard panic on wrong-class receiver; got Success")]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::test::assert-contains
           (:wat::kernel::LociDiedError/message cause)
           "got class")]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed!
-          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed!
-          "expected class-guard panic on wrong-class receiver; got Success"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "expected class-guard panic on wrong-class receiver; got Success")])))
 
 ;; ─── HOLONIC: construct + slash-accessor ─────────────────────────────────────
 
@@ -176,18 +170,12 @@
                [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m}
-        (:wat::kernel::assertion-failed!
-          "expected to-holon runtime error on BASE record; got Success"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "expected to-holon runtime error on BASE record; got Success")]
       [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed!
-          "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed!
-          "expected to-holon runtime error on BASE record; got Success"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "expected to-holon runtime error on BASE record; got Success")])))
 
 ;; ─── Liskov: [v <- :wat::core::Record] accepts a HOLONIC instance ──────────────────
 ;;

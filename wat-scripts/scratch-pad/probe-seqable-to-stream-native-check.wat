@@ -90,6 +90,6 @@
     fst     (:wat::core::match (:wat::stream::next (:wat::core::keep :cx::counting-keep big))
               [:wat::stream::NextOutcome::Item {:value value :rest _rest} value]
               [:wat::stream::NextOutcome::Exhausted {}
-                (:wat::kernel::assertion-failed! "keep: unexpectedly exhausted" :wat::core::None :wat::core::None)])
+                (:wat::kernel::assertion-failed! :message "keep: unexpectedly exhausted")])
     __ftr   (:wat::kernel::println "--- end laziness probe ---")]
     (:wat::kernel::println (:wat::string::concat "first=" (:wat::i64::to-string fst)))))

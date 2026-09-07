@@ -19,7 +19,7 @@
      tree      (:wat::core::match (:wat::core::read-string src)
                  [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
                  [:wat::core::ReadOutcome::Malformed {:cause __cause}
-                   (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+                   (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms     (:wat::core::ast->children tree)
      a-form    (:wat::core::first forms)
      ach       (:wat::core::ast->children a-form)

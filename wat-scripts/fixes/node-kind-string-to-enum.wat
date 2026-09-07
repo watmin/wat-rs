@@ -232,7 +232,7 @@
          rev   (:wat::core::reverse (:wat::core::sort eds))]
         (:wat::fix::fix-text-apply src rev))]
     [:wat::core::ReadOutcome::Malformed {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message cause))]))
 
 (:wat::core::defn :user::apply-each
   [paths <- (:wat::core::Vector :- [:wat::core::String])
@@ -260,7 +260,7 @@
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome::Datum {:v d} d]
       [:wat::kernel::ReadlnOutcome::Eof {}
-        (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "readln: end of input")]
       [:wat::kernel::ReadlnOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
+        (:wat::kernel::assertion-failed! :message "readln: stop requested")])
     0))

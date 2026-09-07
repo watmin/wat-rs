@@ -1222,25 +1222,13 @@
                               [~admin-init-kw ~init-arg-map-ast   (~init-name ~@init-arg-names)]
                               [~admin-resume-kw ~init-arg-map-ast (~init-name ~@init-arg-names)]
                               [~admin-stop-kw {}
-                                (:wat::kernel::assertion-failed!
-                                  "defservice dispatch-admin: Stop received before Init/Resume (protocol error)"
-                                  :wat::core::None
-                                  :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message "defservice dispatch-admin: Stop received before Init/Resume (protocol error)")]
                               [~admin-hibernate-kw {}
-                                (:wat::kernel::assertion-failed!
-                                  "defservice dispatch-admin: Hibernate received before Init/Resume (protocol error)"
-                                  :wat::core::None
-                                  :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message "defservice dispatch-admin: Hibernate received before Init/Resume (protocol error)")]
                               [~admin-allow-peer-kw {:pids pids}
-                                (:wat::kernel::assertion-failed!
-                                  "defservice dispatch-admin: AllowPeer received before Init/Resume (protocol error)"
-                                  :wat::core::None
-                                  :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message "defservice dispatch-admin: AllowPeer received before Init/Resume (protocol error)")]
                               [~admin-deny-peer-kw {:pids pids}
-                                (:wat::kernel::assertion-failed!
-                                  "defservice dispatch-admin: DenyPeer received before Init/Resume (protocol error)"
-                                  :wat::core::None
-                                  :wat::core::None)]))
+                                (:wat::kernel::assertion-failed! :message "defservice dispatch-admin: DenyPeer received before Init/Resume (protocol error)")]))
 
      ;; ── arc 291 3a-ii-α: extract-addr defn ───────────────────────────
      ;; fn [lu <- Status] -> addr-ty
@@ -1252,10 +1240,7 @@
                                   [lu <- ~status-ty-ann] -> ~addr-ty
                                   (:wat::core::match lu 
                                     [~status-started-kw {:addr addr} addr]
-                                    [_ (:wat::kernel::assertion-failed!
-                                         "defservice extract-addr: unexpected Status variant (expected Started)"
-                                         :wat::core::None
-                                         :wat::core::None)]))
+                                    [_ (:wat::kernel::assertion-failed! :message "defservice extract-addr: unexpected Status variant (expected Started)")]))
 
      clauses       (:wat::core::ast->children ops)            ;; list of op-List nodes
      impl-clauses  (:wat::core::if satisfies?
@@ -1624,17 +1609,11 @@
                                       next-id
                                       new-state)]
                                   [:wat::service::Outcome::Reply {:state new-state :reply resp}
-                                    (:wat::kernel::assertion-failed!
-                                      "defservice: an internal (-) op returned Outcome::Reply, but an internal op has no client to reply to (return NoReply / NoReplyAndArm)"
-                                      :wat::core::None :wat::core::None)]
+                                    (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::Reply, but an internal op has no client to reply to (return NoReply / NoReplyAndArm)")]
                                   [:wat::service::Outcome::Stop {:state final-state :reply resp}
-                                    (:wat::kernel::assertion-failed!
-                                      "defservice: an internal (-) op returned Outcome::Stop, but an internal op has no client to reply to"
-                                      :wat::core::None :wat::core::None)]
+                                    (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::Stop, but an internal op has no client to reply to")]
                                   [:wat::service::Outcome::ReplyAndArm {:state new-state :reply resp :arms arms}
-                                    (:wat::kernel::assertion-failed!
-                                      "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)"
-                                      :wat::core::None :wat::core::None)])])
+                                    (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)")])])
                            ;; ── SURFACE op arm (3-param [s ctx req], ctx : Invocation) ─────────────
                            ;; #16.2 budget guard; wraps the op's reply variant; KEEPS its idx (a
                            ;; client persists even on a NoReply cast). …AndArm folds new timers in.
@@ -1916,15 +1895,9 @@
                                [:wat::kernel::SendOutcome::Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
                                [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id state)]))]
                          [~admin-init-kw ~init-arg-map-ast
-                           (:wat::kernel::assertion-failed!
-                             "defservice serve: Admin::Init after startup (protocol error)"
-                             :wat::core::None
-                             :wat::core::None)]
+                           (:wat::kernel::assertion-failed! :message "defservice serve: Admin::Init after startup (protocol error)")]
                          [~admin-resume-kw ~init-arg-map-ast
-                           (:wat::kernel::assertion-failed!
-                             "defservice serve: Admin::Resume after startup (protocol error)"
-                             :wat::core::None
-                             :wat::core::None)])]
+                           (:wat::kernel::assertion-failed! :message "defservice serve: Admin::Resume after startup (protocol error)")])]
                      ;; arc 278 RST stone — the op-dispatch is wrapped in `serve-dispatch-op'`
                      ;; instead of a bare match: it is the ONE hook that can reach `clients`
                      ;; while a handler panic is caught (the interpreter's own catch_unwind,
@@ -1954,7 +1927,7 @@
                      ;; follow-on strike; this arm's contract here is simply: do not DROP it.
                      [:wat::spawn::ServiceEvent::Lost {:idx idx :cause cause}
                        (:wat::core::do
-                         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)
+                         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))
                          (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))]
                      ;; arc 278 no-hidden-failures — a peer that sent an UNDECODABLE message is
                      ;; STILL ALIVE (a bad message is not a death). Reply the rich decode reason
@@ -2121,10 +2094,7 @@
                                                  (:wat::kernel::RecvOutcome::Message
                                                    (:wat::core::match recvd
                                                      [~reply-variant-kw {:resp resp} resp]
-                                                     [_ (:wat::kernel::assertion-failed!
-                                                          "defservice method: misrouted reply variant (protocol violation)"
-                                                          :wat::core::None
-                                                          :wat::core::None)]))]
+                                                     [_ (:wat::kernel::assertion-failed! :message "defservice method: misrouted reply variant (protocol violation)")]))]
                                                ;; arc 278 the LociDiedError stone — forward the real
                                                ;; loci-agnostic death cause to the client's caller
                                                ;; (no-hidden-failures: never mask it with a generic
@@ -2199,23 +2169,16 @@
                             [:wat::kernel::RecvOutcome::Message {:msg recvd}
                               (:wat::core::match recvd 
                                 [~status-stopped-kw {:resp resp} resp]
-                                [_ (:wat::kernel::assertion-failed!
-                                     "defservice stop: expected Status::Stopped"
-                                     :wat::core::None
-                                     :wat::core::None)])]
+                                [_ (:wat::kernel::assertion-failed! :message "defservice stop: expected Status::Stopped")])]
                             ;; arc 278 the recv'-outcome wall — OWNER role: eprintln the cause
                             ;; (loud, terminal; the owner is the real final caller who does not
                             ;; recover — R51 eprintln IS the dying declaration), then terminate.
                             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                             [:wat::kernel::RecvOutcome::Stopped {}
-                              (:wat::kernel::assertion-failed!
-                                "defservice stop: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message "defservice stop: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                             [:wat::kernel::RecvOutcome::Closed {}
-                              (:wat::kernel::assertion-failed!
-                                "defservice stop: service peer closed during stop"
-                                :wat::core::None :wat::core::None)]))
+                              (:wat::kernel::assertion-failed! :message "defservice stop: service peer closed during stop")]))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
      methods           (:wat::core::conj op-methods stop-method)
@@ -2243,20 +2206,13 @@
                                  [:wat::kernel::RecvOutcome::Message {:msg recvd}
                                    (:wat::core::match recvd 
                                      [~status-hibernated-kw {:snapshot snapshot} snapshot]
-                                     [_ (:wat::kernel::assertion-failed!
-                                          "defservice hibernate: expected Status::Hibernated"
-                                          :wat::core::None
-                                          :wat::core::None)])]
+                                     [_ (:wat::kernel::assertion-failed! :message "defservice hibernate: expected Status::Hibernated")])]
                                  [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                                   (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                                  [:wat::kernel::RecvOutcome::Stopped {}
-                                   (:wat::kernel::assertion-failed!
-                                     "defservice hibernate: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                     :wat::core::None :wat::core::None)]
+                                   (:wat::kernel::assertion-failed! :message "defservice hibernate: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                                  [:wat::kernel::RecvOutcome::Closed {}
-                                   (:wat::kernel::assertion-failed!
-                                     "defservice hibernate: service peer closed during hibernate"
-                                     :wat::core::None :wat::core::None)]))
+                                   (:wat::kernel::assertion-failed! :message "defservice hibernate: service peer closed during hibernate")]))
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
@@ -2295,20 +2251,13 @@
                             [:wat::kernel::RecvOutcome::Message {:msg recvd}
                               (:wat::core::match recvd 
                                 [~status-peers-allowed-kw {} nil]
-                                [_ (:wat::kernel::assertion-failed!
-                                     "defservice grant: expected Status::PeersAllowed"
-                                     :wat::core::None
-                                     :wat::core::None)])]
+                                [_ (:wat::kernel::assertion-failed! :message "defservice grant: expected Status::PeersAllowed")])]
                             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                             [:wat::kernel::RecvOutcome::Stopped {}
-                              (:wat::kernel::assertion-failed!
-                                "defservice grant: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                :wat::core::None :wat::core::None)]
+                              (:wat::kernel::assertion-failed! :message "defservice grant: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                             [:wat::kernel::RecvOutcome::Closed {}
-                              (:wat::kernel::assertion-failed!
-                                "defservice grant: service peer closed during grant"
-                                :wat::core::None :wat::core::None)]))]
+                              (:wat::kernel::assertion-failed! :message "defservice grant: service peer closed during grant")]))]
                           [:wat::core::None {} nil])
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
@@ -2345,20 +2294,13 @@
                              [:wat::kernel::RecvOutcome::Message {:msg recvd}
                                (:wat::core::match recvd 
                                  [~status-peers-denied-kw {} nil]
-                                 [_ (:wat::kernel::assertion-failed!
-                                      "defservice revoke: expected Status::PeersDenied"
-                                      :wat::core::None
-                                      :wat::core::None)])]
+                                 [_ (:wat::kernel::assertion-failed! :message "defservice revoke: expected Status::PeersDenied")])]
                              [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                              [:wat::kernel::RecvOutcome::Stopped {}
-                               (:wat::kernel::assertion-failed!
-                                 "defservice revoke: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                 :wat::core::None :wat::core::None)]
+                               (:wat::kernel::assertion-failed! :message "defservice revoke: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                              [:wat::kernel::RecvOutcome::Closed {}
-                               (:wat::kernel::assertion-failed!
-                                 "defservice revoke: service peer closed during revoke"
-                                 :wat::core::None :wat::core::None)]))]
+                               (:wat::kernel::assertion-failed! :message "defservice revoke: service peer closed during revoke")]))]
                            [:wat::core::None {} nil])
      revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
@@ -2470,7 +2412,7 @@
                                             ;; owner link before the startup ship arrived: eprintln is the
                                             ;; terminal dying declaration (loud, exits non-zero).
                                             [:wat::kernel::RecvOutcome::Lost {:cause ~cm-shipcause-sym}
-                                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message ~cm-shipcause-sym) :wat::core::None :wat::core::None)]
+                                              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message ~cm-shipcause-sym))]
                                             ;; arc 278 #73 — the owner link did not close; a stop
                                             ;; arrived before the startup ship. Distinct fact, so a
                                             ;; distinct line: reporting "closed" here sent every

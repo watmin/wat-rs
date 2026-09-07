@@ -110,9 +110,7 @@
       ((:wat::core::= row 5) (:wjo::where-between-then-where))
       ((:wat::core::= row 6) (:wjo::join-then-two-where))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-join-order: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-join-order: unknown row " (:wat::i64::to-string row)))))))
 
 (:wat::core::defn :wjo::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
   (:wat::rete::insert-all

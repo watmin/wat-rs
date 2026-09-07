@@ -22,7 +22,7 @@
 //! (STOP-3): once the flip lands the positional form must be REFUSED. It is red today in
 //! the opposite direction from rows 2-3 — today the old form is accepted.
 //!
-//! Un-ignored by the stone.
+//! Un-ignored by stone 109: `assertion-failed!` takes kwargs.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -56,7 +56,6 @@ fn the_control_program_checks_clean() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 109 `assertion-failed!` takes kwargs; un-ignored BY that stone"]
 fn a_plain_failure_needs_only_a_message() {
     assert_eq!(
         check("kwargs_message_only"),
@@ -67,7 +66,6 @@ fn a_plain_failure_needs_only_a_message() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 109 `assertion-failed!` takes kwargs; un-ignored BY that stone"]
 fn the_optional_kwargs_are_still_accepted() {
     assert_eq!(
         check("kwargs_all_three"),
@@ -78,7 +76,6 @@ fn the_optional_kwargs_are_still_accepted() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 109 `assertion-failed!` takes kwargs; un-ignored BY that stone"]
 fn the_retired_positional_form_is_refused() {
     assert_ne!(
         check("positional"),

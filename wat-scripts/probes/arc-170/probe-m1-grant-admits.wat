@@ -51,21 +51,20 @@
                             :wat::core::String
                             (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]))
                      addr (:wat::kernel::recv self)
-                     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
                      er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
                      _    (:wat::core::match (:wat::kernel::send self (:wat::core::match er [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
   [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            [:wat::core::Some {:value p}
              (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))]
            [:wat::core::None {}
-             (:wat::kernel::assertion-failed! "peer-pid returned None on a process prober"
-               :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "peer-pid returned None on a process prober")])
      ;; hand A's addr down; the prober dials — served ONLY because we granted its pid.
      _   (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
      out (:wat::kernel::recv prober)]

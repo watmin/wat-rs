@@ -25,11 +25,11 @@
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg m} m]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "launch-defmacro: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "launch-defmacro: stop requested before the child sent its value — the child was alive")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed! "launch-defmacro: child closed before sending its value" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "launch-defmacro: child closed before sending its value")])))
 
 ;; Test 4: newtype in fn body do-prefix lifts to prologue.
 ;; The child constructs the newtype and reads it back through the synthesized `/0` accessor,
@@ -47,11 +47,11 @@
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg m} m]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "launch-newtype: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "launch-newtype: stop requested before the child sent its value — the child was alive")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed! "launch-newtype: child closed before sending its value" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "launch-newtype: child closed before sending its value")])))
 
 ;; Test 5: typealias in fn body do-prefix lifts to prologue.
 ;; A typealias is transparent, so the child can println the aliased-return value directly —
@@ -70,11 +70,11 @@
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg m} m]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "launch-typealias: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "launch-typealias: stop requested before the child sent its value — the child was alive")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed! "launch-typealias: child closed before sending its value" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "launch-typealias: child closed before sending its value")])))
 
 ;; Test 6: mixed prelude covering 7 of 8 declaration form kinds.
 ;; The child exercises every declaration and folds them into ONE value: 1+2 from the struct's
@@ -113,11 +113,11 @@
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg m} m]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "launch-mixed: stop requested before the child sent its value — the child was alive" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "launch-mixed: stop requested before the child sent its value — the child was alive")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed! "launch-mixed: child closed before sending its value" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "launch-mixed: child closed before sending its value")])))
 
 ;; ─── The NEGATIVE direction — arc 255 Stone 1a-β-ii ──────────────────────────
 ;;

@@ -28,8 +28,7 @@
           (:wat::edn::ForeignRecord/get fr :kind)
           "nested :kind"))]
     [:wat::edn::ReadForeignOutcome::Malformed {:cause _}
-      (:wat::kernel::assertion-failed! "read-foreign of well-formed EDN was :Malformed"
-        :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))
 
 ;; :my::missing-field-is-none — get of an absent key is None, never a raise.
 (:wat::core::defn :my::missing-field-is-none [] -> :wat::core::bool
@@ -63,5 +62,4 @@
           (:wat::edn::ForeignRecord/get fr :kind)
           "nested :kind"))]
     [:wat::edn::ReadForeignOutcome::Malformed {:cause _}
-      (:wat::kernel::assertion-failed! "read-foreign of well-formed EDN was :Malformed"
-        :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))

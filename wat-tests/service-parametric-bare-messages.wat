@@ -72,11 +72,11 @@
      c (:wat::core::match (:wat::kernel::connect (:wat-tests::barebox-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
          [:wat::kernel::ConnectOutcome::Refused {:cause cz}
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
          [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
          [:wat::kernel::ConnectOutcome::Failed {:cause cz}
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)])
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))])
      r (:wat-tests::barebox-svc/put c (:wat-tests::BareBox::PutRequest :item 7))
      out (:wat::core::match r
            [:wat::kernel::RecvOutcome::Message {:msg __recv}
@@ -84,16 +84,15 @@
                [:wat-tests::BareBox::PutResponse::Ok {:echo echo} echo]
                ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
                [:wat-tests::BareBox::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
-                 (:wat::kernel::assertion-failed! "barebox-svc put: unexpected RequestTooLarge"
-                   :wat::core::None :wat::core::None)]
+                 (:wat::kernel::assertion-failed! :message "barebox-svc put: unexpected RequestTooLarge")]
                [:wat-tests::BareBox::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                 (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+                 (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
            [:wat::kernel::RecvOutcome::Lost {:cause __cause}
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      _ (:wat-tests::barebox-svc/stop h)]
     out))
 

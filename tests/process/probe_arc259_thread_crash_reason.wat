@@ -11,7 +11,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
-           (:wat::kernel::assertion-failed! "BOOM-SENTINEL-9173" :wat::core::None :wat::core::None)))]
+           (:wat::kernel::assertion-failed! :message "BOOM-SENTINEL-9173")))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::LociDiedError/message cause)]

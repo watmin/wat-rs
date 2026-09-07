@@ -1192,9 +1192,9 @@ mod tests {
                      [:wat::kernel::SendOutcome::Closed {} nil] \
                      [:wat::kernel::SendOutcome::Stopped {} nil] \
                      [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] \
-                 [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)] \
-                 [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! \"echo: stop requested before message — the peer was ALIVE\" :wat::core::None :wat::core::None)] \
-                 [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None)]))",
+                 [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))] \
+                 [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message \"echo: stop requested before message — the peer was ALIVE\")] \
+                 [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message \"echo: channel closed before message\")]))",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )

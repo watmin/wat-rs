@@ -47,9 +47,7 @@
       ((:wat::core::= row 1) (:wtc::spoken))
       ((:wat::core::= row 2) (:wtc::join-first))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-test-chain: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-test-chain: unknown row " (:wat::i64::to-string row)))))))
 
 (:wat::core::defn :wtc::seed [session <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::rete::insert session

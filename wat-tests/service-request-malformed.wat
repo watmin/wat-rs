@@ -94,11 +94,11 @@
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
     [:wat::kernel::ConnectOutcome::Refused {:cause c}
-      (:wat::kernel::assertion-failed! "victim: connect REFUSED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "victim: connect REFUSED — the service is GONE (the DoS is back)")]
     [:wat::kernel::ConnectOutcome::Rejected {:cause c}
-      (:wat::kernel::assertion-failed! "victim: connect REJECTED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")]
     [:wat::kernel::ConnectOutcome::Failed {:cause c}
-      (:wat::kernel::assertion-failed! "victim: connect FAILED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "victim: connect FAILED — the service is GONE (the DoS is back)")]))
 
 ;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.
 ;; The victim's `connect'` happens AFTER the malformed frame — that dial is the assertion.

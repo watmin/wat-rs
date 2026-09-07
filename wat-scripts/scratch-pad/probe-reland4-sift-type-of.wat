@@ -7,7 +7,7 @@
      tree (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome::Forms {:forms f} f]
              [:wat::core::ReadOutcome::Malformed {:cause c}
-               (:wat::kernel::assertion-failed! (:wat::core::Error/message c) :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
      ch   (:wat::core::ast->children tree)
      decls (:wat::core::into []
              (:wat::core::filter

@@ -55,7 +55,7 @@
           (:wat::kernel::println
             (:wat::string::concat label " => RequestTooLarge"))]
         [:probe-det::Bag::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
     ;; NB (measured): on this path the payload that actually arrives in the `Lost`
     ;; arm at runtime is a `:wat::kernel::Failure`, NOT the declared
     ;; `:wat::kernel::LociDiedError` — calling `LociDiedError/message` on it raises
@@ -81,11 +81,11 @@
      c (:wat::core::match (:wat::kernel::connect (:probe-det::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
          [:wat::kernel::ConnectOutcome::Refused {:cause f}
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)]
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
          [:wat::kernel::ConnectOutcome::Rejected {:cause f}
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)]
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
          [:wat::kernel::ConnectOutcome::Failed {:cause f}
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)])
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))])
      good (:probe-det::Bag::PutRequest
             :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
      _ (:probe-det::round-trip c "[process] control " good)

@@ -29,8 +29,7 @@
   (:wat::core::match (:probe::row1)
     [:wat::stream::NextOutcome::Item {:value value :rest rest} (:wat::stream::next rest)]
     [:wat::stream::NextOutcome::Exhausted {}
-      (:wat::kernel::assertion-failed! "row1 must be Item — row4 fixture is broken"
-        :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "row1 must be Item — row4 fixture is broken")]))
 
 ;; Row 3 — with a printing `f`, ONE `next` on `(map f v)` prints EXACTLY ONE LINE.
 ;; `f` prints "CALLED" (via the primed `:wat::kernel::println`, which requires a running
@@ -51,5 +50,4 @@
     (:wat::core::match r
       [:wat::stream::NextOutcome::Item {:value value :rest rest} nil]
       [:wat::stream::NextOutcome::Exhausted {}
-        (:wat::kernel::assertion-failed! "row3: next on (map f v) must be Item"
-          :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "row3: next on (map f v) must be Item")])))

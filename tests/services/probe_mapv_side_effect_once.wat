@@ -52,49 +52,47 @@
       (:wat::core::match recvd
         [:probe::Counter::IncrementResponse::Ok {:value v} v]
         [:probe::Counter::IncrementResponse::RequestTooLarge {:bytes _b :cap _c}
-          (:wat::kernel::assertion-failed! "inc: too-large" :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message "inc: too-large")]
         [:probe::Counter::IncrementResponse::RequestMalformed {:path _p :expected _e :got _g}
-          (:wat::kernel::assertion-failed! "inc: malformed" :wat::core::None :wat::core::None)])]
+          (:wat::kernel::assertion-failed! :message "inc: malformed")])]
     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause)
-        :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     [:wat::kernel::RecvOutcome::Stopped {}
-      (:wat::kernel::assertion-failed! "inc: stopped" :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "inc: stopped")]
     [:wat::kernel::RecvOutcome::Closed {}
-      (:wat::kernel::assertion-failed! "inc: closed" :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "inc: closed")]))
 
 (:wat::core::defn :probe::read
   [h <- :probe::counter::Handle] -> :wat::core::i64
   (:wat::core::let
     [c (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h))
           [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-          [:wat::kernel::ConnectOutcome::Refused {:cause e} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message e) :wat::core::None :wat::core::None)]
-          [:wat::kernel::ConnectOutcome::Rejected {:cause e} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message e) :wat::core::None :wat::core::None)]
-          [:wat::kernel::ConnectOutcome::Failed {:cause e} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message e) :wat::core::None :wat::core::None)])]
+          [:wat::kernel::ConnectOutcome::Refused {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome::Rejected {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome::Failed {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))])]
     (:wat::core::match (:probe::Counter/get c (:probe::Counter::GetRequest))
       [:wat::kernel::RecvOutcome::Message {:msg recvd}
         (:wat::core::match recvd
           [:probe::Counter::GetResponse::Ok {:value v} v]
           [:probe::Counter::GetResponse::RequestTooLarge {:bytes _b :cap _c}
-            (:wat::kernel::assertion-failed! "read: too-large" :wat::core::None :wat::core::None)]
+            (:wat::kernel::assertion-failed! :message "read: too-large")]
           [:probe::Counter::GetResponse::RequestMalformed {:path _p :expected _e :got _g}
-            (:wat::kernel::assertion-failed! "read: malformed" :wat::core::None :wat::core::None)])]
+            (:wat::kernel::assertion-failed! :message "read: malformed")])]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause)
-          :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::assertion-failed! "read: stopped" :wat::core::None :wat::core::None)]
+        (:wat::kernel::assertion-failed! :message "read: stopped")]
       [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::assertion-failed! "read: closed" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "read: closed")])))
 
 (:wat::core::defn :probe::run-mapv [] -> :wat::core::i64
   (:wat::core::let
     [h (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      c (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h))
           [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-          [:wat::kernel::ConnectOutcome::Refused {:cause e} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message e) :wat::core::None :wat::core::None)]
-          [:wat::kernel::ConnectOutcome::Rejected {:cause e} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message e) :wat::core::None :wat::core::None)]
-          [:wat::kernel::ConnectOutcome::Failed {:cause e} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message e) :wat::core::None :wat::core::None)])
+          [:wat::kernel::ConnectOutcome::Refused {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome::Rejected {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome::Failed {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))])
      _ (:wat::core::mapv
           (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::match (:probe::Counter/increment c (:probe::Counter::IncrementRequest :n 1))

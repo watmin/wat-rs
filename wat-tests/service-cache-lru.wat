@@ -48,11 +48,11 @@
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
     [:wat::kernel::ConnectOutcome::Refused {:cause cz}
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
     [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
     [:wat::kernel::ConnectOutcome::Failed {:cause cz}
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))
 
 ;; ── labels — extract the response's fields apart, render the one honest token ────────────────
 
@@ -86,15 +86,15 @@
               "]"))]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         [:wat::cache::Cache::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
-          (:wat::kernel::assertion-failed! "cache-svc get: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message "cache-svc get: unexpected RequestTooLarge")]
         [:wat::cache::Cache::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! "cache-svc get: unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+          (:wat::kernel::assertion-failed! :message "cache-svc get: unexpected RequestMalformed")])]
     [:wat::kernel::RecvOutcome::Lost {:cause __cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
     [:wat::kernel::RecvOutcome::Stopped {}
-      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
     [:wat::kernel::RecvOutcome::Closed {}
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; `put` answers nothing meaningful (file-header departure note in `wat/cache.wat`) — the ONLY
 ;; honest token is whether the batch was accepted at all.
@@ -106,15 +106,15 @@
       (:wat::core::match __recv
         [:wat::cache::Cache::PutResponse::Ok {} "Ok"]
         [:wat::cache::Cache::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
-          (:wat::kernel::assertion-failed! "cache-svc put: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+          (:wat::kernel::assertion-failed! :message "cache-svc put: unexpected RequestTooLarge")]
         [:wat::cache::Cache::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! "cache-svc put: unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+          (:wat::kernel::assertion-failed! :message "cache-svc put: unexpected RequestMalformed")])]
     [:wat::kernel::RecvOutcome::Lost {:cause __cause}
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
     [:wat::kernel::RecvOutcome::Stopped {}
-      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+      (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
     [:wat::kernel::RecvOutcome::Closed {}
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SIX behaviours in one round trip ──────────────────
 (:wat::core::defn :wat-tests::cache-svc/run [locus <- :wat::spawn::Locus] -> :wat::core::String

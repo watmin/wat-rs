@@ -1324,11 +1324,11 @@
                              `(:wat::core::match (:wat::kernel::connect ~read-form)
                                 [:wat::kernel::ConnectOutcome::Connected {:peer ~assemble-p-sym} ~assemble-p-sym]
                                 [:wat::kernel::ConnectOutcome::Refused {:cause ~assemble-c-sym}
-                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)]
+                                  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))]
                                 [:wat::kernel::ConnectOutcome::Rejected {:cause ~assemble-c-sym}
-                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)]
+                                  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))]
                                 [:wat::kernel::ConnectOutcome::Failed {:cause ~assemble-c-sym}
-                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)])
+                                  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))])
                              read-form)]
                (:wat::core::conj acc form)))
            (:wat::core::Vector :- [:wat::WatAST])

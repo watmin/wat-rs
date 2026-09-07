@@ -41,33 +41,33 @@
                   st   (:wat::core::match (:wat::kernel::recv self)
                          [:wat::kernel::RecvOutcome::Message {:msg m} m]
                          [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                           (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                           (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                          [:wat::kernel::RecvOutcome::Stopped {}
-                           (:wat::kernel::assertion-failed! "recv': stopped before the owner sent state0 — the peer was ALIVE" :wat::core::None :wat::core::None)]
+                           (:wat::kernel::assertion-failed! :message "recv': stopped before the owner sent state0 — the peer was ALIVE")]
                          [:wat::kernel::RecvOutcome::Closed {}
-                           (:wat::kernel::assertion-failed! "recv': self closed before the owner sent state0" :wat::core::None :wat::core::None)])]
+                           (:wat::kernel::assertion-failed! :message "recv': self closed before the owner sent state0")])]
                  (:user::serve self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]) st)))))
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
      addr (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed! "recv': stopped before sending the capability — the peer was ALIVE" :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "recv': stopped before sending the capability — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome::Closed {}
-              (:wat::kernel::assertion-failed! "recv': svc closed before sending the capability" :wat::core::None :wat::core::None)])
+              (:wat::kernel::assertion-failed! :message "recv': svc closed before sending the capability")])
      ;; hand the child its initial state over the lineage channel (parent→child — the NEW direction).
      _    (:wat::core::match (:wat::kernel::send svc (:user::Counter :base 1000)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      ;; dial the capability; round-trip 5 -> base + 5 == 1005 (only if state0 crossed).
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _    (:wat::core::match (:wat::kernel::send c 5) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      got  (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             [:wat::kernel::RecvOutcome::Stopped {}
-              (:wat::kernel::assertion-failed! "recv': stopped before replying — the peer was ALIVE" :wat::core::None :wat::core::None)]
+              (:wat::kernel::assertion-failed! :message "recv': stopped before replying — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome::Closed {}
-              (:wat::kernel::assertion-failed! "recv': c closed before replying" :wat::core::None :wat::core::None)])]
+              (:wat::kernel::assertion-failed! :message "recv': c closed before replying")])]
     got))

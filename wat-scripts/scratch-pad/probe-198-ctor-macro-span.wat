@@ -30,7 +30,7 @@
   (:wat::core::let
     [forms (:wat::core::match (:wat::core::read-string "(:my::Token 7)")
               [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-              [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+              [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      form (:wat::core::first forms)
      exp  (:wat::core::macroexpand form)]
     (:wat::core::do

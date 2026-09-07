@@ -292,15 +292,15 @@
                      (:wat::core::Vector :- [:wat::core::i64]))))))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome::Message {:msg _m}
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Message" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
            [:wat::kernel::RecvOutcome::Lost {:cause cause}
              (:wat::core::match cause
                [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! "expected Lost[Panic], got other Lost" :wat::core::None :wat::core::None)])]
+               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true
       (:wat::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))
 
@@ -318,14 +318,14 @@
                      (:wat::stream::empty))))))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome::Message {:msg _m}
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Message" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
            [:wat::kernel::RecvOutcome::Lost {:cause cause}
              (:wat::core::match cause
                [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! "expected Lost[Panic], got other Lost" :wat::core::None :wat::core::None)])]
+               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
            [:wat::kernel::RecvOutcome::Stopped {}
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
            [:wat::kernel::RecvOutcome::Closed {}
-             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)])]
+             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true
       (:wat::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))

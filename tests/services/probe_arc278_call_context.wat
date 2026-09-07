@@ -102,9 +102,9 @@
 (:wat::core::defn :probe::connect! [h <- :probe::callctx3svc::Handle] -> :probe::CallCtx3
   (:wat::core::match (:wat::kernel::connect (:probe::callctx3svc::Handle/addr h))
     [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
-    [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
-    [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]))
+    [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 ;; Round-trips `whoami` on `c` and returns the caller-id (asserting on transport failures — a
 ;; probe driver, not the subject under test).
@@ -113,11 +113,11 @@
     [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
         [:probe::CallCtx3::WhoamiResponse::Ok {:caller-id caller-id :namespace _namespace :operation _operation} caller-id]
-        [:probe::CallCtx3::WhoamiResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-        [:probe::CallCtx3::WhoamiResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-    [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "whoami: stop before reply" :wat::core::None :wat::core::None)]
-    [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)]))
+        [:probe::CallCtx3::WhoamiResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
+        [:probe::CallCtx3::WhoamiResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+    [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "whoami: stop before reply")]
+    [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "whoami: closed before reply")]))
 
 ;; A bounded, event-driven wait (NOT a sleep-guess — arc 278's own precedent, DESIGN-STONE-the-
 ;; call-context.md's reproduction: "wait 60ms via a select'-on-after nap"): arm a one-shot timer
@@ -146,11 +146,11 @@
         (:wat::core::match resp
           [:probe::CallCtx3::WhoamiResponse::Ok {:caller-id caller-id :namespace _namespace :operation operation}
             (:wat::core::Tuple caller-id operation)]
-          [:probe::CallCtx3::WhoamiResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-          [:probe::CallCtx3::WhoamiResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "whoami: stop before reply" :wat::core::None :wat::core::None)]
-      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)])))
+          [:probe::CallCtx3::WhoamiResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
+          [:probe::CallCtx3::WhoamiResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "whoami: stop before reply")]
+      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "whoami: closed before reply")])))
 
 ;; namespace equals the service's own fqdn — a keyword equality check, kept as its own bool-
 ;; returning driver (the harness above already proves caller-id/operation).
@@ -163,11 +163,11 @@
         (:wat::core::match resp
           [:probe::CallCtx3::WhoamiResponse::Ok {:caller-id _caller-id :namespace namespace :operation _operation}
             (:wat::core::= namespace :probe::callctx3svc)]
-          [:probe::CallCtx3::WhoamiResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-          [:probe::CallCtx3::WhoamiResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "whoami: stop before reply" :wat::core::None :wat::core::None)]
-      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "whoami: closed before reply" :wat::core::None :wat::core::None)])))
+          [:probe::CallCtx3::WhoamiResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
+          [:probe::CallCtx3::WhoamiResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "whoami: stop before reply")]
+      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "whoami: closed before reply")])))
 
 ;; ── a SECOND public op in the SAME service, also `[s ctx req]` — unremarkable on its own, but
 ;; it keeps the service honest that ctx isn't special-cased to whichever op happens to be first
@@ -181,11 +181,11 @@
       [:wat::kernel::RecvOutcome::Message {:msg resp}
         (:wat::core::match resp
           [:probe::CallCtx3::PingResponse::Ok {:ok ok} ok]
-          [:probe::CallCtx3::PingResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-          [:probe::CallCtx3::PingResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "ping: stop before reply" :wat::core::None :wat::core::None)]
-      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "ping: closed before reply" :wat::core::None :wat::core::None)])))
+          [:probe::CallCtx3::PingResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
+          [:probe::CallCtx3::PingResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "ping: stop before reply")]
+      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "ping: closed before reply")])))
 
 ;; ── (2) ★ THE test — an INTERNAL arm receives a populated `SelfInvocation` ────────────────────
 ;; `arm-mark` (a public op) arms the one-shot internal `-mark`; `-mark` stamps its OWN ctx into
@@ -199,18 +199,18 @@
     [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
         [:probe::CallCtx3::PeekMarkResponse::Ok {:seen-op seen-op :seen-ns seen-ns} (:wat::core::Tuple seen-op seen-ns)]
-        [:probe::CallCtx3::PeekMarkResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-        [:probe::CallCtx3::PeekMarkResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-    [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "peek-mark: stop before reply" :wat::core::None :wat::core::None)]
-    [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "peek-mark: closed before reply" :wat::core::None :wat::core::None)]))
+        [:probe::CallCtx3::PeekMarkResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
+        [:probe::CallCtx3::PeekMarkResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+    [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "peek-mark: stop before reply")]
+    [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "peek-mark: closed before reply")]))
 
 ;; peek-until — bounded retry, event-driven backoff (`:probe::nap!`), terminates on the OBSERVED
 ;; seen-op becoming non-empty (i.e. `-mark` has genuinely fired and its ctx landed in state).
 (:wat::core::defn :probe::peek-until
   [c <- :probe::CallCtx3  attempts <- :wat::core::i64] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::keyword])
   (:wat::core::if (:wat::i64::<= attempts 0)
-    (:wat::kernel::assertion-failed! "peek-until: bound exhausted — -mark never fired" :wat::core::None :wat::core::None)
+    (:wat::kernel::assertion-failed! :message "peek-until: bound exhausted — -mark never fired")
     (:wat::core::let [got (:probe::peek-mark! c)]
       (:wat::core::if (:wat::core::= (:wat::core::first got) "")
         (:wat::core::let [_ (:probe::nap!)]
@@ -225,9 +225,9 @@
      c (:probe::connect! h)
      _ (:wat::core::match (:probe::CallCtx3/arm-mark c (:probe::CallCtx3::ArmMarkRequest))
          [:wat::kernel::RecvOutcome::Message {:msg __r} __r]
-         [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
-         [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "arm-mark: stop before reply" :wat::core::None :wat::core::None)]
-         [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "arm-mark: closed before reply" :wat::core::None :wat::core::None)])
+         [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+         [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "arm-mark: stop before reply")]
+         [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "arm-mark: closed before reply")])
      seen (:probe::peek-until c 40)
      seen-op (:wat::core::first seen)
      seen-ns (:wat::core::second seen)]

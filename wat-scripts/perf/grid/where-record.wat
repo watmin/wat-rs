@@ -315,9 +315,7 @@
       ((:wat::core::= row 12) (:wr::combined-and))
       ((:wat::core::= row 13) (:wr::cross-var-chain))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-record: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-record: unknown row " (:wat::i64::to-string row)))))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
 (:wat::core::defn :wr::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session

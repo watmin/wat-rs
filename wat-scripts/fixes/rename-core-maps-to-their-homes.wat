@@ -190,9 +190,9 @@
     [paths (:wat::core::match (:wat::kernel::readln)
              [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
              [:wat::kernel::ReadlnOutcome::Eof {}
-               (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message "readln: end of input")]
              [:wat::kernel::ReadlnOutcome::Stopped {}
-               (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
+               (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:wat::rete::with-overlay (:wat::rete::collect-rules :rn)
       (:wat::core::PersistentVector :- [:wat::rete::Query] (:rn::q-match))
       (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::nil

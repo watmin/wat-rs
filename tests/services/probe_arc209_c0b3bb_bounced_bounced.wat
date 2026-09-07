@@ -43,11 +43,11 @@
      svc-addr (:wat::core::match (:wat::kernel::recv svc)
                 [:wat::kernel::RecvOutcome::Message {:msg m} m]
                 [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                  (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                  (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                 [:wat::kernel::RecvOutcome::Stopped {}
-                  (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)]
+                  (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")]
                 [:wat::kernel::RecvOutcome::Closed {}
-                  (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)])
+                  (:wat::kernel::assertion-failed! :message "recv': svc closed")])
      ;; A SEPARATE process child — its pid ≠ the owner's → NOT in the birth-seeded allow-set.
      ;; The owner hands the (leaked) service address DOWN to the stranger via its lineage channel.
      ;; stranger self-peer: S=i64 (would send up — never does), R=(Address' :- [i64 i64]) (receives cap).
@@ -62,12 +62,12 @@
                        addr (:wat::core::match (:wat::kernel::recv self)  ;; blocks until parent sends the cap
                               [:wat::kernel::RecvOutcome::Message {:msg m} m]
                               [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                               [:wat::kernel::RecvOutcome::Stopped {}
-                                (:wat::kernel::assertion-failed! "recv': stopped before the owner sent the cap — the peer was ALIVE" :wat::core::None :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message "recv': stopped before the owner sent the cap — the peer was ALIVE")]
                               [:wat::kernel::RecvOutcome::Closed {}
-                                (:wat::kernel::assertion-failed! "recv': owner closed (cap handoff)" :wat::core::None :wat::core::None)])
-                       c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                                (:wat::kernel::assertion-failed! :message "recv': owner closed (cap handoff)")])
+                       c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
                        _    (:wat::core::match (:wat::kernel::send c 7) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
                        ;; 3b-b: the stranger is bounced → the service drops the stream → this recv'
                        ;; sees Closed (EOF on the bounce) → we RAISE → the stranger process DIES.
@@ -76,11 +76,11 @@
                        _got (:wat::core::match (:wat::kernel::recv c)
                               [:wat::kernel::RecvOutcome::Message {:msg m} m]
                               [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
                               [:wat::kernel::RecvOutcome::Stopped {}
-                                (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+                                (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                               [:wat::kernel::RecvOutcome::Closed {}
-                                (:wat::kernel::assertion-failed! "stranger bounced: service closed the stream" :wat::core::None :wat::core::None)])]
+                                (:wat::kernel::assertion-failed! :message "stranger bounced: service closed the stream")])]
                       nil))))
      ;; hand the (leaked) service capability DOWN to the stranger.
      _   (:wat::core::match (:wat::kernel::send stranger svc-addr) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop

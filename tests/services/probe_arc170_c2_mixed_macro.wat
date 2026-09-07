@@ -109,45 +109,45 @@
     [r1  (:wat::core::match (:probe::S1/op s1 (:probe::S1::OpRequest :m item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
            [:probe::S1::OpResponse::Ok {:r r} r]
            [:probe::S1::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
            [:probe::S1::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      r2  (:wat::core::match (:probe::S2/op s2 (:probe::S2::OpRequest :m item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
            [:probe::S2::OpResponse::Ok {:r r} r]
            [:probe::S2::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
            [:probe::S2::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      r3  (:wat::core::match (:probe::S3/op s3 (:probe::S3::OpRequest :m item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
            [:probe::S3::OpResponse::Ok {:r r} r]
            [:probe::S3::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
            [:probe::S3::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      r4  (:wat::core::match (:probe::S4/op s4 (:probe::S4::OpRequest :m item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
            [:probe::S4::OpResponse::Ok {:r r} r]
            [:probe::S4::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
            [:probe::S4::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      r5  (:wat::core::match (:probe::S5/op s5 (:probe::S5::OpRequest :m item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
            [:probe::S5::OpResponse::Ok {:r r} r]
            [:probe::S5::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
            [:probe::S5::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      r6  (:wat::core::match (:probe::S6/op s6 (:probe::S6::OpRequest :m item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
            [:probe::S6::OpResponse::Ok {:r r} r]
            [:probe::S6::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
            [:probe::S6::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      r7  (:wat::core::match (:probe::S7/op s7 (:probe::S7::OpRequest :m item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
            [:probe::S7::OpResponse::Ok {:r r} r]
            [:probe::S7::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+             (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
            [:probe::S7::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
+             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      svc (:wat::string::concat r1
            (:wat::string::concat r2
              (:wat::string::concat r3

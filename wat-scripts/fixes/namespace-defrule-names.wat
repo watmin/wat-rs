@@ -99,9 +99,7 @@
 ;; namespace (e.g. ":wsh::items" -> "wsh"). STOPS if the file has none at all — never a guessed default.
 (:wat::core::defn :user::find-ns [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::String
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::kernel::assertion-failed!
-      "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from"
-      :wat::core::None :wat::core::None)
+    (:wat::kernel::assertion-failed! :message "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from")
     (:wat::core::match (:user::namespaced-defn-name (:wat::core::first forms))
       [:wat::core::Some {:value nm}
         (:wat::core::let [seg0 (:wat::core::Option/expect (:wat::core::get (:wat::string::split nm "::") 0)
@@ -158,7 +156,7 @@
 
 (:wat::core::defn :user::find-run-row [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::kernel::assertion-failed! "namespace-defrule-names: no ::run-row defn found" :wat::core::None :wat::core::None)
+    (:wat::kernel::assertion-failed! :message "namespace-defrule-names: no ::run-row defn found")
     (:wat::core::let [f (:wat::core::first forms)]
       (:wat::core::if (:user::run-row-defn? f) f (:user::find-run-row (:wat::core::rest forms))))))
 
@@ -209,7 +207,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [tree0  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+    [tree0  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms0 (:wat::core::ast->children tree0)]
     (:wat::core::if (:wat::core::not (:user::any-bare-defrule? forms0))
       src ;; idempotent no-op — every defrule name is already namespaced
@@ -218,7 +216,7 @@
          renames  (:user::rule-renames forms0 ns)
          text1    (:user::apply-renames src renames)
          lines1   (:wat::string::split text1 "\n")
-         tree1    (:wat::core::match (:wat::core::read-string text1) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+         tree1    (:wat::core::match (:wat::core::read-string text1) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
          forms1   (:wat::core::ast->children tree1)
          run-row  (:user::find-run-row forms1)
          target   (:wat::core::Option/expect (:user::find-call run-row ":wat::rete::Rule/name")
@@ -244,5 +242,5 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

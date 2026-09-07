@@ -108,18 +108,14 @@
         ;; No then-forms at all (bare `:then` with nothing after) — none observed in the
         ;; corpus (verified pre-strike); stay honest rather than silently no-op a shape that
         ;; was never checked.
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "defrule-then-to-vector: :then has no forms in " (:wat::core::write-forms node))
-          :wat::core::None :wat::core::None)
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "defrule-then-to-vector: :then has no forms in " (:wat::core::write-forms node)))
         (:wat::core::let [then-forms (:wat::core::into [] (:wat::core::drop ch 5))]
           (:wat::core::if (:user::then-already-vector? then-forms)
             (:wat::core::Vector :- [:wat::fix::Edit]) ;; idempotent no-op — already migrated
             (:wat::core::if (:wat::core::not (:user::all-insert-wrapped? then-forms))
-              (:wat::kernel::assertion-failed!
-                (:wat::string::concat
+              (:wat::kernel::assertion-failed! :message (:wat::string::concat
                   "defrule-then-to-vector: STOP-2 — a :then entry is not a plain (:wat::rete::insert <fact>) form in "
-                  (:wat::core::write-forms node))
-                :wat::core::None :wat::core::None)
+                  (:wat::core::write-forms node)))
               (:wat::core::let
                 [fact-texts (:user::fact-texts then-forms src lines)
                  joined     (:user::join-with-space fact-texts)
@@ -166,7 +162,7 @@
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+             [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms (:wat::core::ast->children tree)
      edits (:user::walk-seq-edits forms src lines)]
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
@@ -184,6 +180,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln)
                             [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
-                            [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
-                            [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
+                            [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
+                            [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

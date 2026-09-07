@@ -261,9 +261,7 @@
       ((:wat::core::= row 11) (:wst::shortcircuit-subs))
       ((:wat::core::= row 12) (:wst::trim-eq))
       (:else
-        (:wat::kernel::assertion-failed!
-          (:wat::string::concat "where-string: unknown row " (:wat::i64::to-string row))
-          :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-string: unknown row " (:wat::i64::to-string row)))))))
 
 ;; seed — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild). Every field is a
 ;; FORMULA over i, independently computable on the Clara side so nothing rots as a hand-kept table.

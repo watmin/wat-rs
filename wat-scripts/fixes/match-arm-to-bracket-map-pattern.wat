@@ -93,7 +93,7 @@
     [:wat::core::ReadOutcome::Forms {:forms f}
       (:wat::core::first (:wat::core::ast->children f))]
     [:wat::core::ReadOutcome::Malformed {:cause c}
-      (:wat::kernel::assertion-failed! (:wat::core::Error/message c) :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))]))
 
 (:wat::core::defn :user::parent-path [vpath <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [parts (:wat::string::split vpath "::")
@@ -511,11 +511,9 @@
                 (:wat::string::concat
                   (:user::node-text head src lines)
                   (:wat::string::concat " " (:user::map-text fields binders src lines))))))
-          (:wat::kernel::assertion-failed!
-            (:wat::string::concat
+          (:wat::kernel::assertion-failed! :message (:wat::string::concat
               "match-arm-to-bracket-map-pattern STOP-4: binder count disagrees with defenum in "
-              (:wat::core::write-forms arm))
-            :wat::core::None :wat::core::None))))))
+              (:wat::core::write-forms arm))))))))
 
 (:wat::core::defn :user::map-value-nodes [map-node <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [ch (:wat::core::ast->children map-node)
@@ -675,11 +673,9 @@
                                     "splice binder"))]
                           (:wat::core::if (:wat::core::= spnm "init-arg-names")
                             (:user::splice-arm-edits arm src lines)
-                            (:wat::kernel::assertion-failed!
-                              (:wat::string::concat
+                            (:wat::kernel::assertion-failed! :message (:wat::string::concat
                                 "match-arm-to-bracket-map-pattern STOP-4: unquote-splicing binder `"
-                                (:wat::string::concat spnm "` is not init-arg-names"))
-                              :wat::core::None :wat::core::None)))
+                                (:wat::string::concat spnm "` is not init-arg-names")))))
                       (:wat::core::if (:user::single-unquote-remaining? pch)
                         (:wat::core::let
                           [unm (:user::unquote-inner-name
@@ -758,8 +754,7 @@
      tree  (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
              [:wat::core::ReadOutcome::Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed!
-                 (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      edits (:user::walk-seq-edits (:wat::core::ast->children tree) fmap src lines)]
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
 
@@ -856,7 +851,7 @@
     [tree (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome::Forms {:forms f} f]
              [:wat::core::ReadOutcome::Malformed {:cause c}
-               (:wat::kernel::assertion-failed! (:wat::core::Error/message c) :wat::core::None :wat::core::None)])
+               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
      decls (:user::file-decls tree)
      vpaths (:user::collect-vpaths-node (:wat::core::Vector :- [:wat::core::String]) tree)
      epaths (:user::enum-paths-of vpaths)]
@@ -893,7 +888,7 @@
     [paths (:wat::core::match (:wat::kernel::readln)
              [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
              [:wat::kernel::ReadlnOutcome::Eof {}
-               (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+               (:wat::kernel::assertion-failed! :message "readln: end of input")]
              [:wat::kernel::ReadlnOutcome::Stopped {}
-               (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
+               (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

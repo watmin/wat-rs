@@ -65,7 +65,7 @@
 (:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
     [h    (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
-     echo (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     echo (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s   (:wat::kernel::send echo
             (:probe::Echo::Op::Echo
               (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom"))))]

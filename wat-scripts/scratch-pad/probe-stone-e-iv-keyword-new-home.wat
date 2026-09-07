@@ -5,7 +5,7 @@
 (:wat::core::defn :probe::check [ok <- :wat::core::bool msg <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if ok
     nil
-    (:wat::kernel::assertion-failed! msg :wat::core::None :wat::core::None)))
+    (:wat::kernel::assertion-failed! :message msg)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

@@ -24,12 +24,12 @@
   (:wat::core::let
     [;; ── a PROCESS peer: its far end is a forked child → peer-pid should be (Some pid) ──
      ph  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
-     pc  (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr ph)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     pc  (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr ph)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _   (:wat::kernel::println "process-peer peer-pid:")
      _   (:wat::kernel::println (:wat::kernel::peer-pid pc))   ; ← THE GAP (undefined pre-strike)
      ;; ── a THREAD peer: its far end is a cell in THIS process → peer-pid should be :None ──
      th  (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))
-     tc  (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr th)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+     tc  (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr th)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _   (:wat::kernel::println "thread-peer peer-pid:")
      _   (:wat::kernel::println (:wat::kernel::peer-pid tc))]
     nil))

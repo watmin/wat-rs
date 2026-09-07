@@ -17737,7 +17737,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // identical; only the implementation layer moved. See
     // docs/arc/2026/04/012-fork-and-pipes/ for the arc's record.
 
-    // :wat::kernel::assertion-failed! — arc 007 slice 3. Raises via
+    // :wat::kernel::assertion-failed!' — arc 007 slice 3, kwargs-flipped
+    // in arc 109. The primed positional primitive; the bare name is a
+    // kwargs macro in wat/kernel/assertion.wat. Raises via
     // panic_any(AssertionPayload) so run-sandboxed's catch_unwind can
     // downcast and populate Failure.actual / Failure.expected. The op
     // NEVER RETURNS at runtime — the panic unwinds the stack — so the
@@ -17748,7 +17750,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // need `:T` arms). The previous declared `:()` was a lie since
     // wat has no `Never` type; T is the honest scheme.
     env.register(
-        ":wat::kernel::assertion-failed!".to_string(),
+        ":wat::kernel::assertion-failed!'".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![

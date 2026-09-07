@@ -62,7 +62,7 @@
           (:wat::core::+ acc (:wf::check f path)))
         0 (:wat::core::ast->children forms))]
     [:wat::core::ReadOutcome::Malformed {:cause c}
-      (:wat::kernel::assertion-failed! (:wat::core::Error/message c) :wat::core::None :wat::core::None)]))
+      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))]))
 
 (:wat::core::defn :wf::report [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let [n       (:wf::run path)

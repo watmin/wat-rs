@@ -49,16 +49,16 @@
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv self) 
                     [:probe::PoolMsg::Setup {:deps addr}
-                      (:probe::serve self (:wat::core::Some (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])))]
+                      (:probe::serve self (:wat::core::Some (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))]
                     [:probe::PoolMsg::Work {:pair s}
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")
                          er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s))
                          _  (:wat::core::match (:wat::kernel::send self (:wat::core::match er [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
   [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
                         (:probe::serve self held))]))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
@@ -74,5 +74,5 @@
                  r1 (:wat::kernel::recv worker)]
                 r1)]
             [:wat::core::None {}
-              (:wat::kernel::assertion-failed! "peer-pid None" :wat::core::None :wat::core::None)])]
+              (:wat::kernel::assertion-failed! :message "peer-pid None")])]
     (:wat::kernel::println out)))

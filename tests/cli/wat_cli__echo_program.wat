@@ -5,5 +5,5 @@
 ;; tests/cli/wat_cli.rs::echo_program_reads_stdin_writes_stdout.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [line (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
+    [line (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:wat::kernel::println line)))

@@ -21,5 +21,5 @@
     (:wat::core::match (:wat::stream::next mapped)
       [:wat::stream::NextOutcome::Item {:value value :rest _rest} value]
       [:wat::stream::NextOutcome::Exhausted {}
-        (:wat::kernel::assertion-failed! "expected at least one mapped element" :wat::core::None :wat::core::None)])))
+        (:wat::kernel::assertion-failed! :message "expected at least one mapped element")])))
 

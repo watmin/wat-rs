@@ -530,13 +530,13 @@
        ;; cause (loud, terminal); ::Closed (the child exited before Started) → eprintln (terminal).
        _  (:wat::core::match (:wat::kernel::recv sp)
             [:wat::kernel::RecvOutcome::Message {:msg _m} nil]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
             ;; arc 278 #73 — the substrate began stopping before the child reached
             ;; readiness. Terminal, but NOT the same fact as the two arms around it: no
             ;; crash (Lost) and no premature exit (Closed). The launch simply cannot
             ;; complete, and the message says so instead of blaming the child.
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "spawn (thread): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None)]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "spawn (thread): child exited before readiness" :wat::core::None :wat::core::None)])]
+            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "spawn (thread): stop requested before the child reached readiness — launch abandoned, the child was alive")]
+            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "spawn (thread): child exited before readiness")])]
       (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
@@ -587,13 +587,13 @@
        ;; ::Closed (the child exited before Started) → eprintln (terminal).
        lu   (:wat::core::match (:wat::kernel::recv svc)
               [:wat::kernel::RecvOutcome::Message {:msg m} m]
-              [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+              [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
               ;; arc 278 #73 — the process-tier twin of the thread arm above. Note this arm
               ;; was UNREACHABLE before today on this tier: `classify_peer_error`'s wildcard
               ;; folded the stop into Closed, so a stopped process launch blamed the child
               ;; for exiting. `spawn.rs` now carries `PeerDeath::Shutdown` and it arrives here.
-              [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "spawn (process): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None)]
-              [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)])
+              [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "spawn (process): stop requested before the child reached readiness — launch abandoned, the child was alive")]
+              [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "spawn (process): child exited before readiness")])
        addr (:wat::core::apply  lu-addr-kw lu [])]
       (:wat::spawn::Launched :handle svc :address addr))))
 
