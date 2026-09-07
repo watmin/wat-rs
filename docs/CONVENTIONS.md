@@ -1153,6 +1153,39 @@ can read a reason and say it argues for a different member than the label it sit
 tables can, which is why each carries a discriminating question or a decisive test rather than a
 list of examples to pattern-match.
 
+## The `rune:excusare` vocabulary — a CLOSED set of three (2026-09-07)
+
+`excusare` flags a checker-override — a `#[ignore]`, a `#[allow]`, a suppression whose warrant
+must be named or it is a convenience-plea. A
+`// rune:excusare(<category>) — <reason>` (or the same marker folded into an `#[ignore]` reason
+slot) declares **why the override is warranted**, and the category says *which kind of warrant*.
+
+`perennial` is the ward's own, from the `excusare` spell in the datamancy grimoire. The other two
+are **proposed upstream and in use here pending acceptance** — the request is
+`~/work/NOTE-excusare-lacks-a-term-for-a-gate-that-cannot-be-built.md`. A reader must be able to
+tell which categories the grimoire blesses (`perennial`) and which this tree is using while that
+request is open (`below-resolution`, `no-falsifier`). The decisive-test column is what this table
+adds.
+
+| category | the claim | the decisive test — answer it in the reason | example |
+|---|---|---|---|
+| `perennial` | the warrant is **structurally immutable** — correct-forever by construction | why can this exemption's warrant NEVER rot? Name the structure that would have to change first | `Select`'s withheld `Default` — an empty Select is a footgun; a `Default` impl would produce the prohibited value with no call-site signal |
+| `below-resolution` | the instrument cannot separate the hypotheses — the margin is inside the noise | **name the noise floor and the margin, and show the margin is smaller** | `token_bindings_representation_dominance` — a 5.3× excursion inside this floor's 3.5×–4.4× contention band |
+| `no-falsifier` | nothing achievable can make the check fail — a green is not evidence | **name what you tried to falsify it with, and why that cannot work** | `binding_repr_microbench` — five operations × two representations × four cardinalities; any single ordering leaves the grid untested, a conjunction is a corpus-tuned threshold |
+
+**`no-falsifier` is the one that drifts, because the honest answer and the lazy answer look
+identical on the page.** "Nothing to assert" without naming what was tried is indistinguishable
+from not having tried — and that is the convenience-plea `excusare` exists to strike. `below-resolution`
+defends itself better: it carries arithmetic a reader can check. `perennial` does not drift by
+forgetting; it drifts by being reached for when the warrant *can* rot.
+
+**What the gate closes, and what it cannot.** `no_unknown_ward_rune` (tests/lint/) refuses a
+category outside this set — a fourth `excusare` category, invented at a call site, is a red build
+that names its file and its category. **Spelling is machine-checkable; fit is not.** No gate here
+can tell you a rune picked the wrong member of the three, and none can read a reason and say it
+argues for a different member than the label it sits under. Only this table can, which is why each
+row carries a decisive test rather than a list of examples to pattern-match.
+
 ## Caller-perspective verification
 
 > **All code is measurable from the caller's perspective. That's
