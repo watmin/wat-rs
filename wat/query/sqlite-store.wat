@@ -453,11 +453,13 @@
         ipk  (:wat::query::Store::CountIndexRequest/ipk req)
         lo   (:wat::query::Store::CountIndexRequest/isk-lo req)
         hi   (:wat::query::Store::CountIndexRequest/isk-hi req)
+        lim  (:wat::query::Store::CountIndexRequest/limit req)
         sql (:wat::core::format
-              "SELECT COUNT(*) FROM [index_{name}] WHERE ipk=?1 AND isk>=?2 AND isk<=?3"
+              "SELECT COUNT(*) FROM (SELECT 1 FROM [index_{name}] WHERE ipk=?1 AND isk>=?2 AND isk<=?3 LIMIT ?4)"
               :name name)
         params (:wat::core::Vector :- [:wat::sqlite::Param]
-                 (:wat::sqlite::Param::Str ipk) (:wat::sqlite::Param::Str lo) (:wat::sqlite::Param::Str hi))
+                 (:wat::sqlite::Param::Str ipk) (:wat::sqlite::Param::Str lo) (:wat::sqlite::Param::Str hi)
+                 (:wat::sqlite::Param::I64 lim))
         res (:wat::sqlite::select conn sql params)
         n-res (:wat::query::count-from-cell-rows res)]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::CountIndex (:wat::query::count-index-response n-res))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))])

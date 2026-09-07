@@ -61,7 +61,8 @@
       (:wat::query::Store::CountIndexRequest
         :index "by-visible-at" :ipk "q"
         :isk-lo (:wat::edn::write (:wat::time::at-nanos 0))
-        :isk-hi (:wat::edn::write (:wat::time::at-nanos hi-ns))))
+        :isk-hi (:wat::edn::write (:wat::time::at-nanos hi-ns))
+        :limit 100000))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:wat::query::Store::CountIndexResponse::Ok n) n)

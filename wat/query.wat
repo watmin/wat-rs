@@ -573,7 +573,8 @@
      [index  <- :wat::core::String
       ipk    <- :wat::core::String
       isk-lo <- :wat::core::String
-      isk-hi <- :wat::core::String])
+      isk-hi <- :wat::core::String
+      limit  <- :wat::core::i64])
 
    (:wat::core::defenum :wat::query::Store::CountIndexResponse :wat::enum::Pure
      :Ok        [n <- :wat::core::i64]

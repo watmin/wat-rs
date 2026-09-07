@@ -243,7 +243,7 @@
              ;; lim is cap+1 at every call site — overflow is visible, never truncated.
              depth (:wat::core::fn
                     [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
-                     q <- :wat::core::String  now-ns <- :wat::core::i64  _lim <- :wat::core::i64]
+                     q <- :wat::core::String  now-ns <- :wat::core::i64  lim <- :wat::core::i64]
                     -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
                     (:wat::core::let
                       [lo (:wat::edn::write (:wat::time::at-nanos 0))
@@ -257,7 +257,8 @@
                                       (:wat::query::Store::CountIndexRequest
                                         :index "by-visible-at" :ipk q
                                         :isk-lo lo
-                                        :isk-hi (:wat::edn::write (:wat::time::at-nanos hi-ns))))
+                                        :isk-hi (:wat::edn::write (:wat::time::at-nanos hi-ns))
+                                        :limit lim))
                                     ((:wat::kernel::RecvOutcome::Message sresp)
                                       (:wat::core::match sresp
                                         ((:wat::query::Store::CountIndexResponse::Ok n) n)
@@ -283,14 +284,15 @@
              ;; arity as depth so apply sites swap. lim is cap+1 — overflow visible.
              total (:wat::core::fn
                      [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
-                      q <- :wat::core::String  _now-ns <- :wat::core::i64  _lim <- :wat::core::i64]
+                      q <- :wat::core::String  _now-ns <- :wat::core::i64  lim <- :wat::core::i64]
                      -> :wat::core::i64
                      (:wat::core::match
                        (:wat::query::Store/count-index st
                          (:wat::query::Store::CountIndexRequest
                            :index "by-visible-at" :ipk q
                            :isk-lo (:wat::edn::write (:wat::time::at-nanos 0))
-                           :isk-hi (:wat::edn::write (:wat::time::at-nanos 4000000000000000000))))
+                           :isk-hi (:wat::edn::write (:wat::time::at-nanos 4000000000000000000))
+                           :limit lim))
                        ((:wat::kernel::RecvOutcome::Message sresp)
                          (:wat::core::match sresp
                            ((:wat::query::Store::CountIndexResponse::Ok n) n)

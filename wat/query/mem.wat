@@ -584,22 +584,26 @@
             rows))
         lim))))
 
-;; Count matching GSI rows without building IndexRow. The partition already exists;
-;; this walks it and returns n. A count that fetched-then-counted in wat would buy nothing.
+;; Count matching GSI rows without building IndexRow. Saturates at `lim`.
+;; Same skip/take shape as take-index-page so the walk stops at hi / limit.
 (:wat::core::defn :wat::query::count-index-range
   [rows  <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])
    index <- :wat::core::String
    lo    <- :wat::core::String
-   hi    <- :wat::core::String]
+   hi    <- :wat::core::String
+   lim   <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::foldl
-    (:wat::core::fn [n <- :wat::core::i64 r <- :wat::query::StoredRow] -> :wat::core::i64
-      (:wat::core::let [isk (:wat::query::row-isk index r)]
-        (:wat::core::if (:wat::core::and (:wat::core::>= isk lo) (:wat::core::<= isk hi))
-          (:wat::i64::+ n 1)
-          n)))
-    0
-    rows))
+  (:wat::core::count
+    (:wat::core::into []
+      (:wat::core::take
+        (:wat::core::take-while
+          (:wat::core::fn [r <- :wat::query::StoredRow] -> :wat::core::bool
+            (:wat::core::<= (:wat::query::row-isk index r) hi))
+          (:wat::core::drop-while
+            (:wat::core::fn [r <- :wat::query::StoredRow] -> :wat::core::bool
+              (:wat::core::< (:wat::query::row-isk index r) lo))
+            rows))
+        lim))))
 
 ;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
 ;; durable = one flat (PersistentVector :- [StoredRow]); `put` is a replace-by-(pk,sk)
@@ -715,7 +719,8 @@
         ipk   (:wat::query::Store::CountIndexRequest/ipk req)
         lo    (:wat::query::Store::CountIndexRequest/isk-lo req)
         hi    (:wat::query::Store::CountIndexRequest/isk-hi req)
+        lim   (:wat::query::Store::CountIndexRequest/limit req)
         n     (:wat::query::count-index-range
                 (:wat::query::mem-gsi-rows (:wat::query::mem-store::State/index s) index ipk)
-                index lo hi)]
+                index lo hi lim)]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::CountIndex (:wat::query::Store::CountIndexResponse::Ok n))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))])
