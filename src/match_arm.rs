@@ -4,6 +4,8 @@
 //! ```text
 //! [_ body]                         wildcard        2 elements
 //! [<bare-symbol> body]             binding         2 elements
+//! [<literal> body]                 literal         2 elements (int/float/bool/
+//!                                                  string/rational/bigint/char)
 //! [<Variant> <map-pattern> body]   variant         3 elements, namespaced head
 //! [{var :field …} body]            hash-destructure of a record/map (existing
 //!                                  Open-shape arm; delimiter flip only)
@@ -35,6 +37,13 @@ pub enum MatchArm<'a> {
         ident_span: &'a Span,
         body: &'a WatAST,
     },
+    /// 2-element literal arm: `[0 false]`, `[true body]`, … — the delimiter
+    /// flip of the retired `(0 false)` list arm. Same 2-element shape as
+    /// wildcard/binder; the head is a literal, not a binder.
+    Literal {
+        pat: &'a WatAST,
+        body: &'a WatAST,
+    },
     /// Namespaced variant head + key-first map pattern + body.
     Variant {
         path: &'a str,
@@ -55,6 +64,7 @@ impl<'a> MatchArm<'a> {
         match self {
             MatchArm::Wildcard { body }
             | MatchArm::Binding { body, .. }
+            | MatchArm::Literal { body, .. }
             | MatchArm::Variant { body, .. }
             | MatchArm::HashDestructure { body, .. } => body,
         }
@@ -62,7 +72,7 @@ impl<'a> MatchArm<'a> {
 }
 
 const RETIRED: &str = "retired `(pattern body)` clause; a match arm is a bracket: \
-`[_ body]`, `[<binder> body]`, or `[<Variant> {:k v} body]`";
+`[_ body]`, `[<binder> body]`, `[<literal> body]`, or `[<Variant> {:k v} body]`";
 
 pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
     match arm {
@@ -78,6 +88,7 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
                 body,
             }),
             [WatAST::Map(pairs, _), body] => Ok(MatchArm::HashDestructure { pairs, body }),
+            [pat, body] if is_literal_ast(pat) => Ok(MatchArm::Literal { pat, body }),
             [WatAST::Keyword(k, path_span), WatAST::Map(pairs, _), body]
                 if is_namespaced_variant(k) =>
             {
@@ -97,7 +108,7 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
             _ => Err(MatchArmError {
                 span: span.clone(),
                 reason: format!(
-                    "a match arm is `[_ body]`, `[<binder> body]`, \
+                    "a match arm is `[_ body]`, `[<binder> body]`, `[<literal> body]`, \
                      `[<Variant> {{:k v}} body]`, or a record hash-destructure; \
                      got {} element(s)",
                     items.len()
@@ -118,6 +129,21 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
 /// between a variant map pattern and a non-variant keyword (refused).
 pub fn is_namespaced_variant(path: &str) -> bool {
     path.contains("::")
+}
+
+/// Literal heads of a 2-element arm. Mirrors `try_match_pattern`'s
+/// equality cases so parse and eval agree on what a literal is.
+pub fn is_literal_ast(ast: &WatAST) -> bool {
+    matches!(
+        ast,
+        WatAST::IntLit(_, _)
+            | WatAST::FloatLit(_, _)
+            | WatAST::BoolLit(_, _)
+            | WatAST::StringLit(_, _)
+            | WatAST::RationalLit(_, _)
+            | WatAST::BigIntLit(_, _)
+            | WatAST::CharLit(_, _)
+    )
 }
 
 /// Built-in Option/Result variant heads. User enums compose

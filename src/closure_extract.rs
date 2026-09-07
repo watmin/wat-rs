@@ -1353,6 +1353,7 @@ fn walk_match_form(
                     crate::match_arm::MatchArm::Binding { ident, .. } => {
                         arm_locals.insert(ident.as_str().to_string());
                     }
+                    crate::match_arm::MatchArm::Literal { .. } => {}
                     crate::match_arm::MatchArm::HashDestructure { pairs, .. } => {
                         collect_pattern_bindings(
                             &WatAST::Map(pairs.to_vec(), arm.span().clone()),

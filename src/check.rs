@@ -6219,6 +6219,10 @@ fn infer_match(
                 covers_result_ok = true;
                 covers_result_err = true;
             }
+            crate::match_arm::MatchArm::Literal { .. } => {
+                // No bindings. A literal arm is not a wildcard and does not
+                // cover Option/Result/enum variants.
+            }
             crate::match_arm::MatchArm::HashDestructure { pairs, .. } => {
                 let md = WatAST::classify_map_destructure(pairs);
                 if let Some(m) = &md {

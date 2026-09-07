@@ -88,4 +88,4 @@
   [(count [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::Chan::CountResponse::Ok
-         (:probe::Chan::Tally :n (:probe::chan-svc::State/seen s)))))])
+         (:probe::Chan::Tally :n (:probe::chan-svc::Record/seen (:probe::chan-svc::State/durable s))))))])

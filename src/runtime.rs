@@ -8557,6 +8557,9 @@ fn eval_parsed_arm(
                 )
                 .build(),
         )),
+        crate::match_arm::MatchArm::Literal { pat, .. } => {
+            try_match_pattern(pat, scrutinee, env, sym)
+        }
         crate::match_arm::MatchArm::HashDestructure { pairs, .. } => {
             let map = WatAST::Map(pairs.to_vec(), arm_span.clone());
             try_match_pattern(&map, scrutinee, env, sym)
@@ -8586,7 +8589,7 @@ fn first_matching_arm<'a>(
 }
 
 /// `(:wat::core::match scrutinee arm…)` — bracket-clause match.
-/// Each arm is a vector: `[_ body]`, `[<binder> body]`, or
+/// Each arm is a vector: `[_ body]`, `[<binder> body]`, `[<literal> body]`, or
 /// `[<Variant> {:k v} body]`. The retired `(pattern body)` list is refused.
 #[wat_special_form_impl(":wat::core::match", role = eval)]
 fn eval_match(

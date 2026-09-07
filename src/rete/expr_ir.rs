@@ -509,6 +509,13 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
     let mut arms = Vec::new();
     for arm in &args[1..] {
         match arm {
+            // New grammar: a match arm is a bracket clause.
+            // [_ body] / [<binder> body] / [<literal> body] / [{hash} body]
+            // [<Variant> {:k v} body]
+            WatAST::Vector(parts, _) => {
+                let (pat, body) = lower_bracket_arm(parts, arm.span(), cx)?;
+                arms.push((pat, body));
+            }
             WatAST::List(parts, _) if !parts.is_empty() => {
                 let pat = lower_pat(&parts[0], cx)?;
                 let body = if parts.len() == 1 {
@@ -530,6 +537,54 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
         scrutinee,
         arms: arms.into_boxed_slice(),
     })
+}
+
+fn lower_bracket_arm(
+    parts: &[WatAST],
+    span: &Span,
+    cx: &mut LowerCx,
+) -> Result<(Pat, Expr), LowerError> {
+    match parts {
+        [pat, body] => Ok((lower_pat(pat, cx)?, lower_expr(body, cx)?)),
+        [WatAST::Keyword(k, _), WatAST::Map(pairs, _), body]
+            if crate::match_arm::is_namespaced_variant(k) =>
+        {
+            Ok((
+                lower_variant_map(k, pairs, span, cx)?,
+                lower_expr(body, cx)?,
+            ))
+        }
+        _ => Err(LowerError::unsupported(
+            span.clone(),
+            "malformed match arm".into(),
+        )),
+    }
+}
+
+fn lower_variant_map(
+    path: &str,
+    pairs: &[(WatAST, WatAST)],
+    span: &Span,
+    cx: &mut LowerCx,
+) -> Result<Pat, LowerError> {
+    let name = option_result_tag(path).unwrap_or_else(|| path.to_string());
+    let parsed = crate::match_arm::parse_key_first_pairs(pairs, span).map_err(|e| {
+        LowerError::unsupported(e.span, e.reason)
+    })?;
+    match parsed.as_slice() {
+        [] => Ok(Pat::Variant {
+            name,
+            payload: None,
+        }),
+        [(_key, val)] => Ok(Pat::Variant {
+            name,
+            payload: Some(Box::new(lower_pat(val, cx)?)),
+        }),
+        _ => Err(LowerError::unsupported(
+            span.clone(),
+            "match map-pattern with more than one field is not lowered in v1".into(),
+        )),
+    }
 }
 
 fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
@@ -575,6 +630,18 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
             Ok(Pat::Variant { name, payload })
         }
         WatAST::Map(_, span) => Err(LowerError::unsupported(span.clone(), "match map-destructure is not lowered in v1".into())),
+        // Nested variant `[Variant {:k v}]` (no body) — a pattern, not an arm.
+        WatAST::Vector(items, span) => match items.as_slice() {
+            [WatAST::Keyword(k, _), WatAST::Map(pairs, _)]
+                if crate::match_arm::is_namespaced_variant(k) =>
+            {
+                lower_variant_map(k, pairs, span, cx)
+            }
+            _ => Err(LowerError::unsupported(
+                span.clone(),
+                "unsupported match pattern".into(),
+            )),
+        },
         other => Err(LowerError::unsupported(other.span().clone(), "unsupported match pattern".into())),
     }
 }
