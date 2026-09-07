@@ -12,12 +12,12 @@
 
 ```bash
 git status --porcelain          # expect EMPTY
-git log --oneline -1            # expect ef2c20bf2 or later
+git log --oneline -1            # expect de2d9092a or later
 grep -aE "^ +Summary" .floor/latest/raw.log
 ```
 
 ```
-floor ....... 5229 passed, 0 failed, 18 skipped     clippy 0 errors     0 unpushed
+floor ....... 5233 passed, 0 failed, 18 skipped     clippy 0 errors     0 unpushed
 peer ........ HALTED. Nothing in flight. `.pulsare/to-claude` holds a kind=halt.
 ```
 
@@ -36,7 +36,12 @@ except the two items under QUEUED.**
 251.8b        Identifier STORES (ns, name)                                                  ✅
 251.9         a symbol-headed declaration DECLARES. `head_fqdn` is the one door;             ✅
               the `_` arm FELL at every converted site (parse.rs 15 → 14)
+109 kwargs    assertion-failed! TAKES KWARGS. 453 files by codemod. The positional form     ✅
+              REFUSES. bare None 5818 → 650 (−5168); pairs 2588 → 17
 ```
+
+★ **The enum migration SHRANK BY 70% as a side effect.** Bare Option/Result was 7366; the kwargs
+stone DELETED ~5168 rather than rewriting them into a longer spelling and deleting them later.
 
 ★ 251.9's fixtures are the whole point and are worth re-reading before the migration:
 
@@ -61,19 +66,41 @@ head_of        src/runtime.rs:12232 — a Keyword-ONLY closure in `eval-with-def
                  EXPIRY DATE and it is the very migration this unblocks.
                  NEEDS A PROBE — the current probe does not reach the eval path.
 
-Option/Result  ⛔ NOT COMPLETED. THREE SPELLINGS ARE LEGAL AT ONCE:
-  COMPLETION       :None  ·  :wat::core::None  ·  :wat::core::Option::None
+Option/Result  ⛔ NOT COMPLETED — **THE NEXT STONE**, and the builder's standing order is
+  COMPLETION   "we made enums better, we should fully kill the old forms — finish that
+                 migration before we start another."
+                 THREE SPELLINGS ARE LEGAL AT ONCE:
+                   :None  ·  :wat::core::None  ·  :wat::core::Option::None
                  runtime.rs:1700 / :8661 / match_arm.rs:162 accept them; 62 Rust sites
                  across 10 files keep the bare one alive.
-                 corpus   bare  None 5816 · Some 625 · Err 560 · Ok 365   = 7366
-                          qual  Option::None 8 · Some 8 · Err 3 · Ok 3    =   22
-                 wat/core.wat:2125 declares them as VARIANTS of Option/Result, so the honest
-                 name is `:wat::core::Option::None` → `#wat.core/Option.None {}`. The bare
-                 name is a variant that SKIPS ITS ENUM.
-                 ⚠ THE BUILDER ALREADY RULED THIS: "i think :wat::core::None is illegal ...
-                 to communicate a none it must be (wat.core/Option.None {})".
+                 RE-MEASURED post-kwargs   None 650 · Some 633 · Err 561 · Ok 365 = 2209
+                                    qual   23
+                 ★ BuiltinVariant (match_arm.rs:159) is a CLOSED enum of FOUR. Every other
+                 enum in the corpus is already named through its enum — a bare
+                 `:wat::service::Reply` returns ZERO. This is NOT a language hole; it is
+                 four hardcoded exceptions that predate the enum work.
+                 wat/core.wat:2125 declares them as VARIANTS, so the honest name is
+                 `:wat::core::Option::None` → `#wat.core/Option.None {}`. The bare name is a
+                 variant that SKIPS ITS ENUM.
+                 ⚠ RULED: "i think :wat::core::None is illegal ... to communicate a none it
+                 must be (wat.core/Option.None {})".
+                 ⚠ OPEN FORK the builder has NOT ruled: does a unit variant become a
+                 KEYWORD (`:wat::core::Option::None`, lands today, swept later with every
+                 other head) or a CALL (`(wat.core/Option.None {})`, the end state, but
+                 arrives coupled to the head migration)? THE CODEMOD'S TARGET TEXT DEPENDS
+                 ON IT — ask before drawing.
+                 ⚠ AND FINISHING MEANS THE RUST SIDE: rewriting the corpus while
+                 `builtin_variant` still accepts ":wat::core::None" leaves the door open for
+                 the next author. Pull the four special-cases and the `:None` arms so the
+                 bare spelling is UNREPRESENTABLE, not merely unused.
 
-assertion-failed! -> kwargs. DRAWN. 2670 calls / 442 files. THE PROBE IS OWED.
+assertion-span  ⚠ the kwargs refusal points at the MACRO, not the caller:
+                 `:location wat/kernel/assertion.wat:34`, `:frames []`. It is an
+                 `Option/expect`-past-end raise, so the expect's message IS the diagnostic.
+                 The corpus is migrated, so the ONLY remaining consumers of that error are
+                 humans/models typing the old form by hand — exactly who needs the span.
+                 Partly fixable: `ast-span` is TOTAL, but `wat/grep.wat:67` records it
+                 "returns keyword->i64 so it cannot carry :file".
 #95            widen infer_list's gate. MEASURED: 10 lines, 0 compiler errors, 0 cascade.
 5 dead-code    Coverage::Wildcard · pattern_coverage · ident_span · try_match_pattern_ast ·
 warnings       substitute_many. NOT clippy (which is 0 and DENIED at the workspace root);
@@ -96,7 +123,7 @@ warnings       substitute_many. NOT clippy (which is 0 and DENIED at the workspa
   clothes. (`109/NOTE-a-golden-that-pins-a-stdlib-line.md`)
 - **⛔ SIDE BRANCHES DO NOT SERVE US** — 3 parked branches, 15 days, 0 merged.
 
-## ⛔ THE FAILURE PATTERN — NOW NINE, ONE CLASS
+## ⛔ THE FAILURE PATTERN — NOW TEN, ONE CLASS
 
 **I COUNT SOMETHING CORRECTLY AND SAY THE WRONG THING ABOUT WHAT I COUNTED.** Every one caught by a
 wall, a lint, the floor, the source, or the peer — never by me noticing:
@@ -110,6 +137,10 @@ wall, a lint, the floor, the source, or the peer — never by me noticing:
   ⑨ THE FRAMING — I reported "5816 :wat::core::None" as a neutral population count. It is
     the size of the ILLEGAL spelling, under a ruling the builder had already made. The
     number was right and the sentence was wrong.
+  ⑩ THE PIPE, THIRD TIME IN ONE DAY — I read the kwargs stone's OWN load-bearing exit code
+    through `| head -5` and reported EXIT=0. That was head's. The real answer was 101.
+    ★ FM 20 is written about exactly this pipe and I hold a memory entry for it. KNOWING IT
+    DOES NOT STOP IT. Run a gate unpiped and read `$?`, ALWAYS — mechanical, not remembered.
 ```
 
 ★ **THE CURE, PROVEN AGAIN TODAY: GO TO THE SOURCE, NOT THE BRIEF.** I was about to publish
