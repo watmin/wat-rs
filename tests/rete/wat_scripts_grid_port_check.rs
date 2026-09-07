@@ -98,6 +98,15 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
          facts (count/sum/min/max/exists) — 10 groups * 5 = 50.",
     ),
     (
+        "accum-over-derived",
+        &[9],
+        10,
+        "size=[depth]; Step(k):-Step(k-1) for k in [1,depth] plus one Tally of every Step \
+         including seeded Step(0). :derived is enc(0,k,0) per derived Step level plus \
+         enc(1,0,n) per Tally, sorted not deduped. Expected count = depth + 1 = 10. A leaked \
+         intermediate tally is an extra element.",
+    ),
+    (
         "asym-join",
         &[100],
         200,
