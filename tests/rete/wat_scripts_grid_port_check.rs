@@ -197,6 +197,15 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
         "size=[locs reads]; sum-of-squares over each location's non-empty reading vector emits \
          exactly ONE Agg fact per location — 5.",
     ),
+    (
+        "userfn-head",
+        &[5],
+        10,
+        "size=[items]; Src(k) for k in [0,items); Bad :- Src, k=-1 (never fires); Rate :- Src, \
+         NOT Bad, :then (mk-rate ?k); Out :- Rate. :derived is enc(0,k) per Rate plus enc(1,n) \
+         per Out, sorted not deduped. Expected count = 2 * items = 10. A dropped Out is items \
+         missing enc(1,*) elements, distinct from an empty derived.",
+    ),
 ];
 
 /// The oracle verb every sized axis must still call. Held as a NAME, never as a form — an inlined
