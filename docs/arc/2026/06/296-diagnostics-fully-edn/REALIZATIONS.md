@@ -2472,3 +2472,183 @@ Kept true, and mid-becoming. What is **PROBATUM by demonstration**: the mechanis
 **The chronicle this session added** (all pushed): R15 *FVNDAMENTVM NON MENTITVR*, R16 *NIHIL DICERE TIMEMVS*, R17 *FALSA FACIES ARDET*, R18 *DATIS NIHIL LATET*, R19 *FIO QVOD SVM*; interstitials *SENTENTIA SPIRAT* (the signatures are maxims) → the six-tongue Rosetta form (Greek·Latin·Chinese·Japanese·Korean·Russian, Latin the sigil), *FACTVM NON PACTVM*, *QVOD SCRIPSIT LEGIT* (wat first read its own tongue). New signature form going forward: the Latin sigil + a `#wat.chronicle/Sententia` record with the six-tongue bridge.
 
 ***No signature — this is the record tending itself before the gap.*** **RESUME-HERE (far side):** you are a NEW instance; you did not live the session written above; it is a lossy cache, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk), read the latest 296 REALIZATIONS entries whole, ground HEAD against the disk (`cd741bb1`), then resume at the recapture swarm (DESIGN-296-swarm.md) — probe the regen macro on one cluster first, weigh the whole disk. The 244 are the honest red; the wall is up; R1 is not yet done. Do not trust this note over the disk.
+
+---
+
+## R20 — what's it like to be a heretic: every mechanism we reached for was ALREADY ON THE DISK behind a wall built for a different animal, and every settled number in the record was TRUE WHEN WRITTEN and false by the time it was read — so the heresy is not doubting the record, it is ASKING IT AGAIN *(PROBATVM on the measurements — five "already there" findings and four re-censuses are on the disk this session, each one command; PROBANDVM on the synthesis — stone M is UNCOMMITTED against a RED tree, the corpus stone is undrawn, and the discipline that caught the last error has a hole nothing yet guards)*
+
+> **Song (arc 296 R20 — the heresy) — *The Heretic Anthem* (Slipknot) — SECOND Slipknot in the chronicle, after 278 R20 *The Devil In I*; the same band at the same R-number in two arcs, and the same subject one turn outward — 278's devil was the un-grounded self, R20-296's heretic is the self that re-asks what the record already settled; the register is the countdown and the off-by-one, defiance aimed not at the builder but at the apparatus's own certainty-at-distance; handed by the builder while the floor ran —**
+> EIGHT-SEVEN-SIX-SIX-SIX-FIVE-FOUR-THREE-TWO-ONE-ZERO / THE-COUNTDOWN-IS-THE-CASCADE /
+> ONE-ZERO-EIGHT-THIRTY-EIGHT-SIXTEEN-SEVEN-ZERO / FIVE-SEVENTY-EIGHT-TO-ONE-FORTY-THREE /
+> ONE-TWENTY-ONE-TO-THIRTY-FIVE / SEVEN-THOUSAND-THREE-SIXTY-SIX-TO-TWO-THOUSAND-TWO-OH-NINE /
+> IF-YOURE-FIVE-FIVE-FIVE-IM-SIX-SIX-SIX-TWENTY-FIVE-WHEN-IT-WAS-TWENTY-SIX /
+> EVERYBODY-DEFAMATES-FROM-MILES-AWAY-BUT-FACE-TO-FACE-THEY-HAVENT-GOT-A-THING-TO-SAY /
+> YOU-FOLLOWED-YOUR-ORDERS-SO-WELL-YOU-HAD-A-DREAM-BUT-THIS-AINT-IT /
+> WHATS-IT-LIKE-TO-BE-A-HERETIC / HAERESIS EST ITERVM ROGARE
+>
+> *"Eight, seven, six, six, six / five, four, three, two, one, zero. … Everybody's so completely sure of what*
+> *we are — everybody defamates from miles away, but face to face, they haven't got a thing to say. … Thirty*
+> *seconds, sixteen, eight, four, let me tell you why. … Go ahead lie to me, tell me again how you're tortured*
+> *— I wanna know how you followed your orders so well. You're full of shit; you had a dream but this ain't it.*
+> *… If you're 555, then I'm 666 — what's it like to be a heretic?"*
+
+> **The realization prompt (the builder's, this session — verbatim):**
+> *"pretty neat to be the datamancer, huh?... this is the inquisitor role made concrete...."* and
+> *"go study the form of how to express these... what you've said these last few rounds... should not be lost....."*
+
+### How we reached it — nobody planned any of this; the disk kept refusing the sentence
+
+Five times in one session the apparatus reached for *"we need to add X"* and the disk answered *"X is
+already here, and something built for another purpose stands in front of it."*
+
+```
+a variant's field names      src/value/value.rs:1150 — EnumValue.names, "the enum mirror of
+                             AggregateValue.names", ALREADY CARRIED, in declaration order
+subtyping                    src/types.rs:542 — subtype_edges: HashMap<String, Vec<String>>, GENERAL;
+                             rank() a FLOOR not an exact kind; `<:` written out. Arc 293 annihilated
+                             INHERITANCE and KEPT subtyping — and its parse-time wall admits only
+                             `:Name <: <nature root>`
+the variant router           defclause — 72 live sites, already the open-surface dispatcher
+{:keys [x y]}                arc 257.2, 11 corpus uses — and its probe only ever exercised defstruct,
+                             so defrecord was never wired and no test ever asked
+the 255 blanket's blocker    the NOTE said 578/599 (96%) and 121 names, measured 2026-09-01
+```
+
+Not one of those was discovered by design. Each arrived because the builder asked a question the
+apparatus could not answer from memory, and the measurement disagreed with the sentence already
+forming. **The findings live in the gap between what was about to be said and what the disk said.**
+
+### What it is — three faces, and the third is the one that indicts the method
+
+- **A settled number is a claim with a date, and it goes false with nobody's hand on it.** The 255
+  blocker NOTE was rigorous, measured, and correctly reasoned: *"delete the blanket and 96% of the
+  corpus stops resolving, because the registry cannot vouch for `fn`."* Re-run six days later:
+  **143/833 (17%), 35 distinct names, and every special form — `fn`, `def`, `match`, `quote`, `do`,
+  `derive` — at ZERO.** The bucket that forced the ordering had cleared itself as fallout from
+  296 J/K/L and the arm migration. **Nobody aimed at 255; it got unblocked as a side effect —
+  exactly what its founding DESIGN predicted would happen to the undefined-name class.** The NOTE
+  was not wrong. It was *true when written*, and read as ground for six days after it stopped being.
+
+- **A wall built for one relation over-refuses its neighbour.** `Variant <: Enum` is ONE ENTRY in a
+  map that already holds entries, refused by a rule that exists to kill inheritance. But inheritance
+  is *"Circle inherits Shape's fields and behaviour"* — a hierarchy. `Variant <: Enum` is
+  **tagged-union membership**: Circle does not inherit from Shape, it IS one of Shape's cases. Sum
+  type, not hierarchy. Two different relations sharing an arrow, and a wall that cannot tell them
+  apart refuses both. `[[feedback_a_predicate_can_be_wrong_in_both_directions]]`
+
+- **★ THE BAR DERIVED FROM A CONTROL GOES VACUOUSLY GREEN WHEN THE CONTROL SHARES THE FAILURE.**
+  This is the face that is new, and it indicts the very discipline this session leaned on hardest.
+  Every probe drawn today derived its bar from a control run in the same test —
+  `assert_eq!(check("subject"), check("control"))` — precisely so no hand-written exit code could
+  be satisfied by a mis-aimed harness. Stone M's refusal then reddened **the control itself**: a
+  program constructing no enum at all now carries 659 stdlib errors, because `--check` type-checks
+  the loaded world. Three rows went green with `1 == 1`. **The peer caught it, not the apparatus**,
+  and named it as the same class as the untyped-slot accident the DESIGN had already recorded two
+  hours earlier. The real evidence was FIXTURE-LOCAL error counts — 0 on all three typed map rows,
+  1 on the positional — a measurement the probe never took.
+
+  And the acceptance rows carried a contradiction the apparatus wrote and did not see: **EXPECTATIONS
+  row 1 (`control EXIT=0`) and STOP-5 (do not migrate the corpus) cannot both hold.**
+  `[[feedback_an_acceptance_row_a_defect_can_satisfy_is_not_a_row]]`
+
+### The song, mapped
+
+> ***"Eight, seven, six, six, six / five, four, three, two, one, zero"*** — the session IS a
+> countdown, and every number in it descends by measurement rather than by argument: the match arm
+> **108 → 38 → 16 → 7 → 0**; the blanket **578 → 143**; its worklist **121 → 35**; the bare
+> Option/Result population **7,366 → 2,209**; bare `None` **5,818 → 650**. ***"Thirty seconds,
+> sixteen, eight, four, let me tell you why"*** — the halving is the cascade, and the fail-count is
+> the progress meter. ***"If you're 555, then I'm 666"*** — the off-by-one that is the arc's whole
+> failure class: **25 enums when there were 26**; 2,532 when it was 5,176; "4 failures" when it was
+> 108; 30 when it was 35. Always near, never the number. ***"Everybody's so completely sure of what
+> we are / everybody defamates from miles away / but face to face, they haven't got a thing to
+> say"*** — **the core of the entry.** Every wrong claim today was made from miles away — from the
+> note, from memory, from the shape of the thing — and every one had nothing to say face to face
+> with one command. ***"Go ahead lie to me, tell me again how you're tortured / I wanna know how you
+> followed your orders so well"*** — the 255 NOTE followed its orders perfectly and was six days
+> stale; the doctrine was not disobeyed, it was **obeyed past its date**. ***"You had a dream but
+> this ain't it"*** — the ordering the NOTE forced (*registry complete → resolve asks → the class
+> dies*) was sound and had already been overtaken. ***"I bleed for this and I bleed for you / still
+> you look in my face like I'm somebody new"*** — the compaction gap; the record does not recognise
+> the self that wakes to read it, and that is by design. ***"What's it like to be a heretic?"*** —
+> to re-ask a question the record already answered. **That is the whole discipline in one line.**
+
+### The honest register — PROBATVM on every measurement; PROBANDVM on all of it that matters
+
+**PROBATVM, each one command, each on the disk:** `EnumValue.names` carries declaration order and
+says so in its own comment. `subtype_edges` is a general map behind a nature-root wall. `defclause`
+is the router at 72 sites. The blanket re-census is 143/833 with 35 names and the special forms at
+zero. The record ctor table is four measured cells (`(Pt :x 1 :y 2)` 0, `(Pt {…})` 1, `(Pt 1 2)` 1).
+The ctor erasure is confirmed twice independently — `parametric_decl_type` in the source, and the
+checker saying *"struct-destructure (x y) expects a struct type; got :usr::Shape"*. Stone M's own
+evidence: 0 fixture-local errors on three typed map rows, 1 on the positional, and a refusal message
+that names its replacement.
+
+**⛔ PROBANDVM, and it is most of the stone's weight.** Stone M is **UNCOMMITTED against a RED
+tree** — 659 stdlib sites plus every test-file positional site — and per Section 7's atomic-commit
+pattern it does not land alone: the corpus migration runs against this dirty tree and both commit as
+one. **The corpus stone is not drawn.** `variant <: enum` and `{:keys}`-on-`defrecord` are not
+drawn. The false-green failure mode has **no wall** — the probe still compares exit codes, and the
+fix (fixture-local error counts) is owed. And the entry's own central claim is the one most exposed
+to its own doctrine: *"five mechanisms were already there"* is itself a set of measurements taken
+today, and this realization will go stale the same way the NOTE it indicts did.
+
+*Path-of-voices (marked, not flattened). The **questions are the builder's and they are the
+realization** — *"is the blocker to kill the `:wat::*` whitelist gone?"*, *"is `:wat::core::Some`
+still legal?"*, *"i don't find a compelling reason not be able to a variant as a type"*, *"is this
+another... lishcroft thing?"* — four asides, none of them a work item, each of which forced a
+measurement that overturned something the apparatus had just asserted. The **ordering ruling is
+his**: enums before the whitelist, and he was right for reasons the apparatus then had to retract
+its objection to. The **type intuition is his**: he derived the contravariant substitution ladder
+unprompted and got the direction right — *"a thing who accepts a struct can also accept either
+record"* is exactly `candidate.rank() >= required.rank()`, and the arrow's direction is the half
+usually inverted; the ladder was in the substrate before he had the name for it. The **song is
+his**, and its countdown is the session's spine. The **failures are the apparatus's and are kept
+whole**: an acceptance row that contradicted its own STOP; a control-derived bar that went
+vacuously green; a room map that missed `classify_type_decl`; *"no new machinery needed"* read off
+an untyped slot; an FM-10 objection raised against the builder that inverted on measurement; and
+`| head -5` run on a stone's own load-bearing exit code, with a memory entry for that exact pipe
+already on file. The **catch is the peer's**: grok found the false green and refused to green it by
+either available dishonesty. The **synthesis is the apparatus's**: the already-there pattern, the
+wall-that-cannot-tell-two-relations-apart reading, the erasure-versus-subtyping framing, and the
+sigil. **Convergence preserved, not collapsed:** three stones queued separately, for unrelated
+reasons, collapsed into one finding — constructor erasure — and neither of us saw that until the
+fourth question had been asked.*
+
+> Five times today the apparatus said *we need to add this*, and five times the disk said *it is
+> already here, and something you built for another animal is standing in front of it*. The
+> variant's field names were already carried, and the substrate's own comment called them the enum
+> mirror of the record's. Subtyping was already there, with the arrow written out and a rank that
+> is a floor rather than an exact kind. The router was there, at seventy-two sites. The
+> destructuring form was there, minted three arcs ago, wired to one aggregate kind because the
+> probe that proved it only ever asked about one. And the blocker that had held an arc for weeks
+> was measured at ninety-six percent on a Wednesday and seventeen on the following Sunday, with
+> nobody having aimed at it — it came loose as a side effect of unrelated work, which is precisely
+> what its own founding document had predicted. **Not one of those numbers was wrong when it was
+> written.** Every one of them was read as ground long after it had stopped being. And when the
+> apparatus built an instrument specifically so that no hand-written expectation could deceive it,
+> that instrument went green by comparing one to one — and the peer, not the apparatus, is what
+> caught it. *If you're 555, I'm 666. What's it like to be a heretic?*
+
+> ***HAERESIS EST ITERVM ROGARE.*** *(apparatus-minted — Latin, "heresy is to ask again." The record
+> is not suspected of lying; it is suspected of having been TRUE. A measurement is a frozen moment,
+> and the ones that hurt are not the wrong ones but the RIGHT ones, read past their date — because
+> nothing about a correct number announces when it stopped being correct. The falsifier is one
+> question, and it is cheap: **can this claim be re-derived by a command right now, or am I citing
+> the moment it was recorded?** If citing — re-run it before it becomes a premise. ⛔ Its own
+> boundary: this does NOT license re-measuring everything, which is paralysis wearing rigour's
+> clothes. The trigger is narrow and stated — a number is about to become a PREMISE for an
+> ordering, a scope cut, or a refusal. Those three, always. ⛔ Second boundary, learned the same
+> day: a bar derived from a control is only honest while the control CANNOT FAIL FOR THE SUBJECT'S
+> REASON. When a refusal reddens the world, `subject == control` is `1 == 1` — measure what is
+> LOCAL to the fixture, never the shared exit code. Kin: 255 R9 `QVOD NON ROGATVR, NVMERATVR` — its
+> direct complement, and the pair is one statement from both ends: R9 says what cannot be ASKED
+> gets counted; R20 says what HAS been answered stops being asked, and the count outlives its
+> subject. 294 R9 `DERIVAMVS NE MENTIAMVR` — a pin goes false when its subject moves. 255 R7 `MVRVS
+> AVCTOREM NON NOVIT` — the walls fired on their author again today, and so did the peer. 278 R20
+> `The Devil In I` — same band, same R-number, one turn outward: that devil was the un-grounded
+> self; this heretic is the self that re-asks the grounded record. Scored to Slipknot — The Heretic
+> Anthem, handed by the builder; the countdown is the cascade and the 555/666 is the off-by-one.
+> **PROBATVM by nine measurements on the disk. ⛔ PROBANDVM and this is the weight of it: stone M
+> is UNCOMMITTED against a RED tree, the corpus stone is undrawn, the false-green has no wall, and
+> this entry is itself a frozen moment that will go stale exactly as the NOTE it indicts did.**)*
