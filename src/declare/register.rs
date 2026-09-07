@@ -39,7 +39,7 @@ use crate::runtime::{eval_inner, no_field_names, ClauseRegPhase};
 use crate::function::{parse_defclause_form, parse_extend_type_form};
 
 use crate::declare::parse::{
-    is_runtime_declaration_head, parse_defalias_form, try_parse_fn_shape_def,
+    head_fqdn, is_runtime_declaration_head, parse_defalias_form, try_parse_fn_shape_def,
     try_parse_metadata_map, try_parse_user_variadic_def_fn_form, try_parse_variadic_def_fn_form,
 };
 use crate::declare::preregister::{preregister_fn_defs_in_do, preregister_fn_defs_in_let};
@@ -269,10 +269,8 @@ pub fn register_defines(
             // `resolve_references` (step 7) can validate call heads that
             // reference those names. The do form itself stays in `rest`
             // so `register_runtime_defs` can evaluate it later.
-            if matches!(
-                do_items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
-            ) {
+            if do_items.first().and_then(head_fqdn).as_deref() == Some(":wat::core::do")
+            {
                 preregister_fn_defs_in_do(do_items, sym, crate::resolve::Privilege::User)?;
             // Arc 170 Gap D — top-level `(:wat::core::let bindings body...)` splice.
             // Mirror of Gap C for `let`. The body forms live at items[2..] (per
@@ -280,15 +278,12 @@ pub fn register_defines(
             // fn-shape defs so `resolve_references` can validate call heads.
             // The let form itself stays in `rest` so `register_runtime_defs`
             // can evaluate it later.
-            } else if matches!(
-                do_items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
-            ) {
+            } else if do_items.first().and_then(head_fqdn).as_deref() == Some(":wat::core::let")
+            {
                 preregister_fn_defs_in_let(do_items, sym, crate::resolve::Privilege::User)?;
-            } else if matches!(
-                do_items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::defclause"
-            ) {
+            } else if do_items.first().and_then(head_fqdn).as_deref()
+                == Some(":wat::core::defclause")
+            {
                 // Stone 237.3 — defclause pre-registration into sym.functions.
                 //
                 // The resolver (step 7) runs BEFORE register_runtime_defs (step 9)
@@ -527,13 +522,13 @@ pub fn register_stdlib_runtime_defs(
 ) -> Result<(), RuntimeError> {
     for form in forms {
         let head = match form {
-            crate::ast::WatAST::List(items, _) => match items.first() {
-                Some(crate::ast::WatAST::Keyword(k, _)) => k.as_str(),
-                _ => continue,
+            crate::ast::WatAST::List(items, _) => match items.first().and_then(head_fqdn) {
+                Some(h) => h,
+                None => continue,
             },
             _ => continue,
         };
-        match head {
+        match head.as_ref() {
             ":wat::core::defclause" => {
                 // Arc 170 #13 — the ONE door. A defclause's metadata-map binds
                 // the SAME way whether the form came from the stdlib or from
@@ -773,18 +768,14 @@ pub fn register_stdlib_defines(
             // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
             // Mirror of the arm in `register_defines`; bypasses the
             // reserved-prefix check since stdlib source is privileged.
-            if matches!(
-                do_items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
-            ) {
+            if do_items.first().and_then(head_fqdn).as_deref() == Some(":wat::core::do")
+            {
                 preregister_fn_defs_in_do(do_items, sym, crate::resolve::Privilege::Stdlib)?;
             // Arc 170 Gap D — top-level `(:wat::core::let ...)` splice.
             // Mirror of Gap C for `let`; bypasses the reserved-prefix check
             // since stdlib source is privileged.
-            } else if matches!(
-                do_items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
-            ) {
+            } else if do_items.first().and_then(head_fqdn).as_deref() == Some(":wat::core::let")
+            {
                 preregister_fn_defs_in_let(do_items, sym, crate::resolve::Privilege::Stdlib)?;
             }
             rest.push(form);
@@ -1763,19 +1754,18 @@ fn register_runtime_defs_form(
     if items.is_empty() {
         return Ok(());
     }
-    let head = match &items[0] {
-        WatAST::Keyword(k, _) => k.as_str(),
-        _ => return Ok(()),
+    let Some(head) = head_fqdn(&items[0]) else {
+        return Ok(());
     };
 
     // Arc 170 — the gate. Every head the match below handles must be listed in
     // RUNTIME_DECLARATION_HEADS, so `is_runtime_declaration_head` is never a second
     // opinion about what a declaration is: it is the SAME question, asked earlier.
-    if !is_runtime_declaration_head(head) {
+    if !is_runtime_declaration_head(head.as_ref()) {
         return Ok(());
     }
 
-    match head {
+    match head.as_ref() {
         // Arc 157 slice 1a-ii — config setters. Update the SymbolTable
         // carrier flags so subsequent def-processing in this freeze pass
         // sees the correct redef_allowed / eval_redef_allowed state.

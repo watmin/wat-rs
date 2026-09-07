@@ -3485,8 +3485,12 @@ fn splice_type_decls_stdlib(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, T
 
 fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(k, _)) = items.first() {
-            match k.as_str() {
+        // Stone 251.9 — missed by the room map (declare/* only). This is the
+        // freeze door: a symbol-headed defenum never reached parse_defenum
+        // because the classifier answered "not a type declaration". Literal
+        // equality on head_fqdn; the returned static tag is not the FQDN.
+        if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
+            match head.as_ref() {
                 // Stone 255.1a-β-i-b — `"defstruct"` arm REMOVED. `:wat::core::defstruct` is a
                 // stdlib macro; `expand_all` rewrites it to `:wat::core::structtype` before this
                 // classifier ever runs (it is called from inside `register_types`, whose caller

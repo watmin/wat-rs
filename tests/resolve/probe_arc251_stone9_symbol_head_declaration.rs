@@ -19,7 +19,7 @@
 //! Both controls now fail for a reason the clojure flip does not touch: a payload that is not a
 //! vector, and a missing mandatory purity marker.
 //!
-//! RED at HEAD on all three rows; `#[ignore]`d until 251.9 un-ignores them.
+//! Un-ignored by stone 251.9 — the catch-all that ate the declaration.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -56,7 +56,6 @@ fn pair(case: &str) -> (i32, i32) {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 251 stone 251.9 (the catch-all that ate the declaration); un-ignored BY that stone, which is what makes these three the acceptance rows"]
 fn malformed_variant_is_refused_under_both_head_spellings() {
     let (kw, sym) = pair("malformed_variant");
     assert_ne!(kw, 0, "control: the keyword head MUST refuse a non-vector variant payload");
@@ -68,7 +67,6 @@ fn malformed_variant_is_refused_under_both_head_spellings() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 251 stone 251.9 (the catch-all that ate the declaration); un-ignored BY that stone, which is what makes these three the acceptance rows"]
 fn missing_mandatory_purity_marker_is_refused_under_both_head_spellings() {
     let (kw, sym) = pair("missing_purity");
     assert_ne!(kw, 0, "control: the keyword head MUST refuse a missing purity marker");
@@ -80,7 +78,6 @@ fn missing_mandatory_purity_marker_is_refused_under_both_head_spellings() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 251 stone 251.9 (the catch-all that ate the declaration); un-ignored BY that stone, which is what makes these three the acceptance rows"]
 fn a_symbol_headed_declaration_actually_declares() {
     let (kw, sym) = pair("declares");
     assert_eq!(kw, 0, "control: the keyword head declares and the reference resolves");

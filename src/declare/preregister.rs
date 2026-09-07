@@ -24,7 +24,7 @@ use crate::value::{EvalBreak, Function, FunctionBody, RuntimeError, SymbolTable}
 use crate::runtime::ClauseRegPhase;
 
 use crate::declare::parse::{
-    is_enum_form, is_struct_form, parse_declare_acronyms_form, try_parse_fn_shape_def,
+    head_fqdn, is_enum_form, is_struct_form, parse_declare_acronyms_form, try_parse_fn_shape_def,
 };
 use crate::declare::register::{record_binding_metadata, register_defclause};
 
@@ -73,8 +73,8 @@ pub fn preregister_acronyms(residue: &[WatAST], sym: &mut SymbolTable) -> Result
         if items.is_empty() {
             continue;
         }
-        match &items[0] {
-            WatAST::Keyword(k, _) if k.as_str() == ":wat::string::declare-acronyms" => {
+        match head_fqdn(&items[0]).as_deref() {
+            Some(":wat::string::declare-acronyms") => {
                 if let Ok((ns, acronyms)) = parse_declare_acronyms_form(form) {
                     sym.acronym_registry.entry(ns).or_default().extend(acronyms);
                 }
@@ -410,10 +410,12 @@ pub(crate) fn preregister_fn_defs_in_do(
             preregister_enum_constructors_from_form(child, sym, privilege)?;
         } else if let WatAST::List(nested_items, _) = child {
             // Recurse into nested do forms.
-            if matches!(
-                nested_items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
-            ) {
+            if nested_items
+                .first()
+                .and_then(head_fqdn)
+                .as_deref()
+                == Some(":wat::core::do")
+            {
                 preregister_fn_defs_in_do(nested_items, sym, privilege)?;
             }
         }
@@ -483,10 +485,12 @@ pub(crate) fn preregister_fn_defs_in_let(
             preregister_enum_constructors_from_form(child, sym, privilege)?;
         } else if let WatAST::List(nested_items, _) = child {
             // Recurse into nested let forms in the body.
-            if matches!(
-                nested_items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
-            ) {
+            if nested_items
+                .first()
+                .and_then(head_fqdn)
+                .as_deref()
+                == Some(":wat::core::let")
+            {
                 preregister_fn_defs_in_let(nested_items, sym, privilege)?;
             }
         }

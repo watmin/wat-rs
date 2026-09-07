@@ -17,6 +17,7 @@
 //! Siblings: `register.rs` (populate the SymbolTable), `preregister.rs` (the earlier
 //! stub-before-bodies pass), `typevar.rs` (free/bound type-variable walking).
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -192,6 +193,24 @@ pub(crate) fn is_declaration_head(head: &str) -> bool {
     DECLARATION_HEADS.contains(&head)
 }
 
+/// The FQDN of a form's head, whatever spelling wrote it. `None` = this node
+/// is not a head that names anything (a literal, a vector, a bound symbol).
+///
+/// Stone 251.9 — one door so a `WatAST::Symbol` reference is not a catch-all
+/// "this is not a declaration". Callers immediately test set-membership or
+/// literal equality; a mis-mapped head therefore yields "not this form",
+/// never a wrong form. Do not use the result as a lookup key, a registration
+/// key, or a rendered string (STOP-3).
+pub(crate) fn head_fqdn(node: &WatAST) -> Option<Cow<'_, str>> {
+    match node {
+        WatAST::Keyword(k, _) => Some(Cow::Borrowed(k.as_str())),
+        WatAST::Symbol(id, _) if id.is_reference() => Some(Cow::Owned(
+            crate::edn::render::ns_to_wat_path(id.receiver(), id.method()),
+        )),
+        _ => None,
+    }
+}
+
 /// A form that grows the session: a declaration head, or a `do` whose
 /// every child is itself a declaration. `defservice` expands to the
 /// latter; classifying the `do` as an expression left companions in a
@@ -201,18 +220,17 @@ pub(crate) fn is_declaration_form(form: &WatAST) -> bool {
         WatAST::List(items, _) if !items.is_empty() => items,
         _ => return false,
     };
-    let head = match &items[0] {
-        WatAST::Keyword(k, _) => k.as_str(),
-        _ => return false,
+    let Some(head) = head_fqdn(&items[0]) else {
+        return false;
     };
-    if head == ":wat::core::do" {
+    if head.as_ref() == ":wat::core::do" {
         // Type-decl stripping leaves `(do nil)` in the residue. That is
         // not a value; it is an empty splice.
         return items[1..]
             .iter()
             .all(|c| matches!(c, WatAST::NilLit(_)) || is_declaration_form(c));
     }
-    is_declaration_head(head)
+    is_declaration_head(head.as_ref())
 }
 
 /// Stone 241.12 — detect `(:wat::core::defalias :alias-name :target-name)` shape.
@@ -232,9 +250,9 @@ pub(crate) fn parse_defalias_form(form: &WatAST) -> Option<(String, String)> {
     if items.len() != 3 {
         return None;
     }
-    match &items[0] {
-        WatAST::Keyword(k, _) if k == ":wat::core::defalias" => {}
-        _ => return None,
+    let head = head_fqdn(&items[0])?;
+    if head.as_ref() != ":wat::core::defalias" {
+        return None;
     }
     let alias = match &items[1] {
         WatAST::Keyword(k, _) => k.clone(),
@@ -259,24 +277,31 @@ pub(crate) fn parse_defalias_form(form: &WatAST) -> Option<(String, String)> {
 /// 4; registration is step 6 — `src/freeze/env.rs`'s `build_env` doc). A literal `defstruct` head
 /// can therefore never reach this predicate; `structtype` is the one live shape.
 pub(crate) fn is_struct_form(form: &WatAST) -> bool {
-    matches!(
-        form,
-        WatAST::List(items, _)
-            if matches!(
-                items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::structtype"
-            )
-    )
+    match form {
+        WatAST::List(items, _) => {
+            items
+                .first()
+                .and_then(head_fqdn)
+                .as_deref()
+                == Some(":wat::core::structtype")
+        }
+        _ => false,
+    }
 }
 
 /// Arc 170 slice 3 Gap F-1 — detect `(:wat::core::defenum :Name ...)` shape.
 /// Stone 241.9 — updated from :wat::core::enum to :wat::core::defenum (HARD CUT).
 pub(crate) fn is_enum_form(form: &WatAST) -> bool {
-    matches!(
-        form,
-        WatAST::List(items, _)
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::defenum")
-    )
+    match form {
+        WatAST::List(items, _) => {
+            items
+                .first()
+                .and_then(head_fqdn)
+                .as_deref()
+                == Some(":wat::core::defenum")
+        }
+        _ => false,
+    }
 }
 
 /// Arc 166 — detect `(:wat::core::def :name (:wat::core::fn sig body))` shape.
@@ -358,9 +383,11 @@ pub(crate) fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnSha
         return Ok(None);
     }
     // Head must be :wat::core::def.
-    match &items[0] {
-        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
-        _ => return Ok(None),
+    let Some(head) = head_fqdn(&items[0]) else {
+        return Ok(None);
+    };
+    if head.as_ref() != ":wat::core::def" {
+        return Ok(None);
     }
     // First arg is the name keyword.
     // STONE reap-the-angle-machinery (arc 109) — this used to split off a `<T,...>` name
@@ -409,9 +436,11 @@ pub(crate) fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnSha
         WatAST::List(fn_items, _) => fn_items,
         _ => return Ok(None),
     };
-    match fn_items.first() {
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn" => {}
-        _ => return Ok(None),
+    let Some(fn_head) = fn_items.first().and_then(head_fqdn) else {
+        return Ok(None);
+    };
+    if fn_head.as_ref() != ":wat::core::fn" {
+        return Ok(None);
     }
     if fn_items.len() < 4 {
         return Ok(None);
@@ -542,9 +571,9 @@ pub(crate) fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, A
         return None;
     }
     // Head must be :wat::core::def.
-    match &items[0] {
-        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
-        _ => return None,
+    let head = head_fqdn(&items[0])?;
+    if head.as_ref() != ":wat::core::def" {
+        return None;
     }
     // items[1] is the name keyword.
     // STONE reap-the-angle-machinery (arc 109) — a `<T,...>` name suffix is unexpressible
@@ -559,9 +588,9 @@ pub(crate) fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, A
         WatAST::List(fn_items, _) => fn_items,
         _ => return None,
     };
-    match fn_items.first()? {
-        WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
-        _ => return None,
+    let fn_head = fn_items.first().and_then(head_fqdn)?;
+    if fn_head.as_ref() != ":wat::core::fn" {
+        return None;
     }
     if fn_items.len() < 4 {
         return None;
@@ -662,9 +691,11 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
         return Ok(None);
     }
     // Head must be :wat::core::def.
-    match &items[0] {
-        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
-        _ => return Ok(None),
+    let Some(head) = head_fqdn(&items[0]) else {
+        return Ok(None);
+    };
+    if head.as_ref() != ":wat::core::def" {
+        return Ok(None);
     }
     // items[1] is the name keyword.
     // STONE reap-the-angle-machinery (arc 109) — this used to strip a `<T,...>` name
@@ -685,9 +716,11 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
         WatAST::List(fn_items, _) => fn_items,
         _ => return Ok(None),
     };
-    match fn_items.first() {
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn" => {}
-        _ => return Ok(None),
+    let Some(fn_head) = fn_items.first().and_then(head_fqdn) else {
+        return Ok(None);
+    };
+    if fn_head.as_ref() != ":wat::core::fn" {
+        return Ok(None);
     }
     if fn_items.len() < 4 {
         return Ok(None);
