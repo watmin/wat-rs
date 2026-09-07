@@ -39,5 +39,5 @@
   (:wat::core::let [req (:my::Counter::IncrementRequest :n 5)
                     op  (:my::Counter::Op::Increment req)]
     (:wat::core::match op 
-      [:my::Counter::Op::Get {:_r _r} 0]
+      [:my::Counter::Op::Get {:req _r} 0]
       [:my::Counter::Op::Increment {:req req} (:my::Counter::IncrementRequest/n req)])))

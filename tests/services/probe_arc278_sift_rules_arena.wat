@@ -217,7 +217,7 @@
                              :time-lo 0 :time-hi 100000000 :limit 100
                              :cursor (:arena::PageAcc/cur state)))]
                    (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-                     [:arena::my-sift::SiftRulesResponse::Deductions {:items items :cur cur}
+                     [:arena::my-sift::SiftRulesResponse::Deductions {:items items :cursor cur}
                        (:wat::core::let
                          [page-clean (:wat::core::foldl
                                        (:wat::core::fn [ok <- :wat::core::bool v <- :wat::core::Value] -> :wat::core::bool
@@ -234,11 +234,11 @@
                          (:wat::core::match cur 
                            [:wat::core::None {} (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean)]
                            [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)]))]
-                     [:arena::my-sift::SiftRulesResponse::Fatal {:_err _err}
+                     [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false)]
-                     [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:_bytes _bytes :_cap _cap}
+                     [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
                        (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-                     [:arena::my-sift::SiftRulesResponse::RequestMalformed {:mpath mpath :mexpected mexpected :mgot mgot}
+                     [:arena::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
                        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))))
              initial
              page-idxs)]
@@ -295,7 +295,7 @@
                              :time-lo 0 :time-hi 100000000 :limit 100
                              :cursor (:arena::PageAcc/cur state)))]
                    (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-                     [:arena::my-sift::SiftRulesResponse::Deductions {:items items :cur cur}
+                     [:arena::my-sift::SiftRulesResponse::Deductions {:items items :cursor cur}
                        (:wat::core::let
                          [page-clean (:wat::core::foldl
                                        (:wat::core::fn [ok <- :wat::core::bool v <- :wat::core::Value] -> :wat::core::bool
@@ -312,11 +312,11 @@
                          (:wat::core::match cur 
                            [:wat::core::None {} (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean)]
                            [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)]))]
-                     [:arena::my-sift::SiftRulesResponse::Fatal {:_err _err}
+                     [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false)]
-                     [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:_bytes _bytes :_cap _cap}
+                     [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
                        (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-                     [:arena::my-sift::SiftRulesResponse::RequestMalformed {:mpath mpath :mexpected mexpected :mgot mgot}
+                     [:arena::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
                        (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))))
              initial
              page-idxs)]
@@ -349,7 +349,7 @@
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
                :limit 50 :cursor :wat::core::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:arena::my-sift::SiftRulesResponse::Fatal {:_err _err} true]
+      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))
 
 ;; ── PROCESS locus — same fail-closed guard, across a FORK. ──
@@ -386,5 +386,5 @@
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
                :limit 50 :cursor :wat::core::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:arena::my-sift::SiftRulesResponse::Fatal {:_err _err} true]
+      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))

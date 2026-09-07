@@ -66,11 +66,11 @@
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse::Deductions {:items items :_cur _cur} (:wat::core::length items)]
-      [:usr::my-sift::SiftRulesResponse::Fatal {:_err _err} -1]
-      [:usr::my-sift::SiftRulesResponse::RequestTooLarge {:_bytes _bytes :_cap _cap}
+      [:usr::my-sift::SiftRulesResponse::Deductions {:items items :cursor _cur} (:wat::core::length items)]
+      [:usr::my-sift::SiftRulesResponse::Fatal {:err _err} -1]
+      [:usr::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
         (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-      [:usr::my-sift::SiftRulesResponse::RequestMalformed {:mpath mpath :mexpected mexpected :mgot mgot}
+      [:usr::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
         (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))
 
 ;; ── PROCESS locus — the loci-agnostic proof. SAME scenario across a FORK: mem-store' + journal'
@@ -112,11 +112,11 @@
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse::Deductions {:items items :_cur _cur} (:wat::core::length items)]
-      [:usr::my-sift::SiftRulesResponse::Fatal {:_err _err} -1]
-      [:usr::my-sift::SiftRulesResponse::RequestTooLarge {:_bytes _bytes :_cap _cap}
+      [:usr::my-sift::SiftRulesResponse::Deductions {:items items :cursor _cur} (:wat::core::length items)]
+      [:usr::my-sift::SiftRulesResponse::Fatal {:err _err} -1]
+      [:usr::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
         (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
-      [:usr::my-sift::SiftRulesResponse::RequestMalformed {:mpath mpath :mexpected mexpected :mgot mgot}
+      [:usr::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
         (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))
 
 ;; ── THREAD locus — fail-closed: one Log's message is `:usr::Other`, NOT among :defs. The WHOLE
@@ -145,7 +145,7 @@
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse::Fatal {:_err _err} true]
+      [:usr::my-sift::SiftRulesResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))
 
 ;; ── PROCESS locus — same fail-closed guard, across a FORK. ──
@@ -181,5 +181,5 @@
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse::Fatal {:_err _err} true]
+      [:usr::my-sift::SiftRulesResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))
